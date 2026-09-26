@@ -2071,7 +2071,7 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Update node data.
+     * Update node data, as one undoable step.
      * @param updates - Array of update objects with id and properties to update
      * @param options - Queue options for operation ordering
      * @returns Promise that resolves when nodes are updated
@@ -2088,6 +2088,24 @@ export class Graphty extends LitElement {
         options?: import("./utils/queue-migration").QueueableOptions,
     ): Promise<void> {
         return this.#graph.updateNodes(updates, options);
+    }
+
+    /**
+     * Update edge data, as one undoable step. Keys not named are kept; an id the graph does not
+     * hold is skipped.
+     * @param updates - The edge id and the new values of each edge
+     * @param options - Queue options for operation ordering
+     * @returns Promise that resolves when the edges are updated
+     * @example
+     * ```typescript
+     * await element.updateEdges([{ id: "0", label: "knows" }]);
+     * ```
+     */
+    async updateEdges(
+        updates: { id: string; [key: string]: unknown }[],
+        options?: import("./utils/queue-migration").QueueableOptions,
+    ): Promise<void> {
+        return this.#graph.updateEdges(updates, options);
     }
 
     /**

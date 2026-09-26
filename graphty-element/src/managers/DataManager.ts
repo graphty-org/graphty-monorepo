@@ -2,7 +2,7 @@ import { type DerivedGraph, type GraphSnapshot, INVALID_INDEX, type U32 } from "
 
 import type { EdgeId } from "../catalog/types";
 import type { AdHocData } from "../config";
-import { edgeIdOf } from "../data/edgeIdentity";
+import { edgeCounterOf, edgeIdOf } from "../data/edgeIdentity";
 import { GraphStore } from "../data/GraphStore";
 import type { ElementPositions } from "../data/positions";
 import type { ImportReport } from "../data/report";
@@ -10,8 +10,12 @@ import { Edge, EdgeMap } from "../Edge";
 import type { LayoutEngine } from "../layout/LayoutEngine";
 import { MeshCache } from "../meshes/MeshCache";
 import { Node, NodeIdType } from "../Node";
+import type { DataMutation } from "../session/commands/data";
+import type { Dispatcher } from "../session/project/Dispatcher";
+import { GraphOps, type GraphWriter } from "../session/project/graphOps";
 import { type AddEdgesOptions, Ingest, type IngestHost, type StoredEdge } from "../session/project/ingest";
-import type { DirectionProvenance } from "../session/types";
+import type { GraphSlice } from "../session/project/state";
+import type { DirectionProvenance, HistoryCause } from "../session/types";
 import type { Styles } from "../Styles";
 import type { EventManager } from "./EventManager";
 import type { GraphContext } from "./GraphContext";
@@ -144,6 +148,18 @@ export class DataManager implements Manager {
     private readonly ingest: Ingest<ExistingEdge> = new Ingest(this.ingestHost());
 
     /**
+     * The graph primitives every write goes through. A data manager on its own has nothing to
+     * record into; the graph's session hands it its own in {@link DataManager.bindSession}.
+     */
+    private graph: GraphOps = GraphOps.standalone();
+
+    /** The session's dispatcher, once bound: the data doors dispatch through it. */
+    private dispatcher: Dispatcher | null = null;
+
+    /** Why rows are arriving: set while a dispatched command writes, for the `data-added` event. */
+    private cause: HistoryCause | undefined = undefined;
+
+    /**
      * Creates an instance of DataManager
      * @param eventManager - Event manager for emitting data events
      * @param styles - Styles instance for applying styles to data
@@ -221,7 +237,162 @@ export class DataManager implements Manager {
      * @returns the report, or null when nothing has been loaded into this graph
      */
     get lastImport(): ImportReport | null {
-        return this.ingest.lastImport;
+        return (this.graph.slice.values.get("importReport") as ImportReport | undefined) ?? null;
+    }
+
+    /**
+     * Write through the session from here on: the data doors dispatch `data.apply`, and the
+     * session's `data.apply` is carried out by this manager's ingest, over this manager's store.
+     * @param dispatcher - The session's dispatcher.
+     * @param rowsAdded - Called once by each command that adds rows, after it wrote them.
+     */
+    bindSession(dispatcher: Dispatcher, rowsAdded: () => void): void {
+        this.dispatcher = dispatcher;
+        this.graph = dispatcher.graph;
+        dispatcher.services.data = {
+            apply: (mutation, draft) => {
+                this.applyMutation(mutation, this.graph.writer(draft, this.store));
+                if (mutation.kind === "add-nodes" || mutation.kind === "add-edges") {
+                    rowsAdded();
+                }
+            },
+        };
+    }
+
+    /**
+     * Carry out one mutation through ingest, drawing what it adds as it goes.
+     * @param mutation - The mutation.
+     * @param writer - The command's writer.
+     */
+    private applyMutation(mutation: DataMutation, writer: GraphWriter): void {
+        const {cause} = this;
+        this.cause = "command";
+        try {
+            this.ingest.apply(mutation, writer, (target, id) => this.resolveId(target, id));
+        } finally {
+            this.cause = cause;
+        }
+    }
+
+    /**
+     * The id a node is held under, for an id that may be spelled as the other type (see
+     * {@link DataManager.getNode}); an edge id is taken as it is.
+     * @param target - Node or edge.
+     * @param id - The id as given.
+     * @returns The id the graph holds it under, or the one given when it holds none.
+     */
+    private resolveId(target: "node" | "edge", id: NodeIdType): NodeIdType {
+        return target === "node" ? (this.getNode(id)?.id ?? id) : id;
+    }
+
+    /**
+     * Bring the render objects in line with the `graph` slice: what the derivation lane's `graph`
+     * hook runs, forward and on undo, redo and rollback alike. A node or edge the slice holds and
+     * nothing draws is built; one drawn that the slice no longer holds is torn down; one whose
+     * record changed is handed the new record. Forward adds were drawn as they were ingested, so
+     * for them this finds nothing to build.
+     * @param slice - The slice to draw.
+     * @param dirty - The slice's keys changed since the last pass.
+     * @param cause - What moved the state, for the events.
+     * @returns How many rows were built and torn down.
+     */
+    reconcile(slice: GraphSlice, dirty: ReadonlySet<string>, cause: HistoryCause): { added: number; removed: number } {
+        const removedNodes: NodeIdType[] = [];
+        const removedEdges: EdgeId[] = [];
+        let addedNodes = 0;
+        let addedEdges = 0;
+        const edgeKeys: EdgeId[] = [];
+        for (const key of dirty) {
+            if (key.startsWith("e:")) {
+                edgeKeys.push(key.slice(2));
+            } else if (key.startsWith("n:")) {
+                const id = JSON.parse(key.slice(2)) as NodeIdType;
+                const record = slice.nodes.get(id);
+                const node = this.nodes.get(id);
+                if (record === undefined && node !== undefined) {
+                    removedEdges.push(...this.dropRenderNode(node));
+                    removedNodes.push(id);
+                } else if (record !== undefined && node === undefined) {
+                    this.buildNode(id, record as Record<string, unknown>, this.store.builder.indexOf(id));
+                    addedNodes++;
+                } else if (record !== undefined && node !== undefined) {
+                    node.adoptRecord(record as AdHocData<string | number>);
+                }
+            }
+        }
+
+        // Edges after nodes: an edge is built only once both its endpoints are drawn.
+        for (const id of edgeKeys) {
+            const record = slice.edges.get(id);
+            const edge = this.edges.get(id);
+            const counter = edgeCounterOf(id);
+            const pending = this.pendingEdges.find((entry) => entry.edgeId === counter);
+            if (record === undefined) {
+                if (edge !== undefined) {
+                    this.teardownEdge(edge, edge.index);
+                    removedEdges.push(id);
+                } else if (pending !== undefined) {
+                    this.forgetPending(pending);
+                    this.pendingEdges.splice(this.pendingEdges.indexOf(pending), 1);
+                    removedEdges.push(id);
+                }
+            } else if (edge !== undefined) {
+                edge.adoptRecord(record as AdHocData);
+            } else if (pending !== undefined) {
+                pending.record = record as Record<string, unknown>;
+            } else {
+                const row = this.store.edgeIndexOf(counter);
+                if (row !== INVALID_INDEX) {
+                    const [source, target] = this.store.builder.edgeEndpoints(row);
+                    this.buildEdge({
+                        record: record as Record<string, unknown>,
+                        sourceId: this.store.builder.idOf(source),
+                        targetId: this.store.builder.idOf(target),
+                        edgeIndex: row,
+                        edgeId: counter,
+                    });
+                    addedEdges++;
+                }
+            }
+        }
+
+        if (addedNodes > 0) {
+            this.processPendingEdges();
+            this.eventManager.emitDataAdded("nodes", addedNodes, false, false, cause);
+        }
+
+        if (addedEdges > 0) {
+            this.eventManager.emitDataAdded("edges", addedEdges, false, false, cause);
+        }
+
+        if (removedNodes.length > 0 || removedEdges.length > 0) {
+            this.eventManager.emitElementsRemoved(removedNodes, removedEdges, cause);
+        }
+
+        return { added: addedNodes + addedEdges, removed: removedNodes.length + removedEdges.length };
+    }
+
+    /**
+     * Tear down one node's render objects and every render edge attached to it, leaving the store
+     * alone: the store already reflects the state being drawn.
+     * @param node - The node.
+     * @returns The ids of the edges torn down with it.
+     */
+    private dropRenderNode(node: Node): EdgeId[] {
+        const removed: EdgeId[] = [];
+        for (const edge of [...this.edges.values()]) {
+            if (edge.srcId === node.id || edge.dstId === node.id) {
+                this.teardownEdge(edge, edge.index);
+                removed.push(edge.id);
+            }
+        }
+
+        this.nodes.delete(node.id);
+        this.nodeCache.delete(node.id);
+        node.index = INVALID_INDEX;
+        this.layoutEngine?.removeNode(node);
+        node.dispose();
+        return removed;
     }
 
     /**
@@ -239,7 +410,7 @@ export class DataManager implements Manager {
             edgeAt: (edgeIndex) => this.existingAt(edgeIndex),
             replaceEdgeRecord: (known, record) => {
                 if (known.edge) {
-                    known.edge.data = record as AdHocData;
+                    known.edge.adoptRecord(record as AdHocData);
                 } else if (known.pending) {
                     known.pending.record = record;
                 }
@@ -259,11 +430,11 @@ export class DataManager implements Manager {
                 this.processPendingEdges();
 
                 // Emit event to notify graph that data has been added
-                this.eventManager.emitDataAdded("nodes", count, true, true);
+                this.eventManager.emitDataAdded("nodes", count, true, true, this.cause);
             },
             edgesArrived: (count) => {
                 this.shouldStartLayout = true;
-                this.eventManager.emitDataAdded("edges", count, true, false);
+                this.eventManager.emitDataAdded("edges", count, true, false, this.cause);
             },
             loadProgress: (progress) => {
                 if (this.graphContext) {
@@ -589,7 +760,15 @@ export class DataManager implements Manager {
      * @param idPath - JMESPath expression to extract node ID from data
      */
     addNodes(nodes: Record<string | number, unknown>[], idPath?: string): void {
-        this.ingest.addNodes(nodes, idPath);
+        if (this.dispatcher === null) {
+            this.ingest.addNodes(nodes, idPath, this.graph.writer(null, this.store));
+            return;
+        }
+
+        this.dispatcher.dispatchNow({
+            op: "data.apply",
+            mutation: { kind: "add-nodes", records: nodes, ...(idPath === undefined ? {} : { idPath }) },
+        });
     }
 
     /**
@@ -771,6 +950,7 @@ export class DataManager implements Manager {
         // which is the incident set the cascade tears down. Edges go BEFORE the node is disposed:
         // an edge reads `srcNode.mesh` and `dstNode.mesh` while tearing itself down.
         const removedEdges = this.detachNodeFromStore(node);
+        this.graph.dropRecords("DataManager.removeNodeAndIncidentEdges", [node.id], removedEdges);
 
         // Remove from layout engine
         this.layoutEngine?.removeNode(node);
@@ -898,7 +1078,21 @@ export class DataManager implements Manager {
      *     with `E_DUPLICATE_EDGE` under the `"error"` repeat policy.
      */
     addEdges(edges: Record<string | number, unknown>[], options?: AddEdgesOptions): void {
-        this.ingest.addEdges(edges, options);
+        if (this.dispatcher === null) {
+            this.ingest.addEdges(edges, options, this.graph.writer(null, this.store));
+            return;
+        }
+
+        this.dispatcher.dispatchNow({
+            op: "data.apply",
+            mutation: {
+                kind: "add-edges",
+                records: edges,
+                ...(options?.source === undefined ? {} : { source: options.source }),
+                ...(options?.target === undefined ? {} : { target: options.target }),
+                ...(options?.repeated === undefined ? {} : { repeated: options.repeated }),
+            },
+        });
     }
 
     /**
@@ -1008,15 +1202,9 @@ export class DataManager implements Manager {
             this.removeEdge(id);
         }
 
-        this.addEdges(edges, options);
-    }
-
-    /**
-     * Say that node or edge attributes were written in place, so every reader keyed on the
-     * snapshot (the visibility masks, a filter's mask copy) sees a new graph and asks again.
-     */
-    noteAttributesChanged(): void {
-        this.store.touch();
+        this.graph.withUnrecordedWrites("DataManager.setEdges", this.store, (writer) => {
+            this.ingest.addEdges(edges, options, writer);
+        });
     }
 
     /**
@@ -1036,6 +1224,7 @@ export class DataManager implements Manager {
             this.store.touch();
         }
 
+        this.graph.dropRecords("DataManager.removeEdge", [], [edge.id]);
         this.teardownEdge(edge, index);
         return true;
     }
@@ -1048,7 +1237,9 @@ export class DataManager implements Manager {
      * @param opts - Options to pass to the data source
      */
     async addDataFromSource(type: string, opts: object = {}): Promise<void> {
-        await this.ingest.addDataFromSource(type, opts);
+        await this.graph.withUnrecordedWrites("DataManager.addDataFromSource", this.store, (writer) =>
+            this.ingest.addDataFromSource(type, opts, writer),
+        );
     }
 
     // Utility methods
@@ -1078,6 +1269,7 @@ export class DataManager implements Manager {
 
         // Drop the graph data itself, not only the render objects built from it.
         this.resetStore();
+        this.graph.discardAll("DataManager.clear");
 
         // Clear graph-level results
         this.graphResults = undefined;

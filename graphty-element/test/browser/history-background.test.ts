@@ -40,6 +40,8 @@ async function loadedGraph(): Promise<Graph> {
     await graph.setLayout("circular");
     await graph.addNodes([{ id: "a" }, { id: "b" }]);
     await graph.operationQueue.waitForCompletion();
+    // Adding the nodes is a step; the tests here start from the loaded graph as their baseline.
+    graph.getSession().history.clear();
     cleanups.push(() => {
         graph.dispose();
         container.remove();

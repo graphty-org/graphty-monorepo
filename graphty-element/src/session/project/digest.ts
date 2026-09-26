@@ -7,9 +7,13 @@
  * object keys are sorted. Functions (a compiled selector's predicate) are left out, because they
  * are derived from data that is hashed.
  *
- * The graph part hashes whatever the `graph` slice holds; it grows with the slice. The
- * arrangement part is off until captures are restored.
+ * The graph part hashes the `graph` slice (the records by id and the graph-level values), and,
+ * given the snapshot, the rows behind it: node ids in row order, edges in row order
+ * with their endpoints and weights, and every column of the snapshot's tables except the two the
+ * positions lane lends it. The arrangement part is off until captures are restored.
  */
+
+import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { stableDigest } from "../runs/runId";
 import type { ProjectState } from "./state";
@@ -18,7 +22,12 @@ import type { ProjectState } from "./state";
 interface DigestOptions {
     /** Hash the `arrangement` slice. Off until undo restores coordinates. */
     readonly arrangement?: boolean;
+    /** The snapshot of the graph the state holds, whose rows are hashed with the slice. */
+    readonly snapshot?: GraphSnapshot;
 }
+
+/** The columns the positions lane lends every snapshot: coordinates, not rows. */
+const LANE_COLUMNS: ReadonlySet<string> = new Set(["position", "graphty.pinned"]);
 
 /**
  * The canonical text of a value.
@@ -93,7 +102,9 @@ function canonical(value: unknown, path: WeakSet<object>): string {
 export function stateDigest(state: ProjectState, options: DigestOptions = {}): string {
     const path = new WeakSet();
     const parts = [
-        `graph=${canonical(state.graph, path)}`,
+        // The records and graph values; the token and epoch name rows, they are not content, and
+        // a rollback takes a fresh token for rows that are the same.
+        `graph=${canonical({ nodes: state.graph.nodes, edges: state.graph.edges, values: state.graph.values }, path)}`,
         `pins=${canonical(state.pins, path)}`,
         `config=${canonical(state.config, path)}`,
         `layout=${canonical(state.layout, path)}`,
@@ -103,9 +114,47 @@ export function stateDigest(state: ProjectState, options: DigestOptions = {}): s
         `scopes=${canonical(state.scopes, path)}`,
         `views=${canonical(state.views, path)}`,
     ];
+    if (options.snapshot !== undefined) {
+        parts.push(`rows=${rowsDigest(options.snapshot, path)}`);
+    }
+
     if (options.arrangement === true) {
         parts.push(`arrangement=${canonical(state.arrangement, path)}`);
     }
 
     return stableDigest(parts.join("\n"));
+}
+
+/**
+ * The canonical text of a snapshot's rows: row order is meaningful here, so nothing is sorted
+ * except the column names.
+ * @param snapshot - The snapshot.
+ * @param path - The cycle guard of the digest being written.
+ * @returns Its text.
+ */
+function rowsDigest(snapshot: GraphSnapshot, path: WeakSet<object>): string {
+    const { ids, weights, edgeToArc } = snapshot;
+    const edges = Array.from({ length: snapshot.edgeCount }, (_, edge) => [
+        ids.idOf(snapshot.edgeSource(edge)),
+        ids.idOf(snapshot.edgeTarget(edge)),
+        weights === null ? 1 : weights[edgeToArc[edge]],
+    ]);
+    const tables = { nodes: snapshot.nodes, edges: snapshot.edges, graph: snapshot.graph };
+    const columns = Object.entries(tables).map(([table, columns]) =>
+        [...columns.names()]
+            .filter((name) => !LANE_COLUMNS.has(name))
+            .sort()
+            .map((name) => {
+                const values = Array.from({ length: columns.rowCount }, (_, row) => columns.value(name, row));
+                return `${table}.${name}=${canonical(values, path)}`;
+            })
+            .join(";"),
+    );
+
+    return [
+        `directed=${String(snapshot.directed)}`,
+        `nodes=${canonical(ids.toArray(), path)}`,
+        `edges=${canonical(edges, path)}`,
+        ...columns,
+    ].join("|");
 }

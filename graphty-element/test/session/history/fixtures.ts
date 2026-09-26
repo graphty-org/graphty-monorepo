@@ -92,6 +92,48 @@ async function labelledThenLayer(session: GraphSession): Promise<void> {
 /** Every fixture. */
 export const FIXTURES: readonly RoundTripFixture[] = [
     {
+        name: "data.apply add-nodes",
+        variant: "add-nodes",
+        tags: BOTH,
+        command: { op: "data.apply", mutation: { kind: "add-nodes", records: [{ id: "n4", name: "four" }] } },
+    },
+    {
+        name: "data.apply add-edges",
+        variant: "add-edges",
+        tags: BOTH,
+        command: { op: "data.apply", mutation: { kind: "add-edges", records: [{ src: "n3", dst: "n1", kind: "back" }] } },
+    },
+    {
+        name: "data.apply add-edges folding a repeat into the edge it repeats",
+        variant: "add-edges",
+        tags: ["session"],
+        command: {
+            op: "data.apply",
+            mutation: { kind: "add-edges", records: [{ src: "n1", dst: "n2", weight: 3 }], repeated: "sum" },
+        },
+    },
+    {
+        name: "data.apply set-attributes",
+        variant: "set-attributes",
+        tags: BOTH,
+        command: { op: "data.apply", mutation: { kind: "set-attributes", target: "node", ids: ["n1", "n2"], values: { type: "hub" } } },
+    },
+    {
+        name: "data.apply update-rows on nodes",
+        variant: "update-rows",
+        tags: BOTH,
+        command: {
+            op: "data.apply",
+            mutation: { kind: "update-rows", target: "node", rows: [{ id: "n3", values: { name: "three", t: 4 } }] },
+        },
+    },
+    {
+        name: "data.apply update-rows on edges",
+        variant: "update-rows",
+        tags: BOTH,
+        command: { op: "data.apply", mutation: { kind: "update-rows", target: "edge", rows: [{ id: "1", values: { kind: "next" } }] } },
+    },
+    {
         name: "style.patch add",
         variant: "add",
         tags: BOTH,

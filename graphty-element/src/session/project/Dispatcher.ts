@@ -28,6 +28,7 @@
 
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { OperationCategory } from "../../managers/OperationQueueManager";
+import type { DataService } from "../commands/data";
 import type { ScopeService } from "../commands/scope";
 import type { StyleService } from "../commands/style";
 import type { CameraService } from "../commands/view";
@@ -37,11 +38,14 @@ import {
     createProjectStore,
     deepFreezeArgs,
     type Draft,
+    isEmptyPatch,
     mergePatches,
     type Patch,
+    patchBytes,
     type ProjectStore,
-    type ValueSlice,
+    type Slice,
 } from "./draft";
+import { GraphOps } from "./graphOps";
 import { History, type HistoryChangeReason } from "./History";
 import { createProjectState, type ProjectState } from "./state";
 import { checkSoleHolder, strictStateEnabled } from "./strict";
@@ -68,6 +72,7 @@ const RUN_CATEGORY: OperationCategory = "algorithm-run";
  * slice's API sets its own part when it is built.
  */
 interface CommandServices {
+    data?: DataService;
     styles?: StyleService;
     visibility?: VisibilityService;
     scopes?: ScopeService;
@@ -315,7 +320,7 @@ interface Job {
     /** The group whose hold it is waiting on. */
     blockedBy: Group | null;
     /** A transaction member's revert of its own writes. */
-    revert: (() => readonly ValueSlice[]) | null;
+    revert: (() => readonly Slice[]) | null;
     readonly promise: Promise<unknown>;
     resolve(value: unknown): void;
     reject(error: unknown): void;
@@ -419,8 +424,8 @@ function opLogKeys(keys: readonly SliceKey[]): SliceKey[] {
  * @param patch - The patch.
  * @returns The slices.
  */
-function slicesOf(patch: Patch): readonly ValueSlice[] {
-    return [...new Set(patch.entries.map((entry) => entry.slice))];
+function slicesOf(patch: Patch): readonly Slice[] {
+    return [...new Set<Slice>([...patch.entries.map((entry) => entry.slice), ...patch.log.map((entry) => entry.slice)])];
 }
 
 /**
@@ -489,6 +494,8 @@ export class Dispatcher {
     readonly events: DispatcherEvents;
     /** What definitions reach besides state; see {@link CommandServices}. */
     readonly services: CommandServices = {};
+    /** The graph primitives over this dispatcher's `graph` slice. */
+    readonly graph: GraphOps;
     private readonly store: ProjectStore;
     private readonly definitions = new Map<string, CommandDefinition<CommandLike>>();
     private readonly scheduler: Scheduler;
@@ -515,6 +522,8 @@ export class Dispatcher {
     private readonly reasons: HistoryReason[] = [];
     /** Above zero while a listener runs: a history call made then waits for a microtask. */
     private emitting = 0;
+    /** What an immediate command threw synchronously, for {@link Dispatcher.dispatchNow}. */
+    private syncFailure: { error: unknown } | null = null;
 
     /**
      * Create a dispatcher over a state it alone will write.
@@ -529,6 +538,21 @@ export class Dispatcher {
             this.lane.touch(slice, key);
         });
         this.lane = new DerivationLane(this.store.state);
+        const state = this.store.state as { graph: ProjectState["graph"] };
+        this.graph = new GraphOps({
+            read: () => state.graph,
+            write: (slice) => {
+                state.graph = slice;
+            },
+            touch: (key) => {
+                this.lane.touch("graph", key);
+            },
+            forget: () => {
+                this.forget();
+            },
+            strict: this.strict,
+            session: true,
+        });
         this.events = { ...options.events };
         this.scheduler = options.scheduler ?? NO_SCHEDULER;
         this.history = new History<Patch>({
@@ -751,6 +775,37 @@ export class Dispatcher {
     }
 
     /**
+     * Drop every step without cancelling pending work: something wrote project state without
+     * recording, so no step below it can be undone to a state that still exists.
+     */
+    forget(): void {
+        if (this.history.steps.length === 0) {
+            return;
+        }
+
+        this.history.clear();
+        this.steps.clear();
+    }
+
+    /**
+     * Do one immediate command now, and throw what it throws, for a synchronous door. A queued
+     * command is refused: it cannot run before this returns.
+     * @param command - The command.
+     * @returns What `execute` returned.
+     */
+    dispatchNow<C extends CommandLike>(command: Dispatchable<C>): unknown {
+        this.syncFailure = null;
+        const promise = this.submit(command, null) as Promise<unknown>;
+        const failure = this.syncFailure as { error: unknown } | null;
+        this.syncFailure = null;
+        if (failure !== null) {
+            throw failure.error;
+        }
+
+        return promise;
+    }
+
+    /**
      * Cancel one pending item, and every later-dispatched pending item that shares a key with it.
      * @param id - The item's id in `pending`.
      * @returns Every item cancelled; empty when the id is not pending.
@@ -800,7 +855,7 @@ export class Dispatcher {
             return { kind: "cancelled", pending: this.cancelAll(plan.cancel, direction) };
         }
 
-        this.lane.restore();
+        this.lane.restore(direction);
         const step = direction === "undo" ? this.history.undo() : this.history.redo();
         if (step === null) {
             return { kind: "nothing" };
@@ -1165,6 +1220,7 @@ export class Dispatcher {
         try {
             out = definition.execute(command, ctx);
         } catch (error) {
+            this.syncFailure = { error };
             this.fail(job, error);
             return;
         }
@@ -1305,9 +1361,17 @@ export class Dispatcher {
         const patch = group.draft.seal();
         const oplog = [...group.holds.keys()];
         let id: string | null = null;
-        if (patch.entries.length > 0) {
+        if (!isEmptyPatch(patch)) {
             const slices = slicesOf(patch);
-            const input = { label: group.label, patch, key: group.key, ops: group.ops, slices };
+            const bytes = patchBytes(patch);
+            const input = {
+                label: group.label,
+                patch,
+                key: group.key,
+                ops: group.ops,
+                slices,
+                bytes: { done: bytes, undone: bytes },
+            };
             if (group.after !== null && this.history.amend(group.after, input)) {
                 id = group.after;
             } else {
@@ -1350,7 +1414,7 @@ export class Dispatcher {
      */
     private reverted(slices: readonly string[]): void {
         if (slices.length > 0) {
-            this.lane.restore();
+            this.lane.restore("rollback");
             const change = { slices, cause: "rollback" as const };
             this.emit(change, [change]);
         }

@@ -12,8 +12,10 @@
  * else's later write, and undoing every step still returns to the state before all of them. See
  * design/undo/undo-design.md section 4.3, "Value slices hand the key over".
  *
- * This module covers the value slices. The op-log slices (`graph`, `pins`) and the `arrangement`
- * capture have writers of their own.
+ * This module covers the value slices. The op-log slices (`graph`, `pins`) have writers of their
+ * own (`./graphOps.ts`), which write live state themselves and hand the draft an {@link OpLogEntry}
+ * saying how to put the write back and do it again; the draft keeps those entries in order, and
+ * undo, redo and rollback run them. The `arrangement` capture has a writer of its own too.
  */
 
 import type { CameraState } from "../../camera/types";
@@ -27,7 +29,7 @@ import { strictStateEnabled, strictViolation } from "./strict";
 export const ABSENT: unique symbol = Symbol("absent");
 
 /** The slices a draft writes by value. */
-export type ValueSlice = "config" | "layout" | "runs" | "styles" | "visibility" | "scopes" | "views";
+type ValueSlice = "config" | "layout" | "runs" | "styles" | "visibility" | "scopes" | "views";
 
 /** One key a patch wrote: what it held before, and what the patch left in it. */
 interface PatchEntry {
@@ -38,9 +40,47 @@ interface PatchEntry {
     readonly next: unknown;
 }
 
+/** A slice a patch can touch, by value or as an op-log. */
+export type Slice = ValueSlice | "graph" | "pins";
+
+/**
+ * One write to an op-log slice, recorded by the primitive that made it: live state already holds
+ * the write, and this says how to undo and redo it on resolved values. An entry may still grow
+ * while its draft is open (a chunked writer appends rows to it); it is never changed once sealed.
+ */
+export interface OpLogEntry {
+    readonly slice: "graph" | "pins";
+    /** Put the write back. `rollback` is true when the group never recorded it. */
+    undo(rollback: boolean): void;
+    /** Write it again, exactly as it was written. */
+    redo(): void;
+    /** What it retains, approximately, in bytes. */
+    bytes(): number;
+}
+
 /** What a sealed draft recorded. Frozen. */
 export interface Patch {
     readonly entries: readonly PatchEntry[];
+    /** The op-log writes, in the order they were made. */
+    readonly log: readonly OpLogEntry[];
+}
+
+/**
+ * Whether a patch recorded anything.
+ * @param patch - The patch.
+ * @returns True when it wrote a value key or an op-log entry.
+ */
+export function isEmptyPatch(patch: Patch): boolean {
+    return patch.entries.length === 0 && patch.log.length === 0;
+}
+
+/**
+ * What a patch retains, for the history's byte budget.
+ * @param patch - The patch.
+ * @returns Bytes; value entries are held by reference and count nothing here.
+ */
+export function patchBytes(patch: Patch): number {
+    return patch.log.reduce((sum, entry) => sum + entry.bytes(), 0);
 }
 
 /** Writes one key of a keyed slice. */
@@ -60,6 +100,11 @@ export interface Draft {
     readonly visibility: {
         set<K extends keyof VisibilityState>(key: K, value: VisibilityState[K]): void;
     };
+    /**
+     * Keep an op-log write, made to live state already, so undo, redo and rollback can reach it.
+     * @param entry - How to put it back and do it again.
+     */
+    log(entry: OpLogEntry): void;
     /** Close the draft and hand back what it recorded. */
     seal(): Patch;
     /**
@@ -72,7 +117,7 @@ export interface Draft {
      * @returns A function that puts back every key written since, releases the keys first written
      * since, and returns the slices it changed. Keys handed to another draft since are theirs.
      */
-    checkpoint(): () => readonly ValueSlice[];
+    checkpoint(): () => readonly Slice[];
 }
 
 /** Project state plus the drafts that write it. */
@@ -96,6 +141,7 @@ interface OpenEntry {
 /** The mutable side of one open draft. */
 interface OpenDraft {
     readonly entries: Map<string, OpenEntry>;
+    readonly log: OpLogEntry[];
     closed: boolean;
 }
 
@@ -215,13 +261,14 @@ export function createProjectStore(
     const store: ProjectStore = {
         state,
         open(): Draft {
-            const draft: OpenDraft = { entries: new Map(), closed: false };
+            const draft: OpenDraft = { entries: new Map(), log: [], closed: false };
             openDrafts.add(draft);
             const seal = (): Patch => {
                 close(draft);
 
                 return Object.freeze({
                     entries: Object.freeze([...draft.entries.values()].map((entry) => Object.freeze({ ...entry }))),
+                    log: Object.freeze([...draft.log]),
                 });
             };
 
@@ -247,17 +294,30 @@ export function createProjectStore(
                         write(draft, "visibility", key, value);
                     },
                 },
+                log(entry) {
+                    if (draft.closed) {
+                        throw new Error(`A closed draft cannot write ${entry.slice}.`);
+                    }
+
+                    draft.log.push(entry);
+                },
                 seal,
                 rollback() {
                     const patch = seal();
-                    store.applyBackward(patch);
+                    backward(patch, true);
                     return patch;
                 },
                 checkpoint() {
                     const saved = new Map([...draft.entries].map(([id, entry]) => [id, entry.next]));
+                    const logged = draft.log.length;
 
                     return () => {
-                        const changed = new Set<ValueSlice>();
+                        const changed = new Set<Slice>();
+                        for (const entry of draft.log.splice(logged).reverse()) {
+                            entry.undo(true);
+                            changed.add(entry.slice);
+                        }
+
                         for (const [id, entry] of draft.entries) {
                             if (!saved.has(id)) {
                                 put(entry.slice, entry.key, entry.prior);
@@ -280,14 +340,31 @@ export function createProjectStore(
             for (const entry of patch.entries) {
                 put(entry.slice, entry.key, entry.next);
             }
-        },
-        applyBackward(patch) {
-            for (let index = patch.entries.length - 1; index >= 0; index--) {
-                const entry = patch.entries[index];
-                put(entry.slice, entry.key, entry.prior);
+
+            for (const entry of patch.log) {
+                entry.redo();
             }
         },
+        applyBackward(patch) {
+            backward(patch, false);
+        },
     };
+
+    /**
+     * Put every key of a patch back, and undo its op-log writes newest first.
+     * @param patch - The patch.
+     * @param rollback - Whether the patch was never recorded.
+     */
+    function backward(patch: Patch, rollback: boolean): void {
+        for (let index = patch.log.length - 1; index >= 0; index--) {
+            patch.log[index].undo(rollback);
+        }
+
+        for (let index = patch.entries.length - 1; index >= 0; index--) {
+            const entry = patch.entries[index];
+            put(entry.slice, entry.key, entry.prior);
+        }
+    }
 
     return store;
 }
@@ -311,7 +388,7 @@ export function mergePatches(older: Patch, newer: Patch): Patch {
         merged.set(id, first === undefined ? entry : Object.freeze({ ...entry, prior: first.prior }));
     }
 
-    return Object.freeze({ entries: Object.freeze([...merged.values()]) });
+    return Object.freeze({ entries: Object.freeze([...merged.values()]), log: Object.freeze([...older.log, ...newer.log]) });
 }
 
 /**

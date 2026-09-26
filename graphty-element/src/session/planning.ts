@@ -19,6 +19,7 @@
 import type { AlgorithmDescriptor, AlgorithmKey, FieldDescriptor, RunId, Scope } from "../catalog/types";
 import type { GraphtyErrorCode } from "../errors";
 import type { ConfigSetCommand } from "./commands/config";
+import type { DataCommand } from "./commands/data";
 import type { ScopeCommand } from "./commands/scope";
 import type { StyleCommand } from "./commands/style";
 import type { ViewCommand } from "./commands/view";
@@ -75,6 +76,7 @@ export interface AlgorithmRunCommand {
  */
 export type SessionCommand =
     | AlgorithmRunCommand
+    | DataCommand
     | StyleCommand
     | VisibilityCommand
     | ScopeCommand

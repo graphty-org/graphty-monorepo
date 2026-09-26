@@ -9,6 +9,7 @@ import { GraphtyError } from "../../errors/GraphtyError";
 import type { AlgorithmRunCommand, SessionCommand } from "../planning";
 import type { CommandDefinition, UndoableDefinition } from "../project/Dispatcher";
 import { CONFIG_DEFINITIONS } from "./config";
+import { DATA_DEFINITIONS } from "./data";
 import { SCOPE_DEFINITIONS } from "./scope";
 import { STYLE_DEFINITIONS } from "./style";
 import { VIEW_DEFINITIONS } from "./view";
@@ -38,6 +39,7 @@ const algoRun: UndoableDefinition<AlgorithmRunCommand> = {
 /** Every op's definition, one per op. */
 export const DEFINITIONS: readonly CommandDefinition<SessionCommand>[] = [
     algoRun,
+    ...DATA_DEFINITIONS,
     ...STYLE_DEFINITIONS,
     ...VISIBILITY_DEFINITIONS,
     ...SCOPE_DEFINITIONS,

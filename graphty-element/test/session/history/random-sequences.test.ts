@@ -7,7 +7,7 @@
  * The session runs on a fake clock and a fake queue (`./fakes.ts`), so fast-check decides when
  * time passes and when every scheduled promise settles, and a failure replays from its seed. The
  * model grows with every op a phase ports (design/undo/undo-plan.md, "How to read this plan",
- * rule 3); today it covers the style, visibility, saved-scope, saved-view and settings ops.
+ * rule 3); today it covers the style, visibility, saved-scope, saved-view, settings and data ops.
  *
  * Checked around every action: before it, the live state digest equals the digest recorded for
  * the current position, so a change that records no step fails at the next action; after every
@@ -69,7 +69,7 @@ type Command = fc.AsyncCommand<Model, Real>;
  * @returns The digest.
  */
 function live(real: Real): string {
-    return stateDigest(dispatcherOf(real.session).state);
+    return stateDigest(dispatcherOf(real.session).state, { snapshot: real.session.snapshot() });
 }
 
 /**
@@ -483,6 +483,38 @@ const COMMANDS = [
                 run: () => real.session.config.set({ layoutBehavior: { preSteps, minDelta } }),
             })),
     ),
+    fc.tuple(fc.constantFrom("n4", "n5", "n6"), fc.nat({ max: 3 })).map(
+        ([id, t]) =>
+            new Edit(`add node ${id}`, (real) => ({
+                key: null,
+                run: () => real.session.data.addNodes([{ id, t }]),
+            })),
+    ),
+    fc.tuple(fc.constantFrom("n1", "n2", "n3", "n4", "n7"), fc.constantFrom("n1", "n2", "n3", "n5", "n8")).map(
+        ([src, dst]) =>
+            new Edit(`add edge ${src} -> ${dst}`, (real) => ({
+                key: null,
+                run: () => real.session.data.addEdges([{ src, dst }]),
+            })),
+    ),
+    fc.tuple(fc.constantFrom("n1", "n2", "n3", "n4"), fc.nat({ max: 3 })).map(
+        ([id, t]) =>
+            new Edit(`set t of ${id} to ${String(t)}`, (real) => ({
+                key: null,
+                run: () => real.session.data.updateNodes([{ id, values: { t } }]),
+            })),
+    ),
+    fc.nat({ max: 3 }).map(
+        (weight) =>
+            new Edit(`tag every node with ${String(weight)}`, (real) => ({
+                key: null,
+                run: () =>
+                    real.session.execute({
+                        op: "data.apply",
+                        mutation: { kind: "set-attributes", target: "node", ids: ["n1", "n2", "n3"], values: { weight } },
+                    }),
+            })),
+    ),
     fc.constant(new Move("undo")),
     fc.constant(new Move("redo")),
     fc.constant(new Move("undo-twice")),
@@ -539,7 +571,7 @@ async function runSeed(seed: number, numRuns: number): Promise<void> {
     );
 }
 
-describe("random sequences of style, visibility, scope, view and settings edits and history moves", () => {
+describe("random sequences of style, visibility, scope, view, settings and data edits and history moves", () => {
     const only = process.env.FC_SEED;
     for (const seed of only === undefined ? SEEDS : [Number(only)]) {
         it(`holds for seed ${String(seed)}`, () => runSeed(seed, NUM_RUNS), SEED_TIMEOUT_MS);

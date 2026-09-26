@@ -12,7 +12,7 @@
  */
 
 import type { CameraState } from "../../camera/types";
-import type { LayoutId, NodeId, RunId, ScopeId } from "../../catalog/types";
+import type { EdgeId, LayoutId, NodeId, RunId, ScopeId } from "../../catalog/types";
 import type { AlgorithmRunCommand } from "../planning";
 import type { RunResult } from "../results/types";
 import type { RunRecord } from "../runs/types";
@@ -20,17 +20,35 @@ import type { SavedScopeRecord } from "../scope/ScopeApi";
 import type { CompiledLayer } from "../styles/Layer";
 import type { Filter, TimeWindow } from "../visibility/filter";
 
+/** One node or edge record as the graph holds it: the attributes it arrived with. */
+export type GraphRecord = Readonly<Record<string | number, unknown>>;
+
 /**
- * The `graph` slice.
- *
- * Only the graph token and epoch for now; topology, records and the import report join it when
- * the graph primitives do.
+ * The `graph` slice: an op-log. The topology (rows, endpoints, weights and the builder's columns)
+ * lives in the session's `GraphStore`; the slice holds what is keyed by id beside it. Only the
+ * graph primitives (`./graphOps.ts`) write it. See design/undo/undo-design.md section 3.4.
  */
-interface GraphSlice {
+export interface GraphSlice {
     /** Names one exact row order. Never reissued (see {@link Counter}). */
     readonly token: number;
     /** Names one dataset's coordinate space. Never reissued. */
     readonly epoch: number;
+    /** Node records by node id. */
+    readonly nodes: ReadonlyMap<NodeId, GraphRecord>;
+    /** Edge records by the element-assigned edge id. */
+    readonly edges: ReadonlyMap<EdgeId, GraphRecord>;
+    /** Graph-level values by name: the import report, graph-level results. */
+    readonly values: ReadonlyMap<string, unknown>;
+}
+
+/**
+ * An empty `graph` slice.
+ * @param token - Its graph token.
+ * @param epoch - Its graph epoch.
+ * @returns The slice, frozen; its maps are its own.
+ */
+export function emptyGraphSlice(token = 0, epoch = 0): GraphSlice {
+    return Object.freeze({ token, epoch, nodes: new Map(), edges: new Map(), values: new Map() });
 }
 
 /** The `layout` slice: which layout draws the graph, with what, and in how many dimensions. */
@@ -125,7 +143,7 @@ export function createCounter(): Counter {
  */
 export function createProjectState(init: Partial<ProjectState> = {}): ProjectState {
     return {
-        graph: init.graph ?? Object.freeze({ token: 0, epoch: 0 }),
+        graph: init.graph ?? emptyGraphSlice(),
         pins: new Set(init.pins),
         config: new Map(init.config),
         layout: init.layout ?? null,

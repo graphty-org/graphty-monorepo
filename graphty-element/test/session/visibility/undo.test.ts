@@ -274,15 +274,31 @@ describe("mask copies", () => {
         advance(LAPSE_MS);
         await session.visibility.set(SERVICES);
 
-        // n0 becomes a service, written the way the element writes an attribute: in place, and
-        // the store told.
+        // n0 becomes a service beneath the session, written the way a write the history does not
+        // record is: in place, with the store told and the graph token moved.
         harness.nodeAttributes.set(0, { type: "service", w: 0 });
-        harness.store.touch();
+        harness.touch();
         evaluations.mockClear();
         await session.undo();
 
         assert.deepEqual(visible(session), ["n2", "n4"], "a fresh evaluation, not the kept bytes");
         assert.strictEqual(evaluations.mock.calls.length, 1);
+    });
+
+    it("puts a copy back once a data step after it is undone, because the rows come back exactly", async () => {
+        const { session, advance } = clocked();
+        await session.visibility.set(HOSTS);
+        advance(LAPSE_MS);
+        await session.visibility.set(SERVICES);
+        advance(LAPSE_MS);
+        await session.data.addNodes([{ id: "extra", type: "host" }]);
+        await session.undo();
+        evaluations.mockClear();
+
+        await session.undo();
+
+        assert.deepEqual(visible(session), ["n0", "n2", "n4"]);
+        assert.strictEqual(evaluations.mock.calls.length, 0, "the hosts step's copy was taken under the same graph token");
     });
 
     it("does not use a copy taken before the run a filter reads was run again", async () => {

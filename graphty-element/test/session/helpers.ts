@@ -12,9 +12,9 @@ import {
     type SessionDataConfig,
     type SessionRunsOptions,
 } from "../../src/session";
-import { createElementSession } from "../../src/session/GraphSession";
-import { ingestDeclaredDirection, ingestEdge, ingestNode } from "../../src/session/project/ingest";
+import { createElementSession, dispatcherOf } from "../../src/session/GraphSession";
 import { edgeSpaceOf } from "../../src/session/scope/ScopeApi";
+import { ingestDeclaredDirection, ingestEdge, ingestNode } from "../helpers/rawIngest";
 
 /** One node record as a test writes it: an id plus whatever else it wants to say. */
 export interface NodeRow {
@@ -85,11 +85,17 @@ export interface Harness {
     /** Attribute bags by dense edge index. */
     edgeAttributes: Map<number, SessionAttributes>;
     /**
-     * Push more records in, exactly the way the data manager does.
+     * Push more records in beneath the session, as a write its history does not record: straight
+     * into the store and the record maps, then {@link Harness.touch}.
      * @param nodes - node records
      * @param edges - edge records
      */
     add(nodes: readonly NodeRow[], edges?: readonly EdgeRow[]): void;
+    /**
+     * Say that the rows or the records changed beneath the session: the store drops its snapshot
+     * and the graph token moves, as it does for every write the element makes.
+     */
+    touch(): void;
 }
 
 /**
@@ -139,11 +145,17 @@ export function makeSession(
             ? createGraphSession(sessionOptions)
             : createElementSession(sessionOptions, options.internals);
 
+    const touch = (): void => {
+        store.touch();
+        dispatcherOf(session).graph.retoken();
+    };
+
     return {
         session,
         store,
         nodeAttributes,
         edgeAttributes,
+        touch,
         add(nodes: readonly NodeRow[], edges: readonly EdgeRow[] = []): void {
             for (const row of nodes) {
                 const { index } = ingestNode(store, row.id, row);
@@ -156,6 +168,8 @@ export function makeSession(
                 const { src: _src, dst: _dst, source: _source, target: _target, ...rest } = row;
                 edgeAttributes.set(index, rest);
             }
+
+            touch();
         },
     };
 }

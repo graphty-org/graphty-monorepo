@@ -25,6 +25,7 @@ import type {
     SelectionChangedEvent,
 } from "../events";
 import type { Graph } from "../Graph";
+import type { HistoryCause } from "../session/types";
 import type { GraphContext } from "./GraphContext";
 import type { Manager } from "./interfaces";
 
@@ -176,12 +177,14 @@ export class EventManager implements Manager {
      * Emits the removal event naming every node and edge one removal call took away.
      * @param nodes - the nodes that were removed
      * @param edges - every edge that was attached to one of them
+     * @param cause - what removed them, when it came through the history
      */
-    emitElementsRemoved(nodes: NodeId[], edges: EdgeId[]): void {
+    emitElementsRemoved(nodes: NodeId[], edges: EdgeId[], cause?: HistoryCause): void {
         const event: ElementsRemovedEvent = {
             type: "elements-removed",
             nodes,
             edges,
+            ...(cause === undefined ? {} : { cause }),
         };
         this.graphObservable.notifyObservers(event);
     }
@@ -192,12 +195,14 @@ export class EventManager implements Manager {
      * @param count - Number of items added
      * @param shouldStartLayout - Whether layout should be started
      * @param shouldZoomToFit - Whether to zoom to fit the data
+     * @param cause - what added them, when it came through the history
      */
     emitDataAdded(
         dataType: "nodes" | "edges",
         count: number,
         shouldStartLayout: boolean,
         shouldZoomToFit: boolean,
+        cause?: HistoryCause,
     ): void {
         const event: GraphDataAddedEvent = {
             type: "data-added",
@@ -205,6 +210,7 @@ export class EventManager implements Manager {
             count,
             shouldStartLayout,
             shouldZoomToFit,
+            ...(cause === undefined ? {} : { cause }),
         };
         this.graphObservable.notifyObservers(event);
     }

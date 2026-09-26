@@ -355,6 +355,47 @@ export interface SessionDataApi {
      * @returns the fingerprint
      */
     fingerprint(): string;
+    /**
+     * Add node records, as one undoable step. A record's id is read through
+     * `data.knownFields.nodeIdPath`; a record whose id the graph already holds is skipped.
+     * @param records - The records.
+     * @returns Settles once the nodes are in the graph and drawn.
+     */
+    addNodes(records: readonly NodeRecordInput[]): Promise<void>;
+    /**
+     * Add edge records, as one undoable step. Endpoints are read through the configured edge id
+     * paths, the repeated-edge policy applies, and each edge is given an id.
+     * @param records - The records.
+     * @returns Settles once the edges are in the graph and drawn.
+     */
+    addEdges(records: readonly EdgeRecordInput[]): Promise<void>;
+    /**
+     * Change some attributes of existing nodes, as one undoable step. Keys not named are kept; an
+     * id the graph does not hold is skipped.
+     * @param rows - The new values, per node.
+     * @returns Settles once the change is drawn.
+     */
+    updateNodes(rows: readonly RowUpdate<NodeId>[]): Promise<void>;
+    /**
+     * Change some attributes of existing edges, as one undoable step.
+     * @param rows - The new values, per edge id.
+     * @returns Settles once the change is drawn.
+     */
+    updateEdges(rows: readonly RowUpdate<EdgeId>[]): Promise<void>;
+}
+
+/** A node record to add: its id is read through `data.knownFields.nodeIdPath`. */
+export type NodeRecordInput = Readonly<Record<string, unknown>>;
+
+/** An edge record to add: its endpoints are read through the edge id paths; its id is assigned. */
+export type EdgeRecordInput = Readonly<Record<string, unknown>>;
+
+/** New values for some attributes of one existing row; keys not named are left as they are. */
+export interface RowUpdate<Id> {
+    /** The row's id. */
+    readonly id: Id;
+    /** The new values. */
+    readonly values: Readonly<Record<string, unknown>>;
 }
 
 /**
@@ -640,6 +681,8 @@ export type TransactionScope = Omit<GraphSession, "undo" | "redo" | "history" | 
 export interface CommandOutcomeMap {
     /** The run's handle; awaiting it yields the result. */
     "algo.run": Run;
+    /** Settles once the change is recorded and the pass that draws it has run. */
+    "data.apply": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */
     "style.patch": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */

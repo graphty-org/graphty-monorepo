@@ -1,5 +1,6 @@
 import { assert, describe, it } from "vitest";
 
+import { createGraphSession } from "../../src/session";
 import { makeSession } from "./helpers";
 
 describe("reading one node or one edge", () => {
@@ -215,5 +216,48 @@ describe("the cost of asking twice", () => {
 
         assert.notStrictEqual(harness.session.data.statistics(), first, "a changed graph is walked again");
         harness.session.dispose();
+    });
+});
+
+describe("writing the graph with no renderer", () => {
+    it("adds nodes and edges, edits them, and undoes each as a step", async () => {
+        const session = createGraphSession();
+
+        await session.data.addNodes([
+            { id: "a", label: "Alpha" },
+            { id: "b", label: "Beta" },
+        ]);
+        await session.data.addEdges([{ source: "a", target: "b", kind: "knows" }]);
+        await session.data.updateNodes([{ id: "a", values: { label: "First" } }]);
+        await session.data.updateEdges([{ id: "0", values: { kind: "likes" } }]);
+
+        assert.strictEqual(session.status.counts.nodes, 2);
+        assert.strictEqual(session.data.node("a")?.label, "First");
+        assert.strictEqual(session.data.edge("0")?.kind, "likes");
+        assert.strictEqual(session.data.edge("0")?.source, "a");
+        assert.strictEqual(session.data.lastImport()?.counts.edges, 1);
+        assert.lengthOf(session.history.steps, 4);
+
+        await session.history.restoreTo(null);
+        assert.strictEqual(session.status.counts.nodes, 0);
+        assert.isUndefined(session.data.node("a"));
+        assert.isNull(session.data.lastImport());
+
+        await session.redo();
+        assert.strictEqual(session.data.node("a")?.label, "Alpha");
+        session.dispose();
+    });
+
+    it("reads the attributes a filter and a style select on from what the verbs wrote", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([
+            { id: "a", type: "hub" },
+            { id: "b", type: "leaf" },
+        ]);
+
+        await session.visibility.set({ kind: "categories", attribute: "data.type", values: ["hub"] });
+
+        assert.deepEqual([...session.visibility.nodes], ["a"]);
+        session.dispose();
     });
 });

@@ -17,8 +17,8 @@ import { COMMANDS } from "../../../commands";
 import type { GraphStore } from "../../../src/data/GraphStore";
 import { type Door, DOOR_ROOTS, PHASES, PLAN_PHASE } from "../../../src/session/commands/doors";
 import { createElementSession, dispatcherOf } from "../../../src/session/GraphSession";
-import { ingestNode } from "../../../src/session/project/ingest";
 import type { ElementSession } from "../../../src/session/types";
+import { ingestNode } from "../../helpers/rawIngest";
 import { callOf, checkDispatches, dispatchesOf } from "./door-harness";
 
 /** Every row, labelled `Root.member`; a whole-type root is one row labelled `Root.*`. */

@@ -24,7 +24,9 @@ import { GraphtyError, isGraphtyError } from "../../errors";
 import { GraphtyLogger, type Logger } from "../../logging/GraphtyLogger.js";
 import type { NodeIdType } from "../../Node";
 import type { Styles } from "../../Styles";
+import type { DataMutation } from "../commands/data";
 import { DEFAULT_LIMITS } from "../limits";
+import type { DirectionOutcome, GraphWriter } from "./graphOps";
 
 /**
  * Whether a value may be used as a graph-format node id.
@@ -57,7 +59,7 @@ function isStorableId(id: unknown): id is string | number {
  * @param record - the raw node record
  * @returns the file-unit triple, or null when there is nothing usable to seed
  */
-function readSeedPosition(record: Record<string | number, unknown>): [number, number, number] | null {
+export function readSeedPosition(record: Record<string | number, unknown>): [number, number, number] | null {
     const { position } = record;
     if (position === null || typeof position !== "object") {
         return null;
@@ -91,43 +93,6 @@ function readSeedPosition(record: Record<string | number, unknown>): [number, nu
 }
 
 /**
- * Push one node record into the element's builder and seed its import position.
- *
- * The seed column keeps FILE units: `config.data.knownFields.positionScale` is applied by
- * `GraphStore` on every freeze, so a scale changed after a record arrived still reaches the scene
- * correctly from the same column.
- * @param store - the element's store
- * @param id - the node id, already extracted with JMESPath
- * @param record - the raw record
- * @returns the assigned node index -- `INVALID_INDEX` when the id is not one graph-format accepts
- *     -- and whether the builder already knew this id
- */
-export function ingestNode(
-    store: GraphStore,
-    id: unknown,
-    record: Record<string | number, unknown>,
-): { index: number; merged: boolean } {
-    if (!isStorableId(id)) {
-        return { index: INVALID_INDEX, merged: false };
-    }
-
-    const before = store.builder.nodeCount;
-    const index = store.builder.addNode(id);
-    const merged = store.builder.nodeCount === before;
-
-    const seed = readSeedPosition(record);
-    if (seed !== null) {
-        store.builder.setNodeValue(store.seedColumn, index, seed);
-    }
-
-    // EVERY mutating path touches, including this one when it was a merge: `builder.mutationCount`
-    // counts neither a merge nor a column write, so a burst of merges would otherwise serve a stale
-    // snapshot and fire no `snapshot-replaced` (DEP-M6-A).
-    store.touch();
-    return { index, merged };
-}
-
-/**
  * Resolve an edge weight: the configured path, then the legacy "value" key, then 1.
  *
  * The second probe exists because the conversion this replaced hard-coded a `value` weight key, so
@@ -153,107 +118,6 @@ export function resolveEdgeWeight(
     }
 
     return { weight: 1, source: "default" };
-}
-
-/**
- * Push one edge into the element's builder and stamp its element-assigned counter column.
- *
- * The builder is constructed with `addMissingNodes: true`, so an endpoint that has not arrived yet
- * is MATERIALISED here and the snapshot is complete while the render side is still catching up.
- * That is deliberate: the snapshot is the authoritative copy, and it must not be missing an edge
- * merely because a mesh has not been built for one of its endpoints.
- *
- * Note the argument order of `setEdgeValue`: `(column, edge, value)`. Swapping the first two is
- * `E_UNKNOWN_COLUMN` at run time in plain JavaScript; the branded `ColumnHandle` type is what makes
- * it a compile error here.
- * @param store - the element's store
- * @param srcId - source node id, already extracted with JMESPath
- * @param dstId - destination node id
- * @param weight - the resolved weight
- * @returns the logical edge index and the counter stamped into the edge's id column, or
- *     `INVALID_INDEX` for both when either id is not one graph-format accepts
- */
-export function ingestEdge(
-    store: GraphStore,
-    srcId: unknown,
-    dstId: unknown,
-    weight: number,
-): { index: number; edgeId: number } {
-    if (!isStorableId(srcId) || !isStorableId(dstId)) {
-        return { index: INVALID_INDEX, edgeId: INVALID_INDEX };
-    }
-
-    const index = store.builder.addEdge(srcId, dstId, weight);
-    const edgeId = store.nextEdgeId();
-    store.builder.setEdgeValue(store.edgeIdColumn, index, edgeId);
-    store.touch();
-    return { index, edgeId };
-}
-
-/**
- * What became of a file's declared direction when it reached the builder.
- *
- * - `applied`: the builder now holds the direction the file declared.
- * - `unchanged`: the builder already held it, so there was nothing to do.
- * - `config-wins`: `data.directed` was set explicitly, which locked the builder. The consumer
- *   settled the question and a file header does not overrule them.
- * - `edges-present`: the builder already holds edges, which is a direction graph-format will not
- *   reinterpret in place. This is a second file loaded into a graph that the first file, or
- *   pushed records, already filled.
- */
-type DirectionOutcome = "applied" | "unchanged" | "config-wins" | "edges-present";
-
-/**
- * Give the builder the direction a file declared, without ever overruling the consumer.
- *
- * THE PRECEDENCE, highest first: an explicit `config.data.directed`, then the file's own header,
- * then the builder's constructor value. `GraphStore` implements the first rung by calling
- * `lockDirected()` for an explicit boolean and NOT calling it under `"auto"`, so
- * `builder.directedLocked` is exactly "the consumer has settled this" and is the flag this reads.
- * Locked is checked rather than caught, because `setDirected` on a locked builder whose value
- * differs throws `E_DIRECTED` -- turning a consumer's perfectly legitimate `directed: false` plus
- * a directed file into a failed import.
- *
- * A builder that already holds edges is refused for the same reason and not as a policy choice:
- * graph-format accepts directed -> undirected only while the builder is empty, and accepts
- * undirected -> directed with live edges only by MIRRORING every edge it holds, which would
- * silently double the first file's edge count when a second file disagreed with it. So the first
- * thing that settles the direction of a non-empty graph keeps it, and the caller is told.
- * @param store - the element's store
- * @param directed - the direction the file declared
- * @param statedBy - the text in the file that declared it, recorded on the store so a consumer can
- *     be told not only what the graph is but what said so
- * @returns what happened, for the caller to log
- */
-export function ingestDeclaredDirection(store: GraphStore, directed: boolean, statedBy: string): DirectionOutcome {
-    const { builder } = store;
-    if (builder.directed === directed) {
-        // The file agreed with what the builder already held, which is still the file SETTLING the
-        // direction -- unless the configuration had locked it, in which case the agreement is a
-        // coincidence and the consumer is the one who decided.
-        if (!builder.directedLocked) {
-            store.recordDirectionFromFile(statedBy);
-        }
-
-        return "unchanged";
-    }
-
-    if (builder.directedLocked) {
-        return "config-wins";
-    }
-
-    if (builder.edgeCount > 0) {
-        return "edges-present";
-    }
-
-    builder.setDirected(directed);
-    store.recordDirectionFromFile(statedBy);
-    // The direction is frozen into the snapshot, and `builder.mutationCount` is not what the store
-    // keys its cache on (see GraphStore.touch), so without this a snapshot taken before the
-    // declaration -- an empty one, taken by a consumer asking for statistics during the load --
-    // would still be served after it.
-    store.touch();
-    return "applied";
 }
 
 /** What a caller may say about one `addEdges` call that the configuration does not already say. */
@@ -400,9 +264,6 @@ export class Ingest<K extends KnownEdge> {
      */
     private edgesByRecordId = new Map<string | number, number>();
 
-    /** What the last load did, for `session.data.lastImport()`. Null until something has loaded. */
-    private importReport: ImportReport | null = null;
-
     /**
      * The endpoint expressions the load in progress resolved, so a chunked load probes ONCE.
      *
@@ -421,27 +282,60 @@ export class Ingest<K extends KnownEdge> {
      */
     constructor(private readonly host: IngestHost<K>) {}
 
-    /**
-     * What the last load did: which endpoint spelling answered, how many repeats were seen and
-     * what the policy did with them, and how many edges the graph actually holds.
-     * @returns the report, or null when nothing has been loaded into this graph
-     */
-    get lastImport(): ImportReport | null {
-        return this.importReport;
-    }
-
     /** Forget everything about the graph that was: called when the host discards its store. */
     reset(): void {
         this.edgesByRecordId.clear();
-        this.importReport = null;
+    }
+
+    /**
+     * Carry out one `data.apply` mutation.
+     * @param mutation - The mutation.
+     * @param writer - The command's writer.
+     * @param resolve - The id a row is held under, for an id the caller may have spelled
+     *     differently; the id as given by default.
+     */
+    apply(
+        mutation: DataMutation,
+        writer: GraphWriter,
+        resolve: (target: "node" | "edge", id: NodeIdType) => NodeIdType = (_target, id) => id,
+    ): void {
+        switch (mutation.kind) {
+            case "add-nodes":
+                this.addNodes(mutation.records, mutation.idPath, writer);
+                return;
+            case "add-edges":
+                this.addEdges(
+                    mutation.records,
+                    {
+                        ...(mutation.source === undefined ? {} : { source: mutation.source }),
+                        ...(mutation.target === undefined ? {} : { target: mutation.target }),
+                        ...(mutation.repeated === undefined ? {} : { repeated: mutation.repeated }),
+                    },
+                    writer,
+                );
+                return;
+            case "set-attributes":
+                for (const id of mutation.ids) {
+                    writer.setAttributes(mutation.target, resolve(mutation.target, id), mutation.values);
+                }
+
+                return;
+            default:
+                // "update-rows": values of its own for each row.
+                for (const row of mutation.rows) {
+                    writer.setAttributes(mutation.target, resolve(mutation.target, row.id), row.values);
+                }
+        }
     }
 
     /**
      * Adds multiple nodes to the graph
      * @param nodes - Array of node data objects
-     * @param idPath - JMESPath expression to extract node ID from data
+     * @param idPath - JMESPath expression to extract node ID from data, or undefined for the
+     *     configured one
+     * @param writer - the graph primitives to write through
      */
-    addNodes(nodes: Record<string | number, unknown>[], idPath?: string): void {
+    addNodes(nodes: readonly Record<string | number, unknown>[], idPath: string | undefined, writer: GraphWriter): void {
         this.logger.debug("Adding nodes", { count: nodes.length });
 
         // Records handed over, counted before any of them is skipped as already known, because
@@ -470,7 +364,8 @@ export class Ingest<K extends KnownEdge> {
 
             // The store is what gives the node its dense row; INVALID_INDEX comes back for an id
             // graph-format will not take, and the host draws the node anyway.
-            this.host.nodeStored(nodeId, node, ingestNode(this.host.store(), nodeId, node).index);
+            const { index } = writer.addNode(nodeId, node, readSeedPosition(node));
+            this.host.nodeStored(nodeId, node, index);
         }
 
         if (nodes.length > 0) {
@@ -497,14 +392,19 @@ export class Ingest<K extends KnownEdge> {
      * visible and unfilterable.
      * @param edges - Array of edge data objects
      * @param options - the endpoint expressions and the repeat policy for this call
+     * @param writer - the graph primitives to write through
      * @throws A `GraphtyError` with `E_EDGE_ENDPOINTS_UNRESOLVED` when no spelling answers, and
      *     with `E_DUPLICATE_EDGE` under the `"error"` repeat policy.
      */
-    addEdges(edges: Record<string | number, unknown>[], options?: AddEdgesOptions): void {
+    addEdges(
+        edges: readonly Record<string | number, unknown>[],
+        options: AddEdgesOptions | undefined,
+        writer: GraphWriter,
+    ): void {
         this.logger.debug("Adding edges", { count: edges.length });
 
         const { knownFields } = this.host.dataConfig();
-        const store = this.host.store();
+        const { store } = writer;
         const endpoints = this.endpointsFor(edges, options);
         const policy = options?.repeated ?? knownFields.repeatedEdges;
         const recordIdPath = knownFields.edgeIdPath;
@@ -540,7 +440,7 @@ export class Ingest<K extends KnownEdge> {
             const known = this.knownEdgeFor(srcNodeId, dstNodeId, recordId);
             if (known !== null) {
                 tally.repeatedSeen++;
-                if (this.mergeRepeat(known, edge, weight.weight, policy, srcNodeId, dstNodeId, tally)) {
+                if (this.mergeRepeat(known, edge, weight.weight, policy, srcNodeId, dstNodeId, tally, writer)) {
                     continue;
                 }
             }
@@ -548,7 +448,7 @@ export class Ingest<K extends KnownEdge> {
             // The STORE takes the edge now, whether or not the endpoints have render objects:
             // the builder creates a missing endpoint itself, so the snapshot is complete while
             // the scene is still catching up.
-            const { index: edgeIndex, edgeId } = ingestEdge(store, srcNodeId, dstNodeId, weight.weight);
+            const { index: edgeIndex, edgeId } = writer.addEdge(srcNodeId, dstNodeId, weight.weight, edge);
             if (edgeIndex === INVALID_INDEX) {
                 // graph-format will not hold an edge between these ids -- most often because the
                 // record does not answer the endpoint expressions at all, so both came back null.
@@ -578,11 +478,13 @@ export class Ingest<K extends KnownEdge> {
             // A push of records rather than a file, so there is no enclosing load to seal the
             // report. Seal one here, or `session.data.lastImport()` would answer about the last
             // FILE for a graph whose edges came from a consumer's own array.
-            this.importReport = sealImportReport(tally, {
-                format: "records",
-                endpoints,
-                policy,
-                ...this.heldCounts(),
+            writer.setGraphValues({
+                importReport: sealImportReport(tally, {
+                    format: "records",
+                    endpoints,
+                    policy,
+                    ...this.heldCounts(),
+                }),
             });
         }
 
@@ -677,6 +579,7 @@ export class Ingest<K extends KnownEdge> {
      * @param sourceId - the source endpoint id, for the error message
      * @param targetId - the target endpoint id, for the error message
      * @param tally - the load's counters
+     * @param writer - the graph primitives to write through
      * @returns true when the repeat has been dealt with and must not become an edge of its own
      * @throws A `GraphtyError` with `E_DUPLICATE_EDGE` under the `"error"` policy.
      */
@@ -688,6 +591,7 @@ export class Ingest<K extends KnownEdge> {
         sourceId: NodeIdType,
         targetId: NodeIdType,
         tally: ImportTally,
+        writer: GraphWriter,
     ): boolean {
         if (policy === "keep") {
             tally.repeatedKept++;
@@ -711,16 +615,13 @@ export class Ingest<K extends KnownEdge> {
             return true;
         }
 
-        const store = this.host.store();
-        const survivorWeight = store.builder.edgeWeight(known.edgeIndex);
+        const survivorWeight = writer.store.builder.edgeWeight(known.edgeIndex);
         const merged = mergeWeights(policy, survivorWeight, weight);
-        store.builder.setEdgeWeight(known.edgeIndex, merged);
-        store.touch();
-
+        // "the repeat's weight and attributes replace the existing edge's" under `last`. The other
+        // three reducers keep the survivor's attributes, because there is no reading of `sum`
+        // under which the last record's colour is the group's colour.
+        writer.mergeEdge(known.edgeIndex, merged, policy === "last" ? record : null);
         if (policy === "last") {
-            // "the repeat's weight and attributes replace the existing edge's". The other three
-            // reducers keep the survivor's attributes, because there is no reading of `sum` under
-            // which the last record's colour is the group's colour.
             this.host.replaceEdgeRecord(known, record);
         }
 
@@ -796,16 +697,17 @@ export class Ingest<K extends KnownEdge> {
      * question and locks the builder, and this reports that rather than fighting it.
      * @param type - the data source type, for the log line
      * @param declaration - what the file said, or null when it said nothing
+     * @param writer - the graph primitives to write through
      * @returns true once the question is settled and need not be asked again this import; false
      *     while the source has still declared nothing
      */
-    private applyDeclaredDirection(type: string, declaration: DeclaredDirection | null): boolean {
+    private applyDeclaredDirection(type: string, declaration: DeclaredDirection | null, writer: GraphWriter): boolean {
         if (declaration === null) {
             return false;
         }
 
-        const store = this.host.store();
-        const outcome: DirectionOutcome = ingestDeclaredDirection(store, declaration.directed, declaration.statedBy);
+        const { store } = writer;
+        const outcome: DirectionOutcome = writer.setDirected(declaration.directed, declaration.statedBy);
         if (outcome === "config-wins") {
             this.logger.info("File declares a direction the configuration has already settled", {
                 type,
@@ -843,8 +745,9 @@ export class Ingest<K extends KnownEdge> {
      * Loads data from a registered data source
      * @param type - Data source type identifier
      * @param opts - Options to pass to the data source
+     * @param writer - the graph primitives to write through
      */
-    async addDataFromSource(type: string, opts: object = {}): Promise<void> {
+    async addDataFromSource(type: string, opts: object, writer: GraphWriter): Promise<void> {
         this.logger.info("Loading data source", { type, options: opts });
 
         const startTime = Date.now();
@@ -887,14 +790,14 @@ export class Ingest<K extends KnownEdge> {
                     // a source parses nothing until its first chunk is pulled, so before the loop
                     // every source declares null.
                     if (!directionSettled) {
-                        directionSettled = this.applyDeclaredDirection(type, source.declaredDirection);
+                        directionSettled = this.applyDeclaredDirection(type, source.declaredDirection, writer);
                     }
 
-                    this.addNodes(chunk.nodes);
+                    this.addNodes(chunk.nodes, undefined, writer);
                     // The endpoint names a caller passed to the SOURCE are honoured here rather
                     // than inside each of the seven importers: whatever shape a source produces,
                     // the consumer who named the columns named them for the records that come out.
-                    this.addEdges(chunk.edges, endpointOverrides);
+                    this.addEdges(chunk.edges, endpointOverrides, writer);
 
                     progress = {
                         ...progress,
@@ -917,7 +820,7 @@ export class Ingest<K extends KnownEdge> {
                 // what `edgesLoaded` has always claimed to be and never was: it counted records
                 // handed over, so it reported 254 for a file that produced zero edges. The old
                 // meaning survives, under its true name, as `report.counts.edgeRecords`.
-                const report = this.sealLoad(type, tally);
+                const report = this.sealLoad(type, tally, writer);
 
                 this.logger.info("Data source loading complete", {
                     nodeRecords: progress.nodeRecords,
@@ -981,9 +884,10 @@ export class Ingest<K extends KnownEdge> {
      * Freeze one load's counters into the report a consumer reads, and keep it for `lastImport`.
      * @param format - the data source that read the file
      * @param tally - what the load counted
+     * @param writer - the graph primitives to write through
      * @returns the report
      */
-    private sealLoad(format: string, tally: ImportTally): ImportReport {
+    private sealLoad(format: string, tally: ImportTally, writer: GraphWriter): ImportReport {
         const { knownFields } = this.host.dataConfig();
         const endpoints = this.loadEndpoints ?? {
             // A file with no edge records at all: nothing was probed, so nothing was decided, and
@@ -999,7 +903,7 @@ export class Ingest<K extends KnownEdge> {
             policy: knownFields.repeatedEdges,
             ...this.heldCounts(),
         });
-        this.importReport = report;
+        writer.setGraphValues({ importReport: report });
         return report;
     }
 

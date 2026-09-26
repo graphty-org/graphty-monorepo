@@ -86,7 +86,17 @@ export class Node {
      */
     index: number = INVALID_INDEX;
 
-    data: AdHocData<string | number>;
+    /**
+     * The record this node carries, as the graph holds it: read-only here. A change goes
+     * through the graph (`updateNodes`, `session.data.updateNodes`, ...), which is what undo sees.
+     * @returns The record.
+     */
+    get data(): AdHocData<string | number> {
+        return this.#record;
+    }
+
+    /** The record, as the graph last handed it over. */
+    #record: AdHocData<string | number>;
     mesh: AbstractMesh;
     label?: RichTextLabel;
 
@@ -245,7 +255,7 @@ export class Node {
         this.parentGraph = graph;
         this.id = nodeId;
         this.opts = opts;
-        this.data = data;
+        this.#record = data;
 
         this.meshKey = paint.meshKey;
 
@@ -636,6 +646,15 @@ export class Node {
         this.applyInstancePaint(o, color);
 
         this.context.getStatsManager().endMeasurement("Node.updateMesh");
+    }
+
+    /**
+     * Take the record the graph now holds for this element. Called by the render half of the
+     * graph's derivation when a command, an undo or a redo changed it; nothing else calls it.
+     * @param record - The record.
+     */
+    adoptRecord(record: AdHocData<string | number>): void {
+        this.#record = record;
     }
 
     /**

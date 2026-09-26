@@ -11,20 +11,37 @@
 import { type DerivedGraph, type GraphSnapshot, INVALID_INDEX, type NodeId } from "@graphty/graph-format";
 
 import type { AttributeDescriptor, EdgeId } from "../catalog/types";
-import { edgeCounterOf } from "../data/edgeIdentity";
+import { edgeCounterOf, edgeIdOf } from "../data/edgeIdentity";
+import type { GraphStore } from "../data/GraphStore";
 import type { ImportReport } from "../data/report";
 import { GraphtyError } from "../errors";
 import { describeAttributes } from "./attributes";
+import type { DataMutation, DataService } from "./commands/data";
+import type { Dispatcher } from "./project/Dispatcher";
+import { Ingest } from "./project/ingest";
+import type { GraphSlice } from "./project/state";
 import { computeFingerprint, computeStatistics } from "./statistics";
 import type {
     EdgeRecord,
+    EdgeRecordInput,
     GraphStatistics,
     NodeRecord,
+    NodeRecordInput,
+    RowUpdate,
+    SessionAttributes,
     SessionDataApi,
     SessionDataConfig,
     SessionGraphStore,
     SessionRecordSource,
 } from "./types";
+
+/** What the data surface writes through, and where it reads what the graph holds beside rows. */
+interface DataWrites {
+    /** Dispatch `data.apply`. */
+    dispatch(mutation: DataMutation): Promise<unknown>;
+    /** The `graph` slice now. */
+    slice(): GraphSlice;
+}
 
 /** Everything derived from one snapshot, computed on demand and thrown away with it. */
 interface Derived {
@@ -51,6 +68,7 @@ export class SessionData implements SessionDataApi {
 
     private readonly records: SessionRecordSource | null;
     private readonly readConfig: () => SessionDataConfig;
+    private readonly writes: DataWrites;
     private derived: Derived | null = null;
     private disposed = false;
 
@@ -61,11 +79,58 @@ export class SessionData implements SessionDataApi {
      *     element holds none
      * @param readConfig - reads the data configuration, live: the element replaces that object
      *     when a style template is applied, so it is read on demand rather than captured
+     * @param writes - the dispatcher to write through, and the slice beside the rows
      */
-    constructor(store: SessionGraphStore, records: SessionRecordSource | null, readConfig: () => SessionDataConfig) {
+    constructor(
+        store: SessionGraphStore,
+        records: SessionRecordSource | null,
+        readConfig: () => SessionDataConfig,
+        writes: DataWrites,
+    ) {
         this.store = store;
         this.records = records;
         this.readConfig = readConfig;
+        this.writes = writes;
+    }
+
+    /**
+     * Add node records, as one undoable step.
+     * @param records - the records; each id is read through `data.knownFields.nodeIdPath`
+     * @returns settles once they are in the graph and drawn
+     */
+    async addNodes(records: readonly NodeRecordInput[]): Promise<void> {
+        this.requireLive("addNodes");
+        await this.writes.dispatch({ kind: "add-nodes", records });
+    }
+
+    /**
+     * Add edge records, as one undoable step.
+     * @param records - the records; endpoints are read through the configured edge id paths
+     * @returns settles once they are in the graph and drawn
+     */
+    async addEdges(records: readonly EdgeRecordInput[]): Promise<void> {
+        this.requireLive("addEdges");
+        await this.writes.dispatch({ kind: "add-edges", records });
+    }
+
+    /**
+     * Change attributes of existing nodes, as one undoable step.
+     * @param rows - the new values per node
+     * @returns settles once the change is drawn
+     */
+    async updateNodes(rows: readonly RowUpdate<NodeId>[]): Promise<void> {
+        this.requireLive("updateNodes");
+        await this.writes.dispatch({ kind: "update-rows", target: "node", rows });
+    }
+
+    /**
+     * Change attributes of existing edges, as one undoable step.
+     * @param rows - the new values per edge id
+     * @returns settles once the change is drawn
+     */
+    async updateEdges(rows: readonly RowUpdate<EdgeId>[]): Promise<void> {
+        this.requireLive("updateEdges");
+        await this.writes.dispatch({ kind: "update-rows", target: "edge", rows });
     }
 
     /**
@@ -139,7 +204,8 @@ export class SessionData implements SessionDataApi {
      */
     lastImport(): ImportReport | null {
         this.requireLive("lastImport");
-        return this.store.lastImport ?? null;
+        const recorded = this.writes.slice().values.get("importReport") as ImportReport | undefined;
+        return recorded ?? this.store.lastImport ?? null;
     }
 
     /**
@@ -219,4 +285,105 @@ export class SessionData implements SessionDataApi {
             });
         }
     }
+}
+
+/**
+ * Where a session reads the attributes a record carries: the `graph` slice, which every write
+ * through the graph primitives fills, and then a host's own source for rows it wrote some other way.
+ *
+ * An edge's record is handed back without the keys the last import read its endpoints from, when
+ * those are plain keys, so a consumer deriving columns from the keys does not show `src` beside the
+ * canonical `source`.
+ * @param slice - Reads the `graph` slice.
+ * @param snapshot - Reads the current snapshot, to name an edge row by its id.
+ * @param lastImport - Reads the last import report.
+ * @param fallback - The host's own source, if it has one.
+ * @returns The source.
+ */
+export function sliceRecords(
+    slice: () => GraphSlice,
+    snapshot: () => GraphSnapshot,
+    lastImport: () => ImportReport | null,
+    fallback: SessionRecordSource | null,
+): SessionRecordSource {
+    return {
+        nodeAttributes: (index, id) => slice().nodes.get(id) ?? fallback?.nodeAttributes(index, id),
+        edgeAttributes: (index) => {
+            const column = snapshot().edges.value(EDGE_ID_COLUMN, index);
+            const record = typeof column === "number" ? slice().edges.get(edgeIdOf(column)) : undefined;
+            return record === undefined ? fallback?.edgeAttributes(index) : withoutEndpointKeys(record, lastImport());
+        },
+    };
+}
+
+/** The element-assigned edge id column. */
+const EDGE_ID_COLUMN = "graphty.edgeId";
+
+/** A JMESPath expression that is nothing but a top-level property name. */
+const PLAIN_KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/**
+ * An edge record without the keys its endpoints were read from.
+ * @param record - The record.
+ * @param report - The last import report, which names the endpoint expressions.
+ * @returns The record, or a copy without those keys.
+ */
+function withoutEndpointKeys(record: SessionAttributes, report: ImportReport | null): SessionAttributes {
+    const endpoints = report?.endpoints;
+    if (endpoints === undefined) {
+        return record;
+    }
+
+    const dropped = new Set([endpoints.source, endpoints.target].filter((name) => PLAIN_KEY.test(name)));
+    if (dropped.size === 0 || ![...dropped].some((key) => key in record)) {
+        return record;
+    }
+
+    return Object.fromEntries(Object.entries(record).filter(([key]) => !dropped.has(key)));
+}
+
+/**
+ * The data service of a session that owns its store: ingest over that store, with nothing to draw.
+ * @param store - The store.
+ * @param dispatcher - The session's dispatcher.
+ * @param readConfig - Reads the data configuration.
+ * @returns The service.
+ */
+export function headlessDataService(
+    store: GraphStore,
+    dispatcher: Dispatcher,
+    readConfig: () => SessionDataConfig,
+): DataService {
+    const ingest = new Ingest<{ readonly edgeIndex: number }>({
+        store: () => store,
+        dataConfig: readConfig,
+        hasNode: (id) => dispatcher.graph.slice.nodes.has(id),
+        nodeCount: () => store.builder.nodeCount,
+        edgesBetween: (source, target) => {
+            const { builder } = store;
+            if (!builder.hasNode(source) || !builder.hasNode(target)) {
+                return [];
+            }
+
+            return [...builder.findEdges(builder.indexOf(source), builder.indexOf(target))].map((edgeIndex) => ({
+                edgeIndex,
+            }));
+        },
+        edgeAt: (edgeIndex) => (store.builder.hasEdge(edgeIndex) ? { edgeIndex } : null),
+        replaceEdgeRecord: () => undefined,
+        nodeStored: () => undefined,
+        edgeStored: () => undefined,
+        nodesArrived: () => undefined,
+        edgesArrived: () => undefined,
+        loadProgress: () => undefined,
+        loadErrors: () => undefined,
+        loadComplete: () => undefined,
+        loadFailed: () => undefined,
+    });
+
+    return {
+        apply: (mutation, draft) => {
+            ingest.apply(mutation, dispatcher.graph.writer(draft, store));
+        },
+    };
 }

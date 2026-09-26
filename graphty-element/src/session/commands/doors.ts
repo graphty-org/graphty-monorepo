@@ -70,7 +70,7 @@ export const PHASES = [
 type PlanPhase = (typeof PHASES)[number];
 
 /** The phase this branch has reached. Each phase's commit raises it. */
-export const PLAN_PHASE: PlanPhase = "10";
+export const PLAN_PHASE: PlanPhase = "12";
 
 /** How the doors tests call a door. */
 export type DoorCall =
@@ -189,6 +189,18 @@ function partial(phase: PlanPhase, reason: string, args: readonly unknown[], exp
 }
 
 /**
+ * A property door that dispatches, but whose one assignment is not yet one step, until `phase`.
+ * @param phase - The phase that makes one assignment one step.
+ * @param reason - What is still split, and why.
+ * @param value - The value to assign.
+ * @param expect - The commands the assignment dispatches today, in order.
+ * @returns The door.
+ */
+function partialSet(phase: PlanPhase, reason: string, value: unknown, expect: readonly SessionCommand[]): Door {
+    return { kind: "partial", phase, reason, op: expect[0]?.op ?? "", call: { kind: "set", value }, expect };
+}
+
+/**
  * A public escape, a writable field or a live object, that `phase` makes read-only or private.
  * @param phase - The phase that narrows it.
  * @returns The door.
@@ -196,6 +208,45 @@ function partial(phase: PlanPhase, reason: string, args: readonly unknown[], exp
 function escape(phase: PlanPhase): Door {
     return { kind: "knownGap", phase };
 }
+
+/**
+ * The command adding node records.
+ * @param records - The records.
+ * @returns The command.
+ */
+function addNodes(...records: Readonly<Record<string, unknown>>[]): SessionCommand {
+    return { op: "data.apply", mutation: { kind: "add-nodes", records } };
+}
+
+/**
+ * The command adding edge records.
+ * @param records - The records.
+ * @returns The command.
+ */
+function addEdges(...records: Readonly<Record<string, unknown>>[]): SessionCommand {
+    return { op: "data.apply", mutation: { kind: "add-edges", records } };
+}
+
+/**
+ * The command giving one row new values.
+ * @param target - Node or edge.
+ * @param id - Its id.
+ * @param values - The new values.
+ * @returns The command.
+ */
+function updateRow(target: "node" | "edge", id: string, values: Readonly<Record<string, unknown>>): SessionCommand {
+    return { op: "data.apply", mutation: { kind: "update-rows", target, rows: [{ id, values }] } };
+}
+
+/** The data rows the element and `Graph` share. */
+const DATA_DOORS: Readonly<Record<string, Door>> = {
+    addNode: calls([{ id: "door-a" }], [addNodes({ id: "door-a" })]),
+    addNodes: calls([[{ id: "door-b" }]], [addNodes({ id: "door-b" })]),
+    addEdge: calls([{ src: "n1", dst: "n3" }], [addEdges({ src: "n1", dst: "n3" })]),
+    addEdges: calls([[{ src: "n3", dst: "n1" }]], [addEdges({ src: "n3", dst: "n1" })]),
+    updateNodes: calls([[{ id: "n1", weight: 2 }]], [updateRow("node", "n1", { weight: 2 })]),
+    updateEdges: calls([[{ id: "0", weight: 2 }]], [updateRow("edge", "0", { weight: 2 })]),
+};
 
 /** A small graph document the JSON data source reads, for the load doors. */
 const TINY_JSON = JSON.stringify({ nodes: [{ id: "j1" }, { id: "j2" }], edges: [{ src: "j1", dst: "j2" }] });
@@ -392,7 +443,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             asyncFirstUpdated: LIFECYCLE,
             render: LIFECYCLE,
             disconnectedCallback: LIFECYCLE,
-            nodeData: gapSet("14", "data.apply", [{ id: "x1" }]),
+            nodeData: partialSet(
+                "14",
+                "Adds the records as one step; replacing the nodes the element held, in the same step, is the batch phase 14 builds.",
+                [{ id: "x1" }],
+                [addNodes({ id: "x1" })],
+            ),
             edgeData: gapSet("14", "batch", [{ src: "n1", dst: "n2" }]),
             dataSource: gapSet("14", "data.import", "json"),
             dataSourceConfig: gapSet("14", "data.import", { data: TINY_JSON }),
@@ -464,12 +520,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 [{ op: "view.save", views: [{ name: "door import", camera: { zoom: 3 } }] }],
             ),
             graph: READ,
-            addNode: gap("12", "data.apply", [{ id: "door-a" }]),
-            addNodes: gap("12", "data.apply", [[{ id: "door-b" }]]),
-            addEdge: gap("12", "data.apply", [{ src: "n1", dst: "n3" }]),
-            addEdges: gap("12", "data.apply", [[{ src: "n3", dst: "n1" }]]),
+            ...DATA_DOORS,
             removeNodes: gap("13", "data.apply", [["n3"]]),
-            updateNodes: gap("12", "data.apply", [[{ id: "n1", weight: 2 }]]),
             addDataFromSource: gap("14", "data.import", ["json", { data: TINY_JSON }]),
             loadFromUrl: gap("14", "data.import", [TINY_JSON_URL]),
             loadFromFile: gap("14", "data.import", () => [
@@ -511,7 +563,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             setRunning: IN_FLIGHT,
             worldToScreen: READ,
             screenToWorld: READ,
-            setData: gap("14", "batch", [{ nodes: [{ id: "d1" }], edges: [] }]),
+            setData: partial(
+                "14",
+                "Adds each node and each edge as a step of its own; one batch for the whole call is phase 14.",
+                [{ nodes: [{ id: "d1" }], edges: [] }],
+                [addNodes({ id: "d1" })],
+            ),
             getStyles: READ,
             getDataManager: READ,
             getLayoutManager: READ,
@@ -589,10 +646,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 new File([TINY_JSON], "door.json", { type: "application/json" }),
             ]),
             loadFromUrl: gap("14", "data.import", [TINY_JSON_URL]),
-            addNode: gap("12", "data.apply", [{ id: "door-a" }]),
-            addNodes: gap("12", "data.apply", [[{ id: "door-b" }]]),
-            addEdge: gap("12", "data.apply", [{ src: "n1", dst: "n3" }]),
-            addEdges: gap("12", "data.apply", [[{ src: "n3", dst: "n1" }]]),
+            ...DATA_DOORS,
             setEdges: gap("14", "batch", [[{ src: "n1", dst: "n2" }]]),
             setLayout: gap("17", "layout.set", ["circular"]),
             runAlgorithm: partial("15", RUN_PAINTS, ["graphty", "degree"], [DEGREE_ENCODE]),
@@ -600,7 +654,6 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             applySuggestedStyles: partial("15", SUGGESTED_STEPS, ["graphty:degree"], [DEGREE_ENCODE]),
             getSuggestedStyles: READ,
             removeNodes: gap("13", "data.apply", [["n3"]]),
-            updateNodes: gap("12", "data.apply", [[{ id: "n1", weight: 2 }]]),
             setCameraMode: CAMERA,
             setRenderSettings: VIEW_SETTING,
             batchOperations: escape("19a"),
@@ -680,7 +733,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 [{ "door import": { zoom: 3 } }],
                 [{ op: "view.save", views: [{ name: "door import", camera: { zoom: 3 } }] }],
             ),
-            setData: gap("14", "batch", [{ nodes: [{ id: "d1" }], edges: [] }]),
+            setData: partial(
+                "14",
+                "Adds each node and each edge as a step of its own; one batch for the whole call is phase 14.",
+                [{ nodes: [{ id: "d1" }], edges: [] }],
+                [addNodes({ id: "d1" })],
+            ),
             getNode: READ,
             getNodes: READ,
             render: RENDER,
@@ -712,7 +770,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             opts: RENDER,
             id: escape("18c"),
             index: escape("18c"),
-            data: escape("12"),
+            data: READ,
+            adoptRecord: RENDER,
             mesh: RENDER,
             label: RENDER,
             tooltip: RENDER,
@@ -753,7 +812,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             index: escape("18c"),
             dstNode: RENDER,
             srcNode: RENDER,
-            data: escape("12"),
+            data: READ,
+            adoptRecord: RENDER,
             mesh: RENDER,
             arrowMesh: RENDER,
             arrowTailMesh: RENDER,
@@ -849,13 +909,14 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             setLayoutEngine: LIFECYCLE,
             init: LIFECYCLE,
             dispose: LIFECYCLE,
-            addNode: gap("12", "data.apply", [{ id: "door-c" }]),
-            addNodes: gap("12", "data.apply", [[{ id: "door-d" }]]),
+            bindSession: LIFECYCLE,
+            reconcile: RENDER,
+            addNode: calls([{ id: "door-c" }], [addNodes({ id: "door-c" })]),
+            addNodes: calls([[{ id: "door-d" }]], [addNodes({ id: "door-d" })]),
             getNode: READ,
             removeNodeAndIncidentEdges: gap("13", "data.apply", ["n2"]),
-            noteAttributesChanged: escape("12"),
-            addEdge: gap("12", "data.apply", [{ src: "n1", dst: "n3" }]),
-            addEdges: gap("12", "data.apply", [[{ src: "n3", dst: "n2" }]]),
+            addEdge: calls([{ src: "n1", dst: "n3" }], [addEdges({ src: "n1", dst: "n3" })]),
+            addEdges: calls([[{ src: "n3", dst: "n2" }]], [addEdges({ src: "n3", dst: "n2" })]),
             getEdge: READ,
             getEdgesBetween: READ,
             setEdges: gap("14", "batch", [[{ src: "n1", dst: "n2" }]]),
@@ -1062,6 +1123,13 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             attributes: READ,
             statistics: READ,
             fingerprint: READ,
+            addNodes: calls([[{ id: "door-a" }]], [addNodes({ id: "door-a" })]),
+            addEdges: calls([[{ src: "door-a", dst: "door-b" }]], [addEdges({ src: "door-a", dst: "door-b" })]),
+            updateNodes: calls(
+                [[{ id: "door-a", values: { weight: 2 } }]],
+                [updateRow("node", "door-a", { weight: 2 })],
+            ),
+            updateEdges: calls([[{ id: "0", values: { weight: 2 } }]], [updateRow("edge", "0", { weight: 2 })]),
         },
     },
     {

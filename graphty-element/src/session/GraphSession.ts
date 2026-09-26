@@ -27,12 +27,13 @@ import { defaultEdgeStyle } from "../config/EdgeStyle";
 import { defaultNodeStyle } from "../config/NodeStyle";
 import { GraphStore } from "../data/GraphStore";
 import type { ElementPositions } from "../data/positions";
+import type { ImportReport } from "../data/report";
 import { GraphtyError, isGraphtyError } from "../errors";
 import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
 import { DEFINITIONS } from "./commands";
 import { readProjectConfig } from "./commands/config";
 import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
-import { SessionData } from "./data";
+import { headlessDataService, SessionData, sliceRecords } from "./data";
 import {
     type AlgorithmRunCommand,
     estimateCommand,
@@ -42,6 +43,7 @@ import {
     type SessionCommand,
 } from "./planning";
 import { Dispatcher, type Scheduler, type TransactionScope as DispatchScope } from "./project/Dispatcher";
+import type { GraphSlice } from "./project/state";
 import { createQueryEngine, type QueryEngine } from "./query";
 import { createResultsApi, type ResultsApi, type ResultsRunEntry, type RunRef } from "./results";
 import {
@@ -1384,9 +1386,27 @@ function buildSession(options: CreateGraphSessionOptions, internals: SessionInte
         edges: (remap: U32, count: number) => selection?.remapEdges(remap, count),
     });
     const acceleration = resolveAcceleration(options.acceleration, policy, minNodes);
-    const data = new SessionData(store.store, options.records ?? null, readData);
-    const runsOptions = options.runs ?? {};
     const snapshot = (): GraphSnapshot => store.store.getSnapshot();
+    const slice = (): GraphSlice => dispatcher.state.graph;
+    // What the records say, from the `graph` slice every primitive fills, then from a host's own
+    // source for rows it wrote some other way.
+    const records = sliceRecords(
+        slice,
+        snapshot,
+        () => (slice().values.get("importReport") as ImportReport | undefined) ?? store.store.lastImport ?? null,
+        options.records ?? null,
+    );
+    const data = new SessionData(store.store, records, readData, {
+        dispatch: (mutation) => dispatcher.dispatch({ op: "data.apply", mutation }),
+        slice,
+    });
+    // A session that holds a store of its own kind writes it through its own ingest; the element
+    // hands its data manager's in instead.
+    if (store.store instanceof GraphStore) {
+        dispatcher.services.data = headlessDataService(store.store, dispatcher, readData);
+    }
+
+    const runsOptions = options.runs ?? {};
     const components = componentLabelsOf(data);
     // ONE queue for both, whether the host handed one in or not: a filter pass and an algorithm
     // run both read the whole graph, and two queues would let one start while the other is
@@ -1419,7 +1439,7 @@ function buildSession(options: CreateGraphSessionOptions, internals: SessionInte
         matchEdges: (where: Query) => requireQuery(query).edges(where),
         unresolvedPathsOf: (where: Query) => requireQuery(query).unresolvedPathsOf(where),
         ...(runsOptions.engine === undefined ? {} : { engine: runsOptions.engine }),
-        ...(options.records === undefined ? {} : { values: valueSourceOf(options.records, snapshot) }),
+        values: valueSourceOf(records, snapshot),
         onChange: (change) => {
             publish(watchers, "visibility:changed", change);
         },
@@ -1517,7 +1537,7 @@ function buildSession(options: CreateGraphSessionOptions, internals: SessionInte
     const elements: SessionSelectorSource = createSelectorSource({
         snapshot,
         results: (runId) => runs.get(runId)?.result,
-        ...(options.records === undefined ? {} : { records: options.records }),
+        records,
     });
     // ONE query engine, over the same source the style layers read, so a layer selector and a
     // scope, a selection or a filter with the same expression match the same elements.
@@ -1540,7 +1560,7 @@ function buildSession(options: CreateGraphSessionOptions, internals: SessionInte
         results,
         match: (where: Query) => engine.select(where),
         find: (text: string, mode: SelectionTextMode) => engine.find(text, mode),
-        ...(options.records === undefined ? {} : { records: options.records }),
+        records,
         onChange: (delta) => {
             publish(watchers, "selection:changed", delta);
         },

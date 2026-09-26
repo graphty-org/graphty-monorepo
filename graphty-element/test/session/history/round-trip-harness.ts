@@ -3,7 +3,8 @@
  * first, redo, compare with the second. Shared by the session test and its renderer twin, which
  * adds a scene digest.
  *
- * The state digest is `stateDigest` over the dispatcher's project state. The picture digest is
+ * The state digest is `stateDigest` over the dispatcher's project state and the snapshot's rows
+ * (node and edge order, endpoints, weights and columns). The picture digest is
  * what the session derives from it: every element's resolved style and mesh key, and the ids the
  * visibility masks leave showing. Neither includes the positions lane or the arrangement: nothing
  * restores coordinates until phase 16a of design/undo/undo-plan.md, which turns them on.
@@ -54,7 +55,7 @@ export function pictureDigest(session: GraphSession): string {
  */
 function digestsOf(session: GraphSession, extra: () => string): Digests {
     return {
-        state: stateDigest(dispatcherOf(session).state),
+        state: stateDigest(dispatcherOf(session).state, { snapshot: session.snapshot() }),
         picture: pictureDigest(session),
         extra: extra(),
     };

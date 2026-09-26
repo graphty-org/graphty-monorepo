@@ -110,7 +110,17 @@ export class Edge {
     index: number = INVALID_INDEX;
     dstNode: Node;
     srcNode: Node;
-    data: AdHocData;
+    /**
+     * The record this edge carries, as the graph holds it: read-only here. A change goes
+     * through the graph (`updateNodes`, `session.data.updateNodes`, ...), which is what undo sees.
+     * @returns The record.
+     */
+    get data(): AdHocData {
+        return this.#record;
+    }
+
+    /** The record, as the graph last handed it over. */
+    #record: AdHocData;
     mesh: AbstractMesh | PatternedLineMesh; // PHASE 5: Support both solid lines and patterned lines
     arrowMesh: AbstractMesh | null = null;
     arrowTailMesh: AbstractMesh | null = null;
@@ -270,7 +280,7 @@ export class Edge {
         this.dstId = dstNodeId;
         this.id = edgeIdOf(edgeId);
         this.opts = opts;
-        this.data = data;
+        this.#record = data;
 
         // make sure both srcNode and dstNode already exist
         const srcNode = this.context.getDataManager().nodeCache.get(srcNodeId);
@@ -789,6 +799,15 @@ export class Edge {
         if (rebuilt) {
             this.invalidatePositionCache();
         }
+    }
+
+    /**
+     * Take the record the graph now holds for this element. Called by the render half of the
+     * graph's derivation when a command, an undo or a redo changed it; nothing else calls it.
+     * @param record - The record.
+     */
+    adoptRecord(record: AdHocData): void {
+        this.#record = record;
     }
 
     /**

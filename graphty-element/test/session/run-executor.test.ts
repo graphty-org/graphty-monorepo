@@ -10,9 +10,9 @@ import { isGraphtyError } from "../../src/errors";
 import type { Graph } from "../../src/Graph";
 import { AlgorithmManager } from "../../src/managers/AlgorithmManager";
 import type { EventManager } from "../../src/managers/EventManager";
-import { ingestEdge, ingestNode } from "../../src/session/project/ingest";
 import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
 import { createScopeApi } from "../../src/session/scope";
+import { ingestEdge, ingestNode } from "../helpers/rawIngest";
 
 /** One node as the element's data manager holds it: a record the projection writes onto. */
 interface MockNode {

@@ -1,7 +1,7 @@
 /**
  * @file The session the round-trip fixtures and the random-sequence model run on, in Node: the
- * fixtures' graph -- `n1 -> n2 -> n3` -- over a store a test feeds, with fake runs of `degree` and
- * `shortest-path`. Kept apart from `round-trip-harness.ts`, which the browser twin imports too.
+ * fixtures' graph -- `n1 -> n2 -> n3`, added through `session.data` -- with fake runs of `degree`
+ * and `shortest-path`. Kept apart from `round-trip-harness.ts`, which the browser twin imports too.
  */
 
 import type { FieldDescriptor } from "../../../src/catalog/types";
@@ -62,14 +62,15 @@ export async function fixtureSession(
         runs: { execute: (context) => fakeRun(() => harness, context) },
         ...(internals === undefined ? {} : { internals }),
     });
-    harness.add(
-        [{ id: "n1" }, { id: "n2" }, { id: "n3" }],
-        [
-            { src: "n1", dst: "n2" },
-            { src: "n2", dst: "n3" },
-        ],
-    );
     const session = harness.session as ElementSession;
+    // Through the data verbs, as a consumer would, so the records are in the `graph` slice; the
+    // steps they record are the baseline, not history.
+    await session.data.addNodes([{ id: "n1" }, { id: "n2" }, { id: "n3" }]);
+    await session.data.addEdges([
+        { src: "n1", dst: "n2" },
+        { src: "n2", dst: "n3" },
+    ]);
+    session.history.clear();
     await session.paint.repaintAll(session.styles.compiled(), {
         signal: new AbortController().signal,
         report: () => undefined,

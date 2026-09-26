@@ -102,9 +102,11 @@ import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
 import { readProjectConfig } from "./session/commands/config";
+import type { DataMutation } from "./session/commands/data";
 import { assertViewName } from "./session/commands/view";
 import { dispatcherOf } from "./session/GraphSession";
 import { deepFreeze } from "./session/project/draft";
+import { EDGES_ADDED, NODES_ADDED } from "./session/project/graphOps";
 import type { Run, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionTarget, SetOp } from "./session/selection";
 import type { StyleSuggestion } from "./session/styles";
@@ -130,44 +132,6 @@ interface RunnableAlgorithm {
     /** The parameters that reproduce what the address being translated used to do. */
     readonly params: Readonly<Record<string, unknown>>;
 }
-
-/**
- * One edge's attribute bag as the session reads it: the raw record with the two keys that named
- * its endpoints taken out.
- *
- * The session writes `id`, `source` and `target` over the bag itself, so leaving the record's own
- * endpoint keys in would publish the same two facts twice under two spellings -- and a consumer
- * that derives its columns from the keys a record carries, as the application's data table does,
- * would render both.
- *
- * Only PLAIN property names are stripped. An endpoint named by a real JMESPath expression --
- * `endpoints.from`, say -- names no top-level key, so there is nothing to take out and nothing to
- * guess about.
- * @param data - the element's data manager
- * @param index - the dense (logical) edge index
- * @returns the attribute bag, or undefined when no render object holds that row
- */
-function stripEndpointKeys(data: DataManager, index: number): Record<string, unknown> | undefined {
-    const record = data.edgesByIndex[index]?.data;
-    if (record === undefined) {
-        return undefined;
-    }
-
-    const endpoints = data.lastImport?.endpoints;
-    if (endpoints === undefined) {
-        return record;
-    }
-
-    const dropped = new Set([endpoints.source, endpoints.target].filter((name) => PLAIN_KEY.test(name)));
-    if (dropped.size === 0) {
-        return record;
-    }
-
-    return Object.fromEntries(Object.entries(record).filter(([key]) => !dropped.has(key)));
-}
-
-/** A JMESPath expression that is nothing but a top-level property name. */
-const PLAIN_KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /** The configuration document at its defaults: what the frozen view is merged over. */
 const BASE_DOCUMENT: StyleSchemaV1 = deepFreeze(StyleTemplate.parse({ graphtyTemplate: true, majorVersion: "1" }));
@@ -248,6 +212,8 @@ export class Graph implements GraphContext {
      * instead: the store's `stale` is true both before the first freeze and after a later edit.
      */
     #resident: GraphSnapshot | null = null;
+    /** Queued `data-add` operations dispatching now, whose paint the `data-add` trigger brings. */
+    #queuedAdds = 0;
 
     // Managers
     /** Event manager for adding/removing event listeners */
@@ -376,21 +342,12 @@ export class Graph implements GraphContext {
         // a second, disagreeing copy of the same graph -- and because the store's lifetime belongs
         // to whoever built it: disposing this session leaves the renderer's data untouched.
         //
-        // The record source is the seam that will close. The store carries ids, coordinates and
-        // weights; the arbitrary keys a record was imported with still live on the render objects,
-        // so until an attribute column lands in the store the session reads them from here.
+        // The records live in the session's `graph` slice, which every write through the graph
+        // primitives fills, so the session reads them there; the data manager is bound to the
+        // session below so that its writes are those primitives.
         this.session = createElementSession({
             acceleration: this.acceleration,
             store: this.dataManager,
-            records: {
-                nodeAttributes: (_index, id) => this.dataManager.getNode(id)?.data,
-                // The endpoint keys are stripped HERE, at the one seam that builds the session's
-                // attribute bag, rather than on the render object: `Edge.data` is the raw record
-                // and that is its contract for anyone reaching through `element.graph`. Without
-                // this a record pushed in spelled `src`/`dst` would show up in the data table as a
-                // `src` column beside the canonical `source` one, saying the same thing twice.
-                edgeAttributes: (index) => stripEndpointKeys(this.dataManager, index),
-            },
             runs: {
                 // The element's own queue, so a run takes its turn among the loads, the layouts
                 // and the style passes rather than interleaving with them.
@@ -400,6 +357,36 @@ export class Graph implements GraphContext {
                 // ever calls this once a run reaches the front of the queue.
                 execute: (context) => this.algorithmManager.execute(context, algorithmByKey(context.algorithm)),
             },
+        });
+
+        // Every data door dispatches through the session from here on, and the session's
+        // `data.apply` is carried out by the data manager's ingest. A command that adds rows starts
+        // the on-load algorithms once; undo and redo never do.
+        this.dataManager.bindSession(dispatcherOf(this.session), () => {
+            this.startOnLoadRuns();
+        });
+
+        // The `graph` hook: the render objects follow the slice, forward and on undo, redo and
+        // rollback. Only a forward add starts the layout and frames the camera; the paint is
+        // brought up to date either way, since a layer can select on any value that moved.
+        const {lane} = dispatcherOf(this.session);
+        lane.register("graph", async (_rendered, target, dirty) => {
+            const { cause } = lane;
+            this.dataManager.reconcile(target.graph, dirty, cause);
+            if (cause === "command" && (dirty.has(NODES_ADDED) || dirty.has(EDGES_ADDED))) {
+                this.layoutManager.running = true;
+                this.statsManager.startLayoutSession();
+                if (dirty.has(NODES_ADDED)) {
+                    this.autoFrame();
+                }
+            }
+
+            // An add that took its turn on the queue is painted by the `data-add` trigger once its
+            // operation ends; everything else -- undo, redo, a rollback, an edit, a session verb --
+            // is painted here.
+            if (this.#queuedAdds === 0 || cause !== "command") {
+                await this.repaintFromSession();
+            }
         });
 
         // The renderer reads its paint from the session's stack from here on. Until the first
@@ -493,9 +480,9 @@ export class Graph implements GraphContext {
             }
         });
 
-        // Bring the session's paint up to date once the rows a load added exist. A style pass is
-        // over a dense index space, so it cannot paint a node the store has not taken yet; this is
-        // the first moment it can, and it is the "everything changed, because the graph did"
+        // Bring the session's paint up to date once the rows a queued add wrote exist. A style pass
+        // is over a dense index space, so it cannot paint a node the store has not taken yet; this
+        // is the first moment it can, and it is the "everything changed, because the graph did"
         // boundary that no layer edit describes.
         this.operationQueue.registerTrigger("data-add", () => ({
             category: "style-apply",
@@ -677,9 +664,12 @@ export class Graph implements GraphContext {
         // rather than through operation queue triggers, because data sources bypass
         // the operation queue when adding data
 
-        // Listen for data-added events to manage running state
+        // A load that does not come through the session's history yet (a data source, a file, a
+        // URL) starts the layout, frames the camera and runs the on-load algorithms from here. Rows
+        // a command added are answered by the `graph` hook and the command instead, and rows undo,
+        // redo or a rollback brought back start nothing at all.
         this.eventManager.addListener("data-added", (event) => {
-            if (event.type === "data-added") {
+            if (event.type === "data-added" && event.cause === undefined) {
                 if (event.shouldStartLayout) {
                     this.layoutManager.running = true;
                     // Start tracking layout session performance
@@ -690,15 +680,7 @@ export class Graph implements GraphContext {
                     this.autoFrame();
                 }
 
-                // Run algorithms if runAlgorithmsOnLoad is true. Each is queued, not awaited.
-                const { algorithms } = this.styles.config.data;
-                if (this.runAlgorithmsOnLoad && algorithms && algorithms.length > 0) {
-                    for (const entry of algorithms) {
-                        void this.runOnLoad(entry).catch((error: unknown) => {
-                            console.error(`[Graph] Error running algorithm ${JSON.stringify(entry)}:`, error);
-                        });
-                    }
-                }
+                this.startOnLoadRuns();
             }
         });
 
@@ -874,6 +856,18 @@ export class Graph implements GraphContext {
      * The entry's run options ride along either way, with no per-algorithm branch.
      * @param entry - An algorithm, or an algorithm with its run options.
      */
+    /** Run the on-load algorithms, when `runAlgorithmsOnLoad` is set. Each is queued, not awaited. */
+    private startOnLoadRuns(): void {
+        const { algorithms } = this.styles.config.data;
+        if (this.runAlgorithmsOnLoad && algorithms && algorithms.length > 0) {
+            for (const entry of algorithms) {
+                void this.runOnLoad(entry).catch((error: unknown) => {
+                    console.error(`[Graph] Error running algorithm ${JSON.stringify(entry)}:`, error);
+                });
+            }
+        }
+    }
+
     private async runOnLoad(entry: AlgorithmOnLoad): Promise<void> {
         const { algorithm, params, ...start } = typeof entry === "string" ? { algorithm: entry } : entry;
         const separator = algorithm.indexOf(":");
@@ -1494,24 +1488,11 @@ export class Graph implements GraphContext {
         idPath?: string,
         options?: QueueableOptions,
     ): Promise<void> {
-        if (options?.skipQueue) {
-            this.dataManager.addNodes(nodes, idPath);
-            return;
-        }
-
-        await this.operationQueue.queueOperationAsync(
+        await this.applyData(
             "data-add",
-            (context) => {
-                if (context.signal.aborted) {
-                    throw new Error("Operation cancelled");
-                }
-
-                this.dataManager.addNodes(nodes, idPath);
-            },
-            {
-                description: `Adding ${nodes.length} nodes`,
-                ...options,
-            },
+            { kind: "add-nodes", records: nodes, ...(idPath === undefined ? {} : { idPath }) },
+            `Adding ${nodes.length} nodes`,
+            options,
         );
     }
 
@@ -1565,24 +1546,17 @@ export class Graph implements GraphContext {
         edges: Record<string | number, unknown>[],
         options?: AddEdgesOptions & QueueableOptions,
     ): Promise<void> {
-        if (options?.skipQueue) {
-            this.dataManager.addEdges(edges, options);
-            return;
-        }
-
-        await this.operationQueue.queueOperationAsync(
+        await this.applyData(
             "data-add",
-            (context) => {
-                if (context.signal.aborted) {
-                    throw new Error("Operation cancelled");
-                }
-
-                this.dataManager.addEdges(edges, options);
-            },
             {
-                description: `Adding ${edges.length} edges`,
-                ...options,
+                kind: "add-edges",
+                records: edges,
+                ...(options?.source === undefined ? {} : { source: options.source }),
+                ...(options?.target === undefined ? {} : { target: options.target }),
+                ...(options?.repeated === undefined ? {} : { repeated: options.repeated }),
             },
+            `Adding ${edges.length} edges`,
+            options,
         );
     }
 
@@ -2130,53 +2104,79 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Update node data for existing nodes in the graph.
+     * Update node data for existing nodes in the graph, as one undoable step.
      * @param updates - Array of update objects containing node ID and properties to update
      * @param options - Queue options for operation ordering
+     * @returns Settles once the change is drawn
      */
     async updateNodes(
         updates: { id: string | number; [key: string]: unknown }[],
         options?: QueueableOptions,
     ): Promise<void> {
+        await this.applyData(
+            "data-update",
+            { kind: "update-rows", target: "node", rows: updates.map(({ id, ...values }) => ({ id, values })) },
+            `Updating ${updates.length} nodes`,
+            options,
+        );
+    }
+
+    /**
+     * Update edge data for existing edges in the graph, as one undoable step. Keys not named are
+     * kept; an id the graph does not hold is skipped.
+     * @param updates - The edge id and the new values of each edge
+     * @param options - Queue options for operation ordering
+     * @returns Settles once the change is drawn
+     */
+    async updateEdges(updates: { id: string; [key: string]: unknown }[], options?: QueueableOptions): Promise<void> {
+        await this.applyData(
+            "data-update",
+            { kind: "update-rows", target: "edge", rows: updates.map(({ id, ...values }) => ({ id, values })) },
+            `Updating ${updates.length} edges`,
+            options,
+        );
+    }
+
+    /**
+     * Dispatch one `data.apply` on its turn in the operation queue, or at once with `skipQueue`.
+     * The turn keeps an add ordered against the loads and layouts queued before it.
+     * @param category - The queue category.
+     * @param mutation - The mutation.
+     * @param description - What the queue shows.
+     * @param options - Queue options.
+     */
+    private async applyData(
+        category: "data-add" | "data-update",
+        mutation: DataMutation,
+        description: string,
+        options?: QueueableOptions,
+    ): Promise<void> {
+        const dispatch = async (): Promise<void> => {
+            await dispatcherOf(this.session).dispatch({ op: "data.apply", mutation });
+        };
+
         if (options?.skipQueue) {
-            updates.forEach((update) => {
-                const node = this.dataManager.getNode(update.id);
-                if (node) {
-                    Object.assign(node.data, update);
-                }
-            });
-            this.dataManager.noteAttributesChanged();
-
-            // A layer can select on any of the values that just changed, so the whole stack is
-            // asked again rather than each node being re-resolved by hand.
-            await this.repaintFromSession();
-
+            await dispatch();
             return;
         }
 
         await this.operationQueue.queueOperationAsync(
-            "data-update",
+            category,
             async (context) => {
                 if (context.signal.aborted) {
                     throw new Error("Operation cancelled");
                 }
 
-                updates.forEach((update) => {
-                    const node = this.dataManager.getNode(update.id);
-                    if (node) {
-                        Object.assign(node.data, update);
-                    }
-                });
-                this.dataManager.noteAttributesChanged();
-
-                // See the skipQueue branch above: the values a layer selects on have moved, so
-                // the stack is asked again rather than each node being re-resolved by hand.
-                await this.repaintFromSession();
+                // The `data-add` trigger paints after this operation, so the pass does not.
+                const trigger = category === "data-add" ? 1 : 0;
+                this.#queuedAdds += trigger;
+                try {
+                    await dispatch();
+                } finally {
+                    this.#queuedAdds -= trigger;
+                }
             },
-            {
-                description: `Updating ${updates.length} nodes`,
-                ...options,
-            },
+            { description, ...options },
         );
     }
 

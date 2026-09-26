@@ -367,8 +367,12 @@ interface VisibilityFrame {
  * mask copy stand in for an evaluation.
  */
 interface MaskTag {
-    /** The snapshot: every data write makes a new one. */
-    readonly graph: GraphSnapshot;
+    /**
+     * The graph token: it names one exact row order and set of records, moves on every write to
+     * the graph, and comes back with undo and redo, which restore the rows exactly. So a copy
+     * taken before a data step is used again once that step is undone.
+     */
+    readonly token: number;
     readonly filter: Filter | null;
     readonly window: TimeWindow | null;
     /** The revision of the run results a filter reads; 0 when nothing is filtering. */
@@ -390,7 +394,7 @@ interface MaskCopy {
  * @returns True when every input is identical.
  */
 function sameTag(a: MaskTag, b: MaskTag): boolean {
-    return a.graph === b.graph && a.filter === b.filter && a.window === b.window && a.inputs === b.inputs;
+    return a.token === b.token && a.filter === b.filter && a.window === b.window && a.inputs === b.inputs;
 }
 
 /**
@@ -506,8 +510,11 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     const { history } = dispatcher;
 
     let frame: VisibilityFrame | null = null;
-    /** What the live pair holds, and the step whose after-masks those are. */
-    let shown: (MaskTag & { readonly step: string | null }) | null = null;
+    /**
+     * What the live pair holds, the step whose after-masks those are, and the snapshot they were
+     * written against: a new snapshot has new rows to size the masks to, even for an equal tag.
+     */
+    let shown: (MaskTag & { readonly step: string | null; readonly snapshot: GraphSnapshot }) | null = null;
     let unresolvedValue: readonly Path[] = NO_PATHS;
     /** What the last pass changed, and how long its walk took: what an announcement reports. */
     let lastKind = "none";
@@ -582,7 +589,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     const wantedTag = (): MaskTag => {
         const { filter, window } = dispatcher.state.visibility;
 
-        return { graph: currentFrame().graph, filter, window, inputs: inputsFor(filter, window) };
+        return { token: dispatcher.state.graph.token, filter, window, inputs: inputsFor(filter, window) };
     };
 
     /**
@@ -614,7 +621,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         }
 
         const copy: MaskCopy = {
-            tag: { graph: held.graph, filter: held.filter, window: held.window, inputs: held.inputs },
+            tag: { token: held.token, filter: held.filter, window: held.window, inputs: held.inputs },
             nodes: nodeMaskValue.bytes(),
             edges: edgeMaskValue.bytes(),
             unresolved: unresolvedValue,
@@ -631,7 +638,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     const sync = (): VisibilityFrame => {
         const active = currentFrame();
         const tag = wantedTag();
-        if (shown !== null && sameTag(shown, tag)) {
+        if (shown !== null && shown.snapshot === active.graph && sameTag(shown, tag)) {
             return active;
         }
 
@@ -651,7 +658,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             lastDurationMs = Math.round(performance.now() - startedAt);
         }
 
-        shown = { ...tag, step };
+        shown = { ...tag, step, snapshot: active.graph };
 
         return active;
     };
@@ -669,7 +676,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      */
     const upToDate = (): VisibilityFrame => {
         const active = currentFrame();
-        if (shown !== null && shown.graph === active.graph && shown.inputs === inputsFor(shown.filter, shown.window)) {
+        if (shown !== null && shown.snapshot === active.graph && shown.inputs === inputsFor(shown.filter, shown.window)) {
             return active;
         }
 

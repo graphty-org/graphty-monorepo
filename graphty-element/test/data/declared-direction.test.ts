@@ -33,7 +33,19 @@ import { GraphStore } from "../../src/data/GraphStore";
 import { JsonDataSource } from "../../src/data/JsonDataSource";
 import { PajekDataSource } from "../../src/data/PajekDataSource";
 import { createGraphSession, type GraphSession } from "../../src/session";
-import { ingestDeclaredDirection, ingestEdge, ingestNode } from "../../src/session/project/ingest";
+import { GraphOps } from "../../src/session/project/graphOps";
+import { ingestDeclaredDirection, ingestEdge, ingestNode } from "../helpers/rawIngest";
+
+/**
+ * Declare a file's direction through the graph primitives, as ingest does.
+ * @param store - The store.
+ * @param directed - The declared direction.
+ * @param statedBy - The words that said so.
+ * @returns What became of it.
+ */
+function declare(store: GraphStore, directed: boolean, statedBy: string): string {
+    return GraphOps.standalone().writer(null, store).setDirected(directed, statedBy);
+}
 
 /** Where the shipped corpus lives, relative to this file. */
 const CORPUS = join(__dirname, "..", "helpers", "corpus");
@@ -584,7 +596,7 @@ describe("who wins when a file and a consumer disagree", () => {
         // checked, not caught.
         const { store, session } = emptySession(false);
         assert.isTrue(store.builder.directedLocked);
-        assert.strictEqual(ingestDeclaredDirection(store, true, "digraph"), "config-wins");
+        assert.strictEqual(declare(store, true, "digraph"), "config-wins");
         assert.strictEqual(store.builder.directed, false);
         session.dispose();
     });
@@ -597,18 +609,18 @@ describe("who wins when a file and a consumer disagree", () => {
         const { session, store } = await load("gml", "gml/karate.gml");
         assert.strictEqual(store.builder.directed, false);
 
-        assert.strictEqual(ingestDeclaredDirection(store, true, "digraph"), "edges-present");
+        assert.strictEqual(declare(store, true, "digraph"), "edges-present");
         assert.strictEqual(session.data.statistics().directedness, "undirected");
         session.dispose();
     });
 
     it("costs nothing when the file declares what the builder already holds", () => {
         const { store, session } = emptySession("auto");
-        assert.strictEqual(ingestDeclaredDirection(store, true, "digraph"), "unchanged");
+        assert.strictEqual(declare(store, true, "digraph"), "unchanged");
 
         // Locked and in agreement is not a conflict either: there is simply nothing to do.
         const locked = emptySession(true);
-        assert.strictEqual(ingestDeclaredDirection(locked.store, true, "digraph"), "unchanged");
+        assert.strictEqual(declare(locked.store, true, "digraph"), "unchanged");
         session.dispose();
         locked.session.dispose();
     });

@@ -95,6 +95,7 @@ export class DerivationLane {
     private next: Pass | null = null;
     private current: Pass | null = null;
     private restoringFlag = false;
+    private restoreCause: "undo" | "redo" | "restore" | "rollback" = "restore";
     /** Moves on every restore, so a pass clears the flag only for restores made before it began. */
     private restores = 0;
 
@@ -182,9 +183,22 @@ export class DerivationLane {
         this.shown = snapshot(this.state);
     }
 
-    /** Set the restoring flag until the next pass has run its `arrangement` hook. */
-    restore(): void {
+    /**
+     * What the pass being derived is catching up with: `"command"` for a forward change, or the
+     * history call or rollback that set the restoring flag.
+     * @returns The cause.
+     */
+    get cause(): "command" | "undo" | "redo" | "restore" | "rollback" {
+        return this.restoringFlag ? this.restoreCause : "command";
+    }
+
+    /**
+     * Set the restoring flag until the next pass has run its `arrangement` hook.
+     * @param cause - What is restoring: an undo, a redo, a restore or a rollback.
+     */
+    restore(cause: "undo" | "redo" | "restore" | "rollback" = "restore"): void {
         this.restoringFlag = true;
+        this.restoreCause = cause;
         this.restores++;
         this.schedule();
     }

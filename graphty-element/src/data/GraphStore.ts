@@ -4,6 +4,7 @@ import {
     type FreezeReport,
     GraphBuilder,
     type GraphSnapshot,
+    INVALID_INDEX,
     type U32,
 } from "@graphty/graph-format";
 
@@ -122,6 +123,10 @@ export class GraphStore {
     private cachedRevision = -1;
     private revision = 0;
     private edgeIdCounter = 0;
+    /** The edge-id column, mirrored by builder row: what {@link GraphStore.edgeIdAt} reads. */
+    private edgeIdByIndex: number[] = [];
+    /** Builder row by edge id: what {@link GraphStore.edgeIndexOf} reads. */
+    private readonly indexByEdgeId: number[] = [];
     private pending: PendingPublish | null = null;
     private pendingPositions: PendingPositions | null = null;
     private publishing = false;
@@ -216,6 +221,50 @@ export class GraphStore {
     }
 
     /**
+     * Stamp an element-assigned edge id into a builder row's `graphty.edgeId` column, and index it
+     * both ways so the graph primitives can find a row by its id without freezing.
+     *
+     * The counter is never wound back: a redone edge gets the id it had, stamped here again.
+     * @param edgeIndex - the builder row
+     * @param edgeId - the counter
+     */
+    stampEdgeId(edgeIndex: number, edgeId: number): void {
+        this.builder.setEdgeValue(this.edgeIdColumn, edgeIndex, edgeId);
+        this.edgeIdByIndex[edgeIndex] = edgeId;
+        this.indexByEdgeId[edgeId] = edgeIndex;
+    }
+
+    /**
+     * The builder row a live edge occupies.
+     * @param edgeId - the element-assigned counter
+     * @returns the row, or INVALID_INDEX when no live edge has that id
+     */
+    edgeIndexOf(edgeId: number): number {
+        const index = this.indexByEdgeId[edgeId];
+        return index !== undefined && this.edgeIdByIndex[index] === edgeId && this.builder.hasEdge(index)
+            ? index
+            : INVALID_INDEX;
+    }
+
+    /**
+     * The element-assigned id of the edge in one builder row.
+     * @param edgeIndex - the row
+     * @returns the counter, or INVALID_INDEX when the row is not a live edge
+     */
+    edgeIdAt(edgeIndex: number): number {
+        const edgeId = this.edgeIdByIndex[edgeIndex];
+        return edgeId !== undefined && this.builder.hasEdge(edgeIndex) ? edgeId : INVALID_INDEX;
+    }
+
+    /**
+     * Put back how the direction was settled, when the write that settled it is undone.
+     * @param provenance - what it was before
+     */
+    restoreDirection(provenance: DirectionProvenance): void {
+        this.direction = provenance;
+    }
+
+    /**
      * The current snapshot, freezing first when the graph has changed since the last one.
      *
      * A FREEZE IS PUBLISHED EXACTLY ONCE, and the store's own state commits before ANY other step
@@ -256,6 +305,7 @@ export class GraphStore {
 
         const previous = this.cache;
         const { snapshot, report } = this.builder.freezeWithReport({ label: "graphty-element" });
+        this.remapEdgeIds(report.edgeRemap);
 
         // COMMIT FIRST, with nothing between the freeze and these four assignments that can throw.
         // freezeWithReport reports against the PREVIOUS freeze, so any step that both follows the
@@ -451,6 +501,30 @@ export class GraphStore {
         } finally {
             this.publishing = false;
         }
+    }
+
+    /**
+     * Follow a compacting freeze with the edge-id index: the builder's rows are the snapshot's
+     * from here on.
+     * @param remap - the freeze report's edgeRemap, or null when nothing was renumbered
+     */
+    private remapEdgeIds(remap: U32 | null): void {
+        if (remap === null) {
+            return;
+        }
+
+        const moved: number[] = [];
+        for (const [index, edgeId] of this.edgeIdByIndex.entries()) {
+            const next = remap[index] ?? INVALID_INDEX;
+            if (edgeId === undefined || next === INVALID_INDEX) {
+                continue;
+            }
+
+            moved[next] = edgeId;
+            this.indexByEdgeId[edgeId] = next;
+        }
+
+        this.edgeIdByIndex = moved;
     }
 
     /**

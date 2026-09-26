@@ -277,9 +277,12 @@ function AccelerationSettingsPane({
  * state is seeded from storage in the initialiser rather than in an effect, so the switch
  * never draws the default for a frame before correcting itself, and storage is the only
  * source of truth: nothing else in the app writes this key.
+ * @param props - the pane's props.
+ * @param props.labelShortfall - graphty-element's sentence for why the current graph got fewer
+ * labels than the budget, or null when it got them all.
  * @returns the two controls and the sentence that says when they take effect.
  */
-function LabelSettingsPane(): React.JSX.Element {
+function LabelSettingsPane({ labelShortfall }: { readonly labelShortfall: string | null }): React.JSX.Element {
     const [settings, setSettings] = useState<PersistedLabelSettings>(() =>
         resolveLabelSettings(readPersistedLabelSettings()),
     );
@@ -325,6 +328,18 @@ function LabelSettingsPane(): React.JSX.Element {
                 }}
             />
 
+            {/* The element's own explanation when a tie across the budget left labels out, so a
+                switch that reads ON over a graph with no labels is never silent about why. */}
+            {labelShortfall !== null && (
+                <Box
+                    component="span"
+                    data-testid="settings-labels-shortfall"
+                    style={{ fontSize: "var(--mantine-font-size-sm)", color: PANEL_INK.CHROME }}
+                >
+                    {labelShortfall}
+                </Box>
+            )}
+
             <Box component="span" style={{ fontSize: "var(--mantine-font-size-sm)", color: PANEL_INK.CHROME }}>
                 {NEXT_LOAD_LINE}
             </Box>
@@ -366,6 +381,11 @@ export interface SettingsOverlayProps {
     readonly accelerationPolicy: AccelerationPolicy;
     /** Reports a click on the acceleration control. Required, for the reason `aiProviders` is. */
     readonly onAccelerationPolicyChange: (policy: AccelerationPolicy) => void;
+    /**
+     * Why the loaded graph got fewer degree labels than its budget, in graphty-element's words
+     * (`RunResult.top(...).reason`); null or left out when it got them all.
+     */
+    readonly labelShortfall?: string | null;
 }
 
 /**
@@ -395,6 +415,7 @@ export function SettingsOverlay(props: SettingsOverlayProps): React.JSX.Element 
         aiProviders,
         accelerationPolicy,
         onAccelerationPolicyChange,
+        labelShortfall = null,
     } = props;
 
     const [sectionId, setSectionId] = useState<string>(SETTINGS_SECTIONS[0].id);
@@ -615,7 +636,7 @@ export function SettingsOverlay(props: SettingsOverlayProps): React.JSX.Element 
                                     policy={accelerationPolicy}
                                     onChange={onAccelerationPolicyChange}
                                 />
-                                <LabelSettingsPane />
+                                <LabelSettingsPane labelShortfall={labelShortfall} />
                             </>
                         )}
 

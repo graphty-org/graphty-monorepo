@@ -31,6 +31,7 @@ import {
     isNormalization,
     type NumericColumnSource,
     rankEntries,
+    topOfRanking,
 } from "./statistics";
 import {
     type Histogram,
@@ -44,6 +45,7 @@ import {
     type RunResult,
     type SummaryEntry,
     type SummaryGroup,
+    type TopRanking,
 } from "./types";
 
 // ---------------------------------------------------------------------------------------------
@@ -589,6 +591,7 @@ class Result implements RunResult {
     readonly #reading: ResultReadingGenerator;
     readonly #columns = new Map<string, AnalyzedColumn>();
     readonly #rankings = new Map<string, readonly RankingEntry[]>();
+    readonly #tops = new Map<string, TopRanking>();
     #summary: ResultSummary | undefined;
 
     /**
@@ -670,19 +673,58 @@ class Result implements RunResult {
      *   the field is not a number published per element.
      */
     ranking(field: string, limit?: number): readonly RankingEntry[] {
-        if (limit !== undefined && (!Number.isInteger(limit) || limit < 0)) {
-            throw new GraphtyError({
-                code: "E_OPTION_RANGE",
-                source: "run",
-                message: `A ranking limit is a whole number of entries, not ${String(limit)}.`,
-                details: { option: "limit", value: limit, min: 0 },
-                target: { kind: "run", id: this.runId },
-            });
+        if (limit !== undefined) {
+            this.#checkLimit(limit, "limit");
         }
 
         const cached = this.#rankings.get(field) ?? this.#rank(field);
 
         return limit === undefined ? cached : Object.freeze(cached.slice(0, limit));
+    }
+
+    /**
+     * The top `n` elements on one field, cut only between tie groups: a group of equal values is
+     * taken whole, and only when all of it fits inside `n`. Kept per field and `n`, because a
+     * top selector asks once per element it paints.
+     * @param field - The field to rank on.
+     * @param n - The most elements the top may hold.
+     * @returns The elements taken, and the tie group left out when there was one.
+     * @throws A GraphtyError coded E_OPTION_RANGE when n is not a whole number of entries,
+     *   E_UNKNOWN_ATTRIBUTE when the run published no such field, or E_BAD_COMMAND when the
+     *   field is not a number published per element.
+     */
+    top(field: string, n: number): TopRanking {
+        const key = `${String(n)}:${field}`;
+        const cached = this.#tops.get(key);
+        if (cached !== undefined) {
+            return cached;
+        }
+
+        const top = topOfRanking(this.ranking(field), this.#checkLimit(n, "n"));
+        this.#tops.set(key, top);
+
+        return top;
+    }
+
+    /**
+     * Refuse a count of entries that is not a whole number.
+     * @param limit - The count.
+     * @param option - What the caller called it, for the refusal.
+     * @returns The count.
+     * @throws A GraphtyError coded E_OPTION_RANGE when it is not a whole number of entries.
+     */
+    #checkLimit(limit: number, option: string): number {
+        if (!Number.isInteger(limit) || limit < 0) {
+            throw new GraphtyError({
+                code: "E_OPTION_RANGE",
+                source: "run",
+                message: `A ranking limit is a whole number of entries, not ${String(limit)}.`,
+                details: { option, value: limit, min: 0 },
+                target: { kind: "run", id: this.runId },
+            });
+        }
+
+        return limit;
     }
 
     /**

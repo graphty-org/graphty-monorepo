@@ -130,6 +130,7 @@ function fakeRunResult(): RunResult {
             suggestedScale: "linear",
             binning: "per-value",
         }),
+        top: (_field: string, n: number) => ({ entries: ranking.slice(0, n), leftOut: null, reason: null }),
         graph: {},
     } as unknown as RunResult;
 }
@@ -556,6 +557,7 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
         },
         runs: {
             list: (): readonly FakeRun[] => [...runs],
+            get: (id: RunId): FakeRun | undefined => runs.find((candidate) => candidate.id === id),
             /* `start` is what the shell calls now, so the fake has to be the thing that runs
                the algorithm AND records the run. It resolves on a microtask, as a queued run
                does, and its `style` option decides whether the element paints it.

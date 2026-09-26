@@ -361,7 +361,7 @@ export function setup(): {
     const dispatcher = new Dispatcher({
         definitions: [setStyles, setConfig, failAfterWrite, failBeforeWrite, select, run, load, addNode, pin, addEdge],
         now: clock.now,
-        publish: (change) => published.push(change),
+        events: { project: (change) => published.push(change) },
         scheduler: queue,
     });
 

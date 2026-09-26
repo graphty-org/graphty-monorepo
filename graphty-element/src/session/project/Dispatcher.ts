@@ -18,10 +18,17 @@
  * it seals. A command needing a key an open transaction holds fails at once with
  * `E_HELD_BY_TRANSACTION`; one needing a key any other open group holds waits for it, and runs
  * when that group commits or is dropped when it rolls back.
+ *
+ * Every change reaches the screen through the derivation lane (`./derive.ts`), and is published
+ * in one order (design section 9.3): the state changes and a pass is scheduled; `project` and
+ * `history` events fire synchronously; the pass runs; the `derived` events (the per-domain
+ * events) fire; the caller's promise settles last. Undo, redo and restore act at call time, and
+ * one called from inside a listener runs after the current call has returned.
  */
 
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { OperationCategory } from "../../managers/OperationQueueManager";
+import { DerivationLane } from "./derive";
 import {
     createProjectStore,
     deepFreezeArgs,
@@ -31,7 +38,7 @@ import {
     type ProjectStore,
     type ValueSlice,
 } from "./draft";
-import { History } from "./History";
+import { History, type HistoryChangeReason } from "./History";
 import { createProjectState, type ProjectState } from "./state";
 import { checkSoleHolder, strictStateEnabled } from "./strict";
 
@@ -132,10 +139,26 @@ interface TransactionOptions {
     readonly provenance?: Readonly<Record<string, string>>;
 }
 
-/** A change to live project state, for the events a later layer publishes. */
+/** What moved live project state. */
+type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
+
+/** A change to live project state. */
 interface ProjectChange {
-    readonly slices: readonly ValueSlice[];
-    readonly cause: "command" | "rollback";
+    readonly slices: readonly string[];
+    readonly cause: HistoryCause;
+}
+
+/** Why the history, or what the next undo will do, changed. */
+type HistoryReason = HistoryChangeReason | "pending";
+
+/** Where the dispatcher publishes; the session turns these into its events. */
+interface DispatcherEvents {
+    /** `project:changed`: synchronously, as soon as the state has changed. */
+    project?: (change: ProjectChange) => void;
+    /** `history:changed`: synchronously, after `project`. */
+    history?: (reason: HistoryReason) => void;
+    /** After the derivation pass: the per-domain events. One per step an undo or restore passes. */
+    derived?: (change: ProjectChange) => void;
 }
 
 /** One slot a queued command holds on the queue. */
@@ -219,9 +242,9 @@ type NextUndo =
 /** A recorded step as the history publishes it. */
 type HistoryStepView = History<Patch>["steps"][number];
 
-/** What an undo or a redo did. */
+/** What an undo, a redo or a restore did. */
 type HistoryOutcome =
-    | { readonly kind: "undone" | "redone"; readonly steps: readonly HistoryStepView[] }
+    | { readonly kind: "undone" | "redone" | "restored"; readonly steps: readonly HistoryStepView[] }
     | { readonly kind: "cancelled"; readonly pending: readonly PendingStep[] }
     | { readonly kind: "nothing" };
 
@@ -236,8 +259,8 @@ interface DispatcherOptions {
     readonly state?: ProjectState;
     /** The clock of the coalescing window. */
     readonly now?: () => number;
-    /** Told after a group's writes are recorded, or after live writes are reverted. */
-    readonly publish?: (change: ProjectChange) => void;
+    /** Where changes are published; replaceable later through `events`. */
+    readonly events?: DispatcherEvents;
     /** The queue of queued commands: the session's, through {@link queueScheduler}. */
     readonly scheduler?: Scheduler;
 }
@@ -429,9 +452,12 @@ function isThenable(value: unknown): value is PromiseLike<unknown> {
 /** The one mutation path: groups, drafts, rollback, transactions and pending work. */
 export class Dispatcher {
     readonly history: History<Patch>;
+    /** Where every change is derived to the picture; hooks register here. */
+    readonly lane: DerivationLane;
+    /** The listeners; the session sets them. */
+    readonly events: DispatcherEvents;
     private readonly store: ProjectStore;
     private readonly definitions = new Map<string, CommandDefinition<CommandLike>>();
-    private readonly publish: (change: ProjectChange) => void;
     private readonly scheduler: Scheduler;
     private readonly strict = strictStateEnabled();
     private readonly scopes = new WeakMap<TransactionScope, Group>();
@@ -452,6 +478,10 @@ export class Dispatcher {
     private holdChanges = 0;
     private pendingCache: { key: number; value: readonly PendingStep[] } | undefined;
     private nextCache: { key: string; value: NextUndo } | undefined;
+    /** `history` reasons not yet published. */
+    private readonly reasons: HistoryReason[] = [];
+    /** Above zero while a listener runs: a history call made then waits for a microtask. */
+    private emitting = 0;
 
     /**
      * Create a dispatcher over a state it alone will write.
@@ -462,8 +492,11 @@ export class Dispatcher {
             this.definitions.set(definition.op, definition);
         }
 
-        this.store = createProjectStore(options.state ?? createProjectState());
-        this.publish = options.publish ?? (() => undefined);
+        this.store = createProjectStore(options.state ?? createProjectState(), (slice, key) => {
+            this.lane.touch(slice, key);
+        });
+        this.lane = new DerivationLane(this.store.state);
+        this.events = { ...options.events };
         this.scheduler = options.scheduler ?? NO_SCHEDULER;
         this.history = new History<Patch>({
             forward: (patch) => {
@@ -474,6 +507,9 @@ export class Dispatcher {
             },
             merge: mergePatches,
             now: options.now,
+            onChange: (reason) => {
+                this.note(reason);
+            },
         });
     }
 
@@ -574,10 +610,12 @@ export class Dispatcher {
                     }
                 }
 
+                await this.lane.settled();
                 return value;
             },
-            (error: unknown) => {
+            async (error: unknown) => {
                 this.cancelGroup(group, error);
+                await this.lane.settled();
                 throw error;
             },
         );
@@ -585,7 +623,9 @@ export class Dispatcher {
             signal.addEventListener(
                 "abort",
                 () => {
-                    reject(signal.reason as Error);
+                    void this.lane.settled().then(() => {
+                        reject(signal.reason as Error);
+                    });
                 },
                 { once: true },
             );
@@ -614,44 +654,44 @@ export class Dispatcher {
      * 1. otherwise the newest pending work dispatched after the top step, or deferred from it, is
      *    cancelled, with every later-dispatched pending item that shares a key with it;
      * 2. otherwise the top step is undone. Pending work dispatched before it keeps running.
-     * @returns What was done.
+     *
+     * Acts at call time; called from inside a listener, it acts after the current call returns.
+     * @returns What was done, once the picture has caught up.
      */
-    undo(): HistoryOutcome {
-        const plan = this.plan("undo");
-        if (plan === null) {
-            return { kind: "nothing" };
-        }
-
-        if ("cancel" in plan) {
-            return { kind: "cancelled", pending: this.cancelAll(plan.cancel, "undo") };
-        }
-
-        const step = this.history.undo();
-        const meta = step === null ? undefined : this.steps.get(step.id);
-        if (meta !== undefined) {
-            meta.undone = this.tick++;
-        }
-
-        return step === null ? { kind: "nothing" } : { kind: "undone", steps: Object.freeze([step]) };
+    undo(): Promise<HistoryOutcome> {
+        return this.historyCall(() => this.move("undo"));
     }
 
     /**
      * Redo, by the rules of {@link Dispatcher.undo} checked against the step being redone: only
      * pending work dispatched after that step was undone is cancelled first.
-     * @returns What was done.
+     * @returns What was done, once the picture has caught up.
      */
-    redo(): HistoryOutcome {
-        const plan = this.plan("redo");
-        if (plan === null) {
-            return { kind: "nothing" };
-        }
+    redo(): Promise<HistoryOutcome> {
+        return this.historyCall(() => this.move("redo"));
+    }
 
-        if ("cancel" in plan) {
-            return { kind: "cancelled", pending: this.cancelAll(plan.cancel, "redo") };
-        }
+    /**
+     * Move to the state just after a step, or to the baseline, as the equivalent sequence of undos
+     * or redos: their cancellation rules apply for each step passed, the state changes all at
+     * once. Back to the baseline (null) cancels all pending work and aborts every open
+     * transaction.
+     * @param id - The step, or null for the baseline.
+     * @returns What was done, once the picture has caught up.
+     */
+    restoreTo(id: string | null): Promise<HistoryOutcome> {
+        return this.historyCall(() => this.restore(id));
+    }
 
-        const step = this.history.redo();
-        return step === null ? { kind: "nothing" } : { kind: "redone", steps: Object.freeze([step]) };
+    /**
+     * Drop every step, cancelling all pending work and aborting every open transaction: the
+     * current state becomes the baseline.
+     */
+    clear(): void {
+        this.cancelAll(this.cascade(this.ordered()), "cancel");
+        this.history.clear();
+        this.steps.clear();
+        this.flushHistory();
     }
 
     /**
@@ -662,6 +702,181 @@ export class Dispatcher {
     cancel(id: string): readonly PendingStep[] {
         const group = [...this.open].find((open) => open.id === id);
         return group === undefined ? Object.freeze([]) : this.cancelAll(this.cascade([group]), "cancel");
+    }
+
+    /**
+     * Act now, or after the current call when called from inside a listener, and settle once the
+     * pass that derives the change has run.
+     * @param act - The history call.
+     * @returns Its outcome.
+     */
+    private historyCall(act: () => HistoryOutcome): Promise<HistoryOutcome> {
+        if (this.emitting > 0) {
+            return new Promise((resolve) => {
+                queueMicrotask(() => {
+                    resolve(this.historyCall(act));
+                });
+            });
+        }
+
+        let outcome: HistoryOutcome;
+        try {
+            outcome = act();
+        } catch (error) {
+            return Promise.reject(error as Error);
+        }
+
+        return this.lane.settled().then(() => outcome);
+    }
+
+    /**
+     * One undo or redo, now.
+     * @param direction - Which.
+     * @returns What was done.
+     */
+    private move(direction: "undo" | "redo"): HistoryOutcome {
+        const plan = this.plan(direction);
+        if (plan === null) {
+            return { kind: "nothing" };
+        }
+
+        if ("cancel" in plan) {
+            return { kind: "cancelled", pending: this.cancelAll(plan.cancel, direction) };
+        }
+
+        this.lane.restore();
+        const step = direction === "undo" ? this.history.undo() : this.history.redo();
+        if (step === null) {
+            return { kind: "nothing" };
+        }
+
+        this.markUndone(direction, [step]);
+        const change = { slices: step.slices, cause: direction };
+        this.emit(change, [change]);
+        return { kind: direction === "undo" ? "undone" : "redone", steps: Object.freeze([step]) };
+    }
+
+    /**
+     * One restore, now.
+     * @param id - The step, or null for the baseline.
+     * @returns What was done.
+     */
+    private restore(id: string | null): HistoryOutcome {
+        const { steps, position } = this.history;
+        const target = id === null ? 0 : steps.findIndex((step) => step.id === id) + 1;
+        if (id !== null && target === 0) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `The history has no step "${id}".`,
+                source: "history",
+                details: { step: id },
+            });
+        }
+
+        const cancelled: PendingStep[] = [];
+        if (id === null) {
+            cancelled.push(...this.cancelAll(this.cascade(this.ordered()), "undo"));
+        } else {
+            const direction = target < position ? "undo" : "redo";
+            const passing = target < position ? steps.slice(target, position).reverse() : steps.slice(position, target);
+            for (const step of passing) {
+                for (let plan = this.plan(direction, step); plan !== null && "cancel" in plan; ) {
+                    cancelled.push(...this.cancelAll(plan.cancel, direction));
+                    plan = this.plan(direction, step);
+                }
+            }
+        }
+
+        if (target === position) {
+            return cancelled.length > 0 ? { kind: "cancelled", pending: Object.freeze(cancelled) } : { kind: "nothing" };
+        }
+
+        this.lane.restore();
+        const passed = this.history.restoreTo(id);
+        this.markUndone(target < position ? "undo" : "redo", passed);
+        const slices = [...new Set(passed.flatMap((step) => step.slices))];
+        this.emit(
+            { slices, cause: "restore" },
+            passed.map((step) => ({ slices: step.slices, cause: "restore" as const })),
+        );
+        return { kind: "restored", steps: passed };
+    }
+
+    /**
+     * Remember when steps were undone, for the redo rules.
+     * @param direction - How they were passed.
+     * @param steps - The steps.
+     */
+    private markUndone(direction: "undo" | "redo", steps: readonly HistoryStepView[]): void {
+        if (direction !== "undo") {
+            return;
+        }
+
+        for (const step of steps) {
+            const meta = this.steps.get(step.id);
+            if (meta !== undefined) {
+                meta.undone = this.tick++;
+            }
+        }
+    }
+
+    /**
+     * Publish a change: `project` and the pending `history` reasons now, the `derived` events
+     * once the pass has run.
+     * @param change - What changed, for `project`.
+     * @param derived - The per-domain changes, one per step.
+     */
+    private emit(change: ProjectChange, derived: readonly ProjectChange[]): void {
+        this.notify(() => this.events.project?.(change));
+        this.flushHistory();
+        void this.lane.settled().then(() => {
+            for (const each of derived) {
+                this.notify(() => this.events.derived?.(each));
+            }
+        });
+    }
+
+    /**
+     * Queue a `history` reason, published at the next emit or in a microtask, whichever is first.
+     * @param reason - Why.
+     */
+    private note(reason: HistoryReason): void {
+        if (reason === "pending" && this.reasons.at(-1) === "pending") {
+            return;
+        }
+
+        if (this.reasons.length === 0) {
+            queueMicrotask(() => {
+                this.flushHistory();
+            });
+        }
+
+        this.reasons.push(reason);
+    }
+
+    /** Publish every queued `history` reason, in order. */
+    private flushHistory(): void {
+        for (const reason of this.reasons.splice(0)) {
+            this.notify(() => this.events.history?.(reason));
+        }
+    }
+
+    /**
+     * Call a listener. A history call it makes waits; what it throws is rethrown unhandled, so
+     * it cannot leave the dispatcher half way through a change.
+     * @param listener - The call.
+     */
+    private notify(listener: () => void): void {
+        this.emitting++;
+        try {
+            listener();
+        } catch (error) {
+            queueMicrotask(() => {
+                throw error;
+            });
+        } finally {
+            this.emitting--;
+        }
     }
 
     /**
@@ -947,10 +1162,7 @@ export class Dispatcher {
         if (group.tx === null) {
             this.rollback(group);
         } else {
-            const slices = job.revert?.() ?? [];
-            if (slices.length > 0) {
-                this.publish({ slices, cause: "rollback" });
-            }
+            this.reverted(job.revert?.() ?? []);
         }
 
         job.reject(error);
@@ -972,10 +1184,7 @@ export class Dispatcher {
             return;
         }
 
-        const slices = job.status === "running" ? (job.revert?.() ?? []) : [];
-        if (slices.length > 0) {
-            this.publish({ slices, cause: "rollback" });
-        }
+        this.reverted(job.status === "running" ? (job.revert?.() ?? []) : []);
 
         this.stop(job, error);
     }
@@ -1056,7 +1265,8 @@ export class Dispatcher {
             }
 
             this.prune();
-            this.publish({ slices, cause: "command" });
+            const change = { slices, cause: "command" as const };
+            this.emit(change, [change]);
         }
 
         this.release(group, true);
@@ -1069,12 +1279,20 @@ export class Dispatcher {
      */
     private rollback(group: Group): void {
         this.leave(group);
-        const patch = group.draft.rollback();
-        if (patch.entries.length > 0) {
-            this.publish({ slices: slicesOf(patch), cause: "rollback" });
-        }
-
+        this.reverted(slicesOf(group.draft.rollback()));
         this.release(group, false);
+    }
+
+    /**
+     * Live writes were reverted: derive them in restore mode, and say so.
+     * @param slices - The slices reverted; nothing happens when empty.
+     */
+    private reverted(slices: readonly string[]): void {
+        if (slices.length > 0) {
+            this.lane.restore();
+            const change = { slices, cause: "rollback" as const };
+            this.emit(change, [change]);
+        }
     }
 
     /**
@@ -1142,16 +1360,17 @@ export class Dispatcher {
     /**
      * What an undo or a redo will act on (design section 6.1).
      * @param direction - Which.
+     * @param target - The step it would pass; by default the one next to the cursor.
      * @returns The groups to cancel, the step to move over, or null for nothing.
      */
-    private plan(direction: "undo" | "redo"): { cancel: readonly Group[] } | { step: HistoryStepView } | null {
-        const { steps, position } = this.history;
-        const step = direction === "undo" ? steps.at(position - 1) : steps.at(position);
-        if (direction === "redo" && (step === undefined || position === steps.length)) {
+    private plan(
+        direction: "undo" | "redo",
+        target: HistoryStepView | undefined = this.adjacent(direction),
+    ): { cancel: readonly Group[] } | { step: HistoryStepView } | null {
+        if (direction === "redo" && target === undefined) {
             return null;
         }
 
-        const target = direction === "undo" && position === 0 ? undefined : step;
         const meta = target === undefined ? undefined : this.steps.get(target.id);
         const since = (direction === "undo" ? meta?.recorded : meta?.undone) ?? -1;
         const open = this.ordered();
@@ -1182,6 +1401,20 @@ export class Dispatcher {
 
         // Rule 2.
         return target === undefined ? null : { step: target };
+    }
+
+    /**
+     * The step next to the cursor.
+     * @param direction - Which side: the top done step, or the next undone one.
+     * @returns The step, or undefined at the end of the history.
+     */
+    private adjacent(direction: "undo" | "redo"): HistoryStepView | undefined {
+        const { steps, position } = this.history;
+        if (direction === "redo") {
+            return steps[position];
+        }
+
+        return position === 0 ? undefined : steps[position - 1];
     }
 
     /**
@@ -1349,11 +1582,11 @@ export class Dispatcher {
         group: Group,
         queuedKey: string | null,
     ): Job {
-        let resolve: (value: unknown) => void = () => undefined;
-        let reject: (error: unknown) => void = () => undefined;
-        const promise = new Promise<unknown>((yes, no) => {
-            resolve = yes;
-            reject = no;
+        let yes: (value: unknown) => void = () => undefined;
+        let no: (error: unknown) => void = () => undefined;
+        const promise = new Promise<unknown>((resolve, reject) => {
+            yes = resolve;
+            no = reject;
         });
         // A cancelled job nobody awaited must not surface as an unhandled rejection.
         promise.catch(() => undefined);
@@ -1372,8 +1605,17 @@ export class Dispatcher {
             blockedBy: null,
             revert: null,
             promise,
-            resolve,
-            reject,
+            // The caller hears last, after the pass and the events it publishes.
+            resolve: (value) => {
+                this.afterPass(() => {
+                    yes(value);
+                });
+            },
+            reject: (error) => {
+                this.afterPass(() => {
+                    no(error);
+                });
+            },
         };
     }
 
@@ -1422,9 +1664,21 @@ export class Dispatcher {
         return group.view;
     }
 
-    /** Pending work or a hold changed. */
+    /**
+     * Run `settle` once the change being made now has been derived. The lane is asked at the end
+     * of the current synchronous work, when every write of it has been marked.
+     * @param settle - What to run.
+     */
+    private afterPass(settle: () => void): void {
+        queueMicrotask(() => {
+            void this.lane.settled().then(settle);
+        });
+    }
+
+    /** The pending list changed. */
     private changed(): void {
         this.changes++;
+        this.note("pending");
     }
 
     /** Forget the record times of steps the history no longer has. */

@@ -18,7 +18,7 @@ const DEFAULT_COALESCE_MS = 1000;
 const EVICT_TO = 0.9;
 
 /** Why the history changed. */
-type HistoryChangeReason = "record" | "merge" | "undo" | "redo" | "restore" | "evict" | "clear";
+export type HistoryChangeReason = "record" | "merge" | "undo" | "redo" | "restore" | "evict" | "clear";
 
 /** How the history reaches the patches it holds. */
 export interface HistoryOptions<P> {

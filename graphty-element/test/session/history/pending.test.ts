@@ -66,21 +66,21 @@ describe("undo while work is pending", () => {
         const older = outcome(dispatcher.dispatch({ op: "fake.run", id: "older" }));
         const newer = outcome(dispatcher.dispatch({ op: "fake.run", id: "newer" }));
 
-        const first = dispatcher.undo();
+        const first = await dispatcher.undo();
         assert.strictEqual(first.kind, "cancelled");
         assert.deepEqual(first.kind === "cancelled" ? labels(first.pending) : [], ["Ran newer"]);
         assert.isTrue(isAbort((await newer).error, "undo"));
         assert.strictEqual(stackName(dispatcher), "a");
 
-        const second = dispatcher.undo();
+        const second = await dispatcher.undo();
         assert.deepEqual(second.kind === "cancelled" ? labels(second.pending) : [], ["Ran older"]);
         assert.isTrue(isAbort((await older).error, "undo"));
 
-        const third = dispatcher.undo();
+        const third = await dispatcher.undo();
         assert.strictEqual(third.kind, "undone");
         assert.isNull(stackName(dispatcher));
         assert.deepEqual(executions, []);
-        assert.strictEqual(dispatcher.undo().kind, "nothing");
+        assert.strictEqual((await dispatcher.undo()).kind, "nothing");
     });
 
     it("leaves work dispatched before the top step running through an undo and a redo", async () => {
@@ -89,9 +89,9 @@ describe("undo while work is pending", () => {
         const turn = queue.next();
         await dispatcher.dispatch({ op: "fake.styles", name: "colour" });
 
-        assert.strictEqual(dispatcher.undo().kind, "undone");
+        assert.strictEqual((await dispatcher.undo()).kind, "undone");
         assert.deepEqual(labels(dispatcher.pending), ["Ran betweenness"]);
-        assert.strictEqual(dispatcher.redo().kind, "redone");
+        assert.strictEqual((await dispatcher.redo()).kind, "redone");
         assert.deepEqual(labels(dispatcher.pending), ["Ran betweenness"]);
 
         gates.open("b");
@@ -105,7 +105,7 @@ describe("undo while work is pending", () => {
         const run = outcome(dispatcher.dispatch({ op: "fake.run", id: "slow", gate: "s" }));
         const turn = queue.next();
         await dispatcher.dispatch({ op: "fake.styles", name: "colour" });
-        dispatcher.undo();
+        await dispatcher.undo();
 
         gates.open("s");
         await turn;
@@ -118,14 +118,14 @@ describe("undo while work is pending", () => {
         const { dispatcher } = setup();
         const before = outcome(dispatcher.dispatch({ op: "fake.run", id: "before" }));
         await dispatcher.dispatch({ op: "fake.styles", name: "a" });
-        dispatcher.undo();
+        await dispatcher.undo();
         const after = outcome(dispatcher.dispatch({ op: "fake.run", id: "after" }));
 
-        const first = dispatcher.redo();
+        const first = await dispatcher.redo();
         assert.deepEqual(first.kind === "cancelled" ? labels(first.pending) : [], ["Ran after"]);
         assert.isTrue(isAbort((await after).error, "redo"));
 
-        assert.strictEqual(dispatcher.redo().kind, "redone");
+        assert.strictEqual((await dispatcher.redo()).kind, "redone");
         assert.strictEqual(stackName(dispatcher), "a");
         assert.deepEqual(labels(dispatcher.pending), ["Ran before"]);
         dispatcher.cancel(dispatcher.pending[0].id);
@@ -153,13 +153,13 @@ describe("undo while work is pending", () => {
         assert.isTrue(dispatcher.state.config.get("pin/x"));
 
         assert.deepEqual(dispatcher.nextUndo?.kind, "cancel");
-        const first = dispatcher.undo();
+        const first = await dispatcher.undo();
         assert.deepEqual(first.kind === "cancelled" ? labels(first.pending) : [], ["Message"]);
         assert.isTrue(isAbort((await message).error));
         assert.isFalse(dispatcher.state.config.has("pin/x"));
         assert.isTrue(dispatcher.state.config.get("node/x"));
 
-        assert.strictEqual(dispatcher.undo().kind, "undone");
+        assert.strictEqual((await dispatcher.undo()).kind, "undone");
         assert.isFalse(dispatcher.state.config.has("node/x"));
     });
 
@@ -181,7 +181,7 @@ describe("undo while work is pending", () => {
         release();
         await tick();
 
-        const first = dispatcher.undo();
+        const first = await dispatcher.undo();
         assert.deepEqual(first.kind === "cancelled" ? labels(first.pending) : [], ["Message"]);
         assert.isTrue(isAbort((await message).error));
         assert.isFalse(dispatcher.state.config.has("node/z"));
@@ -200,7 +200,7 @@ describe("undo while work is pending", () => {
         });
         await dispatcher.dispatch({ op: "fake.add-node", id: "x" });
 
-        assert.strictEqual(dispatcher.undo().kind, "undone");
+        assert.strictEqual((await dispatcher.undo()).kind, "undone");
         assert.isFalse(dispatcher.state.config.has("node/x"));
         assert.deepEqual(labels(dispatcher.pending), ["Message"]);
         release();
@@ -227,7 +227,7 @@ describe("history.nextUndo", () => {
         assert.deepEqual(cancel?.kind === "cancel" ? labels(cancel.pending) : [], ["Ran degree"]);
         assert.isTrue(Object.isFrozen(cancel));
 
-        dispatcher.undo();
+        await dispatcher.undo();
         await run;
         assert.strictEqual(nextUndo()?.kind, "undo");
     });
@@ -310,7 +310,7 @@ describe("deferred members", () => {
         assert.deepEqual(dispatcher.history.steps[0].ops, ["fake.styles", "fake.run"]);
         assert.lengthOf(dispatcher.pending, 0);
 
-        dispatcher.undo();
+        await dispatcher.undo();
         assert.isNull(stackName(dispatcher));
         assert.isFalse(dispatcher.state.runs.has("degree"));
     });
@@ -324,12 +324,12 @@ describe("deferred members", () => {
             await tx.dispatch({ op: "fake.styles", name: "a" });
         });
 
-        const first = dispatcher.undo();
+        const first = await dispatcher.undo();
         assert.deepEqual(first.kind === "cancelled" ? labels(first.pending) : [], ["Ran degree"]);
         assert.isTrue(isAbort((await run)?.error, "undo"));
         assert.strictEqual(stackName(dispatcher), "a");
 
-        assert.strictEqual(dispatcher.undo().kind, "undone");
+        assert.strictEqual((await dispatcher.undo()).kind, "undone");
         assert.isNull(stackName(dispatcher));
         assert.deepEqual(executions, []);
     });

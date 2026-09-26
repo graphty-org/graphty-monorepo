@@ -104,9 +104,14 @@ type Mutable<T> = { -readonly [K in keyof T]: T[K] };
 /**
  * Wrap a state as a store. The store is the state's only writer from here on.
  * @param initial - The state; its maps must be the store's alone (see `createProjectState`).
+ * @param onWrite - Told of every key written to live state, whoever wrote it: a draft, undo,
+ * redo or a rollback. The derivation lane marks the key dirty.
  * @returns The store.
  */
-export function createProjectStore(initial: ProjectState): ProjectStore {
+export function createProjectStore(
+    initial: ProjectState,
+    onWrite: (slice: ValueSlice, key: string) => void = () => undefined,
+): ProjectStore {
     const state = initial as Mutable<ProjectState>;
     const maps = {
         config: state.config as Map<string, unknown>,
@@ -133,6 +138,7 @@ export function createProjectStore(initial: ProjectState): ProjectStore {
     };
 
     const put = (slice: ValueSlice, key: string, value: unknown): void => {
+        onWrite(slice, key);
         switch (slice) {
             case "styles":
                 state.styles = value as readonly CompiledLayer[];

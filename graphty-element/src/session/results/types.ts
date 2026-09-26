@@ -615,6 +615,28 @@ export interface RankingEntry {
     readonly percentile: number;
 }
 
+/**
+ * The top of a ranking, cut only between tie groups.
+ *
+ * THE TIE POLICY: a group of elements that share a value is taken whole or not at all, and it is
+ * taken only when the whole group fits inside the limit. With ranks that share a place (1, 2, 2,
+ * 4), a group of size `s` at rank `r` is in exactly when `r + s - 1 <= n`. So the top never holds
+ * more than `n` elements and never splits a tie by an arbitrary order -- and it can hold FEWER
+ * than `n`, or none at all on a graph whose top value is shared by more than `n` elements.
+ * {@link TopRanking.leftOut} and {@link TopRanking.reason} say when that happened.
+ */
+export interface TopRanking {
+    /** The elements taken, best first: whole tie groups only, never more than the limit. */
+    readonly entries: readonly RankingEntry[];
+    /**
+     * The tie group that stopped the top short: the first group that did not fit, with its
+     * value and its size. Null when nothing was left out on account of a tie.
+     */
+    readonly leftOut: { readonly value: number; readonly count: number } | null;
+    /** Why fewer elements were taken than the limit allowed, in a sentence; null when none were left out. */
+    readonly reason: string | null;
+}
+
 /** One bar of a histogram. */
 export interface HistogramBin {
     /** The lowest value the bin holds, inclusive. */
@@ -791,6 +813,15 @@ export interface RunResult {
      * @returns The entries, best first.
      */
     ranking(field: string, limit?: number): readonly RankingEntry[];
+    /**
+     * The top `n` elements on one field, cut only between tie groups. See {@link TopRanking}
+     * for the tie policy. A `{ match: "top" }` style selector and a `{ top }` selection target
+     * both read this, so the two can never disagree about which elements are the top `n`.
+     * @param field - The field to rank on.
+     * @param n - The most elements the top may hold.
+     * @returns The elements taken, and the tie group left out when there was one.
+     */
+    top(field: string, n: number): TopRanking;
     /**
      * The distribution of one numeric field.
      * @param field - The field to bin.

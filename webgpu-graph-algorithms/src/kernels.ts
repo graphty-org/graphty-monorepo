@@ -435,8 +435,7 @@ export const FRONTIER_COUNTERS: UniformBlock = UniformBlock.define(
  * `arcEnd` @44 (the bound arc window), `predKind` @48 (0 arc, 1 node), `bitsBase` @52, `source` @56, `stride` @60
  * (a grid-stride plan's stride), `firstOfSubmit` @64 (the boundary's index inside its submit, clamped to 1: both
  * the unvisited-count and the unvisited-degree-sum subtraction run at >= 1, issue #391), `iteration` @68 (an
- * `sssp-pred` hop pass,
- * P8-T9), `pad1` @72, `pad2` @76. The `slotBase` field that once addressed the selector's indirect slots went with
+ * `sssp-pred` hop pass, P8-T9), `pad1` @72, `pad2` @76. The `slotBase` field that once addressed the selector's indirect slots went with
  * the slots (2026-09-25); `pad2` keeps the block an explicit 80 bytes, the way every block here is padded.
  */
 export const FRONTIER_PARAMS: UniformBlock = UniformBlock.define("FrontierParams", [

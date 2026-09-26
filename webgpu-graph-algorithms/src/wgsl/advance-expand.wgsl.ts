@@ -7,8 +7,9 @@
  * the twin's two compilations -- and then every invocation strips the range `[0, aggregate)` with a binary search
  * (`upper_bound`) over the scanned degrees to find which entry its arc belongs to. One `atomicAdd` per WORKGROUP
  * reserves the block's span in the queue (`edgeCount`), the same aggregate lands in `edgeCountUnclamped` (the overflow
- * detector, never clamped) and in `frontierDegreeSum` (Beamer's m_f); a lane whose queue position is at or past
- * `P.edgeCapacity` writes nothing (the clamp). The queue holds the TARGET vertex of each arc only (PD-24: `parent`
+ * detector, never clamped) and in `frontierDegreeSum` (the inspect seam's per-level expansion count, rotated into
+ * `prevDegreeSum` by the boundary; Beamer's m_f is `nextDegreeSum`, measured by `bfs-next-degree` -- issue #391);
+ * a lane whose queue position is at or past `P.edgeCapacity` writes nothing (the clamp). The queue holds the TARGET vertex of each arc only (PD-24: `parent`
  * comes from the post-pass). Uniformity (spec 3.5 rule 1): the guarded loads write locals, the scan call and the
  * `workgroupUniformLoad` sit unconditionally after the guard, and the strip loop is bounded by a uniform value.
  * There is no `TIER` override: a hub row is balanced over all `WG` lanes inside its block, and the small-frontier
@@ -44,7 +45,7 @@ fn advance_expand(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocati
         if (lid.x == 0u) {
             base = atomicAdd(&counters[8], aggregate);                   // edgeCount: ONE reservation per workgroup, not one per arc
             atomicAdd(&counters[9], aggregate);                          // edgeCountUnclamped: the overflow detector (PD-23)
-            atomicAdd(&counters[2], aggregate);                          // frontierDegreeSum: Beamer's m_f (P8-T8)
+            atomicAdd(&counters[2], aggregate);                          // frontierDegreeSum: what this level expanded (the inspect seam)
         }
         workgroupBarrier();
         for (var p = lid.x; p < aggregate; p = p + WG) {                 // strip [0, aggregate): lane j takes j, j + WG, ...

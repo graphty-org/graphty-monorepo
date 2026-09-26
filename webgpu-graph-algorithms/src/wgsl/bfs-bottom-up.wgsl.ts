@@ -11,9 +11,10 @@
  * The winners are packed into the output vertex queue by `bfs-contract`'s workgroup scan and one `atomicAdd` per
  * workgroup on `nextFrontierCount`, and claim with a plain `atomicStore`: the list holds every vertex once and the
  * sweep is vertex-parallel, so no two lanes claim one vertex. It adds nothing to `frontierDegreeSum` (a bottom-up
- * level expands nothing), which is why `unvisitedDegreeSum` stops falling while bottom-up runs (the selector's
- * JSDoc). Uniformity (spec 3.5 rule 1): the guarded walk writes locals, the scan and the reduction run
- * unconditionally after it. Body only (spec 3.5, D9); the text is normative: the sabotage rows of
+ * level expands nothing), which is why that word is not Beamer's m_f: `bfs-next-degree` sums the degree of what
+ * this sweep CLAIMS into `nextDegreeSum`, so the boundary's test and its `unvisitedDegreeSum` subtraction are exact
+ * on a bottom-up level like any other (issue #391; the selector's JSDoc). Uniformity (spec 3.5 rule 1): the
+ * guarded walk writes locals, the scan and the reduction run unconditionally after it. Body only (spec 3.5, D9); the text is normative: the sabotage rows of
  * test/helpers/sabotage.ts are textual edits of it.
  */
 export const bfsBottomUpWgsl = /* wgsl */ `

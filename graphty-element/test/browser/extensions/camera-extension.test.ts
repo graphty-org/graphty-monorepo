@@ -788,7 +788,8 @@ describe("a third party's camera view", () => {
             const isometric = graph.resolveCameraPreset("isometric");
             assert.strictEqual(isometric.type, "arcRotate");
             assert.closeTo(isometric.alpha ?? 0, Math.PI / 4, 0.001);
-            assert.closeTo(isometric.beta ?? 0, 0.615, 0.001);
+            // acos(1/sqrt(3)): beta is measured down from +y, the ArcRotate convention.
+            assert.closeTo(isometric.beta ?? 0, Math.acos(1 / Math.sqrt(3)), 0.001);
             assert.closeTo(isometric.radius ?? 0, maxDimension * 1.5, 0.001);
 
             const side = graph.resolveCameraPreset("sideView");

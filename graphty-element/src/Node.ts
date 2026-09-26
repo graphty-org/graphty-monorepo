@@ -129,6 +129,10 @@ export class Node {
      */
     private drawnLabelText?: string;
 
+    /** The style and the instance colour the current mesh was built from; see `paintFrom`. */
+    private drawnStyle: NodeStyleConfig | null = null;
+    private drawnColor: Rgba | null = null;
+
     /**
      * The resolved label block the label on screen was built from.
      *
@@ -250,6 +254,8 @@ export class Node {
 
         // create mesh
         const o = paint.style;
+        this.drawnStyle = o;
+        this.drawnColor = paint.color;
         this.size = o.shape?.size ?? 0;
         this.shapeType = o.shape?.type;
 
@@ -465,7 +471,32 @@ export class Node {
         // which folds opacity into the key string, and by the colour write below. The `content`
         // channels -- the label and its typography -- are compensated for by nothing at all, so
         // they are applied here. See `drawnLabelText` for the defect that reached a consumer.
-        if (meshKey === this.meshKey && !this.mesh.isDisposed()) {
+        // A DIFFERENT KEY FOR THE SAME STYLE IS NOT A REBUILD. Every element is constructed from
+        // the bootstrap paint, whose key is a sentinel no session key ever equals, and the first
+        // style pass then hands it the session's key -- for the same style, whenever no layer
+        // touches the element, which is every element of a plain load. Comparing keys alone
+        // rebuilt every node and edge once: dispose the placeholder mesh, build the same mesh
+        // again. Babylon's dispose is a linear search of the scene's mesh list and of the parent's
+        // children, so that rebuild cost the size of the scene per element and the load grew as
+        // its square (issue #388: 4,000 nodes took 28 s, 10,000 never finished). A style that is
+        // deep-equal to the one the current mesh was built from means the same geometry, the same
+        // colour and the same content by construction, so the key is adopted and nothing is
+        // touched.
+        const sameGeometry =
+            meshKey === this.meshKey || (_.isEqual(o, this.drawnStyle) && _.isEqual(color, this.drawnColor));
+
+        if (sameGeometry && !this.mesh.isDisposed()) {
+            this.meshKey = meshKey;
+            this.drawnStyle = o;
+            this.drawnColor = color;
+            // The mesh keeps its geometry and takes the key it is now drawn under: what a reader of
+            // the scene (test/browser/every-element-leaves-the-bootstrap-paint.test.ts) uses to
+            // tell an element the hand-over reached from one it did not.
+            const metadata = this.mesh.metadata as { styleId?: string } | undefined;
+
+            if (metadata !== undefined) {
+                metadata.styleId = meshKey;
+            }
             this.applyInstancePaint(o, color);
             this.syncLabel(o, false);
             this.syncTooltip(o);
@@ -474,6 +505,8 @@ export class Node {
         }
 
         this.meshKey = meshKey;
+        this.drawnStyle = o;
+        this.drawnColor = color;
 
         // Save the current position before disposing the mesh
         // This is critical for style changes when layout is settled,
@@ -939,7 +972,7 @@ export class Node {
      * @param selection - The configured colour and opacity.
      */
     private static paintHalo(overlay: AbstractMesh, selection: GraphSelectionStyleConfig): void {
-        const {material} = overlay;
+        const { material } = overlay;
 
         if (!(material instanceof StandardMaterial)) {
             return;
@@ -1227,7 +1260,6 @@ export class Node {
      * @returns The options, with this node's mesh as the thing they attach to.
      */
     private createLabelOptions(labelText: string, labelStyle: NodeStyleConfig["label"] = {}): RichTextLabelOptions {
-
         // Get attach position and offset
         const attachPosition = this.getAttachPosition(labelStyle.location ?? "top");
         const attachOffset = labelStyle.attachOffset ?? this.getDefaultAttachOffset(labelStyle.location ?? "top");

@@ -1,3 +1,13 @@
+## 2.2.3 (2026-09-26)
+
+### 🩹 Fixes
+
+- **graphty-element:** load large graphs in linear time instead of quadratic ([#388](https://github.com/graphty-org/graphty-monorepo/issues/388))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.2.2 (2026-09-26)
 
 ### 🩹 Fixes

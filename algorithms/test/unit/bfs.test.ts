@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
     breadthFirstSearch,
@@ -614,12 +614,13 @@ describe("BFS Algorithms", () => {
                 }
             }
 
-            const start = performance.now();
+            // Count work, not wall-clock time: a time budget measures the machine rather than
+            // the code (issue #363). A linear BFS expands every node exactly once.
+            const neighbors = vi.spyOn(graph, "neighbors");
             const result = breadthFirstSearch(graph, 0);
-            const elapsed = performance.now() - start;
 
             expect(result.visited.size).toBe(nodeCount);
-            expect(elapsed).toBeLessThan(100); // Should complete quickly
+            expect(neighbors).toHaveBeenCalledTimes(nodeCount);
         });
 
         it("should handle graphs at optimization threshold", () => {

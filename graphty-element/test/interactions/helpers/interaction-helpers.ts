@@ -256,7 +256,8 @@ export function getSceneScale(graph: Graph): number {
         // Default ortho range is approximately 20 units
         return 20 / state.orthoRange;
     } else if (state.mode === "3d" && state.radius !== undefined) {
-        // Default radius is 30 (startingCameraDistance)
+        // 30 is a fixed reference distance, not the camera's default: an unset
+        // startingCameraDistance frames the graph to fit, so the start depends on the graph
         return 30 / state.radius;
     }
 

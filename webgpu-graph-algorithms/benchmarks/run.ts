@@ -11,6 +11,7 @@
  *   pnpm exec tsx benchmarks/run.ts layout-fr             # T-14 (P5)
  *   pnpm exec tsx benchmarks/run.ts layout-grid           # the grid ladder in 2D / 3D, T-6 / T-7 and the 7.8 re-check rows (P4)
  *   pnpm exec tsx benchmarks/run.ts attraction-scale      # the attraction gather across the working-set ladder (the G4-F16 diagnostic)
+ *   pnpm exec tsx benchmarks/run.ts bfs                   # T-10: BFS auto / top-down and SSSP on the RMAT tiers, BFS on the 1000 x 1000 grid (P8)
  *   pnpm exec tsx benchmarks/run.ts --no-save             # print only
  *   pnpm exec tsx benchmarks/run.ts --runs 3              # 3 timed runs per benchmark
  *   pnpm exec tsx benchmarks/run.ts --allow-software      # time on a software adapter anyway (never for a baseline)
@@ -24,6 +25,7 @@
 import { type GpuContext } from "../src/context.js";
 import { createNodeGpuContext } from "../src/node/index.js";
 import { ATTRACTION_SCALE_GROUP, runAttractionScaleBenchmarks } from "./attraction-scale.bench.js";
+import { BFS_GROUP, runBfsBenchmarks } from "./bfs.bench.js";
 import { appendSession, type BenchResult, gpuSessionInfo, printTable, runnerClass, setBenchRuns } from "./harness.js";
 import { LAYOUT_EXACT_GROUP, runLayoutExactBenchmarks } from "./layout-exact.bench.js";
 import { LAYOUT_FR_GROUP, runLayoutFrBenchmarks } from "./layout-fr.bench.js";
@@ -36,7 +38,9 @@ import { runWccBenchmarks } from "./wcc.bench.js";
 /**
  * The groups and the T-targets they record (6.3): upload T-1, roundtrip T-2 / T-3, layout-exact T-4 and the Node side
  * of T-5, `pagerank` T-8, `wcc` T-9, `layout-fr` T-14, `layout-grid` T-6 / T-7 and the grid rows of the 7.8
- * re-check. `attraction-scale` records no target: it is the G4-F16 diagnostic, a ratio curve rather than a gate row.
+ * re-check, `bfs` T-10 (P8). `attraction-scale` records no target: it is the G4-F16 diagnostic, a ratio curve rather than
+ * a gate row. Every group is REQUIRED by scripts/bench-append-session.js: a session appended to a baseline must carry
+ * all of them, so a new group is added there and to test/benchmarks.test.ts in the same change.
  */
 const GROUPS: Readonly<Record<string, (ctx: GpuContext) => Promise<BenchResult[]>>> = {
     upload: runUploadBenchmarks,
@@ -47,6 +51,7 @@ const GROUPS: Readonly<Record<string, (ctx: GpuContext) => Promise<BenchResult[]
     [LAYOUT_FR_GROUP]: runLayoutFrBenchmarks,
     [LAYOUT_GRID_GROUP]: runLayoutGridBenchmarks,
     [ATTRACTION_SCALE_GROUP]: runAttractionScaleBenchmarks,
+    [BFS_GROUP]: runBfsBenchmarks,
 };
 
 /** The parsed command line. */

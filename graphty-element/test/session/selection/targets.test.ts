@@ -385,6 +385,33 @@ describe("a finished run's ranking", () => {
         harness.session.dispose();
     });
 
+    it("takes a tie group only when all of it fits, the same cut a top style selector paints", () => {
+        const harness = line();
+        const tied = createRunResult({
+            runId: "tied",
+            shape: "node-metric",
+            fields: [field({ name: "value", plainName: "Connections", technicalName: "degree", kind: "node", type: "number" })],
+            measured: { nodes: 4, edges: 0 },
+            nodes: [
+                { id: "a", values: { value: 1 } },
+                { id: "b", values: { value: 3 } },
+                { id: "c", values: { value: 3 } },
+                { id: "d", values: { value: 4 } },
+            ],
+            caveats: CAVEATS,
+            durationMs: 1,
+        });
+        const results = createResultsApi(registryOf([{ id: "tied", label: "Tied", shape: "node-metric", result: tied }]));
+        const selection = selectionOf(harness, { results });
+
+        selection.applyNow({ top: { run: "tied", field: "value", n: 2 } });
+        assert.deepStrictEqual([...selection.nodes], ["d"], "b and c tie, and the two of them do not fit beside d");
+
+        selection.applyNow({ top: { run: "tied", field: "value", n: 3 } });
+        assert.deepStrictEqual([...selection.nodes], ["b", "c", "d"]);
+        harness.session.dispose();
+    });
+
     it("takes everything above a threshold", () => {
         const harness = line();
         const selection = selectionOf(harness, { results: RESULTS });

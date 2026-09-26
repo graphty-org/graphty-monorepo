@@ -16,7 +16,7 @@ import type { LayoutManager } from "./LayoutManager";
 import type { StatsManager } from "./StatsManager";
 
 /** The corners of a box in world space. */
-export interface FramingBox {
+interface FramingBox {
     min: Vector3;
     max: Vector3;
 }

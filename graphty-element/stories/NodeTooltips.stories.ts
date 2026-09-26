@@ -66,7 +66,6 @@ interface TooltipArgs {
 function render(args: TooltipArgs): Element {
     const element = document.createElement("graphty-element") as Graphty;
 
-    element.startingCameraDistance = 20;
     setLayoutPreSteps(element, 2000);
 
     for (const layer of args.layers ?? []) {

@@ -54,7 +54,6 @@ interface HighlightArgs {
 function render(args: HighlightArgs): Element {
     const element = document.createElement("graphty-element") as Graphty;
 
-    element.startingCameraDistance = 20;
     // Stepped before the first frame under Chromatic, so the snapshot is the same picture twice.
     setLayoutPreSteps(element, 2000);
 

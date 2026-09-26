@@ -5,23 +5,35 @@
  * `@graphty/algorithms` (W1b, algorithms half), `import type`d by src/types/accelerator.ts, so the object built
  * here is checked against the CPU packages' own contracts. It carries P3's `forceAtlas2`, `release` and `dispose`,
  * P5's `fruchtermanReingold` and `springElectrical` (the two other layout members of spec 9.3, landed together once
- * both models were green, P5 PD-19) and P7's seven algorithm members (spec 8.2, 8.3; M8b-T8, PD-14) and nothing
- * else: the CPU-side dispatchers (`accelerated()`, `createSimulation()`) test `acc.betweennessCentrality !== undefined`
- * / `acc.fruchtermanReingold !== undefined` and route to the CPU when the member is absent (spec 2.4 row "method
+ * both models were green, P5 PD-19), P7's seven algorithm members (spec 8.2, 8.3; M8b-T8, PD-14) and P8's four
+ * traversal members (spec 8.4; P8-T13 PD-16, PD-19: `breadthFirstSearch`, `sssp`, `bellmanFord`,
+ * `closenessCentrality`, each taking the seam's own option type) and nothing else: the CPU-side dispatchers
+ * (`accelerated()`, `createSimulation()`) test `acc.betweennessCentrality !== undefined` /
+ * `acc.fruchtermanReingold !== undefined` and route to the CPU when the member is absent (spec 2.4 row "method
  * missing"), so a method the GPU does not implement must not exist here -- never a throwing stub. The remaining
- * algorithm members arrive one per shipped algorithm from P8.
+ * algorithm members arrive one per shipped algorithm from P9.
  */
 
 import { type F32, type F64, type GraphSnapshot } from "@graphty/graph-format";
 
+import { bellmanFord } from "./algorithms/bellman-ford.js";
+import { breadthFirstSearch } from "./algorithms/bfs.js";
+import { closenessCentrality } from "./algorithms/closeness.js";
 import { connectedComponents } from "./algorithms/components.js";
 import { pageRank, personalizedPageRank } from "./algorithms/pagerank.js";
 import { eigenvectorCentrality, hits, katzCentrality } from "./algorithms/spectral.js";
+import { sssp } from "./algorithms/sssp.js";
 import { type GpuContext } from "./context.js";
 import { createForceAtlas2 } from "./layouts/forceatlas2.js";
 import { createFruchtermanReingold } from "./layouts/fruchterman-reingold.js";
 import { createSpringElectrical } from "./layouts/spring-electrical.js";
-import { type AcceleratorOptions, type GpuAccelerator } from "./types/accelerator.js";
+import {
+    type AcceleratorOptions,
+    type BfsOptions,
+    type GpuAccelerator,
+    type HitsOptionsLike,
+    type SsspOptions,
+} from "./types/accelerator.js";
 import {
     type ComponentsOptions,
     type EigenvectorOptions,
@@ -45,6 +57,7 @@ import {
     type FruchtermanReingoldOptions,
     type SpringElectricalOptions,
 } from "./types/options.js";
+import { type GpuBellmanFordResult, type GpuBfsResult, type GpuSsspResult } from "./types/traversal.js";
 
 /** The `algorithms` record of AcceleratorOptions (spec 3.3), named for the copy helpers. */
 type AlgorithmDefaults = NonNullable<AcceleratorOptions["algorithms"]>;
@@ -104,8 +117,8 @@ function freezeOptions(options: AcceleratorOptions | undefined): Readonly<Accele
 /**
  * Spec 3.3 createAccelerator, verbatim: the object implementing AlgorithmAccelerator & LayoutAccelerator
  * structurally; P3's forceAtlas2, release and dispose, P5's fruchtermanReingold and springElectrical (the same
- * `{ ...o, ...options.layout }` shape as forceAtlas2) plus P7's seven algorithm members, each a delegation to
- * its algorithm with `ctx.assertReady()` first. The accelerator's algorithm defaults are not consulted by any of
+ * `{ ...o, ...options.layout }` shape as forceAtlas2) plus P7's seven algorithm members and P8's four traversal
+ * members, each a delegation to its algorithm with `ctx.assertReady()` first. The accelerator's algorithm defaults are not consulted by any of
  * them: only `betweenness` has any, and it belongs to P9. One per call (the app creates one and injects
  * it, spec 2.4); `kind` is "webgpu"; `options` is a frozen deep copy; `forceAtlas2(o)` is
  * `createForceAtlas2(ctx, { ...o, ...options.layout })`, so the GPU tuning given here wins over anything the
@@ -230,6 +243,51 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
         async weaklyConnectedComponents(gs: GraphSnapshot, o?: ComponentsOptions): Promise<GpuLabelResult> {
             ctx.assertReady();
             return await connectedComponents(ctx, gs, o);
+        },
+        /**
+         * Breadth-first search on the device (spec 8.4; P8-T13). The result is bitwise reproducible (P8 PD-14).
+         * @param gs - the snapshot
+         * @param source - the source node index
+         * @param o - the seam's `BfsOptions` (`maxDepth`)
+         * @returns depth, parent, the level-grouped order, visitedCount, levels and switches (spec 3.3 line 830)
+         */
+        async breadthFirstSearch(gs: GraphSnapshot, source: number, o?: BfsOptions): Promise<GpuBfsResult> {
+            ctx.assertReady();
+            return await breadthFirstSearch(ctx, gs, source, o);
+        },
+        /**
+         * Single-source shortest paths on the device (spec 8.4; P8-T13): the near-far queue over f32 distances, or the
+         * breadth-first route when every weight is one.
+         * @param gs - the snapshot
+         * @param source - the source node index
+         * @param o - the seam's `SsspOptions` (`cutoff`, `weights`)
+         * @returns dist, predArc and reachedCount (spec 3.3 line 831)
+         */
+        async sssp(gs: GraphSnapshot, source: number, o?: SsspOptions): Promise<GpuSsspResult> {
+            ctx.assertReady();
+            return await sssp(ctx, gs, source, o);
+        },
+        /**
+         * Bellman-Ford on the device with negative-cycle detection (spec 8.4; P8-T13).
+         * @param gs - the snapshot
+         * @param source - the source node index
+         * @param o - the seam's `SsspOptions` (`cutoff`, `weights`)
+         * @returns dist, predArc, reachedCount and hasNegativeCycle (spec 3.3 line 832)
+         */
+        async bellmanFord(gs: GraphSnapshot, source: number, o?: SsspOptions): Promise<GpuBellmanFordResult> {
+            ctx.assertReady();
+            return await bellmanFord(ctx, gs, source, o);
+        },
+        /**
+         * Closeness centrality on the device (spec 8.4; P8-T13): the bit-parallel multi-source sweep, or one `sssp`
+         * per source when `weighted`. `maxIterations` / `tolerance` are refused when defined (P8 PD-25).
+         * @param gs - the snapshot
+         * @param o - the seam's placeholder `HitsOptionsLike` (`weighted`)
+         * @returns the f32 scores with `precision: "f32"` (spec 9.7)
+         */
+        async closenessCentrality(gs: GraphSnapshot, o?: HitsOptionsLike): Promise<GpuScoresResult> {
+            ctx.assertReady();
+            return await closenessCentrality(ctx, gs, o);
         },
         /**
          * Destroys every device buffer recorded for the snapshot (spec 4.5); delegates to ctx.release.

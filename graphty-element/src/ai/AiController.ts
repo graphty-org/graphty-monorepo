@@ -447,9 +447,9 @@ When the user asks you to perform an action, use the appropriate tool. If no too
         }
 
         // Combine affected nodes/edges
-        const affectedNodes = results.flatMap((r) => r.affectedNodes ?? []).filter((v, i, a) => a.indexOf(v) === i); // Unique
+        const affectedNodes = [...new Set(results.flatMap((r) => r.affectedNodes ?? []))];
 
-        const affectedEdges = results.flatMap((r) => r.affectedEdges ?? []).filter((v, i, a) => a.indexOf(v) === i); // Unique
+        const affectedEdges = [...new Set(results.flatMap((r) => r.affectedEdges ?? []))];
 
         // Use data from last successful result (or last result)
         const lastResult = results.filter((r) => r.success).pop() ?? results[results.length - 1];

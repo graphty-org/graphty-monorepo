@@ -590,13 +590,13 @@ function resolveStore(
  * session's to dispose.
  * @param given - the controller a caller handed in, if any
  * @param policy - the policy a controller built here runs under
- * @param minNodes - the threshold a controller built here runs under
+ * @param minNodes - the threshold a controller built here runs under, or undefined for the default
  * @returns the controller, and the same object again when this call allocated it
  */
 function resolveAcceleration(
     given: AccelerationControllerLike | undefined,
     policy: AccelerationPolicy,
-    minNodes: number,
+    minNodes: number | undefined,
 ): { controller: AccelerationControllerLike; owned: AccelerationController | null } {
     if (given !== undefined) {
         return { controller: given, owned: null };
@@ -604,7 +604,7 @@ function resolveAcceleration(
 
     // Built, not started: probing is deferred to the first read of `session.capabilities`, so a
     // session that nobody asks about the hardware never reaches for it.
-    const owned = new AccelerationController({ policy, minNodes });
+    const owned = new AccelerationController(minNodes === undefined ? { policy } : { policy, minNodes });
 
     return { controller: owned, owned };
 }
@@ -1061,7 +1061,9 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     // A controller handed in is the authority on its own policy: the session does not own it, so
     // it cannot make a configuration value true merely by declaring it.
     const policy = options.acceleration?.policy ?? options.config?.acceleration?.policy ?? ACCELERATION_POLICY_DEFAULT;
-    const minNodes = options.acceleration?.minNodes ?? options.config?.acceleration?.minNodes ?? 0;
+    // Undefined stays undefined: a threshold nobody set leaves the controller's built-in
+    // per-capability floors in force, and a 0 written here would count as the consumer's own.
+    const minNodes = options.acceleration?.minNodes ?? options.config?.acceleration?.minNodes;
     const watchers: Watchers = new Map();
 
     // Assigned below, and read only from inside a callback: a store this session built delivers
@@ -1224,7 +1226,11 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         snapshot,
         elements,
         answers: (path, target) => paths.answers(path, target),
-        searchPaths: () => data.attributes().filter((attribute) => attribute.kind === "node").map((attribute) => attribute.path),
+        searchPaths: () =>
+            data
+                .attributes()
+                .filter((attribute) => attribute.kind === "node")
+                .map((attribute) => attribute.path),
     });
     const engine = query;
 
@@ -1378,11 +1384,7 @@ function requireQuery(held: QueryEngine | null): QueryEngine {
  * @param event - Which event.
  * @param detail - What to tell them.
  */
-function publish<K extends keyof SessionEventMap>(
-    watchers: Watchers,
-    event: K,
-    detail: SessionEventMap[K],
-): void {
+function publish<K extends keyof SessionEventMap>(watchers: Watchers, event: K, detail: SessionEventMap[K]): void {
     const subscribers = watchers.get(event);
 
     if (subscribers === undefined) {

@@ -3,10 +3,13 @@ import { assert, describe, it, vi } from "vitest";
 import { type AcceleratedWork, AccelerationController } from "../../src/acceleration/AccelerationController";
 import { AcceleratorRegistry } from "../../src/acceleration/registry";
 import {
+    ACCELERATION_MIN_NODES_BY_CAPABILITY,
     ACCELERATION_MIN_NODES_DEFAULT,
+    ACCELERATION_MIN_NODES_MEASUREMENT,
     type AccelerationPrecision,
     type AccelerationStatus,
     CPU_PRECISION,
+    type FlooredCapability,
     type GraphAccelerator,
 } from "../../src/acceleration/types";
 import { GraphtyError, isGraphtyError } from "../../src/errors";
@@ -464,6 +467,102 @@ describe("AccelerationController: the acceleration.minNodes threshold", () => {
 
         assert.isFalse(decision.accelerated);
         assert.include(decision.accelerated ? "" : decision.reason, "pageRank");
+        controller.dispose();
+    });
+});
+
+describe("AccelerationController: the built-in floor of a traversal", () => {
+    /** An accelerator that walks, so the floor and not the feature test is what decides. */
+    const walker = (): GraphAccelerator =>
+        fakeAccelerator({
+            members: {
+                forceAtlas2: (): string => "gpu",
+                breadthFirstSearch: (): string => "gpu",
+                sssp: (): string => "gpu",
+            },
+        });
+    // The table is partial by design -- a capability with no measured floor has no entry -- so a
+    // reader of it is `number | undefined`, and the cases below want the number. This is the one
+    // place that asserts the traversal entries exist, so it is the one place that narrows.
+    const floorOf = (capability: FlooredCapability): number => {
+        const measured = ACCELERATION_MIN_NODES_BY_CAPABILITY[capability];
+
+        if (measured === undefined) {
+            throw new Error(`${capability} has no measured floor`);
+        }
+
+        return measured;
+    };
+    const floor = floorOf("breadthFirstSearch");
+
+    it("has a measured floor for each traversal the adapters route, and none for the layout", () => {
+        assert.isAbove(floor, 0);
+        assert.isAbove(floorOf("sssp"), 0);
+        // The layout has no floor, and cannot be given one by accident: the table's keys are the
+        // seam's ALGORITHM members, so naming a layout capability here would not compile. This
+        // asserts the intent for a reader who has only the runtime value in front of them.
+        assert.notInclude(Object.keys(ACCELERATION_MIN_NODES_BY_CAPABILITY), "forceAtlas2");
+    });
+
+    it("takes the CPU path below the floor and the accelerator at it, and says what was measured", async () => {
+        const controller = new AccelerationController({ registry: registryWith(walker()) });
+        await controller.start();
+
+        const below = controller.plan({ capability: "breadthFirstSearch", nodeCount: floor - 1 });
+        const at = controller.plan({ capability: "breadthFirstSearch", nodeCount: floor });
+
+        assert.isFalse(below.accelerated);
+        const reason = below.accelerated ? "" : below.reason;
+        assert.include(reason, String(floor));
+        assert.include(reason, "breadthFirstSearch");
+        assert.include(reason, ACCELERATION_MIN_NODES_MEASUREMENT);
+        assert.include(reason, "acceleration.minNodes");
+        assert.isTrue(at.accelerated);
+        assert.strictEqual(controller.state, "idle");
+        controller.dispose();
+    });
+
+    it("leaves the layout on the accelerator at every size: the zero was measured for it", async () => {
+        const controller = new AccelerationController({ registry: registryWith(walker()) });
+        await controller.start();
+
+        assert.isTrue(controller.plan({ capability: "forceAtlas2", nodeCount: 1 }).accelerated);
+        assert.isFalse(controller.plan({ capability: "breadthFirstSearch", nodeCount: 1 }).accelerated);
+        controller.dispose();
+    });
+
+    it("does not apply under required, so a benchmark of the small end can reach the device", async () => {
+        const controller = new AccelerationController({ policy: "required", registry: registryWith(walker()) });
+        await controller.ready();
+
+        assert.isTrue(controller.plan({ capability: "breadthFirstSearch", nodeCount: 1 }).accelerated);
+        controller.dispose();
+    });
+
+    it("is replaced by a threshold the consumer set, even a zero", async () => {
+        const built = new AccelerationController({ registry: registryWith(walker()), minNodes: 0 });
+        await built.start();
+        assert.isTrue(built.plan({ capability: "breadthFirstSearch", nodeCount: 1 }).accelerated);
+        built.dispose();
+
+        const set = new AccelerationController({ registry: registryWith(walker()) });
+        await set.start();
+        assert.isFalse(set.plan({ capability: "breadthFirstSearch", nodeCount: 1 }).accelerated);
+        set.setMinNodes(0);
+        assert.isTrue(set.plan({ capability: "breadthFirstSearch", nodeCount: 1 }).accelerated);
+        set.setMinNodes(floor + 1000);
+        assert.isFalse(set.plan({ capability: "breadthFirstSearch", nodeCount: floor + 999 }).accelerated);
+        set.dispose();
+    });
+
+    it("reports a missing member as missing, not as too small", async () => {
+        const controller = new AccelerationController({ registry: registryWith(fakeAccelerator()) });
+        await controller.start();
+
+        const decision = controller.plan({ capability: "breadthFirstSearch", nodeCount: 1 });
+
+        assert.isFalse(decision.accelerated);
+        assert.include(decision.accelerated ? "" : decision.reason, "does not implement");
         controller.dispose();
     });
 });

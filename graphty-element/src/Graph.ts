@@ -25,7 +25,7 @@ import {
 } from "@babylonjs/core";
 import type { GraphSnapshot } from "@graphty/graph-format";
 
-import { ACCELERATION_MIN_NODES_DEFAULT, ACCELERATION_POLICY_DEFAULT, AccelerationController } from "./acceleration";
+import { ACCELERATION_POLICY_DEFAULT, AccelerationController } from "./acceleration";
 import { VoiceInputAdapter } from "./ai/input/VoiceInputAdapter";
 import type { ApiKeyManager } from "./ai/keys";
 import { GraphtyLogger, type Logger } from "./logging";
@@ -354,10 +354,11 @@ export class Graph implements GraphContext {
         this.dataManager = new DataManager(this.eventManager, this.styles);
 
         // ONE controller for the element, this graph and its session. Nothing is probed until
-        // `start()` is called, which the element does from `connectedCallback`.
+        // `start()` is called, which the element does from `connectedCallback`. No `minNodes`
+        // on purpose: passing the default would count as the consumer's own number and switch
+        // off the per-capability floors, which only apply while nobody has set the threshold.
         this.acceleration = new AccelerationController({
             policy: ACCELERATION_POLICY_DEFAULT,
-            minNodes: ACCELERATION_MIN_NODES_DEFAULT,
             // No frame is drawn while a call-shaped run is on the device: a draw of this scene
             // is what the run's readback would otherwise wait behind (issue #390).
             whileRunning: () => this.renderManager.holdFrames(),

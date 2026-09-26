@@ -25,8 +25,10 @@
 import { ACCELERATION_ERROR_CODES, type AccelerationErrorCode, GraphtyError } from "../errors";
 import { type AcceleratorRegistry, acceleratorRegistry } from "./registry";
 import {
+    ACCELERATION_MIN_NODES_BY_CAPABILITY,
     ACCELERATION_MIN_NODES_DEFAULT,
     ACCELERATION_MIN_NODES_KEY,
+    ACCELERATION_MIN_NODES_MEASUREMENT,
     ACCELERATION_POLICY_DEFAULT,
     type AccelerationCapabilities,
     type AccelerationPolicy,
@@ -35,6 +37,7 @@ import {
     type AccelerationStatus,
     type AcceleratorDeviceInfo,
     DEFAULT_ACCELERATOR_PRECISION,
+    type FlooredCapability,
     type GraphAccelerator,
 } from "./types";
 
@@ -103,7 +106,11 @@ type AccelerationOutcome<T> =
 interface AccelerationControllerOptions {
     /** What the consumer asked for. Defaults to `"auto"`. */
     readonly policy?: AccelerationPolicy;
-    /** The `acceleration.minNodes` threshold. Defaults to 0: accelerate whenever possible. */
+    /**
+     * The `acceleration.minNodes` threshold. Left out, the general threshold is 0 and the
+     * built-in per-capability floors of {@link ACCELERATION_MIN_NODES_BY_CAPABILITY} apply; any
+     * value, including 0, is the consumer's own number and switches those floors off.
+     */
     readonly minNodes?: number;
     /** The largest graph an accelerator will be asked to compute exactly, passed to the factory. */
     readonly exactMaxNodes?: number;
@@ -221,6 +228,12 @@ export class AccelerationController {
 
     #policy: AccelerationPolicy;
     #minNodes: number;
+    /**
+     * Whether `#minNodes` is the consumer's number rather than the default. The built-in
+     * per-capability floors apply only while it is the default: a consumer who set the threshold
+     * has said what they want, and the floors were measured on one card, not on their machine.
+     */
+    #explicitMinNodes: boolean;
     #state: AccelerationState;
     #reason: string | undefined;
     #code: AccelerationErrorCode | undefined;
@@ -248,6 +261,7 @@ export class AccelerationController {
         this.#whileRunning = options.whileRunning;
         this.#policy = options.policy ?? ACCELERATION_POLICY_DEFAULT;
         this.#minNodes = options.minNodes ?? ACCELERATION_MIN_NODES_DEFAULT;
+        this.#explicitMinNodes = options.minNodes !== undefined;
         this.#state = this.#policy === "off" ? "off" : "probing";
         this.#status = this.#buildStatus();
         this.#capabilities = Object.freeze({ acceleration: this.#status });
@@ -382,6 +396,7 @@ export class AccelerationController {
         }
 
         this.#minNodes = minNodes;
+        this.#explicitMinNodes = true;
     }
 
     /**
@@ -445,9 +460,10 @@ export class AccelerationController {
     /**
      * Decides where one piece of work runs, before any of it starts.
      *
-     * The decision is the only place a CPU answer can come from, and there are four of them:
+     * The decision is the only place a CPU answer can come from, and there are five of them:
      * the policy is `"off"`, no accelerator is attached, the graph is below
-     * `acceleration.minNodes`, or the attached accelerator does not implement this capability.
+     * `acceleration.minNodes`, the graph is below the built-in floor measured for this
+     * capability, or the attached accelerator does not implement this capability.
      *
      * Under `"required"` two of them throw instead of answering quietly -- no accelerator, and
      * an accelerator without this capability -- because both are absence, and absence is what
@@ -455,6 +471,12 @@ export class AccelerationController {
      * runs on the CPU: an accelerator IS attached and healthy, and the threshold is a statement
      * about what pays, not about what is possible. `"off"` cannot arise under `"required"`,
      * because a policy is one of three.
+     *
+     * The built-in floor is different from the threshold in both directions. It applies only
+     * while the consumer has NOT set `acceleration.minNodes` -- a consumer's number, even 0,
+     * replaces it -- and it does NOT apply under `"required"`, because `"required"` is the
+     * policy a benchmark runs under and a benchmark of the small end of the curve must be able to
+     * reach the device.
      * @param work - The capability the work needs and the size of the graph it is over.
      * @returns Where the work runs.
      * @throws A `GraphtyError` with `E_NO_ACCELERATOR` when the policy is `"required"` and the
@@ -500,6 +522,19 @@ export class AccelerationController {
             return {
                 accelerated: false,
                 reason: `the ${accelerator.name} accelerator does not implement "${work.capability}"`,
+            };
+        }
+
+        // Last, after the feature test: a floor is a statement about a capability the accelerator
+        // has, and an accelerator without the member is reported as that, not as "too small".
+        const floor = ACCELERATION_MIN_NODES_BY_CAPABILITY[work.capability as FlooredCapability];
+        if (floor !== undefined && !this.#explicitMinNodes && !required && work.nodeCount < floor) {
+            return {
+                accelerated: false,
+                reason:
+                    `the graph has ${String(work.nodeCount)} nodes, below the ${String(floor)} at which ` +
+                    `an accelerated "${work.capability}" was measured to beat the CPU path ` +
+                    `(${ACCELERATION_MIN_NODES_MEASUREMENT}); set ${ACCELERATION_MIN_NODES_KEY} to override`,
             };
         }
 

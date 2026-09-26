@@ -3362,9 +3362,10 @@ export class Graphty extends LitElement {
      * The node count at or above which accelerated work uses the accelerator.
      *
      * Below it the element takes the CPU path even with an accelerator attached, and
-     * `capabilities.acceleration.state` reads `"idle"`. Default 0: use the accelerator whenever
-     * there is one. Raise it when the graphs you show are small enough that uploading costs more
-     * than computing; the number is machine-specific, which is why the element does not guess.
+     * `capabilities.acceleration.state` reads `"idle"`. Unset, layouts use the accelerator
+     * whenever there is one and each algorithm keeps a built-in floor measured on one card (see
+     * the acceleration guide). Any value you set, including 0, replaces those floors for every
+     * layout and algorithm; set it when you have measured the machine your graphs are drawn on.
      * @since 2.0.0
      * @example
      * ```html

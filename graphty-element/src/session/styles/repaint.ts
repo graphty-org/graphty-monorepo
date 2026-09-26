@@ -230,6 +230,17 @@ export interface ElementPaint {
      */
     onPainted(listener: () => void): () => void;
     /**
+     * Whether a pass has been asked for and has not finished yet.
+     *
+     * A pass YIELDS TO THE EVENT LOOP and waits behind the pass in front of it, so between the
+     * edit that asks for it and the announcement that ends it there are frames -- as many as the
+     * machine is slow. Nothing is in {@link ElementPaint.lastPainted} for those frames, and a
+     * renderer that asked only whether paint was waiting to be drawn would call the picture
+     * finished, and frame the camera on it, while a node's new size was still on its way.
+     * @returns True from the moment a pass is requested until it has announced what it painted.
+     */
+    painting(): boolean;
+    /**
      * The layers the last pass could not paint, and why.
      * @returns The problems, emptied at the start of every pass.
      */
@@ -705,6 +716,9 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
      * See {@link exclusively} for what interleaving costs.
      */
     let inFlight: Promise<void> = Promise.resolve();
+
+    /** How many passes have been asked for and not finished: the one running and those behind it. */
+    let unfinished = 0;
 
     /** Who is told what a pass painted, in the order they asked. */
     const painted = new Set<() => void>();
@@ -1432,12 +1446,19 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
      * @returns What it painted.
      */
     const exclusively = async (body: () => Promise<RepaintReport>): Promise<RepaintReport> => {
+        unfinished++;
+
         const mine = inFlight.then(body, body);
 
-        inFlight = mine.then(
-            () => undefined,
-            () => undefined,
-        );
+        // Counted down on the chain the next pass waits on, not on `mine`. A `finally` on the
+        // caller's promise moves the microtask every caller resumes on, and a layer added before
+        // a load and not awaited then goes unpainted (test/browser/first-paint-after-load.test.ts
+        // and style-layer-ordering.test.ts both catch it).
+        const finished = (): void => {
+            unfinished--;
+        };
+
+        inFlight = mine.then(finished, finished);
 
         return mine;
     };
@@ -1491,6 +1512,10 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                     null,
                 ),
             );
+        },
+
+        painting(): boolean {
+            return unfinished > 0;
         },
 
         onPainted(listener: () => void): () => void {

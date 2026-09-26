@@ -78,7 +78,7 @@ describe("the render ceiling", () => {
         assert.strictEqual(dataManager.nodes.size, 3);
     });
 
-    it("refuses the edge that would cross it and keeps the edges before it", () => {
+    it("refuses an edge batch that would cross it, whole, before storing any of it", () => {
         dataManager.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
 
         const error = codeOf(() => {
@@ -90,8 +90,87 @@ describe("the render ceiling", () => {
         });
 
         assert.strictEqual(error.code, "E_TOO_LARGE");
-        assert.deepStrictEqual(error.details, { limit: 2, count: 3, of: "edges", graph: { nodes: 3, edges: 2 } });
+        assert.deepStrictEqual(error.details, { limit: 2, count: 3, of: "edges", graph: { nodes: 3, edges: 0 } });
+        // Not even the two that would have fit: a caller retrying with a subset starts from the
+        // graph it had.
+        assert.strictEqual(dataManager.edges.size, 0);
+        // The store held none of them either: a batch that fills the ceiling exactly still fits.
+        assert.doesNotThrow(() => {
+            dataManager.addEdges([
+                { source: "a", target: "b" },
+                { source: "b", target: "c" },
+            ]);
+        });
+    });
+
+    it("keeps the old edges when a replacement set is past it", async () => {
+        // This is `edgeData`: a host that assigns too many edges must end with the graph it had,
+        // not with its old edges gone and none of the new ones held.
+        dataManager.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+        await graph.setEdges([
+            { source: "a", target: "b" },
+            { source: "b", target: "c" },
+        ]);
+        const before = [...dataManager.edges.keys()];
+
+        let reported: unknown;
+        try {
+            await graph.setEdges([
+                { source: "a", target: "c" },
+                { source: "c", target: "b" },
+                { source: "b", target: "a" },
+            ]);
+        } catch (error) {
+            reported = error;
+        }
+
+        assert.strictEqual((reported as GraphtyError).code, "E_TOO_LARGE");
+        assert.deepStrictEqual((reported as GraphtyError).details, {
+            limit: 2,
+            count: 3,
+            of: "edges",
+            graph: { nodes: 3, edges: 2 },
+        });
+        assert.deepStrictEqual([...dataManager.edges.keys()], before);
+        assert.strictEqual(dataManager.getEdgesBetween("a", "c").length, 0);
+    });
+
+    it("counts a replacement set against an emptied graph, not on top of the edges it replaces", async () => {
+        dataManager.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+        await graph.setEdges([
+            { source: "a", target: "b" },
+            { source: "b", target: "c" },
+        ]);
+
+        await graph.setEdges([
+            { source: "a", target: "c" },
+            { source: "c", target: "b" },
+        ]);
+
         assert.strictEqual(dataManager.edges.size, 2);
+        assert.strictEqual(dataManager.getEdgesBetween("a", "c").length, 1);
+    });
+
+    it("does not count a record that would be rejected, or a repeat that would be folded", () => {
+        dataManager.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+        dataManager.addEdges([{ source: "a", target: "b" }]);
+
+        // A record with no storable endpoints never becomes an edge, and a repeat under a folding
+        // policy folds into the edge it repeats -- so neither is a load the renderer has to draw,
+        // whether the repeat is of a held edge or of a record earlier in the same batch.
+        assert.doesNotThrow(() => {
+            dataManager.addEdges(
+                [
+                    { source: null, target: "b" },
+                    { source: "a", target: "b" },
+                    { source: "b", target: "c" },
+                    { source: "b", target: "c" },
+                ],
+                { repeated: "sum" },
+            );
+        });
+        assert.strictEqual(dataManager.edges.size, 2);
+        assert.strictEqual(dataManager.getEdgesBetween("b", "c").length, 1);
     });
 
     it("counts an edge whose endpoints have not arrived, because the store already holds it", () => {

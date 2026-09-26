@@ -19,6 +19,7 @@ import {
     ingestDeclaredDirection,
     ingestEdge,
     ingestNode,
+    isStorableId,
     resolveEdgeWeight,
 } from "../data/ingest";
 import type { ElementPositions } from "../data/positions";
@@ -936,6 +937,15 @@ export class DataManager implements Manager {
         const tally = this.loadTally ?? newImportTally();
         let legacyWeights = 0;
 
+        // Decided before any record is stored: a batch the renderer cannot hold is refused whole,
+        // so a caller never finds the first part of it held and the rest missing.
+        this.refuseAboveCeiling(
+            "edges",
+            this.store.builder.edgeCount,
+            this.edgesAdded(edges, endpoints, policy, false),
+            DEFAULT_LIMITS.edgesDrawn,
+        );
+
         for (const edge of edges) {
             tally.edgeRecords++;
             const srcNodeId = readEndpoint(edge, endpoints.source) as NodeIdType;
@@ -959,11 +969,6 @@ export class DataManager implements Manager {
                     continue;
                 }
             }
-
-            // Checked per edge rather than once per batch because only the repeat policy above
-            // knows how many of these records become edges. The edges before this one are held
-            // and consistent; this one, and the rest of the batch, are refused.
-            this.refuseAboveCeiling("edges", this.store.builder.edgeCount, 1, DEFAULT_LIMITS.edgesDrawn);
 
             // The STORE takes the edge now, whether or not the endpoints have render objects:
             // the builder creates a missing endpoint itself, so the snapshot is complete while
@@ -1214,6 +1219,95 @@ export class DataManager implements Manager {
      */
     getEdgesBetween(srcNodeId: NodeIdType, dstNodeId: NodeIdType): readonly Edge[] {
         return this.edgeCache.get(srcNodeId, dstNodeId);
+    }
+
+    /**
+     * Replace every built edge with a new set, or leave the graph exactly as it was.
+     *
+     * The ceiling is decided BEFORE anything is removed. Removing first and letting `addEdges`
+     * refuse would leave a host that assigned too many edges with its old edges gone and none of
+     * the new ones held, which is neither the graph it had nor the one it asked for. The new
+     * batch is counted against an emptied graph, since the old edges are what it replaces; a
+     * pending edge, whose endpoints have not arrived, survives the replace as it always has.
+     * @param edges - the edges the graph should hold afterwards
+     * @param options - the endpoint expressions and the repeat policy for this call
+     * @throws A `GraphtyError` with `E_TOO_LARGE` when the new set is past the ceiling, and
+     *     whatever `addEdges` throws.
+     */
+    setEdges(edges: Record<string | number, unknown>[], options?: AddEdgesOptions): void {
+        const surviving = this.store.builder.edgeCount - this.edges.size;
+        const policy = options?.repeated ?? this.styles.config.data.knownFields.repeatedEdges;
+        this.refuseAboveCeiling(
+            "edges",
+            surviving,
+            this.edgesAdded(edges, this.endpointsFor(edges, options), policy, true),
+            DEFAULT_LIMITS.edgesDrawn,
+        );
+
+        for (const id of [...this.edges.keys()]) {
+            this.removeEdge(id);
+        }
+
+        this.addEdges(edges, options);
+    }
+
+    /**
+     * How many edges a batch would add, by the same tests the ingest loop applies.
+     *
+     * A record whose endpoint ids graph-format will not store adds nothing (the loop rejects it).
+     * Under the `keep` policy every other record is an edge. Under a folding policy a record that
+     * repeats an edge the graph holds, or a record earlier in the same batch, folds into it and
+     * adds nothing; a repeat is named the way `knownEdgeFor` names it, by record id when one is
+     * configured and stored, else by the ordered endpoint pair.
+     * @param edges - the batch
+     * @param endpoints - the batch's endpoint expressions
+     * @param policy - the repeat policy the batch is under
+     * @param replacing - true when every held edge is about to be removed, so none of them can be
+     *     repeated
+     * @returns the number of edges the batch would add
+     */
+    private edgesAdded(
+        edges: readonly Record<string | number, unknown>[],
+        endpoints: ResolvedEndpoints,
+        policy: DuplicatePolicy,
+        replacing: boolean,
+    ): number {
+        const recordIdPath = this.styles.config.data.knownFields.edgeIdPath;
+        const seenIds = new Set<string | number>();
+        const seenPairs = new Map<NodeIdType, Set<NodeIdType>>();
+        let adding = 0;
+
+        for (const edge of edges) {
+            const srcNodeId = readEndpoint(edge, endpoints.source);
+            const dstNodeId = readEndpoint(edge, endpoints.target);
+            if (!isStorableId(srcNodeId) || !isStorableId(dstNodeId)) {
+                continue;
+            }
+
+            if (policy !== "keep") {
+                const recordId = recordIdPath === null ? undefined : readEndpoint(edge, recordIdPath);
+                if (!replacing && this.knownEdgeFor(srcNodeId, dstNodeId, recordId) !== null) {
+                    continue;
+                }
+
+                const pairs = seenPairs.get(srcNodeId) ?? new Set<NodeIdType>();
+                seenPairs.set(srcNodeId, pairs);
+                const repeatsBatch = isStorableRecordId(recordId) ? seenIds.has(recordId) : pairs.has(dstNodeId);
+                if (repeatsBatch) {
+                    continue;
+                }
+
+                if (isStorableRecordId(recordId)) {
+                    seenIds.add(recordId);
+                }
+
+                pairs.add(dstNodeId);
+            }
+
+            adding++;
+        }
+
+        return adding;
     }
 
     /**

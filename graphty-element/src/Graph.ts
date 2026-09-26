@@ -1392,6 +1392,9 @@ export class Graph implements GraphContext {
      * present each time a host re-assigned the property -- and a host that re-renders on state
      * change re-assigns it constantly. The old drop guard was silently doing this job; deleting the
      * guard without this would have turned "assign the same edges twice" into "hold them twice".
+     *
+     * A set past the render ceiling is refused with `E_TOO_LARGE` before an edge is removed, so
+     * the graph keeps the edges it had.
      * @param edges - the edges the graph should hold afterwards
      * @param options - The endpoint expressions, the repeat policy, and queue ordering
      * @returns Promise that resolves once the graph holds exactly these edges
@@ -1401,11 +1404,7 @@ export class Graph implements GraphContext {
         options?: AddEdgesOptions & QueueableOptions,
     ): Promise<void> {
         const replace = (): void => {
-            for (const id of [...this.dataManager.edges.keys()]) {
-                this.dataManager.removeEdge(id);
-            }
-
-            this.dataManager.addEdges(edges, options);
+            this.dataManager.setEdges(edges, options);
         };
 
         if (options?.skipQueue) {

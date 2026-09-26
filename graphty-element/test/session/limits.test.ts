@@ -33,8 +33,9 @@ describe("the limits the element ships with", () => {
 
     it("publishes the render ceilings the renderer was measured to reach, not the design table's", () => {
         // The design table said 200,000 nodes and 500,000 edges; the renderer died at 18,000 /
-        // 180,000 (issue #405). These are the enforced figures, so a consumer reading them can
-        // trust that a load under them is one the element will actually draw.
+        // 180,000 (issue #405). These are the enforced figures, measured for the DEFAULT edge style:
+        // a patterned line style gives every dot and dash a ShaderMaterial of its own
+        // (PatternedLineRenderer), so under one the heap runs out earlier than these say.
         assert.strictEqual(DEFAULT_LIMITS.renderCeiling, 50_000);
         assert.strictEqual(DEFAULT_LIMITS.edgesDrawn, 100_000);
     });

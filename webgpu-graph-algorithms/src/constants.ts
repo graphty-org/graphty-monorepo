@@ -212,16 +212,29 @@ export const SE_DEFAULTS: Readonly<{
 /**
  * The absolute settle floor of the shared settle rule (spec 7.17; issue #97): an iteration counts toward `settled` only
  * when its mean displacement is at most `settleThreshold x rmsRadius` AND at most this fraction of the model's length
- * unit -- `springLength` for spring-electrical, `k` for Fruchterman-Reingold. The relative rule alone reported a spring
+ * unit -- `springLength` for spring-electrical (scaled by node count, see SETTLE_FLOOR_REFERENCE_NODES), `k` for
+ * Fruchterman-Reingold. The relative rule alone reported a spring
  * layout settled while it still grew (6 % over 1,000 iterations at 10k nodes). ForceAtlas2 writes
  * `SETTLE_FLOOR_UNBOUNDED` instead: it does not drift after settling, and its per-iteration jitter grows with n, so any
  * fixed floor only delays or blocks its stop. The values are measured:
  * design/decisions/2026-09-24-settle-rule-has-an-absolute-floor.md.
  */
-export const SETTLE_FLOOR_FRACTION: Readonly<{ springElectrical: number; fruchtermanReingold: number }> = Object.freeze({
-    springElectrical: 2e-3,
-    fruchtermanReingold: 2e-3,
-});
+export const SETTLE_FLOOR_FRACTION: Readonly<{ springElectrical: number; fruchtermanReingold: number }> = Object.freeze(
+    {
+        springElectrical: 3e-3,
+        fruchtermanReingold: 2e-3,
+    },
+);
+/**
+ * The node count at which the spring-electrical floor is exactly `SETTLE_FLOOR_FRACTION.springElectrical x
+ * springLength`; at `n` nodes it is that times `(SETTLE_FLOOR_REFERENCE_NODES / n)^(1/4)`. A spring layout's rms radius
+ * grows about as n^(1/4) in springLengths (3.4 at 150 nodes, 6.4 at 2,000, 10.4 at 10,000), so the relative half of the
+ * rule loosens with size while the floor tightens with it: on a small graph the floor sits above the relative threshold
+ * and the relative rule decides alone, as before issue #97; on a large one the floor binds, which is where the relative
+ * rule let an expanding layout stop. A fixed floor bound the 150-node story graph too, where the grid tier's jitter sits
+ * at the relative threshold, and nearly doubled its settle (427 -> 829 iterations on the RTX 4070 SUPER).
+ */
+export const SETTLE_FLOOR_REFERENCE_NODES = 2000;
 /** The settle floor that never binds: the largest finite f32, 0x1.fffffep+127 (ForceAtlas2's `settleFloor`, issue #97). */
 export const SETTLE_FLOOR_UNBOUNDED = 2 ** 128 - 2 ** 104;
 /** The smallest finest grid side `G` (spec 7.7 geometry table: `clamp(nextPow2(2 n^(1/dim)), 8, gridMax)`; P4 PD-9). */

@@ -212,7 +212,7 @@ describe("issue #97: settled means the spring layout has stopped growing", () =>
     const N = 2000;
     const BUDGET = 6000;
     const AFTER = 1000;
-    /** Measured 0.40 % on the RTX 4070 SUPER with the floor (1.63 % under the relative rule alone). */
+    /** Measured 0.60 % on the RTX 4070 SUPER and 0.72 % on lavapipe with the floor (1.63 % / 1.81 % under the relative rule alone). */
     const MAX_GROWTH = 0.01;
 
     it(

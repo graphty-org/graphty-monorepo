@@ -26,6 +26,7 @@ import {
     SE_DEFAULTS,
     SE_SCALE_REFERENCE_NODES,
     SETTLE_FLOOR_FRACTION,
+    SETTLE_FLOOR_REFERENCE_NODES,
     TRACE_RECORD_BYTES,
     UNIFORM_SLOT_BYTES,
 } from "../constants.js";
@@ -557,7 +558,10 @@ export class SpringElectricalModel implements ForceModel<SpringElectricalOptions
             frK: 0,
             temperature: 0,
             springLength: resolved.springLength,
-            settleFloor: SETTLE_FLOOR_FRACTION.springElectrical * resolved.springLength,
+            settleFloor:
+                SETTLE_FLOOR_FRACTION.springElectrical *
+                resolved.springLength *
+                (SETTLE_FLOOR_REFERENCE_NODES / Math.max(n, 1)) ** 0.25,
             springCoefficient: resolved.springCoefficient ?? SE_DEFAULTS.springCoefficient * springSizeFactor(n),
             coulomb: resolved.gravity ?? SE_DEFAULTS.gravity * springSizeFactor(n),
             dragCoefficient: resolved.dragCoefficient,

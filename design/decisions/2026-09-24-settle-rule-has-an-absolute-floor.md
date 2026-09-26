@@ -70,3 +70,38 @@ option, which is a public API change and its own decision.
 The G5 story graph under the spring preset (`test/layouts/se-settle.test.ts`): 496 iterations on the
 RTX 4070 SUPER as before, 488 on lavapipe (480 before). `docs/decisions/G5.md` row 4 records the old
 counts.
+
+## Amendment (2026-09-25): the spring floor scales with node count
+
+The fixed floor of 0.002 x `springLength` also bound the 150-node story graph, where the relative
+rule had been deciding alone, and nearly doubled the grid tier's settle there: 832 iterations on the
+RTX 4070 SUPER and on Apple Metal (the relative rule alone on the same kernels: 648 on the RTX 4070
+SUPER), and the 1,000-iteration cap on Dawn over D3D12 WARP. The grid tier's jitter on that graph
+sits right at the relative threshold, so any floor below it adds hundreds of iterations. A
+reader waits for that stop on every small graph, and small graphs are not where the drift is.
+
+The spring-electrical floor is now `0.003 x springLength x (2000 / n)^(1/4)`
+(`SETTLE_FLOOR_FRACTION.springElectrical`, `SETTLE_FLOOR_REFERENCE_NODES`). A spring layout's rms radius
+grows about as n^(1/4) in spring lengths (3.4 at 150 nodes, 6.4 at 2,000, 10.4 at 10,000), so the
+relative half loosens with size exactly where this floor tightens: at 150 nodes the floor is 0.0057
+spring lengths, above the relative threshold of about 0.0034, and the relative rule decides alone as
+it did before this record; at 2,000 and more the floor binds. Fruchterman-Reingold keeps 0.002 x `k`,
+whose `k` already falls as 1 / sqrt(n).
+
+Measured (settles at, rms growth over the next 1,000 iterations; the story graph from the tests, the
+larger graphs from the recorded traces of `tmp/settle-trace.ts` evaluated per rule):
+
+| Graph | Adapter | Before this record (relative rule) | Fixed floor 0.002 | This amendment |
+| --- | --- | --- | --- | --- |
+| spring grid, story graph (grid-law.test.ts) | RTX 4070 SUPER | 560 (old kernels) | 832 | 648 (= relative rule alone on these kernels) |
+| spring grid, story graph (grid-law.test.ts) | lavapipe | 568 (old kernels) | 648 | 576 (= relative rule alone) |
+| spring exact, story graph (se-settle.test.ts) | RTX 4070 SUPER / lavapipe | 496 / 480 | 496 / 488 | 496 / 480 |
+| spring exact, 2,000 nodes (issue #97, se-settle.test.ts) | RTX 4070 SUPER | 941, 1.63 % | 2,019, 0.40 % | 1,624, 0.60 % |
+| spring exact, 2,000 nodes (issue #97, se-settle.test.ts) | lavapipe | 955, 1.81 % | 2,254, 0.26 % | 1,536, 0.72 % |
+| spring exact, 10,000 nodes (trace) | RTX 4070 SUPER | 890, 5.96 % | 3,602, 0.24 % | 3,521, 0.29 % |
+| spring exact, 10,000 nodes (trace) | lavapipe | 895, 5.91 % | 3,854, 0.09 % | 3,848, 0.10 % |
+
+Every graph that grew more than 1 % under the relative rule alone grows less than 1 % after the
+amended stop. The rest of the gap on the grid story graph (648 against 560 on the RTX 4070 SUPER) is
+the grid kernels' own change in this pull request (the far-field distance floor and the per-orthant
+outside cells), not the settle rule.

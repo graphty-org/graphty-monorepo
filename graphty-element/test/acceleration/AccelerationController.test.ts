@@ -9,6 +9,7 @@ import {
     type AccelerationPrecision,
     type AccelerationStatus,
     CPU_PRECISION,
+    type FlooredCapability,
     type GraphAccelerator,
 } from "../../src/acceleration/types";
 import { GraphtyError, isGraphtyError } from "../../src/errors";
@@ -474,14 +475,33 @@ describe("AccelerationController: the built-in floor of a traversal", () => {
     /** An accelerator that walks, so the floor and not the feature test is what decides. */
     const walker = (): GraphAccelerator =>
         fakeAccelerator({
-            members: { forceAtlas2: (): string => "gpu", breadthFirstSearch: (): string => "gpu", sssp: (): string => "gpu" },
+            members: {
+                forceAtlas2: (): string => "gpu",
+                breadthFirstSearch: (): string => "gpu",
+                sssp: (): string => "gpu",
+            },
         });
-    const floor = ACCELERATION_MIN_NODES_BY_CAPABILITY.breadthFirstSearch;
+    // The table is partial by design -- a capability with no measured floor has no entry -- so a
+    // reader of it is `number | undefined`, and the cases below want the number. This is the one
+    // place that asserts the traversal entries exist, so it is the one place that narrows.
+    const floorOf = (capability: FlooredCapability): number => {
+        const measured = ACCELERATION_MIN_NODES_BY_CAPABILITY[capability];
+
+        if (measured === undefined) {
+            throw new Error(`${capability} has no measured floor`);
+        }
+
+        return measured;
+    };
+    const floor = floorOf("breadthFirstSearch");
 
     it("has a measured floor for each traversal the adapters route, and none for the layout", () => {
         assert.isAbove(floor, 0);
-        assert.isAbove(ACCELERATION_MIN_NODES_BY_CAPABILITY.sssp, 0);
-        assert.isUndefined(ACCELERATION_MIN_NODES_BY_CAPABILITY.forceAtlas2);
+        assert.isAbove(floorOf("sssp"), 0);
+        // The layout has no floor, and cannot be given one by accident: the table's keys are the
+        // seam's ALGORITHM members, so naming a layout capability here would not compile. This
+        // asserts the intent for a reader who has only the runtime value in front of them.
+        assert.notInclude(Object.keys(ACCELERATION_MIN_NODES_BY_CAPABILITY), "forceAtlas2");
     });
 
     it("takes the CPU path below the floor and the accelerator at it, and says what was measured", async () => {

@@ -25,7 +25,7 @@
 import { ACCELERATION_ERROR_CODES, type AccelerationErrorCode, GraphtyError } from "../errors";
 import { type AcceleratorRegistry, acceleratorRegistry } from "./registry";
 import {
-    ACCELERATION_MIN_NODES_BY_CAPABILITY, type FlooredCapability,
+    ACCELERATION_MIN_NODES_BY_CAPABILITY,
     ACCELERATION_MIN_NODES_DEFAULT,
     ACCELERATION_MIN_NODES_KEY,
     ACCELERATION_MIN_NODES_MEASUREMENT,
@@ -37,6 +37,7 @@ import {
     type AccelerationStatus,
     type AcceleratorDeviceInfo,
     DEFAULT_ACCELERATOR_PRECISION,
+    type FlooredCapability,
     type GraphAccelerator,
 } from "./types";
 

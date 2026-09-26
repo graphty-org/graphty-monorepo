@@ -14,7 +14,14 @@ import { DataSource, type DeclaredDirection } from "../data/DataSource";
 import { edgeIdOf } from "../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints } from "../data/endpoints";
 import { GraphStore } from "../data/GraphStore";
-import { type DirectionOutcome, ingestDeclaredDirection, ingestEdge, ingestNode, resolveEdgeWeight } from "../data/ingest";
+import {
+    type DirectionOutcome,
+    ingestDeclaredDirection,
+    ingestEdge,
+    ingestNode,
+    isStorableId,
+    resolveEdgeWeight,
+} from "../data/ingest";
 import type { ElementPositions } from "../data/positions";
 import { type ImportReport, type ImportTally, newImportTally, sealImportReport } from "../data/report";
 import { Edge, EdgeMap } from "../Edge";
@@ -23,6 +30,7 @@ import type { LayoutEngine } from "../layout/LayoutEngine";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
 import { MeshCache } from "../meshes/MeshCache";
 import { Node, NodeIdType } from "../Node";
+import { DEFAULT_LIMITS } from "../session/limits";
 import type { DirectionProvenance } from "../session/types";
 import type { Styles } from "../Styles";
 import type { EventManager } from "./EventManager";
@@ -590,9 +598,16 @@ export class DataManager implements Manager {
         // create path to node ids
         const query = idPath ?? this.styles.config.data.knownFields.nodeIdPath;
 
+        // The ids first, so the ceiling is checked against the nodes this batch would ADD (a
+        // re-supplied node costs nothing) and checked before any of them is created: a batch
+        // the renderer cannot hold is refused whole, not half-applied.
+        const ids = nodes.map((node) => jmespath.search(node, query) as NodeIdType);
+        const fresh = new Set(ids.filter((id) => !this.nodeCache.get(id)));
+        this.refuseAboveCeiling("nodes", this.nodes.size, fresh.size, DEFAULT_LIMITS.renderCeiling);
+
         // create nodes
-        for (const node of nodes) {
-            const nodeId = jmespath.search(node, query) as NodeIdType;
+        for (const [i, node] of nodes.entries()) {
+            const nodeId = ids[i];
 
             if (this.nodeCache.get(nodeId)) {
                 continue;
@@ -922,6 +937,15 @@ export class DataManager implements Manager {
         const tally = this.loadTally ?? newImportTally();
         let legacyWeights = 0;
 
+        // Decided before any record is stored: a batch the renderer cannot hold is refused whole,
+        // so a caller never finds the first part of it held and the rest missing.
+        this.refuseAboveCeiling(
+            "edges",
+            this.store.builder.edgeCount,
+            this.edgesAdded(edges, endpoints, policy, false),
+            DEFAULT_LIMITS.edgesDrawn,
+        );
+
         for (const edge of edges) {
             tally.edgeRecords++;
             const srcNodeId = readEndpoint(edge, endpoints.source) as NodeIdType;
@@ -1198,6 +1222,95 @@ export class DataManager implements Manager {
     }
 
     /**
+     * Replace every built edge with a new set, or leave the graph exactly as it was.
+     *
+     * The ceiling is decided BEFORE anything is removed. Removing first and letting `addEdges`
+     * refuse would leave a host that assigned too many edges with its old edges gone and none of
+     * the new ones held, which is neither the graph it had nor the one it asked for. The new
+     * batch is counted against an emptied graph, since the old edges are what it replaces; a
+     * pending edge, whose endpoints have not arrived, survives the replace as it always has.
+     * @param edges - the edges the graph should hold afterwards
+     * @param options - the endpoint expressions and the repeat policy for this call
+     * @throws A `GraphtyError` with `E_TOO_LARGE` when the new set is past the ceiling, and
+     *     whatever `addEdges` throws.
+     */
+    setEdges(edges: Record<string | number, unknown>[], options?: AddEdgesOptions): void {
+        const surviving = this.store.builder.edgeCount - this.edges.size;
+        const policy = options?.repeated ?? this.styles.config.data.knownFields.repeatedEdges;
+        this.refuseAboveCeiling(
+            "edges",
+            surviving,
+            this.edgesAdded(edges, this.endpointsFor(edges, options), policy, true),
+            DEFAULT_LIMITS.edgesDrawn,
+        );
+
+        for (const id of [...this.edges.keys()]) {
+            this.removeEdge(id);
+        }
+
+        this.addEdges(edges, options);
+    }
+
+    /**
+     * How many edges a batch would add, by the same tests the ingest loop applies.
+     *
+     * A record whose endpoint ids graph-format will not store adds nothing (the loop rejects it).
+     * Under the `keep` policy every other record is an edge. Under a folding policy a record that
+     * repeats an edge the graph holds, or a record earlier in the same batch, folds into it and
+     * adds nothing; a repeat is named the way `knownEdgeFor` names it, by record id when one is
+     * configured and stored, else by the ordered endpoint pair.
+     * @param edges - the batch
+     * @param endpoints - the batch's endpoint expressions
+     * @param policy - the repeat policy the batch is under
+     * @param replacing - true when every held edge is about to be removed, so none of them can be
+     *     repeated
+     * @returns the number of edges the batch would add
+     */
+    private edgesAdded(
+        edges: readonly Record<string | number, unknown>[],
+        endpoints: ResolvedEndpoints,
+        policy: DuplicatePolicy,
+        replacing: boolean,
+    ): number {
+        const recordIdPath = this.styles.config.data.knownFields.edgeIdPath;
+        const seenIds = new Set<string | number>();
+        const seenPairs = new Map<NodeIdType, Set<NodeIdType>>();
+        let adding = 0;
+
+        for (const edge of edges) {
+            const srcNodeId = readEndpoint(edge, endpoints.source);
+            const dstNodeId = readEndpoint(edge, endpoints.target);
+            if (!isStorableId(srcNodeId) || !isStorableId(dstNodeId)) {
+                continue;
+            }
+
+            if (policy !== "keep") {
+                const recordId = recordIdPath === null ? undefined : readEndpoint(edge, recordIdPath);
+                if (!replacing && this.knownEdgeFor(srcNodeId, dstNodeId, recordId) !== null) {
+                    continue;
+                }
+
+                const pairs = seenPairs.get(srcNodeId) ?? new Set<NodeIdType>();
+                seenPairs.set(srcNodeId, pairs);
+                const repeatsBatch = isStorableRecordId(recordId) ? seenIds.has(recordId) : pairs.has(dstNodeId);
+                if (repeatsBatch) {
+                    continue;
+                }
+
+                if (isStorableRecordId(recordId)) {
+                    seenIds.add(recordId);
+                }
+
+                pairs.add(dstNodeId);
+            }
+
+            adding++;
+        }
+
+        return adding;
+    }
+
+    /**
      * Removes an edge from the graph
      * @param edgeId - Edge identifier to remove
      * @returns True if the edge was removed, false if not found
@@ -1237,7 +1350,11 @@ export class DataManager implements Manager {
             return false;
         }
 
-        const outcome: DirectionOutcome = ingestDeclaredDirection(this.store, declaration.directed, declaration.statedBy);
+        const outcome: DirectionOutcome = ingestDeclaredDirection(
+            this.store,
+            declaration.directed,
+            declaration.statedBy,
+        );
         if (outcome === "config-wins") {
             this.logger.info("File declares a direction the configuration has already settled", {
                 type,
@@ -1503,6 +1620,43 @@ export class DataManager implements Manager {
      */
     private heldCounts(): { nodes: number; edges: number } {
         return { nodes: this.store.builder.nodeCount, edges: this.store.builder.edgeCount };
+    }
+
+    /**
+     * Refuse to grow past what the renderer can draw, instead of freezing the tab.
+     *
+     * WHY A REFUSAL AND NOT A DEGRADED DRAW. The design says that above the render ceiling the
+     * element draws a smaller render set, and above `edgesDrawn` it hides edges until the view
+     * narrows. Neither exists yet. What exists is a renderer that, past these counts, exhausts
+     * the renderer process and produces no further frame -- measured for issue #405 at 18,000
+     * nodes / 180,000 edges on an RTX 4070 SUPER, where the renderer process reached 4.7 GB and
+     * died while 17,000 / 170,000 loaded in 17 s. Until the degraded draw lands, the honest
+     * behaviour at the ceiling is a coded error the consumer can show, so `DEFAULT_LIMITS` is
+     * the number the element enforces rather than a number it merely publishes.
+     *
+     * `E_TOO_LARGE` is the code because the ceiling is a hard limit of this renderer, and the
+     * caller's remedy is the one that code names: load a subset.
+     * @param of - what is being counted
+     * @param held - how many the graph holds already
+     * @param adding - how many this call would add
+     * @param limit - the most the renderer can draw
+     * @throws A `GraphtyError` with `E_TOO_LARGE` when `held + adding` is past the limit
+     */
+    private refuseAboveCeiling(of: "nodes" | "edges", held: number, adding: number, limit: number): void {
+        if (held + adding <= limit) {
+            return;
+        }
+
+        const { nodes, edges } = this.heldCounts();
+        throw new GraphtyError({
+            code: "E_TOO_LARGE",
+            source: "data",
+            message:
+                `Loading ${adding.toLocaleString("en-US")} more ${of} would take the graph to ` +
+                `${(held + adding).toLocaleString("en-US")}, past the ${limit.toLocaleString("en-US")} ` +
+                `this renderer can draw. Load a subset of the graph.`,
+            details: { limit, count: held + adding, of, graph: { nodes, edges } },
+        });
     }
 
     // Utility methods

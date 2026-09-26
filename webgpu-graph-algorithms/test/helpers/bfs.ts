@@ -3,8 +3,9 @@
  * and test/sabotage/bfs.test.ts: the host's spelling of the two deterministic arrays PD-14 / PD-24 fix from a
  * settled depth array (`smallestParents`, the smallest predecessor one depth down; `sortedOrder`, the reached nodes
  * by (depth, index)), the level count, the oracle's per-level statistics and the host replay of Beamer's rule
- * (`levelStatsOf`, `directionModel`, `unvisitedListLenAt`), the one-workgroup `sssp-pred` run that proves the
- * predecessor pass strides (rows `WG` and up are reached only through `P.stride`), and the report the sabotage
+ * (`directionModel`, `unvisitedListLenAt`; `levelStatsOf` lives beside the rule it feeds, in traversal-check.ts,
+ * so the browser leg can replay the rule without this file's device imports), the one-workgroup `sssp-pred` run
+ * that proves the predecessor pass strides (rows `WG` and up are reached only through `P.stride`), and the report the sabotage
  * suite measures, bitwise (ratioOf(|a - b|, 0): any mismatch is Infinity): `depth`, `parent`, `order`,
  * `visitedCount` and `levels` of the 30 x 30 grid from its corner and the 500-node path from its LAST index (the
  * last-row mutation of the predecessor pass survives every other source), each traversed TWICE top-down only --
@@ -43,7 +44,7 @@ import { bindingOf, readU32, uploadBuffer } from "./device.js";
 import { bitwiseReports } from "./frontier.js";
 import { type EdgeSpec, gridEdges, pathEdges, rmatEdges, snapshotOf } from "./graphs.js";
 import { type CheckReport, mergeReports, ratioOf } from "./sabotage.js";
-import { expectedDirections } from "./traversal-check.js";
+import { expectedDirections, levelStatsOf } from "./traversal-check.js";
 
 /** The two forced candidate rules the report traverses under, top-down only: the two-phase path only, and the fused path only. */
 const FORCED_PATHS: readonly (readonly [string, BfsTuning])[] = [
@@ -122,31 +123,6 @@ export function sortedOrder(depth: U32): U32 {
     }
     reached.sort((a, b) => depth[a] - depth[b] || a - b);
     return Uint32Array.from(reached);
-}
-
-/**
- * The oracle's per-level frontier sizes and out-degree sums from a settled depth array (level 0 the source alone):
- * what `frontier-finalize` sees as `next` and as the previous level's `frontierDegreeSum`.
- * @param s - the snapshot
- * @param depth - the settled depths
- * @returns the sizes and the out-degree sums, indexed by level
- */
-function levelStatsOf(s: GraphSnapshot, depth: U32): { readonly sizes: number[]; readonly degreeSums: number[] } {
-    const sizes: number[] = [];
-    const degreeSums: number[] = [];
-    for (let v = 0; v < depth.length; v++) {
-        const d = depth[v];
-        if (d === INVALID_INDEX) {
-            continue;
-        }
-        while (sizes.length <= d) {
-            sizes.push(0);
-            degreeSums.push(0);
-        }
-        sizes[d] += 1;
-        degreeSums[d] += s.rowPtr[v + 1] - s.rowPtr[v];
-    }
-    return { sizes, degreeSums };
 }
 
 /**

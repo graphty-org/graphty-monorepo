@@ -2,7 +2,7 @@
  * The option lists the style inspector's pickers are built from.
  */
 
-import { NodeShapes } from "@graphty/graphty-element/schema";
+import { EdgeArrowTypes, EdgeLineTypes, NodeShapes } from "@graphty/graphty-element/schema";
 
 /**
  * One row of a `StyleSelect`: the value written into the layer and the word drawn for it.
@@ -20,17 +20,17 @@ export interface StyleOption {
 }
 
 /**
- * The word the menu draws for one of the element's shape names.
+ * The word the menu draws for one of the element's shape, line or arrow names.
  *
  * The element's names are already the words, in the element's own spelling: a hyphen in
- * "torus-knot" and underscores in "triangular_prism" and its siblings. Separators become
- * spaces and the first letter is capitalised, which is the whole of the rule and covers
- * every member of the enum.
- * @param shape - a shape name exactly as `NodeShapes` spells it.
- * @returns the name in sentence case, e.g. "Torus knot", "Elongated pentagonal cupola".
+ * "torus-knot" and "dash-dot", underscores in "triangular_prism" and its siblings.
+ * Separators become spaces and the first letter is capitalised, which is the whole of the
+ * rule and covers every member of each enum.
+ * @param name - a name exactly as `NodeShapes`, `EdgeLineTypes` or `EdgeArrowTypes` spells it.
+ * @returns the name in sentence case, e.g. "Torus knot", "Dash dot", "Open diamond".
  */
-function shapeLabel(shape: string): string {
-    const words = shape.replaceAll("_", " ").replaceAll("-", " ");
+function optionLabel(name: string): string {
+    const words = name.replaceAll("_", " ").replaceAll("-", " ");
 
     return words.charAt(0).toUpperCase() + words.slice(1);
 }
@@ -61,50 +61,24 @@ function shapeLabel(shape: string): string {
  */
 export const NODE_SHAPE_OPTIONS: StyleOption[] = NodeShapes.options.map((shape) => ({
     value: shape,
-    label: shapeLabel(shape),
+    label: optionLabel(shape),
 }));
 
 /**
- * Edge line type options.
- *
- * STILL A HAND-MAINTAINED COPY, unlike the shapes above, and for one reason: the
- * element's `LineType` enum is a module-private const inside its EdgeStyle schema and is
- * published from no entry point, so there is nothing to derive from. Until it is
- * exported, this list can drift from what the element can draw exactly as the shape list
- * once did, with no test able to catch it.
+ * Every line pattern graphty-element can draw, derived from the element's own
+ * `EdgeLineTypes` enum in the element's order, so a pattern added to or removed from the
+ * element appears in or disappears from this menu with no edit here.
  */
-export const LINE_TYPE_OPTIONS = [
-    { value: "solid", label: "Solid" },
-    { value: "dash", label: "Dash" },
-    { value: "dot", label: "Dot" },
-    { value: "dash-dot", label: "Dash-Dot" },
-    { value: "box", label: "Box" },
-    { value: "diamond", label: "Diamond" },
-    { value: "star", label: "Star" },
-    { value: "sinewave", label: "Sinewave" },
-    { value: "zigzag", label: "Zigzag" },
-] as const;
+export const LINE_TYPE_OPTIONS: StyleOption[] = EdgeLineTypes.options.map((type) => ({
+    value: type,
+    label: optionLabel(type),
+}));
 
 /**
- * Arrow type options for edge heads and tails.
- *
- * A hand-maintained copy for the same reason as the line types above: the element's
- * `ArrowType` enum is module-private to its EdgeStyle schema and is published from no
- * entry point, so this list cannot be derived and cannot be pinned.
+ * Every arrow graphty-element can draw at an edge's head or tail, derived from the
+ * element's own `EdgeArrowTypes` enum in the element's order.
  */
-export const ARROW_TYPE_OPTIONS = [
-    { value: "none", label: "None" },
-    { value: "normal", label: "Normal" },
-    { value: "inverted", label: "Inverted" },
-    { value: "vee", label: "Vee" },
-    { value: "tee", label: "Tee" },
-    { value: "diamond", label: "Diamond" },
-    { value: "open-diamond", label: "Open Diamond" },
-    { value: "box", label: "Box" },
-    { value: "dot", label: "Dot" },
-    { value: "sphere-dot", label: "Sphere Dot" },
-    { value: "open-dot", label: "Open Dot" },
-    { value: "crow", label: "Crow" },
-    { value: "half-open", label: "Half Open" },
-    { value: "open-normal", label: "Open Normal" },
-] as const;
+export const ARROW_TYPE_OPTIONS: StyleOption[] = EdgeArrowTypes.options.map((type) => ({
+    value: type,
+    label: optionLabel(type),
+}));

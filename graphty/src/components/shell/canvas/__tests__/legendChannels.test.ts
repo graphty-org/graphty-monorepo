@@ -87,20 +87,49 @@ describe("legendChannelOf", () => {
         expect(channel?.stops).toBeUndefined();
     });
 
-    /* The colour the Other row and an uncoloured swatch fall back to is what graphty-element
-       paints a node no layer has encoded, read off the element. It was a hex written down in
-       this module, and a second copy of the same hex sat in the load defaults; neither would
-       have followed the element if it changed its default. */
-    it("draws the Other row in the colour the element paints an unencoded node", () => {
-        const swatches = Array.from({ length: CANVAS_METRICS.LEGEND_MAX_CATEGORY_ROWS + 2 }, (_unused, index) => ({
-            label: `Group ${String(index + 1)}`,
-            value: index,
-            color: "#000000",
-        }));
+    /* The Other row's chip is drawn from the swatches it rolls up, because those categories are
+       painted on the canvas in their own colours. It used to be the element's default node
+       colour, which none of the rolled-up nodes carry. */
+    it("draws the Other row in the colours of the categories it rolls up", () => {
+        const colors = ["#111111", "#222222", "#333333", "#444444", "#555555", "#666666", "#777777"];
+        const swatches = colors.map((color, index) => ({ label: `Group ${String(index + 1)}`, value: index, color }));
 
         const channel = legendChannelOf(block({ kind: "categorical", swatches }));
 
-        expect(channel?.other?.color).toBe(defaultNodeHex());
+        expect(channel?.other?.colors).toEqual(["#666666", "#777777"]);
+        expect(channel?.other?.colors).not.toContain(defaultNodeHex());
+    });
+
+    it("draws one painted category past the cap in that category's own colour", () => {
+        const colors = ["#111111", "#222222", "#333333", "#444444", "#555555", "#666666"];
+        const swatches = colors.map((color, index) => ({ label: `Group ${String(index + 1)}`, value: index, color }));
+
+        const channel = legendChannelOf(block({ kind: "categorical", swatches }));
+
+        expect(channel?.other?.colors).toEqual(["#666666"]);
+    });
+
+    it("draws the Other row in the element's bucket colour when the bucket is all it rolls up", () => {
+        const named = ["#111111", "#222222", "#333333", "#444444", "#555555"].map((color, index) => ({
+            label: `Group ${String(index + 1)}`,
+            value: index,
+            color,
+        }));
+        const bucket = { label: "other: 4 groups", value: ["6", "7", "8", "9"], color: "#9A9A9A" };
+
+        const channel = legendChannelOf(block({ kind: "categorical", swatches: [...named, bucket] }));
+
+        expect(channel?.other?.colors).toEqual([bucket.color]);
+    });
+
+    it("draws each distinct colour it rolls up once", () => {
+        const swatches = ["#111111", "#222222", "#333333", "#444444", "#555555", "#666666", "#666666"].map(
+            (color, index) => ({ label: `Group ${String(index + 1)}`, value: index, color }),
+        );
+
+        const channel = legendChannelOf(block({ kind: "categorical", swatches }));
+
+        expect(channel?.other?.colors).toEqual(["#666666"]);
     });
 
     it("falls back to the same element colour for a category the element painted nothing", () => {

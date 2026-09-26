@@ -91,9 +91,8 @@ const PAGERANK_FIELDS: readonly FieldDescriptor[] = nodeMetricFields({
  *
  * Mirroring the implementation's own rule is the only way the element can say honestly which
  * method produced a number: the package chooses between the two internally and returns no sign of
- * which it took. The rule lives at `algorithms/src/algorithms/centrality/pagerank.ts:110`, and
- * this constant goes away when that function reports its own method, iteration count and
- * convergence instead of returning `converged: true` as a constant at `:147`.
+ * which it took. The rule lives in `pageRank` (`algorithms/src/algorithms/centrality/pagerank.ts`),
+ * and this constant goes away when that function reports which method it ran.
  */
 const DELTA_METHOD_NODE_THRESHOLD = 100;
 
@@ -326,10 +325,6 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
 
         // No index-based port answers this run, so the reference implementation does.
         const graphData = this.algorithmGraph("directed");
-        // The delta method does not report how many passes it took or whether it converged: it
-        // returns `iterations: maxIterations` with the comment "For now, assume we used all
-        // iterations" and `converged: true` as a constant. So which method ran decides whether
-        // this run can answer those two questions at all.
         const delta = useDelta && graphData.nodeCount > DELTA_METHOD_NODE_THRESHOLD;
 
         context.report({
@@ -363,12 +358,6 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
             `Computed on the CPU reference implementation: ${legacyReason}.`,
         ];
 
-        if (delta) {
-            notes.push(
-                "The delta method ran, and it reports neither how many passes it took nor whether it converged, so this run cannot say.",
-            );
-        }
-
         if (weight === null) {
             notes.push("Edge weights are not read.");
         }
@@ -383,9 +372,8 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
                 weight: weight === null ? null : { attribute: weight, meaning: "strength" },
                 precision: "f64",
                 method: delta ? "delta-pagerank" : "power-iteration",
-                // Present only when the method that ran measured them. Absent is the honest
-                // answer where it did not; a hard-coded `true` was the defect this replaces.
-                ...(delta ? {} : { converged: result.converged, iterations: result.iterations }),
+                converged: result.converged,
+                iterations: result.iterations,
                 notes,
             },
         };

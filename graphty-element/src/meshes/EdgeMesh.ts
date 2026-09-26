@@ -637,8 +637,15 @@ void main() {
         material.disableLighting = true;
         texture.uScale = EDGE_CONSTANTS.MOVING_TEXTURE_U_SCALE;
 
-        scene.onBeforeRenderObservable.add(() => {
+        const observer = scene.onBeforeRenderObservable.add(() => {
             texture.uOffset -= EDGE_CONSTANTS.MOVING_TEXTURE_ANIMATION_SPEED * scene.getAnimationRatio();
+        });
+
+        // The texture and the per-frame callback belong to this mesh alone; without this every
+        // rebuilt animated line would leave both behind.
+        mesh.onDisposeObservable.addOnce(() => {
+            scene.onBeforeRenderObservable.remove(observer);
+            texture.dispose();
         });
     }
 

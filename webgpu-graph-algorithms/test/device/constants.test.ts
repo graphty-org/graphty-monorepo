@@ -20,7 +20,6 @@ import {
     FR_DEFAULTS,
     FR_REHEAT_FRACTION,
     FR_START_TEMPERATURE,
-    FRONTIER_CANDIDATES,
     FUSED_FRONTIER_MAX,
     GRID_BBOX_MARGIN,
     GRID_COARSEST_SIDE,
@@ -247,7 +246,6 @@ describe("constants.ts (contract 3.2)", () => {
     it("pins the frontier-family constants (design 8.4, 6 row 8; P8-T1 PD-7, PD-9, PD-21, PD-22)", () => {
         expect(MAX_LEVELS_PER_SUBMIT).toBe(32);
         expect(FUSED_FRONTIER_MAX).toBe(4096);
-        expect(FRONTIER_CANDIDATES).toBe(7);
         expect(BEAMER_BETA).toBe(24);
         expect(SSSP_DELTA_FACTOR).toBe(32);
         expect(F32_INF_BITS).toBe(0x7f800000);

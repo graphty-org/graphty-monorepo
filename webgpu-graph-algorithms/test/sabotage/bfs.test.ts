@@ -48,7 +48,7 @@ const BFS_KERNELS = [
     "bfs-next-degree",
 ] as const;
 
-/** The rows this suite measures: the six BFS kernels' own that name the BFS test (sssp-pred's f32-mode rows name the SSSP test), and the selector rows by name. */
+/** The rows this suite measures: the seven BFS kernels' own that name the BFS test (sssp-pred's f32-mode rows name the SSSP test), and the selector rows by name. */
 const MEASURED: readonly { readonly id: KernelId; readonly rows: readonly Mutation[] }[] = [
     ...BFS_KERNELS.map((id) => ({ id, rows: (SABOTAGE[id] ?? []).filter((m) => m.test === BFS_TEST) })),
     {
@@ -57,7 +57,7 @@ const MEASURED: readonly { readonly id: KernelId; readonly rows: readonly Mutati
     },
 ];
 
-describe("sabotage: bfs-contract, sssp-pred, bfs-fused, bfs-bottom-up, bfs-bitset-build and bfs-unvisited-flags (spec 11.9 item 1; P8-T6, P8-T7, P8-T8)", () => {
+describe("sabotage: bfs-contract, sssp-pred, bfs-fused, bfs-bottom-up, bfs-bitset-build, bfs-unvisited-flags and bfs-next-degree (spec 11.9 item 1; P8-T6, P8-T7, P8-T8, issue #391)", () => {
     it("has three contract rows, four depth-mode predecessor rows (plus P8-T9's three f32-mode rows naming the SSSP test), three fused rows, three bottom-up rows, three bitset rows and three unvisited rows naming the BFS test, and measures three selector rows; every find occurs once in the normative body, the replacement differs, minFactor >= 10, names unique", () => {
         expect((SABOTAGE["bfs-contract"] ?? []).map((m) => m.name)).toEqual([
             "claim-not-a-min",

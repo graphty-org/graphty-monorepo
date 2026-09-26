@@ -83,6 +83,9 @@ import { type AlgorithmScope, algorithmScope } from "./scope.js";
 
 const ALGORITHM = "breadthFirstSearch";
 
+/** Workgroups of the `bfs-next-degree` grid (issue #391): enough to sum n out-degrees by grid stride, few enough that a high-diameter traversal does not pay a full-width reduction per level. */
+const NEXT_DEGREE_MAX_GROUPS = 128;
+
 /**
  * Params slots of the ring, COUNTED per run (P8-T12), because `UniformRing.reserve` wraps to slot 0 when a submit's
  * records outrun the ring and silently overwrites a record the submit still reads; the ring's `overruns` counts
@@ -358,6 +361,11 @@ export async function bfsWithTuning(
         // plan's GROUP count as its stride (planGridStride's cap applies to the groups)
         const levelPlan = planGridStride(Math.max(n, frontier.edgeCapacity), wg, ctx.caps);
         const sweepPlan = planGridStride(n, wg, ctx.caps);
+        // `bfs-next-degree` sums at most n words and is dispatched on EVERY level, so its fixed cost -- one
+        // workgroup reduction (six barriers) and one atomic per workgroup -- is paid 1,999 times on the
+        // 1000 x 1000 grid. A capped grid pays it 128 times a level instead of ceil(n / wg): on the card the
+        // grid row went from 436 to 356 ms and neither R-MAT row moved.
+        const degreePlan = planGridStride(n, wg, ctx.caps, NEXT_DEGREE_MAX_GROUPS);
         const fusedPlan = planGridStride(n * wg, wg, ctx.caps);
         const bitsPlan = plan1d(bitsWords, wg, ctx.caps);
         const recordFill = (pass: GPUComputePassEncoder, dst: Binding, value: number, mode: 0 | 1): void => {
@@ -497,14 +505,14 @@ export async function bfsWithTuning(
                 }
                 // the next frontier's out-degree sum (issue #391): whichever path claimed, the vertices are in the output
                 // queue now, and the next boundary reads word 25 as Beamer's m_f for the frontier it is about to expand
-                const degreeParams = scope.params(FRONTIER_PARAMS, { wg, n, stride: sweepPlan.stride ?? wg });
+                const degreeParams = scope.params(FRONTIER_PARAMS, { wg, n, stride: degreePlan.stride ?? wg });
                 const boundDegree = nextDegree.bind({
                     frontier: frontier.output,
                     outDegree,
                     counters,
                     P: degreeParams.binding,
                 });
-                nextDegree.dispatch(pass, boundDegree, sweepPlan, [degreeParams.offset]);
+                nextDegree.dispatch(pass, boundDegree, degreePlan, [degreeParams.offset]);
                 frontier.swap();
             }
             batch.endPass();

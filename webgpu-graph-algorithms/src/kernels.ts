@@ -433,8 +433,9 @@ export const FRONTIER_COUNTERS: UniformBlock = UniformBlock.define(
  * `alpha` @8, `beta` @12 (Beamer's thresholds, P8-T8), `fusedMax` @16, `edgeCapacity` @20, `maxDepth` @24, `n` @28,
  * `mode` @32 (BFS: 0 auto, 1 top-down only; `sssp-pred`: the PD-27 key rule), `cutoffBits` @36, `arcBase` @40,
  * `arcEnd` @44 (the bound arc window), `predKind` @48 (0 arc, 1 node), `bitsBase` @52, `source` @56, `stride` @60
- * (a grid-stride plan's stride), `firstOfSubmit` @64 (the boundary's index inside its submit, clamped to 2: the
- * unvisited-count subtraction runs at >= 1, the degree-sum one at >= 2), `iteration` @68 (an `sssp-pred` hop pass,
+ * (a grid-stride plan's stride), `firstOfSubmit` @64 (the boundary's index inside its submit, clamped to 1: both
+ * the unvisited-count and the unvisited-degree-sum subtraction run at >= 1, issue #391), `iteration` @68 (an
+ * `sssp-pred` hop pass,
  * P8-T9), `pad1` @72, `pad2` @76. The `slotBase` field that once addressed the selector's indirect slots went with
  * the slots (2026-09-25); `pad2` keeps the block an explicit 80 bytes, the way every block here is padded.
  */

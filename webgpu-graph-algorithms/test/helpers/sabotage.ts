@@ -1929,7 +1929,7 @@ export const SABOTAGE_P4_LAW: Readonly<Partial<Record<KernelId, readonly Mutatio
     ]),
 });
 
-/** The phases whose kernels ALL have their rows: ["P1"] at P1-T5, + "P2" at P2-T2, + "P3" at P3-T5, + "P7" at M8b-T10, + "P4" at P4-T12 (PD-1: when the last P4 kernel has its rows), + "P8" at P8-T15 (the fifteen frontier-family kernels, 58 rows written by the tasks that wrote the kernels); test/sabotage/coverage.test.ts asserts every KERNELS entry whose `phase` is listed here has >= 3 rows, except SABOTAGE_EXEMPT. */
+/** The phases whose kernels ALL have their rows: ["P1"] at P1-T5, + "P2" at P2-T2, + "P3" at P3-T5, + "P7" at M8b-T10, + "P4" at P4-T12 (PD-1: when the last P4 kernel has its rows), + "P8" at P8-T15 (the frontier-family kernels, 58 rows written by the tasks that wrote the kernels over fifteen of them, plus `bfs-next-degree`'s 3 for issue #391: sixteen kernels, 61 rows); test/sabotage/coverage.test.ts asserts every KERNELS entry whose `phase` is listed here has >= 3 rows, except SABOTAGE_EXEMPT. */
 export const SABOTAGE_PHASES: readonly KernelEntry["phase"][] = Object.freeze(["P1", "P2", "P3", "P7", "P4", "P8"]);
 
 /**

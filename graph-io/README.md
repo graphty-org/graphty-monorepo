@@ -233,7 +233,10 @@ losses and format rules, in addition to the table:
   integral number that large in exponent form (`1e+20`) so it re-imports as a number.
 - **Neo4j**: `neo4j-admin import` headers (`:ID`, `:LABEL`, `:START_ID`, `:END_ID`, `:TYPE`, typed
   properties, id spaces, arrays); one file may hold several sections; a `weight` property becomes
-  THE weight; a quoted empty `:ID` is the id `""`. Everything is directed (an undirected snapshot,
+  THE weight; a quoted empty `:ID` is the id `""`. A node of an id space (`:ID(Product)`) is stored
+  under the string id `Product:1`, with its id text in the `originalId` column and its space in
+  `idSpace`, so the same id in two spaces stays two nodes; `:START_ID(Space)` / `:END_ID(Space)`
+  resolve inside their space, and the exporter writes the id text back. Everything is directed (an undirected snapshot,
   or the folded pairs of a mixed one under `onMixedDirection: "directed"` / `"undirected"`, is
   written with a `W_NEO4J_UNDIRECTED_AS_DIRECTED` note); `.text` companions keep the source text of
   temporal values whose canonical form differs; a dict column reads back as string and a position

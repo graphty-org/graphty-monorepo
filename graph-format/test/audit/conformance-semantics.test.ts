@@ -158,6 +158,11 @@ describe("design section 11.2 / 11.3: every core error code is reachable through
             b.dispose();
             b.addNode("a");
         },
+        E_FROZEN: () => {
+            const s = directedFixture();
+            s.seal();
+            s.nodes.set("f", new Float32Array(3));
+        },
         E_UNSUPPORTED: () => {
             const wire = directedFixture().toWire();
             fromWire({ manifest: { ...wire.manifest, nodeColumns: [unknownDtypeColumn()] }, buffers: wire.buffers });

@@ -1337,6 +1337,16 @@ consumer that needs isolation calls `snapshot.withColumns()` (the only
 operation that clones the column SET) or `table.clone()`. Property test
 P9 checks table identity for every same-node-space derived graph.
 
+An owner that hands a snapshot to code it does not trust calls
+`snapshot.seal()` once it has attached its own columns. Sealing makes
+the column set of `nodes`, `edges`, `graph` and every extension table
+read-only: `set()`, `remove()` and `rename()` throw `E_FROZEN`; reads
+and the contents of mutable columns are unchanged. Sealing belongs to
+the table object, so a derived graph sharing that table sees it sealed
+too, and so does a `withColumns()` sibling for the extension tables it
+shares. `withColumns()` on a sealed snapshot returns writable node, edge
+and graph tables. Sealing is idempotent and cannot be undone.
+
 Helpers (exported functions, section 12.2), one name per shape: for
 `Column` objects `remapColumn(column, remap, newLength)` (old -> new,
 drops rows mapped to `INVALID_INDEX`, rewrites `refersTo` values) and
@@ -2606,6 +2616,7 @@ export type GraphFormatErrorCode =
     | "E_UNSUPPORTED_VERSION" // wire major or formatVersion the reader does not know; details.kind = "wire" | "format"
     | "E_DETACHED"            // access after a consuming transfer
     | "E_BUILDER_DISPOSED"
+    | "E_FROZEN"              // set() / remove() / rename() on a table of a sealed snapshot (details.domain, details.column)
     | "E_UNSUPPORTED"         // big-endian host; unknown wire dtype / id-map kind (details.reason, details.dtype, details.kind)
     | "E_IMPORT";             // reserved for @graphty/graph-io's ImportError (importer aborted; error.report holds the partial ImportReport)
 
@@ -2641,6 +2652,7 @@ ImportReport`) is declared in `@graphty/graph-io` (section 8.2).
 | column `set` with wrong length | `E_COLUMN_LENGTH` |
 | column `set` of a `u8` array from which no zero-copy `Uint32Array` view is constructible (`byteOffset % 4 !== 0` or the buffer ends before the padded length) with `adopt: "strict"` | `E_COLUMN_ALIGNMENT` (otherwise copied, section 5.7); 4-byte and `f64` arrays are always adopted by reference |
 | column `set` on an existing name | replaces the column (role rules apply) |
+| column `set` / `remove` / `rename` on a table of a sealed snapshot | `E_FROZEN` |
 | `typed(name, dtype)` mismatch, `get` / `byRole` miss | `null` (total); `require` throws `E_UNKNOWN_COLUMN`, `requireTyped` throws `E_COLUMN_TYPE` |
 | `declareNodeColumn` twice with a different dtype / components | `E_COLUMN_EXISTS` (same declaration returns the existing handle) |
 | `nodeColumn(name)` / `edgeColumn(name)` miss | `INVALID_INDEX` (a `ColumnHandle`) |
@@ -3194,6 +3206,7 @@ export declare class GraphSnapshot implements AdjacencyView {
     inducedSubgraph(selection: U32 | { readonly mask: NodeMask }): DerivedGraph;
     contract(partition: U32, options?: ContractOptions): DerivedGraph;
     relabel(perm: U32): DerivedGraph;
+    seal(): void;
     withColumns(nodes?: Readonly<Record<string, TypedArrayData | ColumnInput>>, edges?: Readonly<Record<string, TypedArrayData | ColumnInput>>): GraphSnapshot;
 
     // memory, transfer, checks (9, 11)
@@ -3398,7 +3411,7 @@ export type GraphFormatErrorCode =
     | "E_UNKNOWN_COLUMN" | "E_COLUMN_TYPE" | "E_COLUMN_LENGTH" | "E_COLUMN_ALIGNMENT" | "E_COLUMN_EXISTS" | "E_COLUMN_IMMUTABLE"
     | "E_NO_DEFAULT" | "E_PARTITION" | "E_INVALID_PERMUTATION" | "E_MASK_LENGTH"
     | "E_GPU_INELIGIBLE" | "E_INVALID_SNAPSHOT" | "E_BAD_SERIALIZATION" | "E_UNSUPPORTED_VERSION"
-    | "E_DETACHED" | "E_BUILDER_DISPOSED" | "E_UNSUPPORTED" | "E_IMPORT";
+    | "E_DETACHED" | "E_BUILDER_DISPOSED" | "E_FROZEN" | "E_UNSUPPORTED" | "E_IMPORT";
 export declare class GraphFormatError extends Error {
     readonly code: GraphFormatErrorCode;
     readonly details: Readonly<Record<string, unknown>>;

@@ -192,6 +192,12 @@ describe("GraphSummary", () => {
             ).toBeInTheDocument();
         });
 
+        it("says so in the histogram's name when graphty-element laid the bars out on a log scale", () => {
+            renderSummary({ degreeLogScale: true });
+
+            expect(screen.getByRole("img", { name: "Links per node (log scale)" })).toBeInTheDocument();
+        });
+
         it("caps the table at the top five", () => {
             renderSummary();
 

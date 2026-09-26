@@ -192,7 +192,7 @@ export function completeEdges(n: number): EdgeSpec[] {
  * @param seed - the seed
  * @returns a function returning uniform numbers in [0, 1)
  */
-function xorshift(seed: number): () => number {
+export function xorshift(seed: number): () => number {
     let state = seed >>> 0 || 1;
     return () => {
         state ^= state << 13;
@@ -302,6 +302,8 @@ export interface SnapshotOptions {
     readonly weighted?: boolean | undefined;
     readonly arena?: boolean | undefined;
     readonly label?: string | undefined;
+    /** Record the FNV-1a checksums so `s.validate({ checksum: true })` can prove the arrays unchanged after a run. */
+    readonly checksum?: boolean | undefined;
 }
 
 /**
@@ -362,6 +364,7 @@ export function snapshotOf(edges: readonly EdgeSpec[], options?: SnapshotOptions
             weighted: parts.weights === undefined ? undefined : true,
             arena: resolved.arena ?? true,
             label: resolved.label,
+            checksum: resolved.checksum,
         },
     );
 }
@@ -672,4 +675,32 @@ export function fixture(
             throw new RangeError(`fixture: unknown fixture "${name}" (FIXTURE_NAMES: ${FIXTURE_NAMES.join(", ")})`);
     }
     return { snapshot, positions, name };
+}
+
+/**
+ * A seeded G(n, m) with parallels and self-loops (an LCG over typed arrays: 10n edges at n = 2^20 must not go through
+ * a tuple list) plus one star of `leaves` leaves on node 0, undirected: the hub row is node 0.
+ * @param n - the node count
+ * @param m - the random edge count
+ * @param leaves - the star's leaves (nodes 1..leaves)
+ * @param seed - the generator seed
+ * @returns the snapshot
+ */
+export function hubbedRandom(n: number, m: number, leaves: number, seed: number): GraphSnapshot {
+    const src = new Uint32Array(m + leaves);
+    const dst = new Uint32Array(m + leaves);
+    let state = seed >>> 0;
+    const next = (): number => {
+        state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+        return state;
+    };
+    for (let e = 0; e < m; e++) {
+        src[e] = next() % n;
+        dst[e] = next() % n;
+    }
+    for (let i = 0; i < leaves; i++) {
+        src[m + i] = 0;
+        dst[m + i] = 1 + (i % (n - 1));
+    }
+    return fromEdgeArrays({ directed: false, nodeCount: n, src, dst }, { label: `hubbed-random-${n}` });
 }

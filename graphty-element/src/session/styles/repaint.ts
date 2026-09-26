@@ -230,6 +230,17 @@ export interface ElementPaint {
      */
     onPainted(listener: () => void): () => void;
     /**
+     * Whether a pass has been asked for and has not finished yet.
+     *
+     * A pass YIELDS TO THE EVENT LOOP and waits behind the pass in front of it, so between the
+     * edit that asks for it and the announcement that ends it there are frames -- as many as the
+     * machine is slow. Nothing is in {@link ElementPaint.lastPainted} for those frames, and a
+     * renderer that asked only whether paint was waiting to be drawn would call the picture
+     * finished, and frame the camera on it, while a node's new size was still on its way.
+     * @returns True from the moment a pass is requested until it has announced what it painted.
+     */
+    painting(): boolean;
+    /**
      * The layers the last pass could not paint, and why.
      * @returns The problems, emptied at the start of every pass.
      */
@@ -706,6 +717,9 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
      */
     let inFlight: Promise<void> = Promise.resolve();
 
+    /** How many passes have been asked for and not finished: the one running and those behind it. */
+    let unfinished = 0;
+
     /** Who is told what a pass painted, in the order they asked. */
     const painted = new Set<() => void>();
 
@@ -969,8 +983,9 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
     /**
      * Where a layer's elements come from: the column its selector names, or every element.
      *
-     * ONLY `{match:"has"}` NARROWS, and that is the design's rule that a run-bound layer
-     * iterates the run's measured column rather than a shortcut. An expression is not narrowed even when it reads one column, because
+     * `{match:"has"}` and `{match:"top"}` NARROW to their column's measured elements, and that is
+     * the design's rule that a run-bound layer iterates the run's measured column rather than a
+     * shortcut. An expression is not narrowed even when it reads one column, because
      * ``path == `null` `` is a perfectly good expression that matches exactly the elements the
      * column does NOT hold, and the compiled selector reports which columns it reads without
      * reporting what it asks of them. Narrowing on that would silently paint the wrong set, which
@@ -981,7 +996,8 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
     const iterationFor = (entry: CompiledLayer): ArrayLike<number> | null => {
         const { selector } = entry;
 
-        if (selector.match !== "has") {
+        // A top selector paints a subset of its column's measured elements, so it narrows too.
+        if (selector.match !== "has" && selector.match !== "top") {
             return null;
         }
 
@@ -1432,12 +1448,19 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
      * @returns What it painted.
      */
     const exclusively = async (body: () => Promise<RepaintReport>): Promise<RepaintReport> => {
+        unfinished++;
+
         const mine = inFlight.then(body, body);
 
-        inFlight = mine.then(
-            () => undefined,
-            () => undefined,
-        );
+        // Counted down on the chain the next pass waits on, not on `mine`. A `finally` on the
+        // caller's promise moves the microtask every caller resumes on, and a layer added before
+        // a load and not awaited then goes unpainted (test/browser/first-paint-after-load.test.ts
+        // and style-layer-ordering.test.ts both catch it).
+        const finished = (): void => {
+            unfinished--;
+        };
+
+        inFlight = mine.then(finished, finished);
 
         return mine;
     };
@@ -1491,6 +1514,10 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                     null,
                 ),
             );
+        },
+
+        painting(): boolean {
+            return unfinished > 0;
         },
 
         onPainted(listener: () => void): () => void {

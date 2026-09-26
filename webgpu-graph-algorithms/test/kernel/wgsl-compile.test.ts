@@ -75,6 +75,21 @@ describe("OVERRIDE_MATRIX (pure)", () => {
         expect(counts.get("grid-downsample")).toBe(1);
         expect(counts.get("grid-far-field")).toBe(4);
         expect(counts.get("grid-near-field")).toBe(25);
+        expect(counts.get("compact-scatter")).toBe(1);
+        expect(counts.get("dedupe-claim")).toBe(1);
+        expect(counts.get("dedupe-filter")).toBe(1);
+        expect(counts.get("frontier-finalize")).toBe(1);
+        expect(counts.get("advance-expand")).toBe(5);
+        expect(counts.get("bfs-contract")).toBe(1);
+        expect(counts.get("sssp-pred")).toBe(9);
+        expect(counts.get("bfs-fused")).toBe(5);
+        expect(counts.get("bfs-bottom-up")).toBe(5);
+        expect(counts.get("bfs-bitset-build")).toBe(1);
+        expect(counts.get("bfs-unvisited-flags")).toBe(1);
+        expect(counts.get("sssp-relax")).toBe(5);
+        expect(counts.get("bf-relax")).toBe(3);
+        expect(counts.get("closeness-sweep")).toBe(5);
+        expect(counts.get("closeness-reduce")).toBe(1);
     });
 
     it("every case names a registry entry, uses only its declared overrides plus the standard pair (graph kernels only), carries snippets iff the entry has slots, matches the twin axis, and is unique", () => {

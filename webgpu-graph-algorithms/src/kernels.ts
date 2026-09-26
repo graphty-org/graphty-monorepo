@@ -164,7 +164,7 @@ export const FILL_PARAMS: UniformBlock = UniformBlock.define("FillParams", [
     ["pad0", "u32"],
 ]);
 
-/** `Fa2Params` (uniform, 128 B; spec 7.3): the per-iteration ForceAtlas2 parameters -- `n` @0, `dim` @4, `flags` @8 (bit 0 = FA2_FLAG_FIRST), `tierStart` @12, `tierEnd` @16, `iterationIndex` @20, `seed` @24, `nearMax` @28, `scalingRatio` @32, `gravity` @36, `jitterTolerance` @40, `scale` @44, `center` @48 (xyz, w 0), `settleThreshold` @64, `extentFactor` @68, `gridMax` @72, `levels` @76, `arcBase` @80 / `arcEnd` @84 (the bound arc window of K2, 0 and arcCount in the layout), `accumulate` @88 (1 combines into `force`: the windowed pattern), `hiEnd` @92 / `midEnd` @124 (the degreeOrder tier boundaries, PD-7; both 0 without a permutation); the P5 model fields (PD-3): `frK` @96 (the FR optimal distance), `temperature` @100 (the FR temperature of this iteration), `springLength` @104, `springCoefficient` @108, `coulomb` @112 (ngraph's `gravity`, negative repels), `dragCoefficient` @116, `timeStep` @120; 128 B. */
+/** `Fa2Params` (uniform, 144 B; spec 7.3): the per-iteration ForceAtlas2 parameters -- `n` @0, `dim` @4, `flags` @8 (bit 0 = FA2_FLAG_FIRST), `tierStart` @12, `tierEnd` @16, `iterationIndex` @20, `seed` @24, `nearMax` @28, `scalingRatio` @32, `gravity` @36, `jitterTolerance` @40, `scale` @44, `center` @48 (xyz, w 0), `settleThreshold` @64, `extentFactor` @68, `gridMax` @72, `levels` @76, `arcBase` @80 / `arcEnd` @84 (the bound arc window of K2, 0 and arcCount in the layout), `accumulate` @88 (1 combines into `force`: the windowed pattern), `hiEnd` @92 / `midEnd` @124 (the degreeOrder tier boundaries, PD-7; both 0 without a permutation); the P5 model fields (PD-3): `frK` @96 (the FR optimal distance), `temperature` @100 (the FR temperature of this iteration), `springLength` @104, `springCoefficient` @108, `coulomb` @112 (ngraph's `gravity`, negative repels), `dragCoefficient` @116, `timeStep` @120; `settleFloor` @128 (the absolute bound on the mean displacement of a settled iteration, in layout units: issue #97); 144 B. */
 export const FA2_PARAMS: UniformBlock = UniformBlock.define("Fa2Params", [
     ["n", "u32"],
     ["dim", "u32"],
@@ -195,6 +195,7 @@ export const FA2_PARAMS: UniformBlock = UniformBlock.define("Fa2Params", [
     ["dragCoefficient", "f32"],
     ["timeStep", "f32"],
     ["midEnd", "u32"],
+    ["settleFloor", "f32"],
 ]);
 
 /** `Fa2State` (storage, padded to STATE_HEADER_BYTES = 256; spec 7.3): the device-resident controller state the finalize kernels write and the host reads back for stats -- `speed` @0, `speedEfficiency` @4, `swing` @8, `traction` @12, `centroid` @16, `rmsRadius` @32, `radius` @36, `meanDisplacement` @40, `iteration` @44, `min` @48, `max` @64, `gridMin` @80 (P4), `eps` @96 (P4), `settledCount` @100, `outsideGrid` @104 (P4), `maxCellOccupancy` @108 (P4), `temperature` @112 (FR, written by K1 under STATS_MODE 1), `kineticEnergy` @116 (the preset, K1 under STATS_MODE 2), `frEnergy` @120 / `frProgress` @124 (the FR adaptive cooling), `invCellSize` @128 (P4, PD-10: `1 / cellSize`, written by K1 beside `cellSize` in `gridMin.w`; G1 multiplies by it so every key is bitwise reproducible), `reserved0` @132 (f32), `reserved1` @136 (vec2f), `reserved2` .. `reserved8` @144 .. @240. */
@@ -945,7 +946,7 @@ const RADIX_SCATTER: KernelEntry = {
     phase: "P4",
 };
 
-/** `grid-cell-key` (G1, spec 7.7; P4-T8, PD-10): the finest cell key of every node, `floor((p - gridMin) * invCellSize)` linearised, or the outside pseudo-cell `G^dim`; `cellVal[i] = i`; 4 storage bindings (the state read-only: K1 writes it). */
+/** `grid-cell-key` (G1, spec 7.7; P4-T8, PD-10): the finest cell key of every node, `floor((p - gridMin) * invCellSize)` linearised, or the outside pseudo-cell of its orthant `G^dim + orthant` (issue #90); `cellVal[i] = i`; 4 storage bindings (the state read-only: K1 writes it). */
 const GRID_CELL_KEY: KernelEntry = {
     id: "grid-cell-key",
     body: gridCellKeyWgsl,
@@ -964,7 +965,7 @@ const GRID_CELL_KEY: KernelEntry = {
     phase: "P4",
 };
 
-/** `grid-centroid` (G4, spec 7.7; P4-T9, PD-13): thread per finest cell (the pseudo-cell included), the serial mass-weighted sum in sorted order into level 0, the occupancy max into `hubCounters[1]`, hub cells (> GRID_HUB_CELL) appended to `hubList`; 6 storage bindings. */
+/** `grid-centroid` (G4, spec 7.7; P4-T9, PD-13): thread per finest cell (the 2^dim orthant pseudo-cells included), the serial mass-weighted sum in sorted order into level 0, the occupancy max into `hubCounters[1]`, hub cells (> GRID_HUB_CELL) appended to `hubList`; 6 storage bindings. */
 const GRID_CENTROID: KernelEntry = {
     id: "grid-centroid",
     body: gridCentroidWgsl,
@@ -1019,7 +1020,7 @@ const GRID_DOWNSAMPLE: KernelEntry = {
     phase: "P4",
 };
 
-/** `grid-far-field` (G6, spec 7.7; P4-T10, PD-16, DEP-P4-G): per node in sorted order, the coarsest level minus its 3x3 (3x3x3) and, per finer level, the parent's 3x3 refined minus the level's own 3x3, plus the pseudo-cell; the loop bounds are `P.levels` / `P.gridMax`; LAW 0 FA2 / 1 FR / 2 coulomb per cell (P4-T13, PD-22); 5 storage bindings. */
+/** `grid-far-field` (G6, spec 7.7; P4-T10, PD-16, DEP-P4-G): per node in sorted order, the coarsest level minus its 3x3 (3x3x3) and, per finer level, the parent's 3x3 refined minus the level's own 3x3, plus the 2^dim orthant pseudo-cells; the FA2 term floored at 0.01 (issue #89); the loop bounds are `P.levels` / `P.gridMax`; LAW 0 FA2 / 1 FR / 2 coulomb per cell (P4-T13, PD-22); 5 storage bindings. */
 const GRID_FAR_FIELD: KernelEntry = {
     id: "grid-far-field",
     body: gridFarFieldWgsl,

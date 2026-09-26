@@ -29,7 +29,13 @@
  */
 
 import { registeredAlgorithmByKey } from "../../catalog/registry";
-import type { AlgorithmDescriptor, AlgorithmKey, CostClass, ResultShape, Scope } from "../../catalog/types";
+import {
+    type AlgorithmDescriptor,
+    type AlgorithmKey,
+    type CostClass,
+    isDeprecatedAlgorithm,
+    type Scope,
+} from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { GraphStatistics } from "../types";
 
@@ -939,13 +945,14 @@ export function resultBytes(descriptor: AlgorithmDescriptor, nodes: number, edge
  * two codes rather than one: a column longer than a typed array cannot be built at any sample
  * size on any machine, while a run that is merely slow becomes runnable the moment the scope
  * narrows.
- * @param shape - The result shape, which is what says whether the columns are per node or edge.
+ *
+ * A pair-list is not charged for every node pair: the only one the element ships publishes at
+ * most its topK rows, so a slow pair-list is the time cap's to refuse, not this limit's.
  * @param nodes - Nodes in scope.
  * @param edges - Edges in scope.
  * @returns The count that is too large and what it is, or undefined when nothing is.
  */
 function structuralOverflow(
-    shape: ResultShape,
     nodes: number,
     edges: number,
 ): { kind: string; count: number } | undefined {
@@ -955,10 +962,6 @@ function structuralOverflow(
 
     if (edges > MAX_COLUMN_LENGTH) {
         return { kind: "edges", count: edges };
-    }
-
-    if (shape === "pair-list" && nodes * nodes > MAX_COLUMN_LENGTH) {
-        return { kind: "node pairs", count: nodes * nodes };
     }
 
     return undefined;
@@ -1082,13 +1085,21 @@ export function gateRun(input: CostInput, options: CostGateOptions = {}): CostGa
         });
     }
 
+    if (descriptor === undefined && isDeprecatedAlgorithm(input.algorithm)) {
+        return refuse(
+            "E_UNSUPPORTED",
+            `The "${input.algorithm}" algorithm is not implemented. The name is deprecated and will be removed at the next major release unless it is implemented first.`,
+            { algorithm: input.algorithm, reason: "deprecated" },
+        );
+    }
+
     if (descriptor === undefined) {
         return refuse("E_UNKNOWN_ALGORITHM", `No algorithm is registered under "${input.algorithm}".`, {
             algorithm: input.algorithm,
         });
     }
 
-    const overflow = structuralOverflow(descriptor.shape, nodes, edges);
+    const overflow = structuralOverflow(nodes, edges);
     if (overflow !== undefined) {
         return refuse(
             "E_TOO_LARGE",

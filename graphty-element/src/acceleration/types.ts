@@ -236,6 +236,13 @@ export type AcceleratorFactory = (options?: AcceleratorFactoryOptions) => Promis
  * renders. It is plain, frozen, serialisable data: no GPU objects, no promises, no classes.
  */
 export interface AccelerationStatus {
+    /**
+     * The policy in force: what the consumer asked for, however they asked -- the `acceleration`
+     * attribute, the property, or `session.acceleration`. A change of policy publishes a new
+     * status even when the state does not move.
+     * @since 2.3.0
+     */
+    readonly policy: AccelerationPolicy;
     /** The one-word state. */
     readonly state: AccelerationState;
     /** The attached accelerator's backend, when one is attached. */

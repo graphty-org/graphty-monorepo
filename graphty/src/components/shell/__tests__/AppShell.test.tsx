@@ -4614,7 +4614,7 @@ describe("AppShell", () => {
         it("draws the chip as soon as the element reports, with or without a dataset", async () => {
             const { container } = await renderMeasuredShell();
 
-            await reportAcceleration(container, { state: "idle", backend: "webgpu", vendor: "nvidia", architecture: "ampere" });
+            await reportAcceleration(container, { policy: "auto", state: "idle", backend: "webgpu", vendor: "nvidia", architecture: "ampere" });
 
             expect(screen.getByText("GPU acceleration: on (nvidia ampere)")).toBeInTheDocument();
         });
@@ -4622,7 +4622,7 @@ describe("AppShell", () => {
         it("opens Settings > Performance from the chip", async () => {
             const { container } = await renderMeasuredShell();
 
-            await reportAcceleration(container, { state: "idle", backend: "webgpu" });
+            await reportAcceleration(container, { policy: "auto", state: "idle", backend: "webgpu" });
             fireEvent.click(screen.getByText("GPU acceleration: on"));
 
             expect(screen.getByTestId("settings-acceleration")).toBeInTheDocument();
@@ -4632,6 +4632,7 @@ describe("AppShell", () => {
             const { container } = await renderMeasuredShell();
 
             await reportAcceleration(container, {
+                policy: "auto",
                 state: "error",
                 code: "E_DEVICE_LOST",
                 reason: "the accelerator's device was lost: reset",
@@ -4646,7 +4647,7 @@ describe("AppShell", () => {
 
             /* The element attempts a fresh accelerator by itself, so the toast leaves when the
                next transition says the machine is working again. Nothing dismisses it here. */
-            await reportAcceleration(container, { state: "idle", backend: "webgpu" });
+            await reportAcceleration(container, { policy: "auto", state: "idle", backend: "webgpu" });
 
             expect(statusToast(container)).toBeNull();
         });
@@ -4657,6 +4658,7 @@ describe("AppShell", () => {
             await dropFile(container.querySelector("[data-dragging]") as HTMLElement, new File(["{oops"], "bad.json"));
             await reportLoadingError(container, "bad file");
             await reportAcceleration(container, {
+                policy: "auto",
                 state: "error",
                 code: "E_DEVICE_LOST",
                 reason: "the accelerator's device was lost: reset",
@@ -4679,6 +4681,7 @@ describe("AppShell", () => {
             const { container } = await renderMeasuredShell();
 
             await reportAcceleration(container, {
+                policy: "auto",
                 state: "unavailable",
                 code: "E_NO_WEBGPU",
                 reason: "this browser has no WebGPU",

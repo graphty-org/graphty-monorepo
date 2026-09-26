@@ -1,6 +1,6 @@
 import { assert, describe, it } from "vitest";
 
-import type { AlgorithmDescriptor, LayerId, RunId } from "../../../src/catalog/types";
+import { type AlgorithmDescriptor, DEPRECATED_ALGORITHMS, type LayerId, type RunId } from "../../../src/catalog/types";
 import { isGraphtyError } from "../../../src/errors";
 import {
     createRunsApi,
@@ -102,6 +102,22 @@ describe("starting a run", () => {
             assert.strictEqual(isGraphtyError(error) ? error.code : "", "E_UNKNOWN_ALGORITHM");
             assert.deepStrictEqual(isGraphtyError(error) ? error.details.available : [], ["degree", "k-core"]);
         }
+    });
+
+    it("refuses a deprecated built-in name as unsupported, not as unknown", () => {
+        const { runs, calls } = harness();
+
+        for (const algorithm of DEPRECATED_ALGORITHMS) {
+            try {
+                runs.start(algorithm);
+                assert.fail(`the deprecated "${algorithm}" must not start`);
+            } catch (error) {
+                assert.strictEqual(isGraphtyError(error) ? error.code : "", "E_UNSUPPORTED", algorithm);
+                assert.strictEqual(isGraphtyError(error) ? error.details.reason : "", "deprecated", algorithm);
+            }
+        }
+
+        assert.strictEqual(calls(), 0);
     });
 
     it("refuses an option the algorithm does not declare", () => {

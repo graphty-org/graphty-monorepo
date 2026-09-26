@@ -1,7 +1,7 @@
 /**
  * G5, the `grid-downsample` kernel body (spec 7.7; P4-T9): one dispatch per coarser level; every parent cell is the
  * sum of its 4 (2D) or 8 (3D) children at the level below, read at P.childBase and written at P.parentBase (the
- * pseudo-cell, index cells of level 0, is never a child). No atomics. Body only; normative text.
+ * pseudo-cells, indices cells .. of level 0, are never children). No atomics. Body only; normative text.
  */
 export const gridDownsampleWgsl = /* wgsl */ `
 @compute @workgroup_size(WG)

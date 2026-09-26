@@ -1,5 +1,5 @@
 {
-    "recordedAt": "2026-09-25T10:41:44.657Z",
+    "recordedAt": "2026-09-26T14:41:23.911Z",
     "adapters": [
         {
             "class": "mesa-software-node",
@@ -1502,7 +1502,7 @@
             "a": "mesa-software-node",
             "b": "oracle-f64",
             "maxRelError": 0.0000027551592856305808,
-            "maxAbsError": 4.45007018186152,
+            "maxAbsError": 4.4783418122678995,
             "samples": 15000
         },
         {
@@ -1512,8 +1512,8 @@
             "comparison": "cross-adapter",
             "a": "mesa-software-node",
             "b": "nvidia-lovelace-node",
-            "maxRelError": 1.8196628583245983e-7,
-            "maxAbsError": 0.000030517578125,
+            "maxRelError": 0.0000012034907765756338,
+            "maxAbsError": 0.000213623046875,
             "samples": 8
         },
         {
@@ -1521,32 +1521,32 @@
             "kernel": "fa2-stats-finalize",
             "fixture": "isolated-K1-grid",
             "comparison": "oracle-f64",
-            "a": "mesa-software-node",
+            "a": "nvidia-lovelace-node",
             "b": "oracle-f64",
-            "maxRelError": 0.000003212134535475989,
-            "maxAbsError": 0.0006256103515625,
+            "maxRelError": 6.877094881300912e-7,
+            "maxAbsError": 0.0001220703125,
             "samples": 8
         },
         {
             "id": "grid-inspect.positions.cross",
             "kernel": "fa2-integrate",
-            "fixture": "random20k-K5-grid",
+            "fixture": "clumpy100-K5-grid",
             "comparison": "cross-adapter",
             "a": "mesa-software-node",
             "b": "nvidia-lovelace-node",
-            "maxRelError": 0.000002271736244018843,
-            "maxAbsError": 0.000335693359375,
+            "maxRelError": 0.000006173533815218591,
+            "maxAbsError": 0.0007171630859375,
             "samples": 15000
         },
         {
             "id": "grid-inspect.positions.oracle-f64",
             "kernel": "fa2-integrate",
-            "fixture": "random20k-K5-grid",
+            "fixture": "clumpy100-K5-grid",
             "comparison": "oracle-f64",
-            "a": "nvidia-lovelace-node",
+            "a": "mesa-software-node",
             "b": "oracle-f64",
-            "maxRelError": 0.000002385619664329323,
-            "maxAbsError": 0.00035391629319292406,
+            "maxRelError": 0.000004580035459671806,
+            "maxAbsError": 0.0005592561489038417,
             "samples": 15000
         },
         {
@@ -2166,24 +2166,24 @@
             "factor": 10
         },
         "grid-inspect.k1": {
-            "value": 0.00003212134535475989,
+            "value": 0.000006877094881300913,
             "basis": "grid-inspect.k1.oracle-f64",
             "factor": 10
         },
         "grid-inspect.k1.cross": {
-            "value": 0.0000018196628583245983,
+            "value": 0.00001203490776575634,
             "basis": "grid-inspect.k1.cross",
             "factor": 10
         },
         "grid-inspect.positions": {
-            "value": 0.00002385619664329323,
+            "value": 0.00004580035459671806,
             "basis": "grid-inspect.positions.oracle-f64",
             "factor": 10
         },
         "grid-inspect.positions.cross": {
-            "value": 0.00002271736244018843,
+            "value": 0.0000617353381521859,
             "basis": "grid-inspect.positions.cross",
-            "factor": 10
+            "factor": 9.999999999999998
         },
         "grid-twins.force": {
             "value": 5.960464477539062e-7,

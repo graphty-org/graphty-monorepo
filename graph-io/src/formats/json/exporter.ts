@@ -280,11 +280,26 @@ function numberText(value: number, f32: boolean, nonfinite: Counter): string {
         nonfinite.count++;
         return "null";
     }
-    if (f32) {
-        return formatF32(value);
-    }
     // -0 is a JSON number too ("-0"); JSON.parse reads it back as -0
-    return formatF64(value);
+    return exponentIfUnsafe(f32 ? formatF32(value) : formatF64(value));
+}
+
+/**
+ * An integer text beyond 2^53 in exponent form (`100000000000000000000` -> `1e+20`, the same
+ * digits): the importer reads an integer literal that large as its exact digits (a string), so
+ * a number must not be written as one.
+ * @param text - the shortest decimal text of a finite number
+ * @returns the text, or its exponent form for an integer literal of 16 or more digits
+ */
+function exponentIfUnsafe(text: string): string {
+    const match = /^(-?)([0-9]{16,})$/.exec(text);
+    if (match === null || Number.isSafeInteger(Number(text))) {
+        return text;
+    }
+    const [, sign, digits] = match;
+    const mantissa = digits.replace(/0+$/, "");
+    const fraction = mantissa.length > 1 ? `.${mantissa.slice(1)}` : "";
+    return `${sign}${mantissa[0]}${fraction}e+${digits.length - 1}`;
 }
 
 /**
@@ -315,6 +330,8 @@ function valueText(value: unknown, f32: boolean, nonfinite: Counter): string {
         const items = Array.from(value as ArrayLike<unknown>, (item) => valueText(item, f32, nonfinite));
         return `[${items.join(",")}]`;
     }
+    // ponytail: numbers nested in a json object are written by JSON.stringify, so an integral one
+    // beyond 2^53 re-imports as its digit text; walk the object here if that ever matters
     const text = JSON.stringify(value);
     return text === undefined ? "null" : text;
 }
@@ -336,7 +353,7 @@ function cellText(column: Column, row: number, ids: GraphSnapshot["ids"], nonfin
         case "u32":
             if (column.meta.refersTo === "node" && column.meta.components === 1) {
                 const index = column.data[row];
-                return index === INVALID_INDEX ? "null" : JSON.stringify(ids.idOf(index));
+                return index === INVALID_INDEX ? "null" : idText(ids.idOf(index));
             }
             return valueText(column.value(row), false, nonfinite);
         case "f32":
@@ -839,7 +856,8 @@ function planWeights(ctx: PlanContext, edges: readonly ColumnPlan[]): (e: number
         if (!weights.isExplicit(e)) {
             return null;
         }
-        return Number.isFinite(weights.value(e)) ? weights.text(e) : "null";
+        const text = Number.isFinite(weights.value(e)) ? weights.text(e) : "null";
+        return text === null ? null : exponentIfUnsafe(text);
     };
 }
 
@@ -1093,7 +1111,10 @@ function anySet(plans: readonly ColumnPlan[], row: number, slots: ReadonlySet<Sl
  * @returns the text
  */
 function idText(id: NodeId): string {
-    return typeof id === "number" && Object.is(id, -0) ? "0" : JSON.stringify(id);
+    if (typeof id === "number") {
+        return Object.is(id, -0) ? "0" : exponentIfUnsafe(String(id));
+    }
+    return JSON.stringify(id);
 }
 
 /**

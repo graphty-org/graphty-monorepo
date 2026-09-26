@@ -20,13 +20,14 @@
  */
 
 import { registeredAlgorithmByKey } from "../../catalog/registry";
-import type {
-    AlgorithmDescriptor,
-    AlgorithmKey,
-    LayerId,
-    OptionDescriptor,
-    RunId,
-    Scope,
+import {
+    type AlgorithmDescriptor,
+    type AlgorithmKey,
+    isDeprecatedAlgorithm,
+    type LayerId,
+    type OptionDescriptor,
+    type RunId,
+    type Scope,
 } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import type { RunResult } from "../results/types";
@@ -891,9 +892,19 @@ class Runs implements SessionRunsApi {
      * One algorithm's catalogue entry, insisting that it exists.
      * @param algorithm - The algorithm key.
      * @returns The descriptor.
-     * @throws A `GraphtyError` with code `E_UNKNOWN_ALGORITHM` when nothing registers that key.
+     * @throws A `GraphtyError` with code `E_UNSUPPORTED` for a deprecated built-in name the
+     *   element reserves but does not run, or `E_UNKNOWN_ALGORITHM` when nothing registers that key.
      */
     private descriptorFor(algorithm: AlgorithmKey): AlgorithmDescriptor {
+        if (isDeprecatedAlgorithm(algorithm)) {
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message: `The "${algorithm}" algorithm is not implemented. The name is deprecated and will be removed at the next major release unless it is implemented first.`,
+                source: "run",
+                details: { algorithm, reason: "deprecated" },
+            });
+        }
+
         const descriptor = this.findDescriptor(algorithm);
 
         if (descriptor === undefined) {

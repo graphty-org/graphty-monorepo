@@ -564,6 +564,12 @@ export interface StylesSources {
      * @param change - What changed, and how much was painted.
      */
     readonly onChange?: (change: StyleChange) => void;
+    /**
+     * Aborted when the session holding the stack is disposed. Every edit still pending is
+     * cancelled with it, so a caller awaiting one gets an `AbortError` rather than waiting for
+     * ever, and an edit issued afterwards is cancelled before it starts.
+     */
+    readonly disposed?: AbortSignal;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1210,6 +1216,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     ): Run<T> => {
         edits++;
         const params: Readonly<Record<string, unknown>> = Object.freeze({ edit: edits, verb });
+        const stops = [options.signal, sources.disposed].filter((entry) => entry !== undefined);
+        const signal = stops.length > 1 ? AbortSignal.any(stops) : stops[0];
         const definition: RunDefinition<T> = {
             algorithm: `styles.${verb}`,
             caveats: EDIT_CAVEATS,
@@ -1257,7 +1265,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
                 return { result: planned.result };
             },
-            ...(options.signal === undefined ? {} : { signal: options.signal }),
+            ...(signal === undefined ? {} : { signal }),
             ...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),
         };
 

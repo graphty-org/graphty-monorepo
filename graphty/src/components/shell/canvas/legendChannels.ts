@@ -24,9 +24,11 @@
  * which named a statistic nothing here had computed. It says "midpoint", which is what that
  * value is.
  *
- * The Other row's neutral is read off the element's own default node style for the same reason
- * every swatch is read off its block: a hex written down beside the element is a copy, and a
- * copy is wrong the moment the element changes it, silently. The shell held two of them.
+ * The Other row is drawn in the colours of the swatches it rolls up, read off the block like every
+ * other swatch: the categories past the cap are painted on the canvas in their own colours, and a
+ * bucket the element lumped is its own swatch carrying the element's own bucket colour. The
+ * fallback for a swatch with no colour is read off the element's default node style, because a
+ * hex written down beside the element is a copy that goes wrong the moment the element changes it.
  */
 
 import type { Channel, LegendBlock, LegendSwatch } from "@graphty/graphty-element/session";
@@ -79,15 +81,13 @@ const MIDPOINT_STOP_PREFIX = "midpoint ";
 const LITERAL_SCALE_SHORT = "fixed";
 
 /**
- * The neutral the Other row is drawn in: what an element no category covers is painted.
- *
- * Read off the element's own default node style rather than written here, so the chip and the
- * nodes it stands for cannot come to disagree. The shell held two copies of this hex before
- * this, neither of which anything would have updated.
- * @returns the colour as "#RRGGBB".
+ * The colour a swatch is drawn in: its own, or what the element paints a node no layer has
+ * encoded when the swatch carries none (a size-only categorical block, for one).
+ * @param swatch - the swatch the element published.
+ * @returns the colour.
  */
-function otherRowColor(): string {
-    return defaultNodeHex();
+function swatchColor(swatch: LegendSwatch): string {
+    return swatch.color ?? defaultNodeHex();
 }
 
 /**
@@ -156,7 +156,7 @@ function categoriesOf(swatches: readonly LegendSwatch[]): readonly LegendCategor
         (swatch, index): LegendCategory => ({
             id: `swatch-${String(index)}`,
             label: swatch.label,
-            color: swatch.color ?? otherRowColor(),
+            color: swatchColor(swatch),
         }),
     );
 }
@@ -169,6 +169,11 @@ function categoriesOf(swatches: readonly LegendSwatch[]): readonly LegendCategor
  * category disappearing from the legend altogether is the defect this row exists to prevent.
  * The share is counted from the swatches' own counts and is omitted when the element could
  * not say how many elements carry each value.
+ *
+ * The chip carries each distinct colour of the swatches the cap rolled up, in the block's order,
+ * so a row standing for one painted group or for the element's lumped bucket is drawn in exactly
+ * that colour, and a row standing for several is drawn in all of them. Categories past the
+ * element's own twelve-swatch limit carry no colour here, so they add none.
  * @param block - the block the element published.
  * @returns the row, or undefined when every category is named.
  */
@@ -183,7 +188,7 @@ function otherRowOf(block: LegendBlock): LegendChannel["other"] {
     return {
         label: "Other",
         coverage: `${String(remaining)} ${remaining === 1 ? "category" : "categories"}`,
-        color: otherRowColor(),
+        colors: [...new Set(block.swatches.slice(named).map(swatchColor))],
     };
 }
 

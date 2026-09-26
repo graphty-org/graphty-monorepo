@@ -100,7 +100,9 @@
  * suite), grid-far-field / random20k-far (the force after G6: K2's attraction plus the far field), grid-near-field /
  * random20k-near (the force after G7, the whole total; its twin row grid-twins.force.twin), fa2-stats-finalize /
  * random20k-K1-grid (the eight grid-block values of the K1 fold of iteration 2), fa2-integrate / random20k-K5-grid
- * (the positions after K5) with its WIDENING member fa2-stats-finalize / isolated-K1-grid (the same eight values on
+ * (the positions after K5) with its WIDENING member fa2-integrate / clumpy100-K5-grid (the same positions on the
+ * unscaled clumpy100 fixture, whose blobs bring the far field's distance floor into play), and the K1 row's WIDENING
+ * member fa2-stats-finalize / isolated-K1-grid (the same eight values on
  * the unscaled isolated fixture, whose one-iteration jump to a radius near 200 gives the f32 rmsRadius fold a 3e-6
  * floor on the RTX 4070 SUPER), plus the two the T9 primitives suite writes, grid-downsample / random20k-L1 and
  * grid-centroid-hub / hubcell-L0 (the four lanes of the hub cell; its twin row grid-twins.hubCentroid.twin); and the
@@ -886,6 +888,14 @@ const P4_NOISE_SET: readonly NoiseMember[] = [
     ),
     p4Member(
         GRID_NOISE_FIXTURES.positions,
+        "floored-stride3",
+        stageRows("grid-inspect.positions", null),
+        stageTolerances("grid-inspect.positions", null),
+        P4_GRID_INSPECT_WRITER,
+    ),
+    // the widening member of the K5 row: the unscaled clumpy100 fixture (the grid-parity.ts module comment)
+    p4Member(
+        GRID_NOISE_FIXTURES.positionsClumpy,
         "floored-stride3",
         stageRows("grid-inspect.positions", null),
         stageTolerances("grid-inspect.positions", null),

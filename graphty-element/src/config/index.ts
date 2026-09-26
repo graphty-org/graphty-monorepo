@@ -1,7 +1,7 @@
 export type { AdHocData, ImageData } from "./common";
 export { colorToHex } from "./common";
 export type { EdgeStyleConfig } from "./EdgeStyle";
-export { defaultEdgeStyle, EdgeStyle } from "./EdgeStyle";
+export { defaultEdgeStyle, EdgeArrowTypes, EdgeLineTypes, EdgeStyle } from "./EdgeStyle";
 export type { FetchEdgesFn, FetchNodesFn, GraphBehaviorConfig } from "./GraphBehavior";
 export type { NodeIdType } from "./GraphBehavior";
 export { GraphBehaviorOpts } from "./GraphBehavior";

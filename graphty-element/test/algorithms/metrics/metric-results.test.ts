@@ -180,10 +180,7 @@ describe("metric results", () => {
             assert.isNumber(caveats.iterations);
         });
 
-        it("pagerank says nothing about convergence when the delta method ran", async () => {
-            // The delta method reports `iterations: maxIterations` and `converged: true` whatever
-            // happened, so a run that took it cannot answer either question.
-            //
+        it("pagerank reports the convergence the delta method measured", async () => {
             // A personalization vector is what keeps this run on the reference implementation,
             // which is the only place the delta method lives: no index-based port takes one, so a
             // run that asks for one is answered by the implementation that does.
@@ -199,8 +196,9 @@ describe("metric results", () => {
 
             const { caveats } = result.summary();
             assert.strictEqual(caveats.method, "delta-pagerank");
-            assert.isUndefined(caveats.converged);
-            assert.isUndefined(caveats.iterations);
+            assert.isTrue(caveats.converged);
+            assert.isNumber(caveats.iterations);
+            assert.isBelow(caveats.iterations ?? Infinity, 100);
         });
 
         it("pagerank over a large graph still measures its convergence, and says the delta method was not taken", async () => {

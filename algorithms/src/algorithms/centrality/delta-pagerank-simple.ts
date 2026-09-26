@@ -2,8 +2,8 @@ import type { Graph } from "../../core/graph.js";
 import type { NodeId } from "../../types/index.js";
 
 /**
- * Simplified Delta-based PageRank that matches the standard algorithm
- * but only processes active nodes for efficiency.
+ * Simplified Delta-based PageRank. compute() runs the same power iteration as the standard
+ * algorithm; update() restarts it from the previous scores after a graph change.
  *
  * Key optimization: Supports incremental updates when graph structure changes,
  * avoiding full recomputation from scratch.
@@ -12,6 +12,12 @@ export class SimpleDeltaPageRank {
     private graph: Graph;
     private nodeCount: number;
     private previousScores: Map<NodeId, number> | null = null;
+
+    /** Iterations the last compute() or update() actually ran. */
+    public iterations = 0;
+
+    /** Whether the last compute() or update() met its tolerance before maxIterations. */
+    public converged = false;
 
     /**
      * Creates a new SimpleDeltaPageRank instance for the given graph.
@@ -32,22 +38,35 @@ export class SimpleDeltaPageRank {
      * @param options.dampingFactor - Probability of following a link (default: 0.85)
      * @param options.tolerance - Convergence tolerance threshold (default: 1e-6)
      * @param options.maxIterations - Maximum number of iterations (default: 100)
+     * @param options.initialRanks - Starting scores (missing nodes start at 1/n; normalized to sum 1)
      * @param options.personalization - Personalization vector for Personalized PageRank
      * @param options.weight - Edge attribute name for weighted PageRank
-     * @returns Map of node IDs to their PageRank scores
+     * @returns Map of node IDs to their PageRank scores; `iterations` and `converged` describe the run
      */
     public compute(
         options: {
             dampingFactor?: number;
             tolerance?: number;
             maxIterations?: number;
+            initialRanks?: Map<NodeId, number>;
             personalization?: Map<NodeId, number>;
             weight?: string;
         } = {},
     ): Map<NodeId, number> {
-        const { dampingFactor = 0.85, tolerance = 1e-6, maxIterations = 100, personalization, weight } = options;
+        const {
+            dampingFactor = 0.85,
+            tolerance = 1e-6,
+            maxIterations = 100,
+            initialRanks,
+            personalization,
+            weight,
+        } = options;
+
+        this.iterations = 0;
+        this.converged = false;
 
         if (this.nodeCount === 0) {
+            this.converged = true;
             return new Map();
         }
 
@@ -56,8 +75,10 @@ export class SimpleDeltaPageRank {
         const newScores = new Map<NodeId, number>();
 
         for (const node of this.graph.nodes()) {
-            scores.set(node.id, 1.0 / this.nodeCount);
+            scores.set(node.id, initialRanks?.get(node.id) ?? 1.0 / this.nodeCount);
         }
+
+        this.normalizeMap(scores);
 
         // Precompute out-degrees and weights
         const outWeights = new Map<NodeId, number>();
@@ -69,8 +90,7 @@ export class SimpleDeltaPageRank {
 
             for (const neighbor of Array.from(this.graph.neighbors(node.id))) {
                 outDegree++;
-                const edge = this.graph.getEdge(node.id, neighbor);
-                totalWeight += edge?.weight ?? 1;
+                totalWeight += weight ? (this.graph.getEdge(node.id, neighbor)?.weight ?? 1) : 1;
             }
 
             outWeights.set(node.id, totalWeight);
@@ -86,8 +106,9 @@ export class SimpleDeltaPageRank {
             this.normalizeMap(personalVector);
         }
 
-        // Power iteration with active node tracking
-        let activeNodes = new Set<NodeId>(scores.keys());
+        // Power iteration. Every node propagates every iteration: skipping a node whose score has
+        // settled drops its whole contribution from its neighbours, which leaks rank and stops the
+        // run from ever converging.
         let iteration = 0;
 
         for (iteration = 0; iteration < maxIterations; iteration++) {
@@ -119,8 +140,8 @@ export class SimpleDeltaPageRank {
                 }
             }
 
-            // Propagate rank from active nodes only
-            for (const nodeId of activeNodes) {
+            // Propagate rank from every node
+            for (const nodeId of scores.keys()) {
                 const currentRank = scores.get(nodeId) ?? 0;
                 const nodeOutWeight = outWeights.get(nodeId) ?? 0;
 
@@ -139,27 +160,11 @@ export class SimpleDeltaPageRank {
                 }
             }
 
-            // Check convergence and identify active nodes
-            const nextActive = new Set<NodeId>();
+            // Check convergence
             let maxDiff = 0;
 
             for (const nodeId of scores.keys()) {
-                const oldRank = scores.get(nodeId) ?? 0;
-                const newRank = newScores.get(nodeId) ?? 0;
-                const diff = Math.abs(newRank - oldRank);
-                maxDiff = Math.max(maxDiff, diff);
-
-                // Mark as active if change is significant
-                if (diff > tolerance / 10) {
-                    nextActive.add(nodeId);
-                    // Also mark neighbors as potentially active
-                    for (const neighbor of Array.from(this.graph.neighbors(nodeId))) {
-                        nextActive.add(neighbor);
-                    }
-                    for (const neighbor of Array.from(this.graph.inNeighbors(nodeId))) {
-                        nextActive.add(neighbor);
-                    }
-                }
+                maxDiff = Math.max(maxDiff, Math.abs((newScores.get(nodeId) ?? 0) - (scores.get(nodeId) ?? 0)));
             }
 
             // Swap score maps
@@ -169,12 +174,13 @@ export class SimpleDeltaPageRank {
             }
             newScores.clear();
 
-            activeNodes = nextActive;
-
             if (maxDiff < tolerance) {
+                this.converged = true;
                 break;
             }
         }
+
+        this.iterations = this.converged ? iteration + 1 : iteration;
 
         // Store scores for potential incremental updates
         this.previousScores = new Map(scores);
@@ -211,6 +217,9 @@ export class SimpleDeltaPageRank {
 
         const { dampingFactor = 0.85, tolerance = 1e-6, maxIterations = 100, personalization, weight } = options;
 
+        this.iterations = 0;
+        this.converged = false;
+
         // Initialize scores from previous computation
         const scores = new Map(this.previousScores);
         const newScores = new Map<NodeId, number>();
@@ -246,8 +255,7 @@ export class SimpleDeltaPageRank {
 
             for (const neighbor of Array.from(this.graph.neighbors(node.id))) {
                 outDegree++;
-                const edge = this.graph.getEdge(node.id, neighbor);
-                totalWeight += edge?.weight ?? 1;
+                totalWeight += weight ? (this.graph.getEdge(node.id, neighbor)?.weight ?? 1) : 1;
             }
 
             outWeights.set(node.id, totalWeight);
@@ -349,9 +357,12 @@ export class SimpleDeltaPageRank {
             activeNodes = nextActive;
 
             if (maxDiff < tolerance) {
+                this.converged = true;
                 break;
             }
         }
+
+        this.iterations = this.converged ? iteration + 1 : iteration;
 
         // Store scores for future incremental updates
         this.previousScores = new Map(scores);

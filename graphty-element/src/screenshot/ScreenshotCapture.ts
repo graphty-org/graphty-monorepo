@@ -335,7 +335,12 @@ export class ScreenshotCapture {
             return Promise.resolve();
         }
 
-        if (layoutManager.isSettled) {
+        // NOT MOVING is what a capture waits for, which is not the same as settled: a layout the
+        // consumer paused part-way is still, and never emits `graph-settled`, so waiting for it to
+        // converge would time out on every capture of a paused graph.
+        const atRest = (): boolean => !layoutManager.running || layoutManager.isSettled;
+
+        if (atRest()) {
             return Promise.resolve();
         }
 
@@ -366,7 +371,7 @@ export class ScreenshotCapture {
             }, SCREENSHOT_CONSTANTS.LAYOUT_SETTLE_TIMEOUT_MS);
 
             const handler = (): void => {
-                if (!completed && layoutManager.isSettled) {
+                if (!completed && atRest()) {
                     completed = true;
                     cleanup();
                     resolve();
@@ -377,7 +382,7 @@ export class ScreenshotCapture {
 
             // Check immediately in case it's already settled
              
-            if (!completed && layoutManager.isSettled) {
+            if (!completed && atRest()) {
                 completed = true;
                 cleanup();
                 resolve();

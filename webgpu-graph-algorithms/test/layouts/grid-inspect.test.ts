@@ -4,7 +4,7 @@
  * the oracle's (seeded with the GPU's own frame, PD-10), the pyramid's mass lane bitwise (exact integer sums), and
  * every f32 stage (the pyramid's xyz lanes, the force after G6, the force after G7, the K5 positions, the K1 grid
  * block of iteration 2) within the tolerance traced to benchmarks/results/noise-floor.json; the pinned case; and the
- * writer case of the five random20k stage fixtures and the isolated K1 widening fixture (GRAPHTY_NOISE_FLOOR_WRITE=1
+ * writer case of the five random20k stage fixtures, the isolated K1 widening fixture and the clumpy100 K5 widening fixture (GRAPHTY_NOISE_FLOOR_WRITE=1
  * only). `hubcell` and `onecell1025`
  * run at `nearMax: 8` so the sampling draws of G7 are exercised (the anchor node of gridFixture puts the box in one
  * or two finest cells). The first block pins the helper's tables.
@@ -114,21 +114,22 @@ describe("grid-parity helper (pure)", () => {
     });
 
     it("samplePyramid keeps every level: one value triple per sampled cell, the coarse levels whole", () => {
-        // a G = 8, 2D spec: level 0 has 65 cells (the pseudo-cell), level 1 has 16
+        // a G = 8, 2D spec: level 0 has 68 cells (the four orthant pseudo-cells), level 1 has 16
         const spec = {
             dim: 2 as const,
             g: 8,
             levels: 2,
             cells: 64,
-            histWords: 66,
-            levelOffsets: [0, 65],
-            pyramidCells: 81,
+            outsideCells: 4,
+            histWords: 69,
+            levelOffsets: [0, 68],
+            pyramidCells: 84,
             deterministic: true,
         };
-        const xyz = Float64Array.from({ length: 3 * 81 }, (_, i) => i);
+        const xyz = Float64Array.from({ length: 3 * 84 }, (_, i) => i);
         const sampled = samplePyramid(xyz, spec);
-        expect(sampled.length).toBe(3 * 81);
-        expect(sampled[3 * 65]).toBe(3 * 65);
+        expect(sampled.length).toBe(3 * 84);
+        expect(sampled[3 * 68]).toBe(3 * 68);
     });
 
     it("sampleNodes takes every 4th node's three lanes", () => {
@@ -216,7 +217,7 @@ describe("grid tier inspect(): every stage against the oracle's (spec 11.9 item 
     );
 
     it(
-        "writes this adapter's grid stage outputs of the UNSCALED random20k and the f64 reference as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
+        "writes this adapter's grid stage outputs of the UNSCALED random20k, isolated and clumpy100 and the f64 reference as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
         async (t) => {
             requireGpu(t);
             const cls = adapterClass(ctx.caps);
@@ -265,6 +266,20 @@ describe("grid tier inspect(): every stage against the oracle's (spec 11.9 item 
                 assertCapture(capture, "noise/isolated/2d");
             } finally {
                 ctx.release(isolated.snapshot);
+            }
+            // the widening member of the K5 row: the positions on the UNSCALED clumpy100 fixture (the module comment
+            // of grid-parity.ts)
+            const clumpy = gridFixture("clumpy100", 1, GRID_BASE_OPTIONS);
+            try {
+                const n = clumpy.snapshot.nodeCount;
+                const capture = await captureGridStages(ctx, clumpy.snapshot, clumpy.start, GRID_BASE_OPTIONS, null);
+                const { kernel, fixture } = GRID_NOISE_FIXTURES.positionsClumpy;
+                const { positions } = capture.stages;
+                writeNoiseFixture(kernel, fixture, cls, sampleNodes(positions.values, n), "f32");
+                writeNoiseFixture(kernel, fixture, ORACLE_F64_CLASS, sampleNodes(positions.expected, n), "f32");
+                assertCapture(capture, "noise/clumpy100/2d");
+            } finally {
+                ctx.release(clumpy.snapshot);
             }
         },
         WRITER_TIMEOUT,

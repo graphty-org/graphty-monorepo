@@ -13,6 +13,13 @@ describe("Random Utils", () => {
                 expect(rng["seed"]).toBe(12345);
             });
 
+            it("should honour an explicit seed of 0", () => {
+                const rng1 = new RandomNumberGenerator(0);
+                const rng2 = new RandomNumberGenerator(0);
+                expect(rng1["seed"]).toBe(0);
+                expect([rng1._next(), rng1._next()]).toEqual([rng2._next(), rng2._next()]);
+            });
+
             it("should generate random seed when none provided", () => {
                 const rng1 = new RandomNumberGenerator();
                 const rng2 = new RandomNumberGenerator();

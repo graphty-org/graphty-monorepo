@@ -1,8 +1,8 @@
 /**
  * The CPU reference of the grid pyramid (spec 7.7 G4-G5; P4-T9): level 0 as `[sum m x, sum m y, sum m z, sum m]` per
  * cell in f64, summed in `sortedIdx` order (the order of G4's serial loop, so the f32 kernel differs from it by
- * rounding alone), the pseudo-cell at index `cells`, each coarser level the sum of its 2^dim children (the pseudo-cell
- * excluded), the hub cells (count > GRID_HUB_CELL, the pseudo-cell included as G4 includes it) and the largest
+ * rounding alone), the 2^dim pseudo-cells from index `cells`, each coarser level the sum of its 2^dim children (the
+ * pseudo-cells excluded), the hub cells (count > GRID_HUB_CELL, the pseudo-cells included as G4 includes them) and the largest
  * occupancy over every cell G4 visits. Beside every level the oracle carries the ANALYTIC forward-error bound of the
  * kernel's f32 sums per component: `roundings * 2^-22 * sum |m x|`, where `roundings` counts the f32 additions on
  * the path to the value (a serial cell: `count`; a hub cell: `ceil(count / wg) + wg`, the strided partials and the
@@ -15,13 +15,13 @@ import { type GridOracleBuild, type GridOracleInput } from "./grid.js";
 
 /** The oracle's pyramid: every level in f64, the bound of every value, the hub list and the occupancy max. */
 export interface GridOraclePyramid {
-    /** `levels[L]` holds 4 values per cell of level L (level 0: `cells + 1` cells, the pseudo-cell last). */
+    /** `levels[L]` holds 4 values per cell of level L (level 0: `cells + outsideCells` cells, the pseudo-cells last). */
     readonly levels: readonly Float64Array[];
     /** The analytic bound of `|kernel - levels[L][k]|` per value, in the shape of `levels`. */
     readonly bounds: readonly Float64Array[];
     /** The cells whose count exceeds GRID_HUB_CELL, ascending. */
     readonly hubCells: readonly number[];
-    /** The largest count over every cell G4 visits (the pseudo-cell included): what `hubCounters[1]` holds. */
+    /** The largest count over every cell G4 visits (the pseudo-cells included): what `hubCounters[1]` holds. */
     readonly maxOccupancy: number;
 }
 
@@ -37,13 +37,14 @@ const ROUNDING_UNIT = 2 ** -22;
  */
 export function gridOraclePyramid(build: GridOracleBuild, input: GridOracleInput, wg: number): GridOraclePyramid {
     const { positions, spec } = input;
-    const { cells, dim, g, levels: levelCount } = spec;
-    const level0 = new Float64Array(4 * (cells + 1));
-    const abs0 = new Float64Array(4 * (cells + 1));
-    const roundings0 = new Float64Array(cells + 1);
+    const { cells, outsideCells, dim, g, levels: levelCount } = spec;
+    const level0Cells = cells + outsideCells;
+    const level0 = new Float64Array(4 * level0Cells);
+    const abs0 = new Float64Array(4 * level0Cells);
+    const roundings0 = new Float64Array(level0Cells);
     const hubCells: number[] = [];
     let maxOccupancy = 0;
-    for (let c = 0; c <= cells; c++) {
+    for (let c = 0; c < level0Cells; c++) {
         const start = build.cellStart[c];
         const count = build.cellStart[c + 1] - start;
         maxOccupancy = Math.max(maxOccupancy, count);

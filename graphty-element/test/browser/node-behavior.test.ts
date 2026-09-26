@@ -56,14 +56,13 @@ describe("Node Behavior Tests", () => {
         assert.isDefined(node);
         assert.isDefined(node.dragHandler);
 
-        // Mock graph methods to avoid errors
-        const setRunningSpy = vi.spyOn(graph, "setRunning").mockImplementation(() => undefined);
         const pinSpy = vi.spyOn(node, "pin").mockImplementation(() => undefined);
+        graph.getLayoutManager().running = false;
 
-        // Test drag start
+        // Test drag start: a stopped (not paused) layout runs again so neighbours respond
         node.dragHandler?.onDragStart(new Vector3(0, 0, 0));
         assert.equal(node.dragging, true);
-        assert.isTrue(setRunningSpy.mock.calls.some((call) => call[0]));
+        assert.isTrue(graph.isRunning());
 
         // Test drag end
         node.dragHandler?.onDragEnd();
@@ -71,6 +70,24 @@ describe("Node Behavior Tests", () => {
 
         // Node should call pin() method by default
         assert.equal(pinSpy.mock.calls.length, 1);
+    });
+
+    test("a drag while the consumer has paused the layout leaves it paused", () => {
+        const dataManager = graph.getDataManager();
+        dataManager.addNode({ id: "held", label: "Held" } as unknown as AdHocData);
+        const node = dataManager.getNode("held");
+        assert.isDefined(node);
+        vi.spyOn(node, "pin").mockImplementation(() => undefined);
+
+        graph.setRunning(false);
+
+        node.dragHandler?.onDragStart(new Vector3(0, 0, 0));
+        assert.isFalse(graph.isRunning(), "picking a node up does not resume the layout");
+        node.dragHandler?.onDragEnd();
+        assert.isFalse(graph.isRunning(), "and neither does dropping it");
+
+        graph.setRunning(true);
+        assert.isTrue(graph.isRunning());
     });
 
     test("position changed during drag updates layout engine", () => {

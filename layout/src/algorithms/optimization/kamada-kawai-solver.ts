@@ -3,7 +3,7 @@
  */
 
 import type { Graph } from "../../types";
-import { getEdgesFromGraph,getNodesFromGraph } from "../../utils/graph";
+import { getEdgesFromGraph, getNodesFromGraph } from "../../utils/graph";
 import { _lbfgsDirection } from "./lbfgs";
 import { _backtrackingLineSearch } from "./line-search";
 import { DistanceMap } from "./types";
@@ -70,8 +70,8 @@ export function _kamadaKawaiSolve(distMatrix: number[][], positions: number[][],
     const nNodes = positions.length;
     const meanWeight = 1e-3;
 
-    // Convert distances to inverse distances (with protection against division by zero)
-    const invDistMatrix = distMatrix.map((row) => row.map((d) => (d === 0 ? 0 : 1 / (d + 1e-3))));
+    // Inverse distances. networkx adds 1e-3 only on the diagonal, whose pairs never enter the cost.
+    const invDistMatrix = distMatrix.map((row) => row.map((d) => (d === 0 ? 0 : 1 / d)));
 
     // Flatten positions for optimization
     const posVec = positions.flat();
@@ -157,14 +157,15 @@ export function _kamadaKawaiSolve(distMatrix: number[][], positions: number[][],
 }
 
 /**
- * Cost function and gradient for Kamada-Kawai layout algorithm
+ * Cost function and gradient for Kamada-Kawai layout algorithm, as networkx's _kamada_kawai_costfn:
+ * the distance term sums over every ORDERED pair, so each unordered pair below counts twice.
  * @param posVec - Flattened position array
  * @param invDist - Inverse distance matrix
  * @param meanWeight - Weight for centering positions
  * @param dim - Dimension of layout
  * @returns Array with [cost, gradient]
  */
-function _kamadaKawaiCostfn(
+export function _kamadaKawaiCostfn(
     posVec: number[],
     invDist: number[][],
     meanWeight: number,
@@ -200,7 +201,7 @@ function _kamadaKawaiCostfn(
             // Add penalty for difference between actual and ideal distance
             const idealInvDist = invDist[i][j];
             const offset = distance * idealInvDist - 1.0;
-            cost += 0.5 * offset * offset;
+            cost += offset * offset;
         }
     }
 
@@ -227,7 +228,7 @@ function _kamadaKawaiCostfn(
             const offset = distance * idealInvDist - 1.0;
 
             for (let d = 0; d < dim; d++) {
-                const force = idealInvDist * offset * direction[d];
+                const force = 2 * idealInvDist * offset * direction[d];
                 (grad[i * dim + d] as number) += force;
                 (grad[j * dim + d] as number) -= force;
             }

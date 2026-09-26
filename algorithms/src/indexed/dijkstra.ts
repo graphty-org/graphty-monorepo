@@ -1,5 +1,6 @@
 import { type AdjacencyView, INVALID_INDEX, type NumericVector, type U32 } from "@graphty/graph-format";
 
+import { PathWalkError } from "../errors.js";
 import { arcSourceIn } from "./structures/arc-source.js";
 import { IndexedMinHeap } from "./structures/min-heap.js";
 
@@ -37,12 +38,40 @@ export interface SsspOptions {
 }
 
 /**
+ * The arcs from `target` back to `source`, target end first. `predArc` may come from an
+ * accelerator, so it is not trusted: a missing or out-of-range arc, or more than nodeCount - 1
+ * steps, throws rather than walking off the array or looping.
+ * @param g - The adjacency the search ran on
+ * @param predArc - The search's predecessor-arc array
+ * @param source - The search's source node index
+ * @param target - The node to walk back from (reached, and not the source)
+ * @returns Arc indices, target end first
+ */
+function walkBack(g: AdjacencyView, predArc: U32, source: number, target: number): number[] {
+    const arcs: number[] = [];
+    let node = target;
+    while (node !== source) {
+        if (arcs.length >= g.nodeCount - 1) {
+            throw new PathWalkError(source, target, "cycle");
+        }
+        const arc = predArc[node];
+        if (!(arc < g.arcCount)) {
+            throw new PathWalkError(source, target, "gap"); // INVALID_INDEX is past arcCount too
+        }
+        arcs.push(arc);
+        node = arcSourceIn(g.rowPtr, arc);
+    }
+    return arcs;
+}
+
+/**
  * Walk the predecessor arcs back from `target` and return the node path, source first.
  * @param g - The adjacency the search ran on
  * @param predArc - The search's predecessor-arc array
  * @param source - The search's source node index
  * @param target - The node to walk back from
  * @returns Node indices from source to target inclusive, or an empty array when unreached
+ * @throws PathWalkError when `predArc` has a gap or a cycle between `target` and `source`
  * @public
  */
 export function walkPredArcs(g: AdjacencyView, predArc: U32, source: number, target: number): U32 {
@@ -52,12 +81,7 @@ export function walkPredArcs(g: AdjacencyView, predArc: U32, source: number, tar
     if (predArc[target] === INVALID_INDEX) {
         return new Uint32Array(0);
     }
-    const reversed: number[] = [target];
-    let node = target;
-    while (node !== source) {
-        node = arcSourceIn(g.rowPtr, predArc[node]);
-        reversed.push(node);
-    }
+    const reversed = [target, ...walkBack(g, predArc, source, target).map((arc) => arcSourceIn(g.rowPtr, arc))];
     const out = new Uint32Array(reversed.length);
     for (let i = 0; i < reversed.length; i++) {
         out[i] = reversed[reversed.length - 1 - i];
@@ -72,19 +96,15 @@ export function walkPredArcs(g: AdjacencyView, predArc: U32, source: number, tar
  * @param source - The search's source node index
  * @param target - The node to walk back from
  * @returns Logical edge indices from source to target, or an empty array when unreached
+ * @throws PathWalkError when `predArc` has a gap or a cycle between `target` and `source`
  * @public
  */
 export function walkPredEdges(g: AdjacencyView, predArc: U32, source: number, target: number): U32 {
     if (target === source || predArc[target] === INVALID_INDEX) {
         return new Uint32Array(0);
     }
-    const reversed: number[] = [];
-    let node = target;
-    while (node !== source) {
-        const arc = predArc[node];
-        reversed.push(g.arcToEdge[arc]); // the EXACT parallel edge, not a (u, v) lookup
-        node = arcSourceIn(g.rowPtr, arc);
-    }
+    // the EXACT parallel edge, not a (u, v) lookup
+    const reversed = walkBack(g, predArc, source, target).map((arc) => g.arcToEdge[arc]);
     const out = new Uint32Array(reversed.length);
     for (let i = 0; i < reversed.length; i++) {
         out[i] = reversed[reversed.length - 1 - i];

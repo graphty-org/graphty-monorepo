@@ -5,6 +5,13 @@ import { defineOptions, type OptionsSchema } from "../config";
 import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
 
 /**
+ * The seed used when none is given. The element recommends this layout for large graphs as "the
+ * same every time", and a consumer applies it by name alone, so the default must be fixed rather
+ * than drawn from `Math.random()` on every load.
+ */
+const DEFAULT_SEED = 1;
+
+/**
  * Zod-based options schema for Random Layout
  */
 const randomLayoutOptionsSchema = defineOptions({
@@ -23,7 +30,7 @@ const randomLayoutOptionsSchema = defineOptions({
         },
     },
     seed: {
-        schema: z.number().positive().nullable().default(null),
+        schema: z.number().positive().nullable().default(DEFAULT_SEED),
         meta: {
             label: "Random Seed",
             description: "Seed for reproducible random positions",
@@ -36,7 +43,7 @@ const RandomLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     center: z.array(z.number()).min(2).max(3).or(z.null()).default(null),
     dim: z.number().default(2),
-    seed: z.number().positive().or(z.null()).default(null),
+    seed: z.number().positive().or(z.null()).default(DEFAULT_SEED),
 });
 type RandomLayoutConfigType = z.infer<typeof RandomLayoutConfig>;
 type RandomLayoutOpts = Partial<RandomLayoutConfigType>;

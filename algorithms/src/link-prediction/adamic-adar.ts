@@ -78,7 +78,7 @@ export function adamicAdarPrediction(graph: Graph, options: LinkPredictionOption
             const source = nodes[i];
             const target = nodes[j];
 
-            if (!source || !target) {
+            if (source === undefined || target === undefined) {
                 continue;
             }
 

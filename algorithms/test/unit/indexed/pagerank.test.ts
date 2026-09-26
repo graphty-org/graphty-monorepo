@@ -126,8 +126,7 @@ describe("indexed.pageRank", () => {
         // the default tolerance the legacy loop stops up to n iterations earlier and the two answers differ
         // by about its residual, which on scores near 0.25 is several times 1e-6 relative.
         // `useDelta: false` is MANDATORY, not tidiness: `options.useDelta !== false && n > 100`
-        // (pagerank.ts:110) switches the legacy call to SimpleDeltaPageRank, a different algorithm that
-        // then reports `iterations: maxIterations, converged: true` unconditionally (pagerank.ts:146-147).
+        // (pagerank.ts) switches the legacy call to SimpleDeltaPageRank, a separate implementation.
         const legacy = legacyPageRank(g, { dampingFactor: 0.85, maxIterations: 200, tolerance: 1e-12, useDelta: false });
         const ported = pageRank(s, { dampingFactor: 0.85, maxIterations: 200, tolerance: 1e-12 });
         for (let u = 0; u < s.nodeCount; u++) {

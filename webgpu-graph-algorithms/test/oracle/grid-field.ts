@@ -5,9 +5,10 @@
  * - `gridOracleFarField`: the exact loops of G6 -- the finest cell recomputed with G1's f32 arithmetic (PD-10),
  *   `c0.z` forced to 0 in 2D exactly as G6 does so the 3x3 exclusion fires at every level, the coarsest level minus
  *   the 3x3 (3x3x3) around the node's coarsest cell, then at every finer level the 6x6 (6x6x6) block that is the
- *   parent's 3x3 minus the level's own 3x3, plus the outside pseudo-cell for an inside node; the coarsest level in
- *   full and no pseudo-cell for an outside node; every term `d * (k m_i M / (|d|^2 + eps^2))` on the mass-weighted
- *   centroid with `eps` from the state;
+ *   parent's 3x3 minus the level's own 3x3, plus the 2^dim outside pseudo-cells (one per orthant, issue #90) for an
+ *   inside node; the coarsest level in
+ *   full and no pseudo-cell for an outside node; every term `d * (k m_i M / (max(|d|^2, 0.01^2) + eps^2))` on the
+ *   mass-weighted centroid with `eps` from the state;
  * - `gridOracleNearField`: G7's 9 (27) finest cells with the K3 pair law (the 0.01 floor, the coincident kick through
  *   kickDir), and above `nearMax` entries the SAME `nearMax` independent draws with replacement, draw `k` at slot
  *   `lowbias32(((c ^ (iteration * 0x9E3779B9)) ^ seed) ^ (k * 0x85EBCA6B)) % count` (JS `Math.imul` / `>>>` on
@@ -105,8 +106,8 @@ function cellOf(input: GridOracleInput, i: number): Cell {
 }
 
 /**
- * One far-field term (G6's cell_force): zero for an empty cell, else `d * (k m_i M / (|d|^2 + eps^2))` toward the
- * node from the mass-weighted centroid.
+ * One far-field term (G6's cell_force, FA2): zero for an empty cell, else `d * (k m_i M / (max(|d|^2, 0.01^2) +
+ * eps^2))` toward the node from the mass-weighted centroid (the floor of the exact tier, issue #89).
  * @param px - the node's position and mass (x, y, z, m)
  * @param level - the level's values (4 per cell)
  * @param cell - the cell inside its level
@@ -127,7 +128,7 @@ function addCellForce(
     const dx = px[0] - level[4 * cell] / mass;
     const dy = px[1] - level[4 * cell + 1] / mass;
     const dz = px[2] - level[4 * cell + 2] / mass;
-    const d2 = dx * dx + dy * dy + dz * dz + params.eps * params.eps;
+    const d2 = Math.max(dx * dx + dy * dy + dz * dz, FA2_DISTANCE_FLOOR_SQ) + params.eps * params.eps;
     const scale = (params.scalingRatio * px[3] * mass) / d2;
     out[0] += dx * scale;
     out[1] += dy * scale;
@@ -194,7 +195,9 @@ export function gridOracleFarField(input: GridOracleInput, pyramid: GridOraclePy
                     }
                 }
             }
-            addCellForce(px, level0, cells, params, f);
+            for (let o = 0; o < spec.outsideCells; o++) {
+                addCellForce(px, level0, cells + o, params, f);
+            }
         } else {
             for (let cz = 0; cz <= zTop; cz++) {
                 for (let cy = 0; cy < ts; cy++) {
@@ -311,7 +314,7 @@ function addCellSum(
 
 /**
  * The near field of every node (G7's text before the epilogue, spec 7.7): the 9 (27) finest cells around an inside
- * node's own, the pseudo-cell alone for an outside node.
+ * node's own, the 2^dim outside pseudo-cells for an outside node (issue #90).
  * @param input - the frame and the positions
  * @param build - the T8 oracle's build over the same frame
  * @param params - the field params
@@ -347,7 +350,10 @@ export function gridOracleNearField(input: GridOracleInput, build: GridOracleBui
                 }
             }
         } else {
-            addCellSum(input, build, i, px, cells, true, params, f);
+            const own = build.cellKey[i];
+            for (let o = cells; o < cells + spec.outsideCells; o++) {
+                addCellSum(input, build, i, px, o, o === own, params, f);
+            }
         }
         out[3 * i] = f[0];
         out[3 * i + 1] = f[1];

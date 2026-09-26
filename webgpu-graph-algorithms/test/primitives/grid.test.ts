@@ -2,7 +2,7 @@
  * The grid build, part 1 (spec 6 row 12, 7.7 G1-G3, 13 row P4 gate "cellStart correct with empty cells"; P4-T8):
  * `gridSpecFor` pins (PD-9), the deterministic build of six positioned fixtures in 2D and 3D equal to
  * gridOracleBuild BITWISE (cellKey, sortedIdx -- the sort is stable and the oracle's order is key-then-index --
- * cellHist, cellStart), two runs bitwise identical, `cellStart[cells + 1] === n`; the set-deterministic path with
+ * cellHist, cellStart), two runs bitwise identical, `cellStart[histWords - 1] === n`; the set-deterministic path with
  * cellHist / cellStart bitwise and sortedIdx a permutation in key order; the empty cells of clumpy10; the `upTo`
  * stops; `n = 0` refused; and the writer cases that record the `grid-cell-key` / `random20k`, `histogram` /
  * `random20k-cellHist` and `scan-add` / `random20k-cellStart` u32 noise fixtures of this adapter (all three bitwise
@@ -55,24 +55,24 @@ const DEFAULT_TUNING = {
 };
 
 describe("gridSpecFor (spec 7.7 geometry table; P4-T8 PD-9)", () => {
-    it("n = 4 in 2D: G 8, levels 2, cells 64, levelOffsets [0, 65], pyramidCells 81", () => {
+    it("n = 4 in 2D: G 8, levels 2, cells 64 plus 4 orthant pseudo-cells, levelOffsets [0, 68], pyramidCells 84", () => {
         const spec = gridSpecFor(4, 2, DEFAULT_TUNING);
-        expect(spec).toMatchObject({ g: 8, levels: 2, cells: 64, histWords: 66, pyramidCells: 81, dim: 2 });
-        expect(Array.from(spec.levelOffsets)).toEqual([0, 65]);
-        expect(gridPyramidBytes(spec)).toBe(16 * 81);
+        expect(spec).toMatchObject({ g: 8, levels: 2, cells: 64, outsideCells: 4, histWords: 69, pyramidCells: 84, dim: 2 });
+        expect(Array.from(spec.levelOffsets)).toEqual([0, 68]);
+        expect(gridPyramidBytes(spec)).toBe(16 * 84);
     });
 
-    it("n = 100,000 in 2D: G 512, levels 8, cells 262,144, pyramidCells 349,521", () => {
+    it("n = 100,000 in 2D: G 512, levels 8, cells 262,144, pyramidCells 349,524", () => {
         const spec = gridSpecFor(100_000, 2, DEFAULT_TUNING);
-        expect(spec).toMatchObject({ g: 512, levels: 8, cells: 262_144, pyramidCells: 349_521 });
+        expect(spec).toMatchObject({ g: 512, levels: 8, cells: 262_144, pyramidCells: 349_524 });
         expect(spec.levelOffsets.length).toBe(8);
-        expect(spec.levelOffsets[1]).toBe(262_145);
+        expect(spec.levelOffsets[1]).toBe(262_148);
     });
 
-    it("n = 1,000,000 in 3D: G 128, levels 6, pyramidCells 2,396,737, 38,347,792 bytes (<= 40 MB, the gate's bound)", () => {
+    it("n = 1,000,000 in 3D: G 128, levels 6, pyramidCells 2,396,744, 38,347,904 bytes (<= 40 MB, the gate's bound)", () => {
         const spec = gridSpecFor(1_000_000, 3, DEFAULT_TUNING);
-        expect(spec).toMatchObject({ g: 128, levels: 6, cells: 2_097_152, pyramidCells: 2_396_737, dim: 3 });
-        expect(gridPyramidBytes(spec)).toBe(38_347_792);
+        expect(spec).toMatchObject({ g: 128, levels: 6, cells: 2_097_152, pyramidCells: 2_396_744, dim: 3 });
+        expect(gridPyramidBytes(spec)).toBe(38_347_904);
         expect(gridPyramidBytes(spec)).toBeLessThanOrEqual(40 * 1024 * 1024);
     });
 
@@ -92,7 +92,7 @@ describe("gridSpecFor (spec 7.7 geometry table; P4-T8 PD-9)", () => {
 describe("gridBuild (spec 7.7 G1-G3; P4-T8): equals the oracle bitwise, twice bitwise", () => {
     for (const name of GRID_FIXTURES) {
         for (const dim of [2, 3] as const) {
-            it(`${name} in ${dim}D, deterministic: cellKey, sortedIdx, cellHist and cellStart equal gridOracleBuild bitwise; two runs bitwise equal; cellStart[cells + 1] === n`, async (t) => {
+            it(`${name} in ${dim}D, deterministic: cellKey, sortedIdx, cellHist and cellStart equal gridOracleBuild bitwise; two runs bitwise equal; cellStart[histWords - 1] === n`, async (t) => {
                 requireGpu(t);
                 const ctx = await acquire({ label: `grid-${name}-${dim}` });
                 try {
@@ -109,14 +109,18 @@ describe("gridBuild (spec 7.7 G1-G3; P4-T8): equals the oracle bitwise, twice bi
                     expectBitwiseEqual(first.sortedIdx, want.sortedIdx, "sortedIdx vs oracle");
                     expectBitwiseEqual(first.cellHist, want.cellHist, "cellHist vs oracle");
                     expectBitwiseEqual(first.cellStart, want.cellStart, "cellStart vs oracle");
-                    expect(first.cellStart[scene.spec.cells + 1]).toBe(scene.n);
+                    expect(first.cellStart[scene.spec.histWords - 1]).toBe(scene.n);
                     // the sorted keys are the keys in sorted order
                     for (let t2 = 0; t2 < scene.n; t2++) {
                         expect(first.sortedKey[t2]).toBe(want.cellKey[want.sortedIdx[t2]]);
                     }
                     if (name === "outside5") {
                         expect(want.outside).toBe(5);
-                        expect(first.cellHist[scene.spec.cells]).toBe(5);
+                        let outside = 0;
+                        for (let o = 0; o < scene.spec.outsideCells; o++) {
+                            outside += first.cellHist[scene.spec.cells + o];
+                        }
+                        expect(outside).toBe(5);
                     }
                     if (name === "coincident" || name === "onecell1k") {
                         expect(want.maxOccupancy).toBe(scene.n);

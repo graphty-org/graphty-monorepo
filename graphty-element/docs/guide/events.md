@@ -24,7 +24,8 @@ Graphty uses an event-driven architecture. Subscribe to events for user interact
 | `node-drag-end`        | Finished dragging node   | `{ node, position, pinned }` |
 | `elements-removed`     | Nodes and their edges removed | `{ nodes, edges }`    |
 | `data-loading-progress` | A chunk of a load arrived | `{ nodeRecordsLoaded, edgeRecordsLoaded, chunksProcessed, ... }` |
-| `data-loading-complete` | A load finished          | `{ nodesLoaded, edgesLoaded, report, ... }` |
+| `data-loading-complete` | A load finished          | `{ nodesLoaded, edgesLoaded, report, loadId, ... }` |
+| `data-loading-error`   | A load failed            | `{ error, format, loadId, ... }` |
 | `error`                | Error occurred           | `{ error, context }`       |
 
 There is no edge-click event. Edge meshes are not pickable, so nothing could emit one; it returns,
@@ -54,6 +55,14 @@ graph.on("data-loading-complete", ({ nodesLoaded, edgesLoaded, report }) => {
 
 The same report is available afterwards, without keeping the event, as
 `element.session.data.lastImport()`.
+
+### Every load has an id
+
+`addDataFromSource`, `loadFromFile` and `loadFromUrl` resolve to `{ loadId }`, and every event
+about that load -- `data-loading-progress`, `data-loading-complete`, `data-loading-error` and
+`data-loaded` (in `details.loadId`) -- carries the same `loadId`. A load started by assigning the
+`dataSource` / `dataSourceConfig` pair has an id too, on its events. When two loads overlap, the id
+says which one a report is about.
 
 ## JavaScript API
 

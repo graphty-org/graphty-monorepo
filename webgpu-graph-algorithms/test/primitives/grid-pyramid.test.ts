@@ -95,7 +95,7 @@ describe("gridPyramid (spec 7.7 G4-G5; P4-T9): every level within the analytic b
         }
     }
 
-    it("empty cells hold vec4f(0) at every level; the pseudo-cell of outside5 holds the five outside nodes' sums and is never downsampled", async (t) => {
+    it("empty cells hold vec4f(0) at every level; the orthant pseudo-cells of outside5 hold the five outside nodes' sums and are never downsampled", async (t) => {
         requireGpu(t);
         const ctx = await acquire({ label: "pyramid-empty" });
         try {
@@ -117,12 +117,17 @@ describe("gridPyramid (spec 7.7 G4-G5; P4-T9): every level within the analytic b
                     }
                 }
                 expect(empty).toBeGreaterThan(0);
-                const { cells } = scene.spec;
-                const pseudo = levelOf(run, scene, 0).subarray(4 * cells, 4 * cells + 4);
-                expect(pseudo[3]).toBe(5);
-                for (let a = 0; a < 3; a++) {
-                    expect(Math.abs(pseudo[a] - want.levels[0][4 * cells + a])).toBeLessThanOrEqual(want.bounds[0][4 * cells + a]);
+                const { cells, outsideCells } = scene.spec;
+                let outsideMass = 0;
+                for (let at = 4 * cells; at < 4 * (cells + outsideCells); at += 4) {
+                    const pseudo = levelOf(run, scene, 0).subarray(at, at + 4);
+                    outsideMass += pseudo[3];
+                    expect(pseudo[3]).toBe(want.levels[0][at + 3]);
+                    for (let a = 0; a < 3; a++) {
+                        expect(Math.abs(pseudo[a] - want.levels[0][at + a])).toBeLessThanOrEqual(want.bounds[0][at + a]);
+                    }
                 }
+                expect(outsideMass).toBe(5); // the five far nodes, spread over the orthant pseudo-cells (issue #90)
                 // the top level sums the inside nodes only: karate's 34 minus the 5 outside
                 const top = levelOf(run, scene, scene.spec.levels - 1);
                 let mass = 0;

@@ -1,17 +1,10 @@
 /**
- * Regression tests for `graphty-element.clearData()` and the per-load data-source guard.
+ * Regression tests for `graphty-element.clearData()`.
  *
- * `#tryInitializeDataSource` is called from BOTH the `dataSource` and the
- * `dataSourceConfig` setters, so it needs a guard: one assignment of the pair must start
- * one load, not two. That guard used to latch for the element's whole lifetime, which
- * meant it also refused every dataset after the first -- a host that set the pair a second
- * time got no load at all, while the element reported the new source. The symptom in the
- * graphty app was a second sample that renamed the dataset in the top bar and left the
- * first graph on the canvas.
- *
- * `clearData()` is where the guard resets, because clearing the data is the statement that
- * the previous load is over. It resets the two properties with it: leaving the old pair in
- * place would let the next half-assignment load the NEW source against the OLD config.
+ * `clearData()` empties the graph and forgets the data-source pair, so the next pair loads into
+ * an empty graph as the first one did, and a half-assignment cannot load a new source against the
+ * old config. Re-assigning the pair WITHOUT clearing is covered by
+ * `data-source-reassignment.test.ts`.
  */
 import "../../src/graphty-element";
 
@@ -120,6 +113,26 @@ describe("graphty-element.clearData", () => {
 
         await new Promise((resolve) => setTimeout(resolve, LOAD_SETTLE_MS));
 
+        assert.strictEqual(element.graph?.getDataManager().nodes.size, 0);
+    });
+
+    test("abandons a load still in flight, so it cannot put its data back after the close", async () => {
+        const element = await createGraphtyElement();
+
+        await loadInline(element, FIRST_GRAPH);
+
+        const records = Array.from({ length: 20000 }, (_, i) => ({ id: `n${i}` }));
+        const load = element.loadFromFile(new File([JSON.stringify({ nodes: records })], "big.json"), {
+            replace: true,
+        });
+        element.clearData();
+
+        const failure = await load.then(
+            () => null,
+            (error: unknown) => error as { code?: string },
+        );
+
+        assert.strictEqual(failure?.code, "E_SUPERSEDED");
         assert.strictEqual(element.graph?.getDataManager().nodes.size, 0);
     });
 

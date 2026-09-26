@@ -45,6 +45,8 @@ const CODES_FROM_THE_DESIGN = [
     "E_PARSE_FAILED",
     "E_EDGE_ENDPOINTS_UNRESOLVED",
     "E_ID_MISSING",
+    "E_EMPTY_LOAD",
+    "E_SUPERSEDED",
     "E_TOO_LARGE",
     "E_OUT_OF_MEMORY",
     "E_CAP_EXCEEDED",
@@ -102,6 +104,8 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_PARSE_FAILED":
         case "E_EDGE_ENDPOINTS_UNRESOLVED":
         case "E_ID_MISSING":
+        case "E_EMPTY_LOAD":
+        case "E_SUPERSEDED":
             return "import";
         case "E_TOO_LARGE":
         case "E_OUT_OF_MEMORY":

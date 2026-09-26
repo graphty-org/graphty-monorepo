@@ -21,7 +21,7 @@
  * (the importer's detection on the parsed document is authoritative, design section 8.2).
  */
 
-import { type JsonDialect, sniffJsonDialect } from "./formats/json/dialect.js";
+import { type JsonImportDialect, sniffJsonDialect } from "./formats/json/dialect.js";
 import { type GraphImporter } from "./types.js";
 
 /** The format names of the eight built-in importers and exporters. */
@@ -69,7 +69,7 @@ export interface SniffResult {
     /** Whether the MIME type is one the importer claims. */
     readonly mimeType: boolean;
     /** For the JSON format: the dialect the head suggests, or null when unknown; always null for other formats. */
-    readonly dialect: JsonDialect | null;
+    readonly dialect: JsonImportDialect | null;
 }
 
 /**
@@ -178,7 +178,7 @@ export function sniffFormat(hints: SniffHints, importers: Iterable<GraphImporter
  * @param head - the first bytes or characters of the document
  * @returns the dialect, or null when the head is not a JSON graph document
  */
-export function sniffJsonDialectHead(head: Uint8Array | string): JsonDialect | null {
+export function sniffJsonDialectHead(head: Uint8Array | string): JsonImportDialect | null {
     const text = typeof head === "string" ? head : new TextDecoder("utf-8", { fatal: false }).decode(head);
     const body = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
     const trimmed = body.trimStart();

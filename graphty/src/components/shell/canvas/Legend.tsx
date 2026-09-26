@@ -79,8 +79,11 @@ export interface LegendOtherRow {
     readonly label: string;
     /** The coverage footer, e.g. "3,388 groups, 43% of nodes", drawn parenthesised. */
     readonly coverage: string;
-    /** The ink the canvas paints the remainder. */
-    readonly color: string;
+    /**
+     * The inks the canvas paints the remainder, one per distinct colour among the categories
+     * the row rolls up. The chip draws one slice for each; a single colour is a plain disc.
+     */
+    readonly colors: readonly string[];
     /** Opens the groups table. */
     readonly onClick?: () => void;
 }
@@ -179,29 +182,51 @@ function ChannelHeading(props: { readonly channel: LegendChannel }): React.JSX.E
     );
 }
 
+/**
+ * A legend chip: a disc for one colour, equal pie slices for several, nothing for none.
+ * @param props - the chip's inputs.
+ * @param props.colors - the colours, in drawing order.
+ * @returns the chip's svg.
+ */
+function Chip(props: { readonly colors: readonly string[] }): React.JSX.Element {
+    const { colors } = props;
+    const radius = CANVAS_METRICS.LEGEND_SWATCH / 2;
+    const point = (turn: number): string =>
+        `${String(radius + radius * Math.sin(turn * 2 * Math.PI))} ${String(radius - radius * Math.cos(turn * 2 * Math.PI))}`;
+
+    return (
+        <svg
+            aria-hidden="true"
+            width={CANVAS_METRICS.LEGEND_SWATCH}
+            height={CANVAS_METRICS.LEGEND_SWATCH}
+            viewBox={`0 0 ${String(CANVAS_METRICS.LEGEND_SWATCH)} ${String(CANVAS_METRICS.LEGEND_SWATCH)}`}
+            style={{ flex: "0 0 auto" }}
+        >
+            {colors.length === 1 ? (
+                <circle cx={radius} cy={radius} r={radius} fill={colors[0]} />
+            ) : (
+                colors.map((color, index) => (
+                    <path
+                        key={color}
+                        fill={color}
+                        d={`M ${String(radius)} ${String(radius)} L ${point(index / colors.length)} A ${String(radius)} ${String(radius)} 0 0 1 ${point((index + 1) / colors.length)} Z`}
+                    />
+                ))
+            )}
+        </svg>
+    );
+}
+
 function CategoryRow(props: {
-    readonly color: string;
+    readonly colors: readonly string[];
     readonly onClick?: () => void;
     readonly title?: string;
     readonly children: React.ReactNode;
 }): React.JSX.Element {
-    const { children, color, onClick, title } = props;
+    const { children, colors, onClick, title } = props;
     const content = (
         <>
-            <svg
-                aria-hidden="true"
-                width={CANVAS_METRICS.LEGEND_SWATCH}
-                height={CANVAS_METRICS.LEGEND_SWATCH}
-                viewBox={`0 0 ${String(CANVAS_METRICS.LEGEND_SWATCH)} ${String(CANVAS_METRICS.LEGEND_SWATCH)}`}
-                style={{ flex: "0 0 auto" }}
-            >
-                <circle
-                    cx={CANVAS_METRICS.LEGEND_SWATCH / 2}
-                    cy={CANVAS_METRICS.LEGEND_SWATCH / 2}
-                    r={CANVAS_METRICS.LEGEND_SWATCH / 2}
-                    fill={color}
-                />
-            </svg>
+            <Chip colors={colors} />
             <span
                 style={{
                     flex: "1 1 auto",
@@ -380,14 +405,14 @@ export function Legend(props: LegendProps): React.JSX.Element | null {
                                     style={{ display: "flex", flexDirection: "column", gap: CANVAS_SPACE.TIGHT }}
                                 >
                                     {capLegendCategories(channel.categories).map((category) => (
-                                        <CategoryRow key={category.id} color={category.color}>
+                                        <CategoryRow key={category.id} colors={[category.color]}>
                                             {category.label}
                                         </CategoryRow>
                                     ))}
 
                                     {channel.other === undefined ? null : (
                                         <CategoryRow
-                                            color={channel.other.color}
+                                            colors={channel.other.colors}
                                             onClick={channel.other.onClick}
                                             title="Open the groups table"
                                         >

@@ -186,7 +186,8 @@ export interface ElementPaint {
      *
      * This is the number a structural hash exists to keep small: it must follow the distinct
      * SHAPES and SIZES in the picture, never the element count, and a colour encoding must not
-     * move it.
+     * move it. A mesh no element is drawn from any more is not counted: its key is released and
+     * never handed out again.
      * @param target - Nodes or edges.
      * @returns The count, which is at least one.
      */
@@ -354,7 +355,8 @@ const MAX_GENERATION = 0x7fff_fffe;
 type ChannelColumn =
     | { readonly channel: Channel; readonly kind: "number"; values: Float64Array }
     | { readonly channel: Channel; readonly kind: "flag"; values: Uint8Array }
-    | { readonly channel: Channel; readonly kind: "ref"; values: unknown[] };
+    | { readonly channel: Channel; readonly kind: "ref"; values: unknown[] }
+    | { readonly channel: Channel; readonly kind: "merge"; values: unknown[] };
 
 /**
  * Which column shape a channel's values pack into.
@@ -362,7 +364,9 @@ type ChannelColumn =
  * Numbers and switches go into typed arrays, so a column of 50,000 sizes is 400 KB of contiguous
  * memory with no per-element object in it. Everything else -- a colour, a word from a closed
  * list, a label, a label style -- is held by reference, which costs nothing extra because the
- * encoding hands back a bounded set of shared values rather than a new one per element.
+ * encoding hands back a bounded set of shared values rather than a new one per element. A label
+ * style is held by reference too, but merged with what the layers beneath painted: see
+ * {@link writeColumn}.
  * @param channel - The channel.
  * @returns The shape its column takes.
  */
@@ -371,6 +375,10 @@ function kindFor(channel: Channel): ChannelColumn["kind"] {
 
     if (accepts === "number") {
         return "number";
+    }
+
+    if (accepts === "labelStyle") {
+        return "merge";
     }
 
     return accepts === "boolean" ? "flag" : "ref";
@@ -467,6 +475,28 @@ function writeColumn(column: ChannelColumn, index: number, value: unknown): void
 
     if (column.kind === "flag") {
         column.values[index] = value === true ? FLAG_TRUE : FLAG_FALSE;
+
+        return;
+    }
+
+    const held = column.values[index];
+
+    // A label style is a bag of fields, and a layer that names one field has said nothing about
+    // the others: `{color}` stacked over `{sizePx: 24}` is a red label at 24 px, not a red label
+    // at the default size. So each field takes the value of the highest layer that wrote it. A
+    // new object, because the value a layer painted is shared by every element it painted. A
+    // field set to undefined says nothing either -- a settings form that clears a field produces
+    // one -- so it never overwrites what a lower layer wrote.
+    if (column.kind === "merge" && typeof held === "object" && held !== null) {
+        const merged: Record<string, unknown> = { ...held };
+
+        for (const [field, fieldValue] of Object.entries(value as object)) {
+            if (fieldValue !== undefined) {
+                merged[field] = fieldValue;
+            }
+        }
+
+        column.values[index] = merged;
 
         return;
     }
@@ -581,8 +611,8 @@ interface TargetStore {
     capacity: number;
     /** How many of those rows are elements that exist. */
     count: number;
-    /** Which source mesh each element is drawn from. */
-    meshKeys: Int32Array;
+    /** Which source mesh each element is drawn from. Doubles, because a key outgrows 32 bits. */
+    meshKeys: Float64Array;
     /** The pass that last marked each element dirty, which is how a mark is cleared for free. */
     stamps: Int32Array;
     /** This pass's number. */
@@ -765,7 +795,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             columns: new Map<Channel, ChannelColumn>(),
             capacity: INITIAL_CAPACITY,
             count: 0,
-            meshKeys: new Int32Array(INITIAL_CAPACITY),
+            meshKeys: new Float64Array(INITIAL_CAPACITY),
             stamps: new Int32Array(INITIAL_CAPACITY),
             generation: 0,
             dirty: new Uint32Array(INITIAL_CAPACITY),
@@ -786,6 +816,14 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
      * @param count - How many elements of that kind the session holds.
      */
     const ensureCapacity = (store: TargetStore, count: number): void => {
+        // An element that is gone is drawn from nothing, so the mesh it was drawn from loses it.
+        for (let index = count; index < store.count; index++) {
+            if (store.meshKeys[index] !== 0) {
+                store.meshes.release(store.meshKeys[index]);
+                store.meshKeys[index] = 0;
+            }
+        }
+
         store.count = count;
 
         if (count <= store.capacity) {
@@ -798,7 +836,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             capacity *= 2;
         }
 
-        const meshKeys = new Int32Array(capacity);
+        const meshKeys = new Float64Array(capacity);
         meshKeys.set(store.meshKeys);
         const stamps = new Int32Array(capacity);
         stamps.set(store.stamps);
@@ -1288,7 +1326,23 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                 }
 
                 minting = index;
-                store.meshKeys[index] = meshes.end(mintStyle);
+                const key = meshes.end(mintStyle);
+                const held = store.meshKeys[index];
+
+                // Counted only when an element MOVES to another mesh, so an edit that leaves
+                // every mesh where it was -- a colour, a label -- costs no bookkeeping at all.
+                // Key zero is the default mesh and is never released.
+                if (key !== held) {
+                    if (key !== 0) {
+                        meshes.retain(key);
+                    }
+
+                    if (held !== 0) {
+                        meshes.release(held);
+                    }
+
+                    store.meshKeys[index] = key;
+                }
             }
         };
 

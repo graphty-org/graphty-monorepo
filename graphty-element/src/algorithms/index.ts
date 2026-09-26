@@ -21,10 +21,12 @@ import { FloydWarshallAlgorithm } from "./FloydWarshallAlgorithm";
 import { GirvanNewmanAlgorithm } from "./GirvanNewmanAlgorithm";
 import { HITSAlgorithm } from "./HITSAlgorithm";
 import { KatzCentralityAlgorithm } from "./KatzCentralityAlgorithm";
+import { KCoreAlgorithm } from "./KCoreAlgorithm";
 // Phase 7 minimum spanning tree algorithms
 import { KruskalAlgorithm } from "./KruskalAlgorithm";
 import { LabelPropagationAlgorithm } from "./LabelPropagationAlgorithm";
 import { LeidenAlgorithm } from "./LeidenAlgorithm";
+import { LinkPredictionAlgorithm } from "./LinkPredictionAlgorithm";
 import { LouvainAlgorithm } from "./LouvainAlgorithm";
 import { MaxFlowAlgorithm } from "./MaxFlowAlgorithm";
 import { MinCutAlgorithm } from "./MinCutAlgorithm";
@@ -70,6 +72,8 @@ Algorithm.register(PrimAlgorithm);
 Algorithm.register(BipartiteMatchingAlgorithm);
 Algorithm.register(MaxFlowAlgorithm);
 Algorithm.register(MinCutAlgorithm);
+Algorithm.register(KCoreAlgorithm);
+Algorithm.register(LinkPredictionAlgorithm);
 
 // Export base class and types
 export { Algorithm } from "./Algorithm";
@@ -131,6 +135,8 @@ export function getAllAlgorithmInfo(): AlgorithmInfo[] {
         BipartiteMatchingAlgorithm,
         MaxFlowAlgorithm,
         MinCutAlgorithm,
+        KCoreAlgorithm,
+        LinkPredictionAlgorithm,
     ];
 
     for (const AlgoClass of knownAlgorithms) {

@@ -216,7 +216,7 @@ export class RepulsionGrid {
 
     /**
      * The model-owned buffers of the grid tier (spec 7.3; PD-11): `cellKey` / `cellVal` / `sortedKey` / `sortedIdx`
-     * 4n, `cellHist` / `cellStart` 4 (cells + 2) zeroed, `hubList` one word per possible hub cell, `hubArgs` one
+     * 4n, `cellHist` / `cellStart` 4 histWords (cells + 2^dim + 1) zeroed, `hubList` one word per possible hub cell, `hubArgs` one
      * indirect slot, `pyramid` 16 B per pyramid cell zeroed. `hubCounters` (16 B, zeroed) is the MODEL's on every
      * tier (PD-14: K1 binds it on the exact tier too). n = 0 reports one node's worth of bytes (spec 3.6).
      * @param n - the node count

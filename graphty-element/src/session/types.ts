@@ -27,7 +27,15 @@ import type {
 // different EdgeId types -- graph-format's `string | number` on EdgeRecord and the catalogue's
 // `string` everywhere else -- so assigning one to the other was an error on the element's own
 // published surface.
-import type { AlgorithmKey, AttributeDescriptor, CatalogApi, EdgeId, RunId, Scope } from "../catalog/types";
+import type {
+    AlgorithmKey,
+    AttributeDescriptor,
+    CatalogApi,
+    DeprecatedCatalogMethod,
+    EdgeId,
+    RunId,
+    Scope,
+} from "../catalog/types";
 import type { DataConfig } from "../config/DataConfig";
 import type { ElementPositions } from "../data/positions";
 import type { ImportReport } from "../data/report";
@@ -371,15 +379,12 @@ export interface SessionDataApi {
  * been run. A consumer wanting only the metrics that CAN run filters on `available`; both lists
  * come off one call rather than two that could disagree.
  *
- * The rest of the graph-dependent half of {@link CatalogApi} -- what an option's bounds resolve to
- * over a scope, whether an expression references anything real -- is still absent rather than
- * stubbed: the session's query engine exists, and the catalogue is not wired to it yet. A consumer discovers that gap by
- * autocomplete finding nothing, not by a call that throws.
+ * The rest of {@link CatalogApi} -- the methods named in `DeprecatedCatalogMethod` -- is absent
+ * rather than stubbed, and deprecated on `CatalogApi` itself. A consumer discovers that gap by
+ * autocomplete finding nothing, not by a call that throws. This type is derived from that list,
+ * so implementing one of them means deleting its name there and nothing here.
  */
-export type SessionCatalogApi = Pick<
-    CatalogApi,
-    "algorithms" | "cameras" | "formats" | "layouts" | "logSinks" | "metrics" | "palettes" | "scales"
->;
+export type SessionCatalogApi = Omit<CatalogApi, DeprecatedCatalogMethod>;
 
 /** The configuration a session carries. */
 export interface SessionConfig {

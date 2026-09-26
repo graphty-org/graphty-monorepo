@@ -116,6 +116,7 @@ export {
     type JsonDialect,
     jsonExporter,
     type JsonExportOptions,
+    type JsonImportDialect,
     jsonImporter,
     type JsonImportOptions,
     type JsonShapeMeta,

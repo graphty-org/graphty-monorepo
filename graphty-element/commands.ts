@@ -17,6 +17,10 @@
  * What the element can do today is published as data by
  * `@graphty/graphty-element/catalog`, which an agent can read for the algorithms, layouts,
  * formats, palettes and scales that exist, with every option each one accepts.
+ * @deprecated This entry point exports nothing and is kept only so an existing import keeps
+ * resolving. It will be removed at the next major release unless the command vocabulary ships
+ * here first (issue #337). Use `@graphty/graphty-element/catalog` for the element's vocabulary
+ * as data.
  */
 
 export {};

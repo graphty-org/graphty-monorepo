@@ -186,14 +186,10 @@ beforeEach(async () => {
     await graph.operationQueue.waitForCompletion();
 });
 
-afterEach(async () => {
+afterEach(() => {
     stopWatching?.();
     stopWatching = null;
 
-    // Drained before the graph is thrown away. A style edit is a queued run, and the element
-    // schedules a repaint behind every finished run -- so disposing while the queue still holds
-    // one runs that repaint against a store the dispose has already emptied.
-    await graph.operationQueue.waitForCompletion();
     graph.dispose();
     container.remove();
 });

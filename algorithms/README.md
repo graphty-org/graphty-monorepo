@@ -110,8 +110,8 @@ class Graph {
 ```typescript
 interface GraphConfig {
     directed: boolean; // Default: false
-    allowSelfLoops: boolean; // Default: false
-    allowParallelEdges: boolean; // Default: false
+    allowSelfLoops: boolean; // Default: true
+    allowParallelEdges: boolean; // Default: false. When true, re-adding a pair replaces its edge (one edge per pair)
 }
 ```
 

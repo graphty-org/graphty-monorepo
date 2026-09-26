@@ -162,8 +162,8 @@ describe("EdgeMesh", () => {
             // Both should be instances from the same source mesh
             assert.exists(arrow1);
             assert.exists(arrow2);
-            const instance1 = arrow1 as InstancedMesh;
-            const instance2 = arrow2 as InstancedMesh;
+            const instance1 = arrow1;
+            const instance2 = arrow2;
             assert.equal(instance1.sourceMesh, instance2.sourceMesh);
         });
 

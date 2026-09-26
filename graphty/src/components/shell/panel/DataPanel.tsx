@@ -7,9 +7,10 @@ import {
     PANEL_GRID,
     PANEL_INK,
 } from "@graphty/compact-mantine";
-import { Box, Button, Switch } from "@mantine/core";
+import { Box, Button, Group, Modal, Switch, Text } from "@mantine/core";
 import React, { useState } from "react";
 
+import { standardModalStyles } from "../../../utils/modal-styles";
 import { LoadDataModal, type LoadDataRequest } from "../../LoadDataModal";
 import { keyChipFor } from "../bindings";
 import type { ShellStateAxis } from "../types";
@@ -64,13 +65,10 @@ const RUN_A_RECIPE_LABEL = "Run a recipe...";
  *
  * Spec 872-882 gives a second file a "What to do with this file" dialog whose four
  * choices open with Replace current graph and Add to current graph. This build has the
- * first and not the second: the app's load path reaches graphty-element through the
- * `dataSource`/`dataSourceConfig` pair, whose initialisation guard is per LOAD and is
- * reset only by `clearData()`, so a load that does not replace starts nothing at all. The
- * shell refuses such a load with a sentence rather than performing it silently, and this
- * row is the same fact stated BEFORE the drop instead of after it -- which is what the
- * panel already does for its other two unshipped routes rather than letting a reader find
- * out by using one.
+ * first and not the second: a file dropped on a loaded graph replaces it, after the
+ * reader confirms, and the merge's own dialog is not built. This row states that BEFORE
+ * the drop -- which is what the panel already does for its other two unshipped routes
+ * rather than letting a reader find out by using one.
  */
 const ADD_TO_GRAPH_LABEL = "Add to current graph";
 
@@ -325,6 +323,8 @@ export function DataPanel(props: DataPanelProps): React.JSX.Element {
     } = props;
 
     const [loadOpen, setLoadOpen] = useState(false);
+    /* A file dropped on a loaded graph, waiting for the reader to confirm the replace. */
+    const [pendingDrop, setPendingDrop] = useState<File | null>(null);
     const loaded = stateAxis !== "empty" && stateAxis !== "loading";
     const dataTableTooltip = withChip(SHOW_DATA_TABLE_LABEL, keyChipFor("toggleDataDrawer"));
 
@@ -337,16 +337,27 @@ export function DataPanel(props: DataPanelProps): React.JSX.Element {
     };
 
     /**
-     * Loads what was dropped on the panel, as the state it was dropped in.
+     * Loads a dropped file as the dataset, crossing the 6.12 dataset boundary.
      *
-     * `replaceExisting: !loaded` is the whole difference between a drop that crosses the
-     * 6.12 dataset boundary and one that does not, and it is deliberately NOT forced true
-     * here: a drop that silently threw away the dataset the reader is looking at, with no
-     * dialog and no undo, would be a worse answer to {@link ADD_TO_GRAPH_LABEL}'s absence
-     * than saying so. So an additive drop still asks for the merge the reader meant, and
-     * the shell answers it in one sentence naming the route that does work. What this
-     * panel owes the reader is that the limit is visible before the drop, which is the
-     * Coming row above.
+     * The drop route has no dialog to hold open, so the rejection is consumed here rather
+     * than left to the runtime as an unhandled rejection. Nothing is lost by that: the shell
+     * reports a failed load on its own two surfaces -- the Welcome drop zone's inline
+     * sentence in the Empty state (spec 4105) and the status bar toast once a dataset is
+     * drawn -- and neither of them is this panel's to draw.
+     * @param file - the file that was dropped.
+     */
+    const loadDropped = (file: File): void => {
+        void onLoad({ inputMethod: "file", format: "auto", file, replaceExisting: true }).catch(() => undefined);
+    };
+
+    /**
+     * Loads what was dropped on the panel, asking first when a dataset is already drawn.
+     *
+     * A drop on a loaded graph REPLACES it, because merging a second file is not built
+     * ({@link ADD_TO_GRAPH_LABEL}). It asks first, so a file dropped by mistake does not
+     * throw away the dataset the reader is looking at; a file that turns out not to parse
+     * costs nothing either way, because graphty-element keeps the current graph until the
+     * new one has.
      * @param event - the drop.
      */
     const handleDrop = (event: React.DragEvent<HTMLDivElement>): void => {
@@ -360,15 +371,15 @@ export function DataPanel(props: DataPanelProps): React.JSX.Element {
 
         const [file] = files;
 
-        /* The drop route has no dialog to hold open, so the rejection is consumed here
-           rather than left to the runtime as an unhandled rejection. Nothing is lost by
-           that: the shell reports a failed load on its own two surfaces -- the Welcome
-           drop zone's inline sentence in the Empty state (spec 4105) and the status bar
-           toast once a dataset is drawn -- and neither of them is this panel's to draw.
-           The dialog's route, which DOES need the rejection, gets `onLoad` itself. */
-        void onLoad({ inputMethod: "file", format: "auto", file, replaceExisting: !loaded }).catch(
-            () => undefined,
-        );
+        if (loaded) {
+            setPendingDrop(file);
+        } else {
+            loadDropped(file);
+        }
+    };
+
+    const cancelDrop = (): void => {
+        setPendingDrop(null);
     };
 
     return (
@@ -517,6 +528,35 @@ export function DataPanel(props: DataPanelProps): React.JSX.Element {
             )}
 
             <LoadDataModal opened={loadOpen} onClose={closeLoadDialog} onLoad={onLoad} />
+
+            <Modal
+                opened={pendingDrop !== null}
+                onClose={cancelDrop}
+                title="Replace the current graph?"
+                centered
+                styles={standardModalStyles}
+            >
+                <Text size="sm">
+                    Replace the current graph with {pendingDrop?.name}? If the file cannot be read, the current
+                    graph stays.
+                </Text>
+                <Group justify="flex-end" mt="md">
+                    <Button variant="subtle" color="gray" onClick={cancelDrop}>
+                        Cancel
+                    </Button>
+                    <Button
+                        onClick={() => {
+                            if (pendingDrop !== null) {
+                                loadDropped(pendingDrop);
+                            }
+
+                            setPendingDrop(null);
+                        }}
+                    >
+                        Replace
+                    </Button>
+                </Group>
+            </Modal>
         </>
     );
 }

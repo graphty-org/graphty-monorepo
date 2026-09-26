@@ -4387,7 +4387,40 @@
           }
         ]
       },
-      "knownFailure": "NaN / Infinity literals written by networkx are rejected (sources.md 8.4 JSON layer)"
+      "knownFailure": "a NaN weight is E_INVALID_WEIGHT under the shared weight rule and its edge is skipped; a tuple node id (a JSON array) is not a node id (sources.md 8.4 JSON layer)"
+    },
+    {
+      "file": "networkx/nan-inf-attributes.node_link.json",
+      "origin": "generated locally with networkx 3.1 json_graph (json.dumps of node_link_data, Python's default allow_nan)",
+      "license": "BSD-3-Clause (networkx output)",
+      "version": "networkx 3.1",
+      "exercises": "the NaN / Infinity / -Infinity literals Python writes, in node and edge attributes and inside a list, next to strings that spell them",
+      "oracle": "networkx-3.1",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_JSON_NONSTANDARD_NUMBER"
+        ],
+        "nodes": 3,
+        "edges": 2,
+        "directed": false,
+        "nodeIds": [
+          1,
+          2,
+          3
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2,
+            "weight": 2
+          },
+          {
+            "source": 2,
+            "target": 3
+          }
+        ]
+      }
     },
     {
       "file": "networkx/karate.adjacency.json",
@@ -4432,8 +4465,7 @@
             "value": "Mr. Hi"
           }
         ]
-      },
-      "knownFailure": "networkx adjacency_data / tree_data not supported (sources.md 8.4 other dialects)"
+      }
     },
     {
       "file": "networkx/karate.cytoscape.json",
@@ -4513,8 +4545,7 @@
             "target": 4
           }
         ]
-      },
-      "knownFailure": "networkx adjacency_data / tree_data not supported (sources.md 8.4 other dialects)"
+      }
     },
     {
       "file": "networkx/karate.node_link-edges.json",

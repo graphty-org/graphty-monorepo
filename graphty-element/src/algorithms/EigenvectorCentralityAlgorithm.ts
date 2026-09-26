@@ -161,8 +161,11 @@ export class EigenvectorCentralityAlgorithm extends MetricAlgorithm<EigenvectorC
         // Map types are programmatic-only (not in schema)
         const startVector = this._schemaOptions.startVector ?? undefined;
 
-        // Undirected: influence flows across an edge in either direction.
-        const graphData = this.algorithmGraph("undirected");
+        // "total" (the default), or a graph loaded undirected: influence flows across an edge in
+        // either direction. "in" and "out" on a directed graph keep the declared direction and let
+        // the algorithm pick which edges feed a node.
+        const directed = mode !== "total" && this.graph.getDataManager().getSnapshot().directed;
+        const graphData = this.algorithmGraph(directed ? "directed" : "undirected");
 
         context.report({
             phase: "iterating",
@@ -213,7 +216,7 @@ export class EigenvectorCentralityAlgorithm extends MetricAlgorithm<EigenvectorC
             normalization: normalized ? "min-max" : "none",
             caveats: {
                 exact: true,
-                direction: "undirected",
+                direction: directed ? "directed" : "undirected",
                 weight: null,
                 precision: "f64",
                 method: "power-iteration",
@@ -222,6 +225,13 @@ export class EigenvectorCentralityAlgorithm extends MetricAlgorithm<EigenvectorC
                 converged: true,
                 notes: [
                     `Power iteration reached a tolerance of ${String(tolerance)} within ${String(maxIterations)} passes.`,
+                    ...(directed
+                        ? [
+                              mode === "in"
+                                  ? "A node is scored by the nodes whose edges point at it."
+                                  : "A node is scored by the nodes its edges point at.",
+                          ]
+                        : []),
                     "Edge weights are not read.",
                 ],
             },

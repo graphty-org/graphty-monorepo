@@ -10,6 +10,8 @@
 
 import type { ReactNode } from "react";
 
+import type { HelpMenuProps } from "./rail/HelpMenu";
+
 /* -------------------------------------------------------------------------- */
 /* Activities (build spec 02 sections 1.2, 1.3)                                */
 /* -------------------------------------------------------------------------- */
@@ -285,6 +287,12 @@ export interface ActivityRailProps {
      * control is the only thing that hides a sidebar.
      */
     readonly onActivityClick: (activity: ActivityId) => void;
+    /**
+     * The Help menu the Help item opens, or undefined for a rail without one. The rail
+     * makes its Help item the menu's opener, so a click on Help both reports "help"
+     * and asks, through `onOpenChange`, to toggle the menu.
+     */
+    readonly helpMenu?: Omit<HelpMenuProps, "children">;
 }
 
 /* -------------------------------------------------------------------------- */

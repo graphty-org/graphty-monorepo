@@ -1,6 +1,7 @@
 import { assert, describe, it } from "vitest";
 
 import { _computeShortestPathDistances, _kamadaKawaiSolve } from "../src/algorithms/optimization";
+import { _kamadaKawaiCostfn } from "../src/algorithms/optimization/kamada-kawai-solver";
 
 /**
  * The quantity the solver minimises, less the tiny centring term: half the squared relative
@@ -11,7 +12,7 @@ function kkCost(positions: number[][], dist: number[][]): number {
     for (let i = 0; i < positions.length; i++) {
         for (let j = i + 1; j < positions.length; j++) {
             const drawn = Math.hypot(...positions[i].map((v, d) => v - positions[j][d]));
-            cost += 0.5 * (drawn / (dist[i][j] + 1e-3) - 1) ** 2;
+            cost += 0.5 * (drawn / dist[i][j] - 1) ** 2;
         }
     }
     return cost;
@@ -65,5 +66,39 @@ describe("the Kamada-Kawai solver", () => {
 
             assert.isBelow(after, before / 2, `dim ${String(dim)}: cost ${after.toFixed(1)} from ${before.toFixed(1)}`);
         }
+    });
+
+    it("computes networkx's cost and gradient: every ordered pair, 1 / d off the diagonal", () => {
+        // networkx 3.1 _kamada_kawai_costfn on this input, with invdist = 1 / (dist + 1e-3 * eye).
+        const dist = [
+            [0, 1, 2],
+            [1, 0, 1],
+            [2, 1, 0],
+        ];
+        const invDist = dist.map((row) => row.map((d) => (d === 0 ? 0 : 1 / d)));
+        const [cost, grad] = _kamadaKawaiCostfn([0, 0, 0, 1.5, 0.5, 0, 0.3, 2, 1], invDist, 1e-3, 3);
+        const expected = [
+            -1.1178607417455915, -0.4785600536104517, -0.05575779282206374, 2.396216372203908, -1.2446842424148454,
+            -1.0754858069207798, -1.2729556304583165, 1.730744296025297, 1.1342435997428433,
+        ];
+
+        assert.closeTo(cost, 1.7180829397543822, 1e-9);
+        grad.forEach((g, i) => assert.closeTo(g, expected[i], 1e-9, `gradient ${String(i)}`));
+    });
+
+    it("draws two nodes exactly the distance apart they ask for", () => {
+        const [a, b] = _kamadaKawaiSolve(
+            [
+                [0, 2],
+                [2, 0],
+            ],
+            [
+                [0, 0],
+                [0.5, 0],
+            ],
+            2,
+        );
+
+        assert.closeTo(Math.hypot(a[0] - b[0], a[1] - b[1]), 2, 1e-4);
     });
 });

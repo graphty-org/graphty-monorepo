@@ -286,16 +286,17 @@ function farSample(n: number): number[] {
 /**
  * The f64 far field of the sampled nodes under the model's law by design 7.7's own construction (G6's traversal,
  * test/oracle/grid-field.ts's shape for the FA2 law): the mass-weighted centroids of every pyramid level from the
- * layout positions and the finest-cell keys G1 assigned (`levelOffsets` implicit: one array per level; the outside
- * pseudo-cell from the outside nodes), then per node the coarsest level minus its 3x3 (3x3x3), each finer level's
- * parent 3x3 refined minus the level's own 3x3, and the pseudo-cell (an outside node: the coarsest level in full),
+ * layout positions and the finest-cell keys G1 assigned (`levelOffsets` implicit: one array per level; the 2^dim
+ * outside pseudo-cells, one per orthant, from the outside nodes' keys), then per node the coarsest level minus its 3x3
+ * (3x3x3), each finer level's parent 3x3 refined minus the level's own 3x3, and every pseudo-cell (an outside node:
+ * the coarsest level in full),
  * every term `d * (k^2 M / d2)` (FR, LAW 1) or `d * (-g m_i M / d2^1.5)` (coulomb, LAW 2) with `d = p_i - c`
  * and `d2 = |d|^2 + eps^2`. The law is the P5 kernel text's in f64, never read from a kernel; the traversal
  * isolates the per-cell law from the monopole approximation (against a pair sum the coulomb far field sits at the
  * cap's edge in 2D, 4.9 % at 20k, measured 2026-09-20).
  * @param model - the model
  * @param positions - the layout positions (xyz + mass per node)
- * @param cellKey - the finest-cell key of every node (the pseudo-cell is `cells`)
+ * @param cellKey - the finest-cell key of every node (the pseudo-cells are `cells + orthant`)
  * @param eps - the frame's softening (0.25 x the finest cell)
  * @param g - the finest side G
  * @param dim - 2 or 3
@@ -316,13 +317,13 @@ function farReference(
     const levels = Math.log2(g / GRID_COARSEST_SIDE) + 1;
     const frK = 1 / Math.sqrt(n);
     const coulomb = SE_BASE_OPTIONS.gravity ?? SE_DEFAULTS.gravity * springSizeFactor(n);
-    // the pyramid: per level the mass-weighted sums (x, y, z, M) of every cell; the pseudo-cell apart
+    // the pyramid: per level the mass-weighted sums (x, y, z, M) of every cell; the pseudo-cells apart
     const sums: Float64Array[] = [];
     for (let level = 0; level < levels; level++) {
         const side = g >> level;
         sums.push(new Float64Array(4 * (dim === 3 ? side * side * side : side * side)));
     }
-    const pseudo = new Float64Array(4);
+    const pseudo = new Float64Array(4 * 2 ** dim);
     const cellOf = (key: number): readonly [number, number, number] => [
         key % g,
         Math.floor(key / g) % g,
@@ -341,7 +342,7 @@ function farReference(
     };
     for (let i = 0; i < n; i++) {
         if (cellKey[i] >= cells) {
-            add(pseudo, 0, i);
+            add(pseudo, cellKey[i] - cells, i);
             continue;
         }
         const [cx, cy, cz] = cellOf(cellKey[i]);
@@ -406,7 +407,9 @@ function farReference(
                     }
                 }
             }
-            term(pseudo, 0);
+            for (let o = 0; o < 2 ** dim; o++) {
+                term(pseudo, o);
+            }
         } else {
             for (let cz = 0; cz <= zTop; cz++) {
                 for (let cy = 0; cy < ts; cy++) {

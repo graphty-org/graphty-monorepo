@@ -1,5 +1,5 @@
 import { describe, it, assert } from "vitest";
-import { kamadaKawaiLayout, completeGraph, cycleGraph, starGraph, gridGraph, randomGraph } from "../src";
+import { kamadaKawaiLayout, completeGraph, cycleGraph, starGraph, gridGraph, randomGraph, randomLayout } from "../src";
 
 describe("Kamada-Kawai Layout", () => {
     describe("Basic functionality", () => {
@@ -342,7 +342,14 @@ describe("Kamada-Kawai Layout", () => {
             });
         });
 
-        it("should use spherical initialization for 3D", () => {
+        it("starts 3D from a seeded random layout, as networkx starts from random_layout", () => {
+            const graph = cycleGraph(6);
+            const started = kamadaKawaiLayout(graph, null, randomLayout(graph, null, 3, 42), "weight", 1, [0, 0, 0], 3);
+
+            assert.deepEqual(kamadaKawaiLayout(graph, null, null, "weight", 1, [0, 0, 0], 3), started);
+        });
+
+        it("should draw uniform edge lengths in 3D", () => {
             const graph = cycleGraph(6);
             const positions = kamadaKawaiLayout(graph, null, null, "weight", 1, [0, 0, 0], 3);
 

@@ -441,3 +441,90 @@ describe("a badge brings its own appearance", () => {
         assert.strictEqual(label.progress, 0.5);
     });
 });
+
+describe("stacked label styles merge field by field", () => {
+    it("keeps the lower layer's size under an upper layer that sets only a colour", async () => {
+        const held = harness();
+        await held.styles.add({
+            name: "base",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.label": "Label", "node.labelStyle": { sizePx: 24 } },
+        });
+        await held.paintAll();
+
+        const alone = NodeStyle.parse(held.painter.nodePaint(0)?.style).label;
+
+        const upper = await held.styles.add({
+            name: "red",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.labelStyle": { color: "#FF0000" } },
+        });
+        await held.paintAll();
+
+        const stacked = NodeStyle.parse(held.painter.nodePaint(0)?.style).label;
+
+        assert.strictEqual(stacked?.fontSize, 24, "the lower layer's size survives");
+        assert.strictEqual(stacked?.textColor, "#FF0000", "the upper layer's colour wins");
+
+        await held.styles.remove(upper.id);
+        await held.paintAll();
+
+        assert.deepStrictEqual(
+            NodeStyle.parse(held.painter.nodePaint(0)?.style).label,
+            alone,
+            "removing the upper layer gives back exactly the lower layer's label",
+        );
+    });
+
+    for (const [target, channel] of [
+        ["node", "node.labelStyle"],
+        ["node", "node.tooltipStyle"],
+        ["edge", "edge.labelStyle"],
+        ["edge", "edge.arrowHeadTextStyle"],
+        ["edge", "edge.arrowTailTextStyle"],
+    ] as const) {
+        it(`merges ${channel} and unmerges it when the upper layer goes`, async () => {
+            const held = harness();
+
+            await held.styles.add({
+                name: "base",
+                target,
+                selector: { match: "everything" },
+                set: { [channel]: { sizePx: 24, color: "#00FF00" } },
+            });
+            const upper = await held.styles.add({
+                name: "red",
+                target,
+                selector: { match: "everything" },
+                set: { [channel]: { color: "#FF0000" } },
+            });
+
+            assert.deepStrictEqual(held.engine.styleOf(target, 0)[channel], { sizePx: 24, color: "#FF0000" });
+
+            await held.styles.remove(upper.id);
+
+            assert.deepStrictEqual(held.engine.styleOf(target, 0)[channel], { sizePx: 24, color: "#00FF00" });
+        });
+    }
+
+    it("does not let a field set to undefined wipe the lower layer's value", async () => {
+        const held = harness();
+
+        await held.styles.add({
+            name: "base",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.labelStyle": { sizePx: 24 } },
+        });
+        await held.styles.add({
+            name: "cleared",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.labelStyle": { color: "#FF0000", sizePx: undefined } },
+        });
+
+        assert.deepStrictEqual(held.engine.styleOf("node", 0)["node.labelStyle"], { sizePx: 24, color: "#FF0000" });
+    });
+});

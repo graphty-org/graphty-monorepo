@@ -3,8 +3,9 @@
  * the caller's pass, the cell keys (G1, `grid-cell-key`), the stable sort by key (G2: `radixSort` at GRID_SORT_BITS,
  * or `countingSortByKey` when the caller asks for the set-deterministic path) and the per-cell histogram with its
  * exclusive scan (G3: the `histogram` kernel over `cellKey` and the `scan` of it; DEP-P4-I names no grid-specific
- * id). `cellHist` and `cellStart` hold `cells + 2` words: every real cell, the outside pseudo-cell at index `cells`
- * and one more so `cellStart[cells + 1] === n` closes the last range. Every zeroing is a `fill` dispatch inside the
+ * id). `cellHist` and `cellStart` hold `histWords = cells + 2^dim + 1` words: every real cell, the 2^dim outside
+ * pseudo-cells (one per orthant about the grid centre, issue #90) from index `cells`, and one more so
+ * `cellStart[histWords - 1] === n` closes the last range. Every zeroing is a `fill` dispatch inside the
  * pass (PD-12), never an encoder clear.
  *
  * The named grid buffers (`cellKey`, `cellVal`, `sortedKey`, `sortedIdx`, `cellHist`, `cellStart`) are the caller's
@@ -39,11 +40,13 @@ export interface GridSpec {
     readonly g: number;
     /** `log2(G / GRID_COARSEST_SIDE) + 1`. */
     readonly levels: number;
-    /** `G^dim` finest cells; the outside pseudo-cell is index `cells`. */
+    /** `G^dim` finest cells; the outside pseudo-cells are indices `cells .. cells + outsideCells - 1`. */
     readonly cells: number;
-    /** `cells + 2`: the length of `cellHist` / `cellStart`. */
+    /** `2^dim`: one outside pseudo-cell per orthant about the grid centre (issue #90). */
+    readonly outsideCells: number;
+    /** `cells + outsideCells + 1`: the length of `cellHist` / `cellStart`. */
     readonly histWords: number;
-    /** The first cell of every level inside the pyramid: `levelOffsets[0] = 0`, level 0 holds `cells + 1` (the pseudo-cell), level L `(G / 2^L)^dim`. */
+    /** The first cell of every level inside the pyramid: `levelOffsets[0] = 0`, level 0 holds `cells + outsideCells` (the pseudo-cells last), level L `(G / 2^L)^dim`. */
     readonly levelOffsets: readonly number[];
     /** Every level's cells together: `levelOffsets[levels - 1] + GRID_COARSEST_SIDE^dim`. */
     readonly pyramidCells: number;
@@ -81,8 +84,8 @@ function floorPow2(x: number): number {
  * The grid of `n` nodes in `dim` dimensions under the tuning (spec 7.7 geometry table; PD-9): `G = clamp(nextPow2(2 *
  * ceil(n^(1 / dim))), GRID_MIN_SIDE, floorPow2(gridMax))` where `gridMax` is `gridMax2D` or `gridMax3D`, rounded DOWN
  * to a power of two so every level's side is an integer (512 and 128 stay; 100 becomes 64); `levels = log2(G /
- * GRID_COARSEST_SIDE) + 1`. At the caps: 349,521 pyramid cells in 2D, 2,396,737 in 3D (the design's counts plus the
- * pseudo-cell).
+ * GRID_COARSEST_SIDE) + 1`. At the caps: 349,524 pyramid cells in 2D, 2,396,744 in 3D (the design's counts plus the
+ * 2^dim pseudo-cells).
  * @param n - the node count (>= 0)
  * @param dim - 2 or 3
  * @param tuning - the resolved layout tuning (`gridMax2D`, `gridMax3D`, `deterministic`)
@@ -102,10 +105,11 @@ export function gridSpecFor(
         levels++;
     }
     const cells = g ** dim;
+    const outsideCells = 2 ** dim;
     const levelOffsets: number[] = [0];
     let s = g;
     for (let level = 0; level + 1 < levels; level++) {
-        levelOffsets.push(levelOffsets[level] + s ** dim + (level === 0 ? 1 : 0));
+        levelOffsets.push(levelOffsets[level] + s ** dim + (level === 0 ? outsideCells : 0));
         s /= 2;
     }
     return {
@@ -113,7 +117,8 @@ export function gridSpecFor(
         g,
         levels,
         cells,
-        histWords: cells + 2,
+        outsideCells,
+        histWords: cells + outsideCells + 1,
         levelOffsets: Object.freeze(levelOffsets),
         pyramidCells: levelOffsets[levels - 1] + GRID_COARSEST_SIDE ** dim,
         deterministic: tuning.deterministic,
@@ -121,7 +126,7 @@ export function gridSpecFor(
 }
 
 /**
- * The bytes of the pyramid (spec 7.7: 16 B per cell, every level, the pseudo-cell included): 38,347,792 at the 3D cap.
+ * The bytes of the pyramid (spec 7.7: 16 B per cell, every level, the pseudo-cells included): 38,347,904 at the 3D cap.
  * @param spec - the grid
  * @returns the byte length
  */
@@ -155,9 +160,9 @@ export interface GridBuildBindings {
     readonly sortedKey: Binding;
     /** `n` words: the sorted node indices. */
     readonly sortedIdx: Binding;
-    /** `cells + 2` words: the per-cell counts. */
+    /** `histWords` (`cells + 2^dim + 1`) words: the per-cell counts. */
     readonly cellHist: Binding;
-    /** `cells + 2` words: the exclusive scan of `cellHist`. */
+    /** `histWords` (`cells + 2^dim + 1`) words: the exclusive scan of `cellHist`. */
     readonly cellStart: Binding;
 }
 

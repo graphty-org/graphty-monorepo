@@ -932,9 +932,22 @@ void main() {
         // when the material is disposed. See releaseMaterial and PerSceneMaterials.
         this.cameraTracked.add(shaderMaterial);
 
-        // A ShaderMaterial has no defines for Babylon's dirty mechanism to update, and
-        // `markAsDirty` walks every mesh in the scene -- so without this, setting
-        // backFaceCulling on each new material made loading N of them O(N^2) (issue #27).
+        // THE SCENE-WIDE SCAN THIS AVOIDS. Every property setter on a Babylon material that can change
+        // its shader defines -- `backFaceCulling` among them -- calls `markAsDirty`, which walks EVERY
+        // submesh of EVERY mesh in the scene looking for the ones drawn with this material. This
+        // material is brand new and drawn by nothing yet, so the walk finds nothing, and with one
+        // material per mesh (every arrow head, before arrow heads were instances of one source mesh
+        // per batch; every pattern element still) the walk runs once per mesh over a scene that grows:
+        // loading E edges cost E x (all meshes so far), which is why 2,000 nodes / 20,000 edges took
+        // 21 s and 10,000 nodes never finished (issue #388; 94 % of the load's CPU profile was this
+        // one walk). Blocking the material's dirty mechanism makes the setter a plain field write.
+        //
+        // It stays blocked for the material's life, on purpose. The mechanism exists so a material
+        // whose defines changed gets its effect rebuilt; a ShaderMaterial re-derives its defines on
+        // every readiness check (`isReadyForSubMesh` compares the joined defines to the compiled
+        // effect's and recompiles on a difference), so it never needs the flag, and nothing here
+        // sets a define-changing property after this line: the per-edge state is uniforms, which
+        // `setFloat` / `setVector3` write without marking anything dirty.
         shaderMaterial.blockDirtyMechanism = true;
         shaderMaterial.backFaceCulling = false;
         mesh.material = shaderMaterial;
@@ -1129,7 +1142,7 @@ void main() {
         material.setFloat("opacity", opacity);
         material.setFloat("clipEndX", -1.0);
         this.cameraTracked.add(material);
-        // See applyShader (issue #27).
+        // See applyShader (issue #388).
         material.blockDirtyMechanism = true;
         material.backFaceCulling = false;
 

@@ -27,6 +27,12 @@ import type { RunId, RunResult } from "@graphty/graphty-element/session";
 
 import { METRIC_VALUE_FIELD } from "../defaults/styleDescriptors";
 import type { ElementGraph } from "./elementBridge";
+import {
+    formatMetricDistribution,
+    METRIC_DISTRIBUTION_MAX_BINS,
+    type MetricDistribution,
+    NODE_METRIC_DEFINITIONS,
+} from "./nodeMetrics";
 
 /** graphty-element's registry coordinates for the two algorithms this slice reads back. */
 export const DEGREE_NAMESPACE = "graphty";
@@ -65,8 +71,11 @@ export interface DegreeResults {
     readonly byDegreeDescending: readonly DegreeReading[];
     /** The highest degree found. */
     readonly maxDegree: number;
-    /** Just the degrees, highest first -- what `labelDegreeThreshold` takes. */
-    readonly degreesDescending: readonly number[];
+    /**
+     * The degree distribution the graph summary draws: graphty-element's own bins for the run,
+     * asked for with the options the Most connected result card uses, so the two charts agree.
+     */
+    readonly distribution: MetricDistribution;
     /**
      * The run that measured them, when these readings came from a run started here.
      *
@@ -98,6 +107,14 @@ export interface CommunityRunResult {
 
 
 
+/** No degree pass yet: no bar, and an axis that claims no range. */
+export const NO_DEGREE_DISTRIBUTION: MetricDistribution = formatMetricDistribution(
+    NODE_METRIC_DEFINITIONS.degree,
+    { bins: [], scale: "linear", suggestedScale: "linear", binning: "empty" },
+    0,
+    0,
+);
+
 /**
  * Turns graphty-element's degree result into the readings this slice carries.
  *
@@ -120,6 +137,7 @@ export interface CommunityRunResult {
 function degreeResultsFrom(result: RunResult): DegreeResults {
     const summary = result.summary();
     const maxDegree = summary.max ?? 0;
+    const histogram = result.histogram(METRIC_VALUE_FIELD, { bins: METRIC_DISTRIBUTION_MAX_BINS, scale: "auto" });
     const byDegreeDescending: DegreeReading[] = result.ranking(METRIC_VALUE_FIELD).map((entry) => ({
         id: String(entry.id),
         degree: entry.value,
@@ -129,7 +147,7 @@ function degreeResultsFrom(result: RunResult): DegreeResults {
     return {
         byDegreeDescending,
         maxDegree,
-        degreesDescending: byDegreeDescending.map((reading) => reading.degree),
+        distribution: formatMetricDistribution(NODE_METRIC_DEFINITIONS.degree, histogram, summary.min ?? 0, maxDegree),
     };
 }
 
@@ -150,7 +168,7 @@ export function readDegreeResults(graph: ElementGraph): DegreeResults {
         .at(-1);
 
     if (latest?.result === undefined) {
-        return { byDegreeDescending: [], maxDegree: 0, degreesDescending: [] };
+        return { byDegreeDescending: [], maxDegree: 0, distribution: NO_DEGREE_DISTRIBUTION };
     }
 
     return { ...degreeResultsFrom(latest.result), runId: latest.id };

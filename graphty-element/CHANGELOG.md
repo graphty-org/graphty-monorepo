@@ -1,3 +1,22 @@
+## 2.2.2 (2026-09-26)
+
+### 🩹 Fixes
+
+- **graphty-element:** default to a 2:1 block that honours a height, with no minimum ([#127](https://github.com/graphty-org/graphty-monorepo/issues/127))
+- **graphty-element:** a default host size, and a warning for rich props set too early ([#127](https://github.com/graphty-org/graphty-monorepo/issues/127), [#79](https://github.com/graphty-org/graphty-monorepo/issues/79))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.4
+- Updated @graphty/remote-logger to 1.3.7
+- Updated graph-format to 1.0.5
+- Updated algorithms to 2.0.3
+- Updated layout to 1.9.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.2.1 (2026-09-25)
 
 ### 🩹 Fixes

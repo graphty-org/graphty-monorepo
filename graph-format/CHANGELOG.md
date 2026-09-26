@@ -1,3 +1,7 @@
+## 1.0.5 (2026-09-26)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
 ## 1.0.4 (2026-09-24)
 
 This was a version bump only for graph-format to align it with other projects, there were no code changes.

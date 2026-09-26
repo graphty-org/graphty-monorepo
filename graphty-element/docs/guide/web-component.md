@@ -33,7 +33,7 @@ All configuration is done through HTML attributes or their corresponding JavaScr
 | `layoutConfig`           | `layout-config`            | `object`                       | `{}`        | Layout algorithm options       |
 | `viewMode`               | `view-mode`                | `'2d' \| '3d' \| 'vr' \| 'ar'` | `'3d'`      | Rendering mode                 |
 | `background`             | `background`               | `object`                       | whitesmoke  | A colour, or a skybox image    |
-| `startingCameraDistance` | `starting-camera-distance` | `number`                       | `30`        | How far the camera starts out  |
+| `startingCameraDistance` | `starting-camera-distance` | `number`                       | unset       | How far the camera starts out; unset frames the graph to fit, set turns automatic framing off |
 | `dataSource`             | `data-source`              | `string`                       | `undefined` | Data source type               |
 | `dataSourceConfig`       | `data-source-config`       | `object`                       | `{}`        | Data source configuration      |
 | `nodeIdPath`             | `node-id-path`             | `string`                       | `'id'`      | Path to node ID in data        |
@@ -504,8 +504,9 @@ const state = element.getCameraState();
 element.setCameraPosition({ x: 0, y: 0, z: 100 });
 element.setCameraTarget({ x: 0, y: 0, z: 0 });
 
-// Camera mode
-await element.setCameraMode("arc-rotate", { target: { x: 0, y: 0, z: 0 } });
+// Camera mode: each view mode has one camera ("orbit" in 3D, "2d" in 2D), and a camera
+// from the other mode is refused. Change view mode with viewMode / setViewMode instead.
+await element.setCameraMode("orbit");
 const controller = element.getCameraController();
 ```
 

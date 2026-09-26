@@ -175,6 +175,10 @@ A channel is one visual property with one name. These are all of them:
 
 Writing `node.label` or `edge.label` is what switches a label on.
 
+The five `...Style` channels merge field by field across layers instead of replacing each other.
+A layer that writes `{ color: "#FF0000" }` over one that wrote `{ sizePx: 24 }` draws a red label
+at 24 px, and each field takes the value from the highest layer that set it.
+
 Glowing nodes are drawn through one mesh per distinct `node.glow` and `node.glowStrength`
 pair. A handful of glow styles costs nothing; a strength encoded from data, with a different value
 on every node, gives up instancing for the glowing nodes.

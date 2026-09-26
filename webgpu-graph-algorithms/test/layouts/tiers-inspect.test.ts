@@ -12,7 +12,12 @@
 import { type TestContext } from "vitest";
 
 import { type GpuContext } from "../../src/context.js";
-import { attractionBounds, attractionReport } from "../helpers/attraction-check.js";
+import {
+    attractionBounds,
+    attractionOracle,
+    attractionReport,
+    attractionStage,
+} from "../helpers/attraction-check.js";
 import {
     BASE_OPTIONS,
     captureAllStages,
@@ -22,6 +27,7 @@ import {
     paritySnapshot,
     pinMask,
     STAGE_KEYS,
+    stageError,
     stageReport,
     startPositions,
 } from "../helpers/fa2-parity.js";
@@ -224,25 +230,18 @@ describe("the K2 degree tiers inside the layout (P4-T6, PD-7)", () => {
             const ctx = await fresh(t, "tiers-inspect/noise");
             const s = paritySnapshot("hub10k", 1, false);
             try {
+                // K2 alone on both sides: captureAllStages would also run the f64 oracle's all-pairs K3, 10^8
+                // synchronous pair terms on the unscaled hub10k that nothing here reads, and under coverage on a
+                // CI runner that one call outlasted vitest's 60 s worker RPC timeout (issue #413)
                 const start = startPositions(s, BASE_OPTIONS, false);
-                const capture = await captureAllStages(ctx, s, start, BASE_OPTIONS, PAPER, null);
+                const values = await attractionStage(ctx, s, start, BASE_OPTIONS, PAPER, null);
+                const expected = attractionOracle(s, start, BASE_OPTIONS, PAPER, null);
                 const cls = adapterClass(ctx.caps);
-                writeNoiseFixture("fa2-attraction", "hub10k-K2-tiers", cls, capture.attraction.values, "f32");
-                writeNoiseFixture(
-                    "fa2-attraction",
-                    "hub10k-K2-tiers",
-                    ORACLE_F64_CLASS,
-                    capture.attraction.expected,
-                    "f32",
-                );
-                const report = attractionReport(
-                    capture.attraction.values,
-                    capture.attraction.expected,
-                    attractionBounds(s),
-                    "noise/hub10k/attraction",
-                );
+                writeNoiseFixture("fa2-attraction", "hub10k-K2-tiers", cls, values, "f32");
+                writeNoiseFixture("fa2-attraction", "hub10k-K2-tiers", ORACLE_F64_CLASS, expected, "f32");
+                const report = attractionReport(values, expected, attractionBounds(s), "noise/hub10k/attraction");
                 console.warn(
-                    `[tiers-inspect] noise/hub10k/attraction: error ${capture.attraction.error.toExponential(3)}, ratio over the analytic bound ${report.worst.toExponential(3)}`,
+                    `[tiers-inspect] noise/hub10k/attraction: error ${stageError(true, values, expected).rel.toExponential(3)}, ratio over the analytic bound ${report.worst.toExponential(3)}`,
                 );
                 assertCheckPasses(report);
             } finally {

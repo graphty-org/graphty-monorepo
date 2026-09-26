@@ -139,7 +139,7 @@ export function attractionReport(
  * @param mask - the fixed mask or null
  * @returns the attraction forces
  */
-async function attractionStage(
+export async function attractionStage(
     ctx: GpuContext,
     s: GraphSnapshot,
     start: F32,
@@ -167,15 +167,16 @@ async function attractionStage(
  * @param mask - the fixed mask or null
  * @returns the attraction forces (stride 3)
  */
-function attractionOracle(
+export function attractionOracle(
     s: GraphSnapshot,
     start: F32,
     options: ForceAtlas2Options,
     tuning: GpuLayoutTuning,
     mask: NodeMask | null,
 ): Float64Array {
-    const run = forceAtlas2Oracle(s, Float32Array.from(start), oracleOptionsFor(s, options, tuning, mask, "f64"), 1);
-    return run.oracle.stages.attraction;
+    // zero iterations: the oracle at the start positions, then K2 alone (a step() would add the all-pairs K3)
+    const run = forceAtlas2Oracle(s, Float32Array.from(start), oracleOptionsFor(s, options, tuning, mask, "f64"), 0);
+    return run.oracle.attraction();
 }
 
 /**

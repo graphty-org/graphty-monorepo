@@ -75,6 +75,20 @@ async function runQuietly(
     await session.styles.settled();
 }
 
+/** A 5 by 5 PNG a skybox can be built from without a network. */
+export const SKYBOX_PNG =
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg==";
+
+/**
+ * Set a label path, then add a layer, so the next settings edit is a step of its own rather than
+ * a merge into this one.
+ * @param session - The session.
+ */
+async function labelledThenLayer(session: GraphSession): Promise<void> {
+    await session.config.set({ data: { knownFields: { nodeLabelPath: "name" } } });
+    await session.styles.add(nodeLayer("Fixture A", "#ff0000"));
+}
+
 /** Every fixture. */
 export const FIXTURES: readonly RoundTripFixture[] = [
     {
@@ -195,5 +209,70 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         tags: ["session"],
         before: (session) => session.views.save([{ name: "Fixture view", camera: { zoom: 2 } }]),
         command: { op: "view.remove", names: ["Fixture view"] },
+    },
+    {
+        name: "config.set a data-config leaf",
+        variant: "data",
+        tags: BOTH,
+        command: { op: "config.set", values: { data: { knownFields: { nodeLabelPath: "name" } } } },
+    },
+    {
+        name: "config.set the on-load algorithms, replaced whole",
+        variant: "data",
+        tags: ["session"],
+        before: async (session) => {
+            await session.config.set({ data: { algorithms: ["degree", "pagerank"] } });
+            await session.styles.add(nodeLayer("Fixture A", "#ff0000"));
+        },
+        command: { op: "config.set", values: { data: { algorithms: ["betweenness"] } } },
+    },
+    {
+        name: "config.set returns a setting to its default",
+        variant: "data",
+        tags: ["session"],
+        before: labelledThenLayer,
+        command: { op: "config.set", values: { data: { knownFields: { nodeLabelPath: undefined } } } },
+    },
+    {
+        name: "config.set runAlgorithmsOnLoad",
+        variant: "runAlgorithmsOnLoad",
+        tags: BOTH,
+        command: { op: "config.set", values: { runAlgorithmsOnLoad: true } },
+    },
+    {
+        name: "config.set background colour",
+        variant: "background",
+        tags: BOTH,
+        command: { op: "config.set", values: { background: { backgroundType: "color", color: "#101010" } } },
+    },
+    {
+        name: "config.set background skybox",
+        variant: "background",
+        tags: BOTH,
+        command: { op: "config.set", values: { background: { backgroundType: "skybox", data: SKYBOX_PNG } } },
+    },
+    {
+        name: "config.set selectionStyle",
+        variant: "selectionStyle",
+        tags: BOTH,
+        command: { op: "config.set", values: { selectionStyle: { color: "#00ff00", scale: 2 } } },
+    },
+    {
+        name: "config.set layoutBehavior.preSteps",
+        variant: "layoutBehavior",
+        tags: BOTH,
+        command: { op: "config.set", values: { layoutBehavior: { preSteps: 5 } } },
+    },
+    {
+        name: "config.set layoutBehavior.stepMultiplier",
+        variant: "layoutBehavior",
+        tags: BOTH,
+        command: { op: "config.set", values: { layoutBehavior: { stepMultiplier: 2 } } },
+    },
+    {
+        name: "config.set layoutBehavior.minDelta",
+        variant: "layoutBehavior",
+        tags: BOTH,
+        command: { op: "config.set", values: { layoutBehavior: { minDelta: 0.5 } } },
     },
 ];

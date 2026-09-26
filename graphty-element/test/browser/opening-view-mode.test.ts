@@ -42,6 +42,22 @@ const hosts: HTMLDivElement[] = [];
 const graphs: Graph[] = [];
 
 /**
+ * Write the opening view before `init()`, where `init()` reads it. The configuration document is
+ * a frozen view, so this writes the graph's view settings that it merges.
+ * @param graph - The graph, not yet initialised.
+ * @param settings - The view mode, or the deprecated flag.
+ */
+function openIn(graph: Graph, settings: { viewMode?: "2d" | "3d"; twoD?: boolean }): void {
+    (
+        graph as unknown as {
+            writeViewSettings(write: (view: { graph: { viewMode?: string; twoD?: boolean } }) => void): void;
+        }
+    ).writeViewSettings((view) => {
+        Object.assign(view.graph, settings);
+    });
+}
+
+/**
  * A 400x300 div attached to the document, torn down after the test.
  * @returns the host element.
  */
@@ -165,7 +181,7 @@ describe("a graph that opens in 2D", () => {
         const graph = new Graph(host);
 
         graphs.push(graph);
-        graph.styles.config.graph.viewMode = "2d";
+        openIn(graph, { viewMode: "2d" });
         await graph.init();
         await settle(graph);
 
@@ -177,7 +193,7 @@ describe("a graph that opens in 2D", () => {
         const graph = new Graph(host);
 
         graphs.push(graph);
-        graph.styles.config.graph.twoD = true;
+        openIn(graph, { twoD: true });
         await graph.init();
         await settle(graph);
 
@@ -189,7 +205,7 @@ describe("a graph that opens in 2D", () => {
         const graph = new Graph(host);
 
         graphs.push(graph);
-        graph.styles.config.graph.viewMode = "2d";
+        openIn(graph, { viewMode: "2d" });
         await graph.init();
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
@@ -219,7 +235,7 @@ describe("a graph that opens in 2D", () => {
         const graph = new Graph(host);
 
         graphs.push(graph);
-        graph.styles.config.graph.viewMode = "2d";
+        openIn(graph, { viewMode: "2d" });
         await graph.init();
         await graph.addNodes(NODES);
         await graph.setLayout("circular");

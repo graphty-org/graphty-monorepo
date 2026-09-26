@@ -33,6 +33,8 @@ export type {
     NodeRecord,
     PendingId,
     PendingStep,
+    ProjectConfig,
+    ProjectConfigPatch,
     ProjectSlice,
     SessionAttributes,
     SessionCatalogApi,

@@ -70,7 +70,7 @@ export const PHASES = [
 type PlanPhase = (typeof PHASES)[number];
 
 /** The phase this branch has reached. Each phase's commit raises it. */
-export const PLAN_PHASE: PlanPhase = "9";
+export const PLAN_PHASE: PlanPhase = "10";
 
 /** How the doors tests call a door. */
 export type DoorCall =
@@ -184,12 +184,7 @@ function assigns(value: unknown, expect: readonly SessionCommand[]): Door {
  * @param expect - The commands the call dispatches today, in order; the first names its op.
  * @returns The door.
  */
-function partial(
-    phase: PlanPhase,
-    reason: string,
-    args: readonly unknown[],
-    expect: readonly SessionCommand[],
-): Door {
+function partial(phase: PlanPhase, reason: string, args: readonly unknown[], expect: readonly SessionCommand[]): Door {
     return { kind: "partial", phase, reason, op: expect[0]?.op ?? "", call: { kind: "call", args }, expect };
 }
 
@@ -327,10 +322,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     list: READ,
     get: READ,
     validate: READ,
-    add: calls(
-        [DOOR_LAYER],
-        [{ op: "style.patch", action: "add", spec: DOOR_LAYER }],
-    ),
+    add: calls([DOOR_LAYER], [{ op: "style.patch", action: "add", spec: DOOR_LAYER }]),
     // A refused edit is still dispatched: it is refused where it executes, and records nothing.
     update: calls(
         ["no-such-layer", { name: "renamed" }],
@@ -343,7 +335,10 @@ const STYLES_API: Readonly<Record<string, Door>> = {
         [{ run: "no-such-run", field: "value", channel: "node.color" }],
         [{ op: "style.encode", spec: { run: "no-such-run", field: "value", channel: "node.color" } }],
     ),
-    highlight: calls([{ run: "no-such-run" }], [{ op: "style.patch", action: "highlight", spec: { run: "no-such-run" } }]),
+    highlight: calls(
+        [{ run: "no-such-run" }],
+        [{ op: "style.patch", action: "highlight", spec: { run: "no-such-run" } }],
+    ),
     legend: READ,
     settled: READ,
     explain: READ,
@@ -402,25 +397,41 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             dataSource: gapSet("14", "data.import", "json"),
             dataSourceConfig: gapSet("14", "data.import", { data: TINY_JSON }),
             clearData: gap("13", "data.apply", []),
-            nodeIdPath: gapSet("10", "config.set", "id"),
-            edgeSrcIdPath: gapSet("10", "config.set", "src"),
-            edgeDstIdPath: gapSet("10", "config.set", "dst"),
-            edgeIdPath: gapSet("10", "config.set", "id"),
-            repeatedEdges: gapSet("10", "config.set", "keep"),
-            nodeLabelPath: gapSet("10", "config.set", "label"),
-            edgeWeightPath: gapSet("10", "config.set", "weight"),
-            positionScale: gapSet("10", "config.set", 2),
-            directed: gapSet("10", "config.set", true),
+            nodeIdPath: assigns("id", [{ op: "config.set", values: { data: { knownFields: { nodeIdPath: "id" } } } }]),
+            edgeSrcIdPath: assigns("src", [
+                { op: "config.set", values: { data: { knownFields: { edgeSrcIdPath: "src" } } } },
+            ]),
+            edgeDstIdPath: assigns("dst", [
+                { op: "config.set", values: { data: { knownFields: { edgeDstIdPath: "dst" } } } },
+            ]),
+            edgeIdPath: assigns("id", [{ op: "config.set", values: { data: { knownFields: { edgeIdPath: "id" } } } }]),
+            repeatedEdges: assigns("keep", [
+                { op: "config.set", values: { data: { knownFields: { repeatedEdges: "keep" } } } },
+            ]),
+            nodeLabelPath: assigns("label", [
+                { op: "config.set", values: { data: { knownFields: { nodeLabelPath: "label" } } } },
+            ]),
+            edgeWeightPath: assigns("weight", [
+                { op: "config.set", values: { data: { knownFields: { edgeWeightPath: "weight" } } } },
+            ]),
+            positionScale: assigns(2, [{ op: "config.set", values: { data: { knownFields: { positionScale: 2 } } } }]),
+            directed: assigns(true, [{ op: "config.set", values: { data: { directed: true } } }]),
             layout: gapSet("17", "layout.set", "circular"),
             layoutConfig: gapSet("17", "layout.set", {}),
-            layoutBehavior: gapSet("10", "config.set", { layout: { preSteps: 0 } }),
-            selectionStyle: gapSet("10", "config.set", { color: "#ff0000" }),
-            algorithmsOnLoad: gapSet("10", "config.set", []),
+            layoutBehavior: assigns({ layout: { preSteps: 0 } }, [
+                { op: "config.set", values: { layoutBehavior: { preSteps: 0 } } },
+            ]),
+            selectionStyle: assigns({ color: "#ff0000" }, [
+                { op: "config.set", values: { selectionStyle: { color: "#ff0000" } } },
+            ]),
+            algorithmsOnLoad: assigns([], [{ op: "config.set", values: { data: { algorithms: [] } } }]),
             viewMode: gapSet("17", "view.dimension", "2d"),
             layout2d: gapSet("17", "view.dimension", true),
-            background: gapSet("10", "config.set", { backgroundType: "color", color: "#101010" }),
+            background: assigns({ backgroundType: "color", color: "#101010" }, [
+                { op: "config.set", values: { background: { backgroundType: "color", color: "#101010" } } },
+            ]),
             startingCameraDistance: CAMERA,
-            runAlgorithmsOnLoad: gapSet("10", "config.set", false),
+            runAlgorithmsOnLoad: assigns(false, [{ op: "config.set", values: { runAlgorithmsOnLoad: false } }]),
             enableDetailedProfiling: PROFILING,
             xr: XR,
             captureScreenshot: CAPTURE,
@@ -440,7 +451,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             setCameraZoom: CAMERA,
             setCameraPan: CAMERA,
             resetCamera: CAMERA,
-            saveCameraPreset: calls(["door view", { zoom: 2 }], [{ op: "view.save", views: [{ name: "door view", camera: { zoom: 2 } }] }]),
+            saveCameraPreset: calls(
+                ["door view", { zoom: 2 }],
+                [{ op: "view.save", views: [{ name: "door view", camera: { zoom: 2 } }] }],
+            ),
             removeCameraPreset: calls(["door view"], [{ op: "view.remove", names: ["door view"] }]),
             loadCameraPreset: CAMERA,
             getCameraPresets: READ,
@@ -498,7 +512,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             worldToScreen: READ,
             screenToWorld: READ,
             setData: gap("14", "batch", [{ nodes: [{ id: "d1" }], edges: [] }]),
-            getStyles: escape("10"),
+            getStyles: READ,
             getDataManager: READ,
             getLayoutManager: READ,
             getUpdateManager: READ,
@@ -548,7 +562,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             fetchNodes: HOST_HOOK,
             fetchEdges: HOST_HOOK,
             initialized: LIFECYCLE,
-            runAlgorithmsOnLoad: gapSet("10", "config.set", false),
+            runAlgorithmsOnLoad: assigns(false, [{ op: "config.set", values: { runAlgorithmsOnLoad: false } }]),
             enableDetailedProfiling: PROFILING,
             acceleration: READ,
             eventManager: READ,
@@ -557,9 +571,19 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             runAlgorithmsFromTemplate: gap("18a", "algo.legacy", []),
             init: LIFECYCLE,
             update: RENDER,
-            setBackground: gap("10", "config.set", [{ backgroundType: "color", color: "#202020" }]),
-            setSelectionStyle: gap("10", "config.set", [{ color: "#00ff00" }]),
-            setLayoutBehavior: gap("10", "config.set", [{ layout: { preSteps: 0 } }]),
+            setBackground: calls(
+                [{ backgroundType: "color", color: "#202020" }],
+                [{ op: "config.set", values: { background: { backgroundType: "color", color: "#202020" } } }],
+            ),
+            setSelectionStyle: calls(
+                [{ color: "#00ff00" }],
+                [{ op: "config.set", values: { selectionStyle: { color: "#00ff00" } } }],
+            ),
+            setLayoutBehavior: calls(
+                [{ layout: { preSteps: 0 } }],
+                [{ op: "config.set", values: { layoutBehavior: { preSteps: 0 } } }],
+            ),
+            getLayoutBehavior: READ,
             addDataFromSource: gap("14", "data.import", ["json", { data: TINY_JSON }]),
             loadFromFile: gap("14", "data.import", () => [
                 new File([TINY_JSON], "door.json", { type: "application/json" }),
@@ -589,7 +613,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             clearData: gap("13", "data.apply", []),
             listenerCount: READ,
             zoomToFit: CAMERA,
-            getStyles: escape("10"),
+            getStyles: READ,
             getStylePainter: READ,
             getDataManager: READ,
             getLayoutManager: READ,
@@ -610,7 +634,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             setStartingCameraDistance: CAMERA,
             setViewMode: gap("17", "view.dimension", ["2d"]),
             needsRayUpdate: READ,
-            getConfig: escape("10"),
+            getConfig: READ,
             isRunning: READ,
             setRunning: IN_FLIGHT,
             getXRConfig: READ,
@@ -644,7 +668,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             resetCamera: CAMERA,
             resolveCameraPreset: READ,
             applyCameraView: CAMERA,
-            saveCameraPreset: calls(["door view", { zoom: 2 }], [{ op: "view.save", views: [{ name: "door view", camera: { zoom: 2 } }] }]),
+            saveCameraPreset: calls(
+                ["door view", { zoom: 2 }],
+                [{ op: "view.save", views: [{ name: "door view", camera: { zoom: 2 } }] }],
+            ),
             removeCameraPreset: calls(["door view"], [{ op: "view.remove", names: ["door view"] }]),
             loadCameraPreset: CAMERA,
             getCameraPresets: READ,
@@ -976,7 +1003,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         file: "src/managers/GraphContext.ts",
         half: "renderer",
         doors: {
-            getStyles: escape("10"),
+            getStyles: READ,
             getStylePainter: READ,
             getDataManager: READ,
             getLayoutManager: READ,
@@ -985,7 +1012,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getStatsManager: READ,
             is2D: READ,
             needsRayUpdate: READ,
-            getConfig: escape("10"),
+            getConfig: VIEW_SETTING,
             isRunning: READ,
             setRunning: IN_FLIGHT,
             getXRConfig: READ,
@@ -1064,7 +1091,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             resolve: READ,
             count: READ,
-            save: calls(["door scope", "graph"], [{ op: "scope.save", name: "door scope", spec: "graph", id: "set_door-scope" }]),
+            save: calls(
+                ["door scope", "graph"],
+                [{ op: "scope.save", name: "door scope", spec: "graph", id: "set_door-scope" }],
+            ),
             list: READ,
             // The doors test saves "door seed" before calling it.
             remove: calls(["set_door-seed"], [{ op: "scope.remove", id: "set_door-seed" }]),
@@ -1081,6 +1111,26 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ),
             remove: calls([["door view"]], [{ op: "view.remove", names: ["door view"] }]),
         },
+    },
+    {
+        name: "SessionConfig",
+        file: "src/session/types.ts",
+        half: "session",
+        doors: {
+            data: READ,
+            runAlgorithmsOnLoad: READ,
+            background: READ,
+            selectionStyle: READ,
+            layoutBehavior: READ,
+            acceleration: READ,
+            set: calls([{ runAlgorithmsOnLoad: true }], [{ op: "config.set", values: { runAlgorithmsOnLoad: true } }]),
+        },
+    },
+    {
+        name: "Styles",
+        file: "src/Styles.ts",
+        half: "renderer",
+        whole: READ,
     },
     {
         name: "SelectionApi",
@@ -1342,7 +1392,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             startRenderLoop: RENDER,
             stopRenderLoop: RENDER,
             holdFrames: RENDER,
-            setBackgroundColor: escape("10"),
+            applyBackground: RENDER,
             getRenderStats: READ,
         },
     },
@@ -1352,7 +1402,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         half: "renderer",
         doors: {
             getStylePainter: READ,
-            getStyles: escape("10"),
+            getStyles: READ,
             getDataManager: READ,
             getLayoutManager: READ,
             getMeshCache: READ,
@@ -1361,8 +1411,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             is2D: READ,
             needsRayUpdate: READ,
             setRayUpdateNeeded: RENDER,
-            getConfig: escape("10"),
-            updateConfig: escape("10"),
+            getConfig: VIEW_SETTING,
+            updateConfig: VIEW_SETTING,
             isRunning: READ,
             setRunning: IN_FLIGHT,
         },

@@ -1,7 +1,6 @@
 import type { DuplicatePolicy } from "@graphty/graph-format";
 import { css, LitElement } from "lit";
 import { property } from "lit/decorators.js";
-import { set as setDeep } from "lodash";
 
 import { type AccelerationController, type AccelerationPolicy, isAccelerationPolicy } from "./acceleration";
 import type { AlgorithmKey, Scope } from "./catalog/types";
@@ -12,8 +11,10 @@ import { isDomForwardableEvent, NODE_EVENT_DOM_NAMES, nodeEventDetail } from "./
 import { Graph } from "./Graph";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
+import { dispatcherOf } from "./session/GraphSession";
 import type { Run, RunChange, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionTarget, SetOp } from "./session/selection";
+import type { ProjectConfigPatch } from "./session/types";
 import type { VisibilityChange } from "./session/visibility";
 
 /**
@@ -438,28 +439,53 @@ export class Graphty extends LitElement {
     #edgeData?: Record<string, unknown>[];
     #dataSource?: string;
     #dataSourceConfig?: Record<string, unknown>;
-    #nodeIdPath?: string;
-    #edgeSrcIdPath?: string;
-    #edgeDstIdPath?: string;
-    #edgeIdPath?: string;
-    #repeatedEdges?: DuplicatePolicy;
-    #nodeLabelPath?: string;
-    #edgeWeightPath?: string;
-    #positionScale?: number;
-    #directed?: boolean | "auto";
     #layout?: string;
     #layoutConfig?: Record<string, unknown>;
     #viewMode?: ViewMode;
-    #background?: GraphBackgroundConfig;
     #startingCameraDistance?: number;
-
-    #layoutBehavior?: GraphBehaviorConfig;
-
-    #selectionStyle?: GraphSelectionStyleInput;
-
-    #algorithmsOnLoad?: readonly AlgorithmOnLoad[];
-    #runAlgorithmsOnLoad?: boolean;
     #xr?: PartialXRConfig;
+
+    /**
+     * A project setting as it was set on this element, or undefined when it is at its default.
+     * The project settings live in the session's `config` slice, so undo and redo move what these
+     * properties read.
+     * @param path - The setting's key, such as `data.knownFields.nodeIdPath`.
+     * @returns The value as it was set.
+     */
+    #setting(path: string): unknown {
+        return dispatcherOf(this.#graph.getSession()).state.config.get(path);
+    }
+
+    /**
+     * Change project settings as one step, reporting a refusal rather than throwing it: these
+     * setters are reached from `attributeChangedCallback`, where a throw escapes as an unhandled
+     * rejection that reaches nobody.
+     * @param name - The property, for the report and for Lit.
+     * @param oldValue - What the property read before, for Lit.
+     * @param values - The settings.
+     */
+    #setSetting(name: string, oldValue: unknown, values: ProjectConfigPatch): void {
+        this.#graph
+            .getSession()
+            .config.set(values)
+            .catch((error: unknown) => {
+                console.error(`<graphty-element>: ${name} was refused. Keeping the one already set.`, error);
+            });
+        this.requestUpdate(name, oldValue);
+    }
+
+    /**
+     * Set one known field of the data configuration. Null, empty or undefined returns it to its
+     * default.
+     * @param name - The field, which is also the property's name.
+     * @param value - The value.
+     */
+    #setKnownField(name: string, value: string | number | null | undefined): void {
+        const oldValue = this.#setting(`data.knownFields.${name}`);
+        this.#setSetting(name, oldValue, {
+            data: { knownFields: { [name]: value === null || value === "" ? undefined : value } },
+        });
+    }
 
     /**
      * Array of node data objects to visualize.
@@ -769,20 +795,13 @@ export class Graphty extends LitElement {
      */
     @property({ attribute: "node-id-path" })
     get nodeIdPath(): string | undefined {
-        return this.#nodeIdPath;
+        return this.#setting("data.knownFields.nodeIdPath") as string | undefined;
     }
     /**
      * Sets the JMESPath for node ID extraction. Updates graph configuration.
      */
     set nodeIdPath(value: string | undefined) {
-        const oldValue = this.#nodeIdPath;
-        this.#nodeIdPath = value;
-
-        if (value) {
-            setDeep(this.#graph.styles.config, "data.knownFields.nodeIdPath", value);
-        }
-
-        this.requestUpdate("nodeIdPath", oldValue);
+        this.#setKnownField("nodeIdPath", value);
     }
 
     /**
@@ -797,20 +816,13 @@ export class Graphty extends LitElement {
      */
     @property({ attribute: "edge-src-id-path" })
     get edgeSrcIdPath(): string | undefined {
-        return this.#edgeSrcIdPath;
+        return this.#setting("data.knownFields.edgeSrcIdPath") as string | undefined;
     }
     /**
      * Sets the JMESPath for edge source ID extraction. Updates graph configuration.
      */
     set edgeSrcIdPath(value: string | undefined) {
-        const oldValue = this.#edgeSrcIdPath;
-        this.#edgeSrcIdPath = value;
-
-        if (value) {
-            setDeep(this.#graph.styles.config, "data.knownFields.edgeSrcIdPath", value);
-        }
-
-        this.requestUpdate("edgeSrcIdPath", oldValue);
+        this.#setKnownField("edgeSrcIdPath", value);
     }
 
     /**
@@ -822,20 +834,13 @@ export class Graphty extends LitElement {
      */
     @property({ attribute: "edge-dst-id-path" })
     get edgeDstIdPath(): string | undefined {
-        return this.#edgeDstIdPath;
+        return this.#setting("data.knownFields.edgeDstIdPath") as string | undefined;
     }
     /**
      * Sets the JMESPath for edge destination ID extraction. Updates graph configuration.
      */
     set edgeDstIdPath(value: string | undefined) {
-        const oldValue = this.#edgeDstIdPath;
-        this.#edgeDstIdPath = value;
-
-        if (value) {
-            setDeep(this.#graph.styles.config, "data.knownFields.edgeDstIdPath", value);
-        }
-
-        this.requestUpdate("edgeDstIdPath", oldValue);
+        this.#setKnownField("edgeDstIdPath", value);
     }
 
     /**
@@ -857,20 +862,13 @@ export class Graphty extends LitElement {
      */
     @property({ attribute: "edge-id-path" })
     get edgeIdPath(): string | undefined {
-        return this.#edgeIdPath;
+        return this.#setting("data.knownFields.edgeIdPath") as string | undefined;
     }
     /**
      * Sets the JMESPath for edge identity. Updates graph configuration.
      */
     set edgeIdPath(value: string | undefined) {
-        const oldValue = this.#edgeIdPath;
-        this.#edgeIdPath = value;
-
-        if (value) {
-            setDeep(this.#graph.styles.config, "data.knownFields.edgeIdPath", value);
-        }
-
-        this.requestUpdate("edgeIdPath", oldValue);
+        this.#setKnownField("edgeIdPath", value);
     }
 
     /**
@@ -893,32 +891,24 @@ export class Graphty extends LitElement {
      */
     @property({ attribute: "repeated-edges" })
     get repeatedEdges(): DuplicatePolicy | undefined {
-        return this.#repeatedEdges;
+        return this.#setting("data.knownFields.repeatedEdges") as DuplicatePolicy | undefined;
     }
     /**
      * Sets the repeat policy. Updates graph configuration.
      */
     set repeatedEdges(value: DuplicatePolicy | undefined) {
-        const oldValue = this.#repeatedEdges;
-
-        if (value !== undefined && !(REPEATED_EDGE_POLICIES as readonly string[]).includes(value)) {
+        if (value !== undefined && value !== null && !(REPEATED_EDGE_POLICIES as readonly string[]).includes(value)) {
             console.error(
                 `<graphty-element>: repeated-edges must be one of ` +
                     `${REPEATED_EDGE_POLICIES.join(", ")}, not "${value}". ` +
-                    `Keeping "${oldValue ?? "keep"}". ` +
+                    `Keeping "${this.repeatedEdges ?? "keep"}". ` +
                     "See https://graphty.app/docs/graphty-element/attributes#repeated-edges",
             );
 
             return;
         }
 
-        this.#repeatedEdges = value;
-
-        if (value) {
-            setDeep(this.#graph.styles.config, "data.knownFields.repeatedEdges", value);
-        }
-
-        this.requestUpdate("repeatedEdges", oldValue);
+        this.#setKnownField("repeatedEdges", value);
     }
 
     /**
@@ -936,20 +926,13 @@ export class Graphty extends LitElement {
      */
     @property({ attribute: "node-label-path" })
     get nodeLabelPath(): string | undefined {
-        return this.#nodeLabelPath;
+        return this.#setting("data.knownFields.nodeLabelPath") as string | undefined;
     }
     /**
      * Sets the JMESPath for a node's display name. Updates graph configuration.
      */
     set nodeLabelPath(value: string | undefined) {
-        const oldValue = this.#nodeLabelPath;
-        this.#nodeLabelPath = value;
-
-        if (value) {
-            setDeep(this.#graph.styles.config, "data.knownFields.nodeLabelPath", value);
-        }
-
-        this.requestUpdate("nodeLabelPath", oldValue);
+        this.#setKnownField("nodeLabelPath", value);
     }
 
     /**
@@ -967,20 +950,13 @@ export class Graphty extends LitElement {
      */
     @property({ attribute: "edge-weight-path" })
     get edgeWeightPath(): string | undefined {
-        return this.#edgeWeightPath;
+        return this.#setting("data.knownFields.edgeWeightPath") as string | undefined;
     }
     /**
      * Sets the JMESPath for an edge's weight. Updates graph configuration.
      */
     set edgeWeightPath(value: string | undefined) {
-        const oldValue = this.#edgeWeightPath;
-        this.#edgeWeightPath = value;
-
-        if (value) {
-            setDeep(this.#graph.styles.config, "data.knownFields.edgeWeightPath", value);
-        }
-
-        this.requestUpdate("edgeWeightPath", oldValue);
+        this.#setKnownField("edgeWeightPath", value);
     }
 
     /**
@@ -1004,31 +980,23 @@ export class Graphty extends LitElement {
      */
     @property({ attribute: "position-scale", type: Number })
     get positionScale(): number | undefined {
-        return this.#positionScale;
+        return this.#setting("data.knownFields.positionScale") as number | undefined;
     }
     /**
      * Sets the record-units-to-scene-units multiplier. Updates graph configuration.
      */
     set positionScale(value: number | undefined) {
-        const oldValue = this.#positionScale;
-
-        if (value !== undefined && !(Number.isFinite(value) && value > 0)) {
+        if (value !== undefined && value !== null && !(Number.isFinite(value) && value > 0)) {
             console.error(
                 `<graphty-element>: position-scale must be a number greater than zero, not "${String(value)}". ` +
-                    `Keeping ${String(oldValue ?? 1)}. ` +
+                    `Keeping ${String(this.positionScale ?? 1)}. ` +
                     "See https://graphty.app/docs/graphty-element/attributes#position-scale",
             );
 
             return;
         }
 
-        this.#positionScale = value;
-
-        if (value !== undefined) {
-            setDeep(this.#graph.styles.config, "data.knownFields.positionScale", value);
-        }
-
-        this.requestUpdate("positionScale", oldValue);
+        this.#setKnownField("positionScale", value);
     }
 
     /**
@@ -1083,15 +1051,15 @@ export class Graphty extends LitElement {
         },
     })
     get directed(): boolean | "auto" | undefined {
-        return this.#directed;
+        return this.#setting("data.directed") as boolean | "auto" | undefined;
     }
     /**
      * Sets whether the graph is read as directed. Updates graph configuration.
      */
     set directed(value: boolean | "auto" | undefined) {
-        const oldValue = this.#directed;
+        const oldValue = this.directed;
 
-        if (value !== undefined && value !== "auto" && typeof value !== "boolean") {
+        if (value !== undefined && value !== null && value !== "auto" && typeof value !== "boolean") {
             console.error(
                 `<graphty-element>: directed must be true, false or "auto", not "${String(value)}". ` +
                     `Keeping "${String(oldValue ?? "auto")}". ` +
@@ -1101,13 +1069,13 @@ export class Graphty extends LitElement {
             return;
         }
 
-        this.#directed = value;
-
-        if (value !== undefined) {
-            setDeep(this.#graph.styles.config, "data.directed", value);
+        // Undefined is also what the attribute converter hands over for a value it refused, so
+        // it keeps the setting in place rather than returning it to "auto".
+        if (value === undefined || value === null) {
+            return;
         }
 
-        this.requestUpdate("directed", oldValue);
+        this.#setSetting("directed", oldValue, { data: { directed: value } });
     }
 
     /**
@@ -1207,7 +1175,7 @@ export class Graphty extends LitElement {
      */
     @property({ attribute: false })
     get layoutBehavior(): GraphBehaviorConfig | undefined {
-        return this.#layoutBehavior;
+        return this.#graph.getLayoutBehavior();
     }
     /**
      * Sets how the element drives the layout.
@@ -1216,7 +1184,7 @@ export class Graphty extends LitElement {
      * as `background` and `acceleration`.
      */
     set layoutBehavior(value: GraphBehaviorConfig | undefined) {
-        const oldValue = this.#layoutBehavior;
+        const oldValue = this.layoutBehavior;
 
         if (value !== undefined) {
             try {
@@ -1231,7 +1199,6 @@ export class Graphty extends LitElement {
             }
         }
 
-        this.#layoutBehavior = value;
         this.requestUpdate("layoutBehavior", oldValue);
     }
 
@@ -1257,13 +1224,13 @@ export class Graphty extends LitElement {
      */
     @property({ attribute: false })
     get selectionStyle(): GraphSelectionStyleInput | undefined {
-        return this.#selectionStyle;
+        return this.#setting("selectionStyle") as GraphSelectionStyleInput | undefined;
     }
     /**
      * Sets what a selected node looks like.
      */
     set selectionStyle(value: GraphSelectionStyleInput | undefined) {
-        const oldValue = this.#selectionStyle;
+        const oldValue = this.selectionStyle;
 
         if (value !== undefined) {
             try {
@@ -1278,7 +1245,6 @@ export class Graphty extends LitElement {
             }
         }
 
-        this.#selectionStyle = value;
         this.requestUpdate("selectionStyle", oldValue);
     }
 
@@ -1309,18 +1275,18 @@ export class Graphty extends LitElement {
      */
     @property({ attribute: false })
     get algorithmsOnLoad(): readonly AlgorithmOnLoad[] | undefined {
-        return this.#algorithmsOnLoad;
+        return this.#setting("data.algorithms") as readonly AlgorithmOnLoad[] | undefined;
     }
     /**
      * Sets which algorithms run once data has finished loading.
      * @throws A `GraphtyError` coded `E_BAD_COMMAND` naming the first malformed entry.
      */
     set algorithmsOnLoad(value: readonly AlgorithmOnLoad[] | undefined) {
-        const parsed = value === undefined ? undefined : parseAlgorithmsOnLoad(value);
-        const oldValue = this.#algorithmsOnLoad;
-        this.#algorithmsOnLoad = value;
-        this.#graph.styles.config.data.algorithms = parsed;
-        this.requestUpdate("algorithmsOnLoad", oldValue);
+        if (value !== undefined) {
+            parseAlgorithmsOnLoad(value);
+        }
+
+        this.#setSetting("algorithmsOnLoad", this.algorithmsOnLoad, { data: { algorithms: value as AlgorithmOnLoad[] | undefined } });
     }
 
     /**
@@ -1446,7 +1412,7 @@ export class Graphty extends LitElement {
         },
     })
     get background(): GraphBackgroundConfig | undefined {
-        return this.#background;
+        return this.#setting("background") as GraphBackgroundConfig | undefined;
     }
     /**
      * Sets the graph background. Applies it to the scene immediately.
@@ -1457,7 +1423,7 @@ export class Graphty extends LitElement {
      * element that never rendered. A wrong colour in markup must not take the graph down.
      */
     set background(value: GraphBackgroundConfig | undefined) {
-        const oldValue = this.#background;
+        const oldValue = this.background;
 
         if (value !== undefined) {
             try {
@@ -1472,7 +1438,6 @@ export class Graphty extends LitElement {
             }
         }
 
-        this.#background = value;
         this.requestUpdate("background", oldValue);
     }
 
@@ -1527,20 +1492,13 @@ export class Graphty extends LitElement {
      */
     @property({ attribute: "run-algorithms-on-load", type: Boolean })
     get runAlgorithmsOnLoad(): boolean | undefined {
-        return this.#runAlgorithmsOnLoad;
+        return this.#setting("runAlgorithmsOnLoad") as boolean | undefined;
     }
     /**
      * Sets whether to run algorithms when a style template loads. Updates graph configuration.
      */
     set runAlgorithmsOnLoad(value: boolean | undefined) {
-        const oldValue = this.#runAlgorithmsOnLoad;
-        this.#runAlgorithmsOnLoad = value;
-
-        if (value !== undefined) {
-            this.#graph.runAlgorithmsOnLoad = value;
-        }
-
-        this.requestUpdate("runAlgorithmsOnLoad", oldValue);
+        this.#setSetting("runAlgorithmsOnLoad", this.runAlgorithmsOnLoad, { runAlgorithmsOnLoad: value ?? undefined });
     }
 
     #enableDetailedProfiling?: boolean;

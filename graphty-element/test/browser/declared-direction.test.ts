@@ -60,7 +60,7 @@ describe("the direction the element reports for a loaded file", () => {
         // The store locks its direction when `data.directed` is a boolean, and it reads that
         // setting once, when it is built. So the setting is written and the store rebuilt here
         // before the file arrives; `clear()` is what rebuilds it.
-        graph.styles.config.data.directed = true;
+        await graph.getSession().config.set({ data: { directed: true } });
         graph.getDataManager().clear();
 
         await graph.addDataFromSource("gml", { data: karateGml });

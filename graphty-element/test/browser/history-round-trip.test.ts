@@ -11,6 +11,7 @@
  * paint on the meshes while every state digest matched.
  */
 
+import { PhotoDome } from "@babylonjs/core";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import { afterEach, assert, describe, it } from "vitest";
 
@@ -85,7 +86,7 @@ function sceneDigest(graph: Graph): string {
         structure: {
             nodes: nodes.map(([id]) => String(id)),
             edges: edges.map(([id]) => id),
-            domes: scene.transformNodes.filter((node) => node.getClassName() === "PhotoDome").length,
+            domes: scene.transformNodes.filter((node) => node instanceof PhotoDome).length,
             twoD: (scene.metadata as { twoD?: unknown } | null)?.twoD ?? null,
             is2D: graph.is2D(),
         },

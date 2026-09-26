@@ -65,6 +65,22 @@ const HEIGHT = 360;
 const NODES = [{ id: "one" }];
 
 /**
+ * Write the opening view before `init()`, where `init()` reads it. The configuration document is
+ * a frozen view, so this writes the graph's view settings that it merges.
+ * @param graph - The graph, not yet initialised.
+ * @param settings - The view mode, or the deprecated flag.
+ */
+function openIn(graph: Graph, settings: { viewMode?: "2d" | "3d"; twoD?: boolean }): void {
+    (
+        graph as unknown as {
+            writeViewSettings(write: (view: { graph: { viewMode?: string; twoD?: boolean } }) => void): void;
+        }
+    ).writeViewSettings((view) => {
+        Object.assign(view.graph, settings);
+    });
+}
+
+/**
  * The node's colour: an orange whose channels are far apart and whose brightest channel has room
  * above it.
  *
@@ -166,7 +182,7 @@ async function mountOneNode(viewMode: "2d" | "3d"): Promise<{ container: HTMLEle
 
     // The opening view mode, written where `init()` reads it, rather than a switch afterwards:
     // there is nothing on screen yet to switch.
-    graph.styles.config.graph.viewMode = viewMode;
+    openIn(graph, { viewMode });
     await graph.init();
     await graph.addNodes(NODES);
 

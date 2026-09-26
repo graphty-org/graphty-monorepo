@@ -8,6 +8,7 @@
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { AlgorithmRunCommand, SessionCommand } from "../planning";
 import type { CommandDefinition, UndoableDefinition } from "../project/Dispatcher";
+import { CONFIG_DEFINITIONS } from "./config";
 import { SCOPE_DEFINITIONS } from "./scope";
 import { STYLE_DEFINITIONS } from "./style";
 import { VIEW_DEFINITIONS } from "./view";
@@ -41,4 +42,5 @@ export const DEFINITIONS: readonly CommandDefinition<SessionCommand>[] = [
     ...VISIBILITY_DEFINITIONS,
     ...SCOPE_DEFINITIONS,
     ...VIEW_DEFINITIONS,
+    ...CONFIG_DEFINITIONS,
 ];

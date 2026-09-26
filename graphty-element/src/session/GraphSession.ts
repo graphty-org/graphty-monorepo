@@ -30,6 +30,7 @@ import type { ElementPositions } from "../data/positions";
 import { GraphtyError, isGraphtyError } from "../errors";
 import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
 import { DEFINITIONS } from "./commands";
+import { readProjectConfig } from "./commands/config";
 import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { SessionData } from "./data";
 import {
@@ -86,6 +87,8 @@ import type {
     ElementSession,
     GraphSession,
     HistoryOutcome,
+    ProjectConfig,
+    ProjectConfigPatch,
     ProjectSlice,
     SessionCatalogApi,
     SessionConfig,
@@ -164,8 +167,8 @@ interface SessionParts {
     readonly ownedStore: GraphStore | null;
     /** The data surface over that store. */
     readonly data: SessionData;
-    /** Reads the data configuration, live. */
-    readonly readData: () => SessionDataConfig;
+    /** Reads the project settings, live. */
+    readonly readProject: () => ProjectConfig;
     /** The controller whose capabilities and policy this session publishes. */
     readonly controller: AccelerationControllerLike;
     /** The controller when this session built it, so that disposal releases it. */
@@ -257,7 +260,8 @@ class Session implements ElementSession {
     private readonly sessionRuns: SessionRunsApi;
     private readonly planning: PlanningContext;
     private readonly watchers: Watchers;
-    private readonly readData: () => SessionDataConfig;
+    /** The settings; identity-stable, every member read live. */
+    readonly config: SessionConfig;
     private readonly sessionData: SessionData;
     private readonly store: SessionGraphStore;
     private readonly controller: AccelerationControllerLike;
@@ -282,7 +286,6 @@ class Session implements ElementSession {
         this.sessionData = parts.data;
         this.data = parts.data;
         this.catalog = parts.catalog;
-        this.readData = parts.readData;
         this.controller = parts.controller;
         this.ownedAcceleration = parts.ownedAcceleration;
         this.sessionRuns = parts.runs;
@@ -316,6 +319,7 @@ class Session implements ElementSession {
         DISPATCHERS.set(this, this.dispatcher);
         this.history = historyOf(this.dispatcher, () => version);
         this.views = viewsOf(this.dispatcher);
+        this.config = configOf(this.dispatcher, parts.readProject, parts.controller);
     }
 
     /**
@@ -434,28 +438,6 @@ class Session implements ElementSession {
         return this.store.seededNodeCount;
     }
 
-    /**
-     * The configuration this session runs under, as a fresh frozen struct on every read.
-     *
-     * It is read rather than held because the element REPLACES its configuration object when a
-     * style template is applied, and a session holding the old one would answer from a setting
-     * nobody is running under any more.
-     *
-     * The trade: `config` and the `config.acceleration` inside it are NOT identity-stable, so
-     * `prev === next` is not a staleness test here as it is on `capabilities`. Read the values,
-     * do not cache the object. `config` is not one of the identity-stable structs.
-     * @returns the configuration
-     */
-    get config(): SessionConfig {
-        return Object.freeze({
-            data: this.readData(),
-            // Read from the controller, not from a value frozen at construction: the policy and
-            // the threshold are changed at runtime through the accessors below and through the
-            // element's attributes, and a copy taken here would answer from a setting nobody is
-            // running under any more.
-            acceleration: Object.freeze({ policy: this.controller.policy, minNodes: this.controller.minNodes }),
-        });
-    }
 
     /**
      * The O(1) facts, as a fresh frozen struct on every read so that a consumer cannot hold a
@@ -693,6 +675,67 @@ function viewsOf(dispatcher: Dispatcher): SessionViews {
     });
 
     return views;
+}
+
+/**
+ * Read the project settings from the `config` slice, rebuilt only when the slice or the base has
+ * changed since the last read, so two reads with no change between them return the same object.
+ * @param dispatcher - The dispatcher holding the slice.
+ * @param base - Reads the data configuration an unset `data.` key falls back to.
+ * @returns The reader.
+ */
+function projectConfigReader(dispatcher: Dispatcher, base: () => SessionDataConfig): () => ProjectConfig {
+    let cache: { writes: number; base: SessionDataConfig; value: ProjectConfig } | undefined;
+    return () => {
+        const writes = dispatcher.lane.writes("config");
+        const from = base();
+        if (cache?.writes !== writes || cache.base !== from) {
+            cache = { writes, base: from, value: readProjectConfig(dispatcher.state.config, from) };
+        }
+
+        return cache.value;
+    };
+}
+
+/**
+ * The session's settings: every project setting read live, the acceleration policy read from the
+ * controller, and `set`, which dispatches `config.set`.
+ * @param dispatcher - The dispatcher.
+ * @param read - Reads the project settings.
+ * @param controller - The acceleration controller.
+ * @returns The settings.
+ */
+function configOf(
+    dispatcher: Dispatcher,
+    read: () => ProjectConfig,
+    controller: AccelerationControllerLike,
+): SessionConfig {
+    return Object.freeze({
+        get data() {
+            return read().data;
+        },
+        get runAlgorithmsOnLoad() {
+            return read().runAlgorithmsOnLoad;
+        },
+        get background() {
+            return read().background;
+        },
+        get selectionStyle() {
+            return read().selectionStyle;
+        },
+        get layoutBehavior() {
+            return read().layoutBehavior;
+        },
+        // Read from the controller, not from a value frozen at construction: the policy and the
+        // threshold are changed at runtime through the session's accessors and the element's
+        // attributes.
+        get acceleration() {
+            return Object.freeze({ policy: controller.policy, minNodes: controller.minNodes });
+        },
+        set: async (values: ProjectConfigPatch) => {
+            await dispatcher.dispatch({ op: "config.set", values });
+        },
+    });
 }
 
 /**
@@ -1304,7 +1347,16 @@ export function createElementSession(
  * @returns The session.
  */
 function buildSession(options: CreateGraphSessionOptions, internals: SessionInternals = {}): Session {
-    const readData = resolveDataConfig(options.config?.data);
+    // Built first: the project settings, which the store and the data surface read, live in its
+    // `config` slice, and the scope resolver, the visibility model and the style stack live in its
+    // other slices and write through it.
+    const dispatcher = new Dispatcher({
+        definitions: DEFINITIONS,
+        ...(internals.now === undefined ? {} : { now: internals.now }),
+        ...(internals.scheduler === undefined ? {} : { scheduler: internals.scheduler }),
+    });
+    const readProject = projectConfigReader(dispatcher, resolveDataConfig(options.config?.data));
+    const readData = (): SessionDataConfig => readProject().data;
     // A controller handed in is the authority on its own policy: the session does not own it, so
     // it cannot make a configuration value true merely by declaring it.
     const policy = options.acceleration?.policy ?? options.config?.acceleration?.policy ?? ACCELERATION_POLICY_DEFAULT;
@@ -1341,14 +1393,6 @@ function buildSession(options: CreateGraphSessionOptions, internals: SessionInte
     // halfway through. A rendered graph hands in the element's own, so a filter also takes its
     // turn among the loads, the layouts and the style passes.
     const queue = runsOptions.queue ?? createLocalRunQueue();
-
-    // Built before the scope resolver, the visibility model and the style stack, which live in its slices and write
-    // through it.
-    const dispatcher = new Dispatcher({
-        definitions: DEFINITIONS,
-        ...(internals.now === undefined ? {} : { now: internals.now }),
-        ...(internals.scheduler === undefined ? {} : { scheduler: internals.scheduler }),
-    });
 
     const scope: ScopeResolver = createScopeApi({
         snapshot,
@@ -1570,7 +1614,7 @@ function buildSession(options: CreateGraphSessionOptions, internals: SessionInte
             estimate: (algorithm) => estimateCommand(planning, { op: "algo.run", algorithm }),
             runs: () => runs.list(),
         }),
-        readData,
+        readProject,
         controller: acceleration.controller,
         ownedAcceleration: acceleration.owned,
         runs,

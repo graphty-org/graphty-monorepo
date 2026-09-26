@@ -18,6 +18,7 @@
 
 import type { AlgorithmDescriptor, AlgorithmKey, FieldDescriptor, RunId, Scope } from "../catalog/types";
 import type { GraphtyErrorCode } from "../errors";
+import type { ConfigSetCommand } from "./commands/config";
 import type { ScopeCommand } from "./commands/scope";
 import type { StyleCommand } from "./commands/style";
 import type { ViewCommand } from "./commands/view";
@@ -72,7 +73,13 @@ export interface AlgorithmRunCommand {
  * (`COMMANDS` in `@graphty/graphty-element/commands`). It widens as ops are added, so a `switch`
  * over `op` should keep a default branch.
  */
-export type SessionCommand = AlgorithmRunCommand | StyleCommand | VisibilityCommand | ScopeCommand | ViewCommand;
+export type SessionCommand =
+    | AlgorithmRunCommand
+    | StyleCommand
+    | VisibilityCommand
+    | ScopeCommand
+    | ViewCommand
+    | ConfigSetCommand;
 
 /**
  * Tell whether a value is the command that starts an algorithm.

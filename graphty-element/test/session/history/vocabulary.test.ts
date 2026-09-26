@@ -7,13 +7,16 @@
  * argument's discriminant (read from the definition's `variants`, never written again here),
  * with a renderer fixture when it changes what is drawn. An op whose every door is still
  * `knownGap` is not yet reachable through the history, so its fixture checks are pending, named
- * with the phase that ports it. The checks that need a slice (design/undo/undo-design.md section
- * 12.2) are written here and skip, naming the phase that brings the slice.
+ * with the phase that ports it. The checks that need a slice not yet ported (design/undo/undo-design.md
+ * section 12.2) are written here and skip, naming the phase that brings the slice.
  */
 
 import { assert, describe, it } from "vitest";
+import { z } from "zod/v4";
 
 import { type CommandMeta, COMMANDS } from "../../../commands";
+import { DataConfig } from "../../../src/config/DataConfig";
+import { CONFIG_KEYS } from "../../../src/session/commands/config";
 import { DOOR_ROOTS, PHASES } from "../../../src/session/commands/doors";
 import { DEFINITIONS } from "../../../src/session/commands/index";
 import { dispatcherOf } from "../../../src/session/GraphSession";
@@ -157,11 +160,68 @@ describe("the vocabulary", () => {
         session.dispose();
     });
 
-    it.skip("config.set names only ProjectConfig keys, and each exempt layout-behaviour key leaves the digest unchanged (phase 10)", () =>
-        undefined);
+    it("config.set names only ProjectConfig keys, and each exempt layout-behaviour key leaves the digest unchanged", async () => {
+        const session = await fixtureSession();
+        const dispatcher = dispatcherOf(session as ElementSession);
+        // The layout-behaviour settings that are preferences of the view, not project settings
+        // (design/undo/undo-design.md section 3.2), under the names config.set would give them,
+        // and a key that names nothing at all.
+        const outside: readonly unknown[] = [
+            { layoutBehavior: { maxInFlight: 3 } },
+            { layoutBehavior: { iterationsPerStep: 4 } },
+            { layoutBehavior: { zoomStepInterval: 2 } },
+            { layoutBehavior: { type: "circular" } },
+            { layoutBehavior: { declutter: true } },
+            { layoutBehavior: { pinOnDrag: false } },
+            { labels: { declutter: true } },
+            { node: { pinOnDrag: false } },
+            { startingCameraDistance: 30 },
+            { data: { knownFields: { nope: "x" } } },
+        ];
 
-    it.skip("every leaf of the DataConfig schema is a config slice key or exempt with a reason (phase 10)", () =>
-        undefined);
+        for (const values of outside) {
+            const before = stateDigest(dispatcher.state);
+            const steps = session.history.steps.length;
+            const code = await session
+                .execute({ op: "config.set", values } as SessionCommand)
+                .then(
+                    () => null,
+                    (error: unknown) => (error as { code?: string }).code,
+                );
+
+            assert.strictEqual(code, "E_BAD_COMMAND", JSON.stringify(values));
+            assert.strictEqual(stateDigest(dispatcher.state), before, `${JSON.stringify(values)} changed state`);
+            assert.strictEqual(session.history.steps.length, steps, `${JSON.stringify(values)} recorded a step`);
+        }
+
+        session.dispose();
+    });
+
+    it("every leaf of the DataConfig schema is a config slice key or exempt with a reason", () => {
+        // Walked here rather than read from the command module, so a leaf the module's own walk
+        // missed fails. No leaf is exempt today: every data setting is saved in a project.
+        const exempt: Readonly<Record<string, string>> = {};
+        const leaves = (schema: z.ZodType, path: string): string[] => {
+            let inner = schema;
+            while ("innerType" in inner.def) {
+                inner = inner.def.innerType as z.ZodType;
+            }
+
+            return inner instanceof z.ZodObject
+                ? Object.entries(inner.shape as Record<string, z.ZodType>).flatMap(([name, child]) =>
+                      leaves(child, `${path}.${name}`),
+                  )
+                : [path];
+        };
+        const found = leaves(DataConfig, "data");
+
+        assert.include(found, "data.knownFields.nodeIdPath", "the walk reaches the known fields");
+        assert.deepEqual(
+            found.filter((path) => !CONFIG_KEYS.has(path) && (exempt[path] ?? "").trim() === ""),
+            [],
+            "leaves neither a slice key nor exempt with a reason",
+        );
+    });
 
     it.skip("view.immersive from 2D and from 3D, and layout.transport, leave the state digest unchanged (phase 17)", () =>
         undefined);

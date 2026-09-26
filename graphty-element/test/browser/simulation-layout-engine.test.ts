@@ -416,7 +416,7 @@ describe("the simulation layout bridge", () => {
         // before the owed count has been spent.
         const fake = createFakeAccelerator({ settleAfter: 100 });
         graph.acceleration.setAccelerator(fake);
-        graph.styles.config.behavior.layout.preSteps = owed;
+        graph.setLayoutBehavior({ layout: { preSteps: owed } });
 
         const rig = await bridge(graph);
         assert.isTrue(rig.engine.isAccelerated, "the fake is running the layout");

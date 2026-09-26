@@ -47,6 +47,7 @@ export const COMMANDS = Object.freeze({
     "view.save": { undo: "undoable" },
     "view.remove": { undo: "undoable" },
     "view.camera": { undo: "exempt", reason: "Where the camera is looking is view state, not saved in a project file." },
+    "config.set": { undo: "undoable" },
 } as const satisfies { readonly [Op in SessionCommand["op"]]: CommandMeta });
 
 /**

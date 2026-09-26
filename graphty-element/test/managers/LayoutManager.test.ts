@@ -66,7 +66,7 @@ describe("LayoutManager", () => {
 
         it("should run configured number of pre-steps when setting layout", async () => {
             // Configure pre-steps in styles
-            graph.styles.config.behavior.layout.preSteps = 10;
+            graph.setLayoutBehavior({ layout: { preSteps: 10 } });
 
             // Add some nodes
             const dataManager = graph.getDataManager();
@@ -138,7 +138,7 @@ describe("LayoutManager", () => {
 
         it("should handle zero pre-steps configuration", async () => {
             // Configure zero pre-steps
-            graph.styles.config.behavior.layout.preSteps = 0;
+            graph.setLayoutBehavior({ layout: { preSteps: 0 } });
 
             // Add some nodes
             const dataManager = graph.getDataManager();
@@ -182,7 +182,7 @@ describe("LayoutManager", () => {
 
         it("should ensure pre-steps affect node positions", async () => {
             // Configure pre-steps in styles
-            graph.styles.config.behavior.layout.preSteps = 50;
+            graph.setLayoutBehavior({ layout: { preSteps: 50 } });
 
             // Add some nodes in a connected graph
             const dataManager = graph.getDataManager();
@@ -418,7 +418,12 @@ describe("LayoutManager", () => {
         it("should use 2D mode for NGraphEngine when twoD is set in styles", async () => {
             // Configure 2D mode in styles (testing deprecated API for backward compatibility)
              
-            graph.styles.config.graph.twoD = true;
+            // The configuration is a frozen view; the old flag lives in the view settings it merges.
+            (graph as unknown as { writeViewSettings(write: (settings: { graph: { twoD?: boolean } }) => void): void }).writeViewSettings(
+                (settings) => {
+                    settings.graph.twoD = true;
+                },
+            );
 
             // Add some nodes
             const dataManager = graph.getDataManager();
@@ -457,7 +462,12 @@ describe("LayoutManager", () => {
         it("should use 3D mode for NGraphEngine when twoD is not set", async () => {
             // Ensure 3D mode (testing deprecated API for backward compatibility)
              
-            graph.styles.config.graph.twoD = false;
+            // The configuration is a frozen view; the old flag lives in the view settings it merges.
+            (graph as unknown as { writeViewSettings(write: (settings: { graph: { twoD?: boolean } }) => void): void }).writeViewSettings(
+                (settings) => {
+                    settings.graph.twoD = false;
+                },
+            );
 
             // Add some nodes
             const dataManager = graph.getDataManager();

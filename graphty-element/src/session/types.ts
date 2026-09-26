@@ -30,6 +30,7 @@ import type {
 import type { CameraState } from "../camera/types";
 import type { AlgorithmKey, AttributeDescriptor, CatalogApi, EdgeId, RunId, Scope, ScopeId } from "../catalog/types";
 import type { DataConfig } from "../config/DataConfig";
+import type { GraphBackgroundConfig, GraphSelectionStyleConfig, GraphSelectionStyleInput } from "../config/GraphStyle";
 import type { ElementPositions } from "../data/positions";
 import type { ImportReport } from "../data/report";
 import type { GraphtyError } from "../errors/GraphtyError";
@@ -382,10 +383,68 @@ export type SessionCatalogApi = Pick<
     "algorithms" | "cameras" | "formats" | "layouts" | "logSinks" | "metrics" | "palettes" | "scales"
 >;
 
-/** The configuration a session carries. */
-export interface SessionConfig {
-    /** The data configuration: id paths, weight paths, position scale, direction, id coercion. */
+/**
+ * The project settings: the ones a project file saves, every one of them undoable.
+ *
+ * `data` is the element's data configuration in its own shape: the on-load `algorithms`, the
+ * `directed` policy, and `knownFields` with every known field (`nodeIdPath`, `nodeLabelPath`,
+ * `nodeWeightPath`, `nodeTimePath`, `edgeSrcIdPath`, `edgeDstIdPath`, `edgeIdPath`,
+ * `repeatedEdges`, `edgeWeightPath`, `edgeTimePath`, `positionScale`, `idCoercion`). A setting
+ * nobody has set reads as its default.
+ */
+export interface ProjectConfig {
     readonly data: SessionDataConfig;
+    /** Whether the algorithms in `data.algorithms` run once data has loaded. */
+    readonly runAlgorithmsOnLoad: boolean;
+    /** What the graph is drawn against: a colour or a skybox. */
+    readonly background: GraphBackgroundConfig;
+    /** What a selected node's halo looks like. */
+    readonly selectionStyle: GraphSelectionStyleConfig;
+    /**
+     * The layout-behaviour settings a project file saves. The rest of the element's
+     * `layoutBehavior` (label declutter, pin on drag, throughput tuning) is a preference of the
+     * view and not a project setting.
+     */
+    readonly layoutBehavior: {
+        /** Simulation steps run before the first frame is drawn. */
+        readonly preSteps: number;
+        /** Simulation steps per frame. */
+        readonly stepMultiplier: number;
+        /** The movement below which a simulation counts as settled. */
+        readonly minDelta: number;
+    };
+}
+
+/**
+ * A partial {@link ProjectConfig}, nested: `{ data: { knownFields: { nodeIdPath: "key" } } }`.
+ * Plain objects are merged key by key; `data.algorithms`, `background` and `selectionStyle` are
+ * replaced whole. Setting a key to `undefined` returns it to its default.
+ */
+export interface ProjectConfigPatch {
+    readonly data?: {
+        readonly algorithms?: SessionDataConfig["algorithms"];
+        readonly directed?: SessionDataConfig["directed"];
+        readonly knownFields?: Partial<SessionDataConfig["knownFields"]>;
+    };
+    readonly runAlgorithmsOnLoad?: boolean;
+    readonly background?: GraphBackgroundConfig;
+    readonly selectionStyle?: GraphSelectionStyleInput;
+    readonly layoutBehavior?: Partial<ProjectConfig["layoutBehavior"]>;
+}
+
+/**
+ * The session's settings as they are now: every project setting, read live, and the
+ * acceleration policy, which is a preference about this machine and not saved in a project.
+ */
+export interface SessionConfig extends ProjectConfig {
+    /**
+     * Change project settings. One step, which undo takes back.
+     * @param values - The settings to change.
+     * @returns Settles once the step is recorded and the picture has caught up.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` when a key is not a project
+     *     setting or a value is one its setting refuses; nothing is changed then.
+     */
+    set(values: ProjectConfigPatch): Promise<void>;
     /** What the consumer asked of the hardware. */
     readonly acceleration: {
         /** Use an accelerator when one is available, never look, or refuse to run without one. */
@@ -603,6 +662,8 @@ export interface CommandOutcomeMap {
     "view.remove": Promise<void>;
     /** Settles once the camera has arrived. */
     "view.camera": Promise<void>;
+    /** Settles once the settings are recorded and the picture has caught up. */
+    "config.set": Promise<void>;
 }
 
 /**
@@ -725,7 +786,7 @@ export interface GraphSession {
     readonly status: SessionStatus;
     /** Everything the element can offer, as data. */
     readonly catalog: SessionCatalogApi;
-    /** The configuration this session was built with. */
+    /** The settings as they are now, and `set` to change the project ones. */
     readonly config: SessionConfig;
     /** What this machine can do, measured rather than guessed at by the consumer. */
     readonly capabilities: AccelerationCapabilities;

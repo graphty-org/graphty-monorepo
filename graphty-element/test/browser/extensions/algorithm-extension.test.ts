@@ -1098,7 +1098,7 @@ describe("an algorithm written outside this package", () => {
     it("names nodes by the label attribute the reader configured, not by their ids", async () => {
         // What a reader's data configuration says the display name is. Without it the element has
         // not been told where the names are, which is a different answer from there being none.
-        graph.styles.config.data.knownFields.nodeLabelPath = LABEL_ATTRIBUTE;
+        await graph.getSession().config.set({ data: { knownFields: { nodeLabelPath: LABEL_ATTRIBUTE } } });
 
         const result = await graph.run("hop-reach");
         const { top } = result.summary();

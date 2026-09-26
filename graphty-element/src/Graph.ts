@@ -11,11 +11,9 @@ import {
     AbstractMesh,
     Animation,
     Camera,
-    Color4,
     CubicEase,
     EasingFunction,
     Engine,
-    PhotoDome,
     PointerEventTypes,
     Quaternion,
     Scene,
@@ -31,9 +29,6 @@ import type { ApiKeyManager } from "./ai/keys";
 import { GraphtyLogger, type Logger } from "./logging";
 
 const graphLogger: Logger = GraphtyLogger.getLogger(["graphty", "graph"]);
-
-/** What the scene is cleared to when the configured background names no colour. Whitesmoke. */
-const DEFAULT_BACKGROUND_COLOR = "#F5F5F5";
 
 /**
  * How long {@link Graph.waitForStableFrame} waits before it gives up and says so.
@@ -57,7 +52,6 @@ import { registeredAlgorithmByKey } from "./catalog/registry";
 import type { AlgorithmKey, Scope } from "./catalog/types";
 import {
     AdHocData,
-    DEFAULT_SELECTION_STYLE,
     DEFAULT_VIEW_MODE,
     defaultXRConfig,
     FetchEdgesFn,
@@ -68,10 +62,12 @@ import {
     GraphBehaviorOpts,
     type GraphSelectionStyleInput,
     GraphSelectionStyleOpts,
+    type StyleSchemaV1,
+    StyleTemplate,
     type ViewMode,
     type XRConfig,
 } from "./config";
-import type { AlgorithmOnLoad } from "./config/DataConfig";
+import { type AlgorithmOnLoad, DataConfig } from "./config/DataConfig";
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
 import { Edge } from "./Edge";
 import { GraphtyError } from "./errors";
@@ -105,11 +101,14 @@ import { Node, type NodeIdType } from "./Node";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
+import { readProjectConfig } from "./session/commands/config";
 import { assertViewName } from "./session/commands/view";
 import { dispatcherOf } from "./session/GraphSession";
+import { deepFreeze } from "./session/project/draft";
 import type { Run, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionTarget, SetOp } from "./session/selection";
 import type { StyleSuggestion } from "./session/styles";
+import type { ProjectConfig, ProjectConfigPatch } from "./session/types";
 
 /** The namespace every algorithm this package ships is registered under. */
 const BUILT_IN_ALGORITHM_NAMESPACE = "graphty";
@@ -170,6 +169,26 @@ function stripEndpointKeys(data: DataManager, index: number): Record<string, unk
 /** A JMESPath expression that is nothing but a top-level property name. */
 const PLAIN_KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
+/** The configuration document at its defaults: what the frozen view is merged over. */
+const BASE_DOCUMENT: StyleSchemaV1 = deepFreeze(StyleTemplate.parse({ graphtyTemplate: true, majorVersion: "1" }));
+
+/** The project settings of a graph whose session is still being built: every one at its default. */
+const DEFAULT_PROJECT: ProjectConfig = readProjectConfig(new Map(), DataConfig.parse({}));
+
+/** The three layout-behaviour settings a project file saves. The others are the view's. */
+const PROJECT_LAYOUT_KEYS: readonly string[] = ["preSteps", "stepMultiplier", "minDelta"];
+
+/**
+ * The settings of this view that a project file does not save (design/undo/undo-design.md section
+ * 3.2), as they were set: the camera distance, the layout-behaviour preferences of this machine
+ * and this reader, and -- until the dimension becomes project state -- the view mode and its old
+ * `twoD` spelling. The frozen `Styles.config` merges these with the project settings.
+ */
+interface ViewSettings {
+    graph: { viewMode?: ViewMode; twoD?: boolean; startingCameraDistance?: number };
+    behavior: GraphBehaviorConfig;
+}
+
 /**
  * Main orchestrator class for graph visualization and interaction.
  * Integrates Babylon.js scene management, coordinates nodes, edges, layouts, and styling.
@@ -193,8 +212,13 @@ export class Graph implements GraphContext {
     fetchNodes?: FetchNodesFn;
     fetchEdges?: FetchEdgesFn;
     initialized = false;
-    runAlgorithmsOnLoad = false;
     enableDetailedProfiling?: boolean;
+    /** The view settings, as set; see {@link ViewSettings}. Written only through `writeViewSettings`. */
+    private readonly viewSettings: ViewSettings = { graph: {}, behavior: {} };
+    /** Moves on every write of the view settings, so the frozen configuration knows to rebuild. */
+    private viewVersion = 0;
+    /** The frozen configuration, and the two write counts it was built at. */
+    private configCache: { readonly writes: number; readonly view: number; readonly value: StyleSchemaV1 } | undefined;
     private wasSettled = false; // Track previous settlement state
     private resizeHandler = (): void => {
         this.engine.resize();
@@ -289,7 +313,7 @@ export class Graph implements GraphContext {
         // The element's configuration document: id paths, view mode, background, layout and its
         // options, the run-on-load algorithms and the behaviour settings. It carries no style
         // layers -- those are `session.styles`.
-        this.styles = Styles.default();
+        this.styles = new Styles(() => this.configDocument());
 
         this.stylePainter = new StylePainter();
 
@@ -367,10 +391,6 @@ export class Graph implements GraphContext {
                 // `src` column beside the canonical `source` one, saying the same thing twice.
                 edgeAttributes: (index) => stripEndpointKeys(this.dataManager, index),
             },
-            // Read, not captured: the configuration document is written in place by the
-            // element's own property setters, so a captured copy would be the one that was in
-            // force when the graph was built rather than the one a consumer has since set.
-            config: { data: () => this.styles.config.data },
             runs: {
                 // The element's own queue, so a run takes its turn among the loads, the layouts
                 // and the style passes rather than interleaving with them.
@@ -386,6 +406,27 @@ export class Graph implements GraphContext {
         // pass has run, an element draws itself from the element's own defaults; see
         // `bootstrapNodePaint` in StylePainter.
         this.stylePainter.bind(this.session.paint);
+
+        // The `config` hook: the background and the selection highlight follow the settings,
+        // forward, on undo and on redo alike. Import settings take effect at the next import and
+        // the layout-behaviour settings at the next layout, as they always have.
+        dispatcherOf(this.session).lane.register("config", (rendered, target, dirty) => {
+            const changed = (key: string): boolean => dirty.has(key) && rendered.config.get(key) !== target.config.get(key);
+            // Read live: a change made since this pass began gets a pass of its own, and both
+            // steps below are idempotent.
+            const { graph } = this.styles.config;
+            if (changed("background")) {
+                this.renderManager.applyBackground(graph.background, (url) => {
+                    this.eventManager.emitGraphEvent("skybox-loaded", { graph: this, url });
+                });
+            }
+
+            if (changed("selectionStyle")) {
+                for (const node of this.dataManager.nodes.values()) {
+                    node.refreshSelectionOverlay();
+                }
+            }
+        });
 
         // `view.camera` moves this renderer's camera; a session with no renderer refuses it.
         dispatcherOf(this.session).services.camera = {
@@ -890,10 +931,9 @@ export class Graph implements GraphContext {
 
             // The configured background reaches the scene here, whether it was set through
             // `element.background` before the element was attached or left at its default.
-            if (this.styles.config.graph.background.backgroundType === "color") {
-                const backgroundColor = this.styles.config.graph.background.color ?? DEFAULT_BACKGROUND_COLOR;
-                this.scene.clearColor = Color4.FromHexString(backgroundColor);
-            }
+            this.renderManager.applyBackground(this.styles.config.graph.background, (url) => {
+                this.eventManager.emitGraphEvent("skybox-loaded", { graph: this, url });
+            });
 
             // Start the graph system (render loop, etc.)
             this.lifecycleManager.startGraph(() => {
@@ -1001,37 +1041,37 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Whether the algorithms in the configuration's `data.algorithms` run once data has loaded.
+     * A project setting: setting it is one step, which undo takes back.
+     * @returns The setting.
+     */
+    get runAlgorithmsOnLoad(): boolean {
+        return this.session.config.runAlgorithmsOnLoad;
+    }
+
+    /**
+     * Set whether the on-load algorithms run.
+     * @param value - The setting.
+     */
+    set runAlgorithmsOnLoad(value: boolean) {
+        this.setProjectConfig({ runAlgorithmsOnLoad: value });
+    }
+
+    /**
      * Set what the graph is drawn against: a flat colour, or a photo-dome skybox.
      *
-     * The colour reaches the scene's clear colour and a skybox builds a `PhotoDome` around the
-     * graph, announcing `skybox-loaded` once its texture has arrived. The value is also written
-     * into the configuration document, so a later read of `styles.config.graph.background` and a
-     * rebuild of the scene both see what was asked for.
+     * A project setting: one step, which undo takes back. The colour reaches the scene's clear
+     * colour and a skybox builds a `PhotoDome` around the graph, announcing `skybox-loaded` once
+     * its texture has arrived; the scene never holds more than one dome. A later read of
+     * `styles.config.graph.background` sees the value, parsed.
      * @param background - A colour (`{backgroundType: "color", color}`) or a skybox
      *     (`{backgroundType: "skybox", data}`), where `data` is an image URL or a base64 PNG.
+     * @throws A Zod error when the value is not a background; nothing is changed then.
      */
     setBackground(background: GraphBackgroundConfig): void {
-        // Parsed rather than trusted, because this is a public door: a CSS colour name arrives
-        // here and the renderer needs the hex the rest of the element works in.
-        const parsed = GraphBackground.parse(background);
-
-        this.styles.config.graph.background = parsed;
-
-        if (parsed.backgroundType === "skybox") {
-            const skyboxUrl = parsed.data;
-            const photoDome = new PhotoDome("testdome", skyboxUrl, { resolution: 32, size: 500 }, this.scene);
-
-            photoDome.texture.onLoadObservable.addOnce(() => {
-                this.eventManager.emitGraphEvent("skybox-loaded", {
-                    graph: this,
-                    url: skyboxUrl,
-                });
-            });
-
-            return;
-        }
-
-        this.scene.clearColor = Color4.FromHexString(parsed.color ?? DEFAULT_BACKGROUND_COLOR);
+        // Checked here so the throw reaches the caller, rather than a rejection nobody awaits.
+        GraphBackground.parse(background);
+        this.setProjectConfig({ background });
     }
 
     /**
@@ -1039,8 +1079,8 @@ export class Graph implements GraphContext {
      * node, and how solid it is.
      *
      * MERGED, NOT REPLACED: naming the colour leaves the scale and the opacity where they were.
-     * It takes effect immediately, on a selection that is already on screen as well as on the
-     * next one.
+     * A project setting: one step, which undo takes back. It takes effect on a selection that is
+     * already on screen as well as on the next one.
      *
      * THE HALO IS NOT A STYLE LAYER, deliberately. A selection is what a person is pointing at
      * rather than a property of the data, so it is drawn by the renderer from the selection mask
@@ -1051,13 +1091,11 @@ export class Graph implements GraphContext {
      *     positive, an opacity outside `[0, 1]`, a colour the element cannot read.
      */
     setSelectionStyle(selection: GraphSelectionStyleInput): void {
-        const current = this.styles.config.graph.selection ?? DEFAULT_SELECTION_STYLE;
+        const current = dispatcherOf(this.session).state.config.get("selectionStyle") as GraphSelectionStyleInput | undefined;
+        const merged = { ...current, ...selection };
 
-        this.styles.config.graph.selection = GraphSelectionStyleOpts.parse({ ...current, ...selection });
-
-        for (const node of this.dataManager.nodes.values()) {
-            node.refreshSelectionOverlay();
-        }
+        GraphSelectionStyleOpts.parse(merged);
+        this.setProjectConfig({ selectionStyle: merged });
     }
 
     /**
@@ -1067,23 +1105,41 @@ export class Graph implements GraphContext {
      * means that field and not "reset every other pacing setting to its default", which is what
      * parsing a partial document against a schema of defaults would do.
      *
+     * `layout.preSteps`, `layout.stepMultiplier` and `layout.minDelta` are project settings:
+     * setting any of them is one step, which undo takes back. The rest -- label declutter, pin on
+     * drag, the throughput settings, the fetchers -- are preferences of this view, and undo does
+     * not touch them.
+     *
      * The settings take effect on the next layout the element runs. `preSteps` is read when a
      * layout starts, so setting it after a graph has already settled changes nothing that is
      * already on screen. `labels.declutter` is the exception: it takes effect on the next frame.
      * @param behavior - The fields to change. Anything omitted keeps its current value.
+     * @throws A Zod error when a value is outside what the schema allows; nothing is changed then.
      */
     setLayoutBehavior(behavior: GraphBehaviorConfig): void {
-        const current = this.styles.config.behavior;
-
-        const parsed = GraphBehaviorOpts.parse({
+        const layout: Readonly<Record<string, unknown>> = behavior.layout ?? {};
+        const project = Object.fromEntries(Object.entries(layout).filter(([key]) => PROJECT_LAYOUT_KEYS.includes(key)));
+        const current = this.viewSettings.behavior;
+        const view: GraphBehaviorConfig = {
             ...current,
             ...behavior,
-            layout: { ...current.layout, ...(behavior.layout ?? {}) },
-            node: { ...current.node, ...(behavior.node ?? {}) },
-            labels: { ...current.labels, ...(behavior.labels ?? {}) },
+            layout: {
+                ...current.layout,
+                ...Object.fromEntries(Object.entries(layout).filter(([key]) => !PROJECT_LAYOUT_KEYS.includes(key))),
+            },
+            node: { ...current.node, ...behavior.node },
+            labels: { ...current.labels, ...behavior.labels },
+        };
+
+        // Checked whole, the project half over the settings in force, before anything is written.
+        const parsed = GraphBehaviorOpts.parse({
+            ...view,
+            layout: { ...view.layout, ...this.session.config.layoutBehavior, ...project },
         });
 
-        this.styles.config.behavior = parsed;
+        this.writeViewSettings((settings) => {
+            settings.behavior = view;
+        });
 
         // ON-DEMAND EXPANSION IS SWITCHED ON HERE, and it is the only place it can be. The two
         // fetchers are declared in the behaviour schema, so a consumer sets them the same way
@@ -1093,6 +1149,116 @@ export class Graph implements GraphContext {
         // property.
         this.fetchNodes = parsed.fetchNodes as FetchNodesFn | undefined;
         this.fetchEdges = parsed.fetchEdges as FetchEdgesFn | undefined;
+
+        if (Object.keys(project).length > 0) {
+            this.setProjectConfig({ layoutBehavior: project });
+        }
+    }
+
+    /**
+     * The layout behaviour as it has been set, on this graph and in its project settings: only
+     * the fields somebody set, so an untouched graph answers undefined.
+     * @returns The behaviour settings, or undefined when none are set.
+     */
+    getLayoutBehavior(): GraphBehaviorConfig | undefined {
+        const { config } = dispatcherOf(this.session).state;
+        const project = Object.fromEntries(
+            PROJECT_LAYOUT_KEYS.flatMap((key) =>
+                config.has(`layoutBehavior.${key}`) ? [[key, config.get(`layoutBehavior.${key}`)]] : [],
+            ),
+        );
+        const merged: Record<string, unknown> = {
+            ...this.viewSettings.behavior,
+            layout: { ...this.viewSettings.behavior.layout, ...project },
+        };
+        // Only what was set: no empty groups, so an untouched graph reads undefined.
+        const set = Object.fromEntries(
+            Object.entries(merged).filter(
+                ([, value]) => value !== undefined && (typeof value !== "object" || Object.keys(value as object).length > 0),
+            ),
+        );
+
+        return Object.keys(set).length > 0 ? (set as GraphBehaviorConfig) : undefined;
+    }
+
+    /**
+     * Change project settings as one step, reporting a refusal rather than leaving it unhandled:
+     * the doors that call this hand their caller no promise.
+     * @param values - The settings.
+     */
+    private setProjectConfig(values: ProjectConfigPatch): void {
+        this.session.config.set(values).catch((error: unknown) => {
+            console.error("[graphty] A setting was refused and nothing was changed.", error);
+        });
+    }
+
+    /**
+     * Record the view mode, and the deprecated `twoD` spelling with it.
+     *
+     * A view setting until the dimension becomes project state; see {@link ViewSettings}.
+     * @param mode - The view mode.
+     */
+    private writeViewMode(mode: ViewMode): void {
+        this.writeViewSettings((settings) => {
+            settings.graph.viewMode = mode;
+            settings.graph.twoD = mode === "2d";
+        });
+    }
+
+    /**
+     * Write the view settings, so the frozen configuration is rebuilt on its next read.
+     * @param write - Changes the settings.
+     */
+    private writeViewSettings(write: (settings: ViewSettings) => void): void {
+        write(this.viewSettings);
+        this.viewVersion++;
+    }
+
+    /**
+     * The configuration document `styles.config` reads: frozen, merged from the project settings
+     * and the view settings, and rebuilt only when one of them has changed since the last read,
+     * so two reads with no change between them return the same object.
+     * @returns The document.
+     */
+    private configDocument(): StyleSchemaV1 {
+        // The data manager reads the document while this graph is still building its session;
+        // every project setting is at its default then.
+        const session = this.session as ElementSession | undefined;
+        if (session === undefined) {
+            return this.mergeConfig(DEFAULT_PROJECT);
+        }
+
+        const writes = dispatcherOf(session).lane.writes("config");
+        if (this.configCache?.writes !== writes || this.configCache.view !== this.viewVersion) {
+            this.configCache = { writes, view: this.viewVersion, value: this.mergeConfig(session.config) };
+        }
+
+        return this.configCache.value;
+    }
+
+    /**
+     * Merge project settings and the view settings into one frozen configuration document.
+     * @param project - The project settings.
+     * @returns The document.
+     */
+    private mergeConfig(project: ProjectConfig): StyleSchemaV1 {
+        const { graph, behavior } = this.viewSettings;
+        const defined = Object.fromEntries(Object.entries(graph).filter(([, value]) => value !== undefined));
+
+        return deepFreeze({
+            ...BASE_DOCUMENT,
+            graph: {
+                ...BASE_DOCUMENT.graph,
+                ...defined,
+                background: project.background,
+                selection: project.selectionStyle,
+            },
+            data: project.data,
+            behavior: GraphBehaviorOpts.parse({
+                ...behavior,
+                layout: { ...behavior.layout, ...project.layoutBehavior },
+            }),
+        });
     }
 
     /**
@@ -2592,9 +2758,7 @@ export class Graph implements GraphContext {
         const mode: ViewMode = askedForTwoDTheOldWay ? "2d" : config.viewMode;
         const isTwoD = mode === "2d";
 
-        config.viewMode = mode;
-        // eslint-disable-next-line @typescript-eslint/no-deprecated -- keeping the old spelling true
-        config.twoD = isTwoD;
+        this.writeViewMode(mode);
 
         this.scene.metadata = this.scene.metadata ?? {};
         this.scene.metadata.twoD = isTwoD;
@@ -2634,7 +2798,9 @@ export class Graph implements GraphContext {
             });
         }
 
-        this.styles.config.graph.startingCameraDistance = distance;
+        this.writeViewSettings((settings) => {
+            settings.graph.startingCameraDistance = distance;
+        });
         this.applyStartingCameraDistance();
     }
 
@@ -2695,9 +2861,7 @@ export class Graph implements GraphContext {
         // Only the two views that exist without a session are recorded this way. "ar" and "vr"
         // keep the queued path, because entering XR needs the session manager `init()` builds.
         if (!this.initialized && (mode === "2d" || mode === "3d")) {
-            this.styles.config.graph.viewMode = mode;
-            // eslint-disable-next-line @typescript-eslint/no-deprecated -- keeping the old spelling true
-            this.styles.config.graph.twoD = mode === "2d";
+            this.writeViewMode(mode);
         }
 
         return this.operationQueue.queueOperationAsync(
@@ -2752,13 +2916,9 @@ export class Graph implements GraphContext {
             return;
         }
 
-        // Update the config
-        this.styles.config.graph.viewMode = mode;
-
-        // Sync twoD for backward compatibility
+        // Update the config, and twoD with it for backward compatibility
         const isTwoD = mode === "2d";
-        // eslint-disable-next-line @typescript-eslint/no-deprecated -- Supporting backward compatibility
-        this.styles.config.graph.twoD = isTwoD;
+        this.writeViewMode(mode);
 
         // Handle mode switching
         const modeSwitchingBetween2D3D = sceneIsTwoD !== isTwoD;
@@ -2829,7 +2989,9 @@ export class Graph implements GraphContext {
                 // XR not available
                 console.warn(`[Graph] Cannot switch to ${mode} mode: XR session manager not initialized`);
                 // Fall back to 3D mode
-                this.styles.config.graph.viewMode = "3d";
+                this.writeViewSettings((settings) => {
+                    settings.graph.viewMode = "3d";
+                });
                 this.scene.metadata.viewMode = "3d";
                 return;
             }
@@ -2840,7 +3002,9 @@ export class Graph implements GraphContext {
             } catch (error) {
                 console.warn(`[Graph] Failed to enter ${mode} mode:`, error);
                 // Fall back to 3D mode
-                this.styles.config.graph.viewMode = "3d";
+                this.writeViewSettings((settings) => {
+                    settings.graph.viewMode = "3d";
+                });
                 this.scene.metadata.viewMode = "3d";
             }
         } else if (sceneMode === "ar" || sceneMode === "vr") {

@@ -620,6 +620,10 @@ export class UpdateManager implements Manager {
             return "a style repaint is still queued";
         }
 
+        if (painter?.isPainting === true) {
+            return "a style repaint is still painting";
+        }
+
         if (this.willZoomToFit() && !this.framingHasNothingToFrame) {
             return "the camera has not finished framing the graph";
         }
@@ -646,7 +650,9 @@ export class UpdateManager implements Manager {
 
         const painter = this.graphContext.getStylePainter?.();
 
-        if (painter?.hasPending === true) {
+        // Paint that has arrived and not been drawn, and paint that has not arrived yet: either
+        // one changes the picture. See `willZoomToFit` for the second.
+        if (painter?.hasPending === true || painter?.isPainting === true) {
             return false;
         }
 
@@ -997,8 +1003,17 @@ export class UpdateManager implements Manager {
 
         // Somebody asked. See `enableZoomToFit`: the cadence below paces the element's own
         // periodic re-framing and has no opinion worth having about a request.
+        //
+        // But not while a style pass is on its way. A request is answered ONCE, and a pass can
+        // change a node's size -- the box being framed. A graph loaded with its algorithms asks
+        // for its final framing on the pass after the layout settles, while the run's own size
+        // layer may still be painting; answered then, the camera frames every node at its
+        // unstyled size, the sizes land a few frames later, and nothing frames them. Whether the
+        // pass had finished first depended on how fast the machine was, so the same story drew
+        // two pictures. The pass is waited for here, and `syncStyles` applies what it painted at
+        // the top of the pass that then frames it.
         if (this.forceZoomToFit) {
-            return true;
+            return !this.styleIsPainting();
         }
 
         // Check if we should zoom:
@@ -1027,6 +1042,14 @@ export class UpdateManager implements Manager {
 
         // Otherwise only on the periodic beat, or on the step the layout arrived on
         return shouldZoomPeriodically || justSettled;
+    }
+
+    /**
+     * Whether a style pass has been asked for and has not announced what it painted yet.
+     * @returns True while the session's style stack is painting.
+     */
+    private styleIsPainting(): boolean {
+        return this.graphContext.getStylePainter?.()?.isPainting === true;
     }
 
     /**

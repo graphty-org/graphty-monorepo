@@ -159,3 +159,33 @@ describe("two repaints asked for at once", () => {
         );
     });
 });
+
+describe("whether a pass is on its way", () => {
+    // A renderer frames its camera on the sizes the stack painted. A pass yields to the event loop
+    // and waits behind the pass in front of it, so for as many frames as the machine is slow a
+    // size can be asked for and not painted yet -- and a renderer that cannot see that frames the
+    // graph on the sizes from before the edit.
+    it("is true from the moment a pass is asked for until the last one has announced", async () => {
+        const harness = makeHarness();
+
+        assert.isFalse(harness.engine.painting(), "nothing has been asked for yet");
+
+        const duringAnnouncement: boolean[] = [];
+
+        harness.engine.onPainted(() => {
+            duringAnnouncement.push(harness.engine.painting());
+        });
+
+        const first = harness.engine.repaintAll(harness.stack(), quietContext());
+        const second = harness.engine.repaintAll(harness.stack(), quietContext());
+
+        assert.isTrue(harness.engine.painting(), "two passes were asked for and neither has run");
+
+        await Promise.all([first, second]);
+
+        // Still true while each pass announces, so there is no moment between "on its way" and
+        // "arrived and waiting to be drawn" in which the picture looks finished.
+        assert.deepStrictEqual(duringAnnouncement, [true, true]);
+        assert.isFalse(harness.engine.painting(), "both passes have finished");
+    });
+});

@@ -60,6 +60,11 @@ import {
 } from "../test/helpers/paint-assertions";
 import * as projectAnnotations from "./preview";
 
+// Strict state: every session created in these tests checks that project state changes only
+// through the dispatcher (src/session/project/strict.ts, design/undo/undo-design.md section 12.1).
+// A plain global rather than an import, so this file reaches nothing under src/ at setup time.
+(globalThis as { __GRAPHTY_STRICT_STATE__?: boolean }).__GRAPHTY_STRICT_STATE__ = true;
+
 // Suppress Babylon.js logs during tests
 Logger.LogLevels = Logger.ErrorLogLevel;
 

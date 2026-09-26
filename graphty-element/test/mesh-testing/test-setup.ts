@@ -19,6 +19,11 @@ import { beforeAll } from "vitest";
 
 import { installCanvasPolyfills } from "./recording-canvas";
 
+// Strict state: every session created in these tests checks that project state changes only
+// through the dispatcher (src/session/project/strict.ts, design/undo/undo-design.md section 12.1).
+// A plain global rather than an import, so this file reaches nothing under src/ at setup time.
+(globalThis as { __GRAPHTY_STRICT_STATE__?: boolean }).__GRAPHTY_STRICT_STATE__ = true;
+
 /**
  * Installs the canvas and document polyfills the mesh lane needs.
  *

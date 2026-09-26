@@ -13,7 +13,8 @@ import {
 import { GraphtyError, isGraphtyError } from "../../src/errors/GraphtyError";
 import * as errors from "../../src/errors/index";
 
-// The codes named by the API design, section 4.13 plus the acceleration state code from 4.12.
+// The codes named by the API design, section 4.13, plus the acceleration state code from 4.12
+// and the transaction code from the undo design (design/undo/undo-design.md section 5.1).
 // Duplicated here on purpose: the union and this list drifting apart is the thing the test is
 // for.
 const CODES_FROM_THE_DESIGN = [
@@ -60,6 +61,7 @@ const CODES_FROM_THE_DESIGN = [
     "E_UNSUPPORTED",
     "E_READONLY",
     "E_DISPOSED",
+    "E_TRANSACTION_CLOSED",
     "E_INTERNAL",
 ];
 
@@ -97,6 +99,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_PROTECTED":
         case "E_READONLY":
         case "E_DISPOSED":
+        case "E_TRANSACTION_CLOSED":
             return "identity";
         case "E_FETCH_FAILED":
         case "E_PARSE_FAILED":

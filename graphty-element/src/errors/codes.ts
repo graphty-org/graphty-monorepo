@@ -288,6 +288,14 @@ export type GraphtyErrorCode =
      */
     | "E_DISPOSED"
     /**
+     * A command was dispatched through a transaction's `tx` after the transaction's callback had
+     * settled, so the step it belonged to was already recorded. `details.transaction` names the
+     * transaction. The caller dispatches everything the transaction should contain before its
+     * callback returns (awaiting what it needs), or dispatches later work through the session as
+     * its own step.
+     */
+    | "E_TRANSACTION_CLOSED"
+    /**
      * An invariant inside the element broke. This is a bug in graphty-element, not in the call.
      * `details` and `cause` carry whatever is safe to report. The caller files an issue with the
      * message; nothing it can change will avoid it.
@@ -344,6 +352,7 @@ const CODE_TABLE = {
     E_UNSUPPORTED: "E_UNSUPPORTED",
     E_READONLY: "E_READONLY",
     E_DISPOSED: "E_DISPOSED",
+    E_TRANSACTION_CLOSED: "E_TRANSACTION_CLOSED",
     E_INTERNAL: "E_INTERNAL",
 } as const satisfies Record<GraphtyErrorCode, GraphtyErrorCode>;
 

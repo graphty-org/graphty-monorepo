@@ -37,13 +37,14 @@ export interface HistoryOptions<P> {
     onChange?: (reason: HistoryChangeReason) => void;
 }
 
-/** What one recorded command contributes to a step. */
+/** What one recorded group contributes to a step. */
 interface RecordInput<P> {
     readonly label: string;
     readonly patch: P;
     /** Steps with equal keys recorded within the coalescing window become one step. */
     readonly key?: string | null;
-    readonly op?: string;
+    /** The ops of the commands in the patch, in the order they ran. */
+    readonly ops?: readonly string[];
     readonly slices?: readonly string[];
     readonly provenance?: Readonly<Record<string, string>>;
     /** What the patch retains while done (for undo) and while undone (for redo). */
@@ -196,7 +197,7 @@ export class History<P> {
             top.patch = this.options.merge(top.patch, input.patch);
             top.at = at;
             top.lastMerge = time;
-            top.ops = input.op === undefined ? top.ops : [...top.ops, input.op];
+            top.ops = [...top.ops, ...(input.ops ?? [])];
             top.slices = [...new Set([...top.slices, ...(input.slices ?? [])])];
             // ponytail: a merge sums both patches' sizes, an overestimate; re-estimate the merged
             // patch when real sizes arrive with the dispatcher.
@@ -220,7 +221,7 @@ export class History<P> {
             patch: input.patch,
             at,
             lastMerge: time,
-            ops: input.op === undefined ? [] : [input.op],
+            ops: [...(input.ops ?? [])],
             slices: [...(input.slices ?? [])],
             provenance: Object.freeze({ ...input.provenance }),
             doneBytes: done,

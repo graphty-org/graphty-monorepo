@@ -169,11 +169,11 @@ describe("History: coalescing", () => {
     it("merges equal keys within the window, keeping the first prior and the last value", () => {
         const { store, history, time } = setup();
         history.record({ label: "base", patch: store.write({ c: 0 }) });
-        history.record({ label: "colour", key: "k", op: "style.patch", patch: store.write({ c: 1 }) });
+        history.record({ label: "colour", key: "k", ops: ["style.patch"], patch: store.write({ c: 1 }) });
         time.advance(500);
-        history.record({ label: "colour", key: "k", op: "style.patch", patch: store.write({ c: 2 }) });
+        history.record({ label: "colour", key: "k", ops: ["style.patch"], patch: store.write({ c: 2 }) });
         time.advance(999);
-        history.record({ label: "colour", key: "k", op: "style.patch", patch: store.write({ c: 3 }) });
+        history.record({ label: "colour", key: "k", ops: ["style.patch"], patch: store.write({ c: 3 }) });
 
         assert.lengthOf(history.steps, 2);
         assert.deepEqual(history.steps[1].ops, ["style.patch", "style.patch", "style.patch"]);

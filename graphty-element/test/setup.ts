@@ -4,6 +4,11 @@ import { afterEach, beforeAll, expect, vi } from "vitest";
 import type { Graph } from "../src/Graph";
 import { MockDeviceInputSystem } from "../src/input/mock-device-input-system";
 
+// Strict state: every session created in these tests checks that project state changes only
+// through the dispatcher (src/session/project/strict.ts, design/undo/undo-design.md section 12.1).
+// A plain global rather than an import, so this file reaches nothing under src/ at setup time.
+(globalThis as { __GRAPHTY_STRICT_STATE__?: boolean }).__GRAPHTY_STRICT_STATE__ = true;
+
 // Mock CreateScreenshotAsync to return a valid 1x1 PNG data URL
 // This allows testing screenshot logic without requiring actual WebGL rendering
 vi.mock("@babylonjs/core", async () => {

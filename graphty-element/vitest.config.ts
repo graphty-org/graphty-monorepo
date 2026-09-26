@@ -560,6 +560,7 @@ export default defineConfig({
             {
                 test: {
                     name: "llm-regression",
+                    setupFiles: ["./test/ai/llm-regression/setup.ts"],
                     include: ["test/ai/llm-regression/**/*.test.ts"],
                     exclude: [
                         // Exclude experimental/temporary folders ending with ~

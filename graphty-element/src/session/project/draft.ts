@@ -21,12 +21,13 @@ import type { RunId, ScopeId } from "../../catalog/types";
 import type { SavedScope } from "../scope/ScopeApi";
 import type { CompiledLayer } from "../styles/Layer";
 import type { LayoutChoice, ProjectState, RunEntry, VisibilityState } from "./state";
+import { strictStateEnabled, strictViolation } from "./strict";
 
 /** Stands for "the key had no value": a map key that was not there. */
 export const ABSENT: unique symbol = Symbol("absent");
 
 /** The slices a draft writes by value. */
-type ValueSlice = "config" | "layout" | "runs" | "styles" | "visibility" | "scopes" | "views";
+export type ValueSlice = "config" | "layout" | "runs" | "styles" | "visibility" | "scopes" | "views";
 
 /** One key a patch wrote: what it held before, and what the patch left in it. */
 interface PatchEntry {
@@ -38,7 +39,7 @@ interface PatchEntry {
 }
 
 /** What a sealed draft recorded. Frozen. */
-interface Patch {
+export interface Patch {
     readonly entries: readonly PatchEntry[];
 }
 
@@ -49,7 +50,7 @@ interface KeyedWriter<K extends string, V> {
 }
 
 /** An open draft: typed writers per value slice, and nothing else. */
-interface Draft {
+export interface Draft {
     styles: readonly CompiledLayer[];
     layout: LayoutChoice | null;
     readonly config: KeyedWriter<string, unknown>;
@@ -61,12 +62,21 @@ interface Draft {
     };
     /** Close the draft and hand back what it recorded. */
     seal(): Patch;
-    /** Close the draft and put back every key it still holds. */
-    rollback(): void;
+    /**
+     * Close the draft and put back every key it still holds, through `applyBackward`.
+     * @returns What was reverted; no entries when nothing live changed.
+     */
+    rollback(): Patch;
+    /**
+     * Remember what the draft holds now.
+     * @returns A function that puts back every key written since, releases the keys first written
+     * since, and returns the slices it changed. Keys handed to another draft since are theirs.
+     */
+    checkpoint(): () => readonly ValueSlice[];
 }
 
 /** Project state plus the drafts that write it. */
-interface ProjectStore {
+export interface ProjectStore {
     readonly state: ProjectState;
     open(): Draft;
     /** Redo: write every key's `next`. */
@@ -106,6 +116,8 @@ export function createProjectStore(initial: ProjectState): ProjectStore {
     };
     /** Which open draft holds each key, by `slice/key`. */
     const owners = new Map<string, OpenDraft>();
+    const openDrafts = new Set<OpenDraft>();
+    const strict = strictStateEnabled();
 
     const read = (slice: ValueSlice, key: string): unknown => {
         switch (slice) {
@@ -161,6 +173,12 @@ export function createProjectStore(initial: ProjectState): ProjectStore {
             entry = { slice, key, prior, next: value };
             draft.entries.set(id, entry);
             owners.set(id, draft);
+            if (strict) {
+                const holders = [...openDrafts].filter((open) => open.entries.has(id)).length;
+                if (holders !== 1) {
+                    throw strictViolation(`after a hand-over, ${id} is in ${holders} open patches, not one`);
+                }
+            }
         }
 
         entry.next = value;
@@ -173,6 +191,7 @@ export function createProjectStore(initial: ProjectState): ProjectStore {
         }
 
         draft.closed = true;
+        openDrafts.delete(draft);
         for (const id of draft.entries.keys()) {
             owners.delete(id);
         }
@@ -187,10 +206,18 @@ export function createProjectStore(initial: ProjectState): ProjectStore {
         },
     });
 
-    return {
+    const store: ProjectStore = {
         state,
         open(): Draft {
             const draft: OpenDraft = { entries: new Map(), closed: false };
+            openDrafts.add(draft);
+            const seal = (): Patch => {
+                close(draft);
+
+                return Object.freeze({
+                    entries: Object.freeze([...draft.entries.values()].map((entry) => Object.freeze({ ...entry }))),
+                });
+            };
 
             return {
                 get styles() {
@@ -214,18 +241,32 @@ export function createProjectStore(initial: ProjectState): ProjectStore {
                         write(draft, "visibility", key, value);
                     },
                 },
-                seal() {
-                    close(draft);
-
-                    return Object.freeze({
-                        entries: Object.freeze([...draft.entries.values()].map((entry) => Object.freeze({ ...entry }))),
-                    });
-                },
+                seal,
                 rollback() {
-                    close(draft);
-                    for (const entry of draft.entries.values()) {
-                        put(entry.slice, entry.key, entry.prior);
-                    }
+                    const patch = seal();
+                    store.applyBackward(patch);
+                    return patch;
+                },
+                checkpoint() {
+                    const saved = new Map([...draft.entries].map(([id, entry]) => [id, entry.next]));
+
+                    return () => {
+                        const changed = new Set<ValueSlice>();
+                        for (const [id, entry] of draft.entries) {
+                            if (!saved.has(id)) {
+                                put(entry.slice, entry.key, entry.prior);
+                                draft.entries.delete(id);
+                                owners.delete(id);
+                                changed.add(entry.slice);
+                            } else if (saved.get(id) !== entry.next) {
+                                entry.next = saved.get(id);
+                                put(entry.slice, entry.key, entry.next);
+                                changed.add(entry.slice);
+                            }
+                        }
+
+                        return [...changed];
+                    };
                 },
             };
         },
@@ -241,6 +282,30 @@ export function createProjectStore(initial: ProjectState): ProjectStore {
             }
         },
     };
+
+    return store;
+}
+
+/**
+ * One patch doing what `older` and then `newer` did: each key keeps its first prior and takes
+ * its last written value. How a coalesced step absorbs the next edit.
+ * @param older - The patch recorded first.
+ * @param newer - The patch recorded after it.
+ * @returns The merged patch, frozen.
+ */
+export function mergePatches(older: Patch, newer: Patch): Patch {
+    const merged = new Map<string, PatchEntry>();
+    for (const entry of older.entries) {
+        merged.set(`${entry.slice}/${entry.key}`, entry);
+    }
+
+    for (const entry of newer.entries) {
+        const id = `${entry.slice}/${entry.key}`;
+        const first = merged.get(id);
+        merged.set(id, first === undefined ? entry : Object.freeze({ ...entry, prior: first.prior }));
+    }
+
+    return Object.freeze({ entries: Object.freeze([...merged.values()]) });
 }
 
 /**

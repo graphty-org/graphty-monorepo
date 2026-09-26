@@ -1,4 +1,4 @@
-import { copyFileSync } from "node:fs";
+import { copyFileSync, mkdirSync } from "node:fs";
 
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
@@ -7,6 +7,15 @@ import dts from "vite-plugin-dts";
 export default defineConfig({
     plugins: [
         react(),
+        // The bundled Inter face is inlined into the JS as a data URL (library mode inlines every
+        // asset); its SIL OFL license has to travel with it.
+        {
+            name: "copy-font-license",
+            closeBundle: () => {
+                mkdirSync("dist/fonts", { recursive: true });
+                copyFileSync("src/fonts/LICENSE-Inter.txt", "dist/fonts/LICENSE-Inter.txt");
+            },
+        },
         dts({
             insertTypesEntry: true,
             rollupTypes: true,

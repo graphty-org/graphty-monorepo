@@ -1,49 +1,57 @@
 import { Anchor, Burger, NavLink, Pagination, Stepper, Tabs } from "@mantine/core";
 
+import { activateTabOnMouseDown, forgetActivation, swallowActivatedClick } from "../../components/selection/pointer-down";
+import { renderTabRoot } from "../../components/selection/tab-root";
 import {
-    compactAnchorStyles,
+    ANCHOR_CLASSES,
+    BURGER_CLASSES,
     compactBurgerScale,
-    compactNavLinkStyles,
     compactPaginationScale,
     compactStepperScale,
-    compactTabsStyles,
+    NAVLINK_CLASSES,
+    PAGINATION_CLASSES,
+    STEPPER_CLASSES,
+    TABS_CLASSES,
 } from "../styles/navigation";
 import { compactVarsForSize } from "../styles/size-scale";
 
 /**
- * Theme extensions for navigation components with compact sizing by default.
+ * Tabs.Tab's default props: mouse-down activation (../../components/selection/pointer-down.ts)
+ * and the bold-width label reserve (../../components/selection/tab-root.tsx). Tabs.Tab hands
+ * unknown props to its button's Box, which renders through `renderRoot`; Mantine types
+ * `renderRoot` on polymorphic components only, so this object is declared apart from the
+ * extension instead of being cast.
+ */
+const TAB_DEFAULT_PROPS = {
+    onMouseDown: activateTabOnMouseDown,
+    onClickCapture: swallowActivatedClick,
+    onMouseLeave: forgetActivation,
+    onKeyDown: forgetActivation,
+    renderRoot: renderTabRoot,
+};
+
+/**
+ * Theme extensions for the navigation components (design/figma-spec.md 4.2, 5.1, 5.9).
  *
- * Components with size prop default to size="sm":
- * - Anchor, Burger, Pagination, Stepper
+ * - Anchor: Figma's link, 11/16 brand text with no underline; `variant="secondary"` is the gray
+ *   "Drafts" link. The pressed pill and the focus ring are the stylesheet's.
+ * - Tabs: Figma's pill tabs are the DEFAULT (`variant="pills"`); `variant="default"` still draws
+ *   Mantine's underline tabs. A tab activates on mouse-down as well as on click and on the arrow
+ *   keys (Mantine's automatic activation, which the theme keeps on), and its label reserves the
+ *   width of its bold form so selecting never shifts the row. Those two live on `TabsTab`, the
+ *   theme name Mantine reads `Tabs.Tab`'s default props from.
+ * - NavLink, Pagination, Stepper, Burger: re-skinned on the tokens at their existing sizes.
  *
- * CSS variables are applied via `vars` functions to override Mantine's defaults.
- * At the sm default:
- * - Pagination: --pagination-control-size: 24px, --pagination-control-fz: 11px
- * - Stepper: --stepper-icon-size: 24px, --stepper-fz: 11px
- * - Burger: --burger-size: 18px
- *
- * Each resolver reads `props.size` and looks that size up in the component's
- * scale in ../styles/navigation.ts, so an explicitly sized control differs from
- * its neighbours instead of collapsing onto the compact value. Before
- * 2026-09-13 these resolvers took no arguments and returned one frozen object,
- * so xs through xl all rendered identically -- see ../styles/size-scale.ts for
- * the mechanism and the product owner's report.
- *
- * `props?.size` is read with optional chaining on purpose: the theme regression
- * suites invoke `extension.vars!()` with no arguments at all, and
- * compactVarsForSize maps an absent size onto the compact entry.
- *
- * Static styles are applied for components that don't have a size prop:
- * - Tabs: tab fontSize 11px, padding "6px 10px"
- * - NavLink: label fontSize 11px, minHeight 28px
- * - Anchor: fontSize 11px (in addition to size="sm")
+ * Sizes travel through `vars` resolvers that read `props.size` (see ../styles/size-scale.ts);
+ * colors, states and focus rings through the `cm-*` classNames and ../css/selection.css.ts.
  */
 export const navigationComponentExtensions = {
     Anchor: Anchor.extend({
         defaultProps: {
             size: "sm",
+            underline: "never",
         },
-        styles: compactAnchorStyles,
+        classNames: ANCHOR_CLASSES,
     }),
 
     Burger: Burger.extend({
@@ -53,11 +61,11 @@ export const navigationComponentExtensions = {
         vars: (_theme, props) => ({
             root: compactVarsForSize(compactBurgerScale, props?.size),
         }),
+        classNames: BURGER_CLASSES,
     }),
 
     NavLink: NavLink.extend({
-        // NavLink does not have a size prop, only styles for compact appearance
-        styles: compactNavLinkStyles,
+        classNames: NAVLINK_CLASSES,
     }),
 
     Pagination: Pagination.extend({
@@ -67,6 +75,7 @@ export const navigationComponentExtensions = {
         vars: (_theme, props) => ({
             root: compactVarsForSize(compactPaginationScale, props?.size),
         }),
+        classNames: PAGINATION_CLASSES,
     }),
 
     Stepper: Stepper.extend({
@@ -76,10 +85,20 @@ export const navigationComponentExtensions = {
         vars: (_theme, props) => ({
             root: compactVarsForSize(compactStepperScale, props?.size),
         }),
+        classNames: STEPPER_CLASSES,
     }),
 
     Tabs: Tabs.extend({
-        // Tabs does not have a size prop, only styles for compact appearance
-        styles: compactTabsStyles,
+        defaultProps: {
+            variant: "pills",
+            // Figma's model: one Tab stop, the arrows move focus AND select, and wrap.
+            activateTabWithKeyboard: true,
+            loop: true,
+        },
+        classNames: TABS_CLASSES,
+    }),
+
+    TabsTab: Tabs.Tab.extend({
+        defaultProps: TAB_DEFAULT_PROPS,
     }),
 };

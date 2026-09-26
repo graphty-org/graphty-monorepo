@@ -176,7 +176,7 @@ describe("Control Components Integration", () => {
                 ".mantine-Slider-root",
                 "--slider-size",
             );
-            expect(values).toEqual(["2px", "4px", "6px", "8px", "10px"]);
+            expect(values).toEqual(["6px", "8px", "10px", "12px", "16px"]);
         });
 
         it("gives Slider a different thumb size at every size token", () => {
@@ -185,7 +185,7 @@ describe("Control Components Integration", () => {
                 ".mantine-Slider-root",
                 "--slider-thumb-size",
             );
-            expect(values).toEqual(["8px", "12px", "16px", "20px", "24px"]);
+            expect(values).toEqual(["10px", "12px", "16px", "20px", "24px"]);
         });
 
         it("gives RangeSlider the same scale as Slider", () => {
@@ -195,7 +195,7 @@ describe("Control Components Integration", () => {
                 ".mantine-Slider-root",
                 "--slider-size",
             );
-            expect(values).toEqual(["2px", "4px", "6px", "8px", "10px"]);
+            expect(values).toEqual(["6px", "8px", "10px", "12px", "16px"]);
         });
 
         it("gives Checkbox, Radio and Switch a different size at every size token", () => {
@@ -216,7 +216,7 @@ describe("Control Components Integration", () => {
                 ".mantine-SegmentedControl-root",
                 "--sc-font-size",
             );
-            expect(values).toEqual(["9px", "10px", "12px", "14px", "16px"]);
+            expect(values).toEqual(["9px", "11px", "13px", "15px", "17px"]);
         });
 
         it("renders the legacy size name 'compact' exactly like the sm default", () => {
@@ -233,7 +233,7 @@ describe("Control Components Integration", () => {
             );
             const legacyRoot = legacy.querySelector(".mantine-Slider-root");
             const currentRoot = current.querySelector(".mantine-Slider-root");
-            expect(cssVar(legacyRoot, "--slider-size")).toBe("4px");
+            expect(cssVar(legacyRoot, "--slider-size")).toBe("8px");
             expect(cssVar(legacyRoot, "--slider-size")).toBe(cssVar(currentRoot, "--slider-size"));
             expect(cssVar(legacyRoot, "--slider-thumb-size")).toBe(cssVar(currentRoot, "--slider-thumb-size"));
         });

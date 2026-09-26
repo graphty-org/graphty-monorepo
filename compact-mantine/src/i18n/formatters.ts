@@ -6,7 +6,7 @@ import { useLabels, useLocale } from "./LabelsProvider";
 // ordinals through Intl.PluralRules with ordinal type, sorting through
 // Intl.Collator, and never parseFloat on what a person typed.
 //
-// Every hook here memoises its Intl object. Constructing one is expensive
+// Every hook here memoizes its Intl object. Constructing one is expensive
 // enough that doing it per render of a dense panel is measurable, and the
 // objects are immutable, so caching them is free of risk.
 
@@ -30,9 +30,9 @@ const GROUP_SEPARATORS = new Set([" ", "\u00a0", "\u202f", "\u2009", "'", "\u201
 // the ASCII character Number() understands.
 const UNICODE_MINUS = "\u2212";
 
-// The leading run of a normalised string that is actually a number. Anything
+// The leading run of a normalized string that is actually a number. Anything
 // after it -- a stray exponent marker, a unit a person typed -- is discarded,
-// which is the one behaviour of parseFloat worth keeping.
+// which is the one behavior of parseFloat worth keeping.
 const LEADING_NUMBER = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?/iu;
 
 /**
@@ -149,7 +149,7 @@ export function parseLocaleNumber(text: string, locale: string): number {
  * there is none. The formatter is rebuilt only when the locale or the options
  * change, so it is safe to call on every row of a long list.
  * @param options - Formatting options, passed straight to `Intl.NumberFormat`
- * @returns A memoised `Intl.NumberFormat` for the active locale
+ * @returns A memoized `Intl.NumberFormat` for the active locale
  * @example
  * ```tsx
  * const formatter = useNumberFormatter({maximumFractionDigits: 2});
@@ -199,7 +199,7 @@ export function useOrdinalFormatter(): (value: number) => string {
  * after every unaccented one and sorts "item 10" before "item 9". A collator
  * sorts the way a reader of that language expects.
  * @param options - Collation options, passed straight to `Intl.Collator`; `{numeric: true}` is usually what a column of values wants
- * @returns A memoised `Intl.Collator` for the active locale
+ * @returns A memoized `Intl.Collator` for the active locale
  * @example
  * ```tsx
  * const collator = useCollator({numeric: true});

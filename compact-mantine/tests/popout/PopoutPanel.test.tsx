@@ -491,7 +491,7 @@ describe("Popout controlled mode", () => {
         });
         // Read the recorded arguments rather than matching on them: the second
         // one is a React event, and a failed deep match on it would try to
-        // serialise half the DOM.
+        // serialize half the DOM.
         expect(onOpenChange.mock.calls.at(-1)?.[0]).toBe(true);
         expect(onOpenChange.mock.calls.at(-1)?.[1]).toBeDefined();
 

@@ -54,9 +54,9 @@ import {
     EDGE_GROUPS,
     NODE_GROUPS,
 } from "../../../utils/channelControls";
-import type { LayerItem } from "../../layout/LeftSidebar";
 import { INSPECTOR_SECTION_IDS } from "../../shell/inspector/inspectorConstants";
 import { useInspectorSection } from "../../shell/inspector/sections";
+import type { LayerItem } from "../../shell/panel/StyleLayerList";
 
 /** What the panel needs of its caller. */
 interface StyleLayerPropertiesPanelProps {

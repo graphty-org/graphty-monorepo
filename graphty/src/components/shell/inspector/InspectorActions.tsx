@@ -19,7 +19,6 @@ import { Box, Menu, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React from "react";
 import { createPortal } from "react-dom";
 
-import { TOOLTIP_DELAY_MS } from "../constants";
 import { ComingTag, UnshippedGroupMark } from "./ComingTag";
 import {
     INSPECTOR_ACTION_ROW_CAP,
@@ -162,7 +161,7 @@ function ActionButton(props: ActionButtonProps): React.JSX.Element {
             {reason === undefined ? (
                 button
             ) : (
-                <Tooltip label={`${action.label}. ${reason}`} openDelay={TOOLTIP_DELAY_MS} position="top" withinPortal>
+                <Tooltip label={`${action.label}. ${reason}`} position="top" withinPortal>
                     <Box>{button}</Box>
                 </Tooltip>
             )}

@@ -1,0 +1,45 @@
+import { Meta } from "@storybook/blocks";
+
+<Meta title="Components/Lists and trees/Overview" />
+
+# Lists and trees
+
+These are lists of the reader's own objects: things they select, open, rename, move and
+search for. Each one keeps Figma's look (32px rows, a 24px pill for hover and selection) and
+adds the keyboard model Figma lacks, with one Tab stop and the arrow keys inside.
+
+The components render; your code owns the data. Selection and the current item can be
+controlled or left to the component, but renaming and moving are only ever reported
+(`onRename`, `onMove`), so your state stays the one source of truth.
+
+## Reach for
+
+- **`Tree`** when the rows are objects the reader selects, renames or reorders, nested or not:
+  layers, style layers, a scene graph. A flat list that can be reordered is a Tree whose items
+  have no `children` (see the `FlatReorderableList` story on the Tree page).
+- **`PageList`** when the reader switches between a handful of flat places (pages,
+  collections, saved views) and exactly one is current.
+- **`ResultRow`** for search results driven from a `SearchInput`, with focus staying in the
+  field.
+- **`InlineRename`** when a row of your own needs Tree's and PageList's rename-in-place field.
+  Tree and PageList open it for you on F2 or a double-click.
+- **`DataRow`** (Data display) when a row is a reading: a name and a number, a statistic or a
+  ranking, not an object the reader renames or moves.
+- **`DataTable`** (Data display) when there are columns, or thousands of rows.
+
+## Keyboard
+
+Both lists have one Tab stop; the arrow keys work inside.
+
+- **ArrowUp / ArrowDown, Home / End** move focus in both. PageList skips dividers.
+- **ArrowRight / ArrowLeft** (Tree) open or close a parent, or step into and out of it.
+- **Enter / Space** select in a Tree (Shift extends, Control / Command toggles) and switch to
+  the page in a PageList.
+- **F2 or a double-click** renames in both, while `onRename` is given.
+- **Alt+ArrowUp / Alt+ArrowDown** (Tree) move the focused item one place among its siblings,
+  while `onMove` is given.
+- **`*` / Alt+L** (Tree) open every sibling / close everything.
+
+Alt+ArrowUp and Alt+ArrowDown are the keyboard twin of dragging a row: the move is reported
+through `onMove({ id, parentId, index })` exactly like a drop, an item never leaves its parent,
+and focus stays on the item after your code has moved it.

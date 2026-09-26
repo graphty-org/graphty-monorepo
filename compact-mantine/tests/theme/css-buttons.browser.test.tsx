@@ -11,7 +11,7 @@ import { describe, expect, it } from "vitest";
 import { compactTheme } from "../../src";
 
 // Simple icon placeholder for tests
-const IconPlaceholder = () => <span style={{ width: 14, height: 14 }}>★</span>;
+const IconPlaceholder = () => <span style={{ width: 14, height: 14 }}>*</span>;
 
 /**
  * Helper to render a component with the compact theme.
@@ -70,25 +70,32 @@ describe("Button - All CSS Values (Browser)", () => {
                 expect(style?.fontSize).toBe("11px");
             });
 
-            it("paddingLeft is 8px", () => {
+            it("the button has no padding: the label carries Figma's 0 8px inset (C7)", () => {
                 const { container } = renderWithTheme(<Button>Click</Button>);
                 const root = container.querySelector(".mantine-Button-root");
                 const style = root ? getComputedStyle(root) : null;
-                expect(style?.paddingLeft).toBe("8px");
+                expect(style?.paddingLeft).toBe("0px");
+                expect(style?.paddingRight).toBe("0px");
+                const label = container.querySelector(".mantine-Button-label");
+                const labelStyle = label ? getComputedStyle(label) : null;
+                expect(labelStyle?.marginLeft).toBe("8px");
+                expect(labelStyle?.marginRight).toBe("8px");
             });
 
-            it("paddingRight is 8px", () => {
+            it("type is 11/16, weight 450, letter-spacing 0.055px", () => {
                 const { container } = renderWithTheme(<Button>Click</Button>);
                 const root = container.querySelector(".mantine-Button-root");
                 const style = root ? getComputedStyle(root) : null;
-                expect(style?.paddingRight).toBe("8px");
+                expect(style?.lineHeight).toBe("16px");
+                expect(style?.fontWeight).toBe("450");
+                expect(style?.letterSpacing).toBe("0.055px");
             });
 
-            it("borderRadius is 4px (from theme radius.sm)", () => {
+            it("borderRadius is 5px (from theme radius.sm)", () => {
                 const { container } = renderWithTheme(<Button>Click</Button>);
                 const root = container.querySelector(".mantine-Button-root");
                 const style = root ? getComputedStyle(root) : null;
-                expect(style?.borderRadius).toBe("4px");
+                expect(style?.borderRadius).toBe("5px");
             });
         });
 
@@ -161,7 +168,7 @@ describe("ActionIcon - All CSS Values (Browser)", () => {
                 expect(style?.minHeight).toBe("24px");
             });
 
-            it("borderRadius is 4px", () => {
+            it("borderRadius is 5px", () => {
                 const { container } = renderWithTheme(
                     <ActionIcon aria-label="Action">
                         <IconPlaceholder />
@@ -169,7 +176,7 @@ describe("ActionIcon - All CSS Values (Browser)", () => {
                 );
                 const root = container.querySelector(".mantine-ActionIcon-root");
                 const style = root ? getComputedStyle(root) : null;
-                expect(style?.borderRadius).toBe("4px");
+                expect(style?.borderRadius).toBe("5px");
             });
         });
 
@@ -197,71 +204,71 @@ describe("ActionIcon - All CSS Values (Browser)", () => {
 // CloseButton - Comprehensive Tests
 // ============================================================================
 describe("CloseButton - All CSS Values (Browser)", () => {
-    describe("default (size='xs' via defaultProps)", () => {
+    describe("default (size='sm' via defaultProps): Figma's 24 close with a 10 X", () => {
         describe("root CSS variables", () => {
-            it("--cb-size is 16px", () => {
+            it("--cb-size is 24px", () => {
                 const { container } = renderWithTheme(<CloseButton aria-label="Close" />);
                 const root = container.querySelector(".mantine-CloseButton-root");
-                expect(getCssVar(root, "--cb-size")).toBe("16px");
+                expect(getCssVar(root, "--cb-size")).toBe("24px");
             });
 
-            it("--cb-icon-size is 12px", () => {
+            it("--cb-icon-size is 10px", () => {
                 const { container } = renderWithTheme(<CloseButton aria-label="Close" />);
                 const root = container.querySelector(".mantine-CloseButton-root");
-                expect(getCssVar(root, "--cb-icon-size")).toBe("12px");
+                expect(getCssVar(root, "--cb-icon-size")).toBe("10px");
             });
         });
 
         describe("computed styles", () => {
-            it("width is 16px", () => {
+            it("width is 24px", () => {
                 const { container } = renderWithTheme(<CloseButton aria-label="Close" />);
                 const root = container.querySelector(".mantine-CloseButton-root");
                 const style = root ? getComputedStyle(root) : null;
-                expect(style?.width).toBe("16px");
+                expect(style?.width).toBe("24px");
             });
 
-            it("height is 16px", () => {
+            it("height is 24px", () => {
                 const { container } = renderWithTheme(<CloseButton aria-label="Close" />);
                 const root = container.querySelector(".mantine-CloseButton-root");
                 const style = root ? getComputedStyle(root) : null;
-                expect(style?.height).toBe("16px");
+                expect(style?.height).toBe("24px");
             });
 
-            it("minWidth is 16px", () => {
+            it("minWidth is 24px", () => {
                 const { container } = renderWithTheme(<CloseButton aria-label="Close" />);
                 const root = container.querySelector(".mantine-CloseButton-root");
                 const style = root ? getComputedStyle(root) : null;
-                expect(style?.minWidth).toBe("16px");
+                expect(style?.minWidth).toBe("24px");
             });
 
-            it("minHeight is 16px", () => {
+            it("minHeight is 24px", () => {
                 const { container } = renderWithTheme(<CloseButton aria-label="Close" />);
                 const root = container.querySelector(".mantine-CloseButton-root");
                 const style = root ? getComputedStyle(root) : null;
-                expect(style?.minHeight).toBe("16px");
+                expect(style?.minHeight).toBe("24px");
             });
 
-            it("borderRadius is 4px", () => {
+            it("borderRadius is 5px", () => {
                 const { container } = renderWithTheme(<CloseButton aria-label="Close" />);
                 const root = container.querySelector(".mantine-CloseButton-root");
                 const style = root ? getComputedStyle(root) : null;
-                expect(style?.borderRadius).toBe("4px");
+                expect(style?.borderRadius).toBe("5px");
             });
         });
 
         describe("icon computed styles", () => {
-            it("icon width is 12px", () => {
+            it("icon width is 10px", () => {
                 const { container } = renderWithTheme(<CloseButton aria-label="Close" />);
                 const icon = container.querySelector(".mantine-CloseButton-root svg");
                 const style = icon ? getComputedStyle(icon) : null;
-                expect(style?.width).toBe("12px");
+                expect(style?.width).toBe("10px");
             });
 
-            it("icon height is 12px", () => {
+            it("icon height is 10px", () => {
                 const { container } = renderWithTheme(<CloseButton aria-label="Close" />);
                 const icon = container.querySelector(".mantine-CloseButton-root svg");
                 const style = icon ? getComputedStyle(icon) : null;
-                expect(style?.height).toBe("12px");
+                expect(style?.height).toBe("10px");
             });
         });
     });

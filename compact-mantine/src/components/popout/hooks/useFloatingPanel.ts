@@ -29,7 +29,7 @@ interface UseFloatingPanelOptions {
     onDragStart?: GestureStartHandler;
     /** Called on every movement of a drag, with the offset from where the panel opened. */
     onDrag?: GestureChangeHandler<PopoutPosition>;
-    /** Called when a drag finishes or is cancelled. */
+    /** Called when a drag finishes or is canceled. */
     onDragEnd?: GestureEndHandler;
 }
 

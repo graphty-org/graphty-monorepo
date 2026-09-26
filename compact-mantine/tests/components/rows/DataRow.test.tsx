@@ -1,5 +1,5 @@
 import { MantineProvider } from "@mantine/core";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -7,9 +7,10 @@ import { describe, expect, it, vi } from "vitest";
 import { compactTheme } from "../../../src";
 import { DataRow, DataRowHeader, RankChip } from "../../../src/components/rows/DataRow";
 import { AdvancedButton } from "../../../src/components/rows/TrailingSlot";
-import { PANEL_INK } from "../../../src/constants/panel";
+import { PANEL_GRID } from "../../../src/constants/panel";
 import { LabelsProvider } from "../../../src/i18n";
 import { FieldGlyph } from "../../../src/icons";
+import treeCss from "../../../src/theme/css/tree.css";
 
 /**
  * Render inside the compact theme, the way the package is consumed.
@@ -42,7 +43,7 @@ describe("DataRow", () => {
         expect(screen.getByText("Mr_Whiskers")).toBeInTheDocument();
     });
 
-    it("carries the whole string as a title, because the name ellipsises", () => {
+    it("carries the whole string as a title, because the name ellipsizes", () => {
         renderRow(<DataRow name="Mrs_Henderson_from_the_house_on_the_corner" />);
 
         const label = screen.getByTestId("data-row-name");
@@ -61,35 +62,34 @@ describe("DataRow", () => {
         ).toBeInTheDocument();
     });
 
-    it("keeps the 28px data pitch and the 4px radius", () => {
+    it("is drawn by the shared list-row class: a 32px row with a 24px pill (measured in tests/figma/tree.browser.test.tsx)", () => {
         renderRow(<DataRow name="Chonky_Boy" value="3" />);
 
         const row = screen.getByTestId("data-row");
-        expect(row).toHaveStyle({ height: "28px", paddingInline: "8px" });
-        expect(row.style.borderRadius).toContain("radius-sm");
+        expect(row).toHaveClass("cm-data-row");
+        expect(PANEL_GRID.DATA_PITCH).toBe(32);
     });
 
     it("spends its padding on the inline axis, so a right-to-left panel insets the same edges", () => {
         renderRow(<DataRow name="Chonky_Boy" value="3" onClick={vi.fn()} />);
 
-        // The row is laid out in logical properties throughout: nothing here
-        // names a left or a right, so the whole row mirrors with the text
-        // rather than being pinned to one edge of the screen.
-        const style = screen.getByTestId("data-row").getAttribute("style") ?? "";
-        expect(style).toContain("padding-inline");
-        expect(style).not.toContain("padding-left");
-        expect(style).not.toContain("padding-right");
-        expect(screen.getByRole("button")).toHaveStyle({ textAlign: "start" });
+        // The row is laid out in logical properties throughout (tree.css.ts):
+        // nothing inline names a left or a right, so the whole row mirrors
+        // with the text rather than being pinned to one edge of the screen.
+        expect(screen.getByTestId("data-row")).not.toHaveAttribute("style");
+        expect(screen.getByRole("button")).toHaveClass("cm-data-row-body");
+        expect(treeCss).toContain("padding-inline: 16px 8px");
+        expect(treeCss).not.toMatch(/\.cm-data-row[^{]*\{[^}]*padding-(left|right)/);
     });
 
     describe("the value", () => {
-        it("draws bare, at the secondary text colour", () => {
+        it("draws bare, at the secondary text color", () => {
             renderRow(<DataRow name="Mr_Whiskers" value="4" />);
 
             const value = screen.getByTestId("data-row-value");
             expect(value).toHaveTextContent("4");
-            expect(value.style.color).toBe(PANEL_INK.CHROME);
-            expect(value.style.fontSize).toContain("font-size-sm");
+            expect(value).toHaveClass("cm-data-row-value");
+            expect(treeCss).toMatch(/\.cm-data-row-value \{[^}]*color: var\(--cm-text-secondary\)/);
         });
 
         it("is omitted when there is none", () => {
@@ -112,12 +112,12 @@ describe("DataRow", () => {
     });
 
     describe("the leading icon", () => {
-        it("draws in a 16px slot at the secondary colour when the row has a type", () => {
+        it("draws in a 16px slot at the secondary color when the row has a type", () => {
             renderRow(<DataRow name="Betweenness" icon={<FieldGlyph name="attribute" />} value="Number" />);
 
             const slot = screen.getByTestId("data-row-icon");
-            expect(slot).toHaveStyle({ width: "16px", height: "16px" });
-            expect(slot.style.color).toBe(PANEL_INK.CHROME);
+            expect(slot).toHaveClass("cm-data-row-icon");
+            expect(treeCss).toMatch(/\.cm-data-row-icon \{[^}]*width: 16px;[^}]*height: 16px;[^}]*color: var\(--cm-icon-secondary\)/);
         });
 
         it("is decorative, so it never joins the row's accessible name", () => {
@@ -146,7 +146,7 @@ describe("DataRow", () => {
 
             const row = screen.getByTestId("data-row");
             expect(row).not.toHaveAttribute("data-selected");
-            expect(row).toHaveStyle({ background: "transparent" });
+            expect(row).not.toHaveAttribute("data-interactive");
         });
 
         it("draws the selected row on the accent tint", () => {
@@ -154,7 +154,7 @@ describe("DataRow", () => {
 
             const row = screen.getByTestId("data-row");
             expect(row).toHaveAttribute("data-selected", "true");
-            expect(row.style.background).toContain("primary-color-light");
+            expect(treeCss).toContain(".cm-data-row[data-selected]:hover::after { background: var(--cm-bg-selected); }");
         });
 
         it("marks exactly one row of a run as the current one", () => {
@@ -181,46 +181,10 @@ describe("DataRow", () => {
             expect(screen.getByTestId("data-row-body")).toHaveAttribute("aria-current", "true");
         });
 
-        it("does not write aria-selected outside a listbox, where it means nothing", () => {
+        it("does not write aria-selected, which only a listbox option carries", () => {
             renderRow(<DataRow name="Mrs_Henderson" value="4" selected onClick={vi.fn()} />);
 
             expect(screen.getByRole("button")).not.toHaveAttribute("aria-selected");
-        });
-
-        describe("inside a listbox", () => {
-            it("becomes an option that reports itself as selected", () => {
-                renderRow(
-                    <div role="listbox" aria-label="Cats" aria-multiselectable>
-                        <DataRow name="Mr_Whiskers" value="4" role="option" onClick={vi.fn()} />
-                        <DataRow name="Mrs_Henderson" value="4" role="option" selected onClick={vi.fn()} />
-                    </div>,
-                );
-
-                const options = screen.getAllByRole("option");
-                expect(options).toHaveLength(2);
-                expect(options[0]).toHaveAttribute("aria-selected", "false");
-                expect(options[1]).toHaveAttribute("aria-selected", "true");
-            });
-
-            it("drops aria-current, which says something different", () => {
-                renderRow(
-                    <div role="listbox" aria-label="Cats">
-                        <DataRow name="Mrs_Henderson" value="4" role="option" selected onClick={vi.fn()} />
-                    </div>,
-                );
-
-                expect(screen.getByRole("option")).not.toHaveAttribute("aria-current");
-            });
-
-            it("is an option even when the row itself is not clickable", () => {
-                renderRow(
-                    <div role="listbox" aria-label="Cats">
-                        <DataRow name="Mr_Whiskers" value="4" role="option" selected />
-                    </div>,
-                );
-
-                expect(screen.getByRole("option")).toHaveAttribute("aria-selected", "true");
-            });
         });
     });
 
@@ -283,14 +247,12 @@ describe("DataRow", () => {
             const user = userEvent.setup();
             renderRow(<DataRow name="Mr_Whiskers" value="4" onClick={vi.fn()} />);
 
+            // The hover fill is a :hover rule on interactive rows only; the
+            // browser test drives a real pointer over it.
             const row = screen.getByTestId("data-row");
-            expect(row).toHaveStyle({ background: "transparent" });
-
+            expect(row).toHaveAttribute("data-interactive");
             await user.hover(row);
-            expect(row.style.background).toBe(PANEL_INK.SURFACE);
-
-            await user.unhover(row);
-            expect(row).toHaveStyle({ background: "transparent" });
+            expect(treeCss).toContain(".cm-data-row[data-interactive]:hover::after");
         });
 
         it("keeps the selected ground while hovered, because selection outranks hover", async () => {
@@ -300,7 +262,11 @@ describe("DataRow", () => {
             const row = screen.getByTestId("data-row");
             await user.hover(row);
 
-            expect(row.style.background).toContain("primary-color-light");
+            // The selected rule comes after the hover rule at the same specificity.
+            expect(row).toHaveAttribute("data-selected", "true");
+            expect(treeCss.indexOf(".cm-data-row[data-selected]::after")).toBeGreaterThan(
+                treeCss.indexOf(".cm-data-row[data-interactive]:hover::after"),
+            );
         });
     });
 
@@ -392,58 +358,6 @@ describe("DataRow", () => {
             expect(onClick.mock.calls[0][1]).toEqual({ source: "keyboard" });
         });
 
-        it("reports a double click, with the clicks that made it", async () => {
-            const onClick = vi.fn();
-            const onDoubleClick = vi.fn();
-            const user = userEvent.setup();
-            renderRow(<DataRow name="Force directed" onClick={onClick} onDoubleClick={onDoubleClick} />);
-
-            await user.dblClick(screen.getByRole("button"));
-
-            expect(onDoubleClick).toHaveBeenCalledTimes(1);
-            expect(onClick).toHaveBeenCalledTimes(2);
-        });
-
-        it("reports a double click on an inert row as well", async () => {
-            const onDoubleClick = vi.fn();
-            const user = userEvent.setup();
-            renderRow(<DataRow name="Force directed" onDoubleClick={onDoubleClick} />);
-
-            await user.dblClick(screen.getByTestId("data-row"));
-
-            expect(onDoubleClick).toHaveBeenCalledTimes(1);
-        });
-
-        it("reports a right click anywhere along the row", async () => {
-            const onContextMenu = vi.fn();
-            const user = userEvent.setup();
-            renderRow(
-                <DataRow
-                    name="Force directed"
-                    onClick={vi.fn()}
-                    onContextMenu={onContextMenu}
-                    trailing={<AdvancedButton label="Force directed options" onClick={vi.fn()} />}
-                />,
-            );
-
-            await user.pointer({ keys: "[MouseRight]", target: screen.getByTestId("data-row") });
-            await user.pointer({ keys: "[MouseRight]", target: screen.getByRole("button", { name: /options/ }) });
-
-            expect(onContextMenu).toHaveBeenCalledTimes(2);
-        });
-
-        it("catches the menu the keyboard raises on the focused body", () => {
-            const onContextMenu = vi.fn();
-            renderRow(<DataRow name="Force directed" onClick={vi.fn()} onContextMenu={onContextMenu} />);
-
-            // The context-menu key and Shift+F10 fire on whatever holds focus,
-            // which is the row's own button; the handler sits on the row so it
-            // catches the event on its way up.
-            fireEvent.contextMenu(screen.getByRole("button"));
-
-            expect(onContextMenu).toHaveBeenCalledTimes(1);
-        });
-
         it("forwards focus and blur rather than swallowing them", async () => {
             const onFocus = vi.fn();
             const onBlur = vi.fn();
@@ -455,34 +369,6 @@ describe("DataRow", () => {
 
             await user.tab();
             expect(onBlur).toHaveBeenCalledTimes(1);
-        });
-
-        it("forwards focus and blur from an inert row that was made focusable", async () => {
-            const onFocus = vi.fn();
-            const user = userEvent.setup();
-            renderRow(<DataRow name="Chonky_Boy" tabIndex={0} onFocus={onFocus} />);
-
-            await user.tab();
-
-            expect(screen.getByTestId("data-row-body")).toHaveFocus();
-            expect(onFocus).toHaveBeenCalledTimes(1);
-        });
-
-        it("takes itself out of the tab order when the list manages focus", async () => {
-            const user = userEvent.setup();
-            renderRow(
-                <div role="listbox" aria-label="Cats">
-                    <DataRow name="Mr_Whiskers" role="option" tabIndex={-1} onClick={vi.fn()} />
-                    <DataRow name="Mrs_Henderson" role="option" tabIndex={0} selected onClick={vi.fn()} />
-                </div>,
-            );
-
-            await user.tab();
-
-            // A roving tab stop: Tab enters the list once and the arrow keys,
-            // which belong to the listbox the consumer wrapped these in, move
-            // between the rows.
-            expect(screen.getByRole("option", { name: /Mrs_Henderson/ })).toHaveFocus();
         });
     });
 
@@ -505,7 +391,7 @@ describe("DataRow", () => {
             const row = screen.getByTestId("data-row");
             await user.hover(row);
 
-            expect(row).toHaveStyle({ background: "transparent" });
+            expect(row).not.toHaveAttribute("data-interactive");
         });
     });
 
@@ -597,21 +483,21 @@ describe("DataRowHeader", () => {
         expect(screen.queryByTestId("data-row-header-unit")).toBeNull();
     });
 
-    it("is a 20px caption, both halves at the secondary colour", () => {
+    it("is a 32px caption at 11/16 550, both halves at the secondary color", () => {
         renderRow(<DataRowHeader label="Highest betweenness" unit="score" />);
 
         const header = screen.getByTestId("data-row-header");
-        expect(header).toHaveStyle({ height: "20px", paddingInline: "8px" });
-        expect(header.style.color).toBe(PANEL_INK.CHROME);
-        expect(header.style.fontSize).toContain("font-size-sm");
+        expect(header).toHaveClass("cm-data-row-header");
+        expect(treeCss).toMatch(
+            /\.cm-data-row-header \{[^}]*height: 32px;[^}]*font-size: 11px; line-height: 16px; font-weight: 550;[^}]*color: var\(--cm-text-secondary\)/,
+        );
     });
 
     it("spends its padding on the inline axis, like the rows it heads", () => {
         renderRow(<DataRowHeader label="Most connected" unit="links" />);
 
-        const style = screen.getByTestId("data-row-header").getAttribute("style") ?? "";
-        expect(style).toContain("padding-inline");
-        expect(style).not.toContain("padding-left");
+        expect(screen.getByTestId("data-row-header")).not.toHaveAttribute("style");
+        expect(treeCss).toMatch(/\.cm-data-row-header \{[^}]*padding-inline: 16px;/);
     });
 
     describe("when nothing sorts it", () => {
@@ -730,16 +616,18 @@ describe("DataRowHeader", () => {
             expect(screen.getByTestId("data-row-header")).toHaveAttribute("aria-sort", "descending");
         });
 
-        it("draws the sorted column's name in the primary text colour", () => {
+        it("draws the sorted column's name in the primary text color", () => {
             renderRow(<DataRowHeader label="Most connected" sortDirection="ascending" onSortChange={vi.fn()} />);
 
-            expect(screen.getByTestId("data-row-header-label").style.color).toBe(PANEL_INK.VALUE);
+            expect(screen.getByTestId("data-row-header")).toHaveAttribute("data-sorted");
+            expect(treeCss).toMatch(/\.cm-data-row-header\[data-sorted\] \.cm-data-row-header-label,[^{]*\{ color: var\(--cm-text\); \}/);
         });
 
-        it("leaves an unsorted column's name at the secondary colour of the caption", () => {
+        it("leaves an unsorted column's name at the secondary color of the caption", () => {
             renderRow(<DataRowHeader label="Most connected" onSortChange={vi.fn()} />);
 
-            expect(screen.getByTestId("data-row-header-label").style.color).toBe("");
+            expect(screen.getByTestId("data-row-header")).not.toHaveAttribute("data-sorted");
+            expect(screen.getByTestId("data-row-header-label")).not.toHaveAttribute("style");
         });
 
         it("turns the one chevron over rather than keeping a second drawing", () => {
@@ -749,7 +637,7 @@ describe("DataRowHeader", () => {
 
             const glyph = screen.getByTestId("data-row-header-sort-glyph");
             expect(glyph).toHaveAttribute("data-direction", "descending");
-            expect(glyph.style.transform).toBe("");
+            expect(glyph.querySelector("[data-glyph]")).toHaveAttribute("data-glyph", "caretDown");
 
             rerender(
                 <MantineProvider theme={compactTheme}>
@@ -759,7 +647,8 @@ describe("DataRowHeader", () => {
 
             const turned = screen.getByTestId("data-row-header-sort-glyph");
             expect(turned).toHaveAttribute("data-direction", "ascending");
-            expect(turned.style.transform).toBe("rotate(180deg)");
+            expect(turned.querySelector("[data-glyph]")).toHaveAttribute("data-glyph", "caretDown");
+            expect(treeCss).toContain('.cm-sort-caret[data-direction="ascending"] { transform: rotate(180deg); }');
         });
 
         it("draws no arrow while the column is unsorted", () => {
@@ -827,16 +716,14 @@ describe("RankChip", () => {
         expect(screen.getByTestId("rank-chip")).toHaveTextContent("#6");
     });
 
-    it("is Mantine's Badge, sized by the compact theme rather than by hand", () => {
+    it("is Figma's outlined badge: 16 tall, radius 5, padding 0 4, a 1px outline inside", () => {
         renderRow(<RankChip>#1</RankChip>);
 
         const chip = screen.getByTestId("rank-chip");
-        expect(chip).toHaveClass("mantine-Badge-root");
-        // The 14px height, 9px face and 4px padding this chip used to retype
-        // now arrive as the theme's own Badge variables.
-        expect(chip.style.getPropertyValue("--badge-height")).toBe("14px");
-        expect(chip.style.getPropertyValue("--badge-fz")).toBe("9px");
-        expect(chip.style.getPropertyValue("--badge-padding-x")).toBe("4px");
+        expect(chip).toHaveClass("cm-rank-chip");
+        expect(treeCss).toMatch(
+            /\.cm-rank-chip \{[^}]*height: 16px;[^}]*padding: 0 4px;[^}]*border-radius: 5px;[^}]*outline: 1px solid var\(--cm-border\);[^}]*outline-offset: -1px;/,
+        );
     });
 
     it("is a span, so it is valid inside a row's button and inside a caption", () => {
@@ -849,16 +736,16 @@ describe("RankChip", () => {
         renderRow(<RankChip>#318</RankChip>);
 
         const chip = screen.getByTestId("rank-chip");
-        expect(chip).toHaveStyle({ fontWeight: "500", textTransform: "none", letterSpacing: "normal" });
+        expect(chip).not.toHaveClass("mantine-Badge-root");
+        expect(treeCss).toMatch(/\.cm-rank-chip \{[^}]*font-size: 11px; line-height: 16px; font-weight: 450;/);
+        expect(treeCss).not.toMatch(/\.cm-rank-chip \{[^}]*text-transform/);
     });
 
-    it("is drawn on the raised surface, labelled in the primary text colour", () => {
+    it("is transparent, labeled in the primary text color (Figma's Beta badge)", () => {
         renderRow(<RankChip>#1</RankChip>);
 
-        const chip = screen.getByTestId("rank-chip");
-        expect(chip.style.background).toBe(PANEL_INK.RAISED);
-        // The secondary colour measures 4.43:1 on this ground, under the 4.5:1
-        // WCAG AA asks of text; the primary colour measures 7.33:1.
-        expect(chip.style.color).toBe(PANEL_INK.VALUE);
+        expect(screen.getByTestId("rank-chip")).not.toHaveAttribute("style");
+        // bottom-toolbar/mode-metronome-full #296 measures #000000e5 on a transparent ground.
+        expect(treeCss).toMatch(/\.cm-rank-chip \{[^}]*background: transparent;[^}]*color: var\(--cm-text\);/);
     });
 });

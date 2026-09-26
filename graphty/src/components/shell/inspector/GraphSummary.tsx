@@ -24,7 +24,6 @@ import { Box, Menu, Tabs, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useMemo, useState } from "react";
 
 import { keyChipFor } from "../bindings";
-import { TOOLTIP_DELAY_MS } from "../constants";
 import {
     ATTRIBUTE_ROW_CAP,
     COUNTS_ROW_LABELS,
@@ -308,7 +307,6 @@ function VerbButton(props: VerbButtonProps): React.JSX.Element {
 
     return (
         <Tooltip
-            openDelay={TOOLTIP_DELAY_MS}
             position="top"
             withinPortal
             label={

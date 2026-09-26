@@ -14,18 +14,29 @@ import type {
     ActivationHandlerWithMeta,
     ActivationMeta,
     AdvancedButtonProps,
+    AlignmentMatrixProps,
+    AlignmentMatrixValue,
     ChangeHandler,
+    ColorPickerFormat,
+    ColorPickerPaintType,
+    ColorPickerPanelLabels,
+    ColorPickerPanelProps,
     ColorStop,
+    ComboInputItem,
+    ComboInputOption,
+    ComboInputProps,
+    ComboInputSeparator,
     CompactColorInputProps,
     CompactMantineLabels,
+    CompactThemeOptions,
     CompoundRowProps,
     CompoundSegment,
+    ContextMenuProps,
     ControlGroupProps,
     ControlSectionProps,
     ControlSubGroupProps,
     DataRowHeaderProps,
     DataRowProps,
-    DataRowRole,
     DataRowSortDirection,
     DataTableAlign,
     DataTableColumn,
@@ -43,20 +54,28 @@ import type {
     FieldGlyphProps,
     FieldLetter,
     FieldRowProps,
+    FlatTreeRow,
     GestureChangeHandler,
     GestureEndHandler,
     GestureHandlers,
     GestureStartHandler,
+    GradientEditorLabels,
     GradientEditorProps,
+    HelpButtonProps,
     HistogramBin,
     HistogramRowProps,
-    IconGroupOption,
-    IconGroupRowProps,
     InfoCircleProps,
+    InlineRenameProps,
     LabelsProviderProps,
     LiveSetting,
+    MenuCheckItemProps,
     MetricRowProps,
+    ModalFooterProps,
+    NavRailProps,
     OpenChangeHandler,
+    PageListItem,
+    PageListProps,
+    PageRowProps,
     PanelFieldKind,
     PanelFieldProps,
     PanelLabelsProviderProps,
@@ -77,18 +96,50 @@ import type {
     PopoutRegionProps,
     PopoutTriggerProps,
     ProseBlockProps,
+    QuickAction,
+    QuickActionsProps,
+    RailButtonProps,
     RampRowProps,
     RankChipProps,
+    ResizeHandleBounds,
+    ResizeHandleEdge,
+    ResizeHandleProps,
+    ResultRowProps,
+    SearchInputProps,
+    SecondaryToolbarButtonProps,
+    SecondaryToolbarProps,
+    ShortcutEntry,
+    ShortcutGroup,
+    ShortcutSheetProps,
+    ShortcutSheetTab,
     SparklineRowProps,
+    SplitButtonProps,
     StyleNumberInputProps,
     StyleSelectOption,
     StyleSelectProps,
+    ToastAction,
+    ToastApi,
+    ToastOptions,
+    ToastProps,
+    ToastProviderProps,
+    ToggleIconButtonProps,
     ToggleRowGroupProps,
     ToggleRowProps,
     ToggleWithContentProps,
+    ToolbarProps,
+    ToolButtonProps,
+    ToolGroupProps,
+    ToolItem,
+    TooltipShortcutProps,
     TrailingSlotProps,
+    TreeItemProps,
+    TreeMove,
+    TreeNodeData,
+    TreeProps,
+    TreeRowTint,
     UiGlyphName,
     UiGlyphProps,
+    VariablePillProps,
 } from "../src/index";
 import * as mainExports from "../src/index";
 import * as themeExports from "../src/theme";
@@ -123,6 +174,7 @@ type PublicTypeSurface = {
     colorStop: ColorStop;
     compactColorInput: CompactColorInputProps;
     compactMantineLabels: CompactMantineLabels;
+    compactThemeOptions: CompactThemeOptions;
     compoundRow: CompoundRowProps;
     compoundSegment: CompoundSegment;
     controlGroup: ControlGroupProps;
@@ -130,7 +182,6 @@ type PublicTypeSurface = {
     controlSubGroup: ControlSubGroupProps;
     dataRow: DataRowProps;
     dataRowHeader: DataRowHeaderProps;
-    dataRowRole: DataRowRole;
     dataRowSortDirection: DataRowSortDirection;
     dataTable: DataTableProps<SampleRow>;
     dataTableAlign: DataTableAlign;
@@ -153,14 +204,14 @@ type PublicTypeSurface = {
     gestureHandlers: GestureHandlers;
     gestureStartHandler: GestureStartHandler;
     gradientEditor: GradientEditorProps;
+    helpButton: HelpButtonProps;
     histogramBin: HistogramBin;
     histogramRow: HistogramRowProps;
-    iconGroupOption: IconGroupOption;
-    iconGroupRow: IconGroupRowProps;
     infoCircle: InfoCircleProps;
     labelsProvider: LabelsProviderProps;
     liveSetting: LiveSetting;
     metricRow: MetricRowProps;
+    navRail: NavRailProps;
     openChangeHandler: OpenChangeHandler;
     panelField: PanelFieldProps;
     panelFieldKind: PanelFieldKind;
@@ -182,8 +233,17 @@ type PublicTypeSurface = {
     popoutPosition: PopoutPosition;
     popoutTrigger: PopoutTriggerProps;
     proseBlock: ProseBlockProps;
+    quickAction: QuickAction;
+    quickActions: QuickActionsProps;
+    railButton: RailButtonProps;
     rampRow: RampRowProps;
     rankChip: RankChipProps;
+    secondaryToolbar: SecondaryToolbarProps;
+    secondaryToolbarButton: SecondaryToolbarButtonProps;
+    shortcutEntry: ShortcutEntry;
+    shortcutGroup: ShortcutGroup;
+    shortcutSheet: ShortcutSheetProps;
+    shortcutSheetTab: ShortcutSheetTab;
     sparklineRow: SparklineRowProps;
     styleNumberInput: StyleNumberInputProps;
     styleSelect: StyleSelectProps;
@@ -191,9 +251,51 @@ type PublicTypeSurface = {
     toggleRow: ToggleRowProps;
     toggleRowGroup: ToggleRowGroupProps;
     toggleWithContent: ToggleWithContentProps;
+    toolbar: ToolbarProps;
+    toolButton: ToolButtonProps;
+    toolGroup: ToolGroupProps;
+    toolItem: ToolItem;
     trailingSlot: TrailingSlotProps;
     uiGlyph: UiGlyphProps;
     uiGlyphName: UiGlyphName;
+    comboInputItem: ComboInputItem;
+    comboInputOption: ComboInputOption;
+    comboInput: ComboInputProps;
+    comboInputSeparator: ComboInputSeparator;
+    searchInput: SearchInputProps;
+    variablePill: VariablePillProps;
+    contextMenu: ContextMenuProps;
+    menuCheckItem: MenuCheckItemProps;
+    modalFooter: ModalFooterProps;
+    toastAction: ToastAction;
+    toastApi: ToastApi;
+    toastOptions: ToastOptions;
+    toast: ToastProps;
+    toastProvider: ToastProviderProps;
+    tooltipShortcut: TooltipShortcutProps;
+    alignmentMatrix: AlignmentMatrixProps;
+    alignmentMatrixValue: AlignmentMatrixValue;
+    colorPickerFormat: ColorPickerFormat;
+    colorPickerPaintType: ColorPickerPaintType;
+    colorPickerPanelLabels: ColorPickerPanelLabels;
+    colorPickerPanel: ColorPickerPanelProps;
+    flatTreeRow: FlatTreeRow;
+    gradientEditorLabels: GradientEditorLabels;
+    inlineRename: InlineRenameProps;
+    pageListItem: PageListItem;
+    pageList: PageListProps;
+    pageRow: PageRowProps;
+    resizeHandleBounds: ResizeHandleBounds;
+    resizeHandleEdge: ResizeHandleEdge;
+    resizeHandle: ResizeHandleProps;
+    resultRow: ResultRowProps;
+    splitButton: SplitButtonProps;
+    toggleIconButton: ToggleIconButtonProps;
+    treeItem: TreeItemProps;
+    treeMove: TreeMove;
+    treeNodeData: TreeNodeData;
+    tree: TreeProps;
+    treeRowTint: TreeRowTint;
 };
 
 /**
@@ -210,10 +312,14 @@ type PublicTypeSurface = {
  */
 const PUBLIC_RUNTIME_EXPORTS = [
     // Theme
+    "compactBrandColors",
     "compactColors",
     "compactDarkColors",
+    "compactGlobalCss",
     "compactTheme",
     "compactThemeOverride",
+    "createCompactTheme",
+    "ensureCompactStyles",
 
     // Components
     "CompactColorInput",
@@ -231,6 +337,43 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "StyleSelect",
     "ToggleWithContent",
 
+    // Buttons, chrome, color, inputs, overlays, selection, tree
+    "ComboInput",
+    "SearchInput",
+    "VariablePill",
+    "ContextMenu",
+    "MenuCheckItem",
+    "ModalFooter",
+    "Toast",
+    "ToastProvider",
+    "TooltipShortcut",
+    "useToast",
+    "ALIGNMENT_MATRIX_VALUES",
+    "AlignmentMatrix",
+    "ColorPickerPanel",
+    "InlineRename",
+    "PageList",
+    "PageRow",
+    "ResizeHandle",
+    "ResultRow",
+    "SplitButton",
+    "ToggleIconButton",
+    "Tree",
+    "TreeItem",
+    "moveTreeItem",
+    "renameTreeItem",
+
+    // Editor shell
+    "HelpButton",
+    "NavRail",
+    "QuickActions",
+    "RailButton",
+    "SecondaryToolbar",
+    "ShortcutSheet",
+    "Toolbar",
+    "ToolButton",
+    "ToolGroup",
+
     // Panel rows and the two atoms they are built from
     "ActionRow",
     "AdvancedButton",
@@ -239,7 +382,6 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "DataRowHeader",
     "FieldRow",
     "HistogramRow",
-    "IconGroupRow",
     "MetricRow",
     "PanelField",
     "ProseBlock",
@@ -293,8 +435,11 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "createColorStop",
     "createDefaultGradientStops",
     "getActivationMeta",
+    "isLightColor",
     "isRtl",
     "isValidHex",
+    "mixHex",
+    "normalizeHexa",
     "MAX_ALPHA_HEX",
     "MAX_OPACITY_PERCENT",
     "opacityToAlphaHex",
@@ -442,8 +587,9 @@ describe("Package exports", () => {
                 expect(mainExports.CompoundRow).toBeDefined();
             });
 
-            it("exports RT-3 IconGroupRow", () => {
-                expect(mainExports.IconGroupRow).toBeDefined();
+            it("no longer exports RT-3 IconGroupRow, which the themed SegmentedControl replaces", () => {
+                const surface = mainExports as Record<string, unknown>;
+                expect(surface.IconGroupRow).toBeUndefined();
             });
 
             it("exports RT-4 RampRow", () => {
@@ -503,7 +649,7 @@ describe("Package exports", () => {
             it("exports the closed glyph registers", () => {
                 expect(mainExports.FIELD_GLYPH_NAMES).toHaveLength(8);
                 expect(mainExports.FIELD_LETTERS).toEqual(["N", "E", "W", "D", "K"]);
-                expect(mainExports.UI_GLYPH_NAMES).toHaveLength(16);
+                expect(mainExports.UI_GLYPH_NAMES).toHaveLength(44);
             });
 
             it("exports the guards that read the registers", () => {
@@ -586,7 +732,7 @@ describe("Package exports", () => {
             it("names every published type", () => {
                 // The assertion that matters is PublicTypeSurface above, which is
                 // checked by the compiler. This one keeps the list honest at run
-                // time: 76 named types, none of them written twice. It is a
+                // time: 130 named types, none of them written twice. It is a
                 // subset of the type block in src/index.ts rather than the whole
                 // of it: four published names (liveSetting, popoutAnchor,
                 // popoutButton and popoutManager) have never been listed here,
@@ -609,7 +755,6 @@ describe("Package exports", () => {
                     "controlSubGroup",
                     "dataRow",
                     "dataRowHeader",
-                    "dataRowRole",
                     "dataRowSortDirection",
                     "dataTable",
                     "dataTableAlign",
@@ -634,8 +779,6 @@ describe("Package exports", () => {
                     "gradientEditor",
                     "histogramBin",
                     "histogramRow",
-                    "iconGroupOption",
-                    "iconGroupRow",
                     "infoCircle",
                     "labelsProvider",
                     "metricRow",
@@ -668,9 +811,65 @@ describe("Package exports", () => {
                     "trailingSlot",
                     "uiGlyph",
                     "uiGlyphName",
+                    // The theme options and the editor shell.
+                    "compactThemeOptions",
+                    "helpButton",
+                    "navRail",
+                    "quickAction",
+                    "quickActions",
+                    "railButton",
+                    "secondaryToolbar",
+                    "secondaryToolbarButton",
+                    "shortcutEntry",
+                    "shortcutGroup",
+                    "shortcutSheet",
+                    "shortcutSheetTab",
+                    "toolbar",
+                    "toolButton",
+                    "toolGroup",
+                    "toolItem",
+                    // Buttons, chrome, color, selection, and the tree and lists.
+                    "comboInputItem",
+                    "comboInputOption",
+                    "comboInput",
+                    "comboInputSeparator",
+                    "searchInput",
+                    "variablePill",
+                    "contextMenu",
+                    "menuCheckItem",
+                    "modalFooter",
+                    "toastAction",
+                    "toastApi",
+                    "toastOptions",
+                    "toast",
+                    "toastProvider",
+                    "tooltipShortcut",
+                    "alignmentMatrix",
+                    "alignmentMatrixValue",
+                    "colorPickerFormat",
+                    "colorPickerPaintType",
+                    "colorPickerPanelLabels",
+                    "colorPickerPanel",
+                    "flatTreeRow",
+                    "gradientEditorLabels",
+                    "inlineRename",
+                    "pageListItem",
+                    "pageList",
+                    "pageRow",
+                    "resizeHandleBounds",
+                    "resizeHandleEdge",
+                    "resizeHandle",
+                    "resultRow",
+                    "splitButton",
+                    "toggleIconButton",
+                    "treeItem",
+                    "treeMove",
+                    "treeNodeData",
+                    "tree",
+                    "treeRowTint",
                 ];
 
-                expect(names).toHaveLength(76);
+                expect(names).toHaveLength(127);
                 expect(new Set(names).size).toBe(names.length);
             });
         });
@@ -712,14 +911,14 @@ describe("Package exports", () => {
 
             it("exports PANEL_GRID", () => {
                 expect(mainExports.PANEL_GRID).toBeDefined();
-                expect(mainExports.PANEL_GRID.WIDTH).toBe(280);
-                expect(mainExports.PANEL_GRID.BODY).toBe(224);
-                expect(mainExports.PANEL_GRID.FIELD).toBe(108);
+                expect(mainExports.PANEL_GRID.WIDTH).toBe(240);
+                expect(mainExports.PANEL_GRID.BODY).toBe(184);
+                expect(mainExports.PANEL_GRID.FIELD).toBe(88);
                 expect(mainExports.PANEL_GRID.TRAIL).toBe(24);
             });
 
-            it("PANEL_GRID keeps the row identity that adds up to 280", () => {
-                // 16 + 108 + 8 + 108 + 8 + 24 + 8 = 280
+            it("PANEL_GRID keeps the row identity that adds up to 240", () => {
+                // 16 + 88 + 8 + 88 + 8 + 24 + 8 = 240
                 const grid = mainExports.PANEL_GRID;
                 const identity =
                     grid.PAD_LEFT + grid.FIELD + grid.GUTTER + grid.FIELD + grid.TRAIL_GAP + grid.TRAIL + grid.PAD_RIGHT;
@@ -731,23 +930,20 @@ describe("Package exports", () => {
 
             it("exports PANEL_INK", () => {
                 expect(mainExports.PANEL_INK).toBeDefined();
-                expect(mainExports.PANEL_INK.VALUE).toBe("var(--mantine-color-text)");
-                expect(mainExports.PANEL_INK.CHROME).toBe(
-                    "light-dark(var(--mantine-color-gray-7), var(--mantine-color-dark-1))",
-                );
-                expect(mainExports.PANEL_INK.ACCENT).toBe("var(--mantine-primary-color-filled)");
+                expect(mainExports.PANEL_INK.VALUE).toBe("var(--cm-text)");
+                expect(mainExports.PANEL_INK.CHROME).toBe("var(--cm-text-secondary)");
+                expect(mainExports.PANEL_INK.ACCENT).toBe("var(--cm-bg-brand)");
             });
 
-            it("exports the ink roles the contrast pass added", () => {
-                // A selected item needs a ground that separates from its track
-                // and an ink that reads on that ground, and a control that cannot
-                // be operated needs an ink that is allowed to be dimmer than the
-                // text minimum. None of the three existed before.
-                expect(mainExports.PANEL_INK.SELECTED).toBe(
-                    "light-dark(var(--mantine-color-gray-7), var(--mantine-color-dark-1))",
-                );
-                expect(mainExports.PANEL_INK.ON_SELECTED).toBe("var(--mantine-color-body)");
-                expect(mainExports.PANEL_INK.DISABLED).toBe("var(--mantine-color-disabled-color)");
+            it("exports the ink roles as Figma's selected item and the new roles", () => {
+                // SELECTED / ON_SELECTED are Figma's selected item (#e5f4ff with a brand glyph),
+                // no longer an inverted patch; the Figma roles the old map lacked are added.
+                expect(mainExports.PANEL_INK.SELECTED).toBe("var(--cm-bg-selected)");
+                expect(mainExports.PANEL_INK.ON_SELECTED).toBe("var(--cm-icon-brand)");
+                expect(mainExports.PANEL_INK.DISABLED).toBe("var(--cm-text-disabled)");
+                expect(mainExports.PANEL_INK.HOVER).toBe("var(--cm-bg-hover)");
+                expect(mainExports.PANEL_INK.FOCUS).toBe("var(--cm-border-selected)");
+                expect(mainExports.PANEL_INK.MENU).toBe("var(--cm-bg-menu)");
             });
 
             it("PANEL_INK writes no raw hex, so the rows read in light mode too", () => {
@@ -849,13 +1045,22 @@ describe("Package exports", () => {
 
         it("publishes the panel grid on theme.other", () => {
             // A consumer theming the library reads the geometry from the theme
-            // rather than retyping the 280px identity.
+            // rather than retyping the 240px identity.
             expect(themeExports.compactTheme.other.panelGrid).toBe(constantsExports.PANEL_GRID);
-            expect(themeExports.compactTheme.other.panelGrid?.WIDTH).toBe(280);
+            expect(themeExports.compactTheme.other.panelGrid?.WIDTH).toBe(240);
         });
 
         it("compactThemeOverride carries the panel grid too", () => {
             expect(themeExports.compactThemeOverride.other?.panelGrid).toBe(constantsExports.PANEL_GRID);
+        });
+
+        it("exports the theme factory and the stylesheet", () => {
+            expect(mainExports.createCompactTheme).toBe(themeExports.createCompactTheme);
+            expect(mainExports.createCompactTheme({ highContrast: true }).other?.compact).toEqual({ highContrast: true });
+            expect(mainExports.compactGlobalCss()).toContain("--cm-bg:");
+            expect(mainExports.compactGlobalCss()).toContain(".cm-toolbar");
+            expect(typeof mainExports.ensureCompactStyles).toBe("function");
+            expect(mainExports.compactBrandColors[6]).toBe("#0d99ff");
         });
 
         it("compactTheme has components configured", () => {
@@ -885,7 +1090,7 @@ describe("Package exports", () => {
 
         it("exports PANEL_GRID", () => {
             expect(constantsExports.PANEL_GRID).toBeDefined();
-            expect(constantsExports.PANEL_GRID.WIDTH).toBe(280);
+            expect(constantsExports.PANEL_GRID.WIDTH).toBe(240);
         });
 
         it("exports PANEL_INK", () => {

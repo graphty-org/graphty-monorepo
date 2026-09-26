@@ -1,14 +1,9 @@
 /**
- * The sub-group's geometry, measured in a real browser.
+ * The sub-group's geometry, measured in a real browser (design/figma-spec.md 9.4).
  *
- * Two things about this component can only be checked where there is a layout
- * engine. Its header has to be at least 24px tall to meet the WCAG 2.2 target
- * size minimum, and that height comes from a style Mantine applies through a
- * class rather than from an inline declaration. And its chevron has to lead the
- * label when text runs left to right and follow it when text runs right to
- * left, which is a resolved flex direction rather than an attribute.
- *
- * JSDOM has no layout engine, so every assertion here is a
+ * The header is Figma's 32px row whose chevron hangs in the panel's 16px gutter, to the
+ * inline-start side of the section's content edge, and the content sits on that same edge
+ * with no indent. Both are resolved layout under a text direction, so every assertion here is a
  * `getBoundingClientRect`, not a style declaration.
  */
 import { DirectionProvider, MantineProvider } from "@mantine/core";
@@ -19,7 +14,8 @@ import { describe, expect, it } from "vitest";
 import { compactTheme, ControlSubGroup, PANEL_GRID } from "../../src";
 
 /**
- * Render the sub-group where a panel puts it: inside 280px.
+ * Render the sub-group where a panel puts it: inside a section's content, which pads 16 at the
+ * inline start and 8 at the inline end of a 240px panel.
  * @param direction - The text direction to render under
  * @returns The testing-library render result
  */
@@ -27,7 +23,16 @@ function renderInPanel(direction: "ltr" | "rtl"): ReturnType<typeof render> {
     return render(
         <DirectionProvider initialDirection={direction} detectDirection={false}>
             <MantineProvider theme={compactTheme}>
-                <div dir={direction} style={{ width: PANEL_GRID.WIDTH }}>
+                <div
+                    dir={direction}
+                    data-testid="panel"
+                    style={{
+                        width: PANEL_GRID.WIDTH,
+                        boxSizing: "border-box",
+                        paddingInlineStart: PANEL_GRID.PAD_LEFT,
+                        paddingInlineEnd: PANEL_GRID.PAD_RIGHT,
+                    }}
+                >
                     <ControlSubGroup label="Text effects" defaultOpened>
                         <div data-testid="child">Outline</div>
                     </ControlSubGroup>
@@ -38,49 +43,46 @@ function renderInPanel(direction: "ltr" | "rtl"): ReturnType<typeof render> {
 }
 
 describe("ControlSubGroup geometry", () => {
-    it("draws a header at least 24px tall", () => {
+    it("draws the header as a 32px row", () => {
         renderInPanel("ltr");
 
-        // WCAG 2.2 (2.5.8, Target Size). The label is 10px type, so without
-        // this the whole pointer target would be about 12px tall.
         const header = screen.getByTestId("control-sub-group-control").getBoundingClientRect();
-        expect(header.height).toBeGreaterThanOrEqual(PANEL_GRID.TOGGLE_PITCH);
+        expect(header.height).toBeCloseTo(PANEL_GRID.ROW_PITCH, 1);
     });
 
-    it("leads with the chevron when text runs left to right", () => {
+    it("hangs the chevron in the gutter at x 0..16 and starts the label on the content edge (ltr)", () => {
         renderInPanel("ltr");
 
-        const control = screen.getByTestId("control-sub-group-control");
-        const chevron = control.querySelector("[data-glyph]")?.getBoundingClientRect();
+        const panel = screen.getByTestId("panel").getBoundingClientRect();
+        const slot = screen.getByTestId("control-sub-group-control").firstElementChild!.getBoundingClientRect();
         const label = screen.getByTestId("control-sub-group-label").getBoundingClientRect();
 
-        expect(chevron).toBeDefined();
-        expect(chevron?.left).toBeLessThan(label.left);
+        expect(slot.left - panel.left).toBeCloseTo(0, 1);
+        expect(slot.width).toBeCloseTo(16, 1);
+        expect(label.left - panel.left).toBeCloseTo(PANEL_GRID.PAD_LEFT, 1);
     });
 
-    it("follows with the chevron when text runs right to left", () => {
+    it("mirrors the gutter when text runs right to left", () => {
         renderInPanel("rtl");
 
-        const control = screen.getByTestId("control-sub-group-control");
-        const chevron = control.querySelector("[data-glyph]")?.getBoundingClientRect();
+        const panel = screen.getByTestId("panel").getBoundingClientRect();
+        const slot = screen.getByTestId("control-sub-group-control").firstElementChild!.getBoundingClientRect();
         const label = screen.getByTestId("control-sub-group-label").getBoundingClientRect();
 
-        // The whole point of the rebase's logical layout: the chevron sits at
-        // the edge the reader starts from, which is the right-hand one here.
-        expect(chevron).toBeDefined();
-        expect(chevron?.left).toBeGreaterThan(label.left);
+        expect(panel.right - slot.right).toBeCloseTo(0, 1);
+        expect(panel.right - label.right).toBeCloseTo(PANEL_GRID.PAD_LEFT, 1);
     });
 
-    it("indents its content from the edge the reader starts at, in both directions", () => {
+    it("lays its content on the content edge, in both directions", () => {
         const ltr = renderInPanel("ltr");
         const ltrChild = screen.getByTestId("child").getBoundingClientRect();
-        const ltrPanel = screen.getByTestId("control-sub-group").getBoundingClientRect();
-        expect(ltrChild.left - ltrPanel.left).toBeCloseTo(PANEL_GRID.GUTTER, 0);
+        const ltrPanel = screen.getByTestId("panel").getBoundingClientRect();
+        expect(ltrChild.left - ltrPanel.left).toBeCloseTo(PANEL_GRID.PAD_LEFT, 1);
         ltr.unmount();
 
         renderInPanel("rtl");
         const rtlChild = screen.getByTestId("child").getBoundingClientRect();
-        const rtlPanel = screen.getByTestId("control-sub-group").getBoundingClientRect();
-        expect(rtlPanel.right - rtlChild.right).toBeCloseTo(PANEL_GRID.GUTTER, 0);
+        const rtlPanel = screen.getByTestId("panel").getBoundingClientRect();
+        expect(rtlPanel.right - rtlChild.right).toBeCloseTo(PANEL_GRID.PAD_LEFT, 1);
     });
 });

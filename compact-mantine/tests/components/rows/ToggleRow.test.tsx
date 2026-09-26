@@ -62,13 +62,24 @@ describe("ToggleRow", () => {
             expect(screen.getByTestId("toggle-row")).toHaveTextContent(/^Labels$/u);
         });
 
-        it("packs at the toggle pitch, not the row pitch", () => {
+        it("packs at the toggle pitch, Figma's 32px checkbox row", () => {
             renderRow(<ToggleRow label="Labels" />);
 
             expect(screen.getByTestId("toggle-row")).toHaveStyle({
                 height: `${String(PANEL_GRID.TOGGLE_PITCH)}px`,
             });
-            expect(PANEL_GRID.TOGGLE_PITCH).toBeLessThan(PANEL_GRID.ROW_PITCH);
+            // design/figma-spec.md 5.10 / 9.6: a checkbox row is as tall as any
+            // other property row.
+            expect(PANEL_GRID.TOGGLE_PITCH).toBe(32);
+        });
+
+        it("draws the neutral (panel) checkbox, gray when checked", () => {
+            renderRow(<ToggleRow label="Labels" defaultChecked />);
+
+            expect(screen.getByRole("checkbox", { name: "Labels" }).closest(".cm-checkbox")).toHaveAttribute(
+                "data-variant",
+                "neutral",
+            );
         });
 
         it("draws a checkbox by default", () => {
@@ -117,7 +128,7 @@ describe("ToggleRow", () => {
             // The wording of the changed state belongs to the button and comes
             // from the label set, so the row asserts only that the button's
             // own name still names these settings and that the state is
-            // exposed as more than a colour.
+            // exposed as more than a color.
             const button = screen.getByRole("button", { name: /Label options/u });
             expect(button).toHaveAttribute("data-changed", "true");
             expect(screen.getByTestId("trailing-slot")).toContainElement(button);
@@ -437,7 +448,7 @@ describe("ToggleRow", () => {
             expect(PANEL_INK.DISABLED).not.toBe(PANEL_INK.PLACEHOLDER);
         });
 
-        it("draws the word in the primary text colour when it is live", () => {
+        it("draws the word in the primary text color when it is live", () => {
             renderRow(<ToggleRow label="Labels" />);
 
             expect(screen.getByText("Labels").style.color).toBe(PANEL_INK.VALUE);

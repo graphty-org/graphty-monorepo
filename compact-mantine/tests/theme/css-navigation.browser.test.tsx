@@ -70,12 +70,12 @@ describe("Burger - All CSS Values (Browser)", () => {
                 expect(getCssVar(root, "--burger-size")).toBe("18px");
             });
 
-            it("--burger-line-size is 2px", () => {
+            it("--burger-line-size is 1.5px", () => {
                 const { container } = renderWithTheme(
                     <Burger opened={false} aria-label="Menu" />
                 );
                 const root = container.querySelector(".mantine-Burger-root");
-                expect(getCssVar(root, "--burger-line-size")).toBe("2px");
+                expect(getCssVar(root, "--burger-line-size")).toBe("1.5px");
             });
         });
 
@@ -116,13 +116,13 @@ describe("NavLink - All CSS Values (Browser)", () => {
                 expect(style?.fontSize).toBe("11px");
             });
 
-            it("minHeight is 28px", () => {
+            it("minHeight is 32px", () => {
                 const { container } = renderWithTheme(
                     <NavLink label="Link" />
                 );
                 const root = container.querySelector(".mantine-NavLink-root");
                 const style = root ? getComputedStyle(root) : null;
-                expect(style?.minHeight).toBe("28px");
+                expect(style?.minHeight).toBe("32px");
             });
         });
 
@@ -187,11 +187,11 @@ describe("Pagination - All CSS Values (Browser)", () => {
                 expect(style?.fontSize).toBe("11px");
             });
 
-            it("borderRadius is 4px", () => {
+            it("borderRadius is 5px", () => {
                 const { container } = renderWithTheme(<Pagination total={10} />);
                 const control = container.querySelector(".mantine-Pagination-control");
                 const style = control ? getComputedStyle(control) : null;
-                expect(style?.borderRadius).toBe("4px");
+                expect(style?.borderRadius).toBe("5px");
             });
         });
     });
@@ -311,7 +311,7 @@ describe("Tabs - All CSS Values (Browser)", () => {
                 expect(style?.fontSize).toBe("11px");
             });
 
-            it("paddingTop is 6px", () => {
+            it("paddingTop is 0px", () => {
                 const { container } = renderWithTheme(
                     <Tabs defaultValue="first">
                         <Tabs.List>
@@ -322,10 +322,10 @@ describe("Tabs - All CSS Values (Browser)", () => {
                 );
                 const tab = container.querySelector(".mantine-Tabs-tab");
                 const style = tab ? getComputedStyle(tab) : null;
-                expect(style?.paddingTop).toBe("6px");
+                expect(style?.paddingTop).toBe("0px");
             });
 
-            it("paddingBottom is 6px", () => {
+            it("paddingBottom is 0px", () => {
                 const { container } = renderWithTheme(
                     <Tabs defaultValue="first">
                         <Tabs.List>
@@ -336,10 +336,10 @@ describe("Tabs - All CSS Values (Browser)", () => {
                 );
                 const tab = container.querySelector(".mantine-Tabs-tab");
                 const style = tab ? getComputedStyle(tab) : null;
-                expect(style?.paddingBottom).toBe("6px");
+                expect(style?.paddingBottom).toBe("0px");
             });
 
-            it("paddingLeft is 10px", () => {
+            it("paddingLeft is 8px", () => {
                 const { container } = renderWithTheme(
                     <Tabs defaultValue="first">
                         <Tabs.List>
@@ -350,10 +350,10 @@ describe("Tabs - All CSS Values (Browser)", () => {
                 );
                 const tab = container.querySelector(".mantine-Tabs-tab");
                 const style = tab ? getComputedStyle(tab) : null;
-                expect(style?.paddingLeft).toBe("10px");
+                expect(style?.paddingLeft).toBe("8px");
             });
 
-            it("paddingRight is 10px", () => {
+            it("paddingRight is 8px", () => {
                 const { container } = renderWithTheme(
                     <Tabs defaultValue="first">
                         <Tabs.List>
@@ -364,8 +364,23 @@ describe("Tabs - All CSS Values (Browser)", () => {
                 );
                 const tab = container.querySelector(".mantine-Tabs-tab");
                 const style = tab ? getComputedStyle(tab) : null;
-                expect(style?.paddingRight).toBe("10px");
+                expect(style?.paddingRight).toBe("8px");
             });
         });
+    });
+});
+
+describe("Tabs variant=\"default\" (the underline tabs) keeps its old padding", () => {
+    it("pads a tab 6px 10px", () => {
+        const { container } = renderWithTheme(
+            <Tabs variant="default" defaultValue="first">
+                <Tabs.List>
+                    <Tabs.Tab value="first">First</Tabs.Tab>
+                    <Tabs.Tab value="second">Second</Tabs.Tab>
+                </Tabs.List>
+            </Tabs>
+        );
+        const style = getComputedStyle(container.querySelector(".mantine-Tabs-tab") as Element);
+        expect([style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft]).toEqual(["6px", "10px", "6px", "10px"]);
     });
 });

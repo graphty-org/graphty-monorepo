@@ -11,7 +11,6 @@ import {
     ControlSection,
     FieldRow,
     HistogramRow,
-    IconGroupRow,
     MetricRow,
     PanelField,
     ProseBlock,
@@ -23,7 +22,7 @@ import {
 } from "../src";
 
 // These are the set-wide rules, tested once for the whole library rather than
-// per component. Every one of them was a real divergence: the seven development
+// per component. Every one of them was a real divergence: the development
 // warnings had two gates and two timings between them, and five components had
 // five different ways of saying "this content arrives later". A rule stated in
 // one place and asserted in one place is what keeps the next round of parallel
@@ -74,10 +73,6 @@ describe("every development warning in the library behaves the same way", () => 
             <CompoundRow key="compound" label="Node opacity" segments={[{ value: "100", grow: true }]} />,
         ],
         ["FieldRow", <FieldRow key="fields">{null}</FieldRow>],
-        [
-            "IconGroupRow",
-            <IconGroupRow key="icons" label="Shape" options={[{ value: "only", icon: <span aria-hidden="true">o</span>, label: "Only" }]} />,
-        ],
         [
             "ProseBlock",
             <ProseBlock key="prose" variant="reading">
@@ -153,7 +148,7 @@ describe("every component that can announce follows one live-region rule", () =>
             "compound-row-box",
             (props) => (
                 <CompoundRow
-                    label="Node colour and opacity"
+                    label="Node color and opacity"
                     segments={[{ value: "4A7EE8", grow: true }, { value: "100", unit: "%" }]}
                     {...props}
                 />
@@ -217,17 +212,6 @@ describe("every component publishes the same kind of test hook", () => {
         ["control-section", <ControlSection key="s" label="Size" empty />],
         ["field-row", <FieldRow key="f"><PanelField label="Size" value="1" /></FieldRow>],
         ["histogram-row", <HistogramRow key="h" label="Degrees" bins={[{ label: "0 links: 1 node", count: 1 }]} minLabel="0" maxLabel="1" />],
-        [
-            "icon-group-row",
-            <IconGroupRow
-                key="i"
-                label="Shape"
-                options={[
-                    { value: "circle", icon: <span aria-hidden="true">o</span>, label: "Circle" },
-                    { value: "square", icon: <span aria-hidden="true">s</span>, label: "Square" },
-                ]}
-            />,
-        ],
         ["metric-row", <MetricRow key="m" name="Bridges" percentile={98} value="0.31" />],
         ["panel-field", <PanelField key="p" label="Size" value="1" />],
         ["prose-block", <ProseBlock key="pr" variant="reading">A short reading.</ProseBlock>],

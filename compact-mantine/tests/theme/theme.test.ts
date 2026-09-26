@@ -24,9 +24,19 @@ describe("compactTheme", () => {
         expect(compactTheme.colors?.dark).toHaveLength(10);
     });
 
-    it("includes all 41 component extensions", () => {
+    it("keeps every component the theme extended before the Figma restyle", () => {
+        // Packages add extensions (Modal, Notification, ColorSwatch, ...); none may drop one.
         const componentNames = Object.keys(compactTheme.components ?? {});
-        expect(componentNames).toHaveLength(41);
+        for (const name of [
+            "ActionIcon", "Anchor", "Autocomplete", "Avatar", "Badge", "Burger", "Button", "Checkbox",
+            "CloseButton", "FileInput", "HoverCard", "Indicator", "InputClearButton", "JsonInput", "Kbd",
+            "Loader", "Menu", "MultiSelect", "NavLink", "NumberInput", "Pagination", "PasswordInput", "Pill",
+            "PillsInput", "Popover", "Progress", "Radio", "RangeSlider", "RingProgress", "SegmentedControl",
+            "Select", "Slider", "Stepper", "Switch", "Tabs", "TagsInput", "Text", "Textarea", "TextInput",
+            "ThemeIcon", "Tooltip",
+        ]) {
+            expect(componentNames).toContain(name);
+        }
     });
 
     it("includes all input components", () => {
@@ -77,6 +87,25 @@ describe("compactTheme", () => {
         expect(components.ActionIcon).toBeDefined();
         expect(components.Checkbox).toBeDefined();
         expect(components.Switch).toBeDefined();
+    });
+});
+
+describe("theme values (spec 3.3)", () => {
+    it("uses the brand palette as the primary color at Mantine's default shades", () => {
+        expect(compactTheme.primaryColor).toBe("brand");
+        expect(compactTheme.primaryShade).toEqual({ light: 6, dark: 8 });
+    });
+
+    it("sets Inter Variable first, the 550 heading weight, and the default cursor", () => {
+        expect(compactTheme.fontFamily.startsWith('"Inter Variable", "Inter"')).toBe(true);
+        expect(compactTheme.headings.fontWeight).toBe("550");
+        expect(compactTheme.cursorType).toBe("default");
+        expect(compactTheme.fontSmoothing).toBe(true);
+    });
+
+    it("publishes the panel grid and the resolved options on theme.other", () => {
+        expect(compactTheme.other.panelGrid?.WIDTH).toBe(240);
+        expect(compactTheme.other.compact).toEqual({ highContrast: false });
     });
 });
 

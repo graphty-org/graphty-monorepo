@@ -1,7 +1,8 @@
 import { MantineProvider } from "@mantine/core";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { page } from "@vitest/browser/context";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import { Popout, PopoutAnchor, PopoutManager } from "../../src/components/popout";
 import { POPOUT_NESTED_GAP } from "../../src/constants/popout";
@@ -66,6 +67,35 @@ function Sidebar({ children }: { children: React.ReactNode }): React.JSX.Element
 }
 
 describe("Popout geometry (browser)", () => {
+    // A desktop window: a panel is kept on screen (spec 8.4), so on the default narrow test page a
+    // 280px panel beside a 240px sidebar would measure that clamp instead of the docking.
+    beforeAll(async () => {
+        await page.viewport(1280, 800);
+    });
+
+    it("is kept on screen: a panel with no room beside its anchor is moved inside the window", async () => {
+        await page.viewport(400, 800);
+        const user = userEvent.setup();
+        renderPopout(
+            <Sidebar>
+                <Popout>
+                    <Popout.Trigger>
+                        <button>Open narrow</button>
+                    </Popout.Trigger>
+                    <Popout.Panel width={280} header={{ variant: "title", title: "Settings" }}>
+                        <Popout.Content>content</Popout.Content>
+                    </Popout.Panel>
+                </Popout>
+            </Sidebar>,
+        );
+        await user.click(screen.getByRole("button", { name: "Open narrow" }));
+        const panel = await screen.findByRole("dialog");
+        await waitFor(() => {
+            expect(panel.getBoundingClientRect().left).toBe(0);
+        });
+        await page.viewport(1280, 800);
+    });
+
     it("meets the sidebar edge and opens level with the row that opened it", async () => {
         const user = userEvent.setup();
 
@@ -98,9 +128,9 @@ describe("Popout geometry (browser)", () => {
         const sidebarRect = sidebar.getBoundingClientRect();
         const triggerRect = trigger.getBoundingClientRect();
 
-        // Behaviour 1: the panel's inline edge meets the sidebar's.
+        // Behavior 1: the panel's inline edge meets the sidebar's.
         expect(Math.round(panelRect.right)).toBe(Math.round(sidebarRect.left));
-        // Behaviour 3: and its top is the trigger's top, well below the
+        // Behavior 3: and its top is the trigger's top, well below the
         // sidebar's, which is what a single anchor could not express.
         expect(Math.round(panelRect.top)).toBe(Math.round(triggerRect.top));
         expect(panelRect.top).toBeGreaterThan(sidebarRect.top + 100);
@@ -152,7 +182,7 @@ describe("Popout geometry (browser)", () => {
         const childRect = (childPanel as HTMLElement).getBoundingClientRect();
         const childTriggerRect = childTrigger.getBoundingClientRect();
 
-        // Behaviour 2: one level out from the parent panel, not from the sidebar.
+        // Behavior 2: one level out from the parent panel, not from the sidebar.
         expect(Math.round(childRect.right)).toBe(Math.round(parentRect.left) - POPOUT_NESTED_GAP);
         // And level with the row inside the parent that opened it.
         expect(Math.round(childRect.top)).toBe(Math.round(childTriggerRect.top));

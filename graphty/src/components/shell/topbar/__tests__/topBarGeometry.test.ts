@@ -42,13 +42,13 @@ describe("topBarGeometry", () => {
             expect(TOP_BAR_RIGHT_GROUP_GAP).toBe(4);
         });
 
-        it("draws a 24 x 24 icon button with a 16 px glyph", () => {
+        it("draws a 24 x 24 icon button with a glyph in the library's 24 px slot", () => {
             expect(TOP_BAR_ICON_BUTTON).toBe(24);
-            expect(TOP_BAR_GLYPH_SIZE).toBe(16);
+            expect(TOP_BAR_GLYPH_SIZE).toBe(24);
         });
 
-        it("draws a text trigger's glyph at the register's default 14", () => {
-            expect(TOP_BAR_SMALL_GLYPH_SIZE).toBe(14);
+        it("draws a text trigger's glyph at the register's default 12", () => {
+            expect(TOP_BAR_SMALL_GLYPH_SIZE).toBe(12);
         });
 
         it("draws the menu-affordance caret at 8 with a heavier stroke", () => {
@@ -58,19 +58,19 @@ describe("topBarGeometry", () => {
     });
 
     describe("the undo split button", () => {
-        it("is one 24 tall group of a 24 half and a 16 half", () => {
+        it("is one 24 tall group of two 24 halves", () => {
             expect(SPLIT_BUTTON_HEIGHT).toBe(24);
             expect(SPLIT_MAIN_WIDTH).toBe(24);
-            expect(SPLIT_CARET_WIDTH).toBe(16);
+            expect(SPLIT_CARET_WIDTH).toBe(24);
         });
 
-        it("draws the caret half's glyph at 12", () => {
-            expect(SPLIT_CARET_GLYPH_SIZE).toBe(12);
+        it("draws the caret half's glyph at the library's 10 px chevron", () => {
+            expect(SPLIT_CARET_GLYPH_SIZE).toBe(10);
         });
 
-        it("divides the two halves with a 1 x 16 rule", () => {
+        it("divides the two halves with a full-height 1 x 24 rule", () => {
             expect(SPLIT_DIVIDER_WIDTH).toBe(1);
-            expect(SPLIT_DIVIDER_HEIGHT).toBe(16);
+            expect(SPLIT_DIVIDER_HEIGHT).toBe(24);
         });
     });
 
@@ -97,13 +97,13 @@ describe("topBarGeometry", () => {
             expect(HISTORY_ROW_WIDTH).toBe(350);
         });
 
-        it("adds its four columns and three gaps up to the 338 px row grid", () => {
-            expect(HISTORY_ROW_GRID_WIDTH).toBe(338);
+        it("adds its four columns and three gaps up to a 336 px row grid", () => {
+            expect(HISTORY_ROW_GRID_WIDTH).toBe(336);
         });
 
-        it("draws a 32 px header over 28 px entry rows", () => {
-            expect(HISTORY_HEADER_HEIGHT).toBe(32);
-            expect(HISTORY_ROW_HEIGHT).toBe(28);
+        it("draws the library's 40 px section header over 32 px entry rows", () => {
+            expect(HISTORY_HEADER_HEIGHT).toBe(40);
+            expect(HISTORY_ROW_HEIGHT).toBe(32);
         });
 
         it("caps its height at 804 on the drawn 900 px board", () => {

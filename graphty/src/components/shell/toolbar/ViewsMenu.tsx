@@ -9,7 +9,7 @@
  *   artboard's 8 px above the VIEWS BUTTON's top edge -- the button sits one border
  *   and one container padding inside the bar. On the desktop profile both readings
  *   give `bottom: 52`. The menu is anchored to the button itself, with the library's
- *   own `POPOUT_GAP`, so the two readings cannot drift apart.
+ *   own `VIEWS_MENU_GAP`, so the two readings cannot drift apart.
  * - It is right-edge aligned to the Views button rather than centred on it: a
  *   transient surface inherits both axes from its opener -- a gap on the side it
  *   opens from, a shared edge line on the other.
@@ -35,14 +35,14 @@
  * own the anchor, the caret, the focus trap, Escape and the outside click.
  */
 
-import { COMPACT_SIZING, PANEL_GRID, PANEL_INK, POPOUT_GAP, UiGlyph, useNumberFormatter } from "@graphty/compact-mantine";
+import { COMPACT_SIZING, PANEL_GRID, PANEL_INK, UiGlyph, useNumberFormatter } from "@graphty/compact-mantine";
 import { ActionIcon, createScopedKeydownHandler, Menu, Tooltip, UnstyledButton } from "@mantine/core";
 import React from "react";
 
 import { keyChipFor } from "../bindings";
 import { LEGEND_EMPTY_REASON } from "../canvas/legendAvailability";
 import { ComingTag } from "../ComingTag";
-import { CANVAS_MENU_Z_INDEX, type CanvasToolbarProfile, TOOLTIP_DELAY_MS } from "../constants";
+import { CANVAS_MENU_Z_INDEX, type CanvasToolbarProfile } from "../constants";
 import { MenuCaret } from "../MenuCaret";
 import { ToolbarGlyph } from "./toolbarGlyphs";
 import { ToolbarKeyChip } from "./ToolbarItem";
@@ -50,6 +50,7 @@ import {
     CANVAS_EDGE_CLAMP,
     VIEWS_MENU_CARET_CLAMP,
     VIEWS_MENU_CARET_SIZE,
+    VIEWS_MENU_GAP,
     VIEWS_MENU_PADDING,
     VIEWS_MENU_RADIUS,
     VIEWS_MENU_ROW_GAP,
@@ -319,7 +320,7 @@ export function ViewsMenu(props: ViewsMenuProps): React.JSX.Element {
             opened={opened}
             onChange={onOpenChange}
             position="top-end"
-            offset={POPOUT_GAP}
+            offset={VIEWS_MENU_GAP}
             width={VIEWS_MENU_WIDTH}
             withArrow
             arrowSize={VIEWS_MENU_CARET_SIZE}
@@ -351,7 +352,6 @@ export function ViewsMenu(props: ViewsMenuProps): React.JSX.Element {
             <Menu.Target>
                 <Tooltip
                     label={VIEWS_LABEL}
-                    openDelay={TOOLTIP_DELAY_MS}
                     position="top"
                     events={{ hover: true, focus: true, touch: true }}
                 >

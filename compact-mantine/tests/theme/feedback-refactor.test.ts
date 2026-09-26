@@ -41,12 +41,12 @@ describe("Feedback Component Extensions (Refactored)", () => {
     });
 
     describe("CSS variables via vars", () => {
-        it("Loader has vars function that returns loader variables", () => {
+        it("Loader has vars function that returns loader variables (Figma 16px spinner)", () => {
             const extension = feedbackComponentExtensions.Loader;
             expect(extension.vars).toBeDefined();
             expect(typeof extension.vars).toBe("function");
             const vars = extension.vars!();
-            expect(vars.root["--loader-size"]).toBe("18px");
+            expect(vars.root["--loader-size"]).toBe("16px");
         });
 
         it("Progress has vars function that returns progress variables", () => {
@@ -55,6 +55,14 @@ describe("Feedback Component Extensions (Refactored)", () => {
             expect(typeof extension.vars).toBe("function");
             const vars = extension.vars!();
             expect(vars.root["--progress-size"]).toBe("4px");
+            // Fully round unless the caller asks for a radius
+            expect(vars.root["--progress-radius"]).toBe("9999px");
+        });
+
+        it("every feedback component reads tokens through its classNames", () => {
+            expect(feedbackComponentExtensions.Loader.classNames).toEqual({ root: "cm-loader" });
+            expect(feedbackComponentExtensions.Progress.classNames).toMatchObject({ root: "cm-progress" });
+            expect(feedbackComponentExtensions.RingProgress.classNames).toMatchObject({ root: "cm-ring-progress" });
         });
 
         it("RingProgress does not have vars (uses numeric size prop)", () => {

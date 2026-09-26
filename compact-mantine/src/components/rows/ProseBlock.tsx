@@ -4,40 +4,29 @@ import React, { useId } from "react";
 import { PANEL_GRID, PANEL_INK } from "../../constants/panel";
 import { useLabels } from "../../i18n";
 import { UiGlyph } from "../../icons";
+import { useCompactStyles } from "../../theme/useCompactStyles";
 import type { ActivationHandler } from "../../types/events";
 import { useDevWarning } from "../../utils/dev-warning";
 import { liveRegionProps,type LiveSetting } from "../../utils/live-region";
 import { isRtl, useDirection } from "../../utils/rtl";
+import { Caret } from "../chrome/Caret";
 
 // Contract section 4: the reading is rebased onto Mantine's Text, which puts
-// its typography, its colour handling and its truncation back under the theme
+// its typography, its color handling and its truncation back under the theme
 // instead of on a raw Box. The two dense variants use `Text span` for the same
 // reason; only the flex wrappers stay Boxes, because they are layout and have
 // no text of their own.
 
-/**
- * The reading's type size, in pixels: the panel's body size.
- *
- * Deliberately not `PANEL_GRID.CHEVRON`, which is also 12: that number is the
- * drawn size of a glyph and this one is a font size, and the two are free to
- * diverge. The compact theme's font-size scale has no 12px step -- `sm` is 11
- * and `md` is 13 -- so the reading names its own and sets it on the Text
- * directly.
- */
-const READING_FONT_SIZE = 12;
+// Type: every variant is the panel's body role, 11/16 weight 450 (design/figma-spec.md 9.8).
+// The reading and the run record are secondary ink (the cm-prose class), the departure line
+// primary (cm-chart-value). Emphasis is weight and ink, never a larger size.
 
 /**
- * The reading's line height. Prose is set looser than a control's label
- * because it is read as a sentence rather than scanned as a value.
+ * The square slot a glyph takes inside a line of prose: one 16px text line, so
+ * the glyph centers on the words beside it. Not `PANEL_GRID.GLYPH_SLOT`, the
+ * 24px slot of a control.
  */
-const READING_LINE_HEIGHT = 1.5;
-
-/**
- * The line height of the departure line and the run record: one notch tighter
- * than the reading, because both are a single line about a result rather than
- * prose.
- */
-const DENSE_LINE_HEIGHT = 1.4;
+const LINE_SLOT = 16;
 
 /** The gap between a glyph and the words beside it. */
 const INLINE_GAP = 4;
@@ -46,7 +35,7 @@ const INLINE_GAP = 4;
  * The run record's row height, in pixels.
  *
  * Shorter than `PANEL_GRID.CONTROL_HEIGHT`, because the line holds no control:
- * a dimmed sentence and a 12px chevron, and nothing else to hit.
+ * a dimmed sentence and a caret, and nothing else to hit.
  */
 const RUN_RECORD_HEIGHT = 20;
 
@@ -284,7 +273,7 @@ function detailsVariantWarning(
 //   not replace content that says the same thing.
 // - departure: the WAI-ARIA `note` document-structure role, named from the
 //   `departure` label, so the severity the yellow triangle draws is also
-//   stated. Without it the line is text in a colour, which fails WCAG 1.4.1.
+//   stated. Without it the line is text in a color, which fails WCAG 1.4.1.
 //   The triangle itself is then decorative and hidden, so the name is not read
 //   twice.
 // - runRecord: the APG "Button" pattern for the chevron. It is icon-only, so it
@@ -295,7 +284,7 @@ function detailsVariantWarning(
 // WCAG 2.2 2.5.8 (target size): the chevron's 16px slot is under the 24px
 // minimum and rests on the spacing exception. It is the only target on its own
 // line, and a 20px line separated by a panel gap of 8 keeps 28px between its
-// centre and the next target's, past the 24px the exception asks for. Two run
+// center and the next target's, past the 24px the exception asks for. Two run
 // records stacked flush against each other would break that, which is why the
 // row keeps its own height rather than collapsing to the text.
 
@@ -354,6 +343,7 @@ function detailsVariantWarning(
  * ```
  */
 export function ProseBlock({ variant, children, onDetails, busy, live }: ProseBlockProps): React.JSX.Element {
+    useCompactStyles();
     const labels = useLabels();
     const direction = useDirection();
     const lineId = useId();
@@ -373,11 +363,7 @@ export function ProseBlock({ variant, children, onDetails, busy, live }: ProseBl
                 {...announcement}
                 data-testid="prose-block"
                 data-variant={variant}
-                style={{
-                    fontSize: READING_FONT_SIZE,
-                    lineHeight: READING_LINE_HEIGHT,
-                    color: PANEL_INK.PROSE,
-                }}
+                className="cm-prose"
             >
                 {children}
             </Text>
@@ -406,8 +392,8 @@ export function ProseBlock({ variant, children, onDetails, busy, live }: ProseBl
                     data-testid="prose-block-warning"
                     style={{
                         flex: "0 0 auto",
-                        inlineSize: PANEL_GRID.GLYPH_SLOT,
-                        blockSize: PANEL_GRID.GLYPH_SLOT,
+                        inlineSize: LINE_SLOT,
+                        blockSize: LINE_SLOT,
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
@@ -416,15 +402,7 @@ export function ProseBlock({ variant, children, onDetails, busy, live }: ProseBl
                 >
                     <UiGlyph name="warning" size={PANEL_GRID.GLYPH} />
                 </Box>
-                <Text
-                    span
-                    size="sm"
-                    data-testid="prose-block-text"
-                    style={{
-                        lineHeight: DENSE_LINE_HEIGHT,
-                        color: PANEL_INK.VALUE,
-                    }}
-                >
+                <Text span data-testid="prose-block-text" className="cm-chart-value">
                     {children}
                 </Text>
             </Box>
@@ -450,16 +428,14 @@ export function ProseBlock({ variant, children, onDetails, busy, live }: ProseBl
         >
             <Text
                 span
-                size="sm"
                 truncate="end"
                 id={lineId}
                 title={fullLine}
                 data-testid="prose-block-text"
+                className="cm-prose"
                 style={{
                     flex: "1 1 auto",
                     minInlineSize: 0,
-                    lineHeight: DENSE_LINE_HEIGHT,
-                    color: PANEL_INK.CHROME,
                 }}
             >
                 {children}
@@ -474,24 +450,23 @@ export function ProseBlock({ variant, children, onDetails, busy, live }: ProseBl
                     aria-label={labels.details}
                     aria-describedby={lineId}
                     data-testid="prose-block-details"
+                    className="cm-focus-outside"
                     onClick={onDetails}
                     style={{
                         flex: "0 0 auto",
-                        inlineSize: PANEL_GRID.GLYPH_SLOT,
-                        blockSize: PANEL_GRID.GLYPH_SLOT,
+                        inlineSize: LINE_SLOT,
+                        blockSize: LINE_SLOT,
+                        borderRadius: 5,
                         display: "inline-flex",
                         alignItems: "center",
                         justifyContent: "center",
                         boxSizing: "border-box",
                         background: "transparent",
-                        color: PANEL_INK.CHROME,
+                        color: "var(--cm-icon-secondary)",
                         cursor: "pointer",
                     }}
                 >
-                    <UiGlyph
-                        name={isRtl(direction) ? "chevronLeft" : "chevronRight"}
-                        size={PANEL_GRID.CHEVRON}
-                    />
+                    <Caret open={false} rtl={isRtl(direction)} />
                 </UnstyledButton>
             )}
         </Box>

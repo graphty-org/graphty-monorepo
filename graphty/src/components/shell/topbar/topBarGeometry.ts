@@ -119,8 +119,11 @@ export const PALETTE_PILL_GLYPH_SIZE = PANEL_GRID.GLYPH;
 /* Key chip (spec 02 section 2.3c; spec 04 section 10.3)                       */
 /* -------------------------------------------------------------------------- */
 
-/** The trailing key chip: 16 px tall. Spec 02 section 2.3. */
-export const KEY_CHIP_HEIGHT = PANEL_GRID.GLYPH_SLOT;
+/**
+ * The trailing key chip: 16 px tall. Spec 02 section 2.3. It was `PANEL_GRID.GLYPH_SLOT` while
+ * that slot was 16; the slot is now Figma's 24px icon box, which would fill the 24px pill.
+ */
+export const KEY_CHIP_HEIGHT = 16;
 
 /** The trailing key chip: `padding: 0 4px`. Spec 02 section 2.3. */
 export const KEY_CHIP_PADDING_X = 4;
@@ -278,7 +281,7 @@ export const HISTORY_TIME_COLUMN = 34;
 
 /**
  * The row grid the four columns and their three gaps add up to.
- * 14 + 6 + 228 + 6 + 44 + 6 + 34 = 338, inside a 350 px row. Spec 02 section 2.5.
+ * 12 (PANEL_GRID.GLYPH) + 6 + 228 + 6 + 44 + 6 + 34 = 336, inside a 350 px row. Spec 02 section 2.5.
  */
 export const HISTORY_ROW_GRID_WIDTH =
     HISTORY_GLYPH_COLUMN +

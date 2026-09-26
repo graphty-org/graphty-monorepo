@@ -22,6 +22,8 @@
  * knip's unused-export check, which is why only genuine spec identities get one.
  */
 
+import { PANEL_GRID } from "@graphty/compact-mantine";
+
 import type { ActivityId, PinnedActivityId, PrimaryActivityId, StatusBarSlotId } from "./types";
 
 /* -------------------------------------------------------------------------- */
@@ -52,16 +54,16 @@ export const ACTIVITY_RAIL_ITEM_WIDTH = ACTIVITY_RAIL_WIDTH - 1;
 export const ACTIVITY_RAIL_ITEM_GAP = 2;
 
 /**
- * Activity panel default width, and the width the 6.9 panel grid is an identity for:
- * 16 pad + 108 field + 8 gutter + 108 field + 8 gap + 24 trailing + 8 pad.
- * Spec 01 section 1 (SPEC:130-131; ART-MAIN:289); spec 04 section 3.1.
+ * Activity panel default width: `@graphty/compact-mantine`'s panel column, the width its panel
+ * grid is an identity for (16 pad + 88 field + 8 gutter + 88 field + 8 gap + 24 trailing + 8 pad
+ * = 240, Figma's panel). Read from the library so the panel follows its grid.
  */
-export const ACTIVITY_PANEL_WIDTH_DEFAULT = 280;
+export const ACTIVITY_PANEL_WIDTH_DEFAULT = PANEL_GRID.WIDTH;
 
 /**
  * Activity panel minimum width on a desktop drag.
  *
- * The sources name no separate floor, and the 6.9 grid identity sums to exactly 280:
+ * The sources name no separate floor, and the panel grid identity sums to exactly its width:
  * a narrower panel breaks every row type at once. The floor is therefore the default
  * itself and the desktop drag only widens. Spec 04 section 3.1 (PANEL_GRID identity).
  *
@@ -82,8 +84,8 @@ export const ACTIVITY_PANEL_MIN_WIDTH = ACTIVITY_PANEL_WIDTH_DEFAULT;
 export const ACTIVITY_PANEL_MAX_WIDTH = 480;
 
 /**
- * Inspector default width. The inspector is the same 280 px column as an activity
- * panel and takes the same grid -- 280, not the 260 the artboards' earlier sidebar used.
+ * Inspector default width. The inspector is the same column as an activity panel and takes
+ * the same grid (`PANEL_GRID.WIDTH`).
  * Spec 01 section 1 (SPEC:273; ART-MAIN:1031); spec 04 section 3.3.
  *
  * Declared as {@link ACTIVITY_PANEL_WIDTH_DEFAULT} because design 6.9 makes it the same
@@ -94,7 +96,7 @@ export const INSPECTOR_WIDTH_DEFAULT = ACTIVITY_PANEL_WIDTH_DEFAULT;
 
 /**
  * Inspector minimum width on a desktop drag. Same reasoning as
- * {@link ACTIVITY_PANEL_MIN_WIDTH}: the panel grid identity is exactly 280.
+ * {@link ACTIVITY_PANEL_MIN_WIDTH}: the panel grid identity is exactly its width.
  * @alias ACTIVITY_PANEL_MIN_WIDTH
  */
 export const INSPECTOR_MIN_WIDTH = ACTIVITY_PANEL_MIN_WIDTH;
@@ -814,12 +816,6 @@ export const STATUS_BAR_NEVER_DROP: readonly StatusBarSlotId[] = ["counts", "run
  * redo stack. Spec 01 section 1 (SPEC:296); spec 02 section 3.3.
  */
 export const UNDO_DEPTH = 50;
-
-/**
- * Dwell, in milliseconds, before a tooltip or an info circle opens. Never suppressed
- * in Performance mode. Spec 04 sections 8.2 and 8.4.
- */
-export const TOOLTIP_DELAY_MS = 150;
 
 /* -------------------------------------------------------------------------- */
 /* The menu-affordance caret (spec 02 section 8; REGISTER-1.5 section 1.1)      */

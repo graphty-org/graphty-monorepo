@@ -1,0 +1,130 @@
+import { Meta } from "@storybook/blocks";
+
+<Meta title="Introduction/Choosing a component" />
+
+# Choosing a component
+
+Some components here overlap, and several sit beside a Mantine component that looks as though
+it would do. This page names the one to reach for, grouped the way the **Components** section of
+the sidebar is. Each group's Overview page says more.
+
+## Panels and rows
+
+The containers a property panel is built from, and the row layout every other component agrees
+with. [Overview](?path=/docs/components-panels-and-rows-overview--docs)
+
+| If you have | Use | Not |
+|---|---|---|
+| A run of controls that needs a name and folds away | `ControlSection` | -- |
+| A group that must never fold, or sits in a padded container such as a pop-out | `ControlGroup` | `ControlSection`, whose header folds |
+| A few rarely-opened settings under a section you already have | `ControlSubGroup` | a second `ControlSection`, which is louder |
+| One or two fields sharing a line | `FieldRow` | a hand-built flex row, which will not line up with the rows around it |
+| A row you are laying out by hand that must end level with the others | `TrailingSlot` | -- |
+| Two or three values that are one thing (a color and its opacity, a width and its unit) | `CompoundRow` | two separate fields |
+| A resizable panel edge | `ResizeHandle` | -- |
+
+## Inputs
+
+Values the reader types or picks. [Overview](?path=/docs/components-inputs-overview--docs)
+
+| If you have | Use | Not |
+|---|---|---|
+| A number or a string in a panel row | `PanelField` (`kind="number"` or `"text"`) | Mantine `TextInput` / `NumberInput`, which are form fields with a label above |
+| One of a fixed list | Mantine `Select` (themed) or `PanelField kind="select"` in a panel row | -- |
+| A choice with a default the reader can override, where `undefined` means "inherit" | `StyleSelect` (on the Select page) | a `Select` with a hand-made reset button |
+| A number with a default the reader can override | `StyleNumberInput` | `PanelField kind="number"`, which has no "not set" state |
+| A value typed freely, with a list of presets | `ComboInput` | `Select` (fixed choices only) or Mantine `Autocomplete` (suggestions, no chevron) |
+| A filter or find box | `SearchInput` | Mantine `TextInput`: search adds the glyph, the clear button and Escape-to-clear |
+| A value bound to a named variable | `VariablePill` | -- |
+
+## Selection
+
+Yes or no, and one of a few. [Overview](?path=/docs/components-selection-overview--docs)
+
+| If you have | Use | Not |
+|---|---|---|
+| Two or more yes/no settings that belong together | `ToggleRow` inside a `ToggleRowGroup` | Mantine `Checkbox` with a label, which is sized for a form |
+| A yes/no that brings its own settings with it | `ToggleWithContent` | a `ToggleRow` followed by rows you hide yourself |
+| Two to six mutually exclusive options whose difference can be drawn | Mantine `SegmentedControl`, with a glyph and a visually hidden word in each segment ([the recipe](?path=/docs/themed-mantine-selection-segmentedcontrol--docs)) | -- (`IconGroupRow` was removed in 0.9) |
+| A 3 x 3 alignment | `AlignmentMatrix` | nine buttons |
+
+**A lone boolean is not a row.** A single checkbox between other rows interrupts the panel to
+say one bit. Put it in the trailing slot of the row it modifies, or make it one segment of a
+`SegmentedControl`. `ToggleRowGroup` warns in development when given only one child, for exactly
+this reason.
+
+## Color
+
+[Overview](?path=/docs/components-color-overview--docs)
+
+| If you have | Use | Not |
+|---|---|---|
+| A color and its opacity on one line, with a picker | `CompactColorInput` (needs a `PopoutManager`) | Mantine `ColorInput`, which has no opacity field and no Figma picker |
+| The picker itself, on a surface of your own | `ColorPickerPanel` | -- |
+| A multi-stop linear gradient | `GradientEditor`, alone or in `ColorPickerPanel`'s `gradient` slot | -- |
+| A range drawn as a size wedge or a color ramp | `RampRow` | two numbers and a sentence |
+
+## Actions
+
+[Overview](?path=/docs/components-actions-overview--docs)
+
+| If you have | Use | Not |
+|---|---|---|
+| An icon button that stays pressed (lock, visibility) | `ToggleIconButton` | Mantine `ActionIcon`, which is an action, not an on/off state |
+| A main action with a menu of related choices | `SplitButton` | a Mantine `Menu` on a `Button`, which has no default action |
+| A gear that opens a row's or a section's advanced settings | `AdvancedButton`, with `changed` | `PopoutButton`, which does not mark changed settings |
+
+## Overlays
+
+[Overview](?path=/docs/components-overlays-overview--docs)
+
+| If you have | Use | Not |
+|---|---|---|
+| A panel that opens beside a control, can be dragged and can nest | `Popout` (needs a `PopoutManager`) | Mantine `Popover`: one-off, not draggable, no nesting |
+| An icon button that opens a pop-out and stays lit while it is open | `PopoutButton`, inside `Popout.Trigger` | `AdvancedButton` |
+| An explanation the reader asks for, which stays open | `InfoCircle` | a `Tooltip`, which closes when the pointer leaves |
+| A tooltip with a keyboard shortcut | `TooltipShortcut` as the label of a Mantine `Tooltip` | -- |
+| A right-click menu | `ContextMenu` (also Shift+F10 and the ContextMenu key) | Mantine `Menu`, opened from a button |
+| A dialog's action buttons | `ModalFooter` in a Mantine `Modal` | -- |
+| A short confirmation that disappears on its own | `useToast()` under a `ToastProvider` | Mantine notifications |
+
+## Lists and trees
+
+Objects the reader selects, renames or moves. [Overview](?path=/docs/components-lists-and-trees-overview--docs)
+
+| If you have | Use | Not |
+|---|---|---|
+| A nested list of objects (layers, a scene graph) | `Tree` | `DataRow`, which is a reading, not an object |
+| A flat, reorderable, renameable list (style layers, a playlist) | `Tree` with no `children` on any item | a hand-built drag-and-drop list |
+| Flat pages with dividers | `PageList` | -- |
+| One find result | `ResultRow` | -- |
+
+## Data display
+
+Readings: things the reader looks at rather than changes. [Overview](?path=/docs/components-data-display-overview--docs)
+
+| If you have | Use | Not |
+|---|---|---|
+| A label and a reading on one line (a statistic, a ranking) | `DataRow`, with the value already formatted by `useNumberFormatter()` | `Tree` or `PageList`, which are for objects |
+| A caption over a run of data rows, optionally a sort control | `DataRowHeader` | -- |
+| One reading with a percentile and a rank | `MetricRow` (and `RankChip` for the rank alone) | -- |
+| A distribution, or a series over time | `HistogramRow`, `SparklineRow` | a chart library at full size |
+| A plain-language reading or a caveat | `ProseBlock` | -- |
+| A state with verbs beside it | `ActionRow` | -- |
+| Columns and thousands of rows | `DataTable` | many `DataRow`s |
+
+## App shell
+
+The chrome around an editor's canvas. [Overview](?path=/docs/components-app-shell-overview--docs)
+
+| If you have | Use |
+|---|---|
+| A floating tool bar, with tools and flyouts | `Toolbar`, `ToolButton`, `ToolGroup` |
+| A bar for the current mode | `SecondaryToolbar` |
+| Navigation at the window's edge | `NavRail`, `RailButton` |
+| Help, shortcuts and a command palette | `HelpButton`, `ShortcutSheet`, `QuickActions` |
+
+## Testing any of them
+
+Every component puts its own name, in kebab case, on a root `data-testid` -- `advanced-button`,
+`metric-row`, `popout-panel` -- so a test can find any of them the same way.

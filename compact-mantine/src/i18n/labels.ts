@@ -11,9 +11,9 @@
 //   - a doc comment naming the component and the element it appears on, because
 //     that is the context a translator needs and cannot get from the key.
 //
-// Developer diagnostics are deliberately absent. The seven components that
+// Developer diagnostics are deliberately absent. The six components that
 // report a mistake -- ControlSection, ActionRow, CompoundRow, FieldRow,
-// IconGroupRow, ProseBlock and ToggleRowGroup -- all go through useDevWarning
+// ProseBlock and ToggleRowGroup -- all go through useDevWarning
 // in src/utils/dev-warning.ts, which is gated on NODE_ENV. Those messages are
 // never seen by an end user, and staying in one language is what makes them
 // findable in the source from a pasted console line.
@@ -150,13 +150,13 @@ export interface CompactMantineLabels {
 
     // CompactColorInput
 
-    /** Accessible name of the swatch button that opens the colour picker. */
+    /** Accessible name of the swatch button that opens the color picker. */
     colorSwatch: string;
-    /** Accessible name of the text box holding the colour's hex value. */
+    /** Accessible name of the text box holding the color's hex value. */
     colorHexValue: string;
-    /** Accessible name of the number box holding the colour's opacity percentage. */
+    /** Accessible name of the number box holding the color's opacity percentage. */
     opacity: string;
-    /** Title of the colour picker pop-out when the caller supplied no label. */
+    /** Title of the color picker pop-out when the caller supplied no label. */
     colorPanelTitle: string;
     /**
      * Stands in for a missing control name inside a reset button's accessible
@@ -252,6 +252,25 @@ export interface CompactMantineLabels {
     /** Accessible name of a tabbed pop-out panel when its first tab has no label. */
     settings: string;
 
+    // Editor shell
+
+    /** Default accessible name of a `Toolbar` when the caller gives none. */
+    toolbar: string;
+    /** Default accessible name of a `NavRail`, the vertical navigation toolbar. */
+    navigation: string;
+    /** Accessible name and tooltip of the round `HelpButton`. */
+    help: string;
+    /** Accessible name of the `ShortcutSheet` and of its tab list. */
+    keyboardShortcuts: string;
+    /** Accessible name of the close button in the `ShortcutSheet`'s tab strip. */
+    close: string;
+    /** Accessible name of the `QuickActions` dialog. */
+    quickActions: string;
+    /** Placeholder and accessible name of the `QuickActions` search field. */
+    searchActions: string;
+    /** Shown in `QuickActions` when nothing matches the search. */
+    noResults: string;
+
     // Ordinals
 
     /**
@@ -329,6 +348,15 @@ export const defaultLabels: CompactMantineLabels = {
 
     closePanel: "Close panel",
     settings: "Settings",
+
+    toolbar: "Tools",
+    navigation: "Navigation",
+    help: "Help",
+    keyboardShortcuts: "Keyboard shortcuts",
+    close: "Close",
+    quickActions: "Quick actions",
+    searchActions: "Search actions",
+    noResults: "No results",
 
     // Intl.PluralRules already sorts out English's exceptions: 11, 12 and 13
     // come back as "other" and take "th", while 21, 22 and 23 come back as

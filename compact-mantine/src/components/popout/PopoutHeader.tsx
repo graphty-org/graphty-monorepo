@@ -1,15 +1,21 @@
-import { ActionIcon, CloseButton, Group, SegmentedControl, Text, VisuallyHidden } from "@mantine/core";
+import { ActionIcon, Box, CloseButton, Tabs, VisuallyHidden } from "@mantine/core";
 import type { JSX } from "react";
 
 import { useLabels } from "../../i18n";
 import type { PopoutHeaderProps } from "../../types/popout";
 
-// Accessibility: the tab strip is the APG "Radio Group" pattern rather than the
-// "Tabs" pattern, because that is what Mantine's SegmentedControl builds --
-// real radio inputs in a group, with arrow-key movement and checked state
-// exposed natively, and arrow keys that already follow the reading direction.
-// The header itself is the dialog's title bar: its title element is what the
-// panel points aria-labelledby at.
+// Accessibility: the tab strip is the APG "Tabs" pattern, built by Mantine's
+// Tabs: a tablist whose tabs carry aria-selected and aria-controls, with arrow
+// keys that move and select and follow the reading direction. The panel draws
+// the matching tabpanel (same ids, see ./utils/tabs.ts). The header itself is
+// the dialog's title bar: its title element is what the panel points
+// aria-labelledby at.
+//
+// The look is Figma's light popover header (design/figma-spec.md 8.4): 40 tall,
+// padding 0 32 0 8, a 1px divider drawn as an inset shadow, the title 11/16 550
+// 16px from the edge, pill tabs in the title slot, and a 24px ghost close
+// button 8px from the top and the end. The CSS is cm-popout-* in
+// src/theme/css/overlays.css.ts.
 
 /**
  * The bar across the top of a pop-out panel: its title or tab strip, any action
@@ -26,6 +32,7 @@ import type { PopoutHeaderProps } from "../../types/popout";
  * @param props.activeTab - Currently selected tab
  * @param props.onTabChange - Called when a different tab is selected, with its id first
  * @param props.titleId - ID given to the title element, which names the panel
+ * @param props.tabsId - The base id of the tab strip, shared with the panel's tab panel
  * @returns The pop-out panel's header bar
  */
 export function PopoutHeader({
@@ -36,86 +43,73 @@ export function PopoutHeader({
     activeTab,
     onTabChange,
     titleId,
+    tabsId,
 }: PopoutHeaderProps): JSX.Element {
     const labels = useLabels();
 
-    // Extract style from dragTriggerProps to merge with Group's style
+    // Extract style from dragTriggerProps to merge with the bar's style
     const { style: dragStyle, ...restDragProps } = dragTriggerProps as {
         style?: React.CSSProperties;
         [key: string]: unknown;
     };
 
-    // For tabs variant, get tabs config
-    const isTabs = config.variant === "tabs";
-    const tabsConfig = isTabs ? config : null;
-
-    // Convert tabs to SegmentedControl data format
-    const segmentedData = tabsConfig?.tabs.map((tab) => ({
-        value: tab.id,
-        label: tab.label,
-    })) ?? [];
-
     return (
-        <Group
-            data-testid="popout-header"
-            justify="space-between"
-            px="sm"
-            py="xs"
-            {...restDragProps}
-            style={{
-                ...dragStyle,
-            }}
-        >
-            {/* Left side: Title or Segmented Control */}
+        <Box data-testid="popout-header" className="cm-popout-header" {...restDragProps} style={dragStyle}>
             {config.variant === "title" ? (
-                <Text id={titleId} data-testid="popout-header-title" size="sm" fw={500}>
+                <h2 id={titleId} data-testid="popout-header-title" className="cm-popout-title">
                     {config.title}
-                </Text>
+                </h2>
             ) : (
                 <>
                     {/* A tab strip is not a title, so the panel is named by a
                         hidden one rather than by whichever tab is selected. */}
-                    <VisuallyHidden id={titleId}>
-                        {tabsConfig?.tabs[0]?.label ?? labels.settings}
-                    </VisuallyHidden>
-                    <SegmentedControl
-                        data-testid="popout-header-tabs"
-                        data={segmentedData}
-                        value={activeTab}
-                        // Mantine's SegmentedControl reports the value it
-                        // changed to and not the event that changed it. The
-                        // event is optional on every change handler in this
-                        // package for exactly this case.
-                        onChange={(value) => onTabChange?.(value)}
-                        size="xs"
-                    />
+                    <VisuallyHidden id={titleId}>{config.tabs[0]?.label ?? labels.settings}</VisuallyHidden>
+                    <Tabs
+                        id={tabsId}
+                        variant="pills"
+                        value={activeTab ?? null}
+                        // Mantine's Tabs reports the value it changed to and not
+                        // the event that changed it. The event is optional on
+                        // every change handler in this package for this case.
+                        onChange={(value) => {
+                            if (value !== null) {
+                                onTabChange?.(value);
+                            }
+                        }}
+                        className="cm-popout-tabs"
+                    >
+                        <Tabs.List data-testid="popout-header-tabs">
+                            {config.tabs.map((tab) => (
+                                <Tabs.Tab key={tab.id} value={tab.id}>
+                                    {tab.label}
+                                </Tabs.Tab>
+                            ))}
+                        </Tabs.List>
+                    </Tabs>
                 </>
             )}
 
-            {/* Right side: Actions and Close button */}
-            <Group gap={4}>
-                {actions.map((action) => (
-                    <ActionIcon
-                        key={action.id}
-                        variant="subtle"
-                        onClick={action.onClick}
-                        aria-label={action.label}
-                    >
-                        {action.icon}
-                    </ActionIcon>
-                ))}
-                {/* No explicit size: the compact theme's own CloseButton default is "xs",
-                    which is the 16x16 box with a 12px glyph this chrome is drawn to. The
-                    explicit "sm" here was written when every size resolved to the same
-                    values, so it read as a no-op; once the scale became size-aware on
-                    2026-09-13 it started asking for the 20x20 step and the popout's close
-                    button silently grew. */}
-                <CloseButton
-                    data-testid="popout-header-close"
-                    onClick={onClose}
-                    aria-label={labels.closePanel}
-                />
-            </Group>
-        </Group>
+            {actions.length > 0 ? (
+                <div className="cm-popout-actions">
+                    {actions.map((action) => (
+                        <ActionIcon
+                            key={action.id}
+                            variant="subtle"
+                            onClick={action.onClick}
+                            aria-label={action.label}
+                        >
+                            {action.icon}
+                        </ActionIcon>
+                    ))}
+                </div>
+            ) : null}
+
+            <CloseButton
+                data-testid="popout-header-close"
+                className="cm-popout-close"
+                onClick={onClose}
+                aria-label={labels.closePanel}
+            />
+        </Box>
     );
 }

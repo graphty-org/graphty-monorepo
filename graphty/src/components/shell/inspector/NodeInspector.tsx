@@ -30,7 +30,6 @@ import React, { useMemo, useState } from "react";
 
 import { DataAccordion } from "../../data-view/DataAccordion";
 import { keyChipFor } from "../bindings";
-import { TOOLTIP_DELAY_MS } from "../constants";
 import { type InspectorAction, InspectorActions } from "./InspectorActions";
 import {
     ATTRIBUTE_FILTER_THRESHOLD,
@@ -440,7 +439,7 @@ export function NodeInspector(props: NodeInspectorProps): React.JSX.Element {
                     </Text>
 
                     <Group gap={INSPECTOR_CLUSTER_GAP} wrap="nowrap" style={{ flex: "0 0 auto" }}>
-                        <Tooltip label="Copy id" openDelay={TOOLTIP_DELAY_MS} position="top" withinPortal>
+                        <Tooltip label="Copy id" position="top" withinPortal>
                             <ActionIcon
                                 type="button"
                                 variant="subtle"

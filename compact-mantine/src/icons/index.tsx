@@ -3,7 +3,7 @@ import React from "react";
 import { PANEL_GRID, PANEL_INK } from "../constants/panel";
 
 /**
- * The closed register of drawings allowed in a field's 16px slot.
+ * The closed register of drawings allowed in a field's 24px slot.
  *
  * Nothing outside this list may be drawn there. The premise of the field is
  * that a small drawing can replace a word, which only works if the drawings are
@@ -46,7 +46,35 @@ export type UiGlyphName =
     | "pin"
     | "keepOpen"
     | "info"
-    | "reset";
+    | "reset"
+    | "caretDown"
+    | "caretRight"
+    | "dash"
+    | "eyeClosed"
+    | "lock"
+    | "unlock"
+    | "search"
+    | "settings"
+    | "link"
+    | "unlink"
+    | "eyedropper"
+    | "rotate"
+    | "flipHorizontal"
+    | "flipVertical"
+    | "alignLeft"
+    | "alignCenterH"
+    | "alignRight"
+    | "alignTop"
+    | "alignCenterV"
+    | "alignBottom"
+    | "more"
+    | "help"
+    | "frame"
+    | "rectangle"
+    | "ellipse"
+    | "text"
+    | "component"
+    | "group";
 
 /**
  * Every glyph name in the closed field register, in register order.
@@ -87,21 +115,58 @@ export const UI_GLYPH_NAMES: readonly UiGlyphName[] = [
     "keepOpen",
     "info",
     "reset",
+    "caretDown",
+    "caretRight",
+    "dash",
+    "eyeClosed",
+    "lock",
+    "unlock",
+    "search",
+    "settings",
+    "link",
+    "unlink",
+    "eyedropper",
+    "rotate",
+    "flipHorizontal",
+    "flipVertical",
+    "alignLeft",
+    "alignCenterH",
+    "alignRight",
+    "alignTop",
+    "alignCenterV",
+    "alignBottom",
+    "more",
+    "help",
+    "frame",
+    "rectangle",
+    "ellipse",
+    "text",
+    "component",
+    "group",
 ];
 
 /**
- * The attributes every glyph in the set carries: a 16px viewBox drawn as
- * 1.5px round strokes in the parent's own colour. Colour never comes from the
- * SVG.
+ * The attributes every glyph in the set carries: a 16-unit viewBox drawn as
+ * round strokes in the parent's own color. Color never comes from the SVG.
+ * The stroke width is set per render (strokeFor) so a stroke is 1 CSS pixel at
+ * any drawn size, Figma's weight (design/figma-spec.md 13).
  */
 const SVG_ATTRIBUTES = {
     viewBox: "0 0 16 16",
     fill: "none",
     stroke: "currentColor",
-    strokeWidth: 1.5,
     strokeLinecap: "round",
     strokeLinejoin: "round",
 } as const;
+
+/**
+ * The viewBox stroke width that draws a 1px line at a given drawn size.
+ * @param size - the drawn size in pixels
+ * @returns the stroke width in viewBox units
+ */
+function strokeFor(size: number): number {
+    return 16 / size;
+}
 
 /**
  * The attributes that turn one shape of a glyph into its bound (filled) form.
@@ -160,7 +225,7 @@ const FIELD_GLYPH_SHAPES: Record<FieldGlyphName, (filled: boolean) => React.JSX.
                     <path d="M2.5 7.2V3.5a1 1 0 0 1 1-1h3.7l6.3 6.3-4.7 4.7z" {...FILL_ATTRIBUTES} />
                     {/*
                         The hole in the filled tag is knocked back out in the
-                        colour of the field behind it. It goes through `style`
+                        color of the field behind it. It goes through `style`
                         rather than the `fill` attribute because `SURFACE` is a
                         `light-dark()` value, which resolves in CSS but not
                         reliably in an SVG presentation attribute.
@@ -208,10 +273,11 @@ const UI_GLYPH_SHAPES: Record<UiGlyphName, React.JSX.Element> = {
     chevronDown: <polyline points="4,6 8,10 12,6" />,
     chevronRight: <polyline points="6,4 10,8 6,12" />,
     chevronLeft: <polyline points="10,4 6,8 10,12" />,
+    // Fills the 10px CHEVRON box it is drawn in.
     close: (
         <>
-            <line x1="4" y1="4" x2="12" y2="12" />
-            <line x1="12" y1="4" x2="4" y2="12" />
+            <line x1="2.5" y1="2.5" x2="13.5" y2="13.5" />
+            <line x1="13.5" y1="2.5" x2="2.5" y2="13.5" />
         </>
     ),
     plus: (
@@ -239,7 +305,8 @@ const UI_GLYPH_SHAPES: Record<UiGlyphName, React.JSX.Element> = {
             <line x1="8" y1="11.5" x2="8" y2="11.75" />
         </>
     ),
-    check: <polyline points="3.5,8.5 6.5,11.5 12.5,5" />,
+    // 9 x 8.5 in a 16px check column.
+    check: <polyline points="3.5,8.5 6.5,11.75 12.5,3.25" />,
     eye: (
         <>
             <path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8z" />
@@ -285,6 +352,147 @@ const UI_GLYPH_SHAPES: Record<UiGlyphName, React.JSX.Element> = {
             <line x1="12" y1="4" x2="4" y2="12" />
         </>
     ),
+    // Figma-register glyphs (design/figma-spec.md 13), drawn by this package. Carets are filled
+    // triangles, 5 x 3 when drawn in the 10px CHEVRON box.
+    caretDown: <path d="M4 5.6h8L8 10.4z" {...FILL_ATTRIBUTES} />,
+    caretRight: <path d="M5.6 4v8L10.4 8z" {...FILL_ATTRIBUTES} />,
+    // 8 x 2 in a 16px checkbox: the indeterminate mark.
+    dash: <rect x="4" y="7" width="8" height="2" {...FILL_ATTRIBUTES} />,
+    eyeClosed: (
+        <>
+            <path d="M1.5 6.5s2.5 3.5 6.5 3.5 6.5-3.5 6.5-3.5" />
+            <path d="M4 9l-1.5 2M8 10v2.5M12 9l1.5 2" />
+        </>
+    ),
+    lock: (
+        <>
+            <rect x="3.5" y="7" width="9" height="6.5" rx="1" />
+            <path d="M5.75 7V5.25a2.25 2.25 0 0 1 4.5 0V7" />
+        </>
+    ),
+    unlock: (
+        <>
+            <rect x="3.5" y="7" width="9" height="6.5" rx="1" />
+            <path d="M5.75 7V5.25a2.25 2.25 0 0 1 4.4-.7" />
+        </>
+    ),
+    search: (
+        <>
+            <circle cx="7" cy="7" r="4.5" />
+            <line x1="10.5" y1="10.5" x2="13.5" y2="13.5" />
+        </>
+    ),
+    settings: (
+        <>
+            <circle cx="8" cy="8" r="2.25" />
+            <circle cx="8" cy="8" r="4.75" />
+            <path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4" />
+        </>
+    ),
+    link: (
+        <>
+            <path d="M6.5 5L8 3.5a2.5 2.5 0 0 1 3.5 3.5L10 8.5" />
+            <path d="M9.5 11L8 12.5A2.5 2.5 0 0 1 4.5 9L6 7.5" />
+            <line x1="6.5" y1="9.5" x2="9.5" y2="6.5" />
+        </>
+    ),
+    unlink: (
+        <>
+            <path d="M6.5 5L8 3.5a2.5 2.5 0 0 1 3.5 3.5L10 8.5" />
+            <path d="M9.5 11L8 12.5A2.5 2.5 0 0 1 4.5 9L6 7.5" />
+            <path d="M2.5 5.5h2M5.5 2.5v2M13.5 10.5h-2M10.5 13.5v-2" />
+        </>
+    ),
+    eyedropper: (
+        <>
+            <path d="M10.5 2.5l3 3-1.5 1.5-3-3z" />
+            <path d="M9.5 5l1.5 1.5-6 6H3.5V11z" />
+        </>
+    ),
+    rotate: (
+        <>
+            <path d="M13 8a5 5 0 1 1-1.5-3.5" />
+            <polyline points="12,1.5 12,4.5 9,4.5" />
+        </>
+    ),
+    flipHorizontal: (
+        <>
+            <line x1="8" y1="2" x2="8" y2="14" />
+            <path d="M5.5 4.5L2.5 11.5h3z" />
+            <path d="M10.5 4.5l3 7h-3z" />
+        </>
+    ),
+    flipVertical: (
+        <>
+            <line x1="2" y1="8" x2="14" y2="8" />
+            <path d="M4.5 5.5l7-3v3z" />
+            <path d="M4.5 10.5l7 3v-3z" />
+        </>
+    ),
+    alignLeft: (
+        <>
+            <line x1="2.5" y1="2.5" x2="2.5" y2="13.5" />
+            <rect x="4.5" y="4" width="8" height="3" />
+            <rect x="4.5" y="9" width="5" height="3" />
+        </>
+    ),
+    alignCenterH: (
+        <>
+            <line x1="8" y1="2.5" x2="8" y2="13.5" />
+            <rect x="3.5" y="4" width="9" height="3" />
+            <rect x="5.5" y="9" width="5" height="3" />
+        </>
+    ),
+    alignRight: (
+        <>
+            <line x1="13.5" y1="2.5" x2="13.5" y2="13.5" />
+            <rect x="3.5" y="4" width="8" height="3" />
+            <rect x="6.5" y="9" width="5" height="3" />
+        </>
+    ),
+    alignTop: (
+        <>
+            <line x1="2.5" y1="2.5" x2="13.5" y2="2.5" />
+            <rect x="4" y="4.5" width="3" height="8" />
+            <rect x="9" y="4.5" width="3" height="5" />
+        </>
+    ),
+    alignCenterV: (
+        <>
+            <line x1="2.5" y1="8" x2="13.5" y2="8" />
+            <rect x="4" y="3.5" width="3" height="9" />
+            <rect x="9" y="5.5" width="3" height="5" />
+        </>
+    ),
+    alignBottom: (
+        <>
+            <line x1="2.5" y1="13.5" x2="13.5" y2="13.5" />
+            <rect x="4" y="3.5" width="3" height="8" />
+            <rect x="9" y="6.5" width="3" height="5" />
+        </>
+    ),
+    more: (
+        <>
+            <circle cx="4" cy="8" r="1" {...FILL_ATTRIBUTES} />
+            <circle cx="8" cy="8" r="1" {...FILL_ATTRIBUTES} />
+            <circle cx="12" cy="8" r="1" {...FILL_ATTRIBUTES} />
+        </>
+    ),
+    help: (
+        <>
+            <circle cx="8" cy="8" r="6.5" />
+            <path d="M6.25 6.25a1.75 1.75 0 1 1 2.5 1.6c-.5.25-.75.6-.75 1.15" />
+            <line x1="8" y1="11.25" x2="8" y2="11.5" />
+        </>
+    ),
+    frame: <path d="M5.5 2v12M10.5 2v12M2 5.5h12M2 10.5h12" />,
+    rectangle: <rect x="3" y="3" width="10" height="10" />,
+    ellipse: <circle cx="8" cy="8" r="5" />,
+    text: <path d="M3.5 3.5h9M8 3.5v9" />,
+    component: (
+        <path d="M8 2l2 2-2 2-2-2zM8 10l2 2-2 2-2-2zM2 8l2-2 2 2-2 2zM10 8l2-2 2 2-2 2z" />
+    ),
+    group: <rect x="3" y="3" width="10" height="10" strokeDasharray="2 2" />,
 };
 
 /**
@@ -295,20 +503,20 @@ export interface FieldGlyphProps {
     name: FieldGlyphName;
     /** a bound glyph draws filled; a fixed literal draws hollow */
     filled?: boolean;
-    /** Drawn size in pixels. Defaults to the 14px glyph size of the 16px slot. */
+    /** Drawn size in pixels. Defaults to the 12px nominal glyph size of the 24px slot. */
     size?: number;
 }
 
 /**
- * A glyph from the closed register, drawn in a field's 16px slot.
+ * A glyph from the closed register, drawn in a field's 24px slot.
  *
  * The glyph is the field's label: it replaces the word that a label-above-field
  * stack used to spend a line on. It is decorative to assistive technology --
  * the field itself carries the word as its title and accessible name.
  * @param props - Component props
  * @param props.name - Which glyph of the closed field register to draw
- * @param props.filled - Draw the bound form: the glyph's closed shapes fill with the current colour, which is how a field says its value comes from a data attribute rather than from a fixed literal
- * @param props.size - Drawn size in pixels, defaulting to the 14px glyph size
+ * @param props.filled - Draw the bound form: the glyph's closed shapes fill with the current color, which is how a field says its value comes from a data attribute rather than from a fixed literal
+ * @param props.size - Drawn size in pixels, defaulting to the 12px nominal glyph size
  * @returns The field glyph SVG
  */
 export function FieldGlyph({ name, filled = false, size = PANEL_GRID.GLYPH }: FieldGlyphProps): React.JSX.Element {
@@ -317,6 +525,7 @@ export function FieldGlyph({ name, filled = false, size = PANEL_GRID.GLYPH }: Fi
             width={size}
             height={size}
             {...SVG_ATTRIBUTES}
+            strokeWidth={strokeFor(size)}
             aria-hidden="true"
             focusable="false"
             data-glyph={name}
@@ -334,7 +543,7 @@ export function FieldGlyph({ name, filled = false, size = PANEL_GRID.GLYPH }: Fi
 export interface UiGlyphProps {
     /** Which shared UI glyph to draw. */
     name: UiGlyphName;
-    /** Drawn size in pixels. Defaults to the 14px glyph size. */
+    /** Drawn size in pixels. Defaults to the 12px nominal glyph size. */
     size?: number;
 }
 
@@ -345,7 +554,7 @@ export interface UiGlyphProps {
  * title and the accessible name.
  * @param props - Component props
  * @param props.name - Which shared UI glyph to draw
- * @param props.size - Drawn size in pixels, defaulting to the 14px glyph size
+ * @param props.size - Drawn size in pixels, defaulting to the 12px nominal glyph size
  * @returns The UI glyph SVG
  */
 export function UiGlyph({ name, size = PANEL_GRID.GLYPH }: UiGlyphProps): React.JSX.Element {
@@ -354,6 +563,7 @@ export function UiGlyph({ name, size = PANEL_GRID.GLYPH }: UiGlyphProps): React.
             width={size}
             height={size}
             {...SVG_ATTRIBUTES}
+            strokeWidth={strokeFor(size)}
             aria-hidden="true"
             focusable="false"
             data-glyph={name}
@@ -368,7 +578,7 @@ export function UiGlyph({ name, size = PANEL_GRID.GLYPH }: UiGlyphProps): React.
  * Whether a value names a glyph in the closed field register.
  *
  * A field's `glyph` prop takes a register name, one of the five capital
- * letters, or an arbitrary node such as a colour swatch; this is how a row type
+ * letters, or an arbitrary node such as a color swatch; this is how a row type
  * tells the first case from the third.
  * @param value - The candidate glyph
  * @returns True when the value is a name in the closed field register
@@ -380,7 +590,7 @@ export function isFieldGlyphName(value: unknown): value is FieldGlyphName {
 /**
  * Whether a value is one of the five capital letters allowed in a field slot.
  *
- * A letter draws as an 11px capital in the secondary text colour instead of an
+ * A letter draws as an 11px capital in the secondary text color instead of an
  * SVG, for a concept no drawing stands for.
  * @param value - The candidate glyph
  * @returns True when the value is one of `N`, `E`, `W`, `D` or `K`

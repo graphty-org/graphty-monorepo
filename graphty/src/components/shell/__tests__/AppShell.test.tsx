@@ -2183,48 +2183,24 @@ describe("AppShell", () => {
         });
 
         /**
-         * Drags one layer row by its handle and drops it on another row, with the pointer events
-         * the list's drag sensor listens for.
+         * Drags one layer row and drops it on another row, with the HTML5 drag events the
+         * list's Tree listens for.
          * @param list - the layer list.
          * @param from - the name of the row to drag.
          * @param to - the name of the row to drop it on.
          */
         async function dragRow(list: HTMLElement, from: string, to: string): Promise<void> {
-            // A row is the nearest box around the name that also holds a drag handle.
-            const rowOf = (name: string): HTMLElement => {
-                let row: HTMLElement | null = within(list).getByText(name);
-
-                while (row !== null && row.querySelector('[data-testid="layer-drag-handle"]') === null) {
-                    row = row.parentElement;
-                }
-
-                expect(row).not.toBeNull();
-
-                return row as HTMLElement;
-            };
-            const handle = within(rowOf(from)).getByTestId("layer-drag-handle");
-            const start = handle.getBoundingClientRect();
+            // The list is a Tree: its rows are treeitems moved with HTML5 drag events. A row
+            // dragged up lands above the target, dragged down below it -- the target's place.
+            const rowOf = (name: string): HTMLElement => within(list).getByRole("treeitem", { name });
             const source = rowOf(from).getBoundingClientRect();
             const target = rowOf(to).getBoundingClientRect();
-            const x = start.left + start.width / 2;
-            const y = start.top + start.height / 2;
-            const dy = target.top + target.height / 2 - (source.top + source.height / 2);
-            const pointer = { button: 0, buttons: 1, isPrimary: true, pointerId: 1, clientX: x };
+            const clientY = target.top + target.height * (target.top < source.top ? 0.1 : 0.9);
+            const dataTransfer = new DataTransfer();
 
-            await act(async () => {
-                fireEvent.pointerDown(handle, { ...pointer, clientY: y });
-                await new Promise((resolve) => requestAnimationFrame(resolve));
-            });
-            await act(async () => {
-                fireEvent.pointerMove(document, { ...pointer, clientY: y + dy / 2 });
-                await new Promise((resolve) => requestAnimationFrame(resolve));
-                fireEvent.pointerMove(document, { ...pointer, clientY: y + dy });
-                await new Promise((resolve) => requestAnimationFrame(resolve));
-            });
-            await act(async () => {
-                fireEvent.pointerUp(document, { ...pointer, buttons: 0, clientY: y + dy });
-                await new Promise((resolve) => requestAnimationFrame(resolve));
-            });
+            fireEvent.dragStart(rowOf(from), { dataTransfer });
+            fireEvent.dragOver(rowOf(to), { dataTransfer, clientY });
+            fireEvent.drop(rowOf(to), { dataTransfer, clientY });
             await settleSession();
         }
 
@@ -4181,13 +4157,13 @@ describe("AppShell", () => {
 
             fireEvent.click(screen.getByRole("button", { name: "Present" }));
 
-            const format = await screen.findByRole("textbox", { name: "Image format" });
+            const format = await screen.findByRole("combobox", { name: "Image format" });
 
             fireEvent.click(format);
             fireEvent.click(await screen.findByRole("option", { name: "JPEG" }));
 
             await waitFor(() => {
-                expect(screen.getByRole("textbox", { name: "Image format" })).toHaveValue("JPEG");
+                expect(screen.getByRole("combobox", { name: "Image format" })).toHaveValue("JPEG");
             });
 
             fireEvent.click(screen.getByRole("button", { name: "Export image" }));

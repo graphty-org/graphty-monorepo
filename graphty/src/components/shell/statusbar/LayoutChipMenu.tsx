@@ -19,7 +19,6 @@ import { Menu, Tooltip } from "@mantine/core";
 import React from "react";
 
 import { COMING_LABEL } from "../ComingTag";
-import { TOOLTIP_DELAY_MS } from "../constants";
 import { MenuCaret } from "../MenuCaret";
 import { StatusBarChip } from "./StatusBarChip";
 import { STATUS_BAR_GEOMETRY } from "./statusBarGeometry";
@@ -165,7 +164,7 @@ export function LayoutChipMenu(props: LayoutChipMenuProps): React.JSX.Element {
             withinPortal
         >
             <Menu.Target>
-                <Tooltip label={LAYOUT_MENU_LABEL} openDelay={TOOLTIP_DELAY_MS} position="top" withinPortal>
+                <Tooltip label={LAYOUT_MENU_LABEL} position="top" withinPortal>
                     <button
                         aria-expanded={opened}
                         aria-haspopup="menu"

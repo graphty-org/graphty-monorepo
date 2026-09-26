@@ -68,15 +68,16 @@ describe("Button Components Integration", () => {
     });
 
     describe("CloseButton", () => {
-        it("renders with xs size (default via defaultProps)", () => {
+        it("renders with sm size (default via defaultProps): Figma's 24 close with a 10 X", () => {
             const { container } = render(
                 <MantineProvider theme={compactTheme}>
                     <CloseButton aria-label="close default" />
                 </MantineProvider>,
             );
             expect(screen.getByRole("button", { name: "close default" })).toBeInTheDocument();
-            // CloseButton has defaultProps size="xs" in our theme
-            expect(container.querySelector("[data-size='xs']")).toBeInTheDocument();
+            expect(container.querySelector("[data-size='sm']")).toBeInTheDocument();
+            expect(cssVar(container.querySelector(".mantine-CloseButton-root"), "--cb-icon-size")).toBe("10px");
+            expect(container.querySelector(".cm-close-glyph")).toBeInTheDocument();
         });
 
         it("renders with explicit size override", () => {
@@ -113,7 +114,7 @@ describe("Button Components Integration", () => {
                 ".mantine-Button-root",
                 "--button-height",
             );
-            expect(values).toEqual(["20px", "24px", "30px", "36px", "44px"]);
+            expect(values).toEqual(["20px", "24px", "32px", "36px", "44px"]);
         });
 
         it("gives ActionIcon a different box at every size token", () => {
@@ -122,7 +123,7 @@ describe("Button Components Integration", () => {
                 ".mantine-ActionIcon-root",
                 "--ai-size",
             );
-            expect(values).toEqual(["18px", "24px", "30px", "36px", "44px"]);
+            expect(values).toEqual(["18px", "24px", "32px", "36px", "44px"]);
         });
 
         it("gives CloseButton a different box at every size token", () => {
@@ -131,7 +132,7 @@ describe("Button Components Integration", () => {
                 ".mantine-CloseButton-root",
                 "--cb-size",
             );
-            expect(values).toEqual(["16px", "20px", "24px", "30px", "36px"]);
+            expect(values).toEqual(["16px", "24px", "32px", "36px", "44px"]);
         });
 
         it("renders the legacy size name 'compact' exactly like the sm default", () => {
@@ -148,7 +149,7 @@ describe("Button Components Integration", () => {
     });
 
     describe("ActionIcon variants", () => {
-        it("renders variant='filled' filled in its colour at the compact size", () => {
+        it("renders variant='filled' filled in its color at the compact size", () => {
             // Item 2, 2026-09-13: the compact theme names only --ai-size, so
             // Mantine's own resolver still derives the ground and the ink from
             // color + variant. A filled icon must get a real background.
@@ -177,14 +178,11 @@ describe("Button Components Integration", () => {
             }
         });
 
-        it("gives variant='light' the 1px accent border WCAG 1.4.11 asks of a state boundary", () => {
-            /* 2026-09-13, item 4: `light` is the ACTIVE state of every dense toggle, and
-               its tinted ground measures 1.21:1 against the panel it sits on (dark) and
-               1.12:1 (light) where 1.4.11 asks 3:1. graphty's shell had drawn that
-               boundary itself, on two header rows, as an inset box-shadow; the product
-               owner ruled the bespoke control out, so the shared component draws it and
-               every caller inherits it. The border is Mantine's own --ai-bd, which is
-               `1px solid transparent` in every variant, so the 24px box does not move. */
+        it("draws variant='light' as Figma's highlighted look, with no accent border (breaking change 8)", () => {
+            /* Older releases gave `light` a 1px accent border for a 3:1 state boundary. Figma's
+               "highlighted" look replaces it: the selected ground and a brand glyph, and --ai-bd
+               is `none` so the 24px box carries no border at all. The AA option does not add
+               the border back. */
             const { container } = render(
                 <MantineProvider theme={compactTheme}>
                     <ActionIcon variant="light" aria-label="light" />
@@ -192,29 +190,26 @@ describe("Button Components Integration", () => {
             );
             const root = container.querySelector(".mantine-ActionIcon-root");
             expect(root).toHaveAttribute("data-variant", "light");
-            expect(cssVar(root, "--ai-bd")).toBe("1px solid var(--ai-color)");
-            expect(cssVar(root, "--ai-bg")).toBe("var(--mantine-color-blue-light)");
+            expect(cssVar(root, "--ai-bd")).toBe("none");
+            expect(cssVar(root, "--ai-bg")).toBe("var(--cm-bg-selected)");
+            expect(cssVar(root, "--ai-hover")).toBe("var(--cm-bg-selected-hover)");
+            expect(cssVar(root, "--ai-color")).toBe("var(--cm-icon-brand)");
             expect(cssVar(root, "--ai-size")).toBe("24px");
         });
 
-        it("draws that border in the variant's own ink, so a coloured light icon keeps its colour", () => {
-            // --ai-color is what Mantine resolved for this color + variant, so the
-            // boundary and the glyph inside it are one accent rather than two.
+        it("leaves a colored light icon to Mantine's derivation, with no accent border", () => {
             const { container } = render(
                 <MantineProvider theme={compactTheme}>
                     <ActionIcon variant="light" color="red" aria-label="light red" />
                 </MantineProvider>,
             );
             const root = container.querySelector(".mantine-ActionIcon-root");
-            expect(cssVar(root, "--ai-bd")).toBe("1px solid var(--ai-color)");
+            expect(cssVar(root, "--ai-bd")).not.toContain("--ai-color");
             expect(cssVar(root, "--ai-color")).toBe("var(--mantine-color-red-light-color)");
         });
 
-        it("leaves every other variant's border exactly as Mantine resolved it", () => {
-            // A resting control must have a border BOX and no border COLOUR, or the
-            // boundary stops meaning "active"; and an accent border on `filled` or a
-            // second one on `outline` would be a new treatment rather than a fix.
-            for (const variant of ["subtle", "filled", "outline", "transparent", "default"]) {
+        it("never draws an accent-colored border on any variant", () => {
+            for (const variant of ["subtle", "filled", "outline", "transparent", "default", "light"]) {
                 const { container } = render(
                     <MantineProvider theme={compactTheme}>
                         <ActionIcon variant={variant} aria-label={`icon ${variant}`} />
@@ -223,6 +218,20 @@ describe("Button Components Integration", () => {
                 const root = container.querySelector(".mantine-ActionIcon-root");
                 expect(cssVar(root, "--ai-bd"), variant).not.toContain("--ai-color");
             }
+        });
+
+        it("draws the ghost in Figma's icon ink when no color is given", () => {
+            const { container } = render(
+                <MantineProvider theme={compactTheme}>
+                    <ActionIcon aria-label="ghost" />
+                </MantineProvider>,
+            );
+            const root = container.querySelector(".mantine-ActionIcon-root");
+            expect(root).toHaveClass("cm-action-icon");
+            expect(cssVar(root, "--ai-bg")).toBe("transparent");
+            expect(cssVar(root, "--ai-hover")).toBe("var(--cm-bg-transparent-hover)");
+            expect(cssVar(root, "--cm-ai-pressed")).toBe("var(--cm-bg-transparent-pressed)");
+            expect(cssVar(root, "--ai-color")).toBe("var(--cm-icon)");
         });
 
         it("still treats an omitted variant as subtle, the compact chrome's resting state", () => {
@@ -237,6 +246,49 @@ describe("Button Components Integration", () => {
             const root = container.querySelector(".mantine-ActionIcon-root");
             expect(root).toHaveAttribute("data-variant", "subtle");
             expect(cssVar(root, "--ai-bg")).toBe("transparent");
+        });
+    });
+
+    describe("Button variants", () => {
+        function root(ui: ReactElement): Element | null {
+            const { container } = render(<MantineProvider theme={compactTheme}>{ui}</MantineProvider>);
+            return container.querySelector(".mantine-Button-root");
+        }
+
+        it("draws the default (filled) button on the brand tokens", () => {
+            const el = root(<Button>Primary</Button>);
+            expect(el).toHaveClass("cm-button");
+            expect(cssVar(el, "--button-bg")).toBe("var(--cm-bg-brand)");
+            expect(cssVar(el, "--button-hover")).toBe("var(--cm-bg-brand-hover)");
+            expect(cssVar(el, "--cm-btn-pressed")).toBe("var(--cm-bg-brand-pressed)");
+            expect(cssVar(el, "--button-color")).toBe("var(--cm-text-onbrand)");
+        });
+
+        it("draws color='red' filled and variant='danger' as the same danger button", () => {
+            for (const el of [root(<Button color="red">Delete</Button>), root(<Button variant="danger">Delete</Button>)]) {
+                expect(cssVar(el, "--button-bg")).toBe("var(--cm-bg-danger)");
+                expect(cssVar(el, "--cm-btn-pressed")).toBe("var(--cm-bg-danger-pressed)");
+            }
+        });
+
+        it.each([
+            ["default", "transparent", "var(--cm-border-translucent)"],
+            ["outline", "transparent", "var(--cm-border-translucent)"],
+            ["subtle", "transparent", "transparent"],
+            ["danger-outline", "transparent", "var(--cm-border-danger)"],
+            ["inverse", "var(--cm-bg-inverse)", "transparent"],
+            ["success", "var(--cm-bg-success)", "transparent"],
+            ["light", "var(--cm-bg-selected)", "transparent"],
+        ])("variant %s: ground %s, edge %s", (variant, bg, edge) => {
+            const el = root(<Button variant={variant}>Label</Button>);
+            expect(el).toHaveAttribute("data-variant", variant);
+            expect(cssVar(el, "--button-bg")).toBe(bg);
+            expect(cssVar(el, "--cm-btn-outline")).toBe(edge);
+        });
+
+        it("leaves a non-primary filled color and gradient to Mantine", () => {
+            expect(cssVar(root(<Button color="grape">Grape</Button>), "--button-bg")).toBe("var(--mantine-color-grape-filled)");
+            expect(cssVar(root(<Button variant="gradient">G</Button>), "--cm-btn-pressed")).toBe("");
         });
     });
 });

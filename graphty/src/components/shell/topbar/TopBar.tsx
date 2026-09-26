@@ -25,7 +25,7 @@ import { PANEL_INK } from "@graphty/compact-mantine";
 import { Button, Menu, Tooltip } from "@mantine/core";
 import React, { useCallback, useRef, useState } from "react";
 
-import { TOOLTIP_DELAY_MS, TOP_BAR_HEIGHT } from "../constants";
+import { TOP_BAR_HEIGHT } from "../constants";
 import { MenuCaret } from "../MenuCaret";
 import type { TopBarProps } from "../types";
 import { CommandPalettePill } from "./CommandPalettePill";
@@ -233,7 +233,7 @@ export function TopBar(props: TopBarOwnProps): React.JSX.Element {
                     position="bottom-end"
                     withinPortal
                 >
-                    <Tooltip label={exportTitle(dataLoaded)} openDelay={TOOLTIP_DELAY_MS} withinPortal>
+                    <Tooltip label={exportTitle(dataLoaded)} withinPortal>
                         <Menu.Target>
                             <Button
                                 type="button"

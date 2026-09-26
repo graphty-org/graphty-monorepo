@@ -1,0 +1,102 @@
+import { Meta } from "@storybook/blocks";
+
+<Meta title="Introduction/Upgrading to 0.9" />
+
+# Upgrading to 0.9
+
+0.9.0 is the Figma release: every component is redrawn to match the Figma editor's own interface,
+measured property by property in light and dark. compact-mantine is 0.x, so it ships as a minor
+release. Most of the change is how things look and measure; a few exports and props are removed.
+The complete list, with every changed value, is [CHANGELOG-figma.md](https://github.com/graphty-org/graphty-monorepo/blob/master/compact-mantine/CHANGELOG-figma.md) in the repository.
+
+## Removed exports and props: code that stops compiling
+
+### `IconGroupRow` is removed
+
+`IconGroupRow`, `IconGroupRowProps` and `IconGroupOption` are no longer exported. The row was a
+layout wrapper around the themed Mantine `SegmentedControl`, which already draws the panel look.
+Use `SegmentedControl` directly: a 14px glyph and a visually hidden word in each option, and the
+row's trailing control in a `TrailingSlot`.
+
+```tsx
+import { SegmentedControl, VisuallyHidden } from "@mantine/core";
+import { AdvancedButton, ControlSection, PANEL_GRID, TrailingSlot } from "@graphty/compact-mantine";
+
+<ControlSection label="Shape">
+    <div style={{ display: "flex", alignItems: "center", gap: PANEL_GRID.TRAIL_GAP, height: PANEL_GRID.ROW_PITCH }}>
+        <SegmentedControl
+            fullWidth
+            aria-label="Node shape"
+            value={shape}
+            onChange={setShape}
+            data={[
+                { value: "sphere", label: <><SphereGlyph /><VisuallyHidden>Sphere</VisuallyHidden></> },
+                { value: "box", label: <><BoxGlyph /><VisuallyHidden>Box</VisuallyHidden></> },
+            ]}
+            style={{ flex: "1 1 auto", minWidth: 0 }}
+        />
+        <TrailingSlot>
+            <AdvancedButton label="Shape options" onClick={openOptions} />
+        </TrailingSlot>
+    </div>
+</ControlSection>;
+```
+
+The [SegmentedControl page](?path=/docs/themed-mantine-selection-segmentedcontrol--docs) shows this
+recipe running. `disabledReason` has no `SegmentedControl` equivalent: give the control a `title`
+such as "Node shape. Load data first" yourself.
+
+### `DataRow` keeps only data rows
+
+`DataRow` is for readings -- statistics, facts, rankings -- and keeps `name`, `value`, `icon`,
+`selected`, `onClick`, `onFocus`, `onBlur` and `trailing`. Removed:
+
+- `role` and the `DataRowRole` type (the `role="option"` listbox mode). A selected `DataRow` is
+  always reported as `aria-current`.
+- `tabIndex`. A row with `onClick` is in the tab order; a row without one takes no focus.
+- `onDoubleClick` and `onContextMenu`.
+
+A list the reader selects, renames or reorders is a [`Tree`](?path=/docs/components-lists-and-trees-tree--docs)
+(nested, or flat when no item has `children`) or a
+[`PageList`](?path=/docs/components-lists-and-trees-pagelist--docs); both have roving focus,
+multiple selection, F2 and double-click rename, and a context menu. A find result is a
+`ResultRow`.
+
+## Behavior changes
+
+- **`GradientEditor`** edits stop colors in its own picker, under the gradient bar, which
+  follows the selected stop. Selecting a stop -- its handle, its row's chit, or focus entering its
+  row -- points the picker at it. Stop rows keep a chit and a hex field and no longer open a
+  pop-out, so a `GradientEditor` no longer needs a `PopoutManager`. Its props do not change.
+- **`Tree`**: while `onMove` is given, Alt+ArrowUp and Alt+ArrowDown move the focused item one
+  place among its siblings, reported through `onMove` exactly as a drop is. Additive.
+- **Tooltips** open after 1000ms (they opened at once), and hand off warm for 300ms inside a
+  `Tooltip.Group`. Wrap your app in one.
+- **Pop-outs**: only one root pop-out is open on the page at a time; opening another replaces it.
+- **Escape in a color field** reverts the typed value and stops at the field; a second Escape
+  closes the picker.
+- **Select and Autocomplete** have `role="combobox"`: query them in tests with
+  `getByRole("combobox")`, not `"textbox"`.
+
+## Values that changed
+
+These do not stop your code compiling, but a layout that hard-codes the old numbers will look
+wrong:
+
+| What | Before | After |
+|---|---|---|
+| `PANEL_GRID.WIDTH` / `FIELD` | 280 / 108 | 240 / 88 (and most other `PANEL_GRID` members) |
+| `spacing.sm` | 6 | 8 |
+| `radius.sm` / `md` / `lg` / `xl` | 4 / 6 / 8 / 12 | 5 / 5 / 13 / 13 |
+| `fontSizes.xs` / `lg` / `xl` | 10 / 14 / 16 | 9 / 15 / 24 |
+| `POPOUT_GAP` / `POPOUT_NESTED_GAP` | 8 / 4 | 0 / 0 |
+| `ControlSection` header | 32 | 40 |
+| `DataRow` | 28 tall, 12px name | 32 tall, 11px name |
+| `DataTable` row and header height | 28 / 24 | 40 / 40 |
+
+And the look: `colors.dark` is a neutral ramp, `primaryColor` is the new `brand` palette (code
+that passed `color="blue"` expecting the primary color now gets Mantine's blue), `focusRing` is
+`"never"` with the theme's own 1px ring, `PANEL_INK.SELECTED` is Figma's pale selected ground
+rather than an inverted patch, `Select` defaults to the outlined trigger with a dark list, `Tabs`
+default to pills, `Badge` to the outlined look, `Modal` has no backdrop by default, and the body
+face is the bundled Inter at 11/16 weight 450.

@@ -1,11 +1,11 @@
-import { Box, type ComboboxData, NumberInput, Select, TextInput } from "@mantine/core";
-import { useMediaQuery, useUncontrolled } from "@mantine/hooks";
-import React, { forwardRef, useRef } from "react";
+import { Box, type ComboboxData, Select, TextInput } from "@mantine/core";
+import { useElementSize, useMediaQuery, useUncontrolled } from "@mantine/hooks";
+import React, { forwardRef } from "react";
 
 import { PANEL_GRID, PANEL_INK } from "../../constants/panel";
 import { usePanelLabels } from "../../context/PanelLabelsContext";
-import { useLabels } from "../../i18n";
-import { FieldGlyph, type FieldGlyphName, type FieldLetter, isFieldGlyphName, isFieldLetter, UiGlyph } from "../../icons";
+import { useLabels, useNumberParser } from "../../i18n";
+import { FieldGlyph, type FieldGlyphName, type FieldLetter, isFieldGlyphName, isFieldLetter } from "../../icons";
 import type {
     ActivationHandler,
     ChangeHandler,
@@ -14,6 +14,9 @@ import type {
     GestureStartHandler,
 } from "../../types/events";
 import { isRtl, useDirection } from "../../utils/rtl";
+import { FieldCaret } from "../inputs/listbox";
+import { useNumberField } from "../inputs/useNumberField";
+import { useScrub } from "../inputs/useScrub";
 
 // RT-2 in VOCAB section 11, rebased onto Mantine per section 4 of the hardening
 // contract. What used to be a Box with role="button" and a text node for a value
@@ -28,13 +31,23 @@ import { isRtl, useDirection } from "../../utils/rtl";
 // under dir="rtl".
 
 /**
- * The horizontal padding inside a field.
+ * The padding before the glyph slot.
  *
- * Derived, not typed: the 16px glyph slot plus this padding is exactly
+ * Derived, not typed: the 24px glyph slot plus this padding is exactly
  * `PANEL_GRID.VALUE_INSET`, which is the promise the whole panel is aligned on
- * -- the value begins 24px from every field's leading edge.
+ * -- the value begins 24px from every field's leading edge. On Figma's grid the
+ * slot is the whole inset, so this is 0.
  */
 const FIELD_PADDING_X = PANEL_GRID.VALUE_INSET - PANEL_GRID.GLYPH_SLOT;
+
+/**
+ * The value's inline-end padding: the text stops 8px before the field's end
+ * (Figma's number input, design/figma-spec.md 6.1).
+ */
+const VALUE_END_PAD = 8;
+
+/** What a number field says about its arrow keys, after its name and value. */
+const DEFAULT_STEP_HINT = "Use arrow keys to change the value";
 
 /**
  * The gap between a glyph and a word, or a value and its suffix, inside one
@@ -76,12 +89,17 @@ const VISUALLY_HIDDEN: React.CSSProperties = {
  * What a field holds, and therefore which control it draws.
  *
  * - `"text"` -- a text box. The default.
- * - `"number"` -- a number box. Up and down arrows step the value, and the
- *   digits and decimal separator follow the reader's locale.
- * - `"select"` -- a drop-down. Pass `data` with the choices to get a real
- *   drop-down list; with no `data` the field draws the chevron but opens
- *   nothing of its own, which is what you want when `onClick` opens a panel you
- *   have built yourself.
+ * - `"number"` -- Figma's scrubbable number box. Typing applies nothing until
+ *   Enter, Tab or blur, and may be arithmetic (`40*2`); anything that does not
+ *   evaluate reverts. Up and down arrows step the value at once (Shift: ten
+ *   steps). Dragging the glyph slot scrubs the value at half a unit per pixel
+ *   and commits once on release. Digits and the decimal separator follow the
+ *   reader's locale.
+ * - `"select"` -- a drop-down, drawn as Figma's outlined select trigger. Pass
+ *   `data` with the choices to get a real drop-down list, which opens over the
+ *   field with the current choice on top of it; with no `data` the field draws
+ *   the caret but opens nothing of its own, which is what you want when
+ *   `onClick` opens a panel you have built yourself.
  */
 export type PanelFieldKind = "text" | "number" | "select";
 
@@ -125,7 +143,7 @@ export interface PanelFieldProps
      *
      * Pass the name of one of the built-in field glyphs, one of the five
      * capital letters `N`, `E`, `W`, `D` or `K`, or your own node such as a
-     * colour swatch. A bare string is deliberately not accepted: the slot holds
+     * color swatch. A bare string is deliberately not accepted: the slot holds
      * a drawing, not a word.
      */
     glyph?: FieldGlyphName | FieldLetter | Exclude<React.ReactNode, string>;
@@ -149,9 +167,9 @@ export interface PanelFieldProps
      * Called when the value changes, with the new value first and the event that
      * caused it second where there is one.
      *
-     * A text field and a drop-down report a string. A number field reports a
-     * number when what was typed is one, and the raw text while it is still
-     * being typed -- which is what Mantine's own number input reports.
+     * A text field reports every keystroke and a drop-down each choice, as a
+     * string. A number field reports a number once per commit: Enter, Tab or
+     * blur after typing, each arrow step, and the release of a scrub.
      */
     onChange?: ChangeHandler<string | number>;
     /**
@@ -163,12 +181,12 @@ export interface PanelFieldProps
      */
     data?: ComboboxData;
     /**
-     * A short unit shown after the value, in the secondary text colour, at the
+     * A short unit shown after the value, in the secondary text color, at the
      * end of the same box -- "%", "px" per second, a count of links.
      */
     unit?: string;
     /**
-     * How wide the field is: 108 for one of a pair, 224 for a field that spans
+     * How wide the field is: 88 for one of a pair, 184 for a field that spans
      * the body of a row, or `"fill"` to take whatever width its container gives
      * it.
      */
@@ -191,7 +209,7 @@ export interface PanelFieldProps
      */
     mixed?: boolean;
     /**
-     * The text shown in an empty field, in the placeholder colour.
+     * The text shown in an empty field, in the placeholder color.
      *
      * Passing `true` instead of a string is the older spelling: it moves
      * whatever is in `value` into the placeholder, which is what a field
@@ -210,8 +228,14 @@ export interface PanelFieldProps
     min?: number;
     /** The largest value a number field accepts. */
     max?: number;
-    /** How much one press of an arrow key changes a number field. */
+    /** How much one press of an arrow key changes a number field. Shift moves ten. */
     step?: number;
+    /**
+     * What a number field says about its arrow keys, after its name and value,
+     * as its `aria-description`. Pass an empty string to say nothing.
+     * @default "Use arrow keys to change the value"
+     */
+    stepHint?: string;
     /**
      * Called once when a drag of the glyph slot begins, on the first movement
      * rather than on the press.
@@ -228,9 +252,13 @@ export interface PanelFieldProps
      * The distance is positive when the pointer moves in the direction the text
      * runs -- to the right in English, to the left in Arabic or Hebrew -- so
      * dragging forwards always raises the value.
+     *
+     * A number field scrubs on its own (half a unit per pixel, one `onChange`
+     * on release). Pass `onScrub` to take the value over yourself: the field
+     * then reports the distances and changes nothing.
      */
     onScrub?: GestureChangeHandler;
-    /** Called once when a drag of the glyph slot finishes or is cancelled. Close the undo transaction here. */
+    /** Called once when a drag of the glyph slot finishes or is canceled. Close the undo transaction here. */
     onScrubEnd?: GestureEndHandler;
     /**
      * Called when the field is activated by a click or by pressing Enter.
@@ -293,11 +321,13 @@ export interface PanelFieldProps
  * (`placeholder`), offer a list of choices (`kind="select"`), or have been set
  * without taking effect yet (`pending`).
  *
- * The glyph slot is also a drag handle. Give it `onScrubStart`, `onScrub` and
- * `onScrubEnd` and dragging the glyph sideways reports how far the pointer
- * moved, with the start and end marking one interaction so a drag becomes a
- * single undo entry. Dragging is a shortcut, not the only way in: the same value
- * can always be typed.
+ * The glyph slot is also a drag handle. A number field scrubs itself: dragging
+ * the glyph sideways moves the value half a unit per pixel, with the page
+ * cursor held at `ew-resize`, and commits once on release. Give any field
+ * `onScrubStart`, `onScrub` and `onScrubEnd` and the drag reports how far the
+ * pointer moved instead, with the start and end marking one interaction so a
+ * drag becomes a single undo entry. Dragging is a shortcut, not the only way
+ * in: the same value can always be typed.
  * @example
  * ```tsx
  * const [size, setSize] = useState("1.0");
@@ -335,6 +365,7 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(function
         min,
         max,
         step,
+        stepHint = DEFAULT_STEP_HINT,
         onScrubStart,
         onScrub,
         onScrubEnd,
@@ -352,10 +383,13 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(function
 
     const showLabels = usePanelLabels();
     const labels = useLabels();
+    const parseNumber = useNumberParser();
     const direction = useDirection();
-    // The pointer type is read with a hook because this package ships no
-    // stylesheet of its own and so cannot answer it in CSS.
+    // Read with a hook rather than a media query in the stylesheet because it
+    // decides whether the scrub handlers are attached at all.
     const coarsePointer = useMediaQuery("(pointer: coarse)");
+    // The unit's drawn width, so the value stops INLINE_GAP before it whatever the suffix is.
+    const { ref: unitRef, width: unitWidth } = useElementSize<HTMLSpanElement>();
 
     const [currentValue, setValue] = useUncontrolled<string | number>({
         value: value === null ? "" : value,
@@ -391,7 +425,7 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(function
         placeholderText = placeholder;
     }
 
-    // Accessibility: states that are drawn only as a colour or a mark are
+    // Accessibility: states that are drawn only as a color or a mark are
     // unavailable to a screen reader, so each one also joins the field's
     // accessible description. This is Mantine's `description` element, hidden
     // from sight but wired to the input with aria-describedby by Input.Wrapper.
@@ -416,87 +450,49 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(function
 
     const description = descriptions.length > 0 ? descriptions.join(". ") : undefined;
 
+    const isNumber = kind === "number";
     const wantsScrub = onScrubStart !== undefined || onScrub !== undefined || onScrubEnd !== undefined;
+    // A number field scrubs its own value unless the caller took the drag
+    // over with onScrub.
+    const scrubsValue = isNumber && onScrub === undefined && !isReadOnly;
     // A coarse pointer never scrubs: there the glyph is a target, not a handle.
-    const canScrub = wantsScrub && !disabled && !coarsePointer;
+    const canScrub = (wantsScrub || scrubsValue) && !disabled && !coarsePointer;
 
-    // Armed on the press, started on the first movement. Keeping the two apart
-    // is what makes a click on the glyph not open an undo transaction.
-    const armed = useRef(false);
-    const started = useRef(false);
-    const lastX = useRef(0);
+    const numberText = hidesValue ? "" : valueText;
+    const numberValue = valueText === "" || mixed ? NaN : parseNumber(valueText);
+    const numberField = useNumberField({
+        value: Number.isNaN(numberValue) ? null : numberValue,
+        display: numberText,
+        onCommit: (next, event) => {
+            setValue(next, event);
+        },
+        parse: parseNumber,
+        min,
+        max,
+        step,
+        locked: disabled || isReadOnly,
+    });
 
-    /**
-     * Arm a scrub on the glyph slot.
-     * @param event - The pointerdown event on the slot
-     */
-    const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
-        if (!canScrub || event.button !== 0) {
-            return;
-        }
-
-        // Keep the press off the input: the glyph is a handle, not a way in.
-        event.preventDefault();
-        event.stopPropagation();
-
-        const handle = event.currentTarget;
-        // Pointer capture keeps the rest of the drag on this element even when
-        // the pointer leaves it, which is what lets the whole gesture be
-        // reported as React events instead of window listeners. Guarded because
-        // not every test environment implements it.
-        if (typeof handle.setPointerCapture === "function") {
-            handle.setPointerCapture(event.pointerId);
-        }
-
-        armed.current = true;
-        started.current = false;
-        lastX.current = event.clientX;
-    };
-
-    /**
-     * Report how far the pointer has travelled since the previous report.
-     * @param event - The pointermove event on the slot
-     */
-    const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>): void => {
-        if (!armed.current) {
-            return;
-        }
-
-        const travel = event.clientX - lastX.current;
-        if (travel === 0) {
-            return;
-        }
-
-        lastX.current = event.clientX;
-
-        if (!started.current) {
-            started.current = true;
+    const scrubHandlers = useScrub(canScrub, isRtl(direction), {
+        onStart: (event) => {
             onScrubStart?.(event);
-        }
-
-        // The gesture is reported along the inline axis rather than the screen's
-        // x axis, so that dragging in the direction the text runs raises the
-        // value in every language.
-        onScrub?.(isRtl(direction) ? -travel : travel, event);
-    };
-
-    /**
-     * Finish a scrub, whether the pointer was released, the gesture was
-     * cancelled, or the browser took the capture away.
-     * @param event - The event that ended the gesture
-     */
-    const handlePointerEnd = (event: React.PointerEvent<HTMLDivElement>): void => {
-        if (!armed.current) {
-            return;
-        }
-
-        armed.current = false;
-
-        if (started.current) {
-            started.current = false;
+            if (scrubsValue) {
+                numberField.scrub.onStart?.(event);
+            }
+        },
+        onMove: (delta, total, event) => {
+            onScrub?.(delta, event);
+            if (scrubsValue) {
+                numberField.scrub.onMove?.(delta, total, event);
+            }
+        },
+        onEnd: (event) => {
+            if (scrubsValue) {
+                numberField.scrub.onEnd?.(event);
+            }
             onScrubEnd?.(event);
-        }
-    };
+        },
+    });
 
     /**
      * Activate the field from a click.
@@ -562,29 +558,20 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(function
         slotContent = glyph;
     }
 
-    // The 16px slot: the field's label, its drag handle, and the thing that puts
+    // The 24px slot: the field's label, its drag handle, and the thing that puts
     // the value at PANEL_GRID.VALUE_INSET from the leading edge.
     const leftSection = (
         <>
             <Box
                 data-testid="panel-field-slot"
+                className="cm-scrub-slot"
                 data-scrub={canScrub ? "true" : undefined}
-                onPointerDown={canScrub ? handlePointerDown : undefined}
-                onPointerMove={canScrub ? handlePointerMove : undefined}
-                onPointerUp={canScrub ? handlePointerEnd : undefined}
-                onPointerCancel={canScrub ? handlePointerEnd : undefined}
-                onLostPointerCapture={canScrub ? handlePointerEnd : undefined}
+                {...scrubHandlers}
                 style={{
                     position: "relative",
                     flex: "0 0 auto",
                     width: PANEL_GRID.GLYPH_SLOT,
                     height: PANEL_GRID.GLYPH_SLOT,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: PANEL_INK.CHROME,
-                    cursor: canScrub ? "ew-resize" : undefined,
-                    touchAction: canScrub ? "none" : undefined,
                 }}
             >
                 {slotContent}
@@ -631,9 +618,10 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(function
         </>
     );
 
+    const bareTrigger = showsChevron && slotContent === null && !pending && !showLabels;
     const hasUnit = unit !== undefined;
-    // The chevron of a drop-down lives inside the box, after the value. The
-    // trailing slot at the end of the row belongs to the row's own control.
+    // The caret of a drop-down lives inside the box, in its 24px trailing slot.
+    // The trailing slot at the end of the row belongs to the row's own control.
     const rightSection =
         hasUnit || showsChevron ? (
             <>
@@ -641,9 +629,15 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(function
                     <Box
                         component="span"
                         data-testid="panel-field-unit"
-                        style={{ flex: "0 0 auto", lineHeight: 1 }}
+                        style={{
+                            flex: "0 0 auto",
+                            lineHeight: 1,
+                            paddingInlineEnd: showsChevron ? 0 : VALUE_END_PAD,
+                        }}
                     >
-                        {unit}
+                        <span ref={unitRef} style={{ display: "inline-block" }}>
+                            {unit}
+                        </span>
                     </Box>
                 )}
                 {showsChevron && (
@@ -654,10 +648,11 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(function
                             flex: "0 0 auto",
                             display: "flex",
                             alignItems: "center",
-                            marginInlineStart: hasUnit ? INLINE_GAP : 0,
+                            justifyContent: "center",
+                            width: PANEL_GRID.GLYPH_SLOT,
                         }}
                     >
-                        <UiGlyph name="chevronDown" size={PANEL_GRID.GLYPH} />
+                        <FieldCaret />
                     </Box>
                 )}
             </>
@@ -665,20 +660,21 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(function
 
     // The width of the trailing section is also the value's inline-end padding,
     // so it has to allow for everything drawn there plus the gap before it. The
-    // unit is measured in `ch`, the width of a digit at the field's own font
-    // size, which is the only unit that follows a translated suffix without
-    // measuring the page.
-    let trailingFixed = FIELD_PADDING_X + INLINE_GAP;
-    if (showsChevron) {
-        trailingFixed += PANEL_GRID.GLYPH;
-    }
+    // unit is measured once it is drawn. Until then (and on the server) it is
+    // estimated in `ch`, the width of a digit at the field's own font size --
+    // an estimate only: "%" is wider than a digit, so a long value such as a
+    // translated "Mixed" ran into the unit with no gap at all.
+    let trailingFixed = hasUnit ? INLINE_GAP : 0;
+    trailingFixed += showsChevron ? PANEL_GRID.GLYPH_SLOT : VALUE_END_PAD;
 
-    if (showsChevron && hasUnit) {
-        trailingFixed += INLINE_GAP;
+    let rightSectionWidth: string | number | undefined;
+    if (hasUnit && unitWidth > 0) {
+        rightSectionWidth = Math.ceil(unitWidth) + trailingFixed;
+    } else if (hasUnit) {
+        rightSectionWidth = `calc(${String(unit.length)}ch + ${String(trailingFixed)}px)`;
+    } else if (showsChevron) {
+        rightSectionWidth = trailingFixed;
     }
-
-    const rightSectionWidth =
-        rightSection === undefined ? undefined : `calc(${String(unit?.length ?? 0)}ch + ${String(trailingFixed)}px)`;
 
     const leftSectionPointerEvents: React.CSSProperties["pointerEvents"] = canScrub ? "auto" : "none";
     const rightSectionPointerEvents: React.CSSProperties["pointerEvents"] = "none";
@@ -697,14 +693,18 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(function
         readOnly: isReadOnly,
         onClick: handleClick,
         onKeyDown: handleKeyDown,
-        leftSection,
+        // A drop-down is Figma's outlined select trigger; every other field is
+        // the filled field.
+        variant: showsChevron ? "outlined" : "filled",
+        // A drop-down with nothing in its slot is Figma's plain select trigger, its text 9px in;
+        // every other field keeps the 24px slot so its value lands on PANEL_GRID.VALUE_INSET.
+        leftSection: bareTrigger ? undefined : leftSection,
         leftSectionWidth: showLabels ? LABELLED_VALUE_INSET : PANEL_GRID.VALUE_INSET,
         leftSectionPointerEvents,
         leftSectionProps: {
             style: {
-                // Mantine insets a section by 1px and centres its contents; the
-                // panel grid wants the slot to start exactly at the field's own
-                // padding so that the value lands on 24.
+                // The slot starts exactly at the field's own padding so that
+                // the value lands on 24.
                 insetInlineStart: 0,
                 justifyContent: "flex-start",
                 paddingInlineStart: FIELD_PADDING_X,
@@ -717,7 +717,6 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(function
             style: {
                 insetInlineEnd: 0,
                 justifyContent: "flex-end",
-                paddingInlineEnd: FIELD_PADDING_X,
                 // `ch` in the width above and in the padding it drives have to
                 // resolve against the same font, so the section is pinned to the
                 // field's own size.
@@ -735,19 +734,6 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(function
                 // A disagreement reads at full strength, because it is the
                 // answer rather than a hint about one.
                 "--input-placeholder-color": mixed ? PANEL_INK.VALUE : PANEL_INK.PLACEHOLDER,
-            },
-            input: {
-                // A field is borderless, so the only thing drawing its box is a
-                // fill one step away from the panel. Mantine's own default is
-                // the panel's own white in the light scheme, which would leave
-                // every field invisible.
-                backgroundColor: PANEL_INK.SURFACE,
-                // The compact theme sets its own inline padding, which would
-                // win over the padding that leftSectionWidth drives and put the
-                // value in the wrong place. Cleared under the same two names
-                // the theme writes them in.
-                paddingInlineStart: undefined,
-                paddingInlineEnd: undefined,
             },
             // The word is either drawn inside the box beside the glyph or not
             // drawn at all, but it is always in the accessibility tree: this is
@@ -781,27 +767,22 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(function
     // widget, so what applies is the ARIA Authoring Practices guidance on
     // "Providing Accessible Names and Descriptions" -- a real <label> element
     // names it, aria-describedby carries the states that are otherwise only a
-    // colour, and the value is the input's own value. That is the fix for the
-    // old role="button" with aria-label, which named the field and hid what it
-    // said. A field with choices is Mantine's Select, which follows the APG
-    // Combobox pattern in its select-only form: aria-haspopup="listbox",
-    // aria-expanded, aria-controls and aria-activedescendant on the text box,
-    // a listbox popup, and Up/Down/Enter/Escape. Verified against 8.3.10:
-    // Mantine does not put role="combobox" on the box, so the box keeps its
-    // native textbox role -- worth knowing before writing a getByRole against
-    // it.
-    if (kind === "number") {
+    // color, and the value is the input's own value. A number field is a text
+    // input with role="spinbutton" and aria-valuenow (it has to accept
+    // arithmetic, which a numeric input refuses). A field with choices is
+    // Mantine's Select, which follows the APG Combobox pattern in its
+    // select-only form: aria-haspopup="listbox", aria-controls and
+    // aria-activedescendant on the text box, a listbox popup, and
+    // Up/Down/Enter/Space/Escape.
+    if (isNumber) {
+        const hint = stepHint === "" ? {} : { "aria-description": stepHint };
         return (
-            <NumberInput
+            <TextInput
                 {...common}
-                value={hidesValue ? "" : currentValue}
-                onChange={handleChange}
-                min={min}
-                max={max}
-                step={step}
-                // No spinner buttons: the box is 24px tall and has a glyph in it
-                // already. Up and down arrows still step the value.
-                hideControls
+                {...numberField.inputProps}
+                {...hint}
+                onKeyDown={numberField.inputProps.onKeyDown}
+                classNames={{ wrapper: "cm-number-field" }}
             />
         );
     }

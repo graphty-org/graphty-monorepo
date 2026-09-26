@@ -6,7 +6,6 @@ import { describe, expect, it } from "vitest";
 import {
     CompactColorInput,
     compactTheme,
-    IconGroupRow,
     PopoutManager,
     StyleNumberInput,
     StyleSelect,
@@ -17,7 +16,7 @@ import { LabelsProvider } from "../../src/i18n";
 
 // What this file holds the line on, and the defect it was written for.
 //
-// Six controls in this library take `disabled`, and until U6 of the shell
+// Five controls in this library take `disabled`, and until U6 of the shell
 // repair not one of them could say WHY it was off. A dimmed, silent control is
 // read as a broken application rather than as a state of the reader's own data:
 // the shell's "Show legend" toggle is off whenever nothing is encoded, and a
@@ -32,13 +31,13 @@ import { LabelsProvider } from "../../src/i18n";
 // in action -- the shared component was wrong, so the shared component is fixed
 // and every caller gets the fix.
 //
-// The table below is deliberately one table rather than six suites, because the
-// whole value of the contract is that the six controls spell it IDENTICALLY. A
+// The table below is deliberately one table rather than five suites, because the
+// whole value of the contract is that the five controls spell it IDENTICALLY. A
 // per-component test would let one of them drift into a colon, or into a
 // tooltip that never reaches a screen reader, without anything failing.
 
 /**
- * Every provider the six controls need between them.
+ * Every provider the five controls need between them.
  * @param props - Component props
  * @param props.children - The control under test
  * @returns The wrapped tree
@@ -51,14 +50,6 @@ function TestWrapper({ children }: { children: ReactNode }): React.JSX.Element {
             </MantineProvider>
         </DirectionProvider>
     );
-}
-
-/**
- * A 14px placeholder drawing for the icon group's options.
- * @returns A decorative square
- */
-function TestGlyph(): React.JSX.Element {
-    return <svg width={14} height={14} aria-hidden="true" focusable="false" />;
 }
 
 /**
@@ -109,14 +100,16 @@ const CASES: ReasonCase[] = [
                 {...props}
             />
         ),
-        described: () => screen.getByRole("textbox", { name: "Shape" }),
+        // The Select's input is a combobox (it opens a listbox).
+        described: () => screen.getByRole("combobox", { name: "Shape" }),
     },
     {
         name: "StyleNumberInput",
         label: "Size",
         reason: "Load data first",
         render: (props) => <StyleNumberInput label="Size" defaultValue={1} {...props} />,
-        described: () => screen.getByRole("textbox", { name: "Size" }),
+        // A scrubbable number field is a spinbutton (spec 6.1), not a plain textbox.
+        described: () => screen.getByRole("spinbutton", { name: "Size" }),
     },
     {
         name: "CompactColorInput",
@@ -144,22 +137,6 @@ const CASES: ReasonCase[] = [
         ),
         described: () => screen.getByRole("checkbox", { name: "Glow" }),
         enabledTitle: "Glow",
-    },
-    {
-        name: "IconGroupRow",
-        label: "Node shape",
-        reason: "Load data first",
-        render: (props) => (
-            <IconGroupRow
-                label="Node shape"
-                options={[
-                    { value: "sphere", label: "Sphere", icon: <TestGlyph /> },
-                    { value: "box", label: "Box", icon: <TestGlyph /> },
-                ]}
-                {...props}
-            />
-        ),
-        described: () => screen.getByRole("radiogroup"),
     },
 ];
 

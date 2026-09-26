@@ -24,9 +24,9 @@ describe("Button Component Extensions (Refactored)", () => {
             expect(extension.defaultProps?.variant).toBe("subtle");
         });
 
-        it("CloseButton defaults to size xs", () => {
+        it("CloseButton defaults to size sm (Figma's 24 close)", () => {
             const extension = buttonComponentExtensions.CloseButton;
-            expect(extension.defaultProps?.size).toBe("xs");
+            expect(extension.defaultProps?.size).toBe("sm");
         });
     });
 
@@ -53,8 +53,8 @@ describe("Button Component Extensions (Refactored)", () => {
             expect(extension.vars).toBeDefined();
             expect(typeof extension.vars).toBe("function");
             const vars = extension.vars!();
-            expect(vars.root["--cb-size"]).toBe("16px");
-            expect(vars.root["--cb-icon-size"]).toBe("12px");
+            expect(vars.root["--cb-size"]).toBe("24px");
+            expect(vars.root["--cb-icon-size"]).toBe("10px");
         });
     });
 });

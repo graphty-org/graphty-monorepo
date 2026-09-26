@@ -28,10 +28,10 @@ describe("Compact Phase 3 Style Regression", () => {
                 />,
             );
 
-            const input = screen.getByRole("textbox");
+            const input = screen.getByRole("combobox");
             const computed = window.getComputedStyle(input);
 
-            expect(computed.height).toBe("24px");
+            expect(computed.height).toBe("22px");
         });
 
         it("Select has correct compact font size", () => {
@@ -39,7 +39,7 @@ describe("Compact Phase 3 Style Regression", () => {
                 <Select label="Test select" aria-label="Test select" data={["Option 1", "Option 2"]} size="compact" />,
             );
 
-            const input = screen.getByRole("textbox");
+            const input = screen.getByRole("combobox");
             const computed = window.getComputedStyle(input);
 
             expect(computed.fontSize).toBe("11px");
@@ -59,7 +59,7 @@ describe("Compact Phase 3 Style Regression", () => {
             // transparent border a compact input reserves so its focus border can paint
             // at all (build spec 04 section 11.2: "prefer the library's `transparent`").
             expect(field === null ? "" : window.getComputedStyle(field).height).toBe("24px");
-            expect(window.getComputedStyle(inner).height).toBe("22px");
+            expect(window.getComputedStyle(inner).height).toBe("24px");
         });
 
         it("PasswordInput has correct compact font size", () => {
@@ -137,7 +137,7 @@ describe("Compact Phase 3 Style Regression", () => {
             const badge = screen.getByTestId("test-badge");
             const computed = window.getComputedStyle(badge);
 
-            expect(computed.height).toBe("14px");
+            expect(computed.height).toBe("16px");
         });
 
         it("Badge has correct compact font size", () => {
@@ -150,7 +150,7 @@ describe("Compact Phase 3 Style Regression", () => {
             const badge = screen.getByTestId("test-badge");
             const computed = window.getComputedStyle(badge);
 
-            expect(computed.fontSize).toBe("9px");
+            expect(computed.fontSize).toBe("11px");
         });
     });
 
@@ -165,7 +165,7 @@ describe("Compact Phase 3 Style Regression", () => {
             const pill = screen.getByTestId("test-pill");
             const computed = window.getComputedStyle(pill);
 
-            expect(computed.height).toBe("16px");
+            expect(computed.height).toBe("20px");
         });
 
         it("Pill has correct compact font size", () => {
@@ -178,7 +178,7 @@ describe("Compact Phase 3 Style Regression", () => {
             const pill = screen.getByTestId("test-pill");
             const computed = window.getComputedStyle(pill);
 
-            expect(computed.fontSize).toBe("10px");
+            expect(computed.fontSize).toBe("11px");
         });
     });
 

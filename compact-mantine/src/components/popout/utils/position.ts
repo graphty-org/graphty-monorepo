@@ -12,7 +12,7 @@ import { type Direction, isRtl } from "../../../utils/rtl";
 // calculation over viewport coordinates from getBoundingClientRect, which are
 // physical in both reading directions; expressing them logically would mean
 // converting them back through the viewport width and would move the panel by a
-// scrollbar's width. Reading direction is honoured where it actually belongs
+// scrollbar's width. Reading direction is honored where it actually belongs
 // instead: in which side "start" and "end" name, resolved by resolvePlacement
 // and applied to the inline axis below.
 
@@ -69,7 +69,7 @@ export function resolvePlacement(
  * along one element while placing it against another.
  * @param anchorRect - The bounding rectangle of the element the panel is placed against
  * @param panelWidth - The width of the panel in pixels, as it actually renders
- * @param gap - The gap between anchor and panel (default: POPOUT_GAP = 8px)
+ * @param gap - The gap between anchor and panel (default: POPOUT_GAP, 0 -- docked flush)
  * @param options - Placement, alignment, panel height, cross-axis anchor and reading direction
  * @returns The calculated position { left, top }
  */

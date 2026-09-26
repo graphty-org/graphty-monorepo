@@ -36,8 +36,8 @@ describe("Compact Controls Style Regression", () => {
             if (root) {
                 const computed = window.getComputedStyle(root);
                 // Verify CSS variables are set correctly
-                expect(computed.getPropertyValue("--sc-font-size")).toBe("10px");
-                expect(computed.getPropertyValue("--sc-padding")).toBe("4px 8px");
+                expect(computed.getPropertyValue("--sc-font-size")).toBe("11px");
+                expect(computed.getPropertyValue("--sc-padding")).toBe("0 8px");
             }
         });
 
@@ -50,7 +50,7 @@ describe("Compact Controls Style Regression", () => {
 
             if (label) {
                 const computed = window.getComputedStyle(label);
-                expect(computed.fontSize).toBe("10px");
+                expect(computed.fontSize).toBe("11px");
             }
         });
     });
@@ -84,8 +84,8 @@ describe("Compact Controls Style Regression", () => {
                 const computed = window.getComputedStyle(root);
                 // Verify CSS variables are set correctly
                 expect(computed.getPropertyValue("--switch-height")).toBe("16px");
-                expect(computed.getPropertyValue("--switch-width")).toBe("28px");
-                expect(computed.getPropertyValue("--switch-thumb-size")).toBe("12px");
+                expect(computed.getPropertyValue("--switch-width")).toBe("32px");
+                expect(computed.getPropertyValue("--switch-thumb-size")).toBe("8px");
             }
         });
 
@@ -104,7 +104,7 @@ describe("Compact Controls Style Regression", () => {
             if (track) {
                 const computed = window.getComputedStyle(track);
                 // Compact slider should have 4px track height
-                expect(computed.height).toBe("4px");
+                expect(computed.height).toBe("8px");
             }
         });
 
@@ -160,8 +160,8 @@ describe("Compact Controls Style Regression", () => {
             const button = screen.getByTestId("test-button");
             const computed = window.getComputedStyle(button);
 
-            expect(computed.paddingLeft).toBe("8px");
-            expect(computed.paddingRight).toBe("8px");
+            expect(computed.paddingLeft).toBe("0px");
+            expect(computed.paddingRight).toBe("0px");
         });
     });
 

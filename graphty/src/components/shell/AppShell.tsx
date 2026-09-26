@@ -109,7 +109,6 @@ import type { ProviderType } from "../../types/ai";
 import type { ChatMessage } from "../ai/AiMessageBubble";
 import { FeedbackModal } from "../FeedbackModal";
 import type { GraphtyHandle, SelectionChangedDetail, StylesChangedDetail } from "../Graphty";
-import type { LayerItem } from "../layout/LeftSidebar";
 import type { LoadDataRequest } from "../LoadDataModal";
 import { asElementGraph, elementSession } from "./analysis/elementBridge";
 import {
@@ -206,6 +205,7 @@ import { DataPanel, type LoadedDataSummary } from "./panel/DataPanel";
 import { ExplorePanel, type ExploreSearchScope } from "./panel/ExplorePanel";
 import { PresentPanel } from "./panel/PresentPanel";
 import { SettingsOverlay } from "./panel/SettingsOverlay";
+import type { LayerItem } from "./panel/StyleLayerList";
 import { StylePanel } from "./panel/StylePanel";
 import { ActivityRail } from "./rail/ActivityRail";
 import type { HelpMenuRowId } from "./rail/HelpMenu";

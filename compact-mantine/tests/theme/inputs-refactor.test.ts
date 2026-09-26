@@ -45,11 +45,10 @@ describe("Input Component Extensions (Refactored)", () => {
             }
         });
 
-        it("all input components default to variant filled", () => {
+        it("filled fields default to variant filled", () => {
             const inputComponents = [
                 "TextInput",
                 "NumberInput",
-                "Select",
                 "Textarea",
                 "PasswordInput",
                 "Autocomplete",
@@ -58,18 +57,24 @@ describe("Input Component Extensions (Refactored)", () => {
                 "PillsInput",
                 "FileInput",
                 "JsonInput",
+                "ColorInput",
             ] as const;
 
             for (const name of inputComponents) {
-                const ext =
-                    inputComponentExtensions[
-                        name as keyof typeof inputComponentExtensions
-                    ];
-                expect(
-                    ext.defaultProps?.variant,
-                    `${name} should default to filled`,
-                ).toBe("filled");
+                const ext = inputComponentExtensions[name];
+                expect(ext.defaultProps?.variant, `${name} should default to filled`).toBe("filled");
             }
+        });
+
+        // Spec 6.4: the select trigger is Figma's one outlined field.
+        it("Select and NativeSelect default to variant outlined", () => {
+            expect(inputComponentExtensions.Select.defaultProps?.variant).toBe("outlined");
+            expect(inputComponentExtensions.NativeSelect.defaultProps?.variant).toBe("outlined");
+        });
+
+        // Spec 6.1: no stepper chevrons.
+        it("NumberInput hides its steppers by default", () => {
+            expect(inputComponentExtensions.NumberInput.defaultProps?.hideControls).toBe(true);
         });
 
         it("InputClearButton defaults to size xs", () => {
@@ -78,65 +83,74 @@ describe("Input Component Extensions (Refactored)", () => {
         });
     });
 
-    describe("styles are static", () => {
-        it("TextInput uses static styles (not function)", () => {
-            const extension = inputComponentExtensions.TextInput;
-            // After refactor, styles should be an object, not a function
-            expect(typeof extension.styles).toBe("object");
+    // The look is the stylesheet (src/theme/css/inputs.css.ts), reached through
+    // classNames; no extension writes inline styles that would beat it.
+    describe("the look comes from the stylesheet", () => {
+        const fields = [
+            "TextInput",
+            "NumberInput",
+            "Select",
+            "NativeSelect",
+            "Textarea",
+            "PasswordInput",
+            "Autocomplete",
+            "MultiSelect",
+            "TagsInput",
+            "PillsInput",
+            "FileInput",
+            "JsonInput",
+            "ColorInput",
+        ] as const;
+
+        it.each(fields)("%s has no inline styles", (name) => {
+            expect(inputComponentExtensions[name].styles).toBeUndefined();
         });
 
-        it("NumberInput uses static styles (not function)", () => {
-            const extension = inputComponentExtensions.NumberInput;
-            expect(typeof extension.styles).toBe("object");
+        it.each(fields)("%s puts the field classes on its wrapper and input", (name) => {
+            const classNames = inputComponentExtensions[name].classNames as (
+                theme: unknown,
+                props: Record<string, unknown>,
+            ) => Record<string, string>;
+            const variant = inputComponentExtensions[name].defaultProps?.variant as string;
+            const resolved = classNames({}, { variant });
+            expect(resolved.wrapper).toContain("cm-field");
+            expect(resolved.wrapper).toContain("cm-input-wrapper");
+            expect(resolved.input).toBe("cm-input");
         });
 
-        it("Select uses static styles (not function)", () => {
-            const extension = inputComponentExtensions.Select;
-            expect(typeof extension.styles).toBe("object");
+        it("the outlined variant adds cm-field-outlined; unstyled opts out", () => {
+            const classNames = inputComponentExtensions.TextInput.classNames as (
+                theme: unknown,
+                props: Record<string, unknown>,
+            ) => Record<string, string>;
+            expect(classNames({}, { variant: "outlined" }).wrapper).toContain("cm-field-outlined");
+            expect(classNames({}, { variant: "filled" }).wrapper).not.toContain("cm-field-outlined");
+            expect(classNames({}, { variant: "unstyled" })).toEqual({});
         });
 
-        it("Textarea uses static styles (not function)", () => {
-            const extension = inputComponentExtensions.Textarea;
-            expect(typeof extension.styles).toBe("object");
-        });
-
-        it("PasswordInput uses static styles (not function)", () => {
-            const extension = inputComponentExtensions.PasswordInput;
-            expect(typeof extension.styles).toBe("object");
-        });
-
-        it("Autocomplete uses static styles (not function)", () => {
-            const extension = inputComponentExtensions.Autocomplete;
-            expect(typeof extension.styles).toBe("object");
-        });
-
-        it("MultiSelect uses static styles (not function)", () => {
-            const extension = inputComponentExtensions.MultiSelect;
-            expect(typeof extension.styles).toBe("object");
-        });
-
-        it("TagsInput uses static styles (not function)", () => {
-            const extension = inputComponentExtensions.TagsInput;
-            expect(typeof extension.styles).toBe("object");
-        });
-
-        it("PillsInput uses static styles (not function)", () => {
-            const extension = inputComponentExtensions.PillsInput;
-            expect(typeof extension.styles).toBe("object");
-        });
-
-        it("FileInput uses static styles (not function)", () => {
-            const extension = inputComponentExtensions.FileInput;
-            expect(typeof extension.styles).toBe("object");
-        });
-
-        it("JsonInput uses static styles (not function)", () => {
-            const extension = inputComponentExtensions.JsonInput;
-            expect(typeof extension.styles).toBe("object");
-        });
+        it.each(["Select", "Autocomplete", "MultiSelect", "TagsInput"] as const)(
+            "%s draws its dropdown as the dark listbox",
+            (name) => {
+                const classNames = inputComponentExtensions[name].classNames as (
+                    theme: unknown,
+                    props: Record<string, unknown>,
+                ) => Record<string, string>;
+                const resolved = classNames({}, {});
+                expect(resolved.dropdown).toContain("cm-menu-surface");
+                expect(resolved.dropdown).toContain("cm-listbox");
+                expect(resolved.option).toContain("cm-menu-row");
+            },
+        );
     });
 
-    describe("z-index defaults for dropdown components", () => {
+    describe("z-index and motion defaults for dropdown components", () => {
+        it.each(["Select", "Autocomplete", "MultiSelect", "TagsInput"] as const)(
+            "%s opens its list with no animation",
+            (name) => {
+                expect(inputComponentExtensions[name].defaultProps?.comboboxProps?.transitionProps?.duration).toBe(0);
+            },
+        );
+
         it("Select has comboboxProps with zIndex", () => {
             const extension = inputComponentExtensions.Select;
             expect(extension.defaultProps?.comboboxProps).toBeDefined();

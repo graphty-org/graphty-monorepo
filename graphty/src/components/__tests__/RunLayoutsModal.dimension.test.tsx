@@ -21,7 +21,7 @@ describe("RunLayoutsModal - Dimension Radio", () => {
             render(<RunLayoutsModal opened={true} is2DMode={false} onClose={vi.fn()} onApply={vi.fn()} />);
 
             // Select Spiral (2D only layout)
-            const dropdown = screen.getByRole("textbox", { name: /layout/i });
+            const dropdown = screen.getByRole("combobox", { name: /layout/i });
             fireEvent.click(dropdown);
             await waitFor(() => {
                 expect(screen.getByText("Spiral")).toBeInTheDocument();
@@ -96,7 +96,7 @@ describe("RunLayoutsModal - Dimension Radio", () => {
             render(<RunLayoutsModal opened={true} is2DMode={false} onClose={vi.fn()} onApply={onApply} />);
 
             // Select Spiral (2D only layout)
-            const dropdown = screen.getByRole("textbox", { name: /layout/i });
+            const dropdown = screen.getByRole("combobox", { name: /layout/i });
             fireEvent.click(dropdown);
             await waitFor(() => {
                 expect(screen.getByText("Spiral")).toBeInTheDocument();
@@ -113,7 +113,7 @@ describe("RunLayoutsModal - Dimension Radio", () => {
             render(<RunLayoutsModal opened={true} is2DMode={false} onClose={vi.fn()} onApply={vi.fn()} />);
 
             // First select a 2D layout
-            const dropdown = screen.getByRole("textbox", { name: /layout/i });
+            const dropdown = screen.getByRole("combobox", { name: /layout/i });
             fireEvent.click(dropdown);
             await waitFor(() => {
                 expect(screen.getByText("Spiral")).toBeInTheDocument();
@@ -136,7 +136,7 @@ describe("RunLayoutsModal - Dimension Radio", () => {
             render(<RunLayoutsModal opened={true} is2DMode={true} onClose={vi.fn()} onApply={vi.fn()} />);
 
             // D3 is default, select Circular (another 3D-capable layout)
-            const dropdown = screen.getByRole("textbox", { name: /layout/i });
+            const dropdown = screen.getByRole("combobox", { name: /layout/i });
             fireEvent.click(dropdown);
             await waitFor(() => {
                 expect(screen.getByText("Circular")).toBeInTheDocument();

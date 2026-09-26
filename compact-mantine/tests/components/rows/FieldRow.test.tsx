@@ -41,7 +41,7 @@ const PHYSICAL_SPACING = /(^|-)(margin|padding|border|inset)?-?(left|right)\b/;
  */
 function physicalCandidates(): HTMLElement[] {
     return [
-        ...screen.queryAllByTestId("field-row-labelled"),
+        ...screen.queryAllByTestId("field-row-labeled"),
         ...screen.queryAllByTestId("field-row"),
         ...screen.queryAllByTestId("field-row-slot"),
         ...screen.queryAllByTestId("field-row-label"),
@@ -130,13 +130,13 @@ describe("FieldRow", () => {
     });
 
     describe("the grid identity", () => {
-        it("renders a pair at 108 each", () => {
+        it("renders a pair at 88 each", () => {
             renderRow(<FieldRow>{pair()}</FieldRow>);
 
             const slots = screen.getAllByTestId("field-row-slot");
             expect(slots).toHaveLength(2);
-            expect(slots[0]).toHaveAttribute("data-width", "108");
-            expect(slots[1]).toHaveAttribute("data-width", "108");
+            expect(slots[0]).toHaveAttribute("data-width", "88");
+            expect(slots[1]).toHaveAttribute("data-width", "88");
         });
 
         it("keeps the gutter between the two fields of a pair", () => {
@@ -164,11 +164,11 @@ describe("FieldRow", () => {
             );
 
             const slot = screen.getByTestId("field-row-slot");
-            expect(slot).toHaveAttribute("data-width", "224");
+            expect(slot).toHaveAttribute("data-width", "184");
             expect(slot).toHaveStyle({ marginInlineEnd: "8px" });
         });
 
-        it("spans 232 when one field is alone, so the row still reaches the end of the panel", () => {
+        it("spans 192 when one field is alone, so the row still reaches the end of the panel", () => {
             renderRow(
                 <FieldRow>
                     <PanelField label="Layout" value="Force directed" kind="select" />
@@ -176,8 +176,8 @@ describe("FieldRow", () => {
             );
 
             const slot = screen.getByTestId("field-row-slot");
-            expect(slot).toHaveAttribute("data-width", "232");
-            // The gap is inside the field's own 232 now, so the row writes none.
+            expect(slot).toHaveAttribute("data-width", "192");
+            // The gap is inside the field's own 192 now, so the row writes none.
             expect(slot.style.marginInlineEnd).toBe("");
         });
 
@@ -190,7 +190,7 @@ describe("FieldRow", () => {
                 </FieldRow>,
             );
 
-            expect(screen.getByTestId("field-row-slot")).toHaveAttribute("data-width", "232");
+            expect(screen.getByTestId("field-row-slot")).toHaveAttribute("data-width", "192");
         });
 
         it("treats a trailing slot given null as empty", () => {
@@ -200,7 +200,7 @@ describe("FieldRow", () => {
                 </FieldRow>,
             );
 
-            expect(screen.getByTestId("field-row-slot")).toHaveAttribute("data-width", "232");
+            expect(screen.getByTestId("field-row-slot")).toHaveAttribute("data-width", "192");
         });
     });
 
@@ -229,10 +229,10 @@ describe("FieldRow", () => {
             expect(slots[1]).toHaveStyle({ marginInlineStart: "8px", marginInlineEnd: "8px" });
         });
 
-        it("writes no physical spacing anywhere on a labelled row", () => {
+        it("writes no physical spacing anywhere on a labeled row", () => {
             renderRow(
                 <PanelLabelsProvider showLabels>
-                    <FieldRow trailing={<AdvancedButton label="Range and scale" onClick={vi.fn()} />}>{pair()}</FieldRow>
+                    <FieldRow labelPosition="inline" trailing={<AdvancedButton label="Range and scale" onClick={vi.fn()} />}>{pair()}</FieldRow>
                 </PanelLabelsProvider>,
             );
 
@@ -241,10 +241,10 @@ describe("FieldRow", () => {
             }
         });
 
-        it("keeps the gutter and the trail gap on a labelled row's slot", () => {
+        it("keeps the gutter and the trail gap on a labeled row's slot", () => {
             renderRow(
                 <PanelLabelsProvider showLabels>
-                    <FieldRow>{pair()}</FieldRow>
+                    <FieldRow labelPosition="inline">{pair()}</FieldRow>
                 </PanelLabelsProvider>,
             );
 
@@ -391,14 +391,14 @@ describe("FieldRow", () => {
         it("overrides a field's own width, because the row owns the widths", () => {
             renderRow(
                 <FieldRow>
-                    <PanelField label="Smallest node size" glyph="sizeSmallest" value="1.0" width={224} />
+                    <PanelField label="Smallest node size" glyph="sizeSmallest" value="1.0" width={184} />
                     <PanelField label="Largest node size" glyph="sizeLargest" value="4.0" />
                 </FieldRow>,
             );
 
             const fields = screen.getAllByTestId("panel-field");
             expect(fields[0]).toHaveStyle({ width: "100%" });
-            expect(screen.getAllByTestId("field-row-slot")[0]).toHaveAttribute("data-width", "108");
+            expect(screen.getAllByTestId("field-row-slot")[0]).toHaveAttribute("data-width", "88");
         });
 
         it("passes a child that is not a field through untouched", () => {
@@ -466,12 +466,12 @@ describe("FieldRow", () => {
         it("names the pair of rows the labels preference splits it into", () => {
             renderRow(
                 <PanelLabelsProvider showLabels>
-                    <FieldRow groupLabel="Node size range">{pair()}</FieldRow>
+                    <FieldRow labelPosition="inline" groupLabel="Node size range">{pair()}</FieldRow>
                 </PanelLabelsProvider>,
             );
 
             const group = screen.getByRole("group", { name: "Node size range" });
-            expect(group).toBe(screen.getByTestId("field-row-labelled"));
+            expect(group).toBe(screen.getByTestId("field-row-labeled"));
             expect(screen.getAllByTestId("field-row")).toHaveLength(2);
         });
     });
@@ -547,11 +547,11 @@ describe("FieldRow", () => {
             const ref = React.createRef<HTMLDivElement>();
             renderRow(
                 <PanelLabelsProvider showLabels>
-                    <FieldRow ref={ref}>{pair()}</FieldRow>
+                    <FieldRow labelPosition="inline" ref={ref}>{pair()}</FieldRow>
                 </PanelLabelsProvider>,
             );
 
-            expect(ref.current).toBe(screen.getByTestId("field-row-labelled"));
+            expect(ref.current).toBe(screen.getByTestId("field-row-labeled"));
         });
     });
 
@@ -570,20 +570,20 @@ describe("FieldRow", () => {
         it("splits a pair into two single rows when labels are on", () => {
             renderRow(
                 <PanelLabelsProvider showLabels>
-                    <FieldRow>{pair()}</FieldRow>
+                    <FieldRow labelPosition="inline">{pair()}</FieldRow>
                 </PanelLabelsProvider>,
             );
 
             const rows = screen.getAllByTestId("field-row");
             expect(rows).toHaveLength(2);
-            expect(rows[0]).toHaveAttribute("data-labelled", "true");
-            expect(rows[1]).toHaveAttribute("data-labelled", "true");
+            expect(rows[0]).toHaveAttribute("data-labeled", "true");
+            expect(rows[1]).toHaveAttribute("data-labeled", "true");
         });
 
         it("never splits into a two-line stack: every row is one pitch tall", () => {
             renderRow(
                 <PanelLabelsProvider showLabels>
-                    <FieldRow>{pair()}</FieldRow>
+                    <FieldRow labelPosition="inline">{pair()}</FieldRow>
                 </PanelLabelsProvider>,
             );
 
@@ -595,26 +595,26 @@ describe("FieldRow", () => {
         it("puts each word in the label column", () => {
             renderRow(
                 <PanelLabelsProvider showLabels>
-                    <FieldRow>{pair()}</FieldRow>
+                    <FieldRow labelPosition="inline">{pair()}</FieldRow>
                 </PanelLabelsProvider>,
             );
 
             const labels = screen.getAllByTestId("field-row-label");
             expect(labels[0]).toHaveTextContent("Smallest node size");
             expect(labels[1]).toHaveTextContent("Largest node size");
-            expect(labels[0]).toHaveStyle({ flex: "0 0 76px" });
+            expect(labels[0]).toHaveStyle({ flex: "0 0 72px" });
         });
 
         // The column is narrow and a translated word is often longer than an
-        // English one, so the word ellipsises. Clipping it is a paint-time
+        // English one, so the word ellipsizes. Clipping it is a paint-time
         // effect only: the whole word stays in the DOM and so in the
         // accessibility tree, the title serves a mouse, and the field beside it
         // carries the same word as its own accessible name for a keyboard or a
         // touch screen, neither of which can reach a title.
-        it("keeps an ellipsised word readable in full", () => {
+        it("keeps an ellipsized word readable in full", () => {
             renderRow(
                 <PanelLabelsProvider showLabels>
-                    <FieldRow>{pair()}</FieldRow>
+                    <FieldRow labelPosition="inline">{pair()}</FieldRow>
                 </PanelLabelsProvider>,
             );
 
@@ -626,7 +626,7 @@ describe("FieldRow", () => {
         it("clips the word only when it paints, never in the text itself", () => {
             renderRow(
                 <PanelLabelsProvider showLabels>
-                    <FieldRow>
+                    <FieldRow labelPosition="inline">
                         <PanelField label="Kleinste Knotengroesse" glyph="sizeSmallest" value="1.0" />
                         <PanelField label="Groesste Knotengroesse" glyph="sizeLargest" value="4.0" />
                     </FieldRow>
@@ -635,7 +635,7 @@ describe("FieldRow", () => {
 
             const [first] = screen.getAllByTestId("field-row-label");
             // Whole in the DOM, and therefore whole to a screen reader, however
-            // little of it the 76px column can draw.
+            // little of it the 72px column can draw.
             expect(first).toHaveTextContent(/^Kleinste Knotengroesse$/);
             expect(first).toHaveStyle({ textOverflow: "ellipsis", overflow: "hidden" });
         });
@@ -643,7 +643,7 @@ describe("FieldRow", () => {
         it("prints each word once: the field does not repeat it inside its box", () => {
             renderRow(
                 <PanelLabelsProvider showLabels>
-                    <FieldRow>{pair()}</FieldRow>
+                    <FieldRow labelPosition="inline">{pair()}</FieldRow>
                 </PanelLabelsProvider>,
             );
 
@@ -653,7 +653,7 @@ describe("FieldRow", () => {
         it("lets the field fill what is left of the row", () => {
             renderRow(
                 <PanelLabelsProvider showLabels>
-                    <FieldRow>{pair()}</FieldRow>
+                    <FieldRow labelPosition="inline">{pair()}</FieldRow>
                 </PanelLabelsProvider>,
             );
 
@@ -665,7 +665,7 @@ describe("FieldRow", () => {
         it("keeps the row's one trailing control on the first of the two rows", () => {
             renderRow(
                 <PanelLabelsProvider showLabels>
-                    <FieldRow trailing={<AdvancedButton label="Range and scale" onClick={vi.fn()} />}>{pair()}</FieldRow>
+                    <FieldRow labelPosition="inline" trailing={<AdvancedButton label="Range and scale" onClick={vi.fn()} />}>{pair()}</FieldRow>
                 </PanelLabelsProvider>,
             );
 
@@ -679,7 +679,7 @@ describe("FieldRow", () => {
         it("leaves a single field on its one row, where the word joins the glyph", () => {
             renderRow(
                 <PanelLabelsProvider showLabels>
-                    <FieldRow>
+                    <FieldRow labelPosition="inline">
                         <PanelField label="Layout" value="Hierarchical" kind="select" />
                     </FieldRow>
                 </PanelLabelsProvider>,
@@ -693,7 +693,7 @@ describe("FieldRow", () => {
         it("leaves the label column empty for a child that carries no word", () => {
             renderRow(
                 <PanelLabelsProvider showLabels>
-                    <FieldRow>
+                    <FieldRow labelPosition="inline">
                         <PanelField label="Layout" value="Radial" kind="select" />
                         <div data-testid="not-a-field">Mrs_Henderson</div>
                     </FieldRow>
@@ -704,6 +704,54 @@ describe("FieldRow", () => {
             expect(labels[0]).toHaveTextContent("Layout");
             expect(labels[1]).toBeEmptyDOMElement();
             expect(screen.getByTestId("not-a-field")).toBeInTheDocument();
+        });
+    });
+
+    describe("captions above the columns (the default labeled row)", () => {
+        it("draws Figma's labeled two-column row: one 50px row, a caption above each column", () => {
+            renderRow(
+                <PanelLabelsProvider showLabels>
+                    <FieldRow>{pair()}</FieldRow>
+                </PanelLabelsProvider>,
+            );
+
+            const row = screen.getByTestId("field-row");
+            expect(screen.getAllByTestId("field-row")).toHaveLength(1);
+            expect(row).toHaveAttribute("data-captions", "true");
+            expect(row).toHaveStyle({ height: "50px", paddingBlockEnd: "4px" });
+            const captions = screen.getAllByTestId("field-row-caption");
+            expect(captions.map((c) => c.textContent)).toEqual(["Smallest node size", "Largest node size"]);
+            expect(captions[0]).toHaveClass("cm-caption");
+        });
+
+        it("keeps the 88 | 8 | 88 | 8 | 24 grid under the captions", () => {
+            renderRow(
+                <PanelLabelsProvider showLabels>
+                    <FieldRow>{pair()}</FieldRow>
+                </PanelLabelsProvider>,
+            );
+
+            const slots = screen.getAllByTestId("field-row-slot");
+            expect(slots[0]).toHaveAttribute("data-width", "88");
+            expect(slots[1]).toHaveStyle({ marginInlineStart: "8px", marginInlineEnd: "8px" });
+        });
+
+        it("prints each word once: the caption is drawn, the field keeps it as its name", () => {
+            renderRow(
+                <PanelLabelsProvider showLabels>
+                    <FieldRow>{pair()}</FieldRow>
+                </PanelLabelsProvider>,
+            );
+
+            expect(screen.queryAllByTestId("panel-field-label")).toHaveLength(0);
+            expect(screen.getAllByTestId("field-row-caption")[0]).toHaveAttribute("aria-hidden", "true");
+        });
+
+        it("draws no caption with the preference off", () => {
+            renderRow(<FieldRow>{pair()}</FieldRow>);
+
+            expect(screen.queryByTestId("field-row-caption")).not.toBeInTheDocument();
+            expect(screen.getByTestId("field-row")).toHaveStyle({ height: "32px" });
         });
     });
 
@@ -762,7 +810,7 @@ describe("FieldRow", () => {
             const user = userEvent.setup();
             renderRow(
                 <PanelLabelsProvider showLabels>
-                    <FieldRow>
+                    <FieldRow labelPosition="inline">
                         <PanelField label="Smallest" glyph="sizeSmallest" value="1.0" onClick={onSmallest} />
                         <PanelField label="Largest" glyph="sizeLargest" value="4.0" onClick={onLargest} />
                     </FieldRow>

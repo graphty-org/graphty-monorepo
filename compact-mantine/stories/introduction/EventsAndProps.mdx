@@ -1,0 +1,118 @@
+import { Meta } from "@storybook/blocks";
+
+<Meta title="Introduction/Events and shared props" />
+
+# Events and shared props
+
+Every component follows the same few conventions for its callbacks and its prop names, so once
+you have used one you can guess the rest.
+
+## A value change: the value first, the event optional
+
+```tsx
+<ToggleRow label="Labels" onChange={(checked, event) => setLabels(checked)} />
+<PanelField label="Radius" kind="number" onChange={(value) => setRadius(value)} />
+```
+
+That matches Mantine, and it means a change made in code is `onChange(next)` with no event to
+fabricate.
+
+Every component that holds a value works **controlled** (`value` plus `onChange`) or
+**uncontrolled** (`defaultValue`), and `onFocus` and `onBlur` are always forwarded.
+
+## An activation: the event, never a bare callback
+
+So you can read modifier keys, call `preventDefault()`, or find the element that was activated:
+
+```tsx
+<AdvancedButton
+    label="Advanced"
+    onClick={(event) => {
+        if (event.shiftKey) {
+            openInNewPanel();
+        } else {
+            open();
+        }
+    }}
+/>
+```
+
+Rows whose behavior can depend on how they were activated -- `DataRow`, `ActionRow` and
+`DataTable`'s rows -- get a second argument saying so, rather than making you sniff the event:
+
+```tsx
+<DataRow
+    name="Mr_Whiskers"
+    value="12"
+    onClick={(event, meta) => {
+        openNode(id, { inNewPanel: meta.source === "pointer" && event.shiftKey });
+    }}
+/>
+```
+
+## A drag: start, changes, end
+
+A gesture reports its start, each change and its end, so you can open and close one undo
+transaction around the whole drag:
+
+```tsx
+<PanelField
+    label="Radius"
+    glyph="width"
+    kind="number"
+    onScrubStart={() => beginUndo()}
+    onScrub={(delta) => setRadius((r) => r + delta)}
+    onScrubEnd={() => commitUndo()}
+/>
+```
+
+`GradientEditor` reports the same triple as `onChangeStart`, `onChange` and `onChangeEnd`, for a
+handle drag and for a drag in its picker alike; a keyboard step or a typed value is one complete
+gesture. `ColorPickerPanel` reports `onChange` on every step and `onChangeEnd` when a drag
+settles.
+
+## Opening and closing
+
+Anything that opens and closes takes `opened`, `defaultOpened` and `onOpenChange(opened, event?)`:
+`ControlSection`, `ControlSubGroup`, `InfoCircle` and the whole `Popout` family. Supply `opened` to
+drive it from your own state, or leave it out and let the component remember.
+
+## Content that arrives later
+
+Anything whose content is computed after it first renders takes `busy` and `live`:
+`HistogramRow`, `SparklineRow`, `MetricRow`, `CompoundRow`, `RampRow`, `ProseBlock` and
+`ActionRow`. Supplying `busy` at all -- true or false -- says the content is fed by something that
+finishes later, and that is what makes a screen reader announce it; `live` sets the politeness and
+defaults to `"polite"` once `busy` is given.
+
+```tsx
+<MetricRow name="Betweenness" busy={isRunning} percentile={98} value="0.31" />
+```
+
+Pass `busy` for the whole life of the component rather than only while the run is in flight: a
+live region has to be in the document before the change it announces.
+
+## The shared prop names
+
+| Prop | What it always means |
+|---|---|
+| `label` | What the thing is called. It is always the accessible name; whether it is also drawn depends on the component and on the `showLabels` preference (see [Languages and direction](?path=/docs/introduction-languages-and-direction--docs)). |
+| `name` | On the display rows (`DataRow`, `MetricRow`), the name of the reading, always drawn. |
+| `value` / `defaultValue` / `onChange` | The state a control holds. On the display rows, `value` is the reading drawn on the row and there is no `onChange`. |
+| `trailing` | The row's occasional control, in the fixed 24px slot every row ends with. Always a node, always the last thing in the row. |
+| `actions` | Buttons that belong to a container rather than to a row: a section header's, a pop-out panel's, an action row's cluster. |
+| `disabled` | Present but cannot be used: dimmed, skipped by Tab, announced as unavailable. |
+| `disabledReason` | One sentence saying why a control is disabled, shown while it is (`ToggleRow`, `ToggleWithContent`, `StyleNumberInput`). |
+| `selected` | Which item of a list the reader has picked. Not the same as a control's own value. |
+| `busy` / `live` | The content arrives from something that finishes later. |
+| `opened` / `defaultOpened` / `onOpenChange` | Anything that opens and closes. |
+
+## TypeScript
+
+The package ships its own declarations. Every component's props are exported as a named type
+(`DataRowProps`, `PanelFieldProps`, `TreeProps`, ...), so you can extend them, and the prop
+comments you see in your editor are the same text as the Controls tables in this Storybook. A few
+types are worth knowing by name: `FieldGlyphName` and `UiGlyphName` are the closed glyph
+registers (`isFieldGlyphName` and `isFieldLetter` narrow an unknown string to them),
+`DataTableColumn<TRow>` describes a table column, `TreeNodeData` and `TreeMove` describe a tree
+and a move in it, and `CompactMantineLabels` is the string set.

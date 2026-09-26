@@ -67,12 +67,12 @@ describe("shell constants", () => {
             expect(TOP_BAR_HEIGHT).toBe(40);
             expect(STATUS_BAR_HEIGHT).toBe(24);
             expect(PANEL_HEADER_HEIGHT).toBe(36);
-            expect(ACTIVITY_PANEL_WIDTH_DEFAULT).toBe(280);
-            expect(INSPECTOR_WIDTH_DEFAULT).toBe(280);
+            expect(ACTIVITY_PANEL_WIDTH_DEFAULT).toBe(240);
+            expect(INSPECTOR_WIDTH_DEFAULT).toBe(240);
         });
 
         it("makes the panel width the PANEL_GRID identity", () => {
-            const identity = 16 + 108 + 8 + 108 + 8 + 24 + 8;
+            const identity = 16 + 88 + 8 + 88 + 8 + 24 + 8;
 
             expect(ACTIVITY_PANEL_WIDTH_DEFAULT).toBe(identity);
             expect(ACTIVITY_PANEL_MIN_WIDTH).toBe(identity);
@@ -103,7 +103,7 @@ describe("shell constants", () => {
          * on an iPad that "actually works fine with the sidebars". 1024 is the landscape
          * width of every modern iPad, so it admits the family rather than one model.
          *
-         * 416 is deliberately below CANVAS_MIN_WIDTH and the two do not contradict: the
+         * 496 (1024 - 48 rail - 240 panel - 240 inspector) is deliberately below CANVAS_MIN_WIDTH and the two do not contradict: the
          * clamp bounds how far a reader may DRAG a sidebar, never what the viewport hands
          * over. The sum is asserted here so a future widening of either column has to
          * come back and restate what the smallest supported canvas is.
@@ -113,7 +113,7 @@ describe("shell constants", () => {
             expect(NARROW_BREAKPOINT).toBe(1024);
             expect(
                 NARROW_BREAKPOINT - ACTIVITY_RAIL_WIDTH - ACTIVITY_PANEL_WIDTH_DEFAULT - INSPECTOR_WIDTH_DEFAULT,
-            ).toBe(416);
+            ).toBe(496);
         });
 
         it("fixes the undo depth at 50", () => {
@@ -303,15 +303,15 @@ describe("shell constants", () => {
         });
 
         it("never drags either column below the grid identity", () => {
-            expect(clampActivityPanelWidth(120, 1920, 280)).toBe(280);
-            expect(clampInspectorWidth(120, 1920, 280)).toBe(280);
+            expect(clampActivityPanelWidth(120, 1920, 280)).toBe(ACTIVITY_PANEL_WIDTH_DEFAULT);
+            expect(clampInspectorWidth(120, 1920, 280)).toBe(INSPECTOR_WIDTH_DEFAULT);
         });
 
-        it("pins both columns at 280 below the breakpoint, where the canvas is not resized", () => {
+        it("pins both columns at the panel grid's width below the breakpoint, where the canvas is not resized", () => {
             const narrow = NARROW_BREAKPOINT - 1;
 
-            expect(clampActivityPanelWidth(420, narrow, 280)).toBe(280);
-            expect(clampInspectorWidth(420, narrow, 280)).toBe(280);
+            expect(clampActivityPanelWidth(420, narrow, 280)).toBe(240);
+            expect(clampInspectorWidth(420, narrow, 280)).toBe(240);
             expect(liveCanvasWidth(narrow, 280, 280)).toBe(narrow - ACTIVITY_RAIL_WIDTH);
         });
 

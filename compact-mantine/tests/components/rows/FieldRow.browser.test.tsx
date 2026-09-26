@@ -1,7 +1,7 @@
 /**
  * A field row lays out the same way whichever way the text runs.
  *
- * The row spends its content band as `108 + 8 + 108 + 8 + 24 = 256`: two
+ * The row spends its content band as `88 + 8 + 88 + 8 + 24 = 216`: two
  * fields, the gutter between them, the trail gap, and the trailing slot. Under
  * `dir="rtl"` a flex row reverses itself, so spacing written as a physical
  * margin keeps its size and loses its place -- the gutter lands outside the
@@ -33,7 +33,7 @@ interface InlineBox {
 }
 
 /**
- * Render one row in the 256px band a panel gives it, with the text direction
+ * Render one row in the 216px band a 240px panel gives it, with the text direction
  * set the way a consumer sets it: `dir` on the document, which is where
  * Mantine's `DirectionProvider` reads it from and what CSS resolves logical
  * properties against.
@@ -103,13 +103,30 @@ function inlineEnd(box: InlineBox): number {
     return box.start + box.width;
 }
 
+/** Where the trailing slot starts: the band less the slot. */
+const TRAIL_START = PANEL_GRID.CONTENT - PANEL_GRID.TRAIL;
+
+/** Where the second field of a pair starts. */
+const SECOND_START = PANEL_GRID.FIELD + PANEL_GRID.GUTTER;
+
+/**
+ * A stand-in 24px control carrying a `label`, so the caption geometry is measured
+ * against the grid alone rather than against another package's field height.
+ * @param props - Component props
+ * @param props.label - The word the row draws as the caption
+ * @returns A 24px box
+ */
+function Control24({ label }: { label: string }): React.JSX.Element {
+    return <div data-testid="control-24" aria-label={label} style={{ height: PANEL_GRID.CONTROL_HEIGHT, width: "100%" }} />;
+}
+
 afterEach(() => {
     cleanup();
     document.documentElement.removeAttribute("dir");
 });
 
 describe.each(DIRECTIONS)("a field row under dir=%s", (dir) => {
-    it("spends its band as 108 + 8 + 108 + 8 + 24", () => {
+    it("spends its band as 88 + 8 + 88 + 8 + 24", () => {
         renderInBand(
             <FieldRow trailing={<AdvancedButton label="Range and scale" onClick={() => undefined} />}>
                 <PanelField label="Smallest node size" glyph="sizeSmallest" value="1.0" />
@@ -120,8 +137,8 @@ describe.each(DIRECTIONS)("a field row under dir=%s", (dir) => {
 
         const [first, second] = slotBoxes(dir);
         expect(first).toEqual({ start: 0, width: PANEL_GRID.FIELD });
-        expect(second).toEqual({ start: 116, width: PANEL_GRID.FIELD });
-        expect(trailingBox(dir)).toEqual({ start: 232, width: PANEL_GRID.TRAIL });
+        expect(second).toEqual({ start: SECOND_START, width: PANEL_GRID.FIELD });
+        expect(trailingBox(dir)).toEqual({ start: TRAIL_START, width: PANEL_GRID.TRAIL });
         expect(inlineEnd(trailingBox(dir))).toBe(PANEL_GRID.CONTENT);
     });
 
@@ -162,10 +179,10 @@ describe.each(DIRECTIONS)("a field row under dir=%s", (dir) => {
             dir,
         );
 
-        expect(trailingBox(dir)).toEqual({ start: 232, width: PANEL_GRID.TRAIL });
+        expect(trailingBox(dir)).toEqual({ start: TRAIL_START, width: PANEL_GRID.TRAIL });
     });
 
-    it("spends its band as 224 + 8 + 24 for one field beside a trailing control", () => {
+    it("spends its band as 184 + 8 + 24 for one field beside a trailing control", () => {
         renderInBand(
             <FieldRow trailing={<AdvancedButton label="Range and scale" onClick={() => undefined} />}>
                 <PanelField label="Size by attribute" glyph="attribute" value="Betweenness" bound kind="select" />
@@ -175,10 +192,10 @@ describe.each(DIRECTIONS)("a field row under dir=%s", (dir) => {
 
         const [only] = slotBoxes(dir);
         expect(only).toEqual({ start: 0, width: PANEL_GRID.BODY });
-        expect(trailingBox(dir)).toEqual({ start: 232, width: PANEL_GRID.TRAIL });
+        expect(trailingBox(dir)).toEqual({ start: TRAIL_START, width: PANEL_GRID.TRAIL });
     });
 
-    it("gives the trail gap to a field that is alone, which spans 232", () => {
+    it("gives the trail gap to a field that is alone, which spans 192", () => {
         renderInBand(
             <FieldRow>
                 <PanelField label="Layout" value="Force directed" kind="select" />
@@ -188,7 +205,7 @@ describe.each(DIRECTIONS)("a field row under dir=%s", (dir) => {
 
         const [only] = slotBoxes(dir);
         expect(only).toEqual({ start: 0, width: PANEL_GRID.BODY + PANEL_GRID.TRAIL_GAP });
-        expect(trailingBox(dir)).toEqual({ start: 232, width: PANEL_GRID.TRAIL });
+        expect(trailingBox(dir)).toEqual({ start: TRAIL_START, width: PANEL_GRID.TRAIL });
         expect(inlineEnd(trailingBox(dir))).toBe(PANEL_GRID.CONTENT);
     });
 
@@ -206,10 +223,12 @@ describe.each(DIRECTIONS)("a field row under dir=%s", (dir) => {
         });
     });
 
-    it("spends its band as 76 + 8 + 140 + 8 + 24 once the labels preference splits the pair", () => {
+    it("spends its band as 72 + 8 + 104 + 8 + 24 once the inline labels split the pair", () => {
         renderInBand(
             <PanelLabelsProvider showLabels>
-                <FieldRow trailing={<AdvancedButton label="Range and scale" onClick={() => undefined} />}>
+                <FieldRow
+                    labelPosition="inline"
+                    trailing={<AdvancedButton label="Range and scale" onClick={() => undefined} />}>
                     <PanelField label="Smallest" glyph="sizeSmallest" value="1.0" />
                     <PanelField label="Largest" glyph="sizeLargest" value="4.0" />
                 </FieldRow>
@@ -224,15 +243,18 @@ describe.each(DIRECTIONS)("a field row under dir=%s", (dir) => {
         // then the slot: the same order in both directions.
         expect(word).toEqual({ start: 0, width: PANEL_GRID.LABEL_COLUMN });
         expect(field.start - inlineEnd(word)).toBe(PANEL_GRID.GUTTER);
-        expect(field).toEqual({ start: 84, width: 140 });
+        expect(field).toEqual({
+            start: PANEL_GRID.LABEL_COLUMN + PANEL_GRID.GUTTER,
+            width: TRAIL_START - PANEL_GRID.TRAIL_GAP - PANEL_GRID.LABEL_COLUMN - PANEL_GRID.GUTTER,
+        });
         expect(trailingBox(dir).start - inlineEnd(field)).toBe(PANEL_GRID.TRAIL_GAP);
-        expect(trailingBox(dir)).toEqual({ start: 232, width: PANEL_GRID.TRAIL });
+        expect(trailingBox(dir)).toEqual({ start: TRAIL_START, width: PANEL_GRID.TRAIL });
     });
 
     it("stands both of the split rows on the row pitch", () => {
         renderInBand(
             <PanelLabelsProvider showLabels>
-                <FieldRow>
+                <FieldRow labelPosition="inline">
                     <PanelField label="Smallest" glyph="sizeSmallest" value="1.0" />
                     <PanelField label="Largest" glyph="sizeLargest" value="4.0" />
                 </FieldRow>
@@ -245,6 +267,39 @@ describe.each(DIRECTIONS)("a field row under dir=%s", (dir) => {
         for (const row of rows) {
             expect(Math.round(row.getBoundingClientRect().height)).toBe(PANEL_GRID.ROW_PITCH);
         }
+    });
+
+    it("draws Figma's labeled row: 50 tall, captions above each column on the same grid", () => {
+        renderInBand(
+            <PanelLabelsProvider showLabels>
+                <FieldRow trailing={<AdvancedButton label="Individual corners" onClick={() => undefined} />}>
+                    <Control24 label="Opacity" />
+                    <Control24 label="Corner radius" />
+                </FieldRow>
+            </PanelLabelsProvider>,
+            dir,
+        );
+
+        const row = screen.getByTestId("field-row").getBoundingClientRect();
+        expect(Math.round(row.height)).toBe(PANEL_GRID.CAPTION_ROW);
+
+        const [first, second] = slotBoxes(dir);
+        expect(first).toEqual({ start: 0, width: PANEL_GRID.FIELD });
+        expect(second).toEqual({ start: SECOND_START, width: PANEL_GRID.FIELD });
+        expect(trailingBox(dir)).toEqual({ start: TRAIL_START, width: PANEL_GRID.TRAIL });
+
+        // 4 above, a 14px caption, 4, the 24px control, 4 below
+        // (right-sidebar-selection/s-al-full-panel #456-#461).
+        const captions = screen.getAllByTestId("field-row-caption");
+        expect(inlineBox(captions[1], dir).start).toBe(SECOND_START);
+        const caption = captions[0].getBoundingClientRect();
+        expect(Math.round(caption.top - row.top)).toBe(4);
+        expect(Math.round(caption.height)).toBe(14);
+        const field = screen.getAllByTestId("control-24")[0].getBoundingClientRect();
+        expect(Math.round(field.top - row.top)).toBe(22);
+        expect(Math.round(field.height)).toBe(PANEL_GRID.CONTROL_HEIGHT);
+        const trail = screen.getByTestId("trailing-slot").getBoundingClientRect();
+        expect(Math.round(trail.top - row.top)).toBe(22);
     });
 });
 

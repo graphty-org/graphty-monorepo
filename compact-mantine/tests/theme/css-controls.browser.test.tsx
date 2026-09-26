@@ -1,7 +1,9 @@
 /**
  * Control Components - Comprehensive CSS Browser Tests
  *
- * Tests ALL CSS values set by compact-mantine control component extensions.
+ * Tests ALL CSS values set by compact-mantine control component extensions, at the Figma
+ * values of design/figma-spec.md section 5 (tests/figma/selection.browser.test.tsx compares
+ * them with the captures themselves).
  * Covers: SegmentedControl, Checkbox, Switch, Slider, Radio, RangeSlider
  */
 import {
@@ -41,49 +43,49 @@ function getCssVar(element: Element | null, varName: string): string {
 describe("SegmentedControl - All CSS Values (Browser)", () => {
     describe("with default size (sm)", () => {
         describe("root CSS variables", () => {
-            it("--sc-font-size is 10px", () => {
+            it("--sc-font-size is 11px", () => {
                 const { container } = renderWithTheme(
                     <SegmentedControl data={["A", "B", "C"]} />
                 );
                 const root = container.querySelector(".mantine-SegmentedControl-root");
-                expect(getCssVar(root, "--sc-font-size")).toBe("10px");
+                expect(getCssVar(root, "--sc-font-size")).toBe("11px");
             });
 
-            it("--sc-padding is 4px 8px", () => {
+            it("--sc-padding is 0 8px", () => {
                 const { container } = renderWithTheme(
                     <SegmentedControl data={["A", "B", "C"]} />
                 );
                 const root = container.querySelector(".mantine-SegmentedControl-root");
-                expect(getCssVar(root, "--sc-padding")).toBe("4px 8px");
+                expect(getCssVar(root, "--sc-padding")).toBe("0 8px");
             });
         });
 
         describe("label computed styles", () => {
-            it("fontSize is 10px", () => {
+            it("fontSize is 11px", () => {
                 const { container } = renderWithTheme(
                     <SegmentedControl data={["A", "B", "C"]} />
                 );
                 const label = container.querySelector(".mantine-SegmentedControl-label");
                 const style = label ? getComputedStyle(label) : null;
-                expect(style?.fontSize).toBe("10px");
+                expect(style?.fontSize).toBe("11px");
             });
 
-            it("paddingTop is 4px", () => {
+            it("paddingTop is 0px", () => {
                 const { container } = renderWithTheme(
                     <SegmentedControl data={["A", "B", "C"]} />
                 );
                 const label = container.querySelector(".mantine-SegmentedControl-label");
                 const style = label ? getComputedStyle(label) : null;
-                expect(style?.paddingTop).toBe("4px");
+                expect(style?.paddingTop).toBe("0px");
             });
 
-            it("paddingBottom is 4px", () => {
+            it("paddingBottom is 0px", () => {
                 const { container } = renderWithTheme(
                     <SegmentedControl data={["A", "B", "C"]} />
                 );
                 const label = container.querySelector(".mantine-SegmentedControl-label");
                 const style = label ? getComputedStyle(label) : null;
-                expect(style?.paddingBottom).toBe("4px");
+                expect(style?.paddingBottom).toBe("0px");
             });
 
             it("paddingLeft is 8px", () => {
@@ -135,11 +137,11 @@ describe("Checkbox - All CSS Values (Browser)", () => {
                 expect(style?.height).toBe("16px");
             });
 
-            it("borderRadius is 4px", () => {
+            it("borderRadius is 2px", () => {
                 const { container } = renderWithTheme(<Checkbox label="Check" />);
                 const input = container.querySelector(".mantine-Checkbox-input");
                 const style = input ? getComputedStyle(input) : null;
-                expect(style?.borderRadius).toBe("4px");
+                expect(style?.borderRadius).toBe("2px");
             });
         });
 
@@ -166,16 +168,16 @@ describe("Switch - All CSS Values (Browser)", () => {
                 expect(getCssVar(root, "--switch-height")).toBe("16px");
             });
 
-            it("--switch-width is 28px", () => {
+            it("--switch-width is 32px", () => {
                 const { container } = renderWithTheme(<Switch label="Toggle" />);
                 const root = container.querySelector(".mantine-Switch-root");
-                expect(getCssVar(root, "--switch-width")).toBe("28px");
+                expect(getCssVar(root, "--switch-width")).toBe("32px");
             });
 
-            it("--switch-thumb-size is 12px", () => {
+            it("--switch-thumb-size is 8px", () => {
                 const { container } = renderWithTheme(<Switch label="Toggle" />);
                 const root = container.querySelector(".mantine-Switch-root");
-                expect(getCssVar(root, "--switch-thumb-size")).toBe("12px");
+                expect(getCssVar(root, "--switch-thumb-size")).toBe("8px");
             });
 
             it("--switch-track-label-padding is 2px", () => {
@@ -199,18 +201,18 @@ describe("Switch - All CSS Values (Browser)", () => {
                 expect(style?.height).toBe("16px");
             });
 
-            it("width is 28px", () => {
+            it("width is 32px", () => {
                 const { container } = renderWithTheme(<Switch label="Toggle" />);
                 const track = container.querySelector(".mantine-Switch-track");
                 const style = track ? getComputedStyle(track) : null;
-                expect(style?.width).toBe("28px");
+                expect(style?.width).toBe("32px");
             });
 
-            it("minWidth is 28px", () => {
+            it("minWidth is 32px", () => {
                 const { container } = renderWithTheme(<Switch label="Toggle" />);
                 const track = container.querySelector(".mantine-Switch-track");
                 const style = track ? getComputedStyle(track) : null;
-                expect(style?.minWidth).toBe("28px");
+                expect(style?.minWidth).toBe("32px");
             });
         });
 
@@ -222,11 +224,11 @@ describe("Switch - All CSS Values (Browser)", () => {
                 expect(style?.width).toBe("12px");
             });
 
-            it("height is 12px", () => {
+            it("height is 8px (the knob is a 12 x 8 pill)", () => {
                 const { container } = renderWithTheme(<Switch label="Toggle" />);
                 const thumb = container.querySelector(".mantine-Switch-thumb");
                 const style = thumb ? getComputedStyle(thumb) : null;
-                expect(style?.height).toBe("12px");
+                expect(style?.height).toBe("8px");
             });
         });
 
@@ -247,10 +249,10 @@ describe("Switch - All CSS Values (Browser)", () => {
 describe("Slider - All CSS Values (Browser)", () => {
     describe("with default size (sm)", () => {
         describe("root CSS variables", () => {
-            it("--slider-size is 4px", () => {
+            it("--slider-size is 8px", () => {
                 const { container } = renderWithTheme(<Slider defaultValue={50} />);
                 const root = container.querySelector(".mantine-Slider-root");
-                expect(getCssVar(root, "--slider-size")).toBe("4px");
+                expect(getCssVar(root, "--slider-size")).toBe("8px");
             });
 
             it("--slider-thumb-size is 12px", () => {
@@ -261,11 +263,11 @@ describe("Slider - All CSS Values (Browser)", () => {
         });
 
         describe("track computed styles", () => {
-            it("height is 4px", () => {
+            it("height is 8px", () => {
                 const { container } = renderWithTheme(<Slider defaultValue={50} />);
                 const track = container.querySelector(".mantine-Slider-track");
                 const style = track ? getComputedStyle(track) : null;
-                expect(style?.height).toBe("4px");
+                expect(style?.height).toBe("8px");
             });
         });
 
@@ -286,7 +288,7 @@ describe("Slider - All CSS Values (Browser)", () => {
         });
 
         describe("markLabel computed styles (with marks)", () => {
-            it("fontSize is 10px", () => {
+            it("fontSize is 9px", () => {
                 const { container } = renderWithTheme(
                     <Slider
                         defaultValue={50}
@@ -298,7 +300,7 @@ describe("Slider - All CSS Values (Browser)", () => {
                 );
                 const markLabel = container.querySelector(".mantine-Slider-markLabel");
                 const style = markLabel ? getComputedStyle(markLabel) : null;
-                expect(style?.fontSize).toBe("10px");
+                expect(style?.fontSize).toBe("9px");
             });
 
             it("marginTop is 2px", () => {
@@ -394,13 +396,13 @@ describe("Radio - All CSS Values (Browser)", () => {
 describe("RangeSlider - All CSS Values (Browser)", () => {
     describe("with default size (sm)", () => {
         describe("root CSS variables", () => {
-            it("--slider-size is 4px", () => {
+            it("--slider-size is 8px", () => {
                 const { container } = renderWithTheme(
                     <RangeSlider defaultValue={[20, 80]} />
                 );
                 // RangeSlider uses Slider class names
                 const root = container.querySelector(".mantine-Slider-root");
-                expect(getCssVar(root, "--slider-size")).toBe("4px");
+                expect(getCssVar(root, "--slider-size")).toBe("8px");
             });
 
             it("--slider-thumb-size is 12px", () => {
@@ -413,13 +415,13 @@ describe("RangeSlider - All CSS Values (Browser)", () => {
         });
 
         describe("track computed styles", () => {
-            it("height is 4px", () => {
+            it("height is 8px", () => {
                 const { container } = renderWithTheme(
                     <RangeSlider defaultValue={[20, 80]} />
                 );
                 const track = container.querySelector(".mantine-Slider-track");
                 const style = track ? getComputedStyle(track) : null;
-                expect(style?.height).toBe("4px");
+                expect(style?.height).toBe("8px");
             });
         });
 
@@ -444,7 +446,7 @@ describe("RangeSlider - All CSS Values (Browser)", () => {
         });
 
         describe("markLabel computed styles (with marks)", () => {
-            it("fontSize is 10px", () => {
+            it("fontSize is 9px", () => {
                 const { container } = renderWithTheme(
                     <RangeSlider
                         defaultValue={[20, 80]}
@@ -456,7 +458,7 @@ describe("RangeSlider - All CSS Values (Browser)", () => {
                 );
                 const markLabel = container.querySelector(".mantine-Slider-markLabel");
                 const style = markLabel ? getComputedStyle(markLabel) : null;
-                expect(style?.fontSize).toBe("10px");
+                expect(style?.fontSize).toBe("9px");
             });
 
             it("marginTop is 2px", () => {

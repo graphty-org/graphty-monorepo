@@ -96,7 +96,7 @@ export function inlineGradientDirection(direction: Direction): GradientDirection
 }
 
 /**
- * Styles that mirror a drawing about its own vertical centre line when text runs
+ * Styles that mirror a drawing about its own vertical center line when text runs
  * right to left.
  *
  * The last resort for a drawing that cannot be re-expressed in logical terms: a

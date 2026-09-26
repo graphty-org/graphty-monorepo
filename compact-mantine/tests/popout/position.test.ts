@@ -20,13 +20,13 @@ const panelHeight = 200;
 
 describe("calculatePopoutPosition", () => {
     describe("legacy API (backwards compatibility)", () => {
-        it("positions panel to the left of trigger with 8px gap", () => {
+        it("positions panel to the left of trigger, flush", () => {
             const triggerRect = createAnchorRect();
 
             const position = calculatePopoutPosition(triggerRect, panelWidth);
 
             // Panel should be positioned: triggerRect.left - panelWidth - gap
-            expect(position.left).toBe(300 - 280 - POPOUT_GAP); // 12
+            expect(position.left).toBe(300 - 280 - POPOUT_GAP); // 20
         });
 
         it("aligns top of panel with top of trigger", () => {
@@ -37,13 +37,14 @@ describe("calculatePopoutPosition", () => {
             expect(position.top).toBe(100); // Same as trigger top
         });
 
-        it("uses default gap of 8px", () => {
+        it("uses the default gap, flush (POPOUT_GAP 0, Figma)", () => {
             const triggerRect = createAnchorRect({ left: 500, right: 540, top: 200, bottom: 240 });
 
             const position = calculatePopoutPosition(triggerRect, 200);
 
-            // 500 - 200 - 8 = 292
-            expect(position.left).toBe(292);
+            // 500 - 200 - 0 = 300: the panel's end edge on the anchor's start edge
+            expect(POPOUT_GAP).toBe(0);
+            expect(position.left).toBe(300);
         });
 
         it("accepts custom gap value", () => {
@@ -65,7 +66,7 @@ describe("calculatePopoutPosition", () => {
                 placement: "left",
             });
 
-            expect(position.left).toBe(300 - 280 - POPOUT_GAP); // 12
+            expect(position.left).toBe(300 - 280 - POPOUT_GAP); // 20
         });
 
         it("alignment: start - aligns top of panel with top of anchor", () => {
@@ -116,8 +117,8 @@ describe("calculatePopoutPosition", () => {
                 placement: "right",
             });
 
-            // panel left = anchor right + gap = 340 + 8 = 348
-            expect(position.left).toBe(348);
+            // panel left = anchor right + gap = 340 + 0 = 340
+            expect(position.left).toBe(340 + POPOUT_GAP);
         });
 
         it("alignment: start - aligns top of panel with top of anchor", () => {
@@ -165,8 +166,8 @@ describe("calculatePopoutPosition", () => {
                 panelHeight,
             });
 
-            // panel top = anchor top - panelHeight - gap = 100 - 200 - 8 = -108
-            expect(position.top).toBe(-108);
+            // panel top = anchor top - panelHeight - gap = 100 - 200 - 0 = -100
+            expect(position.top).toBe(-100 - POPOUT_GAP);
         });
 
         it("alignment: start - aligns left of panel with left of anchor", () => {
@@ -217,8 +218,8 @@ describe("calculatePopoutPosition", () => {
                 placement: "bottom",
             });
 
-            // panel top = anchor bottom + gap = 140 + 8 = 148
-            expect(position.top).toBe(148);
+            // panel top = anchor bottom + gap = 140 + 0 = 140
+            expect(position.top).toBe(140 + POPOUT_GAP);
         });
 
         it("alignment: start - aligns left of panel with left of anchor", () => {
@@ -270,7 +271,7 @@ describe("calculatePopoutPosition", () => {
     });
 
     describe("nested panels", () => {
-        it("uses 4px gap for nested panels", () => {
+        it("docks nested panels flush (POPOUT_NESTED_GAP 0, Figma)", () => {
             const parentPanelRect = createAnchorRect({
                 left: 400,
                 top: 100,
@@ -287,9 +288,10 @@ describe("calculatePopoutPosition", () => {
                 alignment: "start",
             });
 
-            // Panel should be: parentPanelRect.left - nestedPanelWidth - 4px gap
-            // 400 - 200 - 4 = 196
-            expect(position.left).toBe(196);
+            // Panel should be: parentPanelRect.left - nestedPanelWidth - 0
+            // 400 - 200 = 200
+            expect(POPOUT_NESTED_GAP).toBe(0);
+            expect(position.left).toBe(200);
             expect(position.top).toBe(100); // aligned to parent top
         });
 
@@ -310,8 +312,8 @@ describe("calculatePopoutPosition", () => {
                 alignment: "start",
             });
 
-            // Child panel should be to the left of parent: 500 - 180 - 4 = 316
-            expect(position.left).toBe(316);
+            // Child panel should be to the left of parent: 500 - 180 - 0 = 320
+            expect(position.left).toBe(320);
         });
 
         it("positions relative to parent panel edge with placement: right", () => {
@@ -331,8 +333,8 @@ describe("calculatePopoutPosition", () => {
                 alignment: "start",
             });
 
-            // Child panel should be to the right of parent: 380 + 4 = 384
-            expect(position.left).toBe(384);
+            // Child panel should be to the right of parent: 380 + 0 = 380
+            expect(position.left).toBe(380);
         });
 
         it("supports center alignment for nested panels", () => {
@@ -442,7 +444,7 @@ describe("calculatePopoutPosition", () => {
             expect(position.left).toBe(300);
         });
 
-        it("leaves centring alone, which reads the same either way", () => {
+        it("leaves centering alone, which reads the same either way", () => {
             const anchorRect = createAnchorRect();
 
             const ltr = calculatePopoutPosition(anchorRect, panelWidth, POPOUT_GAP, {

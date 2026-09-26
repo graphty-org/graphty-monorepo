@@ -77,18 +77,21 @@ describe("control size scales", () => {
         expect(new Set(pixels).size).toBe(SIZES.length);
     });
 
-    it("keeps the pre-fix compact values on the sm entry", () => {
-        // These are exactly what the argument-less resolvers used to return, so
-        // the compact default is unchanged and only the other tokens move.
+    it("holds Figma's values on the sm entry (design/figma-spec.md 5.4 - 5.8)", () => {
+        // The compact default is Figma's control: the small slider (8px track,
+        // 12px thumb), the 16px checkbox and radio, the 32 x 16 switch whose
+        // knob is an 8px-tall pill, and 11px segmented type.
         expect(compactVarsForSize(compactSliderScale, "sm")).toEqual({
-            "--slider-size": "4px",
+            "--slider-size": "8px",
             "--slider-thumb-size": "12px",
         });
         expect(compactVarsForSize(compactCheckboxScale, "sm")).toEqual({ "--checkbox-size": "16px" });
         expect(compactVarsForSize(compactRadioScale, "sm")["--radio-size"]).toBe("16px");
         expect(compactVarsForSize(compactSwitchScale, "sm")["--switch-height"]).toBe("16px");
-        expect(compactVarsForSize(compactSwitchScale, "sm")["--switch-width"]).toBe("28px");
-        expect(compactVarsForSize(compactSegmentedControlScale, "sm")["--sc-font-size"]).toBe("10px");
+        expect(compactVarsForSize(compactSwitchScale, "sm")["--switch-width"]).toBe("32px");
+        expect(compactVarsForSize(compactSwitchScale, "sm")["--switch-thumb-size"]).toBe("8px");
+        expect(compactVarsForSize(compactSegmentedControlScale, "sm")["--sc-font-size"]).toBe("11px");
+        expect(compactVarsForSize(compactSegmentedControlScale, "sm")["--sc-padding"]).toBe("0 8px");
     });
 
     it.each(SCALES)("$name resolves an unspecified size to the compact entry", ({ scale }) => {

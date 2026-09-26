@@ -61,7 +61,7 @@ describe("getActivationMeta", () => {
         expect(meta).toStrictEqual({ source: "keyboard" });
     });
 
-    it("reports a keyboard source for the click a browser synthesises from a key", () => {
+    it("reports a keyboard source for the click a browser synthesizes from a key", () => {
         const onActivate = vi.fn<(event: ActivationEvent, meta: ActivationMeta) => void>();
         render(<ActivationProbe onActivate={onActivate} />);
 

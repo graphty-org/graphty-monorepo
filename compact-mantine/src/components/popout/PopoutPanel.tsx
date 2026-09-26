@@ -1,4 +1,4 @@
-import { Box, Paper } from "@mantine/core";
+import { Box } from "@mantine/core";
 import { useIsomorphicEffect } from "@mantine/hooks";
 import {
     type ReactPortal,
@@ -20,6 +20,7 @@ import { usePopoutContext, usePopoutManagerContext } from "./PopoutContext";
 import { PopoutHeader } from "./PopoutHeader";
 import { findPanelElement, type PopoutAnchorElements, resolveAnchorElement } from "./utils/anchor";
 import { calculatePopoutPosition, resolvePlacement } from "./utils/position";
+import { tabId, tabPanelId } from "./utils/tabs";
 
 // Accessibility: the APG "Dialog (Modal)" pattern, made non-modal -- role
 // dialog with aria-modal="false", an accessible name from the header title (or
@@ -31,6 +32,10 @@ import { calculatePopoutPosition, resolvePlacement } from "./utils/position";
 // The panel does not set outline: none. The theme's focus ring is the library's
 // only focus indicator (WCAG 2.4.7), and suppressing it here would put this one
 // component back below AA.
+//
+// The look is Figma's light popover (design/figma-spec.md 8.4): the shared
+// cm-popover-surface (--cm-bg, radius 13, --cm-elevation-400, no border) plus
+// cm-popout for the panel's own layout, both in src/theme/css/overlays.css.ts.
 
 /**
  * The floating panel that appears when the pop-out's trigger is activated.
@@ -85,7 +90,7 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
     } = props;
 
     const {
-        isOpen, close, triggerRef, id, parentId, region,
+        isOpen, close, triggerRef, id, parentId, region, exclusive = true,
     } = usePopoutContext();
     // Including zIndexVersion in destructuring ensures re-render when z-index stack changes
     const {
@@ -101,6 +106,9 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
     const uniqueId = useId();
     const panelId = `popout-panel-${id}`;
     const titleId = `popout-title-${uniqueId}`;
+    // The base id Mantine's Tabs derives each tab's id and aria-controls from,
+    // shared with the tab panel below so the two point at each other.
+    const tabsBaseId = `popout-tabs-${uniqueId}`;
 
     // Where the panel sits before any dragging. Null means "not measured yet",
     // and is set back to null on close so a reopen never paints one frame at
@@ -194,7 +202,7 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
     // Register/unregister panel with manager when open state changes
     useEffect(() => {
         if (isOpen) {
-            register(id, closeForManager, parentId, region);
+            register(id, closeForManager, parentId, region, exclusive);
         } else {
             unregister(id);
         }
@@ -203,7 +211,7 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
             // Cleanup on unmount
             unregister(id);
         };
-    }, [isOpen, id, register, unregister, closeForManager, parentId, region]);
+    }, [isOpen, id, register, unregister, closeForManager, parentId, region, exclusive]);
 
     // Which elements the two axes line up with, resolved fresh on every
     // measurement because a parent panel only exists in the DOM while it is open.
@@ -253,6 +261,15 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
                 direction,
             },
         );
+
+        // Moved up (and in) to stay on screen, as Figma's popovers are: a tall
+        // picker opened from a low row opens higher rather than off the bottom.
+        if (typeof window !== "undefined") {
+            const maxTop = window.innerHeight - renderedHeight;
+            const maxLeft = window.innerWidth - renderedWidth;
+            next.top = Math.max(0, Math.min(next.top, maxTop));
+            next.left = Math.max(0, Math.min(next.left, maxLeft));
+        }
 
         setPosition((previous) => {
             if (previous && previous.left === next.left && previous.top === next.top) {
@@ -348,9 +365,12 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
         }
 
         if (isOpen) {
-            // Small timeout to ensure portal is rendered
+            // Small timeout to ensure portal is rendered. A field marked
+            // data-autofocus (Mantine's convention) takes focus instead of the
+            // panel, which is how a settings panel starts in its first field.
             const timer = setTimeout(() => {
-                panelRef.current?.focus();
+                const target = panelRef.current?.querySelector<HTMLElement>("[data-autofocus]") ?? panelRef.current;
+                target?.focus();
             }, 0);
             return () => {
                 clearTimeout(timer);
@@ -385,30 +405,22 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
         top: (position?.top ?? 0) + dragOffset.top,
     };
 
-    // Border styling - all popouts have full borders on all sides and rounded corners
-    const borderColor = "light-dark(rgba(0, 0, 0, 0.1), rgba(255, 255, 255, 0.12))";
-    const borderStyle = `1px solid ${borderColor}`;
-
-    // Panel styling:
-    // - adaptive shadows via light-dark(), lighter in light mode
-    // - 8px corner radius and a full border on every side
-    // - the declared width is a minimum, so content can widen the panel; the
-    //   position is then computed from the width it renders at
-    // - width: min-content with that minimum means prose wraps at the declared
-    //   width while a child too wide to fit still widens the panel. Leaving the
-    //   width to shrink-to-fit instead measured it against the space left on
-    //   screen, so the same panel came out a different width depending on where
-    //   it opened, and a paragraph ran out to a single long line.
+    // The declared width is a minimum, so content can widen the panel; the
+    // position is then computed from the width it renders at. width:
+    // min-content with that minimum means prose wraps at the declared width
+    // while a child too wide to fit still widens the panel. Leaving the width to
+    // shrink-to-fit instead measured it against the space left on screen, so
+    // the same panel came out a different width depending on where it opened.
     const panel = (
-        <Paper
+        <Box
             ref={panelRef}
+            className="cm-popover-surface cm-popout"
             id={panelId}
             role="dialog"
             aria-modal="false"
             aria-labelledby={header ? titleId : undefined}
             aria-label={header ? undefined : label}
             tabIndex={-1}
-            radius={8}
             onClick={handlePanelClick}
             data-testid="popout-panel"
             data-popout-id={id}
@@ -424,14 +436,6 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
                 // so the panel is never seen at an unmeasured position.
                 ...(position === null && { visibility: "hidden" as const }),
                 zIndex,
-                backgroundColor: "var(--mantine-color-body)",
-                border: borderStyle,
-                // Tight, hard near the edges and softer further out
-                boxShadow: [
-                    "0 1px 2px light-dark(rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.4))",
-                    "0 4px 8px light-dark(rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.35))",
-                    "0 8px 16px light-dark(rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.25))",
-                ].join(", "),
             }}
         >
             {header ? (
@@ -443,14 +447,22 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
                     onTabChange={handleTabChange}
                     actions={actions}
                     titleId={titleId}
+                    tabsId={tabsBaseId}
                 />
             ) : null}
-            <Box data-testid="popout-panel-content">
-                {isTabs
-                    ? tabsConfig?.tabs.find((tab) => tab.id === activeTab)?.content
-                    : children}
-            </Box>
-        </Paper>
+            {isTabs ? (
+                <Box
+                    data-testid="popout-panel-content"
+                    role="tabpanel"
+                    id={tabPanelId(tabsBaseId, activeTab)}
+                    aria-labelledby={tabId(tabsBaseId, activeTab)}
+                >
+                    {tabsConfig?.tabs.find((tab) => tab.id === activeTab)?.content}
+                </Box>
+            ) : (
+                <Box data-testid="popout-panel-content">{children}</Box>
+            )}
+        </Box>
     );
 
     // Render in a portal at the manager's container

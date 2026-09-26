@@ -2,7 +2,8 @@ import { Box, UnstyledButton, VisuallyHidden } from "@mantine/core";
 import { useHover, useMediaQuery } from "@mantine/hooks";
 import React, { useId, useState } from "react";
 
-import { PANEL_GRID, PANEL_INK } from "../../constants/panel";
+import { PANEL_GRID } from "../../constants/panel";
+import { useCompactStyles } from "../../theme/useCompactStyles";
 import { type ActivationHandlerWithMeta, getActivationMeta } from "../../types/events";
 import { useDevWarning } from "../../utils/dev-warning";
 import { liveRegionProps,type LiveSetting } from "../../utils/live-region";
@@ -24,8 +25,7 @@ const AFFORDANCE_GAP = 4;
  * The media query that says the pointer cannot hover.
  *
  * On a touch screen there is no hover state to reveal anything, so every
- * hidden action becomes resident. This is read as a hook rather than as a CSS
- * `@media` block because the package ships no stylesheet.
+ * hidden action becomes resident.
  */
 const NO_HOVER = "(hover: none)";
 
@@ -36,7 +36,7 @@ export interface ActionRowProps {
     /**
      * What the row reports: a count, a status, a record of the last run.
      *
-     * Always drawn, at the leading edge, in the secondary text colour, and
+     * Always drawn, at the leading edge, in the secondary text color, and
      * truncated with an ellipsis rather than wrapped -- the row is 32px and
      * stays 32px. Only the drawing is truncated: the text itself is complete in
      * the document, so a screen reader reads all of it however little of it
@@ -88,12 +88,21 @@ export interface ActionRowProps {
      * Controls that act: Run, Recompute, Copy, a button that opens the advanced
      * settings.
      *
-     * Hidden until the row is hovered or something inside it is focused, and
-     * always drawn where the pointer cannot hover. Hidden means faded out, not
-     * unmounted: they keep their accessible names and their place in the tab
-     * order, and any one of them reveals the whole cluster by taking focus.
+     * Always drawn by default, as Figma draws the actions of a property row.
+     * With `reveal="hover"` they are hidden until the row is hovered or
+     * something inside it is focused, and always drawn where the pointer cannot
+     * hover. Hidden means faded out over 100ms, not unmounted: they keep their
+     * accessible names and their place in the tab order, and any one of them
+     * reveals the whole cluster by taking focus.
      */
     actions?: React.ReactNode;
+    /**
+     * When `actions` are drawn: `"always"` (Figma's property rows) or `"hover"`
+     * (Figma's layer rows: shown while the row is hovered or focused).
+     * `actionsVisible` overrides either.
+     * @default "always"
+     */
+    reveal?: "always" | "hover";
     /**
      * Controls that report a state as well as changing it: the crossed-out eye
      * on a hidden item, the pin on a pinned reading.
@@ -110,7 +119,7 @@ export interface ActionRowProps {
      * rows below are "dimmed and disabled instead of tagged individually". The reading
      * then takes the disabled ink -- a different token from the ordinary muted one --
      * and the row is announced as unavailable, so nothing about the state depends on
-     * telling two greys apart.
+     * telling two grays apart.
      * @default false
      */
     disabled?: boolean;
@@ -118,7 +127,7 @@ export interface ActionRowProps {
      * Forces `actions` to be drawn, or forces them hidden, instead of letting
      * the row decide from hover and focus.
      *
-     * Leave it out for the usual behaviour. Set it to `true` while a menu or a
+     * Leave it out for the usual behavior. Set it to `true` while a menu or a
      * pop-out opened from this row is still open, so that the control which
      * opened it does not vanish the moment the pointer moves onto the thing it
      * opened.
@@ -221,16 +230,15 @@ function readingText(state: React.ReactNode): string | undefined {
  * doing something about it: a reading at the leading edge, a cluster of
  * controls at the trailing edge.
  *
- * **The hover split is the whole component.** A control that *acts* -- Run,
- * Recompute, Copy, a button that opens the advanced settings -- is hidden until
- * the row is reached, because a panel of resident verbs is a panel of noise.
- * Anything that *reports a state* is drawn always, because a state that only
- * appears on hover is a state nobody can scan a column for. A layers panel is
- * the model: the eye appears on hover, but a layer that is actually hidden
- * shows its crossed-out eye with no hover at all.
+ * **Actions and resident actions.** `actions` are controls that *act* -- Run,
+ * Recompute, Copy, a button that opens the advanced settings. The resident
+ * ones *report a state* and are never hidden. On a property row Figma draws both
+ * always, which is the default here. `reveal="hover"` gives the layer-row
+ * behavior instead: the acting controls fade in (100ms) when the row is
+ * reached, while a state -- a crossed-out eye on a hidden layer -- stays
+ * visible with no hover at all.
  *
- * Three things keep the split usable rather than merely tidy, and all three are
- * why this is a component instead of a CSS rule:
+ * When the actions are revealed on hover, three things keep that usable:
  *
  * - **A touch screen has no hover**, so where the pointer cannot hover every
  *   hidden control is drawn.
@@ -243,11 +251,12 @@ function readingText(state: React.ReactNode): string | undefined {
  * destructive, anything ending in "anyway". Everything else is a 24px glyph
  * carrying its word as its tooltip and its accessible name.
  * @param props - Component props
- * @param props.state - What the row reports, drawn at the leading edge in the secondary text colour
+ * @param props.state - What the row reports, drawn at the leading edge in the secondary text color
  * @param props.stateTitle - The complete reading, for when `state` is markup or an abbreviation of what the row means
  * @param props.busy - Whether the reading is still being worked out by something that finishes later
  * @param props.live - How urgently a screen reader announces the reading when it changes on its own
- * @param props.actions - Controls that act, hidden until the row is hovered or focused, and always drawn where the pointer cannot hover
+ * @param props.actions - Controls that act: always drawn by default, or revealed on hover and focus with `reveal="hover"`
+ * @param props.reveal - When the actions are drawn: "always" (the default) or "hover"
  * @param props.residentActions - Controls that report a state, which are never hidden
  * @param props.actionsVisible - Forces the hidden controls shown or hidden instead of letting hover and focus decide
  * @param props.disabled - Whether the row cannot act, which draws its reading at the disabled ink and announces it as unavailable
@@ -267,6 +276,7 @@ function readingText(state: React.ReactNode): string | undefined {
  * ```
  */
 export function ActionRow(props: ActionRowProps): React.JSX.Element {
+    useCompactStyles();
     const {
         state,
         stateTitle,
@@ -275,6 +285,7 @@ export function ActionRow(props: ActionRowProps): React.JSX.Element {
         actions,
         residentActions,
         actionsVisible,
+        reveal = "always",
         disabled = false,
         onClick,
         onFocus,
@@ -283,9 +294,10 @@ export function ActionRow(props: ActionRowProps): React.JSX.Element {
 
     const announcement = liveRegionProps(live, busy);
 
-    // No stylesheet ships with this package, so hover is a hook, not a `:hover`.
-    // The hook attaches its own native listeners to the row, so it neither sees
-    // nor swallows anything a consumer passes.
+    // Hover is a hook rather than a `:hover` rule because the reveal also
+    // answers `actionsVisible` and focus. The hook attaches its own native
+    // listeners to the row, so it neither sees nor swallows anything a
+    // consumer passes.
     const { hovered, ref } = useHover<HTMLDivElement>();
     // Where hover does not exist, nothing may depend on it. The hook reports
     // `undefined` until its first effect has run, which is one render at the
@@ -297,7 +309,7 @@ export function ActionRow(props: ActionRowProps): React.JSX.Element {
     // The split: focus first, because a faded-out control with the focus ring on
     // it is a WCAG 2.4.7 failure whatever the caller asked for. Then the
     // caller's own answer, then hover, then a pointer that cannot hover.
-    const revealed = focusWithin || (actionsVisible ?? (hovered || coarsePointer));
+    const revealed = focusWithin || (actionsVisible ?? (reveal === "always" || hovered || coarsePointer));
 
     const hasAffordances = actions !== undefined || residentActions !== undefined;
     const drawnText = readingText(state);
@@ -362,7 +374,7 @@ export function ActionRow(props: ActionRowProps): React.JSX.Element {
     /**
      * Report the row's own activation, with the source stated separately so the
      * consumer does not have to work out whether a click came from a key.
-     * @param event - The click, which a browser also synthesises from Enter and Space
+     * @param event - The click, which a browser also synthesizes from Enter and Space
      */
     const handleActivate = (event: React.MouseEvent<HTMLButtonElement>): void => {
         if (disabled) {
@@ -372,13 +384,10 @@ export function ActionRow(props: ActionRowProps): React.JSX.Element {
         onClick?.(event, getActivationMeta(event));
     };
 
-    /** The reading: one line, truncated rather than wrapped, at the secondary text colour. */
+    /** The reading: one line, truncated rather than wrapped, at the secondary text color (the cm-row-reading class). */
     const readingStyle: React.CSSProperties = {
         flex: "1 1 auto",
         minWidth: 0,
-        fontSize: "var(--mantine-font-size-sm)",
-        lineHeight: 1.2,
-        color: disabled ? PANEL_INK.DISABLED : PANEL_INK.CHROME,
         overflow: "hidden",
         textOverflow: "ellipsis",
         whiteSpace: "nowrap",
@@ -389,14 +398,14 @@ export function ActionRow(props: ActionRowProps): React.JSX.Element {
         ...readingStyle,
         // The pressable area is the whole height of the row, not the height of
         // one line of 11px text: WCAG 2.2 asks 24px of any target and this is
-        // 32. The line height centres the text inside it without a flex box,
+        // 32. The line height centers the text inside it without a flex box,
         // which would defeat the ellipsis.
         alignSelf: "stretch",
         lineHeight: `${PANEL_GRID.ROW_PITCH}px`,
         // Mantine's UnstyledButton sets `text-align: left`, which is physical:
         // this makes it follow the text direction instead.
         textAlign: "start",
-        borderRadius: "var(--mantine-radius-sm)",
+        borderRadius: 5,
     };
 
     return (
@@ -426,6 +435,8 @@ export function ActionRow(props: ActionRowProps): React.JSX.Element {
                         data-testid="action-row-state"
                         title={tooltip}
                         {...announcement}
+                        className="cm-row-reading"
+                        data-disabled={disabled || undefined}
                         style={readingStyle}
                     >
                         {readingContent}
@@ -437,6 +448,8 @@ export function ActionRow(props: ActionRowProps): React.JSX.Element {
                         data-testid="action-row-state"
                         title={tooltip}
                         {...announcement}
+                        className="cm-row-reading cm-row-target"
+                        data-disabled={disabled || undefined}
                         onClick={handleActivate}
                         style={activationStyle}
                     >
@@ -461,6 +474,7 @@ export function ActionRow(props: ActionRowProps): React.JSX.Element {
                         <Box
                             data-testid="action-row-actions"
                             data-visible={revealed ? "true" : "false"}
+                            className="cm-row-actions"
                             style={{
                                 flex: "0 0 auto",
                                 display: "flex",

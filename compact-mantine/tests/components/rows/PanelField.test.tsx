@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { compactTheme } from "../../../src";
 import { PanelField } from "../../../src/components/rows/PanelField";
+import { PANEL_GRID } from "../../../src/constants/panel";
 import { PanelLabelsProvider } from "../../../src/context/PanelLabelsContext";
 import { LabelsProvider } from "../../../src/i18n";
 import { FIELD_GLYPH_NAMES, FIELD_LETTERS } from "../../../src/icons";
@@ -149,8 +150,8 @@ describe("PanelField", () => {
             expect(letter.querySelector("svg")).toBeNull();
         });
 
-        it("draws an arbitrary node such as a colour swatch", () => {
-            renderField(<PanelField label="Node colour" glyph={<span data-testid="swatch" />} value="4A7EE8" />);
+        it("draws an arbitrary node such as a color swatch", () => {
+            renderField(<PanelField label="Node color" glyph={<span data-testid="swatch" />} value="4A7EE8" />);
 
             expect(screen.getByTestId("swatch")).toBeInTheDocument();
         });
@@ -263,13 +264,13 @@ describe("PanelField", () => {
         it("defaults to one of a pair", () => {
             renderField(<PanelField label="Smallest" glyph="sizeSmallest" value="1.0" />);
 
-            expect(screen.getByTestId("panel-field")).toHaveStyle({ width: "108px" });
+            expect(screen.getByTestId("panel-field")).toHaveStyle({ width: `${String(PANEL_GRID.FIELD)}px` });
         });
 
         it("takes the body span when asked", () => {
-            renderField(<PanelField label="Layout" value="Force directed" width={224} />);
+            renderField(<PanelField label="Layout" value="Force directed" width={PANEL_GRID.BODY} />);
 
-            expect(screen.getByTestId("panel-field")).toHaveStyle({ width: "224px" });
+            expect(screen.getByTestId("panel-field")).toHaveStyle({ width: `${String(PANEL_GRID.BODY)}px` });
         });
 
         it("fills the row when asked", () => {
@@ -423,7 +424,8 @@ describe("PanelField", () => {
             await user.click(fieldInput());
             await user.keyboard("{ArrowUp}");
 
-            expect(onChange).toHaveBeenCalledWith(3, undefined);
+            expect(onChange).toHaveBeenCalledTimes(1);
+            expect(onChange).toHaveBeenCalledWith(3, expect.objectContaining({ key: "ArrowUp" }));
         });
 
         it("draws a number field as a number box", () => {
@@ -727,6 +729,115 @@ describe("PanelField", () => {
             renderField(<PanelField label="Smallest" glyph="sizeSmallest" value="1.0" onScrub={onScrub} disabled />);
 
             expect(screen.getByTestId("panel-field-slot")).not.toHaveAttribute("data-scrub");
+        });
+    });
+
+    // design/figma-spec.md 6.1: Figma's number field.
+    describe("the number field", () => {
+        it("is a spinbutton that says how to step it", () => {
+            renderField(<PanelField label="Depth" kind="number" defaultValue={2} onChange={vi.fn()} />);
+            const box = screen.getByRole("spinbutton", { name: "Depth" });
+            expect(box).toHaveAttribute("aria-valuenow", "2");
+            expect(box).toHaveAttribute("aria-description", "Use arrow keys to change the value");
+        });
+
+        it("applies nothing while typing, and commits once on Enter", async () => {
+            const onChange = vi.fn();
+            const user = userEvent.setup();
+            renderField(<PanelField label="Depth" kind="number" defaultValue={2} onChange={onChange} />);
+            await user.clear(fieldInput());
+            await user.type(fieldInput(), "40*2");
+            expect(onChange).not.toHaveBeenCalled();
+            await user.keyboard("{Enter}");
+            expect(onChange).toHaveBeenCalledTimes(1);
+            expect(onChange.mock.calls[0][0]).toBe(80);
+            expect(fieldInput()).toHaveFocus();
+        });
+
+        it("silently reverts text that is not a number", async () => {
+            const onChange = vi.fn();
+            const user = userEvent.setup();
+            renderField(<PanelField label="Depth" kind="number" defaultValue={2} onChange={onChange} />);
+            await user.clear(fieldInput());
+            await user.type(fieldInput(), "abc");
+            await user.tab();
+            expect(onChange).not.toHaveBeenCalled();
+            expect(fieldInput()).toHaveValue("2");
+        });
+
+        it("Escape reverts the typed text and leaves the field", async () => {
+            const onChange = vi.fn();
+            const user = userEvent.setup();
+            renderField(<PanelField label="Depth" kind="number" defaultValue={2} onChange={onChange} />);
+            await user.clear(fieldInput());
+            await user.type(fieldInput(), "9");
+            await user.keyboard("{Escape}");
+            expect(onChange).not.toHaveBeenCalled();
+            expect(fieldInput()).toHaveValue("2");
+            expect(fieldInput()).not.toHaveFocus();
+        });
+
+        it("Shift+ArrowUp steps ten, clamped to max", async () => {
+            const onChange = vi.fn();
+            const user = userEvent.setup();
+            renderField(<PanelField label="Depth" kind="number" defaultValue={2} max={10} onChange={onChange} />);
+            await user.click(fieldInput());
+            await user.keyboard("{Shift>}{ArrowUp}{/Shift}");
+            expect(onChange.mock.calls[0][0]).toBe(10);
+        });
+
+        it("scrubs its own value at half a unit per pixel and commits once on release", () => {
+            const onChange = vi.fn();
+            const onScrubStart = vi.fn();
+            const onScrubEnd = vi.fn();
+            renderField(
+                <PanelField
+                    label="X"
+                    kind="number"
+                    defaultValue={40}
+                    onChange={onChange}
+                    onScrubStart={onScrubStart}
+                    onScrubEnd={onScrubEnd}
+                />,
+            );
+            const slot = screen.getByTestId("panel-field-slot");
+            expect(slot).toHaveAttribute("data-scrub", "true");
+            pointerDown(slot, 100);
+            pointerMove(slot, 106);
+            pointerMove(slot, 120);
+            expect(fieldInput()).toHaveValue("50");
+            expect(document.body.style.cursor).toBe("ew-resize");
+            expect(onChange).not.toHaveBeenCalled();
+            pointerUp(slot);
+            expect(onChange).toHaveBeenCalledTimes(1);
+            expect(onChange.mock.calls[0][0]).toBe(50);
+            expect(onScrubStart).toHaveBeenCalledTimes(1);
+            expect(onScrubEnd).toHaveBeenCalledTimes(1);
+            expect(document.body.style.cursor).toBe("");
+        });
+
+        it("leaves the value to a caller who handles onScrub", () => {
+            const onChange = vi.fn();
+            const onScrub = vi.fn();
+            renderField(<PanelField label="X" kind="number" defaultValue={40} onChange={onChange} onScrub={onScrub} />);
+            const slot = screen.getByTestId("panel-field-slot");
+            pointerDown(slot, 100);
+            pointerMove(slot, 120);
+            pointerUp(slot);
+            expect(onScrub).toHaveBeenCalledWith(20, expect.anything());
+            expect(onChange).not.toHaveBeenCalled();
+        });
+
+        it("a read-only number field does not scrub", () => {
+            renderField(<PanelField label="X" kind="number" value={40} />);
+            expect(screen.getByTestId("panel-field-slot")).not.toHaveAttribute("data-scrub");
+        });
+
+        it("reads Mixed with the field still editable", () => {
+            renderField(<PanelField label="X" kind="number" value={40} mixed onChange={vi.fn()} />);
+            expect(fieldInput()).toHaveValue("");
+            expect(fieldInput()).toHaveAttribute("placeholder", "Mixed");
+            expect(fieldInput()).not.toHaveAttribute("readonly");
         });
     });
 

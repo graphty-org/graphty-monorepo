@@ -239,9 +239,9 @@ export interface DataTableProps<TRow extends object> {
      * the thing virtualization exists to avoid.
      */
     height?: number | string;
-    /** How tall each row is drawn, in pixels. Defaults to the 28px row this library gives a row of data. */
+    /** How tall each row is drawn, in pixels. Defaults to 32, Figma's list row pitch (`PANEL_GRID.ROW_PITCH`). */
     rowHeight?: number;
-    /** How tall the header row is drawn, in pixels. Defaults to the 24px control height of a property panel. */
+    /** How tall the header row is drawn, in pixels. Defaults to 32, like a row. */
     headerHeight?: number;
     /**
      * How many rows to draw beyond the ones on screen, above and below.

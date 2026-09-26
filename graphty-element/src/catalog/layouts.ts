@@ -2,7 +2,7 @@
  * @file The layout catalogue: the arrangements the element offers, and the engines behind them.
  *
  * A public layout name says what the arrangement IS -- "force", "hierarchical", "circular" --
- * and never which library draws it. The element registers seventeen engines whose registered
+ * and never which library draws it. The element registers nineteen engines whose registered
  * names ARE their implementations ("ngraph", "d3", "forceatlas2"), and freezing those into the
  * public API makes swapping an implementation a rename every consumer can see. So the engine is
  * data on the descriptor instead: `LayoutDescriptor.engine` names the implementation the element
@@ -14,10 +14,11 @@
  * descriptor a consumer reads carries the default engine and that engine's options; the rest of
  * the list is there for a consumer that wants to choose.
  *
- * Two names in the built-in layout list have no engine behind them yet, and two engines describe
- * an arrangement that list has no name for. Both are recorded here -- {@link UNSERVED_LAYOUT_IDS}
- * and the `spiral` and `planar` entries -- rather than left for a consumer to discover by asking
- * for a layout that never answers, or by never learning a capability exists.
+ * A name in the built-in layout list with no engine behind it would be recorded in
+ * {@link UNSERVED_LAYOUT_IDS} (none is, today), and two engines describe an arrangement that list
+ * has no name for, which the `spiral` and `planar` entries record -- rather than left for a
+ * consumer to discover by asking for a layout that never answers, or by never learning a
+ * capability exists.
  *
  * `sizeRating` is the largest graph the default engine is recommended for, read from its cost: a
  * placement that visits each node once rates "any", an iterative all-pairs force rates 2000.
@@ -31,10 +32,12 @@ import { CircularLayout } from "../layout/CircularLayoutEngine";
 import { D3GraphEngine } from "../layout/D3GraphLayoutEngine";
 import { FixedLayout } from "../layout/FixedLayoutEngine";
 import { ForceAtlas2Layout } from "../layout/ForceAtlas2LayoutEngine";
+import { GridLayout } from "../layout/GridLayoutEngine";
 import { KamadaKawaiLayout } from "../layout/KamadaKawaiLayoutEngine";
 import { MultipartiteLayout } from "../layout/MultipartiteLayoutEngine";
 import { NGraphEngine } from "../layout/NGraphLayoutEngine";
 import { PlanarLayout } from "../layout/PlanarLayoutEngine";
+import { RadialLayout } from "../layout/RadialLayoutEngine";
 import { RandomLayout } from "../layout/RandomLayoutEngine";
 import { ShellLayout } from "../layout/ShellLayoutEngine";
 import { SpectralLayout } from "../layout/SpectralLayoutEngine";
@@ -271,6 +274,28 @@ const shell: LayoutImplementationSpec = {
     honoursWeights: ShellLayout.honoursWeights,
 };
 
+const radial: LayoutImplementationSpec = {
+    engine: "radial",
+    plainName: "Radial",
+    technicalName: "Radial layout",
+    kind: "batch",
+    maxDimensions: 2,
+    reason: "The only engine that draws this arrangement.",
+    options: engineOptions(RadialLayout.zodOptionsSchema),
+    honoursWeights: RadialLayout.honoursWeights,
+};
+
+const grid: LayoutImplementationSpec = {
+    engine: "grid",
+    plainName: "Grid",
+    technicalName: "Grid layout",
+    kind: "batch",
+    maxDimensions: 2,
+    reason: "The only engine that draws this arrangement.",
+    options: engineOptions(GridLayout.zodOptionsSchema),
+    honoursWeights: GridLayout.honoursWeights,
+};
+
 const spiral: LayoutImplementationSpec = {
     engine: "spiral",
     plainName: "Spiral",
@@ -414,6 +439,36 @@ export const LAYOUT_CATALOG: readonly LayoutCatalogEntry[] = [
     ),
     entry(
         {
+            id: "radial",
+            plainName: "Rings from a Node",
+            technicalName: "Radial layout",
+            description:
+                "Puts one node at the centre and every other node on a ring by how many steps away " +
+                "it is, so the rings read outward as distance from that node.",
+            family: "geometric",
+            kind: "batch",
+            maxDimensions: 2,
+            sizeRating: "any",
+            structuralInputs: [],
+        },
+        radial,
+    ),
+    entry(
+        {
+            id: "grid",
+            plainName: "Grid",
+            technicalName: "Grid layout",
+            description: "Places nodes in evenly spaced rows and columns, in the order the nodes were loaded.",
+            family: "geometric",
+            kind: "batch",
+            maxDimensions: 2,
+            sizeRating: "any",
+            structuralInputs: [],
+        },
+        grid,
+    ),
+    entry(
+        {
             id: "shell",
             plainName: "Concentric Rings",
             technicalName: "Shell layout",
@@ -553,21 +608,9 @@ export const LAYOUT_DESCRIPTORS: readonly LayoutDescriptor[] = LAYOUT_CATALOG.ma
 /**
  * The built-in layout names no registered engine draws yet. Listed rather than omitted, because
  * a name that is in the type and missing from the catalogue is otherwise discovered by asking
- * for it and getting an error.
+ * for it and getting an error. Empty today: every built-in name has an engine.
  */
-export const UNSERVED_LAYOUT_IDS: readonly UnservedLayout[] = [
-    {
-        id: "radial",
-        reason:
-            "No engine arranges a graph in rings by distance from a chosen node. The spiral " +
-            "layout winds outward but orders nodes by position in the list, not by the graph, " +
-            "so it answers a different question and is published under its own name instead.",
-    },
-    {
-        id: "grid",
-        reason: "No engine places nodes on a regular lattice.",
-    },
-];
+export const UNSERVED_LAYOUT_IDS: readonly UnservedLayout[] = [];
 
 // ---------------------------------------------------------------------------------------------
 // Lookups

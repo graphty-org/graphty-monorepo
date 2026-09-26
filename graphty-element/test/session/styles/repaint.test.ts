@@ -450,6 +450,56 @@ describe("style identity", () => {
         });
     });
 
+    it("forgets a source mesh no element is drawn from any more", async () => {
+        // Every edit to a mesh-keying channel mints a key. Only the keys some element is still
+        // drawn from may be kept, or a session that edits a size a hundred times holds a hundred
+        // source meshes for a picture that has two.
+        const harness = makeHarness();
+        await harness.paintAll();
+        const layer = await harness.styles.add({
+            name: "Size",
+            selector: { match: "everything" },
+            set: { "node.size": 1 },
+        });
+        const seen = [harness.engine.meshKeyOf("node", 0)];
+
+        for (let size = 2; size <= 6; size++) {
+            await harness.styles.update(layer.id, { set: { "node.size": size } });
+
+            const key = harness.engine.meshKeyOf("node", 0);
+
+            assert.notInclude(seen, key, "a released key is never handed out again for another look");
+            assert.isUndefined(harness.engine.meshStyleOf("node", seen[seen.length - 1]));
+            seen.push(key);
+            // Two: the default an unpainted element keeps, and the size every node has now.
+            assert.strictEqual(harness.engine.meshCount("node"), 2, `after setting the size to ${String(size)}`);
+            assert.deepStrictEqual(harness.engine.meshStyleOf("node", key), { "node.size": size });
+        }
+
+        await harness.styles.remove(layer.id);
+
+        assert.strictEqual(harness.engine.meshKeyOf("node", 0), 0);
+        assert.strictEqual(harness.engine.meshCount("node"), 1, "only the default is left");
+    });
+
+    it("releases the keys of elements that are gone", async () => {
+        const rows: Row[] = [...NODES];
+        const harness = makeHarness(rows);
+        await harness.styles.add({
+            name: "Shapes",
+            selector: { match: "expression", where: 'data.kind == `"switch"`' },
+            set: { "node.shape": "box" },
+        });
+
+        assert.strictEqual(harness.engine.meshCount("node"), 2);
+
+        // Only hosts are left, so nothing is drawn as a box any more.
+        rows.splice(0, rows.length, NODES[0], NODES[1]);
+        await harness.paintAll();
+
+        assert.strictEqual(harness.engine.meshCount("node"), 1);
+    });
+
     it("keeps colour, opacity and labels out of a mesh's identity", () => {
         const colorRole: StyleRole = channelRole("node.color");
 
@@ -563,6 +613,75 @@ describe("the interner behind a mesh key", () => {
         assert.strictEqual(intern(Number.NaN), intern(Number.NaN));
         assert.strictEqual(intern(0), intern(-0));
         assert.strictEqual(interner.size, 2);
+    });
+
+    it("forgets a released style and never reuses its key", () => {
+        const interner = createStyleInterner<string>();
+
+        /**
+         * Intern one size.
+         * @param size - The size.
+         * @returns The key.
+         */
+        const intern = (size: number): number => {
+            interner.begin();
+            interner.pushNumber(size);
+
+            return interner.end(() => String(size));
+        };
+
+        const small = intern(1);
+        const large = intern(2);
+
+        interner.retain(small);
+        interner.retain(small);
+        interner.retain(large);
+        interner.release(small);
+
+        assert.strictEqual(interner.size, 2, "one element is still drawn small");
+
+        interner.release(small);
+
+        assert.strictEqual(interner.size, 1);
+        assert.isUndefined(interner.get(small));
+        assert.strictEqual(interner.get(large), "2");
+
+        const again = intern(1);
+
+        assert.notStrictEqual(again, small, "a key names one look for the life of the session");
+        assert.notStrictEqual(again, large);
+        assert.strictEqual(intern(2), large, "a live style is still found");
+        assert.strictEqual(interner.size, 2);
+    });
+
+    it("still finds a live style after thousands of others have come and gone", () => {
+        const interner = createStyleInterner<number>();
+
+        /**
+         * Intern one number.
+         * @param value - The number.
+         * @returns The key.
+         */
+        const intern = (value: number): number => {
+            interner.begin();
+            interner.pushNumber(value);
+
+            return interner.end(() => value);
+        };
+
+        const kept = intern(-1);
+        interner.retain(kept);
+
+        for (let value = 0; value < 20_000; value++) {
+            const key = intern(value);
+
+            interner.retain(key);
+            interner.release(key);
+        }
+
+        assert.strictEqual(interner.size, 1);
+        assert.strictEqual(intern(-1), kept, "the released sequences were compacted around it");
+        assert.strictEqual(interner.get(kept), -1);
     });
 
     it("stays flat as the number of distinct styles grows", () => {

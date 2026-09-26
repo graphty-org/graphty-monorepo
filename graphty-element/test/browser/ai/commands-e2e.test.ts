@@ -28,7 +28,20 @@ interface QueryData {
  */
 interface FindNodesData {
     count: number;
+    total: number;
+    returned: number;
+    truncated: boolean;
     nodeIds: string[];
+}
+
+/**
+ * Type for data returned by runAlgorithm command.
+ */
+interface RunAlgorithmData {
+    algorithm: string;
+    summary: { count: number; top: { id: string }[]; max: number | null };
+    graph: Record<string, unknown>;
+    path?: { nodeIds: string[]; total: number; truncated: boolean };
 }
 
 describe("AI Commands End-to-End", () => {
@@ -496,6 +509,8 @@ describe("AI Commands End-to-End", () => {
 
             assert.strictEqual(result.success, true);
             assert.strictEqual((result.data as FindNodesData).count, 5);
+            assert.strictEqual((result.data as FindNodesData).total, 5);
+            assert.strictEqual((result.data as FindNodesData).truncated, false);
         });
 
         it("finds nodes with type selector", async () => {
@@ -525,6 +540,92 @@ describe("AI Commands End-to-End", () => {
 
             assert.strictEqual(result.success, true);
             assert.strictEqual((result.data as FindNodesData).count, 2);
+            assert.strictEqual((result.data as FindNodesData).total, 5);
+            assert.strictEqual((result.data as FindNodesData).truncated, true);
+        });
+    });
+
+    describe("runAlgorithm command", () => {
+        /**
+         * Send one runAlgorithm call through the AI pipeline.
+         * @param args - The command's arguments.
+         * @returns The command result.
+         */
+        async function runAlgorithmCall(args: Record<string, unknown>): ReturnType<Graph["aiCommand"]> {
+            getProvider().setResponse("run it", {
+                text: "",
+                toolCalls: [{ id: "1", name: "runAlgorithm", arguments: args }],
+            });
+
+            return graph.aiCommand("run it");
+        }
+
+        it("passes a source and target and returns the route", async () => {
+            // A-B, A-C, B-D, C-E, D-E: the route from A to E is A, C, E.
+            const result = await runAlgorithmCall({
+                namespace: "graphty",
+                type: "dijkstra",
+                options: { source: "A", target: "E" },
+            });
+
+            assert.strictEqual(result.success, true, result.message);
+            const data = result.data as RunAlgorithmData;
+            assert.strictEqual(data.algorithm, "shortest-path");
+            assert.deepEqual(data.path, { nodeIds: ["A", "C", "E"], total: 3, truncated: false });
+            assert.strictEqual(data.graph.hops, 2);
+        });
+
+        it("runs pagerank with an option", async () => {
+            const result = await runAlgorithmCall({
+                namespace: "graphty",
+                type: "pagerank",
+                options: { dampingFactor: 0.9 },
+            });
+
+            assert.strictEqual(result.success, true, result.message);
+            assert.strictEqual((result.data as RunAlgorithmData).summary.count, 5);
+        });
+
+        it("returns a bounded top-N summary for degree, never every node", async () => {
+            cleanupE2EGraph();
+            // A star: hub joined to 40 leaves.
+            const leaves = Array.from({ length: 40 }, (_, i) => ({ id: `leaf${i}`, label: `Leaf ${i}`, type: "leaf" }));
+            ({ graph } = await createE2EGraph({
+                nodes: [{ id: "hub", label: "Hub", type: "hub" }, ...leaves],
+                edges: leaves.map((leaf) => ({ src: "hub", dst: leaf.id })),
+                enableAi: true,
+            }));
+
+            const result = await runAlgorithmCall({ namespace: "graphty", type: "degree" });
+
+            assert.strictEqual(result.success, true, result.message);
+            const data = result.data as RunAlgorithmData;
+            assert.strictEqual(data.summary.count, 41);
+            assert.isAtMost(data.summary.top.length, 10);
+            assert.strictEqual(data.summary.top[0].id, "hub");
+            assert.isUndefined(data.path);
+        });
+
+        it("refuses an unknown option and names it", async () => {
+            const result = await runAlgorithmCall({
+                namespace: "graphty",
+                type: "pagerank",
+                options: { dampingFactr: 0.5 },
+            });
+
+            assert.strictEqual(result.success, false);
+            assert.include(result.message, "dampingFactr");
+        });
+
+        it("refuses an out-of-range option and names it", async () => {
+            const result = await runAlgorithmCall({
+                namespace: "graphty",
+                type: "pagerank",
+                options: { dampingFactor: 7 },
+            });
+
+            assert.strictEqual(result.success, false);
+            assert.include(result.message, "dampingFactor");
         });
     });
 

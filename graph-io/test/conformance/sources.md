@@ -84,7 +84,6 @@ rejects it" failures.
    - APOC CSV (`_id,_labels,_start,_end,_type`).
    - networkx `adjacency_data` and `tree_data` JSON.
    - Gephi / networkx / igraph adjacency-list CSV and Gephi matrix CSV.
-   - Pajek `*Partition` and `*Vector` content, which should become vertex attributes.
    - The `.graphmlz` (gzip), `.xml.zst` and `.gml.zst` (Netzschleuder) containers.
 
 ---
@@ -723,8 +722,8 @@ graph-io source: `formats/pajek/syntax.ts` and `importer.ts`.
 |---|---|---|
 | `*Network`, `*Vertices n`, `*Arcs`, `*Edges`, `*Arcslist`, `*Edgeslist`, `*Matrix`, each with `:k "name"`; keywords in any case | Supported; relation goes to a `relation` column | Keep it. Test a repeated `:k` header and `:0`. |
 | `*Arcs n` / `*Edges n` with a count | ? | Accept it and ignore the count; warn on a mismatch. Test it. |
-| **`*Partition`, `*Vector`** (in 40 and 26 of 171 real files) | **`UNSUPPORTED_SECTION`, which counts toward `errorLimit`**; lines skipped | Import each one as a vertex attribute named after the object, as statnet does. At minimum, record a warning, not an error. |
-| `*Permutation`, `*Cluster`, `*Hierarchy`, `*Events` / `.tim` | `UNSUPPORTED_SECTION` | A warning, not an error. |
+| **`*Partition`, `*Vector`** (in 40 and 26 of 171 real files) | Node columns `partition` (i32) and `vector` (f64), later ones `partition#2`, ...; the object names in `meta.extra.pajek.objects`; one before the first `*Network` applies to that network | Import each one as a vertex attribute named after the object, as statnet does. At minimum, record a warning, not an error. |
+| `*Permutation`, `*Cluster`, `*Hierarchy`, `*Events` / `.tim` | `W_PAJEK_UNSUPPORTED_SECTION` (a warning); lines skipped | A warning, not an error. |
 | **A `.paj` holding several networks** (Tina.paj) | **`MULTIPLE_NETWORKS` aborts the import** | Import the first network and warn. Returning all of them would be a public API decision. |
 | Text before the first `*` | `OUTSIDE_SECTION` | Warn and skip. |
 
@@ -732,25 +731,25 @@ graph-io source: `formats/pajek/syntax.ts` and `importer.ts`.
 
 | Case | graph-io today | Right behaviour |
 |---|---|---|
-| `*Vertices n` with fewer vertex lines, or none | `VERTEX_COUNT` | Create n vertices, with label = number. No warning is needed (common in real files). |
+| `*Vertices n` with fewer vertex lines, or none | n vertices; `W_PAJEK_VERTEX_COUNT` (a warning) for a partial list | Create n vertices, with label = number. No warning is needed (common in real files). |
 | Vertex lines out of order; duplicates | `DUPLICATE_NODE` | Warn; the last one wins. |
-| A vertex line without a label; with coordinates but no label (`1 0.1 0.2`) | **The label is always the second token**, so the line is misread | A label is always present in Pajek's own output. Test igraph's files; if a line is numeric-only, treat the numbers as coordinates. |
-| A quoted label containing spaces; an unquoted label; `"` inside a label; `\n`; `&#dddd;` | Quotes are stripped; no escapes; `&#` is not decoded | Decode `&#dddd;` (Pajek does). Keep `\n` literally. |
+| A vertex line without a label; with coordinates but no label (`1 0.1 0.2`) | A bare run of exactly two numbers after the vertex number is x y with no label; a quoted token, a lone number or a longer run starts with the label | A label is always present in Pajek's own output. Test igraph's files; if a line is numeric-only, treat the numbers as coordinates. |
+| A quoted label containing spaces; an unquoted label; `"` inside a label; `\n`; `&#dddd;` | Quotes are stripped; no escapes; `&#dddd;` and `&#xhh;` are decoded in labels | Decode `&#dddd;` (Pajek does). Keep `\n` literally. |
 | Encoding: a BOM means UTF-8, otherwise ANSI | UTF-8 only | See cross-format finding 1. Pajek's own default is ANSI without a BOM. |
 | Coordinates: 2 or 3, missing, 0..1 | Position; `COORD_DIMS` on a mix | Keep it. |
-| **Shapes: ellipse, box, diamond, triangle, cross, empty, plus house, man, woman** | **Case-sensitive and only the first 6**; `Ellipse`, `house`, `man` and `woman` are misread as parameter keys | Match case-insensitively and include all 9. |
+| **Shapes: ellipse, box, diamond, triangle, cross, empty, plus house, man, woman** | All 9, in any case, stored lower-cased | Match case-insensitively and include all 9. |
 | Vertex parameters and colours (named, `RGBrrggbb`, `RGB(...)`, `CMYK...`) | Plain text-inferred columns; no colour or size role | Optionally map `ic` to the colour role and `x_fact` to size. |
-| **2-mode `*Vertices n n1`** | **Only `meta.extra.pajek.firstMode`; no per-vertex mode column** | Add a mode column (igraph adds a `type`). A same-mode edge: warn. `n1 > n`: error. |
+| **2-mode `*Vertices n n1`** | `meta.extra.pajek.firstMode`; no per-vertex mode column; `n1 > n` is a fatal `E_PAJEK_VERTICES_COUNT` | Add a mode column (igraph adds a `type`). A same-mode edge: warn. `n1 > n`: error. |
 
 **Arc and edge lines**
 
 | Case | graph-io today | Right behaviour |
 |---|---|---|
 | Weight missing, negative, a float, `1e-3` | Weight | Keep it. |
-| Mixed `*Arcs` and `*Edges`; an empty `*Arcs` block | Direction per section, so mixed direction works | Keep it. An empty `*Arcs` block must not make the graph mixed. Test USAir97. |
-| `*Arcslist` / `*Edgeslist` `u v1 v2 ...`; a negative id | Supported | A negative id means its absolute value; warn, as Pajek's authors do. |
-| **`*Matrix`: a rectangular 2-mode n1 x n2**, short or long rows, signed values | Square only; a rectangular matrix gives `LINE` errors | Support 2-mode matrices (divorce.net). |
-| Time intervals `[1-3,5]`, `[2-*]`, `[1,2,3]`; a `[` inside a NAME | Spells | Test Padgett.paj's name. |
+| Mixed `*Arcs` and `*Edges`; an empty `*Arcs` block | Direction per section, so mixed direction works; the direction is set by the first line, so an empty `*Arcs` block does not count | Keep it. An empty `*Arcs` block must not make the graph mixed. Test USAir97. |
+| `*Arcslist` / `*Edgeslist` `u v1 v2 ...`; a negative id | Supported; a negative id is read as its absolute value (no warning) | A negative id means its absolute value; warn, as Pajek's authors do. |
+| **`*Matrix`: a rectangular 2-mode n1 x n2**, short or long rows, signed values | n x n, or n1 x (n - n1) under `*Vertices n n1`; a short row is `LINE`, a long row's extra values are ignored with `W_PAJEK_MATRIX_EXTRA` | Support 2-mode matrices (divorce.net). |
+| Time intervals `[1-3,5]`, `[2-*]`, `[1,2,3]`, `[ 1 ]`, `[]`; a `[` inside a NAME | Spells; blanks inside the brackets are ignored and `[]` is no spell | Test Padgett.paj's name. |
 | Vertex id out of range; 0-based files; duplicate edges | Error; `ZERO_BASED`; kept | Keep it. |
 
 **Lines and comments**

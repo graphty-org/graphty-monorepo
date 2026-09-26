@@ -25,6 +25,7 @@ import { explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import {
+    encodeCharacterReferences,
     formatIntervals,
     isParameterKey,
     LABEL_COLUMN,
@@ -771,7 +772,8 @@ function* writeVertices(
         const label = labelOf(labels, ids, i, parts.length > 0);
         let line = String(i + 1);
         if (label !== null) {
-            line += ` ${quotePajekLabel(label)}`;
+            // the importer decodes `&#dddd;` in labels, so a literal one is written with `&#38;`
+            line += ` ${quotePajekLabel(encodeCharacterReferences(label))}`;
         }
         if (parts.length > 0) {
             line += ` ${parts.join(" ")}`;

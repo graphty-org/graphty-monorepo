@@ -423,17 +423,17 @@ export const FRONTIER_COUNTERS: UniformBlock = UniformBlock.define(
 
 /**
  * `FrontierParams` (uniform, 80 B; P8-T4): the params block every P8 kernel except the three compact / dedupe
- * primitives and `bf-relax` binds -- `role` @0 (the finalize role), `slotBase` @4 (`level x FRONTIER_CANDIDATES`),
- * `wg` @8 (the consumers' workgroup size), `alpha` @12, `beta` @16 (Beamer's thresholds, P8-T8), `fusedMax` @20,
- * `edgeCapacity` @24, `maxDepth` @28, `n` @32, `mode` @36 (BFS: 0 auto, 1 top-down only; `sssp-pred`: the PD-27 key
- * rule), `cutoffBits` @40, `arcBase` @44, `arcEnd` @48 (the bound arc window), `predKind` @52 (0 arc, 1 node),
- * `bitsBase` @56, `source` @60, `stride` @64 (a grid-stride plan's stride), `firstOfSubmit` @68 (the boundary's index
- * inside its submit, clamped to 2: the unvisited-count subtraction runs at >= 1, the degree-sum one at >= 2),
- * `iteration` @72 (an `sssp-pred` hop pass, P8-T9), `pad1` @76.
+ * primitives and `bf-relax` binds -- `role` @0 (the finalize role), `wg` @4 (the consumers' workgroup size),
+ * `alpha` @8, `beta` @12 (Beamer's thresholds, P8-T8), `fusedMax` @16, `edgeCapacity` @20, `maxDepth` @24, `n` @28,
+ * `mode` @32 (BFS: 0 auto, 1 top-down only; `sssp-pred`: the PD-27 key rule), `cutoffBits` @36, `arcBase` @40,
+ * `arcEnd` @44 (the bound arc window), `predKind` @48 (0 arc, 1 node), `bitsBase` @52, `source` @56, `stride` @60
+ * (a grid-stride plan's stride), `firstOfSubmit` @64 (the boundary's index inside its submit, clamped to 2: the
+ * unvisited-count subtraction runs at >= 1, the degree-sum one at >= 2), `iteration` @68 (an `sssp-pred` hop pass,
+ * P8-T9), `pad1` @72, `pad2` @76. The `slotBase` field that once addressed the selector's indirect slots went with
+ * the slots (2026-09-25); `pad2` keeps the block an explicit 80 bytes, the way every block here is padded.
  */
 export const FRONTIER_PARAMS: UniformBlock = UniformBlock.define("FrontierParams", [
     ["role", "u32"],
-    ["slotBase", "u32"],
     ["wg", "u32"],
     ["alpha", "u32"],
     ["beta", "u32"],
@@ -452,6 +452,7 @@ export const FRONTIER_PARAMS: UniformBlock = UniformBlock.define("FrontierParams
     ["firstOfSubmit", "u32"],
     ["iteration", "u32"],
     ["pad1", "u32"],
+    ["pad2", "u32"],
 ]);
 
 /** `BfParams` (uniform, 16 B; P8-T10): `edgeCount` @0 (the logical edges of the `edgeList` view), `stride` @4 (the grid-stride plan's stride), `maxRetries` @8 (PD-12's compare-exchange bound), `cutoffBits` @12 (the f32 bit pattern of the CPU port's `cutoff`, `+Inf` when absent). */
@@ -1117,16 +1118,12 @@ const DEDUPE_FILTER: KernelEntry = {
     phase: "P8",
 };
 
-/** `frontier-finalize` (design 5.4, 8.10 "BFS finalizeArgs"; P8-T4, PD-3): the one-lane level-boundary selector that rotates the counters block and writes the level's seven indirect slots (role 0), then clamps the edge count and sizes the contract or the fused-retry slot (role 1); 2 storage bindings (the block as `array<atomic<u32>>`, the args). */
+/** `frontier-finalize` (design 5.4, 8.10 "BFS finalizeArgs"; P8-T4, PD-3): the one-lane level-boundary selector that rotates the counters block and writes the level's `path` word (role 0), then clamps the edge count or switches the path to the fused retry (role 1); 1 storage binding (the block as `array<atomic<u32>>`). Since 2026-09-25 it writes no indirect slots: every level kernel is a direct dispatch gated by the path word. */
 const FRONTIER_FINALIZE: KernelEntry = {
     id: "frontier-finalize",
     body: frontierFinalizeWgsl,
     entryPoint: "frontier_finalize",
-    bindings: [
-        decl(1, 0, "counters", "storage", "array<atomic<u32>>"),
-        decl(1, 1, "args", "storage", "array<u32>"),
-        decl(2, 0, "P", "uniform", "FrontierParams"),
-    ],
+    bindings: [decl(1, 0, "counters", "storage", "array<atomic<u32>>"), decl(2, 0, "P", "uniform", "FrontierParams")],
     overrideDecls: [],
     uniforms: [FRONTIER_PARAMS],
     needs: [],

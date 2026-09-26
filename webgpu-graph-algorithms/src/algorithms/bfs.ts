@@ -20,7 +20,7 @@
  * subtraction inside the selector (whose JSDoc states the boundary rule). The host records `MAX_LEVELS_PER_SUBMIT`
  * levels into ONE command buffer, submits, and reads four bytes, the `done` word (PD-7): a road network has
  * thousands of levels and a per-level `mapAsync` would be slower than the CPU. A level recorded past the end is a
- * no-op (its boundary finds `done` set, zeroes its slots and moves no counter), so the loop needs no diameter and
+ * no-op (its boundary finds `done` set, writes path 0 and moves no counter), so the loop needs no diameter and
  * ends on `done`; a traversal has at most `n` levels, so more submits than that is E_VALIDATION, never a hang. The
  * thresholds are uniform fields (`FUSED_FRONTIER_MAX`; alpha derived as `max(1, floor(arcCount / n))`, PD-21;
  * `BEAMER_BETA`; `mode 1` pinning top-down -- each unless the tuning says otherwise), so a test forces any path

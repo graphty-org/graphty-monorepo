@@ -8,12 +8,11 @@
  */
 
 import { type GpuContext } from "../context.js";
-import { BufferUsage } from "../device/webgpu-constants.js";
 import { UniformRing } from "../kernel/uniform-ring.js";
-import { type FrontierScope } from "../primitives/frontier.js";
+import { type ReduceScope } from "../primitives/reduce.js";
 
-/** A FrontierScope (a ReduceScope plus `indirect()`, P8-T4) over a context plus the two lifecycle calls an algorithm makes: flush() before submit, dispose() in its finally. */
-export interface AlgorithmScope extends FrontierScope {
+/** A ReduceScope over a context plus the two lifecycle calls an algorithm makes: flush() before submit, dispose() in its finally. (The `indirect()` lease it once added for the frontier's args buffer went with that buffer, 2026-09-25.) */
+export interface AlgorithmScope extends ReduceScope {
     /** queue.writeBuffer of the params slots written since the last flush (called before the batch is submitted). */
     flush(): void;
     /** Destroys the ring and releases every scratch buffer of the lease; idempotent. */
@@ -39,12 +38,6 @@ export function algorithmScope(ctx: GpuContext, label: string, slots: number): A
         pool: ctx.pool,
         workgroupSize: ctx.workgroupSize,
         scratch: (byteLength, scratchLabel) => lease.storage(byteLength, `${label}/${scratchLabel}`),
-        indirect: (byteLength, indirectLabel) =>
-            lease.acquire(
-                byteLength,
-                BufferUsage.STORAGE | BufferUsage.INDIRECT | BufferUsage.COPY_DST | BufferUsage.COPY_SRC,
-                `${label}/${indirectLabel}`,
-            ),
         params(block, values) {
             const slot = ring.reserve(1);
             ring.write(slot, block, values);

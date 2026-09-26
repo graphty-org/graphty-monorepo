@@ -1,8 +1,8 @@
 /**
  * Spec 11.9 item 1 for the `frontier-finalize` kernel (P8-T4): every SABOTAGE row is spliced into the normative body
- * and compiled on a FRESH context, and the SAME check that passes on the real kernel -- frontierReport: the
- * 2,000-count ladder against `planIndirect`, the seed rotation, the fused slot, the retry after an overflow, the
- * already-done boundary and role 1 after a done boundary, all bitwise (any mismatch is Infinity) -- fails on the
+ * and compiled on a FRESH context, and the SAME check that passes on the real kernel -- frontierReport: the seed
+ * rotation, the fused path, the retry after an overflow, the already-done boundary and role 1 after a done
+ * boundary, all bitwise over the counters block (any mismatch is Infinity) -- fails on the
  * mutant by at least minFactor. The first block is the coverage loop of test/sabotage/coverage.test.ts applied to
  * these rows (P8 is not in SABOTAGE_PHASES until P8-T15).
  */
@@ -24,17 +24,17 @@ const ROWS = SABOTAGE[ID] ?? [];
 const MEASURED = ROWS.filter((m) => m.test === FRONTIER_TEST);
 
 describe("sabotage: frontier-finalize (spec 11.9 item 1; P8-T4)", () => {
-    it("has five rows naming the frontier test and two (P8-T7's threshold, P8-T8's growing test) naming the BFS test; every find occurs once in the normative body, the replacement differs, minFactor >= 10, names unique", () => {
+    it("has three rows naming the frontier test and two (P8-T7's threshold, P8-T8's growing test) naming the BFS test; every find occurs once in the normative body, the replacement differs, minFactor >= 10, names unique", () => {
+        // the `ceil-wraps` and `second-row-floored` rows mutated the indirect-slot arithmetic; they went with the
+        // slots (2026-09-25), because no dispatch consumed what they broke
         expect(ROWS.map((m) => m.name)).toEqual([
-            "ceil-wraps",
-            "second-row-floored",
             "rotation-dropped",
             "done-boundary-keeps-counting",
             "role-1-counts-every-level",
             "fused-threshold-inverted",
             "growing-test-inverted",
         ]);
-        expect(MEASURED).toHaveLength(5);
+        expect(MEASURED).toHaveLength(3);
         const { body } = KERNELS[ID];
         const names = new Set<string>();
         for (const m of ROWS) {

@@ -188,4 +188,51 @@ describe("the render ceiling", () => {
         assert.strictEqual(error.code, "E_TOO_LARGE");
         assert.strictEqual(error.details.of, "edges");
     });
+
+    it("keeps the graph when a replacing load is past it, and counts one that fits against an emptied graph", async () => {
+        // A replacing load swaps the graph only once the source has parsed, so a file too large
+        // to draw must be refused before the swap, not after the old graph is gone.
+        dataManager.addNodes([{ id: "a" }, { id: "b" }]);
+        const tooMany = JSON.stringify({ nodes: [{ id: "w" }, { id: "x" }, { id: "y" }, { id: "z" }] });
+
+        let reported: unknown;
+        try {
+            await graph.addDataFromSource("json", { data: tooMany }, { replace: true });
+        } catch (error) {
+            reported = error;
+        }
+
+        assert.strictEqual((reported as GraphtyError).code, "E_TOO_LARGE");
+        assert.deepStrictEqual([...dataManager.nodes.keys()].map(String).sort(), ["a", "b"]);
+
+        const fits = JSON.stringify({
+            nodes: [{ id: "x" }, { id: "y" }, { id: "z" }],
+            edges: [
+                { src: "x", dst: "y" },
+                { src: "y", dst: "z" },
+            ],
+        });
+        await graph.addDataFromSource("json", { data: fits }, { replace: true });
+        assert.deepStrictEqual([...dataManager.nodes.keys()].map(String).sort(), ["x", "y", "z"]);
+        assert.strictEqual(dataManager.edges.size, 2);
+    });
+
+    it("keeps the old nodes when a replacement node set is past it", async () => {
+        // This is `nodeData`: the nodes leaving would be removed first, so the set is refused
+        // before any of them is.
+        dataManager.addNodes([{ id: "a" }, { id: "b" }]);
+
+        let reported: unknown;
+        try {
+            await graph.setNodes([{ id: "w" }, { id: "x" }, { id: "y" }, { id: "z" }]);
+        } catch (error) {
+            reported = error;
+        }
+
+        assert.strictEqual((reported as GraphtyError).code, "E_TOO_LARGE");
+        assert.deepStrictEqual([...dataManager.nodes.keys()].map(String).sort(), ["a", "b"]);
+
+        await graph.setNodes([{ id: "b" }, { id: "c" }, { id: "d" }]);
+        assert.deepStrictEqual([...dataManager.nodes.keys()].map(String).sort(), ["b", "c", "d"]);
+    });
 });

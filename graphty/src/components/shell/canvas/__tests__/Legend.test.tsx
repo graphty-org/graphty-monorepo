@@ -20,7 +20,7 @@ const SIZE: LegendChannel = {
 const OTHER: LegendOtherRow = {
     label: "Other",
     coverage: "3,388 groups, 43% of nodes",
-    color: "#6b7480",
+    colors: ["#6b7480"],
 };
 
 const COLOR: LegendChannel = {
@@ -148,6 +148,27 @@ describe("Legend", () => {
             fireEvent.click(screen.getByRole("button", { name: /Other/ }));
 
             expect(onClick).toHaveBeenCalledTimes(1);
+        });
+
+        it("draws the Other chip as one slice per colour it rolls up", () => {
+            const colors = ["#aa0000", "#00aa00", "#0000aa"];
+            render(
+                <Legend {...defaultProps} channels={[{ ...COLOR, other: { ...OTHER, colors, onClick: vi.fn() } }]} />,
+            );
+
+            const chip = screen.getByRole("button", { name: /Other/ }).querySelector("svg");
+
+            expect(Array.from(chip?.querySelectorAll("path") ?? [], (slice) => slice.getAttribute("fill"))).toEqual(
+                colors,
+            );
+        });
+
+        it("draws a one-colour Other chip as a plain disc", () => {
+            render(<Legend {...defaultProps} channels={[{ ...COLOR, other: { ...OTHER, onClick: vi.fn() } }]} />);
+
+            const chip = screen.getByRole("button", { name: /Other/ }).querySelector("svg");
+
+            expect(chip?.querySelector("circle")?.getAttribute("fill")).toBe("#6b7480");
         });
     });
 

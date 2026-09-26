@@ -187,6 +187,20 @@ export type GraphtyErrorCode =
      */
     | "E_ID_MISSING"
     /**
+     * A load read its source to the end and found nothing in it: no node records and no edge
+     * records. It is reported as a failure rather than as a success with zero counts, and a
+     * load asked to `replace` keeps the graph it would have replaced. `details` carry the
+     * format. The caller checks the file, or the format it was read as.
+     */
+    | "E_EMPTY_LOAD"
+    /**
+     * A load was overtaken: a REPLACING load was called after it, or `clearData` ran, so its data
+     * would have replaced or mixed into the newer dataset. It stops without touching the graph.
+     * `details` carry the format. Not a fault in the source; the caller ignores it, or loads
+     * again.
+     */
+    | "E_SUPERSEDED"
+    /**
      * The graph exceeds a hard structural limit of an index or of the accelerator, and no scope
      * or sample makes the work runnable. `details` carry the size and the limit. Distinct from
      * `E_CAP_EXCEEDED`, which a smaller scope or an approximate method can get past.
@@ -329,6 +343,8 @@ const CODE_TABLE = {
     E_PARSE_FAILED: "E_PARSE_FAILED",
     E_EDGE_ENDPOINTS_UNRESOLVED: "E_EDGE_ENDPOINTS_UNRESOLVED",
     E_ID_MISSING: "E_ID_MISSING",
+    E_EMPTY_LOAD: "E_EMPTY_LOAD",
+    E_SUPERSEDED: "E_SUPERSEDED",
     E_TOO_LARGE: "E_TOO_LARGE",
     E_OUT_OF_MEMORY: "E_OUT_OF_MEMORY",
     E_CAP_EXCEEDED: "E_CAP_EXCEEDED",

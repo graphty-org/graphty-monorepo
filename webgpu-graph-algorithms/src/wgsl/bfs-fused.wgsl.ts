@@ -4,15 +4,15 @@
  * ONE dispatch, chosen by `frontier-finalize` for a frontier below `P.fusedMax` entries (`path` 2) and for the retry
  * of a level whose edge queue overflowed (`path` 4, PD-23). One WORKGROUP per frontier entry, the workgroups striding
  * the entries by the dispatch's group count (`P.stride`): lane 0 reads the entry's row clipped
- * to the bound arc window, adds its degree to `frontierDegreeSum` (Beamer's m_f, so P8-T8's test sees fused levels
- * too), and every lane strips the row `WG` arcs at a time, applying `bfs-contract`'s claim inline --
- * `atomicMin(&depth[v], level + 1)`, the invocation that observes `INVALID_INDEX` the unique winner (PD-6) -- and
+ * to the bound arc window, adds its degree to `frontierDegreeSum` (so the inspect seam's per-level expansion count
+ * covers fused levels too), and every lane strips the row `WG` arcs at a time, applying `bfs-contract`'s claim
+ * inline -- `atomicMin(&depth[v], level + 1)`, the invocation that observes `INVALID_INDEX` the unique winner (PD-6) -- and
  * packing the strip's winners into the output vertex queue by the same Hillis-Steele scan and one `atomicAdd` per
  * strip on `nextFrontierCount`. No edge queue is written or read, which is the whole win for a tiny frontier
  * (Merrill's fleeting iterations) and what makes the overflow retry exact: the partial edge queue is never consulted.
  * On a retry level `advance-expand` has already added the frontier's degree to `frontierDegreeSum`, so that word
- * holds 2 x m_f for the level and the next boundary's Beamer test and degree-sum subtraction see the doubled value;
- * reachable only with a faked capacity or an absurd graph, accepted and said here rather than guarded. Nothing here
+ * holds twice the level's expanded degree; since issue #391 no decision reads it (Beamer's m_f is `nextDegreeSum`
+ * and the boundary subtracts that), so the doubling only reaches the inspect seam's `prevDegreeSum`. Nothing here
  * writes a parent (PD-24: the post-pass does), which is what keeps the kernel at the eight-storage-buffer budget
  * with the four graph slots. Uniformity (spec 3.5 rule 1): the strip loop's bound and the row start are
  * `workgroupUniformLoad`s, so every barrier of the per-strip append is in uniform control flow; the guarded claim
@@ -44,7 +44,7 @@ fn bfs_fused(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id
             let d = select(0u, a1 - a0, a1 > a0);
             wdeg = d;
             wstart = a0;
-            atomicAdd(&counters[2], d);                                  // frontierDegreeSum, so Beamer's test (P8-T8) sees fused levels too
+            atomicAdd(&counters[2], d);                                  // frontierDegreeSum, so the inspect seam sees fused levels too
         }
         let deg = workgroupUniformLoad(&wdeg);                           // uniform: the loop below may hold barriers
         let start = workgroupUniformLoad(&wstart);

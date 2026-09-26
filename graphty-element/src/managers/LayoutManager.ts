@@ -6,6 +6,7 @@ import type {
 } from "@graphty/layout";
 
 import type { AccelerationController } from "../acceleration/AccelerationController";
+import { LAYOUT_DESCRIPTORS, layoutDescriptor } from "../catalog/layouts";
 import { resolveOptionValues } from "../catalog/options";
 import type { AuthoredLayoutDescriptor } from "../catalog/types";
 import type { GraphLayoutBehavior } from "../config/GraphBehavior";
@@ -230,7 +231,7 @@ export function resolveSimulationOptions(
  * declaration rather than three that can disagree. An unknown name is `E_UNKNOWN_OPTION` with the
  * declared names and the nearest few; a value outside the declared range is `E_OPTION_RANGE`.
  *
- * The element's own seventeen engines declare no descriptor -- their arrangements are authored in
+ * The element's own nineteen engines declare no descriptor -- their arrangements are authored in
  * the layout catalogue -- and keep validating with their own Zod schemas, so their options pass
  * through untouched.
  * @param type - The layout name, for the failure message.
@@ -264,8 +265,30 @@ function unknownLayout(type: string): GraphtyError {
         code: "E_UNKNOWN_LAYOUT",
         message: `no layout named "${type}" is registered`,
         source: "layout",
-        details: { layout: type, available: LayoutEngine.getRegisteredTypes() },
+        details: {
+            layout: type,
+            available: [
+                ...new Set([...LayoutEngine.getRegisteredTypes(), ...LAYOUT_DESCRIPTORS.map((entry) => entry.id)]),
+            ],
+        },
     });
+}
+
+/**
+ * The registered engine a layout name runs on.
+ *
+ * `setLayout` takes either spelling: a registered engine name ("ngraph") runs that engine, and a
+ * catalogue id ("force", from `catalog.layouts()`) runs its default engine. An engine name wins,
+ * so a third party's engine keeps its own name even if it matches a catalogue id.
+ * @param type - An engine name or a catalogue id.
+ * @returns The engine name; the input unchanged when it is neither.
+ */
+function engineForLayout(type: string): string {
+    if (LayoutEngine.getClass(type)) {
+        return type;
+    }
+
+    return layoutDescriptor(type)?.engine ?? type;
 }
 
 /**
@@ -275,6 +298,14 @@ function unknownLayout(type: string): GraphtyError {
 export class LayoutManager implements Manager {
     layoutEngine?: LayoutEngine;
     private _running = false;
+
+    /**
+     * Set while a CONSUMER has paused the layout, through {@link LayoutManager.setPaused}. Nothing
+     * inside the element clears it: a load, a freeze, an accelerator attaching, a new layout or a
+     * drag may rebuild or place nodes, but their `running = true` is refused until the consumer
+     * resumes.
+     */
+    private _paused = false;
 
     /**
      * Set when a layout was built over a graph with nothing in it, and the pre-steps it is
@@ -308,10 +339,20 @@ export class LayoutManager implements Manager {
      * again and the next frame moves nodes. Going true -> false only stops `step()` being
      * called; batches already in flight land in the position array by themselves, nothing is
      * disposed and nothing is released.
+     *
+     * While the consumer has paused the layout (see {@link LayoutManager.setPaused}) a `true` is
+     * ignored, so the element's own restarts cannot undo the pause.
      */
     set running(value: boolean) {
-        const resuming = value && !this._running;
-        this._running = value;
+        const next = value && !this._paused;
+        const resuming = next && !this._running;
+        this._running = next;
+
+        // The bridge closes its work span once a stopped layout's batches have landed, so a status
+        // chip does not read "active" while nothing is being submitted.
+        if (this.layoutEngine instanceof SimulationLayoutEngine) {
+            this.layoutEngine.paused = !next;
+        }
 
         // ONLY THE BRIDGE HAS A SETTLE COUNT TO RESTART. The one-shot engines are finished when
         // they are finished, and `ngraph` never reports settled, so neither has anything a
@@ -319,6 +360,18 @@ export class LayoutManager implements Manager {
         if (resuming && this.layoutEngine instanceof SimulationLayoutEngine && this.layoutEngine.isSettled) {
             this.layoutEngine.reheat();
         }
+    }
+
+    /**
+     * Pause or resume the layout on a consumer's behalf.
+     *
+     * A pause holds until the consumer resumes it: internal restarts are refused while it is set.
+     * Resuming runs the layout, and reheats a simulation that had settled.
+     * @param paused - True to pause, false to resume.
+     */
+    setPaused(paused: boolean): void {
+        this._paused = paused;
+        this.running = !paused;
     }
 
     // GraphContext for error reporting
@@ -482,11 +535,15 @@ export class LayoutManager implements Manager {
     /**
      * Internal method for setting layout - bypasses queue
      * Used by operations that are already queued to prevent nested queueing
-     * @param type - Layout type identifier
+     * @param layout - A registered engine name, or a catalogue layout id
      * @param opts - Layout-specific options
      */
-    private async _setLayoutInternal(type: string, opts: object = {}): Promise<void> {
-        this.logger.info("Setting layout", { type, options: opts });
+    private async _setLayoutInternal(layout: string, opts: object = {}): Promise<void> {
+        this.logger.info("Setting layout", { type: layout, options: opts });
+
+        // Everything below -- option validation, dimension options, the stored layout type --
+        // sees the ENGINE name, so a catalogue id behaves exactly like the engine it names.
+        const type = engineForLayout(layout);
 
         const engineClass = LayoutEngine.getClass(type);
         if (!engineClass) {
@@ -634,7 +691,7 @@ export class LayoutManager implements Manager {
         } catch (error) {
             // THE ENGINE THAT FAILED IS TOLD TO LET GO. It is discarded here and never used
             // again, and it never became the running layout, so no later switch will reach it --
-            // this is its only moment. The element's own seventeen hold nothing and do nothing
+            // this is its only moment. The element's own nineteen hold nothing and do nothing
             // with the call; a plugin that opened a worker, a socket or a GPU buffer in its
             // constructor would otherwise leak one per failed attempt.
             engine.dispose();
@@ -870,22 +927,22 @@ export class LayoutManager implements Manager {
     }
 
     /**
-     * Check if layout has settled
-     * @returns True if layout has settled, false otherwise
+     * Whether the layout engine has converged: the positions are final.
+     *
+     * A layout that was stopped part-way is NOT settled; it is {@link LayoutManager.isPaused}. A
+     * reader that only needs "positions are not moving right now" asks `!running || isSettled`.
+     * @returns True when the engine has converged, or when there is no engine.
      */
     get isSettled(): boolean {
-        // If not running, consider it settled
-        if (!this.running) {
-            return true;
-        }
+        return this.layoutEngine?.isSettled ?? true;
+    }
 
-        // If no layout engine, consider it settled
-        if (!this.layoutEngine) {
-            return true;
-        }
-
-        // Otherwise check layout engine's settled state
-        return this.layoutEngine.isSettled;
+    /**
+     * Whether the layout was stopped before it converged, so its positions are not final.
+     * @returns True when the layout is not running and has not settled.
+     */
+    get isPaused(): boolean {
+        return !this.running && !this.isSettled;
     }
 
     /**
@@ -960,7 +1017,8 @@ export class LayoutManager implements Manager {
             const options = (layoutOptions ?? {}) as Record<string, unknown>;
 
             // Check if we need to update the layout
-            const needsUpdate = this.layoutEngine?.type !== layoutType || this.hasOptionsChanged(options);
+            const needsUpdate =
+                this.layoutEngine?.type !== engineForLayout(layoutType) || this.hasOptionsChanged(options);
 
             if (needsUpdate) {
                 await this._setLayoutInternal(layoutType, options);
@@ -1006,6 +1064,7 @@ export class LayoutManager implements Manager {
         layoutType: string | undefined;
         isRunning: boolean;
         isSettled: boolean;
+        isPaused: boolean;
         nodeCount: number;
         edgeCount: number;
     } {
@@ -1016,6 +1075,7 @@ export class LayoutManager implements Manager {
             layoutType: this.layoutType,
             isRunning: this.running,
             isSettled: this.isSettled,
+            isPaused: this.isPaused,
             nodeCount,
             edgeCount,
         };

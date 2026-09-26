@@ -1,3 +1,17 @@
+## 0.8.9 (2026-09-26)
+
+### 🚀 Features
+
+- **graphty-element:** a top-n style selector, used by the app with the element's histogram ([#166](https://github.com/graphty-org/graphty-monorepo/issues/166), [#165](https://github.com/graphty-org/graphty-monorepo/issues/165))
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 2.3.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.8 (2026-09-26)
 
 ### 🧱 Updated Dependencies

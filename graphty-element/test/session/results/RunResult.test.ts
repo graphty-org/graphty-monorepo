@@ -695,3 +695,46 @@ describe("the fields a shape declares", () => {
         }
     });
 });
+
+describe("the top of a ranking, cut only between tie groups", () => {
+    /** The cat fixture's degrees: 3 nodes of degree 4, 12 of degree 3 and 5 of degree 2. */
+    const CAT_DEGREES = [...Array.from({ length: 3 }, () => 4), ...Array.from({ length: 12 }, () => 3), ...Array.from({ length: 5 }, () => 2)];
+
+    it("takes a tie group only when the whole group fits inside n", () => {
+        const top = metricResult(CAT_DEGREES).top("value", 5);
+
+        assert.deepStrictEqual(
+            top.entries.map((entry) => entry.value),
+            [4, 4, 4],
+            "the twelve nodes of degree 3 would make fifteen, so none of them is taken",
+        );
+        assert.deepStrictEqual(top.leftOut, { value: 3, count: 12 });
+        assert.match(top.reason ?? "", /12 tie at 3/);
+    });
+
+    it("takes nothing from a regular graph whose one tie group is larger than n, and says why", () => {
+        const top = metricResult([3, 3, 3, 3, 3, 3]).top("value", 2);
+
+        assert.deepStrictEqual(top.entries, []);
+        assert.deepStrictEqual(top.leftOut, { value: 3, count: 6 });
+        assert.isString(top.reason);
+    });
+
+    it("takes a tie group that ends exactly at n, and everything when n covers the ranking", () => {
+        assert.strictEqual(metricResult(CAT_DEGREES).top("value", 15).entries.length, 15);
+        assert.strictEqual(metricResult(CAT_DEGREES).top("value", 15).leftOut, null);
+        assert.strictEqual(metricResult([3, 3, 3, 3]).top("value", 50).entries.length, 4);
+        assert.strictEqual(metricResult([3, 3, 3, 3]).top("value", 50).reason, null);
+    });
+
+    it("refuses an n that is not a whole number of entries", () => {
+        for (const n of [-1, 1.5]) {
+            try {
+                metricResult([1, 2]).top("value", n);
+                assert.fail(`an n of ${n} should have been refused`);
+            } catch (error) {
+                assert.strictEqual(isGraphtyError(error) ? error.code : null, "E_OPTION_RANGE");
+            }
+        }
+    });
+});

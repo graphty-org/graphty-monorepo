@@ -87,7 +87,11 @@ export const GraphStyle = z.strictObject({
     addDefaultStyle: z.boolean().default(true),
     background: GraphBackground.prefault({ backgroundType: "color", color: "whitesmoke" }),
     selection: GraphSelectionStyle.optional(),
-    startingCameraDistance: z.number().default(30), // TODO: replace with "zoomToFit: z.boolean()"
+    /**
+     * How far the camera starts from the graph, in scene units. Set, it places the camera and
+     * turns off the element's automatic zoom-to-fit; unset, the graph is framed to fit.
+     */
+    startingCameraDistance: z.number().optional(),
     layout: z.string().optional(), // No default - let Graph constructor set the default
     layoutOptions: z.looseObject({}).optional(),
     /**

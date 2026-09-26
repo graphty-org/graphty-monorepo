@@ -2,6 +2,7 @@
 
 Date: 2026-09-20
 Decided by: the owner
+Superseded by: `2026-09-24-settle-rule-has-an-absolute-floor.md` (the rule gained an absolute floor; the one-shared-rule reasoning here stands)
 Changes: `design/webgpu/webgpu-acceleration-plan.md` 7.20 line 2466, which gives the preset
 "ngraph's settle rule (total kinetic energy below a threshold)", and the P5 row of 13 (line 4212),
 which lists "ngraph's option names and settle rule" among `createSpringElectrical`'s deliverables.

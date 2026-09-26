@@ -251,7 +251,7 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
         {
             // the settle counter is never reset: with settleThreshold 0 the oracle keeps 0, the mutant counts every iteration (visible at the K1 fold of iteration 2)
             name: "settled-count-never-reset",
-            find: "S.settledCount = select(0u, S.settledCount + 1u, meanDisp <= P.settleThreshold * S.rmsRadius);",
+            find: "S.settledCount = select(0u, S.settledCount + 1u, meanDisp <= min(P.settleThreshold * S.rmsRadius, P.settleFloor));",
             replace: "S.settledCount = S.settledCount + 1u;",
             minFactor: 10,
             test: INSPECT_TEST,
@@ -691,10 +691,10 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
     ]),
     "grid-cell-key": Object.freeze([
         {
-            // the design's named mutation: an outside node lands in the last real cell instead of the pseudo-cell
+            // the design's named mutation: an outside node lands in a real cell instead of its orthant pseudo-cell
             name: "pseudo-cell-dropped",
-            find: "var key = cells;",
-            replace: "var key = cells - 1u;",
+            find: "var key = cells + select(0u, 1u, c.x >= g / 2)",
+            replace: "var key = cells - 1u + select(0u, 1u, c.x >= g / 2)",
             minFactor: 10,
             test: GRID_TEST,
         },
@@ -727,7 +727,7 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
         },
         {
             name: "pseudo-cell-skipped",
-            find: "if (c > grid_cells()) { return; }",
+            find: "if (c >= grid_cells() + select(4u, 8u, P.dim == 3u)) { return; }",
             replace: "if (c >= grid_cells()) { return; }",
             minFactor: 10,
             test: PYRAMID_TEST,
@@ -793,9 +793,9 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
     // the fixture each row's comment names (random20k in 2D unless said otherwise)
     "grid-far-field": Object.freeze([
         {
-            // the design's named mutation: measured on outside5, whose five far nodes ARE the pseudo-cell
+            // the design's named mutation: measured on outside5, whose five far nodes ARE the orthant pseudo-cells
             name: "pseudo-cell-term-dropped",
-            find: "f = f + cell_force(pi, pyramid[grid_cells()]);",
+            find: "f = f + cell_force(pi, pyramid[grid_cells() + o]);",
             replace: "f = f + vec3f(0.0);",
             minFactor: 10,
             test: GRID_INSPECT_TEST,
@@ -803,8 +803,8 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
         {
             // eps^2 dropped from every far-field denominator: the nearest cells of every level are over-weighted
             name: "softening-dropped",
-            find: "let d2 = dot(d, d) + S.eps * S.eps;",
-            replace: "let d2 = dot(d, d);",
+            find: "d2 = d2 + S.eps * S.eps;",
+            replace: "d2 = d2 + 0.0;",
             minFactor: 10,
             test: GRID_INSPECT_TEST,
         },

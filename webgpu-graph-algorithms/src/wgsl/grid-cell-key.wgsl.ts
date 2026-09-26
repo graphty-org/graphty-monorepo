@@ -1,7 +1,8 @@
 /**
  * G1, the `grid-cell-key` kernel body (spec 7.7; P4-T8): the finest cell of every node from the state's robust extent,
  * `floor((p - gridMin) * invCellSize)` (a multiply, correctly rounded everywhere: PD-10), linearised when every axis
- * is in [0, G) and the outside pseudo-cell `cells` otherwise; `cellVal[i] = i`. The clamp before the floor keeps a
+ * is in [0, G), and otherwise one of the 2^dim outside pseudo-cells `cells + orthant`, the orthant of the cell about the
+ * grid centre (bit a set when `c[a] >= G / 2`; issue #90); `cellVal[i] = i`. The clamp before the floor keeps a
  * far-away or NaN coordinate out of an out-of-range float-to-int conversion. Body only; normative text.
  */
 export const gridCellKeyWgsl = /* wgsl */ `
@@ -18,7 +19,8 @@ fn grid_cell_key(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocatio
     let g = i32(P.gridMax);
     var inside = c.x >= 0 && c.x < g && c.y >= 0 && c.y < g;
     if (P.dim == 3u) { inside = inside && c.z >= 0 && c.z < g; }
-    var key = cells;                                               // the outside pseudo-cell (7.7)
+    var key = cells + select(0u, 1u, c.x >= g / 2) + select(0u, 2u, c.y >= g / 2);   // an outside pseudo-cell: its orthant (issue #90)
+    if (P.dim == 3u) { key = key + select(0u, 4u, c.z >= g / 2); }
     if (inside) {
         key = u32(c.x) + P.gridMax * u32(c.y);
         if (P.dim == 3u) { key = key + P.gridMax * P.gridMax * u32(c.z); }

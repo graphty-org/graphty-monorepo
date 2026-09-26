@@ -86,6 +86,12 @@ export interface GraphDataLoadedEvent {
         dataSourceType: string;
         /** What the load did: the endpoint spelling it resolved, and the counts it produced. */
         report: ImportReport;
+        /**
+         * Which load this is about: the id `addDataFromSource`, `loadFromFile` and `loadFromUrl`
+         * resolve to, and that every event about one load carries. Absent on a report about records
+         * handed to a setter, which is not a load.
+         */
+        loadId?: number;
     };
 }
 
@@ -209,6 +215,12 @@ export interface DataLoadingProgressEvent {
      */
     edgeRecordsLoaded: number;
     chunksProcessed: number;
+    /**
+     * Which load this is about: the id `addDataFromSource`, `loadFromFile` and `loadFromUrl`
+     * resolve to, and that every event about one load carries. Absent on a report about records
+     * handed to a setter, which is not a load.
+     */
+    loadId?: number;
 }
 
 export interface DataLoadingErrorEvent {
@@ -220,6 +232,12 @@ export interface DataLoadingErrorEvent {
     nodeId?: unknown;
     edgeId?: string;
     canContinue: boolean;
+    /**
+     * Which load this is about: the id `addDataFromSource`, `loadFromFile` and `loadFromUrl`
+     * resolve to, and that every event about one load carries. Absent on a report about records
+     * handed to a setter, which is not a load.
+     */
+    loadId?: number;
 }
 
 export interface DataLoadingErrorSummaryEvent {
@@ -230,6 +248,12 @@ export interface DataLoadingErrorSummaryEvent {
     message: string;
     suggestion?: string;
     detailedReport: string;
+    /**
+     * Which load this is about: the id `addDataFromSource`, `loadFromFile` and `loadFromUrl`
+     * resolve to, and that every event about one load carries. Absent on a report about records
+     * handed to a setter, which is not a load.
+     */
+    loadId?: number;
 }
 
 export interface DataLoadingCompleteEvent {
@@ -260,6 +284,12 @@ export interface DataLoadingCompleteEvent {
     success: boolean;
     /** What the load did: the endpoint spelling, the repeat policy, and every count. */
     report: ImportReport;
+    /**
+     * Which load this is about: the id `addDataFromSource`, `loadFromFile` and `loadFromUrl`
+     * resolve to, and that every event about one load carries. Absent on a report about records
+     * handed to a setter, which is not a load.
+     */
+    loadId?: number;
 }
 
 /**

@@ -195,6 +195,8 @@ export class Graph implements GraphContext {
     runAlgorithmsOnLoad = false;
     enableDetailedProfiling?: boolean;
     private wasSettled = false; // Track previous settlement state
+    /** How many loads `addDataFromSource` has started; the last one's id. */
+    private loadCount = 0;
     private resizeHandler = (): void => {
         this.engine.resize();
         // If we've already zoomed to fit, re-zoom after resize to ensure content still fits
@@ -1141,13 +1143,57 @@ export class Graph implements GraphContext {
      *
      * A load that fails part-way still paints: the rows that did arrive are in the store and on
      * screen, so leaving them unpainted would be the same defect with a smaller blast radius.
+     *
+     * EVERY LOAD HAS AN ID. The promise resolves to it, and every event about this load --
+     * `data-loading-progress`, `data-loading-complete`, `data-loading-error`, `data-loaded` and
+     * the `error` beside a failure -- carries it as `loadId`, so a consumer that started two loads
+     * can tell whose report is whose.
      * @param type - Type/name of the registered data source
      * @param opts - Options to pass to the data source
-     * @returns Promise that resolves when data is loaded
+     * @param options - How to load
+     * @param options.replace - Replace the graph with what the source holds, but only once all of
+     *     it has parsed: a malformed or empty source rejects and leaves the graph as it was
+     * @returns Promise that resolves to the load's id when data is loaded
      */
-    async addDataFromSource(type: string, opts: object = {}): Promise<void> {
+    async addDataFromSource(
+        type: string,
+        opts: object = {},
+        options?: { replace?: boolean },
+    ): Promise<{ loadId: number }> {
+        return this.loadReserved(type, opts, this.reserveLoad(options?.replace));
+    }
+
+    /**
+     * Give a load its id and its place in line, synchronously, at the moment it was asked for.
+     *
+     * `loadFromFile` and `loadFromUrl` read before they load, so taking the place when the read
+     * finished would let an earlier, slower read overtake a later load. Ids rise in call order.
+     * @param replace - Whether the load replaces the graph
+     * @returns The reservation to hand to `loadReserved`
+     */
+    private reserveLoad(replace = false): { loadId: number; generation: number; replace: boolean } {
+        return { loadId: ++this.loadCount, generation: this.dataManager.beginLoad(replace), replace };
+    }
+
+    /**
+     * Run a load whose place `reserveLoad` already took, then repaint what it loaded.
+     * @param type - Type/name of the registered data source
+     * @param opts - Options to pass to the data source
+     * @param load - The reservation
+     * @param load.loadId - The load's id
+     * @param load.generation - The load's place in line
+     * @param load.replace - Whether the load replaces the graph
+     * @returns The load's id
+     */
+    private async loadReserved(
+        type: string,
+        opts: object,
+        load: { loadId: number; generation: number; replace: boolean },
+    ): Promise<{ loadId: number }> {
+        const { loadId } = load;
         try {
-            await this.dataManager.addDataFromSource(type, opts);
+            await this.dataManager.addDataFromSource(type, opts, load);
+            return { loadId };
         } finally {
             // The load's own failure is the one a caller is told about, so a repaint that throws
             // is reported on the error channel rather than replacing it.
@@ -1156,7 +1202,7 @@ export class Graph implements GraphContext {
                     this,
                     error instanceof Error ? error : new Error(String(error)),
                     "other",
-                    { component: "Graph.addDataFromSource", dataSourceType: type },
+                    { component: "Graph.addDataFromSource", dataSourceType: type, loadId },
                 );
             });
         }
@@ -1171,6 +1217,8 @@ export class Graph implements GraphContext {
      * @param options.edgeSource - Where the node an edge starts at is named in the record. Left
      *     unset, the element reads `source`, then `src`, then `from`
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
+     * @param options.replace - Replace the graph, once the file has parsed; see `addDataFromSource`
+     * @returns Promise that resolves to the load's id when data is loaded
      */
     async loadFromFile(
         file: File,
@@ -1179,8 +1227,10 @@ export class Graph implements GraphContext {
             nodeIdPath?: string;
             edgeSource?: string;
             edgeTarget?: string;
+            replace?: boolean;
         },
-    ): Promise<void> {
+    ): Promise<{ loadId: number }> {
+        const load = this.reserveLoad(options?.replace);
         const { detectFormat } = await import("./data/format-detection.js");
 
         // Detect format if not explicitly provided
@@ -1189,6 +1239,7 @@ export class Graph implements GraphContext {
         if (!format) {
             // Read first 2KB for format detection
             const sample = await file.slice(0, 2048).text();
+            this.dataManager.throwIfSuperseded(load.generation, file.name);
             const detected = detectFormat(file.name, sample);
 
             if (!detected) {
@@ -1202,12 +1253,17 @@ export class Graph implements GraphContext {
         const content = await file.text();
 
         // Load using appropriate DataSource
-        await this.addDataFromSource(format, {
-            data: content,
-            filename: file.name,
-            size: file.size,
-            ...options,
-        });
+        const { replace: _replace, ...sourceOptions } = options ?? {};
+        return this.loadReserved(
+            format,
+            {
+                data: content,
+                filename: file.name,
+                size: file.size,
+                ...sourceOptions,
+            },
+            load,
+        );
     }
 
     /**
@@ -1224,6 +1280,8 @@ export class Graph implements GraphContext {
      * @param options.edgeSource - Where the node an edge starts at is named in the record. Left
      *     unset, the element reads `source`, then `src`, then `from`
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
+     * @param options.replace - Replace the graph, once the data has parsed; see `addDataFromSource`
+     * @returns Promise that resolves to the load's id when data is loaded
      * @example
      * ```typescript
      * // Auto-detect format from extension
@@ -1243,8 +1301,10 @@ export class Graph implements GraphContext {
             nodeIdPath?: string;
             edgeSource?: string;
             edgeTarget?: string;
+            replace?: boolean;
         },
-    ): Promise<void> {
+    ): Promise<{ loadId: number }> {
+        const load = this.reserveLoad(options?.replace);
         const { detectFormat } = await import("./data/format-detection.js");
 
         let format = options?.format;
@@ -1264,6 +1324,7 @@ export class Graph implements GraphContext {
                 }
 
                 fetchedContent = await response.text();
+                this.dataManager.throwIfSuperseded(load.generation, url);
 
                 const sample = fetchedContent.slice(0, 2048);
                 const detectedFromContent = detectFormat(url, sample);
@@ -1292,16 +1353,10 @@ export class Graph implements GraphContext {
         // If we already fetched content for detection, pass it as data to avoid double-fetch
         // Otherwise pass URL and let DataSource handle the fetch
         if (fetchedContent !== undefined) {
-            await this.addDataFromSource(format, {
-                data: fetchedContent,
-                ...mergedOptions,
-            });
-        } else {
-            await this.addDataFromSource(format, {
-                url,
-                ...mergedOptions,
-            });
+            return this.loadReserved(format, { data: fetchedContent, ...mergedOptions }, load);
         }
+
+        return this.loadReserved(format, { url, ...mergedOptions }, load);
     }
 
     /**
@@ -1485,6 +1540,54 @@ export class Graph implements GraphContext {
             },
             {
                 description: `Replacing the graph's edges with ${edges.length}`,
+                ...options,
+            },
+        );
+    }
+
+    /**
+     * Replace every node in the graph with a new set.
+     *
+     * What the `node-data` property does, and the node half of {@link setEdges}. A node whose id is
+     * not in the new set is removed the way {@link removeNodes} removes one, so the edges attached
+     * to it go too. A node whose id IS in the new set keeps its object and its position; its data
+     * is not rewritten. A set past the render ceiling is refused with `E_TOO_LARGE` before a node
+     * is removed, so the graph keeps the nodes it had.
+     * @param nodes - the nodes the graph should hold afterwards
+     * @param idPath - Key to use for node IDs (default: the configured node id path)
+     * @param options - Queue options for operation ordering
+     * @returns Promise that resolves once the graph holds exactly these nodes
+     * @since 2.3.0
+     */
+    async setNodes(
+        nodes: Record<string | number, unknown>[],
+        idPath?: string,
+        options?: QueueableOptions,
+    ): Promise<void> {
+        const replace = async (): Promise<void> => {
+            const keep = new Set(nodes.map((node) => this.dataManager.nodeIdOf(node, idPath)));
+            this.dataManager.refuseNodeSetAboveCeiling(keep.size);
+            const leaving = [...this.dataManager.nodes.keys()].filter((id) => !keep.has(id));
+            await this.removeNodes(leaving, { skipQueue: true });
+            this.dataManager.addNodes(nodes, idPath);
+        };
+
+        if (options?.skipQueue) {
+            await replace();
+            return;
+        }
+
+        await this.operationQueue.queueOperationAsync(
+            "data-add",
+            async (context) => {
+                if (context.signal.aborted) {
+                    throw new Error("Operation cancelled");
+                }
+
+                await replace();
+            },
+            {
+                description: `Replacing the graph's nodes with ${nodes.length}`,
                 ...options,
             },
         );
@@ -2257,6 +2360,8 @@ export class Graph implements GraphContext {
      * ```
      */
     clearData(): void {
+        // A load still in flight would otherwise put its data back after the graph was closed.
+        this.dataManager.supersedeLoads();
         this.dataManager.clear();
     }
 

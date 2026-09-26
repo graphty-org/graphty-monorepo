@@ -1,371 +1,404 @@
-import { NullEngine, Scene, Vector3 } from "@babylonjs/core";
-import { assert, beforeEach, describe, test } from "vitest";
-
-import { RichTextLabel } from "../../src/meshes/RichTextLabel";
-
 /**
- * Regression tests for zoomToFit bounding box calculation.
+ * @file Zoom-to-fit frames the nodes AND their labels; a label edit leaves the camera alone.
  *
- * These tests ensure that:
- * 1. Labels are included in bounding box calculations
- * 2. Node labels expand the bounding box appropriately
- * 3. Edge labels (including arrow text) expand the bounding box
- * 4. The camera zooms to fit all visible content, not just nodes
- *
- * Bug history:
- * - zoomToFit only considered node positions, ignoring labels
- * - Labels positioned above/below nodes were clipped in the viewport
- * - Arrow head/tail text labels were not included in bounding box
+ * The box the camera is framed on is the visible nodes out to their size, grown by every label
+ * plane's world bounds -- wherever the label is anchored -- so no label is cut off by the edge of
+ * the viewport. A label's size depends on its text and font, which is why framing runs on data
+ * loads and layout changes and never on a label edit (#76): after the graph has settled, changing a
+ * label's words, colour, size, anchor or offset must leave the camera exactly where it was.
  */
-describe("zoomToFit Bounding Box Regression Tests", () => {
-    let scene: Scene;
 
-    beforeEach(() => {
-        const engine = new NullEngine();
-        scene = new Scene(engine);
+import { Matrix, Vector3 } from "@babylonjs/core";
+import { afterEach, assert, beforeEach, describe, it } from "vitest";
+
+import type { LabelStyle } from "../../src/catalog/types";
+import { Graph } from "../../src/Graph";
+import { framingBox, nodeFramingBox } from "../../src/managers/UpdateManager";
+
+/** Three nodes at fixed places, so the only thing that can change the framing is the labels. */
+const NODES = [
+    { id: "a", position: { x: -4, y: 0, z: 0 } },
+    { id: "b", position: { x: 4, y: 0, z: 0 } },
+    { id: "c", position: { x: 0, y: 3, z: 0 } },
+];
+
+/** Three nodes so close that a label reaches well past the node box on a small viewport. */
+const PILED = [
+    { id: "a", position: { x: 0, y: 0, z: 0 } },
+    { id: "b", position: { x: -0.3, y: 0.1, z: 0 } },
+    { id: "c", position: { x: 0.3, y: -0.1, z: 0 } },
+];
+
+/** Every anchor the label style lets a reader choose. */
+const LOCATIONS = [
+    "top",
+    "bottom",
+    "left",
+    "right",
+    "top-left",
+    "top-right",
+    "bottom-left",
+    "bottom-right",
+    "center",
+] as const;
+
+/** How long to wait for a framing before giving up. */
+const FRAMING_TIMEOUT_MS = 5000;
+
+/** Room for a cold start, nine anchors and two view modes. */
+const CASE_TIMEOUT_MS = 30000;
+
+/** A box, as the element reports one. */
+interface Box {
+    min: Vector3;
+    max: Vector3;
+}
+
+describe("zoom-to-fit framing", () => {
+    let container: HTMLElement;
+    let graph: Graph;
+    let framings: number;
+
+    /**
+     * Build a graph from the given nodes and lay it out where they say.
+     * @param nodes - The nodes.
+     * @param viewMode - "2d" for the orthographic camera; the default is the 3D orbit.
+     */
+    async function build(nodes: typeof NODES, viewMode?: "2d"): Promise<void> {
+        container = document.createElement("div");
+        container.style.width = "640px";
+        container.style.height = "480px";
+        document.body.appendChild(container);
+        graph = new Graph(container);
+        await graph.init();
+
+        framings = 0;
+        graph.on("zoom-to-fit-complete", () => {
+            framings++;
+        });
+
+        await graph.addNodes(nodes);
+        await graph.addEdges([{ src: "a", dst: "b" }]);
+        await graph.setLayout("fixed", { dim: 3 });
+        if (viewMode) {
+            await graph.setViewMode(viewMode);
+        }
+        await graph.operationQueue.waitForCompletion();
+    }
+
+    afterEach(() => {
+        graph.dispose();
+        container.remove();
     });
 
-    describe("Label bounding box expansion", () => {
-        test("label mesh has valid bounding info", () => {
-            const label = new RichTextLabel(scene, {
-                text: "Test Label",
-                fontSize: 24,
+    /**
+     * Let the element draw a few frames.
+     * @param frames - How many.
+     */
+    async function draw(frames = 5): Promise<void> {
+        for (let at = 0; at < frames; at++) {
+            graph.scene.render();
+            await new Promise<void>((done) => {
+                setTimeout(done, 10);
+            });
+        }
+    }
+
+    /**
+     * Ask the element to fit the graph and wait for it to do so.
+     * @returns The box it framed.
+     */
+    async function frame(): Promise<Box> {
+        await graph.operationQueue.waitForCompletion();
+
+        const box = await new Promise<Box>((done, fail) => {
+            const timer = setTimeout(() => {
+                off();
+                fail(new Error("the element never framed the graph"));
+            }, FRAMING_TIMEOUT_MS);
+
+            const off = graph.on("zoom-to-fit-complete", (event) => {
+                if (
+                    !("boundingBoxMin" in event) ||
+                    !(event.boundingBoxMin instanceof Vector3) ||
+                    !(event.boundingBoxMax instanceof Vector3)
+                ) {
+                    return;
+                }
+
+                clearTimeout(timer);
+                off();
+                done({ min: event.boundingBoxMin.clone(), max: event.boundingBoxMax.clone() });
             });
 
-            const { labelMesh } = label;
-            assert.exists(labelMesh);
-
-            const boundingInfo = labelMesh.getBoundingInfo();
-            assert.exists(boundingInfo);
-            assert.exists(boundingInfo.boundingBox);
-
-            const { minimumWorld: min, maximumWorld: max } = boundingInfo.boundingBox;
-
-            // Bounding box should have valid dimensions
-            assert.isTrue(max.x >= min.x, "Max X should be >= Min X");
-            assert.isTrue(max.y >= min.y, "Max Y should be >= Min Y");
-            assert.isTrue(max.z >= min.z, "Max Z should be >= Min Z");
-
-            label.dispose();
+            graph.zoomToFit();
         });
 
-        test("attached label bounding box reflects its position", () => {
-            const label = new RichTextLabel(scene, {
-                text: "Test",
-                fontSize: 24,
+        // Let the frame that applied the framing finish, then let the camera come to rest.
+        await draw();
+
+        return box;
+    }
+
+    /**
+     * Put a label with the given words and style on every node.
+     * @param text - The words.
+     * @param style - The typography and anchor.
+     */
+    async function label(text: string, style: LabelStyle = {}): Promise<void> {
+        const layer = graph
+            .getSession()
+            .styles.list()
+            .find((entry) => entry.name === "labels");
+        const set = { "node.label": text, "node.labelStyle": style };
+
+        if (layer) {
+            await graph.getSession().styles.update(layer.id, { set });
+        } else {
+            await graph.getSession().styles.add({
+                name: "labels",
+                target: "node",
+                selector: { match: "everything" },
+                set,
             });
+        }
 
-            // Attach label above origin with offset
-            const targetPos = new Vector3(0, 0, 0);
-            label.attachTo(targetPos, "top", 5.0);
+        await graph.operationQueue.waitForCompletion();
 
-            const { labelMesh } = label;
-            assert.exists(labelMesh);
+        // A label is built by the frame that next updates its node.
+        await draw();
 
-            const boundingInfo = labelMesh.getBoundingInfo();
-            const { maximumWorld: maxWorld } = boundingInfo.boundingBox;
+        assert.isOk(graph.getNode("a")?.label?.labelMesh, "the label was drawn");
+    }
 
-            // The label should be positioned above the target
-            // So its max Y should be greater than the target Y + offset
-            assert.isTrue(maxWorld.y > 0, "Label max Y should be above origin");
+    /**
+     * Give the one edge a label and arrow captions.
+     * @param text - The words on all three.
+     */
+    async function edgeLabel(text: string): Promise<void> {
+        await graph.getSession().styles.add({
+            name: "edge labels",
+            target: "edge",
+            selector: { match: "everything" },
+            set: {
+                "edge.label": text,
+                "edge.arrowHead": "normal",
+                "edge.arrowHeadText": text,
+                "edge.arrowTail": "normal",
+                "edge.arrowTailText": text,
+            },
+        });
+        await graph.operationQueue.waitForCompletion();
+        await draw();
+    }
 
-            label.dispose();
+    /**
+     * The world bounds of every label plane on screen, keyed by what it belongs to.
+     * @returns The bounds.
+     */
+    function labelBounds(): Map<string, Box> {
+        const bounds = new Map<string, Box>();
+
+        for (const node of graph.getNodes()) {
+            const mesh = node.label?.labelMesh;
+            if (mesh) {
+                mesh.computeWorldMatrix(true);
+                const { minimumWorld, maximumWorld } = mesh.getBoundingInfo().boundingBox;
+                bounds.set(`node ${String(node.id)}`, { min: minimumWorld.clone(), max: maximumWorld.clone() });
+            }
+        }
+
+        for (const edge of graph.getLayoutManager().edges) {
+            for (const [what, rich] of [
+                ["label", edge.label],
+                ["arrow head", edge.arrowHeadText],
+                ["arrow tail", edge.arrowTailText],
+            ] as const) {
+                const mesh = rich?.labelMesh;
+                if (mesh) {
+                    mesh.computeWorldMatrix(true);
+                    const { minimumWorld, maximumWorld } = mesh.getBoundingInfo().boundingBox;
+                    bounds.set(`edge ${what}`, { min: minimumWorld.clone(), max: maximumWorld.clone() });
+                }
+            }
+        }
+
+        return bounds;
+    }
+
+    /**
+     * Assert a box takes in another.
+     * @param outer - The box that must contain the other.
+     * @param inner - The box inside it.
+     * @param what - The inner box, for the message.
+     */
+    function assertContains(outer: Box, inner: Box, what: string): void {
+        for (const axis of ["x", "y", "z"] as const) {
+            assert.isAtMost(outer.min[axis], inner.min[axis] + 1e-4, `${what}: min ${axis} is inside the box`);
+            assert.isAtLeast(outer.max[axis], inner.max[axis] - 1e-4, `${what}: max ${axis} is inside the box`);
+        }
+    }
+
+    /**
+     * The camera, as a string two states can be compared by.
+     * @returns The state.
+     */
+    function camera(): string {
+        return JSON.stringify(graph.getCameraState());
+    }
+
+    describe("the box", () => {
+        beforeEach(async () => {
+            await build(NODES);
         });
 
-        test("label at offset position expands bounding box correctly", () => {
-            const label = new RichTextLabel(scene, {
-                text: "Test",
-                fontSize: 24,
-            });
+        it("is the nodes out to their size when nothing is labelled", async () => {
+            const box = await frame();
+            const half = (graph.getNode("a")?.size ?? 0) / 2;
 
-            // First, check the label mesh position directly
-            const targetPos = new Vector3(0, 2, 0);
-            label.attachTo(targetPos, "top", 1.0);
-
-            const { labelMesh } = label;
-            assert.exists(labelMesh);
-
-            // The mesh position should be above the target
-            const { position: meshPos } = labelMesh;
-            assert.isTrue(meshPos.y > 2, "Mesh position Y should be above target Y=2");
-
-            label.dispose();
+            assert.closeTo(box.min.x, -4 - half, 1e-4);
+            assert.closeTo(box.max.x, 4 + half, 1e-4);
+            assert.closeTo(box.min.y, 0 - half, 1e-4);
+            assert.closeTo(box.max.y, 3 + half, 1e-4);
         });
+
+        it(
+            "takes in every node label wherever it is anchored, and reaches past the nodes on that side",
+            async () => {
+                for (const location of LOCATIONS) {
+                    await label(`A label at ${location}`, { location });
+                    const box = await frame();
+                    const nodesOnly = nodeFramingBox(graph.getNodes());
+                    assert.isDefined(nodesOnly);
+
+                    for (const [what, bounds] of labelBounds()) {
+                        assertContains(box, bounds, `${location}: ${what}`);
+                    }
+
+                    if (location.includes("top")) {
+                        assert.isAbove(box.max.y, nodesOnly.max.y, `${location}: the box grew upwards`);
+                    }
+                    if (location.includes("bottom")) {
+                        assert.isBelow(box.min.y, nodesOnly.min.y, `${location}: the box grew downwards`);
+                    }
+                    if (location.includes("left")) {
+                        assert.isBelow(box.min.x, nodesOnly.min.x, `${location}: the box grew to the left`);
+                    }
+                    if (location.includes("right")) {
+                        assert.isAbove(box.max.x, nodesOnly.max.x, `${location}: the box grew to the right`);
+                    }
+                }
+            },
+            CASE_TIMEOUT_MS,
+        );
+
+        it("reaches as far as an offset pushes a label", async () => {
+            await label("Far", { location: "top", attachOffset: 3 });
+            const box = await frame();
+            const nodesOnly = nodeFramingBox(graph.getNodes());
+            assert.isDefined(nodesOnly);
+
+            // The label's bottom edge sits the offset above the node; the plane is on top of that.
+            assert.isAtLeast(box.max.y, nodesOnly.max.y + 3, "the box reaches the offset label");
+        });
+
+        it("takes in an edge's label and arrow captions", async () => {
+            await edgeLabel("A caption long enough to stick out");
+            const box = await frame();
+            const bounds = labelBounds();
+
+            assert.sameMembers([...bounds.keys()], ["edge label", "edge arrow head", "edge arrow tail"]);
+            for (const [what, each] of bounds) {
+                assertContains(box, each, what);
+            }
+        });
+
+        it("is the box the exported function measures", async () => {
+            await label("Words", { location: "bottom-right" });
+            await edgeLabel("More words");
+            const box = await frame();
+            const measured = framingBox(graph.getNodes(), graph.getLayoutManager().edges);
+            assert.isDefined(measured);
+
+            for (const axis of ["x", "y", "z"] as const) {
+                assert.closeTo(box.min[axis], measured.min[axis], 1e-6, `min ${axis}`);
+                assert.closeTo(box.max[axis], measured.max[axis], 1e-6, `max ${axis}`);
+            }
+        });
+
     });
 
-    describe("Bounding box helper function behavior", () => {
-        test("expandBoundingBoxForLabel expands min/max correctly", () => {
-            // This tests the logic that should be in UpdateManager.expandBoundingBoxForLabel
-            const label = new RichTextLabel(scene, {
-                text: "Wide Label Text Here",
-                fontSize: 48,
-            });
+    for (const viewMode of [undefined, "2d"] as const) {
+        const mode = viewMode ?? "3d";
 
-            // Position label at a specific location (using realistic coordinates)
-            label.attachTo(new Vector3(5, 5, 0), "top", 1);
+        describe(`every label stays on screen in ${mode}`, () => {
+            it(
+                "after zoom-to-fit on a small graph, at every anchor",
+                async () => {
+                    await build(PILED, viewMode);
 
-            const { labelMesh } = label;
-            assert.exists(labelMesh);
+                    for (const location of LOCATIONS) {
+                        await label(`Label ${location}`, { location });
+                        await frame();
 
-            // Check the mesh position directly - should be at (5, 5+offset+halfHeight)
-            const { position: meshPos } = labelMesh;
-            assert.isTrue(meshPos.x === 5, "Mesh position X should be at target X=5");
-            assert.isTrue(meshPos.y > 5, "Mesh position Y should be above target Y=5");
+                        const scene = graph.getScene();
+                        const engine = scene.getEngine();
+                        const width = engine.getRenderWidth();
+                        const height = engine.getRenderHeight();
+                        const camera = scene.activeCamera;
+                        assert.isNotNull(camera);
+                        const viewport = camera.viewport.toGlobal(width, height);
 
-            // Simulate the expand logic with initial bounding box at origin
-            const boundingBoxMin = new Vector3(0, 0, 0);
-            const boundingBoxMax = new Vector3(1, 1, 0);
-
-            // The bounding box should expand to include the label's mesh position
-            boundingBoxMin.x = Math.min(boundingBoxMin.x, meshPos.x - 1);
-            boundingBoxMax.x = Math.max(boundingBoxMax.x, meshPos.x + 1);
-            boundingBoxMin.y = Math.min(boundingBoxMin.y, meshPos.y - 1);
-            boundingBoxMax.y = Math.max(boundingBoxMax.y, meshPos.y + 1);
-
-            // Bounding box should now include the label
-            assert.isTrue(boundingBoxMax.x > 1, "Max X should have expanded to include label");
-            assert.isTrue(boundingBoxMax.y > 1, "Max Y should have expanded to include label");
-
-            label.dispose();
+                        for (const [what, bounds] of labelBounds()) {
+                            for (const corner of [bounds.min, bounds.max]) {
+                                const on = Vector3.Project(
+                                    corner,
+                                    Matrix.Identity(),
+                                    scene.getTransformMatrix(),
+                                    viewport,
+                                );
+                                assert.isAtLeast(on.x, 0, `${location}: ${what} is inside the left edge`);
+                                assert.isAtMost(on.x, width, `${location}: ${what} is inside the right edge`);
+                                assert.isAtLeast(on.y, 0, `${location}: ${what} is inside the top edge`);
+                                assert.isAtMost(on.y, height, `${location}: ${what} is inside the bottom edge`);
+                            }
+                        }
+                    }
+                },
+                CASE_TIMEOUT_MS,
+            );
         });
 
-        test("labels at various positions all expand bounding box", () => {
-            const positions: { target: Vector3; attach: "top" | "bottom" | "left" | "right"; offset: number }[] = [
-                { target: new Vector3(0, 5, 0), attach: "top", offset: 1 }, // Above
-                { target: new Vector3(0, -5, 0), attach: "bottom", offset: 1 }, // Below
-                { target: new Vector3(5, 0, 0), attach: "right", offset: 1 }, // Right
-                { target: new Vector3(-5, 0, 0), attach: "left", offset: 1 }, // Left
+        describe(`a label edit after the graph has settled, in ${mode}`, () => {
+            beforeEach(async () => {
+                await build(NODES, viewMode);
+                await label("Before", { location: "top" });
+                await frame();
+                await draw();
+            });
+
+            const edits: [string, string, LabelStyle][] = [
+                ["the words", "A much longer label\nover two lines", { location: "top" }],
+                ["the colour", "Before", { location: "top", color: "#ff0000" }],
+                ["the size", "Before", { location: "top", sizePx: 96 }],
+                ["the anchor, bottom", "Before", { location: "bottom" }],
+                ["the anchor, left", "Before", { location: "left" }],
+                ["the anchor, right", "Before", { location: "right" }],
+                ["the offset", "Before", { location: "top", attachOffset: 4 }],
             ];
 
-            const labels: RichTextLabel[] = [];
+            for (const [what, text, style] of edits) {
+                it(`leaves the camera where it was when ${what} changes`, async () => {
+                    const before = camera();
+                    const framed = framings;
 
-            for (const pos of positions) {
-                const label = new RichTextLabel(scene, {
-                    text: "Test",
-                    fontSize: 24,
+                    await label(text, style);
+                    await draw(10);
+
+                    assert.strictEqual(framings, framed, "the element did not re-frame the graph");
+                    assert.strictEqual(camera(), before, "the camera has not moved");
                 });
-                label.attachTo(pos.target, pos.attach, pos.offset);
-                labels.push(label);
-            }
-
-            // Calculate combined bounding box using mesh positions
-            let maxX = -Infinity;
-            let maxY = -Infinity;
-            let minX = Infinity;
-            let minY = Infinity;
-
-            for (const label of labels) {
-                const mesh = label.labelMesh;
-                if (mesh) {
-                    const pos = mesh.position;
-                    minX = Math.min(minX, pos.x);
-                    minY = Math.min(minY, pos.y);
-                    maxX = Math.max(maxX, pos.x);
-                    maxY = Math.max(maxY, pos.y);
-                }
-            }
-
-            // The combined bounding box should span an area including all label positions
-            // Labels at +/-5 in X and Y should give span > 8 (accounting for offset)
-            assert.isTrue(maxX - minX > 8, "X span should include labels on left and right");
-            assert.isTrue(maxY - minY > 8, "Y span should include labels on top and bottom");
-
-            // Cleanup
-            for (const label of labels) {
-                label.dispose();
             }
         });
-    });
-
-    describe("Edge case: labels larger than nodes", () => {
-        test("large label text creates larger bounding box than node alone", () => {
-            const label = new RichTextLabel(scene, {
-                text: "This is a very long label that spans much wider than a typical node",
-                fontSize: 48,
-            });
-
-            label.attachTo(new Vector3(0, 0, 0), "top", 2);
-
-            const mesh = label.labelMesh;
-            assert.exists(mesh);
-
-            const info = mesh.getBoundingInfo();
-            const min = info.boundingBox.minimumWorld;
-            const max = info.boundingBox.maximumWorld;
-
-            // Label width should be substantial
-            const width = max.x - min.x;
-            assert.isTrue(width > 1, "Wide label should have significant width");
-
-            label.dispose();
-        });
-
-        test("multiple lines increase label height", () => {
-            const singleLineLabel = new RichTextLabel(scene, {
-                text: "Single Line",
-                fontSize: 24,
-            });
-
-            // Note: RichTextLabel may support multi-line via \n or explicit height
-            // For now, test that different font sizes affect height
-            const largeFontLabel = new RichTextLabel(scene, {
-                text: "Large Font",
-                fontSize: 96,
-            });
-
-            const smallInfo = singleLineLabel.labelMesh?.getBoundingInfo();
-            const largeInfo = largeFontLabel.labelMesh?.getBoundingInfo();
-
-            assert.exists(smallInfo);
-            assert.exists(largeInfo);
-
-            const smallHeight = smallInfo.boundingBox.maximumWorld.y - smallInfo.boundingBox.minimumWorld.y;
-            const largeHeight = largeInfo.boundingBox.maximumWorld.y - largeInfo.boundingBox.minimumWorld.y;
-
-            assert.isTrue(largeHeight > smallHeight, "Larger font should produce taller bounding box");
-
-            singleLineLabel.dispose();
-            largeFontLabel.dispose();
-        });
-    });
-
-    describe("Edge case: negative positions and offsets", () => {
-        test("label with negative position is included in bounding box", () => {
-            const label = new RichTextLabel(scene, {
-                text: "Negative Position",
-                fontSize: 24,
-            });
-
-            label.attachTo(new Vector3(-100, -100, 0), "center", 0);
-
-            const mesh = label.labelMesh;
-            assert.exists(mesh);
-
-            const info = mesh.getBoundingInfo();
-            const min = info.boundingBox.minimumWorld;
-
-            // Min should be around -100 (or less)
-            assert.isTrue(min.x < 0, "Min X should be negative");
-            assert.isTrue(min.y < 0, "Min Y should be negative");
-
-            label.dispose();
-        });
-
-        test("label with negative offset moves toward target", () => {
-            const labelPositive = new RichTextLabel(scene, { text: "Pos", fontSize: 24 });
-            const labelNegative = new RichTextLabel(scene, { text: "Neg", fontSize: 24 });
-
-            const target = new Vector3(0, 0, 0);
-
-            labelPositive.attachTo(target, "top", 5.0);
-            labelNegative.attachTo(target, "top", -2.0);
-
-            const posY = labelPositive.labelMesh?.position.y ?? 0;
-            const negY = labelNegative.labelMesh?.position.y ?? 0;
-
-            // Negative offset should place label lower (closer to or below target)
-            assert.isTrue(negY < posY, "Negative offset should place label lower");
-
-            labelPositive.dispose();
-            labelNegative.dispose();
-        });
-    });
-
-    describe("Integration: multiple label types", () => {
-        test("node-style and edge-style labels both expand bounding box", () => {
-            // Simulate a node label (attached to node position)
-            const nodeLabel = new RichTextLabel(scene, {
-                text: "Node Label",
-                fontSize: 24,
-            });
-            nodeLabel.attachTo(new Vector3(0, 0, 0), "top", 3);
-
-            // Simulate an arrow head label (attached to edge endpoint)
-            const arrowHeadLabel = new RichTextLabel(scene, {
-                text: "Arrow Head",
-                fontSize: 16,
-            });
-            arrowHeadLabel.attachTo(new Vector3(10, 0, 0), "top", 1);
-
-            // Simulate an arrow tail label
-            const arrowTailLabel = new RichTextLabel(scene, {
-                text: "Arrow Tail",
-                fontSize: 16,
-            });
-            arrowTailLabel.attachTo(new Vector3(-10, 0, 0), "top", 1);
-
-            // Simulate an edge label (at midpoint)
-            const edgeLabel = new RichTextLabel(scene, {
-                text: "Edge Label",
-                fontSize: 18,
-            });
-            edgeLabel.attachTo(new Vector3(0, 5, 0), "center", 0);
-
-            // All labels should have valid meshes
-            assert.exists(nodeLabel.labelMesh);
-            assert.exists(arrowHeadLabel.labelMesh);
-            assert.exists(arrowTailLabel.labelMesh);
-            assert.exists(edgeLabel.labelMesh);
-
-            // Calculate combined bounding box
-            const labels = [nodeLabel, arrowHeadLabel, arrowTailLabel, edgeLabel];
-            let maxX = -Infinity;
-            let minX = Infinity;
-
-            for (const label of labels) {
-                const mesh = label.labelMesh;
-                if (mesh) {
-                    const info = mesh.getBoundingInfo();
-                    minX = Math.min(minX, info.boundingBox.minimumWorld.x);
-                    maxX = Math.max(maxX, info.boundingBox.maximumWorld.x);
-                }
-            }
-
-            // Bounding box should span from arrow tail (-10) to arrow head (+10)
-            assert.isTrue(minX < 0, "Min X should include arrow tail");
-            assert.isTrue(maxX > 0, "Max X should include arrow head");
-
-            // Cleanup
-            for (const label of labels) {
-                label.dispose();
-            }
-        });
-    });
-
-    describe("Performance consideration: empty label handling", () => {
-        test("label with empty text still has valid bounding box", () => {
-            const label = new RichTextLabel(scene, {
-                text: "",
-                fontSize: 24,
-            });
-
-            // Empty label should still have a mesh and bounding info
-            // (or gracefully handle the empty case)
-            const mesh = label.labelMesh;
-            if (mesh) {
-                const info = mesh.getBoundingInfo();
-                assert.exists(info.boundingBox);
-            }
-
-            label.dispose();
-        });
-
-        test("disposed label should not affect bounding box calculation", () => {
-            const label = new RichTextLabel(scene, {
-                text: "Test",
-                fontSize: 24,
-            });
-
-            label.attachTo(new Vector3(100, 100, 0), "top", 5);
-
-            // Dispose the label
-            label.dispose();
-
-            // After disposal, labelMesh should indicate it's disposed
-            const mesh = label.labelMesh;
-            if (mesh) {
-                assert.isTrue(mesh.isDisposed(), "Mesh should be disposed");
-            }
-        });
-    });
+    }
 });

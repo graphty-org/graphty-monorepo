@@ -627,3 +627,63 @@ describe("a stack that outlives its dataset", () => {
         assert.isTrue(stack.every((layer) => layer.locked));
     });
 });
+
+/**
+ * A NODE REMOVED UNDER A LIVE STACK.
+ *
+ * The engine keeps what each layer painted, and each element's paint, by dense index. Removing a
+ * node freezes a new snapshot, so both have to be worked out again in the new index space before
+ * anything relies on them -- otherwise a later `runs.remove` has no record of what its layer
+ * painted and leaves the paint on the survivors, and until then every node after the removed one
+ * shows the paint of the node that used to sit at its index.
+ */
+describe("a stack over a graph a node was removed from", () => {
+    /**
+     * The colour the element paints one node, at its index in the current snapshot.
+     *
+     * Read through the snapshot rather than `Node.index` so the freeze that renumbers the
+     * survivors has happened, as it has for every session read.
+     * @param id - The node id.
+     * @returns The colour, serialized so two can be compared.
+     */
+    function colorOf(id: string): string {
+        const index = session.data.snapshot().ids.indexOf(id);
+
+        assert.isAtLeast(index, 0, `node ${id} is in the graph`);
+
+        return JSON.stringify(graph.getStylePainter().nodePaint(index)?.color ?? null);
+    }
+
+    it("takes a removed run's paint back from every surviving node", async () => {
+        const base = colorOf("a");
+        const run = session.runs.start("degree", {}, { as: "degree" });
+        await run;
+        await session.styles.encode({ run: run.id, channel: "node.color" });
+        assert.notStrictEqual(colorOf("a"), base, "the encoding painted a");
+
+        await graph.removeNodes(["f"]);
+        session.runs.remove(run.id);
+        await graph.operationQueue.waitForCompletion();
+
+        for (const id of ["a", "b", "c", "d", "e"]) {
+            assert.strictEqual(colorOf(id), base, `node ${id} is back to the colour beneath the layer`);
+        }
+    });
+
+    it("keeps each survivor's own paint after a node in the middle goes", async () => {
+        const run = session.runs.start("degree", {}, { as: "degree" });
+        await run;
+        await session.styles.encode({ run: run.id, channel: "node.color" });
+        const survivors = ["a", "c", "d", "e", "f"];
+        const before = new Map(survivors.map((id) => [id, colorOf(id)]));
+
+        // b sits at index 1, so every node after it moves down one index. The run's measurements
+        // are kept by node, so each survivor still carries the degree it was painted from.
+        await graph.removeNodes(["b"]);
+        await graph.operationQueue.waitForCompletion();
+
+        for (const id of survivors) {
+            assert.strictEqual(colorOf(id), before.get(id), `node ${id} shows its own paint, not its neighbour's`);
+        }
+    });
+});

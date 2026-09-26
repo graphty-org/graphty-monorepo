@@ -1,4 +1,4 @@
-import { cloneDeep, defaultsDeep } from "lodash";
+import { cloneDeep, defaultsDeep, get } from "lodash";
 
 import { BadgeStyleManager } from "../BadgeStyleManager";
 import type { LabelBadge } from "../catalog/label-style";
@@ -389,7 +389,36 @@ function edgePaintOf(resolved: ResolvedStyle, meshKey: number): EdgePaint {
     const opacity = resolved["edge.opacity"];
     const identity = `s${String(meshKey)}|${color?.hex ?? ""}|${opacity === undefined ? "" : String(opacity)}`;
 
-    return { meshKey: identity, style: defaultsDeep(bag, cloneDeep(EDGE_BASE)) as EdgeStyleConfig };
+    return { meshKey: identity, style: spellEdgeColours(defaultsDeep(bag, cloneDeep(EDGE_BASE)) as EdgeStyleConfig) };
+}
+
+/** The colour fields of an edge style, each a hex string when set. */
+const EDGE_COLOUR_PATHS = ["line.color", "arrowHead.color", "arrowTail.color"] as const;
+
+/**
+ * Spell every colour of an edge style the way the engine spells a resolved one: lowercase hex.
+ *
+ * ONE SPELLING, WHOEVER WROTE THE COLOUR. A colour a layer resolved arrives as the engine's
+ * lowercase hex; one nothing resolved is filled in from `defaultEdgeStyle`, whose grey the schema
+ * parses to `#A9A9A9`. `Edge.paintFrom` decides whether a pass has to rebuild an edge by comparing
+ * the pass's style with the one the edge was built from, and two spellings of one colour read as
+ * two styles -- which, between the bootstrap paint and the first pass, rebuilt every edge of every
+ * load once, and Babylon's dispose costs the size of the scene (issue #388). So both the bootstrap
+ * paint and every resolved paint go through this.
+ * @param style - The filled-out style; edited in place and returned.
+ * @returns The same style.
+ */
+function spellEdgeColours(style: EdgeStyleConfig): EdgeStyleConfig {
+    for (const path of EDGE_COLOUR_PATHS) {
+        const raw: unknown = get(style, path);
+        const painted = toColorValue(typeof raw === "string" ? raw : undefined);
+
+        if (painted !== null) {
+            setAtPath(style as unknown as Record<string, unknown>, path, painted.hex);
+        }
+    }
+
+    return style;
 }
 
 /**
@@ -465,7 +494,11 @@ export function bootstrapNodePaint(): NodePaint {
  * @returns The element's own default edge paint. The same object every call.
  */
 export function bootstrapEdgePaint(): EdgePaint {
-    bootstrapEdge ??= { meshKey: BOOTSTRAP_MESH_KEY, style: cloneDeep(EDGE_BASE) };
+    if (bootstrapEdge === null) {
+        // Spelled as a resolved paint is (see spellEdgeColours), so the first pass finds the
+        // placeholder deep-equal to what it hands an untouched edge and rebuilds nothing.
+        bootstrapEdge = { meshKey: BOOTSTRAP_MESH_KEY, style: spellEdgeColours(cloneDeep(EDGE_BASE)) };
+    }
 
     return bootstrapEdge;
 }
@@ -572,6 +605,18 @@ export class StylePainter {
      */
     get hasPending(): boolean {
         return this.pendingNodes.size > 0 || this.pendingEdges.size > 0;
+    }
+
+    /**
+     * Whether a style pass is still on its way: asked for, and not yet announced.
+     *
+     * Different from {@link StylePainter.hasPending}, which is paint that has ARRIVED and not been
+     * drawn. This is paint that has not arrived yet, and what it will change -- a colour, a size,
+     * the box the camera frames -- is not known until it does.
+     * @returns True while the bound pass is painting or queued to paint.
+     */
+    get isPainting(): boolean {
+        return this.paint?.painting() ?? false;
     }
 
     /**

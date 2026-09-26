@@ -461,15 +461,15 @@ export class RichTextLabel {
             }
         }
 
-        this.texture = new DynamicTexture(
-            `richTextTexture_${this.id}`,
-            {
-                width: textureWidth,
-                height: textureHeight,
-            },
-            this.scene,
-            true,
-        );
+        // RASTERISED ON THE CPU. Chromium draws an ordinary 2D canvas on the GPU, and on a
+        // software GPU (SwiftShader: headless browsers, visual-review services) the antialiased
+        // edge of large text differs by one alpha level at scattered pixels from one page load
+        // to the next, so the same label drew a slightly different picture on every load.
+        // `willReadFrequently` keeps the canvas on the CPU, which draws the same pixels every
+        // time. A canvas has one context for life, so Babylon's own getContext("2d") gets this one.
+        const canvas = this.scene.getEngine().createCanvas(textureWidth, textureHeight);
+        canvas.getContext("2d", { willReadFrequently: true });
+        this.texture = new DynamicTexture(`richTextTexture_${this.id}`, canvas, this.scene, true);
 
         this.texture.hasAlpha = true;
         this.texture.updateSamplingMode(Texture.TRILINEAR_SAMPLINGMODE);

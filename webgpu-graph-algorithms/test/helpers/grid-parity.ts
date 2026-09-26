@@ -284,7 +284,13 @@ export interface GridNoiseFixtureName {
  * floor covers more than one geometry): `k1Isolated`, the K1 grid block on the UNSCALED isolated fixture in 2D,
  * whose first grid iteration throws the layout to a radius near 200 and makes the f32 fold of `sum |p - c|^2`
  * (K5's partials, folded by K1 into the rmsRadius the extent is taken from) 3e-6 from the f64 fold on the RTX
- * 4070 SUPER where random20k's is 9e-8 (measured at P4-T11; 9e-8 on lavapipe for both).
+ * 4070 SUPER where random20k's is 9e-8 (measured at P4-T11; 9e-8 on lavapipe for both). And `positionsClumpy`, the
+ * K5 positions on the UNSCALED clumpy100 fixture in 2D: its 100 blobs of sigma 0.02 put far-field centroids within
+ * the 0.01 distance floor of their nodes (issue #89), where random20k's uniform scatter barely reaches it. The floor
+ * trims those near-singular terms, the total left over is a sum of moderate terms that partly cancel, and the
+ * floored per-node error of the positions after K5 reads 2.2e-5 on the RTX 4070 SUPER and 2.5e-5 on Apple Metal
+ * where random20k's reads 2.4e-6 -- the same rounding on a worse-conditioned total, not a kernel defect (without
+ * the floor clumpy100 reads 1.5e-5, as it did before #89).
  */
 export const GRID_NOISE_FIXTURES: Readonly<
     Record<
@@ -292,6 +298,7 @@ export const GRID_NOISE_FIXTURES: Readonly<
         | "farField"
         | "nearField"
         | "positions"
+        | "positionsClumpy"
         | "k1"
         | "k1Isolated"
         | "downsample"
@@ -311,6 +318,7 @@ export const GRID_NOISE_FIXTURES: Readonly<
     farField: { kernel: "grid-far-field", fixture: "random20k-far" },
     nearField: { kernel: "grid-near-field", fixture: "random20k-near" },
     positions: { kernel: "fa2-integrate", fixture: "random20k-K5-grid" },
+    positionsClumpy: { kernel: "fa2-integrate", fixture: "clumpy100-K5-grid" },
     k1: { kernel: "fa2-stats-finalize", fixture: "random20k-K1-grid" },
     k1Isolated: { kernel: "fa2-stats-finalize", fixture: "isolated-K1-grid" },
     downsample: { kernel: "grid-downsample", fixture: "random20k-L1" },

@@ -7,7 +7,7 @@
  *
  * Hover, press and focus are driven with real input through the harness.
  */
-import { Avatar, Badge, Indicator, Kbd, Pill, Tooltip } from "@mantine/core";
+import { ActionIcon, Avatar, Badge, Indicator, Kbd, Pill, Tabs, Tooltip } from "@mantine/core";
 import { userEvent } from "@vitest/browser/context";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -594,7 +594,9 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
         it("light: #1e1e1e, a transparent top border, the folder-tab strip and the close button", async () => {
             const { container } = await renderFigma(sheet(), { scheme: "light" });
             const root = part(container, ".cm-shortcut-sheet");
-            expectMeasured(root, await fig("pm/keyboard-shortcuts-tab-tools", 80, ["backgroundColor", "borderTopWidth", "fontSize", "lineHeight"]));
+            expectMeasured(root, await fig("pm/keyboard-shortcuts-tab-tools", 80, ["backgroundColor", "borderTopWidth", "fontSize", "lineHeight", "height"]));
+            // the tab contents fill the rest and scroll (#101: 1600 x 202)
+            expectMeasured(part(container, ".cm-sheet-body"), { height: (await figmaElement("pm/keyboard-shortcuts-tab-tools", { index: 101 })).box[3] });
             // Figma's light edge is transparent white; ours transparent black. Both draw nothing.
             expect(getComputedStyle(root).borderTopColor).toBe("rgba(0, 0, 0, 0)");
             const tab = (name: string): HTMLElement => part(container, `[role='tab'][id$='-${TABS.findIndex((t) => t.label === name)}']`);
@@ -715,6 +717,89 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
             expectMeasured(part(container, ".cm-quick-actions"), await fig("dt/dark-dialog-quick-actions", 34, BOX));
             expectMeasured(part(container, ".cm-qa-search"), await fig("dt/dark-dialog-quick-actions", 38, BOX));
             expectMeasured(part(container, ".cm-qa-row[data-highlighted]"), await fig("dt/dark-dialog-quick-actions", 80, BOX));
+        });
+
+        // Figma's palette: pill scope tabs under the search and a trailing visual-search button
+        // in it (dt/*-dialog-quick-actions). The index of each part shifts by one in the dark
+        // capture (it has one more wrapper above the panel).
+        const palette = (): React.JSX.Element => (
+            <QuickActions
+                actions={ACTIONS}
+                onRun={() => undefined}
+                searchAction={
+                    <ActionIcon aria-label="Visual search">
+                        <Glyph />
+                    </ActionIcon>
+                }
+                header={
+                    <Tabs defaultValue="all">
+                        <Tabs.List>
+                            <Tabs.Tab value="all">All</Tabs.Tab>
+                            <Tabs.Tab value="assets">Assets</Tabs.Tab>
+                            <Tabs.Tab value="plugins">Plugins &amp; widgets</Tabs.Tab>
+                        </Tabs.List>
+                    </Tabs>
+                }
+            />
+        );
+        for (const [scheme, capture, at] of [
+            ["light", "dt/light-dialog-quick-actions", 0],
+            ["dark", "dt/dark-dialog-quick-actions", 1],
+        ] as const) {
+            it(`${scheme}: the scope tab row is 32 tall, 8px under the search, tabs 8px in and 8px apart (${capture} #${51 + at}-#${68 + at})`, async () => {
+                const { container } = await renderFigma(palette(), { scheme });
+                const panel = part(container, ".cm-quick-actions");
+                const row = part(container, ".cm-qa-header");
+                expectMeasured(row, await fig(capture, 51 + at, ["width", "height", "paddingLeft"]));
+                expectMeasured(row, { x: 0, y: 48 }, { origin: panel });
+                const [first, second, third] = container.querySelectorAll<HTMLElement>(".cm-tab");
+                expectMeasured(first, { x: 8, y: 48 }, { origin: panel });
+                const TAB = ["height", "backgroundColor", "color", "borderRadius", "paddingLeft", "paddingRight", "fontSize", "lineHeight", "fontWeight"];
+                expectMeasured(first, await fig(capture, 58 + at, TAB));
+                expectMeasured(second, await fig(capture, 63 + at, TAB));
+                expectMeasured(third, await fig(capture, 68 + at, TAB));
+                const a = first.getBoundingClientRect();
+                const b = second.getBoundingClientRect();
+                expect(b.x - a.right).toBeCloseTo(8, 0);
+                // The list starts right under the row, so the first heading is where Figma's is.
+                expectMeasured(part(container, ".cm-qa-group-title"), { y: 84 }, { origin: panel });
+            });
+
+            it(`${scheme}: the trailing search button is a 24 ghost box 6px in from the field's end (${capture} #${45 + at})`, async () => {
+                const { container } = await renderFigma(palette(), { scheme });
+                const search = part(container, ".cm-qa-search");
+                const button = part(container, ".cm-qa-search-action button");
+                expectMeasured(button, await fig(capture, 45 + at, ["width", "height", "backgroundColor", "borderRadius", "color"]));
+                expectMeasured(button, { x: 483, y: 4 }, { origin: search });
+                expectMeasured(part(container, ".cm-qa-input"), await fig(capture, 41 + at, ["width"]));
+            });
+        }
+
+        it("while there is search text the trailing button is the clear button, in the same place (dt/light-dialog-quick-actions-results #43)", async () => {
+            const { container } = await renderFigma(palette(), { scheme: "light" });
+            await userEvent.keyboard("align");
+            const search = part(container, ".cm-qa-search");
+            const clear = part(container, ".cm-qa-search-action button");
+            expect(clear).toHaveAccessibleName("Clear search");
+            expectMeasured(clear, await fig("dt/light-dialog-quick-actions-results", 43, ["width", "height", "backgroundColor", "borderRadius"]));
+            expectMeasured(clear, { x: 483, y: 4 }, { origin: search });
+            await userEvent.click(clear);
+            expect(part(container, ".cm-qa-input")).toHaveValue("");
+            expect(part(container, ".cm-qa-input")).toHaveFocus();
+        });
+
+        it("a disabled row dims its glyph and shortcut with its name (dt/light-dialog-quick-actions-results #77-#85)", async () => {
+            const { container } = await renderFigma(
+                <QuickActions
+                    actions={[{ value: "left", label: "Align left", icon: <Glyph />, shortcut: "Alt+A", disabled: true }]}
+                    onRun={() => undefined}
+                />,
+                { scheme: "light" },
+            );
+            const ink = (await figmaElement("dt/light-dialog-quick-actions-results", { index: 83 })).style.color;
+            for (const sel of [".cm-qa-row-label", ".cm-qa-row-icon", ".cm-qa-row-shortcut"]) {
+                expectMeasured(part(container, sel), { color: ink });
+            }
         });
 
         it("ArrowDown moves the highlight while focus stays in the search", async () => {

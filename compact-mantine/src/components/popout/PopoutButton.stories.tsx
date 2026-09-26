@@ -100,8 +100,8 @@ export const DefaultInteractions: Story = {
         // Click to open popout
         await userEvent.click(button);
 
-        // Button should now be highlighted (light variant)
-        await expect(button).toHaveAttribute("data-variant", "light");
+        // Button should now be highlighted: still the ghost variant, drawn open by the theme from aria-expanded
+        await expect(button).toHaveAttribute("aria-expanded", "true");
         await expect(button).toHaveAttribute("aria-expanded", "true");
 
         // Panel should be visible
@@ -300,21 +300,21 @@ export const MultipleButtonsInteractions: Story = {
 
         // Open settings - should highlight only settings button
         await userEvent.click(settingsBtn);
-        await expect(settingsBtn).toHaveAttribute("data-variant", "light");
+        await expect(settingsBtn).toHaveAttribute("aria-expanded", "true");
         await expect(appearanceBtn).toHaveAttribute("data-variant", "subtle");
         await expect(advancedBtn).toHaveAttribute("data-variant", "subtle");
 
         // Open appearance - should close settings and highlight appearance
         await userEvent.click(appearanceBtn);
         await expect(settingsBtn).toHaveAttribute("data-variant", "subtle");
-        await expect(appearanceBtn).toHaveAttribute("data-variant", "light");
+        await expect(appearanceBtn).toHaveAttribute("aria-expanded", "true");
         await expect(advancedBtn).toHaveAttribute("data-variant", "subtle");
 
         // Open advanced - should close appearance and highlight advanced
         await userEvent.click(advancedBtn);
         await expect(settingsBtn).toHaveAttribute("data-variant", "subtle");
         await expect(appearanceBtn).toHaveAttribute("data-variant", "subtle");
-        await expect(advancedBtn).toHaveAttribute("data-variant", "light");
+        await expect(advancedBtn).toHaveAttribute("aria-expanded", "true");
 
         // Close via Escape
         await userEvent.keyboard("{Escape}");

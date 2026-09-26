@@ -52,13 +52,14 @@ export const OpenOverTrigger: Story = {
     ),
 };
 
-/** Groups, a disabled option and a long list clamped to the viewport. */
+/** Groups, a disabled option and a long list clamped to the viewport, each shown open. */
 export const GroupsAndLongLists: Story = {
     render: () => (
         <div style={{ display: "flex", gap: 120, padding: "80px 40px" }}>
             <Select
                 aria-label="Shape"
                 w={120}
+                defaultDropdownOpened
                 defaultValue="Rectangle"
                 data={[
                     { group: "Shapes", items: ["Rectangle", { value: "Ellipse", label: "Ellipse", disabled: true }] },
@@ -68,12 +69,14 @@ export const GroupsAndLongLists: Story = {
             <Select
                 aria-label="Font size"
                 w={88}
+                defaultDropdownOpened
                 defaultValue="96"
                 data={[10, 11, 12, 13, 14, 15, 16, 20, 24, 32, 36, 40, 48, 64, 96, 128].map(String)}
             />
             <Select
                 aria-label="Long list"
                 w={120}
+                defaultDropdownOpened
                 placeholder="60 options"
                 data={Array.from({ length: 60 }, (_, i) => `Option ${String(i + 1)}`)}
             />
@@ -81,13 +84,13 @@ export const GroupsAndLongLists: Story = {
     ),
 };
 
-/** Lists that open below: Autocomplete, MultiSelect (variable-pill shaped pills) and TagsInput. */
+/** Lists that open below: Autocomplete, MultiSelect (variable-pill shaped pills) and TagsInput; the first two shown open. */
 export const BelowTheField: Story = {
     render: () => (
         <StateGrid
             cells={[
-                { state: "Autocomplete", node: <Autocomplete aria-label="Layer" data={["Frame 1", "Frame 2"]} w={160} /> },
-                { state: "MultiSelect", node: <MultiSelect aria-label="Tags" data={["Alpha", "Beta", "Gamma"]} defaultValue={["Alpha", "Beta"]} w={184} /> },
+                { state: "Autocomplete", node: <Autocomplete aria-label="Layer" data={["Frame 1", "Frame 2"]} w={160} defaultDropdownOpened /> },
+                { state: "MultiSelect", node: <MultiSelect aria-label="Tags" data={["Alpha", "Beta", "Gamma"]} defaultValue={["Alpha", "Beta"]} w={184} defaultDropdownOpened /> },
                 { state: "TagsInput", node: <TagsInput aria-label="Keywords" defaultValue={["draft"]} w={184} /> },
             ]}
         />
@@ -103,7 +106,7 @@ export const Keyboard: Story = {
     ),
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
-        const trigger = canvas.getByRole("textbox", { name: "Stroke align" });
+        const trigger = canvas.getByRole("combobox", { name: "Stroke align" });
         await userEvent.tab();
         await expect(trigger).toHaveFocus();
         await userEvent.keyboard("{Enter}");

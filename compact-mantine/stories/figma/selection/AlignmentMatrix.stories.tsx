@@ -1,7 +1,9 @@
+import { ActionIcon } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, within } from "@storybook/test";
 import { useState } from "react";
 
+import { ComboInput, UiGlyph } from "../../../src";
 import {
     AlignmentMatrix,
     type AlignmentMatrixValue,
@@ -85,12 +87,20 @@ export const Keyboard: Story = {
     },
 };
 
-/** In the panel: a field-sized picker beside a field-sized control. */
+/**
+ * In the panel, as Figma's auto layout section lays it out: the field-sized picker, the gap
+ * field beside it, and the section's settings button at the row's end.
+ */
 export const InThePanel: Story = {
     render: () => (
-        <div style={{ width: 240, padding: "4px 8px 4px 16px", display: "flex", gap: 8 }}>
+        <div style={{ width: 240, padding: "4px 8px 4px 16px", display: "flex", gap: 8, alignItems: "flex-start" }}>
             <AlignmentMatrix defaultValue="middle-center" direction="horizontal" />
-            <div style={{ width: 88, height: 56 }} />
+            <ComboInput label="Gap" glyph={<UiGlyph name="alignCenterH" />} numeric defaultValue={3.04} options={GAPS} width={88} />
+            <ActionIcon aria-label="Auto layout settings" style={{ marginInlineStart: "auto" }}>
+                <UiGlyph name="settings" />
+            </ActionIcon>
         </div>
     ),
 };
+
+const GAPS = [{ value: "Auto" }, { separator: true as const }, ...[0, 4, 8, 16].map((n) => ({ value: String(n) }))];

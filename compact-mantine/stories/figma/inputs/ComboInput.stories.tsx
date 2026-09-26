@@ -85,6 +85,13 @@ export const OpenOverTheField: Story = {
         });
         await userEvent.keyboard("{ArrowDown}{Enter}");
         await expect(box).toHaveValue("32");
+        // Reopen, so the story rests on the open list with the new value's row over the field.
+        await userEvent.click(canvas.getByRole("button", { name: "Open list" }));
+        const now = await body.findByRole("option", { name: "32" });
+        await waitFor(() => {
+            const field = box.closest(".cm-input-wrapper")?.getBoundingClientRect().top ?? 0;
+            return expect(Math.abs(now.getBoundingClientRect().top - field)).toBeLessThanOrEqual(1);
+        });
     },
 };
 

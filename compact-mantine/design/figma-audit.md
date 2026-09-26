@@ -40,6 +40,50 @@ does, what compact-mantine does, and why.
   (`stories/theme/Card.stories.tsx`) and a browser test against `left-sidebar/panel-assets`
   element 114 (`tests/figma/card.browser.test.tsx`).
 
+## Second pass: every story against Figma
+
+The first comparison looked only at each component's `States` story. The second put every story
+of every Figma component (the 74 stories under `stories/figma`, light and dark) beside the
+closest Figma capture, each shot after its play function had run, the way Chromatic shoots it.
+
+Fixed in the components:
+
+- **Submenus were light.** `Menu.Sub` draws its dropdown through a Popover, so it also carried
+  the light popover surface, which won: a white submenu with white text in the light theme and a
+  #2c2c2c one in dark. The menu surface now wins (`overlays.css.ts`), and the submenu test
+  asserts it.
+- **The shortcuts sheet hugged its content.** Figma's is 241 tall whatever the tab holds, with
+  the tab contents scrolling; ours now is too.
+- **Quick actions** gained the scope-tab row, the trailing search button and the clear button,
+  lists search results flat, and dims a disabled row's glyph and shortcut with its name.
+
+Fixed in the stories, which did not show the state Figma was captured in: the tree's drag now
+drags a selected row (Figma keeps the dragged row's pill); `StickyRoots` scrolls so a frame row
+is shown stuck; the combo input, select and listbox stories rest with their lists open; the
+search story rests on typed text with its clear button; `InThePanel` puts the real gap field and
+settings button beside the alignment matrix; the toolbar, rail, secondary bar and quick actions
+fixtures use distinct, fitting glyphs (lucide, not Figma's artwork).
+
+Chromatic reported 16 component errors: eight stories, each in light and dark, whose play
+functions failed in a real browser. None of them ran anywhere else, because compact-mantine's
+Vitest has no Storybook project. All eight were stale after the Figma rebuild: the popout tab
+strip is now a tablist (the stories looked for radios), a nested popout now docks flush (the
+story expected a 4px gap), `PopoutButton`'s open state is `aria-expanded` on the ghost variant
+(the stories expected the `light` variant), the Select trigger is a `combobox` (the story looked
+for a textbox), the colour input and its picker both have an Opacity box (the story's query
+matched both), and the toggle story read `aria-pressed` before React had committed the state
+from a native pointer event.
+
+Differences left as they are:
+
+- Stories that end with keyboard focus show our focus rings (the popout panel, the modal's close
+  button, the resize handle's bar). Figma draws none; the rings are ours on purpose.
+- Without the browser's EyeDropper API (headless Chromium, Firefox, Safari) the colour picker
+  hides the eyedropper and leaves its slot empty, so the sliders keep Figma's position.
+- An expanded top-level row in a `stickyRoots` tree always draws its hairline, stuck or not.
+- The context menu is compared with the current dark-scoped capture (`ctx-canvas-frame`), not
+  the legacy one, whose separators are inset.
+
 ## Completeness
 
 Every component in `components.md`, and in sections 3 and 4 of `compact-mantine-mapping.md`,
@@ -82,14 +126,14 @@ The numbers in the first column are the section numbers in `components.md`.
 | 29 Slider | `Slider`, `RangeSlider`, `HueSlider`, `AlphaSlider` | Deviation: in dark, a disabled plain slider's thumb is #2c2c2c on a #2c2c2c-based track and nearly disappears. Figma has no capture of this state |
 | 30 Colour picker, gradient editor | `ColorPickerPanel` (new), `GradientEditor` | Deviation: gradient stop rows have no opacity box, because `ColorStop.color` would need to accept `#RRGGBBAA` (a data-format change). Enter keeps focus in the value box |
 | 31 Variable pill, bound field | `VariablePill` (new) | PASS |
-| 32 Dark menu | Mantine `Menu` | PASS; row text widths slightly off (font width) |
+| 32 Dark menu | Mantine `Menu` | PASS; row text widths slightly off (font width). A submenu is the same dark surface as its parent (it was drawn as a light popover until the second pass) |
 | 33 Context menu | `ContextMenu` (new) | PASS. Kept on purpose: it also opens with Shift+F10 and the ContextMenu key |
 | 34 Tooltip | Mantine `Tooltip`, `TooltipShortcut` (new) | PASS for timing, look and arrow. Deviations: a pending tooltip is not cancelled by a click, key or wheel; outside a `Tooltip.Group`, two tooltips can show at once; tooltips stay in the accessibility tree (on purpose) |
 | 35 Light popover | Popout family, `Popover`, `HoverCard`, `InfoCircle` | PASS; one root popover at a time. Kept on purpose: a nested popout docks flush to its parent |
 | 36 Modal dialog | Mantine `Modal`, `ModalFooter` (new) | PASS |
 | 37 Toast | `Toast`, `ToastProvider`, `useToast` (new) | PASS |
-| 38 Quick actions palette | `QuickActions` (new) | PASS. Kept on purpose: it is a named dialog with a combobox |
-| 39 Keyboard shortcuts panel, key caps | `ShortcutSheet` (new), `Kbd` | PASS. Kept on purpose: Escape closes the sheet |
+| 38 Quick actions palette | `QuickActions` (new) | PASS for the panel, search, scope-tab row, trailing search button, headings and rows (light and dark, `tests/figma/shell.browser.test.tsx`). The scope tabs are the caller's `header` (the theme's pill `Tabs`, 8px apart in this row); the trailing button is the caller's `searchAction`, and while there is text the palette shows its own clear button in that place. A search lists its results flat, without headings. Deviations: the clear button draws a plain X where Figma draws a filled circle with an X; a disabled row cannot take the highlight (Figma's arrow keys land on it); results keep the order of `actions` (Figma ranks them). Kept on purpose: it is a named dialog with a combobox |
+| 39 Keyboard shortcuts panel, key caps | `ShortcutSheet` (new), `Kbd` | PASS. The sheet is a fixed 241 tall and its tab contents scroll, as Figma's (it hugged its content until the second pass). Kept on purpose: Escape closes the sheet |
 | 40 Floating toolbar | `Toolbar` (new) | PASS |
 | 41 Tool button, group, flyout | `ToolButton`, `ToolGroup` (new) | PASS |
 | 42 Contextual secondary bar | `SecondaryToolbar` (new) | PASS |

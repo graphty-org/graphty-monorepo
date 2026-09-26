@@ -1,6 +1,6 @@
 import { Group, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, fireEvent, userEvent, within } from "@storybook/test";
+import { expect, fireEvent, userEvent, waitFor, within } from "@storybook/test";
 
 import { UiGlyph } from "../../../src";
 import { ToggleIconButton } from "../../../src/components/buttons";
@@ -70,9 +70,13 @@ export const Interactive: Story = {
     play: async ({ canvasElement }) => {
         const button = within(canvasElement).getByRole("button", { name: "Lock aspect ratio" });
         await expect(button).toHaveAttribute("aria-pressed", "false");
+        // React commits a state update from a native pointer event in a microtask, after
+        // fireEvent returns, so wait for the commit before reading the attribute.
         fireEvent.pointerDown(button, { button: 0 });
-        await expect(button).toHaveAttribute("aria-pressed", "true");
+        await waitFor(() => expect(button).toHaveAttribute("aria-pressed", "true"));
+        // The click that ends the same press is swallowed: after its commit the toggle is still on.
         fireEvent.click(button, { detail: 1 });
+        await new Promise((resolve) => setTimeout(resolve, 0));
         await expect(button).toHaveAttribute("aria-pressed", "true");
         button.focus();
         await userEvent.keyboard(" ");

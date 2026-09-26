@@ -292,6 +292,16 @@ describe.skipIf(!available)("8.1 dark menu", () => {
                 const sub = await waitFor(() => container.querySelectorAll<HTMLElement>("[data-menu-dropdown]")[1], 200);
                 expect(box(sub).left - box(surface).right).toBeCloseTo(4, 0);
                 expect(box(row(sub, "Copy as text")).top).toBeCloseTo(box(parent).top, 0);
+                // a submenu is the same dark surface as its parent (Menu.Sub renders through a
+                // Popover, whose light surface must not win)
+                const root = getComputedStyle(surface);
+                expectMeasured(sub, {
+                    backgroundColor: root.backgroundColor,
+                    paddingLeft: root.paddingLeft,
+                    paddingTop: root.paddingTop,
+                    borderRadius: root.borderRadius,
+                });
+                expect(getComputedStyle(row(sub, "Copy as text")).color).toBe(getComputedStyle(row(container, "File")).color);
                 // the parent row stays highlighted while its submenu is open
                 expect(parent.getAttribute("aria-expanded")).toBe("true");
                 await drive(row(sub, "Copy as text"), "hover");

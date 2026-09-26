@@ -70,6 +70,13 @@ const css = `
    rule reaches it and would resolve its shadow dark in the light app. Its shadow follows the
    page like every other menu's. */
 :where([data-mantine-color-scheme="light"]) .cm-menu-surface > .cm-menu-surface { color-scheme: light; }
+/* Menu.Sub draws its dropdown through a Popover, so the dropdown also carries the popover's
+   classes (cm-popover-surface, cm-popover). The menu's dark surface wins. */
+.cm-menu-surface.cm-popover-surface {
+    background-color: var(--cm-bg-menu);
+    color: var(--cm-text-menu);
+    padding: 8px 0;
+}
 
 /* A row: the foundation's cm-menu-row (24 tall, text 16 from the menu edge, the highlight an
    inner pill inset 8 each side). Mantine's item draws a radius, an opacity on disabled rows

@@ -67,4 +67,24 @@ describe("QuickActions", () => {
         expect(screen.getAllByRole("option")).toHaveLength(1);
         expect(screen.getByRole("combobox")).toHaveValue("x");
     });
+
+    it("lists a search's results flat, without section headings", async () => {
+        renderShell(<QuickActions actions={ACTIONS} onRun={vi.fn()} />);
+        expect(screen.getByText("Recents")).toBeInTheDocument();
+        // "fr" matches a row under Recents and one under Design tools
+        await userEvent.keyboard("fr");
+        expect(screen.queryByText("Recents")).not.toBeInTheDocument();
+        expect(screen.queryByText("Design tools")).not.toBeInTheDocument();
+        expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["Ink Wireframe", "FrameF"]);
+    });
+
+    it("shows the trailing search action until there is text, then its own clear button", async () => {
+        renderShell(<QuickActions actions={ACTIONS} onRun={vi.fn()} searchAction={<button type="button">Visual search</button>} />);
+        expect(screen.getByRole("button", { name: "Visual search" })).toBeInTheDocument();
+        await userEvent.keyboard("fr");
+        expect(screen.queryByRole("button", { name: "Visual search" })).not.toBeInTheDocument();
+        await userEvent.click(screen.getByRole("button", { name: "Clear search" }));
+        expect(screen.getByRole("combobox")).toHaveValue("");
+        expect(screen.getByRole("button", { name: "Visual search" })).toBeInTheDocument();
+    });
 });

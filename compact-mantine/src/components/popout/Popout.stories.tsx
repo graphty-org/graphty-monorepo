@@ -24,6 +24,7 @@ import {
     ControlGroup,
     GradientEditor,
     Popout,
+    POPOUT_NESTED_GAP,
     PopoutButton,
     PopoutManager,
     StyleNumberInput,
@@ -417,7 +418,8 @@ export const AnchorAxesInteractions: Story = {
         await expect(Math.round(besideRect.right)).toBe(Math.round(buttonRect.left) - 8);
         await expect(Math.round(besideRect.top)).toBe(Math.round(buttonRect.top));
 
-        // Nested: each level steps out from the panel it opened from.
+        // Nested: each level docks flush to the start of the panel it opened from
+        // (POPOUT_NESTED_GAP, design/figma-spec.md 8.4).
         await userEvent.click(canvas.getByLabelText("Open nested stack"));
         const levelOne = await canvas.findByRole("dialog");
         const levelOneRect = levelOne.getBoundingClientRect();
@@ -426,7 +428,7 @@ export const AnchorAxesInteractions: Story = {
         const levelTwo = canvas.getAllByRole("dialog").find((panel) => panel !== levelOne);
         await expect(levelTwo).toBeTruthy();
         const levelTwoRect = (levelTwo as HTMLElement).getBoundingClientRect();
-        await expect(Math.round(levelTwoRect.right)).toBe(Math.round(levelOneRect.left) - 4);
+        await expect(Math.round(levelTwoRect.right)).toBe(Math.round(levelOneRect.left) - POPOUT_NESTED_GAP);
     },
 };
 
@@ -588,21 +590,21 @@ export const TabbedInteractions: Story = {
         await expect(trigger).toHaveAttribute("aria-expanded", "true");
         await expect(trigger).toHaveAttribute("aria-controls", panel.id);
 
-        // Should have three options in the tab strip
-        await expect(canvas.getByRole("radio", { name: "General" })).toBeInTheDocument();
-        await expect(canvas.getByRole("radio", { name: "Advanced" })).toBeInTheDocument();
-        await expect(canvas.getByRole("radio", { name: "About" })).toBeInTheDocument();
+        // Three tabs in the header strip (a tablist, design/figma-spec.md 5.1)
+        await expect(canvas.getByRole("tab", { name: "General" })).toBeInTheDocument();
+        await expect(canvas.getByRole("tab", { name: "Advanced" })).toBeInTheDocument();
+        await expect(canvas.getByRole("tab", { name: "About" })).toBeInTheDocument();
 
         // First option should be selected by default
-        const generalOption = canvas.getByRole("radio", { name: "General" });
-        await expect(generalOption).toBeChecked();
+        const generalOption = canvas.getByRole("tab", { name: "General" });
+        await expect(generalOption).toHaveAttribute("aria-selected", "true");
 
         // Switching tabs and reopening returns to the first tab
-        await userEvent.click(canvas.getByRole("radio", { name: "About" }));
-        await expect(canvas.getByRole("radio", { name: "About" })).toBeChecked();
+        await userEvent.click(canvas.getByRole("tab", { name: "About" }));
+        await expect(canvas.getByRole("tab", { name: "About" })).toHaveAttribute("aria-selected", "true");
         await userEvent.click(canvas.getByLabelText("Close panel"));
         await userEvent.click(trigger);
-        await expect(await canvas.findByRole("radio", { name: "General" })).toBeChecked();
+        await expect(await canvas.findByRole("tab", { name: "General" })).toHaveAttribute("aria-selected", "true");
 
         await userEvent.click(canvas.getByLabelText("Close panel"));
     },
@@ -1113,16 +1115,16 @@ export const DemoInteractions: Story = {
         await expect(trigger).toHaveAttribute("aria-haspopup", "dialog");
 
         // The tab strip is present
-        await expect(canvas.getByRole("radio", { name: "General" })).toBeInTheDocument();
-        await expect(canvas.getByRole("radio", { name: "Advanced" })).toBeInTheDocument();
-        await expect(canvas.getByRole("radio", { name: "About" })).toBeInTheDocument();
+        await expect(canvas.getByRole("tab", { name: "General" })).toBeInTheDocument();
+        await expect(canvas.getByRole("tab", { name: "Advanced" })).toBeInTheDocument();
+        await expect(canvas.getByRole("tab", { name: "About" })).toBeInTheDocument();
 
         // Switch to Advanced tab
-        await userEvent.click(canvas.getByRole("radio", { name: "Advanced" }));
+        await userEvent.click(canvas.getByRole("tab", { name: "Advanced" }));
         await expect(canvas.getByText("Label opacity")).toBeVisible();
 
         // Switch to About tab
-        await userEvent.click(canvas.getByRole("radio", { name: "About" }));
+        await userEvent.click(canvas.getByRole("tab", { name: "About" }));
         await expect(canvas.getByText("Part of @graphty/compact-mantine")).toBeVisible();
 
         // Escape closes the panel

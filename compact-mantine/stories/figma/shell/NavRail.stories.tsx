@@ -15,9 +15,9 @@ export default meta;
 type Story = StoryObj<typeof NavRail>;
 
 const DESTINATIONS = [
-    { value: "file", label: "File", icon: icons.frame, shortcut: "Alt+1" },
+    { value: "file", label: "File", icon: icons.file, shortcut: "Alt+1" },
     { value: "assets", label: "Assets", icon: icons.grid, shortcut: "Alt+2" },
-    { value: "tools", label: "Tools", icon: icons.pen },
+    { value: "tools", label: "Tools", icon: icons.toolbox },
 ];
 
 function Rail(): React.JSX.Element {

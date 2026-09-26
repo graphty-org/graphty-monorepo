@@ -1,7 +1,7 @@
 import { Menu, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
-import { SecondaryToolbar } from "../../../src";
+import { SecondaryToolbar, UiGlyph } from "../../../src";
 import { icons } from "./fixtures";
 
 const meta: Meta<typeof SecondaryToolbar> = {
@@ -34,7 +34,7 @@ export const Default: Story = {
                 </Menu.Dropdown>
             </Menu>
             <SecondaryToolbar.Divider />
-            <SecondaryToolbar.Button icon={icons.grid} aria-label="Close" />
+            <SecondaryToolbar.Button icon={<UiGlyph name="close" />} aria-label="Close" />
         </SecondaryToolbar>
     ),
 };
@@ -63,7 +63,7 @@ export const States: Story = {
                             More
                         </SecondaryToolbar.Button>
                         <SecondaryToolbar.Divider />
-                        <SecondaryToolbar.Button icon={icons.grid} aria-label="Close" {...props} />
+                        <SecondaryToolbar.Button icon={<UiGlyph name="close" />} aria-label="Close" {...props} />
                     </SecondaryToolbar>
                 </Stack>
             ))}

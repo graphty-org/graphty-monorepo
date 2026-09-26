@@ -58,5 +58,8 @@ export const TypeAndClear: Story = {
         await userEvent.keyboard("{Escape}");
         await expect(box).toHaveValue("");
         await expect(box).toHaveFocus();
+        // Type again, so the story rests on a typed search with its clear button.
+        await userEvent.keyboard("sp");
+        await expect(canvas.getByRole("button", { name: "Clear search" })).toBeVisible();
     },
 };

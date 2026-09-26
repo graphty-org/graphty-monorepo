@@ -231,7 +231,8 @@ export const PickerOpen: Story = {
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
         await userEvent.click(canvas.getByRole("button", { name: /swatch/i }));
-        const opacity = canvas.getByRole("textbox", { name: /opacity/i });
+        // The row and the picker both have an Opacity box: this story drives the picker's.
+        const opacity = within(await canvas.findByRole("dialog")).getByRole("textbox", { name: /opacity/i });
         await userEvent.click(opacity);
         await userEvent.keyboard("{ArrowDown}");
         await expect(opacity).toHaveValue("99");

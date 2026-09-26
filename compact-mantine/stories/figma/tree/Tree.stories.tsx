@@ -1,6 +1,6 @@
 import { Group, Stack } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, within } from "@storybook/test";
+import { expect, userEvent, waitFor, within } from "@storybook/test";
 import React, { useState } from "react";
 
 import { ToggleIconButton, UiGlyph } from "../../../src";
@@ -194,7 +194,10 @@ export const Playground: Story = {
     },
 };
 
-/** Expanded top-level rows stay pinned while their children scroll under them. */
+/**
+ * Expanded top-level rows stay pinned while their children scroll under them. The play function
+ * scrolls into the Body frame, so its row is shown stuck over its children.
+ */
 export const StickyRoots: Story = {
     render: () => {
         const many: TreeNodeData[] = ["Header", "Body", "Footer"].map((name) => ({
@@ -205,11 +208,18 @@ export const StickyRoots: Story = {
         }));
         return (
             <Panel>
-                <div style={{ height: 320, overflow: "auto" }}>
+                <div data-testid="sticky-scroller" style={{ height: 320, overflow: "auto" }}>
                     <Tree items={many} defaultExpanded={["Header", "Body", "Footer"]} stickyRoots />
                 </div>
             </Panel>
         );
+    },
+    play: async ({ canvasElement }) => {
+        const scroller = within(canvasElement).getByTestId("sticky-scroller");
+        // Header's block is 13 rows of 32: 560 is five rows into Body.
+        scroller.scrollTop = 560;
+        const body = within(canvasElement).getByRole("treeitem", { name: "Body" });
+        await waitFor(() => expect(Math.round(body.getBoundingClientRect().top)).toBe(Math.round(scroller.getBoundingClientRect().top)));
     },
 };
 
@@ -229,15 +239,18 @@ export const Virtualized: Story = {
     },
 };
 
-/** Dragging: the target container is boxed; between rows, a 2px line at the insertion depth. */
+/**
+ * Dragging: the target container is boxed; between rows, a 2px line at the insertion depth. The
+ * dragged row is selected, as it is in Figma (a press selects before the drag starts).
+ */
 export const Dragging: Story = {
     render: () => (
         <Group align="flex-start" gap={24}>
             <Panel label="drop into a frame">
-                <Tree items={LAYERS} defaultExpanded={["frame"]} onMove={() => undefined} label="Into" />
+                <Tree items={LAYERS} defaultExpanded={["frame"]} defaultSelected={["note"]} onMove={() => undefined} label="Into" />
             </Panel>
             <Panel label="drop between rows">
-                <Tree items={LAYERS} defaultExpanded={["frame"]} onMove={() => undefined} label="Between" />
+                <Tree items={LAYERS} defaultExpanded={["frame"]} defaultSelected={["note"]} onMove={() => undefined} label="Between" />
             </Panel>
         </Group>
     ),

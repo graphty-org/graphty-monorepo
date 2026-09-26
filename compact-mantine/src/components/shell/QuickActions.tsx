@@ -1,3 +1,4 @@
+import { CloseButton } from "@mantine/core";
 import { useId, useUncontrolled } from "@mantine/hooks";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
@@ -55,8 +56,18 @@ export interface QuickActionsProps {
     onQueryChange?: (query: string) => void;
     /** Which actions match the search. Defaults to a case-insensitive substring of the name or a keyword. */
     filter?: (action: QuickAction, query: string) => boolean;
-    /** Rendered between the search field and the list: scope tabs, for example. */
+    /**
+     * Rendered in a 32 tall row between the search field and the list, 8px in from the panel
+     * edge: Figma's scope tabs (`<Tabs>` with the theme's pill tabs), for example.
+     */
     header?: React.ReactNode;
+    /**
+     * A trailing action at the right end of the search field, 6px in from its edge and 16px
+     * after the text: pass an `<ActionIcon aria-label="...">` (the theme's 24px ghost icon
+     * button), as Figma's visual-search button. While there is search text the palette shows its
+     * own clear button in this place instead, as Figma does.
+     */
+    searchAction?: React.ReactNode;
     /** Accessible name of the dialog. Defaults to the "Quick actions" label. */
     "aria-label"?: string;
     /** Placeholder of the search field. Defaults to the "Search actions" label. */
@@ -81,7 +92,7 @@ function defaultFilter(action: QuickAction, query: string): boolean {
 /**
  * Figma's quick actions palette: a 529 x 354 panel (the caller positions it; Figma puts it 8px
  * above the toolbar) with a 32 tall search field, section headings and 32 tall rows. Typing
- * filters live; ArrowUp / ArrowDown move the highlight while focus stays in the field (a
+ * filters live, and the results are listed flat (no headings); ArrowUp / ArrowDown move the highlight while focus stays in the field (a
  * combobox with `aria-activedescendant` on a listbox); Enter runs; Escape closes. The first row
  * is highlighted on open and after every change of the search.
  * @param props - Component props
@@ -92,6 +103,7 @@ function defaultFilter(action: QuickAction, query: string): boolean {
  * @param props.onQueryChange - Called as the search text changes
  * @param props.filter - Which actions match the search
  * @param props.header - Rendered between the search field and the list
+ * @param props.searchAction - A trailing action at the right end of the search field
  * @param props.placeholder - Placeholder of the search field
  * @param props.width - Panel width
  * @param props.height - Panel height
@@ -107,6 +119,7 @@ export function QuickActions({
     onQueryChange,
     filter = defaultFilter,
     header,
+    searchAction,
     placeholder,
     width = 529,
     height = 354,
@@ -126,7 +139,9 @@ export function QuickActions({
             if (!filter(action, search)) {
                 continue;
             }
-            const key = action.section ?? "";
+            // A search lists its results flat, without section headings, as Figma does
+            // (dt/light-dialog-quick-actions-results: the first row sits at the list's top).
+            const key = search.trim() === "" ? (action.section ?? "") : "";
             bySection.set(key, [...(bySection.get(key) ?? []), action]);
         }
         return [...bySection.entries()];
@@ -197,8 +212,26 @@ export function QuickActions({
                     }}
                     onKeyDown={onKeyDown}
                 />
+                {search !== "" || searchAction ? (
+                    <span className="cm-qa-search-action">
+                        {search === "" ? (
+                            searchAction
+                        ) : (
+                            <CloseButton
+                                aria-label={labels.clearSearch}
+                                onMouseDown={(event) => {
+                                    event.preventDefault();
+                                }}
+                                onClick={() => {
+                                    setSearch("");
+                                    input.current?.focus();
+                                }}
+                            />
+                        )}
+                    </span>
+                ) : null}
             </div>
-            {header}
+            {header ? <div className="cm-qa-header">{header}</div> : null}
             <div className="cm-qa-list" id={`${id}-list`} role="listbox" aria-label={name}>
                 {sections.length === 0 ? <div className="cm-qa-empty">{labels.noResults}</div> : null}
                 {sections.map(([section, list]) => (

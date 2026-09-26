@@ -423,6 +423,9 @@ const css = `
     display: flex;
     flex-direction: column;
     width: 100%;
+    /* A fixed 241 (240 plus the top edge) whatever the tab holds; the body scrolls
+       (pm/keyboard-shortcuts-tab-tools #80, #101). */
+    height: 241px;
     background-color: var(--cm-bg-menu);
     color: var(--cm-text-menu);
     /* Figma: an invisible 1px edge in light, #444 in dark (dt/dark-dialog-keyboard-shortcuts #590). */
@@ -498,6 +501,8 @@ const css = `
 .cm-sheet-close:focus-visible { outline: 1px solid var(--cm-border-selected); outline-offset: -1px; }
 .cm-sheet-body {
     display: flex;
+    flex: 1;
+    min-height: 0;
     justify-content: center;
     padding: 8px 0 0;
     overflow: auto;
@@ -635,6 +640,28 @@ const css = `
     font: inherit;
     letter-spacing: inherit;
 }
+/* The trailing action: a 24 box 16px after the text, 6px in from the field's right edge
+   (dt/light-dialog-quick-actions #41, #45). */
+.cm-qa-search-action {
+    display: inline-flex;
+    flex: none;
+    margin: 0 6px 0 16px;
+}
+/* Its glyph takes the palette's label ink, pure black / white (#45: rgb(0,0,0)), not the
+   ghost button's #000000e5. */
+.cm-qa-search-action .cm-action-icon { color: ${LABEL_INK}; }
+/* The scope tabs' row: 32 tall, 8px below the search, tabs 8px in and 8px apart
+   (dt/light-dialog-quick-actions #51, #54-#68). */
+.cm-qa-header {
+    box-sizing: border-box;
+    display: flex;
+    align-items: flex-start;
+    flex: none;
+    height: 32px;
+    margin-top: 8px;
+    padding: 0 8px;
+}
+.cm-qa-header .cm-tabs[data-variant="pills"] .cm-tabs-list { gap: 8px; }
 .cm-qa-input::placeholder { color: var(--cm-text-tertiary); opacity: 1; }
 .cm-qa-list {
     flex: 1;
@@ -660,7 +687,11 @@ const css = `
     cursor: default;
 }
 .cm-qa-row[data-highlighted] { background-color: var(--cm-bg-hover); }
-.cm-qa-row[aria-disabled="true"] { color: var(--cm-text-disabled); }
+/* A disabled row dims its glyph and its shortcut with its name (dt/light-dialog-quick-actions-results
+   #77-#90: all rgba(0,0,0,.3); dark rgba(255,255,255,.4)). */
+.cm-qa-row[aria-disabled="true"],
+.cm-qa-row[aria-disabled="true"] .cm-qa-row-icon,
+.cm-qa-row[aria-disabled="true"] .cm-qa-row-shortcut { color: var(--cm-text-disabled); }
 .cm-qa-row-icon {
     display: inline-flex;
     align-items: center;
@@ -668,7 +699,7 @@ const css = `
     flex: none;
     width: 24px;
     height: 24px;
-    color: var(--cm-icon);
+    color: ${LABEL_INK};
 }
 .cm-qa-row-label {
     flex: 1;

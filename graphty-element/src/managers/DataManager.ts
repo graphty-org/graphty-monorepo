@@ -1,36 +1,16 @@
-import {
-    type DerivedGraph,
-    type DuplicatePolicy,
-    type GraphSnapshot,
-    INVALID_INDEX,
-    type U32,
-} from "@graphty/graph-format";
-import jmespath from "jmespath";
+import { type DerivedGraph, type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
 
-import { unknownFormat } from "../catalog/detect";
 import type { EdgeId } from "../catalog/types";
 import type { AdHocData } from "../config";
-import { DataSource, type DeclaredDirection } from "../data/DataSource";
 import { edgeIdOf } from "../data/edgeIdentity";
-import { readEndpoint, type ResolvedEndpoints, resolveEndpoints } from "../data/endpoints";
 import { GraphStore } from "../data/GraphStore";
-import {
-    type DirectionOutcome,
-    ingestDeclaredDirection,
-    ingestEdge,
-    ingestNode,
-    isStorableId,
-    resolveEdgeWeight,
-} from "../data/ingest";
 import type { ElementPositions } from "../data/positions";
-import { type ImportReport, type ImportTally, newImportTally, sealImportReport } from "../data/report";
+import type { ImportReport } from "../data/report";
 import { Edge, EdgeMap } from "../Edge";
-import { GraphtyError, isGraphtyError } from "../errors";
 import type { LayoutEngine } from "../layout/LayoutEngine";
-import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
 import { MeshCache } from "../meshes/MeshCache";
 import { Node, NodeIdType } from "../Node";
-import { DEFAULT_LIMITS } from "../session/limits";
+import { type AddEdgesOptions, Ingest, type IngestHost, type StoredEdge } from "../session/project/ingest";
 import type { DirectionProvenance } from "../session/types";
 import type { Styles } from "../Styles";
 import type { EventManager } from "./EventManager";
@@ -41,22 +21,7 @@ import { bootstrapEdgePaint, bootstrapNodePaint } from "./StylePainter";
 /** An id that is an integer written as text, and so has a second spelling worth retrying. */
 const INTEGER_ID = /^-?\d+$/;
 
-/** What a caller may say about one `addEdges` call that the configuration does not already say. */
-export interface AddEdgesOptions {
-    /** The JMESPath expression naming the source endpoint, overriding the configured one. */
-    readonly source?: string;
-    /** The JMESPath expression naming the target endpoint, overriding the configured one. */
-    readonly target?: string;
-    /**
-     * What to do with a record naming an ordered pair the graph already holds, overriding
-     * `data.knownFields.repeatedEdges` for this call alone.
-     *
-     * The expand-a-node path passes `"first"`, because "fetch the neighbourhood of this node" is a
-     * request that legitimately re-supplies edges the graph already has, and the element knows
-     * that about its own call site.
-     */
-    readonly repeated?: DuplicatePolicy;
-}
+export type { AddEdgesOptions } from "../session/project/ingest";
 
 /** One pending edge: in the store already, waiting for both endpoints to have a render object. */
 interface PendingEdge {
@@ -93,40 +58,6 @@ interface ExistingEdge {
     readonly edge: Edge | null;
     /** The pending entry, or null once the render object exists. */
     readonly pending: PendingEdge | null;
-}
-
-/**
- * Whether a value read from `knownFields.edgeIdPath` can identify an edge.
- *
- * A Map keyed on anything else would hold one entry per object identity, so every record would be
- * its own edge and the setting would silently do nothing.
- * @param value - what the configured expression returned
- * @returns true when it is usable as a record identifier
- */
-function isStorableRecordId(value: unknown): value is string | number {
-    return typeof value === "string" || (typeof value === "number" && Number.isFinite(value));
-}
-
-/**
- * Fold a repeat's weight into the weight of the edge that survives it.
- * @param policy - the merging repeat policy; "keep", "first" and "error" never reach here
- * @param survivor - the weight the edge already carries
- * @param repeat - the repeating record's weight
- * @returns the weight the surviving edge should carry
- */
-function mergeWeights(policy: DuplicatePolicy, survivor: number, repeat: number): number {
-    switch (policy) {
-        case "sum":
-            return survivor + repeat;
-        case "min":
-            return Math.min(survivor, repeat);
-        case "max":
-            return Math.max(survivor, repeat);
-        default:
-            // "last": the repeat's weight replaces the survivor's, which is the same statement its
-            // attributes make one line up in `mergeRepeat`.
-            return repeat;
-    }
 }
 
 /**
@@ -179,8 +110,6 @@ export class DataManager implements Manager {
      */
     readonly edgesByIndex: (Edge | undefined)[] = [];
 
-    private logger: Logger = GraphtyLogger.getLogger(["graphty", "data"]);
-
     /** The one graph-format builder and its cached snapshot; replaced only by `clear()`/`dispose()`. */
     private store: GraphStore;
 
@@ -211,26 +140,8 @@ export class DataManager implements Manager {
      */
     private pendingByPair = new Map<NodeIdType, Map<NodeIdType, PendingEdge[]>>();
 
-    /**
-     * The store edge index each record identifier has already produced, when
-     * `knownFields.edgeIdPath` names one. Empty when it does not, which is the default.
-     */
-    private edgesByRecordId = new Map<string | number, number>();
-
-    /** What the last load did, for `session.data.lastImport()`. Null until something has loaded. */
-    private importReport: ImportReport | null = null;
-
-    /**
-     * The endpoint expressions the load in progress resolved, so a chunked load probes ONCE.
-     *
-     * A file that spells one chunk's edges `source`/`target` and the next chunk's `from`/`to` is a
-     * broken file, and letting each chunk decide for itself makes the answer both unreportable and
-     * dependent on how the file happened to be split.
-     */
-    private loadEndpoints: ResolvedEndpoints | null = null;
-
-    /** The tally the load in progress is counting into, or null outside a load. */
-    private loadTally: ImportTally | null = null;
+    /** Turns records and data sources into the graph; this manager draws what it produces. */
+    private readonly ingest: Ingest<ExistingEdge> = new Ingest(this.ingestHost());
 
     /**
      * Creates an instance of DataManager
@@ -310,7 +221,102 @@ export class DataManager implements Manager {
      * @returns the report, or null when nothing has been loaded into this graph
      */
     get lastImport(): ImportReport | null {
-        return this.importReport;
+        return this.ingest.lastImport;
+    }
+
+    /**
+     * What ingest needs from the render half: which edges exist (built or pending), and what to
+     * do with each record once the store holds it.
+     * @returns the host, reading this manager's fields lazily
+     */
+    private ingestHost(): IngestHost<ExistingEdge> {
+        return {
+            store: () => this.store,
+            dataConfig: () => this.styles.config.data,
+            hasNode: (id) => this.nodeCache.has(id),
+            nodeCount: () => this.nodes.size,
+            edgesBetween: (sourceId, targetId) => this.existingBetween(sourceId, targetId),
+            edgeAt: (edgeIndex) => this.existingAt(edgeIndex),
+            replaceEdgeRecord: (known, record) => {
+                if (known.edge) {
+                    known.edge.data = record as AdHocData;
+                } else if (known.pending) {
+                    known.pending.record = record;
+                }
+            },
+            nodeStored: (id, record, index) => {
+                this.buildNode(id, record, index);
+            },
+            edgeStored: (edge) => {
+                this.buildEdge(edge);
+            },
+            nodesArrived: (count) => {
+                // Request layout start and zoom to fit
+                this.shouldStartLayout = true;
+                this.shouldZoomToFit = true;
+
+                // Process any pending edges whose nodes now exist
+                this.processPendingEdges();
+
+                // Emit event to notify graph that data has been added
+                this.eventManager.emitDataAdded("nodes", count, true, true);
+            },
+            edgesArrived: (count) => {
+                this.shouldStartLayout = true;
+                this.eventManager.emitDataAdded("edges", count, true, false);
+            },
+            loadProgress: (progress) => {
+                if (this.graphContext) {
+                    this.eventManager.emitDataLoadingProgress(
+                        progress.format,
+                        progress.chunks * 64 * 1024, // Approximate bytes (chunk size)
+                        progress.fileSize,
+                        progress.nodeRecords,
+                        progress.edgeRecords,
+                        progress.chunks,
+                    );
+                }
+            },
+            loadErrors: (format, errors) => {
+                if (this.graphContext) {
+                    const summary = errors.getSummary();
+                    this.eventManager.emitDataLoadingErrorSummary(
+                        format,
+                        summary.totalErrors,
+                        summary.message,
+                        errors.getDetailedReport(),
+                        summary.primaryCategory,
+                        summary.suggestion,
+                    );
+                }
+            },
+            loadComplete: (format, report, progress, duration, errors) => {
+                if (this.graphContext) {
+                    this.eventManager.emitDataLoadingComplete(
+                        format,
+                        report.counts.nodes,
+                        report.counts.edges,
+                        duration,
+                        errors,
+                        0, // warnings
+                        true,
+                        report,
+                    );
+                    // Keep existing data-loaded event for backward compatibility
+                    this.eventManager.emitGraphDataLoaded(this.graphContext, progress.chunks, format, report);
+                }
+            },
+            loadFailed: (format, error, progress) => {
+                if (this.graphContext) {
+                    this.eventManager.emitDataLoadingError(error, "parsing", format, { canContinue: false });
+                    // Keep existing error event for backward compatibility
+                    this.eventManager.emitGraphError(this.graphContext, error, "data-loading", {
+                        chunksLoaded: progress.chunks,
+                        dataSourceType: format,
+                    });
+                }
+            },
+        };
     }
 
     /**
@@ -469,7 +475,7 @@ export class DataManager implements Manager {
         this.edgesByIndex.length = 0;
         this.pendingEdges = [];
         this.pendingByPair.clear();
-        this.edgesByRecordId.clear();
+        this.ingest.reset();
         this.store.dispose();
         this.store = this.createStore();
     }
@@ -559,9 +565,6 @@ export class DataManager implements Manager {
         // Drop the graph data itself, not only the render objects built from it.
         this.resetStore();
 
-        // The report described a graph that no longer exists.
-        this.importReport = null;
-
         // Clear graph-level results
         this.graphResults = undefined;
 
@@ -586,72 +589,40 @@ export class DataManager implements Manager {
      * @param idPath - JMESPath expression to extract node ID from data
      */
     addNodes(nodes: Record<string | number, unknown>[], idPath?: string): void {
-        this.logger.debug("Adding nodes", { count: nodes.length });
+        this.ingest.addNodes(nodes, idPath);
+    }
 
-        // Records handed over, counted before any of them is skipped as already known, because
-        // this is the number a progress bar is driven by and the number the report contrasts with
-        // the nodes the graph ends up holding.
-        if (this.loadTally !== null) {
-            this.loadTally.nodeRecords += nodes.length;
+    /**
+     * Build the render object for a node the store has just taken.
+     * @param nodeId - the node id
+     * @param node - the raw record
+     * @param index - the row the store gave it; INVALID_INDEX for an id graph-format will not
+     *     take, and the node renders anyway. See the class comment.
+     */
+    private buildNode(nodeId: NodeIdType, node: Record<string | number, unknown>, index: number): void {
+        if (!this.graphContext) {
+            throw new Error("GraphContext not set. Call setGraphContext before adding nodes.");
         }
 
-        // create path to node ids
-        const query = idPath ?? this.styles.config.data.knownFields.nodeIdPath;
+        // The element's own defaults, because the row index the session's paint is addressed
+        // by is assigned on the line below this one. The first style pass replaces it.
+        const n = new Node(this.graphContext, nodeId, bootstrapNodePaint(), node as AdHocData, {
+            pinOnDrag: this.graphContext.getConfig().pinOnDrag,
+        });
+        n.index = index;
+        this.nodeCache.set(nodeId, n);
+        this.nodes.set(nodeId, n);
 
-        // The ids first, so the ceiling is checked against the nodes this batch would ADD (a
-        // re-supplied node costs nothing) and checked before any of them is created: a batch
-        // the renderer cannot hold is refused whole, not half-applied.
-        const ids = nodes.map((node) => jmespath.search(node, query) as NodeIdType);
-        const fresh = new Set(ids.filter((id) => !this.nodeCache.get(id)));
-        this.refuseAboveCeiling("nodes", this.nodes.size, fresh.size, DEFAULT_LIMITS.renderCeiling);
-
-        // create nodes
-        for (const [i, node] of nodes.entries()) {
-            const nodeId = ids[i];
-
-            if (this.nodeCache.get(nodeId)) {
-                continue;
-            }
-
-            if (!this.graphContext) {
-                throw new Error("GraphContext not set. Call setGraphContext before adding nodes.");
-            }
-
-            // The element's own defaults, because the row index the session's paint is addressed
-            // by is assigned on the line below this one. The first style pass replaces it.
-            const n = new Node(this.graphContext, nodeId, bootstrapNodePaint(), node as AdHocData, {
-                pinOnDrag: this.graphContext.getConfig().pinOnDrag,
-            });
-            // The store is what gives the node its dense row; INVALID_INDEX comes back for an id
-            // graph-format will not take, and the node renders anyway. See the class comment.
-            n.index = ingestNode(this.store, nodeId, node).index;
-            this.nodeCache.set(nodeId, n);
-            this.nodes.set(nodeId, n);
-
-            // Add to layout engine if it exists
-            if (this.layoutEngine) {
-                this.layoutEngine.addNode(n);
-            }
-
-            // Emit node added event
-            this.eventManager.emitNodeEvent("node-add-before", {
-                nodeId,
-                metadata: node,
-            });
+        // Add to layout engine if it exists
+        if (this.layoutEngine) {
+            this.layoutEngine.addNode(n);
         }
 
-        // Notify that nodes were added
-        if (nodes.length > 0) {
-            // Request layout start and zoom to fit
-            this.shouldStartLayout = true;
-            this.shouldZoomToFit = true;
-
-            // Process any pending edges whose nodes now exist
-            this.processPendingEdges();
-
-            // Emit event to notify graph that data has been added
-            this.eventManager.emitDataAdded("nodes", nodes.length, true, true);
-        }
+        // Emit node added event
+        this.eventManager.emitNodeEvent("node-add-before", {
+            nodeId,
+            metadata: node,
+        });
     }
 
     /**
@@ -927,195 +898,54 @@ export class DataManager implements Manager {
      *     with `E_DUPLICATE_EDGE` under the `"error"` repeat policy.
      */
     addEdges(edges: Record<string | number, unknown>[], options?: AddEdgesOptions): void {
-        this.logger.debug("Adding edges", { count: edges.length });
+        this.ingest.addEdges(edges, options);
+    }
 
-        const { knownFields } = this.styles.config.data;
-        const endpoints = this.endpointsFor(edges, options);
-        const policy = options?.repeated ?? knownFields.repeatedEdges;
-        const recordIdPath = knownFields.edgeIdPath;
-        const weightPath = knownFields.edgeWeightPath;
-        const tally = this.loadTally ?? newImportTally();
-        let legacyWeights = 0;
+    /**
+     * Build the render object for an edge the store has just taken, or defer it until both
+     * endpoints have one.
+     * @param stored - the edge, its resolved endpoints and the row and counter the store gave it
+     */
+    private buildEdge(stored: StoredEdge): void {
+        const { record: edge, sourceId: srcNodeId, targetId: dstNodeId, edgeIndex, edgeId } = stored;
 
-        // Decided before any record is stored: a batch the renderer cannot hold is refused whole,
-        // so a caller never finds the first part of it held and the rest missing.
-        this.refuseAboveCeiling(
-            "edges",
-            this.store.builder.edgeCount,
-            this.edgesAdded(edges, endpoints, policy, false),
-            DEFAULT_LIMITS.edgesDrawn,
-        );
+        // Check if both nodes exist before creating the RENDER object, which reads them
+        const srcNode = this.nodeCache.get(srcNodeId);
+        const dstNode = this.nodeCache.get(dstNodeId);
 
-        for (const edge of edges) {
-            tally.edgeRecords++;
-            const srcNodeId = readEndpoint(edge, endpoints.source) as NodeIdType;
-            const dstNodeId = readEndpoint(edge, endpoints.target) as NodeIdType;
-
-            const weight = resolveEdgeWeight(edge, weightPath);
-            if (weight.source === "legacy") {
-                legacyWeights++;
-            }
-
-            if (weight.source !== "default") {
-                tally.weightsResolvedFrom = weight.source;
-                tally.weightsAttribute = weight.source === "legacy" ? "value" : weightPath;
-            }
-
-            const recordId = recordIdPath === null ? undefined : readEndpoint(edge, recordIdPath);
-            const known = this.knownEdgeFor(srcNodeId, dstNodeId, recordId);
-            if (known !== null) {
-                tally.repeatedSeen++;
-                if (this.mergeRepeat(known, edge, weight.weight, policy, srcNodeId, dstNodeId, tally)) {
-                    continue;
-                }
-            }
-
-            // The STORE takes the edge now, whether or not the endpoints have render objects:
-            // the builder creates a missing endpoint itself, so the snapshot is complete while
-            // the scene is still catching up.
-            const { index: edgeIndex, edgeId } = ingestEdge(this.store, srcNodeId, dstNodeId, weight.weight);
-            if (edgeIndex === INVALID_INDEX) {
-                // graph-format will not hold an edge between these ids -- most often because the
-                // record does not answer the endpoint expressions at all, so both came back null.
-                // It gets no row, no counter and no render object, which is what makes "every Edge
-                // has a store row" an invariant everything downstream can rely on.
-                tally.rejected++;
-                continue;
-            }
-
-            if (isStorableRecordId(recordId)) {
-                this.edgesByRecordId.set(recordId, edgeIndex);
-            }
-
-            // Check if both nodes exist before creating the RENDER object, which reads them
-            const srcNode = this.nodeCache.get(srcNodeId);
-            const dstNode = this.nodeCache.get(dstNodeId);
-
-            if (!srcNode || !dstNode) {
-                // Defer the render object until the nodes exist
-                const pending: PendingEdge = {
-                    record: edge,
-                    sourceId: srcNodeId,
-                    targetId: dstNodeId,
-                    edgeIndex,
-                    edgeId,
-                };
-                this.pendingEdges.push(pending);
-                this.rememberPending(pending);
-                continue;
-            }
-
-            const opts = {};
-            if (!this.graphContext) {
-                throw new Error("GraphContext not set. Call setGraphContext before adding edges.");
-            }
-
-            const e = new Edge(
-                this.graphContext,
-                srcNodeId,
-                dstNodeId,
+        if (!srcNode || !dstNode) {
+            // Defer the render object until the nodes exist
+            const pending: PendingEdge = {
+                record: edge,
+                sourceId: srcNodeId,
+                targetId: dstNodeId,
+                edgeIndex,
                 edgeId,
-                bootstrapEdgePaint(),
-                edge as AdHocData,
-                opts,
-            );
-            this.registerEdge(e, edgeIndex);
-
-            // Add to layout engine if it exists
-            if (this.layoutEngine) {
-                this.layoutEngine.addEdge(e);
-            }
-
-            // Emit edge added event
-            this.eventManager.emitEdgeEvent("edge-add-before", {
-                srcNodeId,
-                dstNodeId,
-                metadata: edge,
-            });
+            };
+            this.pendingEdges.push(pending);
+            this.rememberPending(pending);
+            return;
         }
 
-        if (legacyWeights > 0) {
-            // One line per burst, not per edge: this is a deprecation signal, not a per-record
-            // warning, and a 50k-edge load would otherwise write 50k of them.
-            this.logger.debug("edge weight read from the legacy 'value' key; set data.knownFields.edgeWeightPath", {
-                count: legacyWeights,
-                edgeWeightPath: weightPath,
-            });
+        const opts = {};
+        if (!this.graphContext) {
+            throw new Error("GraphContext not set. Call setGraphContext before adding edges.");
         }
 
-        if (this.loadTally === null) {
-            // A push of records rather than a file, so there is no enclosing load to seal the
-            // report. Seal one here, or `session.data.lastImport()` would answer about the last
-            // FILE for a graph whose edges came from a consumer's own array.
-            this.importReport = sealImportReport(tally, {
-                format: "records",
-                endpoints,
-                policy,
-                ...this.heldCounts(),
-            });
+        const e = new Edge(this.graphContext, srcNodeId, dstNodeId, edgeId, bootstrapEdgePaint(), edge as AdHocData, opts);
+        this.registerEdge(e, edgeIndex);
+
+        // Add to layout engine if it exists
+        if (this.layoutEngine) {
+            this.layoutEngine.addEdge(e);
         }
 
-        // Notify that edges were added
-        if (edges.length > 0) {
-            // Request layout start
-            this.shouldStartLayout = true;
-            // Emit event to notify graph that data has been added
-            this.eventManager.emitDataAdded("edges", edges.length, true, false);
-        }
-    }
-
-    /**
-     * The endpoint expressions this batch is read with, resolved once per load rather than once
-     * per batch when a load is in progress.
-     * @param edges - the batch's records
-     * @param options - the caller's overrides, if any
-     * @returns the expressions
-     */
-    private endpointsFor(
-        edges: readonly Record<string | number, unknown>[],
-        options: AddEdgesOptions | undefined,
-    ): ResolvedEndpoints {
-        if (options?.source !== undefined && options.target !== undefined) {
-            return { source: options.source, target: options.target, resolvedFrom: "declared" };
-        }
-
-        if (this.loadEndpoints !== null) {
-            return this.loadEndpoints;
-        }
-
-        const { knownFields } = this.styles.config.data;
-        const resolved = resolveEndpoints(edges, {
-            source: options?.source ?? knownFields.edgeSrcIdPath,
-            target: options?.target ?? knownFields.edgeDstIdPath,
+        // Emit edge added event
+        this.eventManager.emitEdgeEvent("edge-add-before", {
+            srcNodeId,
+            dstNodeId,
+            metadata: edge,
         });
-
-        if (this.loadTally !== null && edges.length > 0) {
-            // A load is in progress and this is the first chunk that carried edge records, so this
-            // answer is the load's answer from here on.
-            this.loadEndpoints = resolved;
-        }
-
-        return resolved;
-    }
-
-    /**
-     * The edge a record repeats, or null when it repeats none.
-     * @param sourceId - the source endpoint id
-     * @param targetId - the target endpoint id
-     * @param recordId - the value of `knownFields.edgeIdPath`, when one is configured
-     * @returns the existing edge, or null
-     */
-    private knownEdgeFor(sourceId: NodeIdType, targetId: NodeIdType, recordId: unknown): ExistingEdge | null {
-        if (isStorableRecordId(recordId)) {
-            // A record identifier is a stronger statement than a repeated pair: the consumer said
-            // these two records are the same edge.
-            const edgeIndex = this.edgesByRecordId.get(recordId);
-            return edgeIndex === undefined ? null : this.existingAt(edgeIndex);
-        }
-
-        // The oldest edge between the pair is the one a merge policy folds into, so that `first`
-        // and `last` mean what they say when three records name one pair.
-        return this.existingBetween(sourceId, targetId)[0] ?? null;
     }
 
     /**
@@ -1134,69 +964,6 @@ export class DataManager implements Manager {
         // not arrived. The pending queue is empty in every load that supplies nodes before edges.
         const pending = this.pendingEdges.find((entry) => entry.edgeIndex === edgeIndex);
         return pending ? { edgeIndex, edge: null, pending } : null;
-    }
-
-    /**
-     * Apply the repeat policy to one record that names an edge the graph already holds.
-     * @param known - the edge already present
-     * @param record - the repeating record
-     * @param weight - the repeating record's resolved weight
-     * @param policy - what to do about it
-     * @param sourceId - the source endpoint id, for the error message
-     * @param targetId - the target endpoint id, for the error message
-     * @param tally - the load's counters
-     * @returns true when the repeat has been dealt with and must not become an edge of its own
-     * @throws A `GraphtyError` with `E_DUPLICATE_EDGE` under the `"error"` policy.
-     */
-    private mergeRepeat(
-        known: ExistingEdge,
-        record: Record<string | number, unknown>,
-        weight: number,
-        policy: DuplicatePolicy,
-        sourceId: NodeIdType,
-        targetId: NodeIdType,
-        tally: ImportTally,
-    ): boolean {
-        if (policy === "keep") {
-            tally.repeatedKept++;
-            return false;
-        }
-
-        if (policy === "error") {
-            throw new GraphtyError({
-                code: "E_DUPLICATE_EDGE",
-                source: "data",
-                message:
-                    `Two edges run from ${JSON.stringify(sourceId)} to ${JSON.stringify(targetId)}, and ` +
-                    `data.knownFields.repeatedEdges is "error". Set it to "keep" to hold both, or to ` +
-                    `"first", "last", "sum", "min" or "max" to fold them into one.`,
-                details: { source: sourceId, target: targetId, existing: known.edgeIndex, repeat: record },
-            });
-        }
-
-        if (policy === "first") {
-            tally.repeatedDropped++;
-            return true;
-        }
-
-        const survivorWeight = this.store.builder.edgeWeight(known.edgeIndex);
-        const merged = mergeWeights(policy, survivorWeight, weight);
-        this.store.builder.setEdgeWeight(known.edgeIndex, merged);
-        this.store.touch();
-
-        if (policy === "last") {
-            // "the repeat's weight and attributes replace the existing edge's". The other three
-            // reducers keep the survivor's attributes, because there is no reading of `sum` under
-            // which the last record's colour is the group's colour.
-            if (known.edge) {
-                known.edge.data = record as AdHocData;
-            } else if (known.pending) {
-                known.pending.record = record;
-            }
-        }
-
-        tally.repeatedMerged++;
-        return true;
     }
 
     /**
@@ -1235,79 +1002,13 @@ export class DataManager implements Manager {
      *     whatever `addEdges` throws.
      */
     setEdges(edges: Record<string | number, unknown>[], options?: AddEdgesOptions): void {
-        const surviving = this.store.builder.edgeCount - this.edges.size;
-        const policy = options?.repeated ?? this.styles.config.data.knownFields.repeatedEdges;
-        this.refuseAboveCeiling(
-            "edges",
-            surviving,
-            this.edgesAdded(edges, this.endpointsFor(edges, options), policy, true),
-            DEFAULT_LIMITS.edgesDrawn,
-        );
+        this.ingest.refuseReplacement(edges, this.edges.size, options);
 
         for (const id of [...this.edges.keys()]) {
             this.removeEdge(id);
         }
 
         this.addEdges(edges, options);
-    }
-
-    /**
-     * How many edges a batch would add, by the same tests the ingest loop applies.
-     *
-     * A record whose endpoint ids graph-format will not store adds nothing (the loop rejects it).
-     * Under the `keep` policy every other record is an edge. Under a folding policy a record that
-     * repeats an edge the graph holds, or a record earlier in the same batch, folds into it and
-     * adds nothing; a repeat is named the way `knownEdgeFor` names it, by record id when one is
-     * configured and stored, else by the ordered endpoint pair.
-     * @param edges - the batch
-     * @param endpoints - the batch's endpoint expressions
-     * @param policy - the repeat policy the batch is under
-     * @param replacing - true when every held edge is about to be removed, so none of them can be
-     *     repeated
-     * @returns the number of edges the batch would add
-     */
-    private edgesAdded(
-        edges: readonly Record<string | number, unknown>[],
-        endpoints: ResolvedEndpoints,
-        policy: DuplicatePolicy,
-        replacing: boolean,
-    ): number {
-        const recordIdPath = this.styles.config.data.knownFields.edgeIdPath;
-        const seenIds = new Set<string | number>();
-        const seenPairs = new Map<NodeIdType, Set<NodeIdType>>();
-        let adding = 0;
-
-        for (const edge of edges) {
-            const srcNodeId = readEndpoint(edge, endpoints.source);
-            const dstNodeId = readEndpoint(edge, endpoints.target);
-            if (!isStorableId(srcNodeId) || !isStorableId(dstNodeId)) {
-                continue;
-            }
-
-            if (policy !== "keep") {
-                const recordId = recordIdPath === null ? undefined : readEndpoint(edge, recordIdPath);
-                if (!replacing && this.knownEdgeFor(srcNodeId, dstNodeId, recordId) !== null) {
-                    continue;
-                }
-
-                const pairs = seenPairs.get(srcNodeId) ?? new Set<NodeIdType>();
-                seenPairs.set(srcNodeId, pairs);
-                const repeatsBatch = isStorableRecordId(recordId) ? seenIds.has(recordId) : pairs.has(dstNodeId);
-                if (repeatsBatch) {
-                    continue;
-                }
-
-                if (isStorableRecordId(recordId)) {
-                    seenIds.add(recordId);
-                }
-
-                pairs.add(dstNodeId);
-            }
-
-            adding++;
-        }
-
-        return adding;
     }
 
     /**
@@ -1342,329 +1043,12 @@ export class DataManager implements Manager {
     // Data source operations
 
     /**
-     * Adopt the direction a file declared, and say out loud when the element could not.
-     *
-     * The element reports the direction its DATA declares, so that a file which says it is
-     * undirected is not counted, measured or offered algorithms as though it were a digraph. What
-     * it must never do is overrule the consumer: `data.directed` set to a boolean settles the
-     * question and locks the builder, and this reports that rather than fighting it.
-     * @param type - the data source type, for the log line
-     * @param declaration - what the file said, or null when it said nothing
-     * @returns true once the question is settled and need not be asked again this import; false
-     *     while the source has still declared nothing
-     */
-    private applyDeclaredDirection(type: string, declaration: DeclaredDirection | null): boolean {
-        if (declaration === null) {
-            return false;
-        }
-
-        const outcome: DirectionOutcome = ingestDeclaredDirection(
-            this.store,
-            declaration.directed,
-            declaration.statedBy,
-        );
-        if (outcome === "config-wins") {
-            this.logger.info("File declares a direction the configuration has already settled", {
-                type,
-                fileDeclares: declaration.directed,
-                statedBy: declaration.statedBy,
-                configuredDirected: this.store.builder.directed,
-            });
-        } else if (outcome === "edges-present") {
-            // Not a warning a consumer can act on by changing their configuration: it means this
-            // file arrived into a graph that already had edges, and the direction of a graph that
-            // already holds edges is not something graph-format will reinterpret in place.
-            this.logger.warn("File declares a direction the graph has already been built with", {
-                type,
-                fileDeclares: declaration.directed,
-                statedBy: declaration.statedBy,
-                graphDirected: this.store.builder.directed,
-            });
-        }
-
-        // Logged even when the declaration was adopted, and especially then: the file described a
-        // graph the element cannot hold, and these are the edges whose own direction it overrode.
-        if (declaration.conflictingEdges > 0) {
-            this.logger.warn("File mixes directed and undirected edges; the graph holds one direction", {
-                type,
-                directed: declaration.directed,
-                statedBy: declaration.statedBy,
-                overriddenEdges: declaration.conflictingEdges,
-            });
-        }
-
-        return true;
-    }
-
-    /**
      * Loads data from a registered data source
      * @param type - Data source type identifier
      * @param opts - Options to pass to the data source
      */
     async addDataFromSource(type: string, opts: object = {}): Promise<void> {
-        this.logger.info("Loading data source", { type, options: opts });
-
-        const startTime = Date.now();
-        let nodeRecordsLoaded = 0;
-        let edgeRecordsLoaded = 0;
-        let chunksProcessed = 0;
-
-        // One tally and one endpoint decision for the WHOLE load, however many chunks it arrives
-        // in. Cleared in the `finally` below so a failed load cannot leave the next one counting
-        // into it, or reading its endpoint answer.
-        const tally = newImportTally();
-        this.loadTally = tally;
-        this.loadEndpoints = null;
-
-        const named = opts as { edgeSource?: unknown; edgeTarget?: unknown };
-        const endpointOverrides: AddEdgesOptions = {
-            ...(typeof named.edgeSource === "string" ? { source: named.edgeSource } : {}),
-            ...(typeof named.edgeTarget === "string" ? { target: named.edgeTarget } : {}),
-        };
-
-        try {
-            const source = DataSource.get(type, opts);
-            if (!source) {
-                throw unknownFormat(type);
-            }
-
-            // Get file size for progress tracking (if available)
-            const fileSize = (opts as { size?: number }).size;
-
-            try {
-                // Whether the file's own direction has been dealt with, so the work and the log
-                // line happen once per import rather than once per chunk.
-                let directionSettled = false;
-
-                for await (const chunk of source.getData()) {
-                    // BEFORE this chunk's edges, every time: the builder accepts a direction only
-                    // while it holds none. Read per chunk rather than once before the loop because
-                    // a source parses nothing until its first chunk is pulled, so before the loop
-                    // every source declares null.
-                    if (!directionSettled) {
-                        directionSettled = this.applyDeclaredDirection(type, source.declaredDirection);
-                    }
-
-                    this.addNodes(chunk.nodes);
-                    // The endpoint names a caller passed to the SOURCE are honoured here rather
-                    // than inside each of the seven importers: whatever shape a source produces,
-                    // the consumer who named the columns named them for the records that come out.
-                    this.addEdges(chunk.edges, endpointOverrides);
-
-                    nodeRecordsLoaded += chunk.nodes.length;
-                    edgeRecordsLoaded += chunk.edges.length;
-                    chunksProcessed++;
-
-                    // Emit progress event
-                    if (this.graphContext) {
-                        this.eventManager.emitDataLoadingProgress(
-                            type,
-                            chunksProcessed * 64 * 1024, // Approximate bytes (chunk size)
-                            fileSize,
-                            nodeRecordsLoaded,
-                            edgeRecordsLoaded,
-                            chunksProcessed,
-                        );
-                    }
-                }
-
-                // Emit error summary if there were errors
-                if (this.graphContext) {
-                    const errorAggregator = source.getErrorAggregator();
-                    if (errorAggregator.getErrorCount() > 0) {
-                        const summary = errorAggregator.getSummary();
-                        this.eventManager.emitDataLoadingErrorSummary(
-                            type,
-                            summary.totalErrors,
-                            summary.message,
-                            errorAggregator.getDetailedReport(),
-                            summary.primaryCategory,
-                            summary.suggestion,
-                        );
-                    }
-                }
-
-                // Emit completion event
-                const duration = Date.now() - startTime;
-                const errorCount = source.getErrorAggregator().getErrorCount();
-
-                // The number a consumer is told is the number of edges the graph HOLDS, which is
-                // what `edgesLoaded` has always claimed to be and never was: it counted records
-                // handed over, so it reported 254 for a file that produced zero edges. The old
-                // meaning survives, under its true name, as `report.counts.edgeRecords`.
-                const report = this.sealLoad(type, tally);
-                const edgesHeld = report.counts.edges;
-                const nodesHeld = report.counts.nodes;
-
-                this.logger.info("Data source loading complete", {
-                    nodeRecords: nodeRecordsLoaded,
-                    nodesLoaded: nodesHeld,
-                    edgeRecords: edgeRecordsLoaded,
-                    edgesLoaded: edgesHeld,
-                    endpointsResolvedFrom: report.endpoints.resolvedFrom,
-                    duration,
-                    chunks: chunksProcessed,
-                    errors: errorCount,
-                });
-
-                if (this.graphContext) {
-                    this.eventManager.emitDataLoadingComplete(
-                        type,
-                        nodesHeld,
-                        edgesHeld,
-                        duration,
-                        errorCount,
-                        0, // warnings
-                        true,
-                        report,
-                    );
-                }
-
-                // Keep existing data-loaded event for backward compatibility
-                if (this.graphContext) {
-                    this.eventManager.emitGraphDataLoaded(this.graphContext, chunksProcessed, type, report);
-                }
-            } catch (error) {
-                // Log the error
-                this.logger.error(
-                    "Data source loading failed",
-                    error instanceof Error ? error : new Error(String(error)),
-                    {
-                        type,
-                        chunksProcessed,
-                        nodeRecordsLoaded,
-                        edgeRecordsLoaded,
-                    },
-                );
-
-                // Emit error event
-                if (this.graphContext) {
-                    this.eventManager.emitDataLoadingError(
-                        error instanceof Error ? error : new Error(String(error)),
-                        "parsing",
-                        type,
-                        { canContinue: false },
-                    );
-
-                    // Keep existing error event for backward compatibility
-                    this.eventManager.emitGraphError(
-                        this.graphContext,
-                        error instanceof Error ? error : new Error(String(error)),
-                        "data-loading",
-                        { chunksLoaded: chunksProcessed, dataSourceType: type },
-                    );
-                }
-
-                // A coded failure travels out UNCHANGED. Wrapping it in a plain Error destroyed
-                // the `code` a caller switches on, so `await graph.addDataFromSource(...)` was
-                // the one route where a reader's parse failure arrived as an unclassifiable
-                // string while the same failure on the event channel arrived as E_PARSE_FAILED.
-                if (isGraphtyError(error)) {
-                    throw error;
-                }
-
-                throw new Error(
-                    `Failed to load data from source '${type}' after ${chunksProcessed} chunks: ${error instanceof Error ? error.message : String(error)}`,
-                );
-            }
-        } catch (error) {
-            // Same rule one level out: a coded failure is the answer, not something to re-word.
-            if (isGraphtyError(error)) {
-                throw error;
-            }
-
-            // Re-throw if already a processed error
-            if (error instanceof Error && error.message.includes("Failed to load data")) {
-                throw error;
-            }
-
-            // Otherwise wrap and throw
-            throw new Error(
-                `Error initializing data source '${type}': ${error instanceof Error ? error.message : String(error)}`,
-            );
-        } finally {
-            // Whatever happened, this load is over: the next one probes for itself and counts into
-            // its own tally.
-            this.loadTally = null;
-            this.loadEndpoints = null;
-        }
-    }
-
-    /**
-     * Freeze one load's counters into the report a consumer reads, and keep it for `lastImport`.
-     * @param format - the data source that read the file
-     * @param tally - what the load counted
-     * @returns the report
-     */
-    private sealLoad(format: string, tally: ImportTally): ImportReport {
-        const endpoints = this.loadEndpoints ?? {
-            // A file with no edge records at all: nothing was probed, so nothing was decided, and
-            // saying "source/target" would be reporting a decision that was never made.
-            source: this.styles.config.data.knownFields.edgeSrcIdPath ?? "source",
-            target: this.styles.config.data.knownFields.edgeDstIdPath ?? "target",
-            resolvedFrom: "source/target" as const,
-        };
-
-        const report = sealImportReport(tally, {
-            format,
-            endpoints,
-            policy: this.styles.config.data.knownFields.repeatedEdges,
-            ...this.heldCounts(),
-        });
-        this.importReport = report;
-        return report;
-    }
-
-    /**
-     * What the graph HOLDS right now, as the report and the session's own counts both mean it.
-     *
-     * Read off the builder rather than off this manager's render maps, and that is the whole
-     * point: an edge endpoint the file never declared as a node is created by the builder, so it
-     * is in the graph and in `session.status.counts.nodes` while having no render `Node` and so no
-     * entry in `nodes`. Counting the render objects made the report say two nodes for a load the
-     * session reported three for -- one load, two numbers, disagreeing, which is the defect this
-     * report exists to end rather than to repeat one level down.
-     * @returns the node and edge counts the graph holds
-     */
-    private heldCounts(): { nodes: number; edges: number } {
-        return { nodes: this.store.builder.nodeCount, edges: this.store.builder.edgeCount };
-    }
-
-    /**
-     * Refuse to grow past what the renderer can draw, instead of freezing the tab.
-     *
-     * WHY A REFUSAL AND NOT A DEGRADED DRAW. The design says that above the render ceiling the
-     * element draws a smaller render set, and above `edgesDrawn` it hides edges until the view
-     * narrows. Neither exists yet. What exists is a renderer that, past these counts, exhausts
-     * the renderer process and produces no further frame -- measured for issue #405 at 18,000
-     * nodes / 180,000 edges on an RTX 4070 SUPER, where the renderer process reached 4.7 GB and
-     * died while 17,000 / 170,000 loaded in 17 s. Until the degraded draw lands, the honest
-     * behaviour at the ceiling is a coded error the consumer can show, so `DEFAULT_LIMITS` is
-     * the number the element enforces rather than a number it merely publishes.
-     *
-     * `E_TOO_LARGE` is the code because the ceiling is a hard limit of this renderer, and the
-     * caller's remedy is the one that code names: load a subset.
-     * @param of - what is being counted
-     * @param held - how many the graph holds already
-     * @param adding - how many this call would add
-     * @param limit - the most the renderer can draw
-     * @throws A `GraphtyError` with `E_TOO_LARGE` when `held + adding` is past the limit
-     */
-    private refuseAboveCeiling(of: "nodes" | "edges", held: number, adding: number, limit: number): void {
-        if (held + adding <= limit) {
-            return;
-        }
-
-        const { nodes, edges } = this.heldCounts();
-        throw new GraphtyError({
-            code: "E_TOO_LARGE",
-            source: "data",
-            message:
-                `Loading ${adding.toLocaleString("en-US")} more ${of} would take the graph to ` +
-                `${(held + adding).toLocaleString("en-US")}, past the ${limit.toLocaleString("en-US")} ` +
-                `this renderer can draw. Load a subset of the graph.`,
-            details: { limit, count: held + adding, of, graph: { nodes, edges } },
-        });
+        await this.ingest.addDataFromSource(type, opts);
     }
 
     // Utility methods
@@ -1694,9 +1078,6 @@ export class DataManager implements Manager {
 
         // Drop the graph data itself, not only the render objects built from it.
         this.resetStore();
-
-        // The report described a graph that no longer exists.
-        this.importReport = null;
 
         // Clear graph-level results
         this.graphResults = undefined;

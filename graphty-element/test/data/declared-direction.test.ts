@@ -30,10 +30,10 @@ import { GEXFDataSource } from "../../src/data/GEXFDataSource";
 import { GMLDataSource } from "../../src/data/GMLDataSource";
 import { GraphMLDataSource } from "../../src/data/GraphMLDataSource";
 import { GraphStore } from "../../src/data/GraphStore";
-import { ingestDeclaredDirection, ingestEdge, ingestNode } from "../../src/data/ingest";
 import { JsonDataSource } from "../../src/data/JsonDataSource";
 import { PajekDataSource } from "../../src/data/PajekDataSource";
 import { createGraphSession, type GraphSession } from "../../src/session";
+import { ingestDeclaredDirection, ingestEdge, ingestNode } from "../../src/session/project/ingest";
 
 /** Where the shipped corpus lives, relative to this file. */
 const CORPUS = join(__dirname, "..", "helpers", "corpus");

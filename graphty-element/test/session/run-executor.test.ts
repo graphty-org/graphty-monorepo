@@ -6,11 +6,11 @@ import { assert, describe, it } from "vitest";
 import { AccelerationController, AcceleratorRegistry } from "../../src/acceleration";
 import { algorithmByKey } from "../../src/catalog/algorithms";
 import { GraphStore } from "../../src/data/GraphStore";
-import { ingestEdge, ingestNode } from "../../src/data/ingest";
 import { isGraphtyError } from "../../src/errors";
 import type { Graph } from "../../src/Graph";
 import { AlgorithmManager } from "../../src/managers/AlgorithmManager";
 import type { EventManager } from "../../src/managers/EventManager";
+import { ingestEdge, ingestNode } from "../../src/session/project/ingest";
 import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
 import { createScopeApi } from "../../src/session/scope";
 

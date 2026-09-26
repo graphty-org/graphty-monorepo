@@ -5,7 +5,6 @@ import type { EdgeId } from "../../src/catalog/types";
 import { DataConfig } from "../../src/config/DataConfig";
 import { GEXFDataSource } from "../../src/data/GEXFDataSource";
 import { GraphStore } from "../../src/data/GraphStore";
-import { ingestDeclaredDirection, ingestEdge, ingestNode } from "../../src/data/ingest";
 import {
     createGraphSession,
     type GraphSession,
@@ -14,6 +13,7 @@ import {
     type SessionRunsOptions,
 } from "../../src/session";
 import { createElementSession } from "../../src/session/GraphSession";
+import { ingestDeclaredDirection, ingestEdge, ingestNode } from "../../src/session/project/ingest";
 import { edgeSpaceOf } from "../../src/session/scope/ScopeApi";
 
 /** One node record as a test writes it: an id plus whatever else it wants to say. */

@@ -2,7 +2,7 @@ import { INVALID_INDEX } from "@graphty/graph-format";
 import { assert, describe, it } from "vitest";
 
 import { GraphStore } from "../../src/data/GraphStore";
-import { ingestEdge, ingestNode, resolveEdgeWeight } from "../../src/data/ingest";
+import { ingestEdge, ingestNode, resolveEdgeWeight } from "../../src/session/project/ingest";
 
 function makeStore(positionScale = 1): GraphStore {
     return new GraphStore({

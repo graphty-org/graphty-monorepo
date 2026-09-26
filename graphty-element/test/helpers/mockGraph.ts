@@ -16,8 +16,8 @@ import type { DerivedGraph, GraphSnapshot } from "@graphty/graph-format";
 
 import { AccelerationController, AcceleratorRegistry } from "../../src/acceleration";
 import { GraphStore } from "../../src/data/GraphStore";
-import { ingestEdge, ingestNode, resolveEdgeWeight } from "../../src/data/ingest";
 import type { Graph } from "../../src/Graph";
+import { ingestEdge, ingestNode, resolveEdgeWeight } from "../../src/session/project/ingest";
 
 /**
  * Options for creating a mock graph

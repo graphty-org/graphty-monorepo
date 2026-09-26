@@ -13,7 +13,7 @@
  *   (`src/managers/DataManager.ts`);
  * - `positionScale` converts a record's own coordinates into scene units (`src/data/GraphStore.ts`);
  * - `directed` overrules a file's header, and is the one setting a file cannot argue with
- *   (`src/data/ingest.ts`).
+ *   (`src/session/project/ingest.ts`).
  *
  * A consumer holding an element had no way to say any of the four. That is what this file pins.
  */

@@ -15,9 +15,9 @@ import { assert, describe, it } from "vitest";
 
 import { COMMANDS } from "../../../commands";
 import type { GraphStore } from "../../../src/data/GraphStore";
-import { ingestNode } from "../../../src/data/ingest";
 import { type Door, DOOR_ROOTS, PHASES, PLAN_PHASE } from "../../../src/session/commands/doors";
 import { createElementSession, dispatcherOf } from "../../../src/session/GraphSession";
+import { ingestNode } from "../../../src/session/project/ingest";
 import type { ElementSession } from "../../../src/session/types";
 import { callOf, checkDispatches, dispatchesOf } from "./door-harness";
 

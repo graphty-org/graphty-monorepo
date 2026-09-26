@@ -9,7 +9,8 @@ const PACKAGE_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 
 /**
  * The entry points that must resolve with no renderer anywhere in their import graph, per the
- * table in design/element-api/element-api-design.md section 6.1.
+ * table in design/element-api/element-api-design.md section 6.1, and the modules a Node-safe entry
+ * point is about to reach.
  */
 const NODE_SAFE_ENTRIES = [
     "session.ts",
@@ -20,6 +21,9 @@ const NODE_SAFE_ENTRIES = [
     "format.ts",
     "logging.ts",
     "react.ts",
+    // Not an entry point yet, but the headless session's data write verbs will reach it, so it
+    // is held to the same rule now: ingest must never need a renderer.
+    "src/session/project/ingest.ts",
 ];
 
 /** What must never appear in a Node-safe entry point's import graph. */

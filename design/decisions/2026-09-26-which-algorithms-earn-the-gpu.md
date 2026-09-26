@@ -406,6 +406,67 @@ would have to be built on. There is no route to the algorithms that earn the GPU
 through ones that do not. A cost model that ranks algorithms one at a time cannot see that, and a
 reader of this record should not let it decide a phase that builds shared machinery.
 
+## What the shared machinery does and does not change about the list above (2026-09-26)
+
+The section before this one says a model that ranks algorithms one at a time cannot see that some
+are worth building for what they carry. That cuts both ways, and the cut has to be made precisely,
+because "it is foundational" is how a roadmap stops ever saying no. Every entry above was re-read
+against one question: does anything else need the machinery this would build?
+
+**It rescues nothing that was dropped.** k-truss consumes triangle counting and the edge mask and
+produces no primitive (the plan's own task says so). Girvan-Newman consumes edge betweenness.
+The single-query algorithms consume the frontier and the near-far queue. Exact all-source
+closeness is the kernel that already exists, run more times. Every one of them is a leaf, so every
+drop stands on its own number.
+
+**Two of the demotions are different in kind, and the record should not have spelled them the
+same way.** k-core is a pure leaf: its task adds nothing under `src/primitives/` and calls the
+traversal phase's frontier unchanged, so deferring it costs 1.5 days of nothing-downstream and is
+a clean call. Louvain is also a leaf, but both of its substrates -- the device graph build and the
+per-row group-by-key -- are already being built for triangle counting and for label propagation,
+which this record keeps. So its 6.0 days carry no new primitive and no new correctness argument at
+the primitive level. The verdict does not change (2.3x at 100k, 0.26x at 10k), but the reason
+does: it is cheap and marginal rather than expensive and marginal, and those two deserve different
+treatment when a schedule has slack.
+
+**Three entries are routing decisions wearing a build decision's clothes.** Breadth-first search,
+shortest paths and connected components are built and shipped; nothing about them is deferrable
+any more. What the record decides for them is the size above which the element routes to them,
+which is the floors table. Exact all-source closeness is the same: the kernel exists, the decision
+is a cap, and the only thing genuinely blocked is a `sources` option on a published interface.
+Calling these "demoted" and "dropped" invites a reader to think work is being saved, and none is.
+
+**The ordering of the keep list is wrong, and this is the change that matters.** It is ordered by
+speedup, which is a runtime property. Build order should be by what unblocks what:
+
+| Build | Days | Unblocks | Best consumer's number |
+| --- | ---: | --- | --- |
+| the device graph build (`cooToCsr`, the simple symmetric graph) | 2.5 | triangle counting, k-truss, Louvain's contraction | triangles, 12.7x at 100k |
+| the per-row group-by-key | 2.5 | label propagation, Louvain's move pass | label propagation, 20x at 100k |
+| triangle counting | 2.5 | -- (leaf) | itself |
+| label propagation | 1.5 | -- (leaf) | itself |
+| all-pairs, minimum spanning tree, sampled betweenness | -- | -- (leaves) | themselves |
+
+Ordered by speedup, a phase cut short after two tasks has built two leaves and enabled nothing.
+Ordered by what unblocks what, the same two tasks leave every later row cheap.
+
+**The test that keeps this honest.** Before building a substrate, name its best consumer and its
+number, in the plan, in a sentence. The device build passes it (triangle counting, 12.7x); the
+group-by passes it (label propagation, 20x); machinery built for k-core would fail it, because
+nothing consumes k-core. If nobody will write that sentence, what is being proposed is not a
+substrate.
+
+**And the bound this argument needs, which the frontier phase is currently outside of.** A
+substrate justified by a consumer that is never built is pure loss. The frontier family is that
+case today: it was defended by sampled betweenness, betweenness lives in the betweenness and
+all-pairs phase, and that phase has not started. What the frontier machinery carries right now is
+closeness, which the element may not route above 30,000 nodes, and two traversals the element
+routes to the CPU below 141,000 and 107,000 nodes. So the shared-machinery defence of that phase
+is a promissory note, and sampled betweenness is what pays it. That makes betweenness the highest
+priority of the unbuilt work -- not for its own 14x, but because it is what settles a phase
+already paid for. The rule that follows: a substrate and the consumer that justifies it belong in
+the same phase, or neither belongs in the roadmap.
+
 ## Provenance
 
 Nothing for this record ran on the GPU: the card was in use by another workflow, and every GPU

@@ -642,6 +642,18 @@ void main() {
         const perFrame = EDGE_CONSTANTS.MOVING_TEXTURE_ANIMATION_SPEED * animationSpeed;
 
         const observer = scene.onBeforeRenderObservable.add(() => {
+            // PARKED AT THE START OF THE GRADIENT WHEN THE SCENE SAYS NOT TO ANIMATE, rather than
+            // left wherever the last frame put it. `scene.animationsEnabled` is Babylon's own
+            // switch for "do not animate", and honouring it is what lets a visual baseline of an
+            // animated edge exist at all: the line is still built and drawn by this renderer, so
+            // a defect in it still shows up in the picture, but the picture is the same one every
+            // time. Stopping without resetting would have made every snapshot differ by however
+            // far the gradient had crept before the shot, which is the whole problem.
+            if (!scene.animationsEnabled) {
+                texture.uOffset = 0;
+                return;
+            }
+
             texture.uOffset -= perFrame * scene.getAnimationRatio();
         });
 

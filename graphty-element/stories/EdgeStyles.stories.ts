@@ -1892,6 +1892,32 @@ export const AnimationSpeed: Story = {
                     "the whole graph.",
             );
         }
+
+        // THE FREEZE, AND THE PROOF THAT IT FREEZES. A moving picture cannot have a visual
+        // baseline, so this story parks its gradient at the start before it ends and Chromatic
+        // photographs it parked. That baseline is only worth having if the parking is reliable,
+        // which is what the rest of this block checks: turn the scene's animations off, let
+        // frames pass, and both textures must sit at exactly zero and stay there. If they creep,
+        // every Chromatic build after this one differs from the last for no reason anybody can
+        // act on -- so the check belongs here, in the run that happens on every pull request,
+        // rather than in the Chromatic build that would merely suffer from it.
+        scene.graph.scene.animationsEnabled = false;
+
+        await framesOf(scene, 5);
+
+        const parked = { slow: slow?.uOffset ?? -1, fast: fast?.uOffset ?? -1 };
+
+        await framesOf(scene, 5);
+
+        const stillParked = { slow: slow?.uOffset ?? -1, fast: fast?.uOffset ?? -1 };
+
+        await holds(
+            parked.slow === 0 && parked.fast === 0 && stillParked.slow === 0 && stillParked.fast === 0,
+            "Styles/Edge AnimationSpeed: with the scene's animations turned off both gradients must sit at " +
+                `the start and stay there, and they read ${parked.slow} and ${parked.fast}, then ` +
+                `${stillParked.slow} and ${stillParked.fast}. A gradient that keeps creeping once animation ` +
+                "is off makes this story's visual baseline differ on every build.",
+        );
     },
     args: {
         setup: storySetup({
@@ -1949,8 +1975,13 @@ export const AnimationSpeed: Story = {
     },
     parameters: {
         chromatic: {
-            // A picture that is different on every frame by design has no stable baseline.
-            disableSnapshot: true,
+            // The picture IS snapshotted, because the play function parks the gradient before it
+            // ends and a parked gradient is the same picture every time. Setting the speed to
+            // zero under Chromatic would have been the easier freeze and the wrong one: zero
+            // routes the edge to the static line renderer, so the baseline would photograph a
+            // code path this story is not about and the eight-unit-thick slab that shipped here
+            // would have passed it.
+            delay: 1000,
         },
     },
 };

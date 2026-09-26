@@ -25,7 +25,7 @@ import {
 } from "@babylonjs/core";
 import type { GraphSnapshot } from "@graphty/graph-format";
 
-import { ACCELERATION_MIN_NODES_DEFAULT, ACCELERATION_POLICY_DEFAULT, AccelerationController } from "./acceleration";
+import { ACCELERATION_POLICY_DEFAULT, AccelerationController } from "./acceleration";
 import { VoiceInputAdapter } from "./ai/input/VoiceInputAdapter";
 import type { ApiKeyManager } from "./ai/keys";
 import { GraphtyLogger, type Logger } from "./logging";
@@ -333,11 +333,10 @@ export class Graph implements GraphContext {
         this.dataManager = new DataManager(this.eventManager, this.styles);
 
         // ONE controller for the element, this graph and its session. Nothing is probed until
-        // `start()` is called, which the element does from `connectedCallback`.
-        this.acceleration = new AccelerationController({
-            policy: ACCELERATION_POLICY_DEFAULT,
-            minNodes: ACCELERATION_MIN_NODES_DEFAULT,
-        });
+        // `start()` is called, which the element does from `connectedCallback`. No `minNodes`
+        // on purpose: passing the default would count as the consumer's own number and switch
+        // off the per-capability floors, which only apply while nobody has set the threshold.
+        this.acceleration = new AccelerationController({ policy: ACCELERATION_POLICY_DEFAULT });
 
         // The headless model, over the store the data manager already owns for the life of the
         // graph. It is handed that store rather than building one, because a second store would be

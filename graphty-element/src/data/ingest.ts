@@ -14,7 +14,7 @@ import type { GraphStore } from "./GraphStore";
  * @param id - the extracted id
  * @returns true when graph-format will accept it
  */
-function isStorableId(id: unknown): id is string | number {
+export function isStorableId(id: unknown): id is string | number {
     return typeof id === "string" || (typeof id === "number" && Number.isFinite(id));
 }
 

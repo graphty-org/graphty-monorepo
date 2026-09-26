@@ -348,6 +348,84 @@ describe("AccelerationController: publishing", () => {
     });
 });
 
+describe("AccelerationController: the whileRunning span", () => {
+    /** A span opener that records how many spans are open right now. */
+    function spanCounter(): { open: number; opened: number; whileRunning: () => () => void } {
+        const counter = {
+            open: 0,
+            opened: 0,
+            whileRunning: (): (() => void) => {
+                counter.open += 1;
+                counter.opened += 1;
+                return (): void => {
+                    counter.open -= 1;
+                };
+            },
+        };
+
+        return counter;
+    }
+
+    it("holds the span open for exactly the accelerated call", async () => {
+        const spans = spanCounter();
+        const controller = new AccelerationController({
+            registry: registryWith(fakeAccelerator()),
+            whileRunning: spans.whileRunning,
+        });
+        await controller.start();
+        const gate = deferred<string>();
+        let openDuring = -1;
+
+        const running = controller.run(LAYOUT, async () => {
+            openDuring = spans.open;
+            return gate.promise;
+        });
+        await until(() => openDuring !== -1, "the work to reach the accelerator");
+        assert.strictEqual(openDuring, 1, "the span is open while the work is on the accelerator");
+        gate.resolve("positions");
+        await running;
+
+        assert.strictEqual(spans.open, 0, "and closed once it has come back");
+        assert.strictEqual(spans.opened, 1);
+        controller.dispose();
+    });
+
+    it("closes the span when the accelerated call throws", async () => {
+        const spans = spanCounter();
+        const controller = new AccelerationController({
+            registry: registryWith(fakeAccelerator()),
+            whileRunning: spans.whileRunning,
+        });
+        await controller.start();
+
+        await controller
+            .run(LAYOUT, (): string => {
+                throw new Error("the kernel failed");
+            })
+            .catch(() => undefined);
+
+        assert.strictEqual(spans.opened, 1);
+        assert.strictEqual(spans.open, 0);
+        controller.dispose();
+    });
+
+    it("never opens the span for work the decision sent to the CPU path", async () => {
+        const spans = spanCounter();
+        const controller = new AccelerationController({
+            registry: registryWith(fakeAccelerator()),
+            minNodes: 1_000_000,
+            whileRunning: spans.whileRunning,
+        });
+        await controller.start();
+
+        const outcome = await controller.run(LAYOUT, (): string => "gpu");
+
+        assert.isFalse(outcome.accelerated);
+        assert.strictEqual(spans.opened, 0, "the CPU path must not hold the host's frames");
+        controller.dispose();
+    });
+});
+
 describe("AccelerationController: the acceleration.minNodes threshold", () => {
     it("takes the CPU path just below the threshold and the accelerator at it", async () => {
         const controller = new AccelerationController({ registry: registryWith(fakeAccelerator()), minNodes: 1000 });

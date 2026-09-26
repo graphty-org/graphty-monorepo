@@ -1,15 +1,29 @@
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import { Graph } from "../../src/Graph";
+import type { RenderManager } from "../../src/managers/RenderManager";
 import { UpdateManager } from "../../src/managers/UpdateManager";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
 describe("UpdateManager", () => {
     let graph: Graph;
     let updateManager: UpdateManager;
+    let releaseFrames: () => void;
 
     beforeEach(async () => {
         graph = await createTestGraph();
+
+        const graphAny = graph as unknown as Record<string, unknown>;
+
+        // Every test below pumps frames by hand (`update`, `stepFrames`) and reads what a pass left
+        // behind, so the live render loop `init` started must not run passes of its own in between.
+        // Left running, it frames the graph the first time an animation frame lands between the
+        // awaits below -- `addNodes` arms a zoom-to-fit, a fixed layout has nothing to wait for --
+        // and whether one lands depends on how long the setup takes: about 20 ms on a quiet machine,
+        // 295 ms on a loaded CI shard, where "zoom to fit has not completed yet" was already false
+        // before the test began. Held frames are skipped whole, so nothing below observes a pass it
+        // did not run itself.
+        releaseFrames = (graphAny.renderManager as RenderManager).holdFrames();
 
         // Add test data with explicit positions for fixed layout
         // Positions need to create a bounding box larger than minBoundingBoxSize (0.1)
@@ -26,11 +40,11 @@ describe("UpdateManager", () => {
         // Set fixed layout
         await graph.setLayout("fixed");
 
-        const graphAny = graph as unknown as Record<string, unknown>;
         updateManager = graphAny.updateManager as UpdateManager;
     });
 
     afterEach(() => {
+        releaseFrames();
         cleanupTestGraph(graph);
     });
 
@@ -118,6 +132,10 @@ describe("UpdateManager", () => {
     describe("zoom to fit", () => {
         it("should enable zoom to fit", () => {
             updateManager.enableZoomToFit();
+
+            // Armed, and not yet answered: the request is honoured by the next pass, not by the
+            // call itself, and no pass has run (the render loop is held; see beforeEach).
+            assert.isTrue(updateManager.isZoomToFitEnabled());
             assert.isFalse(updateManager.zoomToFitCompleted);
         });
 
@@ -135,6 +153,36 @@ describe("UpdateManager", () => {
 
             // Should have zoomed by now
             assert.isTrue(updateManager.zoomToFitCompleted);
+        });
+
+        // A graph loaded with an algorithm that sizes its nodes asks for its final framing on the
+        // pass after the layout settles, while the run's size layer can still be painting. Answered
+        // then, the camera framed every node at its unstyled size and nothing re-framed when the
+        // sizes landed -- so a slow machine drew a tighter picture than a fast one.
+        it("waits for a style pass that is on its way before answering a framing request", () => {
+            graph.getLayoutManager().running = false;
+            updateManager.stepFrames(5);
+
+            let framings = 0;
+            graph.eventManager.addListener("zoom-to-fit-complete", () => {
+                framings++;
+            });
+
+            // A pass asked for and not yet announced. Stubbed, because a pass over three nodes
+            // finishes inside one slice and never spans a frame the way a slow machine makes it.
+            const painting = vi.spyOn(graph.getStylePainter(), "isPainting", "get").mockReturnValue(true);
+
+            updateManager.enableZoomToFit();
+            updateManager.stepFrames(3);
+
+            assert.strictEqual(framings, 0, "the camera was framed while a style pass was still painting");
+            assert.isFalse(updateManager.frameIsStable);
+            assert.include(updateManager.whyFrameIsNotStable(), "painting");
+
+            painting.mockReturnValue(false);
+            updateManager.update();
+
+            assert.strictEqual(framings, 1, "the request is answered on the first pass after the paint arrives");
         });
     });
 

@@ -696,6 +696,11 @@ function fixtureResult(input: {
     readonly graph?: Readonly<Record<string, unknown>>;
     /** The groups, largest first, for a run that partitions. */
     readonly groups?: readonly { readonly group: number; readonly size: number }[];
+    /**
+     * The sentence `top(...)` reports for a tie across the budget. Canned rather than derived,
+     * like everything else here: where the cut falls is graphty-element's arithmetic.
+     */
+    readonly topReason?: string;
 }): RunResult {
     const measured = [...input.values.entries()].sort(byValueThenPrintedId);
     const ascending = measured.map((entry) => entry[1]).reverse();
@@ -746,6 +751,7 @@ function fixtureResult(input: {
             durationMs: 0,
         }),
         histogram: () => fixtureHistogram(ascending),
+        top: () => ({ entries: [], leftOut: null, reason: input.topReason ?? null }),
         graph: input.graph ?? {},
     } as unknown as RunResult;
 }
@@ -804,6 +810,8 @@ interface NovicePathOptions {
      * grouping run is untouched, because it is not what this reaches.
      */
     readonly unmeasured?: number;
+    /** What the degree run's `top(...)` says about a tie across the label budget. */
+    readonly topReason?: string;
     /**
      * The fixture's ids as the GML samples carry them: integers, stored as NUMBERS.
      *
@@ -997,6 +1005,7 @@ function installNovicePathGraph(container: HTMLElement, options: NovicePathOptio
         return fixtureResult({
             values: new Map(measuredNodes().map((node) => [node.id, measure(degrees.get(node.id) ?? 0)])),
             count: nodes.size,
+            ...(algorithm === "degree" && options.topReason !== undefined ? { topReason: options.topReason } : {}),
             /* PageRank is the only one of the three that publishes anything at graph level, and
                whatever the board says it published is published VERBATIM -- including a
                `converged: true`. That is the case that matters: on the delta path upstream
@@ -2286,13 +2295,12 @@ describe("AppShell", () => {
             const added = shellLayers(graph.styles.layers());
 
             expect(added).toHaveLength(1);
-            /* The label layer is a RULE, not a list: it names the degree RUN and asks each
-               node's own measurement whether to draw its label, so a node the pass never
-               reached carries no value, reads absent and is not painted. The board used to
-               read a JavaScript expression out of a `calculatedStyle` sibling, which is the
-               machinery the 2.0 stack removed. */
-            expect(added[0].selector).toMatchObject({ match: "expression" });
-            expect((added[0].selector as { where: string }).where).toContain(`.${METRIC_VALUE_FIELD} >=`);
+            /* The label layer is a RULE, not a list: it asks graphty-element for the top N of
+               the degree RUN's own measurement, so the element decides where the cut falls and
+               what a tie across the budget does. The shell used to choose a degree threshold
+               itself and hand over a `value >= cut` expression. */
+            expect(added[0].selector).toMatchObject({ match: "top", n: 5 });
+            expect((added[0].selector as { path: string }).path).toMatch(new RegExp(`\\.${METRIC_VALUE_FIELD}$`));
             expect(added[0].encode).toHaveProperty("node.label");
             /* Nothing the shell adds may set a node colour or a node size any more, by either
                a literal or a rule. */
@@ -2302,6 +2310,38 @@ describe("AppShell", () => {
                 expect(layer.encode?.["node.color"]).toBeUndefined();
                 expect(layer.encode?.["node.size"]).toBeUndefined();
             }
+        });
+
+        /* A tie across the budget can leave the switch reading ON over a graph with no labels,
+           so Settings > Performance shows the element's sentence for why. */
+        it("says in Settings why a tie across the label budget left labels out", async () => {
+            const reason = "12 tie at 12, and taking them would make 12, more than the 11 asked for, so none are taken.";
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container, { topReason: reason });
+            fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
+            await reportLoadComplete(container);
+
+            fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+            fireEvent.click(screen.getByRole("tab", { name: "Performance" }));
+
+            expect(await screen.findByTestId("settings-labels-shortfall")).toHaveTextContent(reason);
+        });
+
+        it("says nothing about the label budget when every label fit", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+            fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
+            await reportLoadComplete(container);
+
+            fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+            fireEvent.click(screen.getByRole("tab", { name: "Performance" }));
+
+            expect(screen.getByTestId("settings-labels")).toBeInTheDocument();
+            expect(screen.queryByTestId("settings-labels-shortfall")).toBeNull();
         });
 
         it("shows the Insights strip with the cards this build can carry to a reading", async () => {

@@ -115,6 +115,17 @@ interface AccelerationControllerOptions {
     readonly recoverOnDeviceLoss?: boolean;
     /** How many consecutive recovery attempts to make before giving up. Defaults to 3. */
     readonly maxRecoveryAttempts?: number;
+    /**
+     * Opens a span around every call-shaped accelerated run, returning what closes it.
+     *
+     * The element hands in its render manager's `holdFrames`: a GPU readback is delivered as a
+     * task and waits behind whatever frame the host is drawing, so a run that is a few
+     * milliseconds on the device came back a frame or two later through the element (issue
+     * #390). The span covers exactly the accelerated call -- not the decision before it, and not
+     * the CPU path -- and is closed however the call ends. A simulation, which steps every frame
+     * through {@link AccelerationController.beginWork}, never opens one: it needs the frames.
+     */
+    readonly whileRunning?: () => () => void;
 }
 
 /** One attached accelerator, whether this controller built it, and whether it has finished with it. */
@@ -228,6 +239,7 @@ export class AccelerationController {
     readonly #exactMaxNodes: number | undefined;
     readonly #recoverOnDeviceLoss: boolean;
     readonly #maxRecoveryAttempts: number;
+    readonly #whileRunning: (() => () => void) | undefined;
 
     #policy: AccelerationPolicy;
     #minNodes: number;
@@ -255,6 +267,7 @@ export class AccelerationController {
         this.#exactMaxNodes = options.exactMaxNodes;
         this.#recoverOnDeviceLoss = options.recoverOnDeviceLoss ?? true;
         this.#maxRecoveryAttempts = options.maxRecoveryAttempts ?? 3;
+        this.#whileRunning = options.whileRunning;
         this.#policy = options.policy ?? ACCELERATION_POLICY_DEFAULT;
         this.#minNodes = options.minNodes ?? ACCELERATION_MIN_NODES_DEFAULT;
         this.#state = this.#policy === "off" ? "off" : "probing";
@@ -554,6 +567,9 @@ export class AccelerationController {
 
         const attachment = this.#attachment;
         this.#enterWork();
+        // Opened after the decision, so the CPU path above never holds the host's frames, and
+        // closed in the `finally` below, so a throw releases them too.
+        const endSpan = this.#whileRunning?.();
 
         try {
             const value = await fn(decision.accelerator);
@@ -564,6 +580,7 @@ export class AccelerationController {
             // hide that.
             throw this.#failedRun(error, work, decision.accelerator, attachment);
         } finally {
+            endSpan?.();
             this.#leaveWork();
         }
     }

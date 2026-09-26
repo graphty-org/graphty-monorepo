@@ -76,7 +76,12 @@ export class MeshCache {
         this.misses++;
         const mesh = creator();
         mesh.name = name;
-        const batch = new EdgeLineBatch(mesh, scene);
+        const batch: EdgeLineBatch = new EdgeLineBatch(mesh, scene, () => {
+            if (this.batchCacheMap.get(name) === batch) {
+                this.batchCacheMap.delete(name);
+            }
+        });
+
         this.batchCacheMap.set(name, batch);
 
         return batch;

@@ -83,6 +83,21 @@ export class EdgeLineBatch {
     /** Slots handed back, ready to be handed out again. */
     private readonly free: number[] = [];
 
+    /**
+     * Slots currently drawing an edge. The batch goes when this reaches zero.
+     *
+     * WITHOUT THIS A RETIRED APPEARANCE NEVER LEAVES THE SCENE. Every edge starts on the paint
+     * the element gives one it has not styled yet and moves off it as soon as the style stack
+     * resolves, so the batch that drew that first appearance ends every load with no edges in it.
+     * Held only by the mesh cache, which lives as long as the graph does, it stayed in
+     * `scene.meshes` with its material for the rest of the session --
+     * `test/browser/every-element-leaves-the-bootstrap-paint.test.ts` is what noticed.
+     */
+    private live = 0;
+
+    /** Told by this batch that it has emptied, so whoever holds it can forget it. */
+    private readonly retire: () => void;
+
     /** Whether a slot has been written since the last upload. */
     private dirty = false;
 
@@ -97,9 +112,12 @@ export class EdgeLineBatch {
      *     applied on top of it by the shader (which is how the batch follows `graph-root` under
      *     an XR gesture).
      * @param scene - The scene that renders it.
+     * @param retire - Called when the last edge leaves this batch, so whoever holds it can forget
+     *     it before it disposes itself. Defaults to doing nothing, for a batch nobody holds.
      */
-    constructor(mesh: Mesh, scene: Scene) {
+    constructor(mesh: Mesh, scene: Scene, retire: () => void = (): void => undefined) {
         this.mesh = mesh;
+        this.retire = retire;
         this.matrices = new Float32Array(INITIAL_SLOTS * FLOATS_PER_SLOT);
 
         // An edge line was never a pick candidate and a batch of them is not one either. Picking
@@ -160,6 +178,8 @@ export class EdgeLineBatch {
      * @returns The slot's index, which the caller keeps until it releases it.
      */
     acquire(): number {
+        this.live++;
+
         const recycled = this.free.pop();
 
         if (recycled !== undefined) {
@@ -192,6 +212,14 @@ export class EdgeLineBatch {
 
         this.hide(index);
         this.free.push(index);
+        this.live--;
+
+        // The last edge takes the batch with it, so an appearance nothing is drawn with any more
+        // leaves no mesh and no material behind. This is what `ArrowCapBatch.release` does too.
+        if (this.live === 0) {
+            this.retire();
+            this.dispose();
+        }
     }
 
     /**
@@ -240,6 +268,23 @@ export class EdgeLineBatch {
         const z = this.matrices[at + 2];
 
         return Math.sqrt(x * x + y * y + z * z);
+    }
+
+    /**
+     * Where the line in one slot is drawn, in world units: the middle of the segment.
+     *
+     * THE READING THAT USED TO BE `mesh.position`. An edge drawn as an instance of its own mesh
+     * put the middle of its segment in that mesh's position, which is how a test asks "is this
+     * edge drawn between the two ends the layout gave". A slot has no mesh, so the same number is
+     * read back out of the matrix here -- it is the translation, written by
+     * {@link segmentMatrixToRef}.
+     * @param index - The slot.
+     * @returns The middle of the drawn segment, as a fresh vector the caller may keep.
+     */
+    centreOf(index: number): Vector3 {
+        const at = index * FLOATS_PER_SLOT + 12;
+
+        return new Vector3(this.matrices[at], this.matrices[at + 1], this.matrices[at + 2]);
     }
 
     /** Upload everything written since the last upload, in one call. */

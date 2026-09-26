@@ -277,7 +277,7 @@ export class Edge {
      * name did, and the length is the drawn extent the bounding box used to carry.
      * @returns The appearance, or null for an edge that still owns its line mesh.
      */
-    get drawnLine(): { name: string; length: number; visibility: number } | null {
+    get drawnLine(): { name: string; length: number; visibility: number; centre: Vector3 } | null {
         if (this.lineBatch === null) {
             return null;
         }
@@ -286,7 +286,23 @@ export class Edge {
             name: this.lineBatch.name,
             length: this.lineBatch.lengthOf(this.lineSlot),
             visibility: this.lineBatch.mesh.visibility,
+            centre: this.lineBatch.centreOf(this.lineSlot),
         };
+    }
+
+    /**
+     * Where this edge's line is drawn, as the middle of the segment on screen.
+     *
+     * ONE ANSWER FOR BOTH RENDERERS, which is the point of it. An edge that still owns its line
+     * mesh -- a curve, a patterned line, anything in 2D -- carries the middle of its segment in
+     * that mesh's position, and an edge drawn as a slot in a batch carries it in the slot's
+     * matrix. Asking the edge rather than its mesh gets the same number either way, and is the
+     * only way to get it for a batched edge, whose mesh sits at the origin and is shared with
+     * every other edge of the same appearance.
+     * @returns The middle of the drawn line.
+     */
+    get drawnCentre(): Vector3 {
+        return this.drawnLine?.centre ?? this.mesh.position;
     }
 
     /**

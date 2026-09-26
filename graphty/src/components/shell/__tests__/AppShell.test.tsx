@@ -1539,6 +1539,9 @@ describe("AppShell", () => {
         it("opens from the top bar's trigger pill", async () => {
             renderShell();
 
+            /* Every other test here waits on this id to know the palette's rows are drawn, so
+               it must not be on anything that exists while the palette is closed (issue #403). */
+            expect(screen.queryByTestId("command-palette")).toBeNull();
             fireEvent.click(screen.getByRole("button", { name: /Search commands, nodes and edges/ }));
 
             expect(await screen.findByTestId("command-palette")).toBeInTheDocument();

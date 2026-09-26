@@ -2,7 +2,7 @@
 
 `webgpu-acceleration-plan.md` in this directory is the accepted design for
 `@graphty/webgpu-graph-algorithms`, approved on 2026-09-14. Since then, decision records under
-`design/decisions/` have reversed forty-four passages of it. None of those passages were
+`design/decisions/` have reversed sixty-three passages of it. None of those passages were
 edited: the convention in this repository is that a decision record names the lines it
 overrules and the design keeps its original text, because deleting the argument that was
 rejected is how a decision gets quietly reversed a year later. `design/decisions/README.md`
@@ -26,9 +26,10 @@ top of it on 2026-09-23 pushed the body down by eight lines, so a line number qu
 decision record -- all of which were written earlier -- is eight lower than the line that text
 sits on now.
 
-Sections with superseded text, in order: 1.4 (D16), 2.4, 4.6, 6, 7.3, 7.7, 7.19, 7.20, 8.2, 8.8,
-8.10, 9.1, 9.4, 9.5, 9.8, 10.4 (targets T-12 and T-13), 12.1, 12.2, 12.3, 12.6, 13 (the phase
-table), 14.1 (the risk register) and the Review log's applied-findings table.
+Sections with superseded text, in order: 1.4 (D16), 2.4, 3.3, 4.6, 5.4, 6, 7.3, 7.7, 7.19, 7.20, 8.2,
+8.4, 8.5, 8.6, 8.7, 8.8, 8.10, 9.1, 9.4, 9.5, 9.8, 10.4 (targets T-12, T-13 and T-15), 12.1, 12.2,
+12.3, 12.6, 13 (the phase table), 14.1 (the risk register), 16.2, 17 (one row) and the Review log's
+applied-findings table.
 
 **Two things here were open and are now decided**, both by
 `design/decisions/2026-09-23-what-stands-in-for-the-nightly-lane.md`. Both fell out of one
@@ -86,6 +87,23 @@ the rule gets no signal that its first and last rows are gone.
 
 **Decided by:** [2026-09-19-graphty-element-owns-webgpu.md](../decisions/2026-09-19-graphty-element-owns-webgpu.md) (named in its amendment of 2026-09-23, not in its original list)
 
+## Section 3.3, the `bellmanFord` and `closenessCentrality` signatures (lines 809-810)
+
+**The design says:** `bellmanFord` takes `BellmanFordOptions & GpuRunOptions` and
+`closenessCentrality` takes `ClosenessOptions & GpuRunOptions`; section 9.2's accelerator
+interface (lines 2954-2955) repeats the two names. The design defines neither type.
+
+**What is true instead:** `bellmanFord` takes `SsspOptions` (`cutoff`, `weights`), the same type
+as `sssp`, and `closenessCentrality` takes `HitsOptionsLike` (`maxIterations`, `tolerance`,
+`weighted`), because those are the types the published seam in `@graphty/algorithms` declares
+and the GPU member must be assignable to it. `maxIterations` and `tolerance` are refused with
+`E_UNSUPPORTED { option }` when defined, never silently dropped; `weighted` is honoured. The
+`breadthFirstSearch` and `sssp` signatures on lines 807-808 stand, with one value decided
+against the CPU port: `cutoff: NaN` is `E_INVALID_ARGUMENT { argument: "cutoff" }` on the GPU,
+where the CPU port returns the source alone. The result types on lines 830-832 stand.
+
+**Decided by:** [2026-09-24-frontier-members-conform-to-the-seam.md](../decisions/2026-09-24-frontier-members-conform-to-the-seam.md)
+
 ## Section 4.6, the per-row gather row of the dispatch-limits table (line 1298)
 
 **The design says:** the row covers the family "attraction, SpMV, segmented reduce, degree" and
@@ -99,6 +117,44 @@ section 4.2 -- per-array buffers, the `ArcWindow` list, the rebase uniform -- is
 still applies to all four.
 
 **Decided by:** [2026-09-20-windowed-execution-covers-degree-and-segmented-reduce.md](../decisions/2026-09-20-windowed-execution-covers-degree-and-segmented-reduce.md)
+
+## Section 4.6, the frontier row of the dispatch-limits table (line 1301) and the paragraph above the table (lines 1176-1180)
+
+**The design says:** the "frontier advance / compaction" row gives "Windowed bindings (arc
+ranges): no (v1: `E_TOO_LARGE`)" because the advance "needs the whole `colIdx` bound", and the
+paragraph above the table says "the frontier family and sort-based algorithms throw
+`E_TOO_LARGE` with `{ path: "windowed", algorithm }` until they are extended". Risk R-9 of
+section 14.1 (line 4321) repeats it.
+
+**What is true instead:** `advance-expand`, both `bfs-fused` dispatches, `bfs-bottom-up` and
+`sssp-pred` execute a windowed core, one dispatch per window over the window's owned arc range
+(`coreWindows`, an exact partition of the overlapping P4 windows), so `breadthFirstSearch` runs
+above the binding limit; the row's own note, "window-aware advance lands with P8", is what
+happened. `sssp-relax`, `bf-relax` and `closeness-sweep` keep the refusal, so weighted `sssp`,
+`bellmanFord` and `closenessCentrality` still throw, and so does `sssp`'s unit-weight route.
+One limit remains inside BFS: the reverse view is never windowed (section 4.3), so a DIRECTED
+snapshot whose reverse adjacency exceeds one binding is refused with `E_TOO_LARGE { path:
+"windowed", algorithm: "breadthFirstSearch" }`; an undirected one runs, because its reverse is
+the forward core.
+
+**Decided by:** [2026-09-24-advance-is-window-aware.md](../decisions/2026-09-24-advance-is-window-aware.md)
+
+## Section 5.4, the selector paragraph (lines 1483-1493)
+
+**The design says:** when a round has several candidate pipelines, every candidate is recorded
+for every round, one `INDIRECT | STORAGE | COPY_DST` buffer holds one 16-byte slot per (round,
+candidate), and the finalize kernel writes real args into exactly one slot per round and
+`(0, 0, 1)` into the others, so the unchosen candidates dispatch nothing.
+
+**What is true instead:** the selector still chooses on the device, but it writes the choice
+into a `path` word of the counters block, and every candidate kernel is a DIRECT grid-stride
+dispatch that reads that word and loops to its count. An indirect dispatch costs about 0.4 ms of
+device time under Dawn's validation whether or not it dispatches anything, in Node and Chromium
+alike, and seven of them per recorded level were 97 % of a traversal's wall time. The slots are
+still written and read back by the selector's tests; nothing dispatches from them. The grid
+pyramid's hub dispatch (`indirect-finalize`, once per iteration) is unchanged.
+
+**Decided by:** [2026-09-25-frontier-kernels-dispatch-directly.md](../decisions/2026-09-25-frontier-kernels-dispatch-directly.md)
 
 ## Section 6, row 3, `segmentedReduce` (line 1578)
 
@@ -125,6 +181,44 @@ signatures, same two-dispatch ownership trick -- only their first consumer moved
 
 **Decided by:** [2026-09-19-afforest-needs-no-dedupe.md](../decisions/2026-09-19-afforest-needs-no-dedupe.md)
 and [2026-09-20-compact-lands-with-the-frontier-phase.md](../decisions/2026-09-20-compact-lands-with-the-frontier-phase.md)
+
+## Section 6, rows 4, 7 and 8, the API spellings of `compact` / `dedupe`, `Frontier` and `advance` (lines 1579, 1583, 1584)
+
+**The design says:** the primitives are free functions over a batch: `compact(batch, flags,
+count, out, outCount)`, `dedupe(batch, queue, count, owner, out, outCount)`, `advance(batch,
+graph, frontier, functor: { visit, filter }, tiers?)`; `Frontier` carries two four-byte `count`
+bindings and `reset(batch, seed: number[])`.
+
+**What is true instead:** each is an async planner over a scope with a synchronous `record`,
+the shape every primitive since the design has used: `prepareCompact(scope)` returning
+`record` / `recordDedupe` / `recordDedupeIndirect`, `prepareFrontier(scope, n, arcCount,
+edgeCapacity?)` returning the `Frontier` and `recordFinalize`, and `prepareAdvance(scope,
+core)` returning `record(pass, frontier, level)` over its windows. `Frontier` keeps its name and
+its two vertex queues, but its counters are one 24-word block and `reset` takes named words.
+`advance` takes no functor: it expands into the edge queue and the claim is a separate kernel.
+The rows' "How", cost and oracle cells stand.
+
+**Decided by:** [2026-09-24-frontier-primitives-are-planners.md](../decisions/2026-09-24-frontier-primitives-are-planners.md)
+
+## Section 6, row 7, the overflow rule of the edge frontier (line 1583)
+
+**The design says:** when the unclamped append total exceeds the capacity, `finalizeArgs`
+"records `chunkStart` on the device and re-dispatches `expand` for the remaining source range
+(one indirect slot per chunk, at most `ceil(A / capacity)` chunks per level, all recorded in the
+batch)". Section 8.4 (lines 2670-2675) calls the queue "chunked with the overflow rule of 6 row
+7", section 8.10's BFS expand row (line 2851) binds a `chunk` word for it, and design 13 row P8's
+gate clause reads "(the chunked overflow rule)".
+
+**What is true instead:** the detection is the design's -- `advance-expand` clamps its writes
+and adds the unclamped aggregate into `edgeCountUnclamped`, and `frontier-finalize` compares
+that word with the capacity -- but the recovery is a FUSED RETRY: the selector zeroes the
+contract slot, sizes the fused-kernel slot from the vertex frontier, and adds one to
+`overflowLevels`; the fused kernel claims the whole level from the frontier and the partial edge
+queue is never read. There is no `chunkStart` and no `chunk` binding, because the workgroup-
+granular reservation does not fill the queue in frontier order, so "the remaining source range"
+is not a range. The faked-capacity gate test stands and passes.
+
+**Decided by:** [2026-09-24-edge-queue-overflow-is-a-fused-retry.md](../decisions/2026-09-24-edge-queue-overflow-is-a-fused-retry.md)
 
 ## Section 6, row 9, how `spmvPull` is built (line 1584)
 
@@ -202,7 +296,7 @@ kernel's traversal -- the 3x3 exclusion, the 6x6 block per level, the outside ps
 
 ## Section 7.19, the `onReheat` comment in the `ForceModel` interface (line 2331)
 
-**The design says:** the trailing comment reads "FR: iteration = floor(0.7 * iterations)".
+**The design says:** the trailing comment reads "FR: iteration = floor(0.7 \* iterations)".
 
 **What is true instead:** a Fruchterman-Reingold reheat restarts the TEMPERATURE index at
 `floor(0.7 * iterations)` and the iteration BUDGET at 0. The two were one number in the design
@@ -262,6 +356,132 @@ on the same snapshot recomputes it. `GraphResidency.array()` keeps its signature
 
 **Decided by:** [2026-09-19-outweightsum-is-call-scratch.md](../decisions/2026-09-19-outweightsum-is-call-scratch.md)
 
+## Section 8.4, the BFS dedupe sentence (lines 2647-2648), and section 16.2 (lines 5027-5044)
+
+**The design says:** BFS uses "Davidson's ownership dedupe (6 row 4: `atomicStore` in one
+dispatch, `atomicLoad` in the next) as the exact safety net behind any workgroup hash culling";
+section 8.8 row 4 (line 2801) lists `dedupe` among BFS's primitives; section 8.10's BFS contract
+row (line 2852) binds `owner (atomic)`; and section 16.2 has the contract phase switch on the
+device between "the existing ownership dedupe" below `n / 8` emitted entries and a bitmap
+compaction above it.
+
+**What is true instead:** the BFS contract is one path with no dedupe of any kind: the
+`atomicMin` claim on `depth` admits exactly one winner per vertex per level, so the next vertex
+frontier is duplicate-free by construction and an ownership pass would remove nothing. No hash
+culling runs on the edge queue, `bfs-contract` binds four storage buffers with no `owner`, and
+no density threshold exists. `dedupe` ships in this phase for the near-far queue of the weighted
+shortest-path driver, which is its one caller. The bitmap and `compact` that this phase does
+build serve the direction-optimizing path's unvisited list, not the contraction. The rest of
+8.4 stands.
+
+**Decided by:** [2026-09-24-bfs-claims-instead-of-culling.md](../decisions/2026-09-24-bfs-claims-instead-of-culling.md)
+
+## Section 8.4, the BFS host loop (line 2667) and the near-empty SSSP test (line 2689)
+
+**The design says:** "Host loop: 32 levels per submit with indirect args (5.4), one 4-byte
+readback", and for the near-far loop "the near-empty test is a device flag turned into a zero
+indirect dispatch so extra queued rounds are no-ops".
+
+**What is true instead:** 32 levels (rounds) per submit and one 4-byte readback stand; the
+kernels of a level are direct dispatches gated by the block's `path` word, and a queued round
+past the end is a no-op because the word is 0 and every count word it would read is 0, not
+because a zero-workgroup indirect dispatch runs.
+
+**Decided by:** [2026-09-25-frontier-kernels-dispatch-directly.md](../decisions/2026-09-25-frontier-kernels-dispatch-directly.md)
+
+## Section 8.4, Bellman-Ford (lines 2690-2693)
+
+**The design says:** Bellman-Ford is an "edge-parallel relax over `edgeList()` both directions on
+undirected, `n - 1` rounds with a changed flag every 8, one more round for the negative-cycle
+flag", and 8.8 row 6 schedules it beside near-far SSSP as a general shortest-path algorithm.
+
+**What is true instead:** it is a negative-weights algorithm only. Against indexed Dijkstra, the
+code a consumer with non-negative weights runs, it is 1.3-2.0x at 100k nodes in Chromium (under
+the 3x line on either relax rate); against the shipped legacy Bellman-Ford it is 30-48x, and that
+gap belongs to the missing CPU port. It also needs a round cap: the `n - 1` worst case is
+125,000 syncs, 250 s at 1M nodes in Chromium, and above the cap the call refuses rather than
+runs. The relax kernel and the negative-cycle flag are unchanged.
+
+**Decided by:** [2026-09-26-which-algorithms-earn-the-gpu.md](../decisions/2026-09-26-which-algorithms-earn-the-gpu.md)
+
+## Section 8.4, closeness (lines 2695-2698)
+
+**The design says:** closeness is a "batched multi-source BFS (32 sources per `u32` word as a
+bit-parallel frontier ...), per-source distance rows reduced on the device", i.e. the all-source
+form and nothing else.
+
+**What is true instead:** the all-source form is unusable above roughly 30,000 nodes on any
+processor: 17-42 s at 100k and 47 minutes at 1M on the GPU (31,250 batches x 1.64 x 20M arcs x
+2.67 ns = 2,737 s of kernel before a single sync), against 1,340 s and 80 hours on the CPU.
+Sampled closeness -- 100 sources in 35 ms at 100k and 0.4 s at 1M, 38-71x over 100 CPU
+traversals -- is the usable form and is the default above that size. The seam's
+`closenessCentrality` carries no `sources` or `k` option today, so until one is added the element
+must not route all-source closeness to the GPU above ~30k. The bit-parallel machinery is unchanged.
+
+**Decided by:** [2026-09-26-which-algorithms-earn-the-gpu.md](../decisions/2026-09-26-which-algorithms-earn-the-gpu.md)
+
+## Section 8.5, in full (lines 2736-2750)
+
+**The design says:** k-core by peeling rounds, triangle counting by oriented merge intersection,
+k-truss peeling edges over an `EdgeMask` with per-edge support, and Boruvka's minimum spanning
+tree, all scheduled together in 8.8 row 9 "as demand appears; each is small once the primitives
+exist".
+
+**What is true instead:** the four part ways. Boruvka earns (crossover 6k in Chromium, 10.4x at
+100k, 43x at 1M against indexed Kruskal) and gains a rounds-per-submit constant the design does
+not name. Triangle counting earns on the model (12.7x at 100k) but is unverified until the
+sorted-merge step is timed on the card: at or under 2.7 ns per step it earns, above that it does
+not. k-core is demoted behind its CPU port: 0.82x at 100k against an indexed port (46 peel rounds
+x 0.23 ms is 10.6 ms of a 28 ms call), and the port alone is 25-30x over the shipped code.
+k-truss with support recomputed each round is dropped: 4.8x at 10 rounds, 1.8x at 30, 1.1x at 50
+at 100k, with the round count unbounded; it returns only with incremental support maintenance.
+The kernels as described are unchanged.
+
+**Decided by:** [2026-09-26-which-algorithms-earn-the-gpu.md](../decisions/2026-09-26-which-algorithms-earn-the-gpu.md)
+
+## Section 8.6, label propagation (lines 2754-2760)
+
+**The design says:** "synchronous updates with cuGraph's `up_down` swap-avoidance rule,
+changed-count reduce every k", with k unnamed.
+
+**What is true instead:** k is a named constant, `LABEL_PROP_PASSES_PER_SUBMIT`, of at least 8.
+At eight passes per readback the algorithm earns (crossover 2.3k in Chromium, 21x at 100k against
+a typed-array port, 6.9x at the pessimistic group-by rate); at one readback per pass Chromium pays
+101 x 2 ms = 202 ms of syncs and the 10k call loses (0.86x). The kernel is unchanged.
+
+**Decided by:** [2026-09-26-which-algorithms-earn-the-gpu.md](../decisions/2026-09-26-which-algorithms-earn-the-gpu.md)
+
+## Section 8.6, Louvain's expectation (lines 2773-2778)
+
+**The design says:** "Expectation management: 2-10x over the CPU at 1M edges, not 100x", citing
+nu-Louvain at 1.03x over a 64-thread CPU, and "the caller chooses the CPU package for small
+graphs".
+
+**What is true instead:** against a typed-array CPU port Louvain is 0.31x at 10k and 2.5x at 100k
+in Chromium on the optimistic model, and loses at every size on the cuGraph-derived bound; the
+port alone is 20x over the shipped code, and the primitive that decides the row (the per-row
+group-by) has no WebGPU measurement. The nu-Louvain figure cannot be converted to a single-thread
+comparison without the paper's absolute throughput, which no note records. Louvain is demoted
+behind the port and a measured group-by rate; Leiden and ECG inherit the class. The move pass,
+the recomputed cluster weights, the device contraction and the no-CPU-handoff rule stand for
+whenever it is built.
+
+**Decided by:** [2026-09-26-which-algorithms-earn-the-gpu.md](../decisions/2026-09-26-which-algorithms-earn-the-gpu.md)
+
+## Section 8.7, the windowed rows (lines 2789-2790)
+
+**The design says:** above the storage-binding bound "the rows are windowed through the 4.2
+planner, and `E_TOO_LARGE` when even `maxBufferSize` is exceeded".
+
+**What is true instead:** above the bound the call refuses with `E_TOO_LARGE`, naming both
+numbers, as the P9 plan's departure DEP-P9-A argued and design 13 row P9's gate already asks. The
+bound is 5,792 nodes at the 128 MiB default binding and 23,170 at 2 GiB; inside it the GPU is
+three orders of magnitude over the legacy code (n = 5,792 in 995 ms in Chromium, 290x over a
+port), and no windowed form reaches 100k or 1M nodes. The blocked sweep and the three bound values
+are unchanged.
+
+**Decided by:** [2026-09-26-which-algorithms-earn-the-gpu.md](../decisions/2026-09-26-which-algorithms-earn-the-gpu.md)
+
 ## Section 8.8, row 1, PageRank's new primitive (line 2797)
 
 **The design says:** the primitive is "`spmvPull` (tiered segmented reduce by in-degree)".
@@ -283,6 +503,33 @@ then link rounds over the remaining edges. The edge map with compare-and-swap, t
 the histogram sample stay in the cell.
 
 **Decided by:** [2026-09-19-afforest-needs-no-dedupe.md](../decisions/2026-09-19-afforest-needs-no-dedupe.md)
+
+## Section 8.8, row 4, BFS's primitive list (line 2801)
+
+**The design says:** the row lists "`Frontier`, `advance`, `dedupe`, bitset, indirect dispatch"
+among what BFS builds on.
+
+**What is true instead:** `dedupe` is not in the list (the entry for section 8.4's dedupe
+sentence, above) and neither is indirect dispatch: BFS dispatches directly.
+
+**Decided by:** [2026-09-25-frontier-kernels-dispatch-directly.md](../decisions/2026-09-25-frontier-kernels-dispatch-directly.md)
+
+## Section 8.8, rows 5, 6, 9 and 10 of the priority order (lines 2802-2803 and 2806-2807)
+
+**The design says:** row 5 schedules "Closeness / harmonic / eccentricity"; row 6 "SSSP near-far,
+Bellman-Ford"; row 9 "k-core, triangles / k-truss, label propagation, Boruvka MST" for P11 "as
+demand appears; each is small once the primitives exist"; row 10 "Louvain, Leiden" for P11 last,
+"highest value, highest risk".
+
+**What is true instead:** the order is set by measured cost, not by the demand score. Row 5 is
+sampled closeness. Row 6's Bellman-Ford is for negative weights only. Row 9 splits: Boruvka MST,
+triangle counting and label propagation go; k-core waits for its CPU port; k-truss is dropped.
+Row 10 is demoted behind a CPU port and a measured group-by rate. What remains, in the order the
+numbers put it: sampled betweenness (row 7), all-pairs (row 8), MST, triangles, label
+propagation, Bellman-Ford for negative weights; then k-core and Louvain after their ports. Rows
+1-4 and 7-8 are unchanged.
+
+**Decided by:** [2026-09-26-which-algorithms-earn-the-gpu.md](../decisions/2026-09-26-which-algorithms-earn-the-gpu.md)
 
 ## Section 8.10, the ping-pong sentence (line 2841)
 
@@ -388,6 +635,17 @@ tracked median more than 3x its checked-in baseline fails the GPU lane's `bench:
 and `bench:compare` skips rather than fails when `nvidia-smi` shows the GPU is busy.
 
 **Decided by:** [2026-09-19-no-nightly-gpu-lane.md](../decisions/2026-09-19-no-nightly-gpu-lane.md)
+
+## Section 10.4, target T-15 (line 3473)
+
+**The design says:** "Louvain 1M / 10M and 100k / 1M end-to-end recorded with the CPU comparison
+(expected 2-10x)".
+
+**What is true instead:** the expectation is withdrawn (the entry for 8.6's Louvain paragraph,
+above); the measurement is still wanted, against the CPU port rather than the shipped legacy
+code, and is the only thing that narrows the 1,000x bracket on Louvain's per-arc cost on WebGPU.
+
+**Decided by:** [2026-09-26-which-algorithms-earn-the-gpu.md](../decisions/2026-09-26-which-algorithms-earn-the-gpu.md)
 
 ## Section 12.1, the "Runs" cell of the GPU lane row (line 3795)
 
@@ -525,6 +783,38 @@ degree tiers.
 
 **Decided by:** [2026-09-19-spmv-tier-zero-only.md](../decisions/2026-09-19-spmv-tier-zero-only.md)
 
+## Section 13, the phase table, row P8, the closeness deliverable (line 4268)
+
+**The design says:** the deliverables cell lists "closeness / harmonic / eccentricity", and
+section 8.4's closeness paragraph (lines 2695-2698) reduces "(sum, sum of 1/d, max)" per source
+on the device.
+
+**What is true instead:** closeness alone. `closeness-reduce` accumulates the distance sum and
+the reached count per source and nothing else; no harmonic score, no eccentricity, no source
+list and no Wasserman-Faust switch ships, because neither the seam nor the element's capability
+list can call them. The score is the legacy default the element already publishes as
+`normalization: "none"`: `1 / sumOfDistances`, `0` when nothing is reached. The rest of the
+row -- the frontier machinery, BFS in its three forms, SSSP, Bellman-Ford, window-aware
+advance, the oracles, the benchmarks -- stands, with the overflow rule and the dedupe read
+through the two entries above.
+
+**Decided by:** [2026-09-24-frontier-members-conform-to-the-seam.md](../decisions/2026-09-24-frontier-members-conform-to-the-seam.md)
+
+## Section 13, the phase table, row P11 (line 4271)
+
+**The design says:** the deliverables cell lists "k-core, triangle counting / k-truss, label
+propagation, Boruvka MST (two-pass min), `cooToCsr`, per-row group-by-key (workgroup sort /
+global hash), Louvain (move phase with `up_down`, reduce-by-key cluster weights, device
+contraction), Leiden refinement if time allows", and the gate asks for "k-core exact", "k-truss
+support exact" and the Louvain modularity bands.
+
+**What is true instead:** the phase's deliverables are the device graph build, Boruvka MST,
+triangle counting with the clustering coefficient, label propagation and the group-by primitive.
+k-core and Louvain wait for their CPU ports and for a measured group-by rate; k-truss and Leiden
+are out. The gate items for what still ships are unchanged.
+
+**Decided by:** [2026-09-26-which-algorithms-earn-the-gpu.md](../decisions/2026-09-26-which-algorithms-earn-the-gpu.md)
+
 ## Section 13, the phase table, row P12, the deliverables cell (line 4227)
 
 **The design says:** the app gets "`calibrateLayout()` + `createAccelerator` defaults wiring in
@@ -635,11 +925,22 @@ nothing runs nightly and no job opens an issue.
 
 **Decided by:** [2026-09-19-no-nightly-gpu-lane.md](../decisions/2026-09-19-no-nightly-gpu-lane.md) (named in its amendment of 2026-09-23, not in its original list)
 
+## Section 17, the Girvan-Newman row (line 5147)
+
+**The design says:** Girvan-Newman is "weak: repeated edge betweenness over a shrinking graph",
+placed as "dispatch each betweenness step through P9's kernel; no phase of its own".
+
+**What is true instead:** it stays on the CPU. One edge-betweenness call per removed edge is
+1M edges x 0.24 s per 100-source call at 100k nodes = 66 hours, whatever the per-call speedup.
+The other rows of the section 17 table agree with the measured model and stand.
+
+**Decided by:** [2026-09-26-which-algorithms-earn-the-gpu.md](../decisions/2026-09-26-which-algorithms-earn-the-gpu.md)
+
 ---
 
 ## Superseded text in the plan documents
 
-The phase plans under `plans/` are records of what was decided at the time, and three of them
+The phase plans under `plans/` are records of what was decided at the time, and seven of them
 carry superseded text that a reader could act on.
 
 **`plans/2026-09-14-webgpu-p0-p3-interfaces.md`, contract 6.8, rule 4 of `bench-compare.js`
@@ -656,6 +957,20 @@ still the plan of record.
 `plans/2026-09-19-webgpu-m7-graphty-app.md`.** Both were retired in full on 2026-09-21 and
 re-planned against the version 2 element API. Each carries its own banner, and `README.md` in
 this directory marks them superseded.
+
+**`plans/2026-09-23-webgpu-p9-betweenness-and-all-pairs.md` and
+`plans/2026-09-23-webgpu-p11-structure-and-community.md`.** Both were amended on 2026-09-26 with
+a banner and a one-line note at every task saying go, demote or drop, with the number. Nothing in
+the P9 plan is dropped; in the P11 plan k-core (P11-T7), the Louvain pair (P11-T10, P11-T11) and
+the Louvain benchmark (P11-T13) are demoted behind their CPU ports, and k-truss (P11-T9) is
+dropped.
+Decided by [2026-09-26-which-algorithms-earn-the-gpu.md](../decisions/2026-09-26-which-algorithms-earn-the-gpu.md).
+
+**`plans/2026-09-23-webgpu-p8-frontier.md`, task P8-T11 (closeness).** The task builds the
+all-source form only, with no `sources` option (its departure DEP-P8-F). The same record drops the
+all-source form above roughly 30,000 nodes and makes sampling the default there. That plan is
+executing on branch `feat/gpu-p8` and is not amended here; the sampled form needs a seam option
+the owner has not yet decided on.
 
 One record also overrules text outside this directory: the landing-order rows for the A1 step in
 `design/graph-format/graph-format-design.md` section 14.6 (lines 4250, 4252, 4253), per

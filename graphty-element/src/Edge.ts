@@ -160,6 +160,9 @@ export class Edge {
      */
     private drawnLabelText?: string;
 
+    /** The style the current line and caps were built from; see `paintFrom`. */
+    private drawnStyle: EdgeStyleConfig | null = null;
+
     /**
      * The resolved label block the label on screen was built from.
      *
@@ -298,6 +301,7 @@ export class Edge {
 
         // create mesh
         const { style } = paint;
+        this.drawnStyle = style;
 
         // create arrow mesh if needed
         this.arrowMesh = EdgeMesh.createArrowHead(
@@ -572,12 +576,28 @@ export class Edge {
         // into -- so an unchanged key means the line, its caps and its colour are all unchanged.
         // The `content` channels are keyed by nothing, so they are applied here. See
         // `drawnLabelText` for the defect that reached a consumer.
-        if (meshKey === this.meshKey && !meshDisposed) {
+        // A DIFFERENT KEY FOR THE SAME STYLE IS NOT A REBUILD. Every element is constructed from
+        // the bootstrap paint, whose key is a sentinel no session key ever equals, and the first
+        // style pass then hands it the session's key -- for the same style, whenever no layer
+        // touches the element, which is every element of a plain load. Comparing keys alone
+        // rebuilt every node and edge once: dispose the placeholder mesh, build the same mesh
+        // again. Babylon's dispose is a linear search of the scene's mesh list and of the parent's
+        // children, so that rebuild cost the size of the scene per element and the load grew as
+        // its square (issue #388: 4,000 nodes took 28 s, 10,000 never finished). A style that is
+        // deep-equal to the one the current mesh was built from means the same geometry, the same
+        // colour and the same content by construction, so the key is adopted and nothing is
+        // touched.
+        const sameGeometry = meshKey === this.meshKey || _.isEqual(style, this.drawnStyle);
+
+        if (sameGeometry && !meshDisposed) {
+            this.meshKey = meshKey;
+            this.drawnStyle = style;
             this.syncContent(style, false);
             return;
         }
 
         this.meshKey = meshKey;
+        this.drawnStyle = style;
 
         // Invalidate position cache to force edge redraw with new style
         this._lastSrcPos = null;

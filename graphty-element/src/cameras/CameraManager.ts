@@ -20,6 +20,20 @@ interface InputHandler {
 export type CameraKey = "orbit" | "2d" | "xr";
 
 /**
+ * The camera each drawing view mode is drawn through. The immersive modes have none here: their
+ * camera belongs to the XR session.
+ * @param viewMode - The view mode.
+ * @returns The camera key, or undefined for a mode with no camera of its own.
+ */
+export function cameraForViewMode(viewMode: string): CameraKey | undefined {
+    if (viewMode === "2d") {
+        return "2d";
+    }
+
+    return viewMode === "3d" ? "orbit" : undefined;
+}
+
+/**
  * Manages multiple camera controllers and their input handlers.
  * Provides functionality to register, activate, and switch between different camera types.
  */
@@ -111,6 +125,15 @@ export class CameraManager {
      */
     public getActiveController(): CameraController | null {
         return this.activeCameraController;
+    }
+
+    /**
+     * Gets a registered camera controller, whether or not it is the active one.
+     * @param key - The identifier the controller was registered under
+     * @returns The controller, or undefined when nothing is registered under the key
+     */
+    public getController(key: CameraKey): CameraController | undefined {
+        return this.controllers.get(key);
     }
 
     /**

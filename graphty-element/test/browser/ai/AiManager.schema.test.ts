@@ -79,6 +79,12 @@ function createMockGraphWithEvents(): MockGraphResult {
             return Symbol("listener-id");
         },
         removeListener: (): boolean => true,
+        // Like the real EventManager: a generic graph event reaches listeners of its type.
+        emitGraphEvent: (type: string, data: Record<string, unknown>): void => {
+            for (const listener of eventListeners.get(type) ?? []) {
+                listener({ type, ...data });
+            }
+        },
         onGraphEvent: {
             add: () => null,
             remove: () => null,
@@ -163,6 +169,7 @@ describe("AiManager schema lifecycle", () => {
             const mockEventManager = {
                 addListener: (): symbol => Symbol("id"),
                 removeListener: (): boolean => true,
+                emitGraphEvent: (): void => undefined,
             } as unknown as EventManager;
 
             const emptyGraph = {

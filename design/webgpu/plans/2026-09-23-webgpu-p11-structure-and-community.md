@@ -1,5 +1,7 @@
 # @graphty/webgpu-graph-algorithms P11 -- structure and community (k-core, triangles, k-truss, label propagation, minimum spanning tree, Louvain) Implementation Plan
 
+> **What changed after this was written (2026-09-26).** A measured cost model -- two independent models reconciled against every GPU row this repository has recorded -- classified each of this phase's six algorithms as earning the GPU, marginal, or not earning it, and set the node count above which graphty-element should route each one to the device (`design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md`). Three of the six go: the minimum spanning tree (P11-T4; crossover 6,000 nodes in Chromium on the reference card, 10.4x at 100k, 43x at 1M against indexed Kruskal), triangle counting with the clustering coefficient (P11-T8; 12.7x at 100k on the model, unverified until the sorted-merge step is timed on the card -- it earns only at or under 2.7 ns per step) and label propagation (P11-T6; 21x at 100k against a typed-array port, provided the changed-count readback is batched at least 8 passes per submit; at one readback per pass the 10k call loses). Two are demoted behind their CPU ports and a measurement of the per-row group-by primitive: k-core (P11-T7; 0.82x at 100k against an indexed port, and the port alone is 25-30x over the shipped code) and Louvain (P11-T10, P11-T11, P11-T13; 2.5x at 100k and 0.31x at 10k against a port on the optimistic model, a loss everywhere on the cuGraph-derived bound, and the port alone is 20x). One is dropped: k-truss with support recomputed each round (P11-T9; 4.8x at 10 rounds, 1.8x at 30, 1.1x at 50 at 100k, with the round count unbounded -- this plan's own risk RP-6). The demoted and dropped tasks sum to 10.5 of the 27.5 estimated days in section 0.6, leaving 17.0; the critical path no longer runs through Louvain and is P11-T3 -> P11-T5 -> P11-T6 and P11-T8 -> P11-T12 -> P11-T16. Two constants this plan never named are now required: `LABEL_PROP_PASSES_PER_SUBMIT` of at least 8 (P11-T1, P11-T6) and a rounds-per-submit constant for Boruvka (P11-T4; 4 rounds per submit moves the crossover from 6.0k to 4.6k and the 100k speedup from 10.4x to 17x). And the group-by primitive (P11-T5) is to be TIMED at 100k before P11-T6 is written: its per-arc rate (0.30 ns assumed, 1.3 ns pessimistic) is the constant that decides label propagation's margin and Louvain's fate. Each task heading below carries its own one-line verdict. This banner moved the body down by 2 lines, so a line number written before 2026-09-26 names text that now sits that many lines lower.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Every task names the repository it runs in. NEVER run `git add`, `git commit`, `git push`, `git stash`, `git checkout`, `git reset`, `git restore` or `git worktree` yourself -- in a subagent these block forever on an unanswered prompt. Read-only git (`log`, `show`, `diff`, `ls-files`, `status`) is fine. The owner commits through `tools/commit-changes.sh` and creates the worktrees.
 
 **Goal:** Land design phase P11 inside `webgpu-graph-algorithms/`: building a graph on the device from an edge list (`cooToCsr`) and the simple symmetric graph every community and triangle kernel runs on; k-core by peeling; triangle counting with the per-node clustering coefficient and graph transitivity as its epilogue; the k-truss decomposition built on triangle support; label propagation over a new per-row group-by-key primitive; a minimum spanning tree by Boruvka's two-pass per-component minimum; and Louvain with its move pass and its contraction performed entirely on the device. With them: independent CPU references for each, the differential and sabotage suites, the `louvain` benchmark group, and gate G11.
@@ -205,6 +207,8 @@ then `cd $WT && HUSKY=0 pnpm install --frozen-lockfile && pnpm exec nx run graph
 
 ### Task P11-T1: The result types, the option records and the seven constants
 
+> **2026-09-26:** go, with two additions the record requires: `LABEL_PROP_PASSES_PER_SUBMIT` (at least 8) and a Boruvka rounds-per-submit constant. The k-truss result type is not needed while P11-T9 is dropped (`design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md`).
+
 **Independent. May run first, in parallel with P11-T2, against master.**
 
 **Repository:** `$WT`; `$PKG` = `$WT/webgpu-graph-algorithms`.
@@ -259,6 +263,8 @@ Expected: PASS and clean. knip reports the new type exports as unused; that is e
 
 ### Task P11-T2: The six CPU references, the agreement helpers and the two new fixtures
 
+> **2026-09-26:** go for the MST, triangle and label-propagation references and both fixtures. The k-core and Louvain references stay (they are the oracles their CPU ports will need); the k-truss reference waits with P11-T9.
+
 **Independent. Needs NO GPU and no device. May run first, in parallel with P11-T1, against master.**
 
 **Repository:** `$WT`; `$PKG` = `$WT/webgpu-graph-algorithms`.
@@ -307,6 +313,8 @@ Expected: PASS, with no device acquired (neither file imports anything from `tes
 ---
 
 ### Task P11-T3: Building a graph on the device, and the simple symmetric graph every later task runs on
+
+> **2026-09-26:** go. No figure of its own: triangles and label propagation run on the simple symmetric graph it builds, and Louvain's contraction needs it whenever Louvain is built.
 
 **Depends on P11-T1 and on design phase P4 (the histogram, the scan and the stable radix sort). Does NOT depend on the traversal phase. Blocks P11-T5, P11-T10 and P11-T11; P11-T8 and P11-T9 consume its output too.**
 
@@ -412,6 +420,8 @@ Expected: PASS on both; `rowPtr` bitwise identical between the two adapters (des
 
 ### Task P11-T4: The minimum spanning tree -- the first working algorithm of the phase
 
+> **2026-09-26:** go, and the best-earning task in the phase: crossover 6.0k nodes in Chromium (11k on a Tesla T4), 1.8x / 10.4x / 43x at 10k / 100k / 1M against indexed Kruskal (1.7x / 8.0x / 18x if the two atomicMin passes run at the scatter rate rather than the gather rate). Syncs are 61% of the 100k call, so add a rounds-per-submit constant: 4 rounds per submit gives 2.8x / 17x / 54x and a 4.6k crossover.
+
 **Depends on P11-T1 and P11-T2. Does NOT depend on design phase P4 or on the traversal phase: it runs against master and does not wait for either branch. The one file it shares with P11-T3 is `src/kernels.ts`, which PD-2 says is held by one task at a time. Because this task can start today and P11-T3 cannot start until the grid branch merges, this task normally reaches the registry first -- so IT adds `"P11"` to the `phase` union of `KernelEntry`, and P11-T3 finds it already there. If the order comes out the other way, the one that arrives first adds it; nothing else about either task changes.**
 
 **Repository:** `$WT`; `$PKG` = `$WT/webgpu-graph-algorithms`.
@@ -474,6 +484,8 @@ Expected: PASS on both; the edge set bitwise identical between the two adapters.
 
 ### Task P11-T5: The per-row group-by-key primitive
 
+> **2026-09-26:** go, and MEASURE IT FIRST: time the primitive alone at 100k on the card before P11-T6 is written. Its per-arc rate is assumed at 0.30 ns and bracketed at 1.3 ns (the published nu-LPA rate discounted to this card); no WebGPU number exists, and it decides label propagation's margin (21x or 6.9x at 100k) and whether Louvain is ever worth building.
+
 **Depends on P11-T1 and P11-T3. Blocks P11-T6 and P11-T10.**
 
 **Repository:** `$WT`; `$PKG` = `$WT/webgpu-graph-algorithms`.
@@ -520,6 +532,8 @@ Expected: PASS everywhere; the two tiers bitwise identical on every shared fixtu
 
 ### Task P11-T6: Label propagation
 
+> **2026-09-26:** go, provided the changed-count readback is batched: at 8 passes per submit the crossover is 2.3k nodes in Chromium and the speedup 4.4x / 21x / 97x at 10k / 100k / 1M against a typed-array port (3.0x / 6.8x / 24x at the pessimistic group-by rate); at one readback per pass Chromium pays 101 x 2 ms of syncs and the 10k call is 0.86x. The cadence constant is not optional.
+
 **Depends on P11-T5 and P11-T2.**
 
 **Spec:** design 8.6's first paragraph (the weighted mode of neighbour labels, synchronous updates with the alternating direction rule, a changed-count reduce every k); design 9.7 line 3278 (parity is planted-partition recovery, because label propagation is tie-nondeterministic on the CPU too); design 3.3 line 807; design 8.10 "Label propagation" (7 bindings).
@@ -540,6 +554,8 @@ Expected: PASS on both; labels bitwise identical between the two adapters.
 ---
 
 ### Task P11-T7: k-core by peeling
+
+> **2026-09-26:** DEMOTED behind the CPU port. Against an indexed port it is 0.15x / 0.82x / 4.0x at 10k / 100k / 1M in Chromium (46 peel rounds x 0.23 ms is 10.6 ms of a 28 ms call at 100k, and the rounds scale with the graph's degeneracy); the 25x it shows against the shipped code belongs to the missing port. Build the port first; revisit with the port's measured time.
 
 **Depends on P11-T2 and on the traversal phase's `Frontier`, `advance` and `compact`.**
 
@@ -570,6 +586,8 @@ Expected: PASS on both; `coreness` bitwise identical between the two adapters.
 ---
 
 ### Task P11-T8: Triangle counting, the clustering coefficient and transitivity
+
+> **2026-09-26:** go, gated on one measurement: 7.2x / 12.7x / 26x at 10k / 100k / 1M in Chromium if the sorted-merge step costs the assumed 0.30 ns; it stops earning at 100k above 2.7 ns per step. Time the intersection kernel's merge on the card before the differential suite is trusted as evidence that the row earns.
 
 **Depends on P11-T3 (the simple symmetric graph) and on the traversal phase's `compact` (the oriented arc list). Blocks P11-T9.**
 
@@ -605,6 +623,8 @@ Expected: PASS on both; `perNode` bitwise identical between the two adapters.
 
 ### Task P11-T9: The k-truss decomposition
 
+> **2026-09-26:** DROPPED. With support recomputed every round (PD-11) it is 4.8x at 10 rounds, 1.8x at 30 and 1.1x at 50 at 100k nodes, and the round count is unbounded (RP-6). Reinstate only with incremental support maintenance, at which point it inherits the triangle row; the k-truss signature record of P11-T15 is not written until then.
+
 **Depends on P11-T8 and on the traversal phase's edge mask machinery (design 16.4).**
 
 **Spec:** design 8.5 ("k-truss peels edges with support below `k - 2` over an `EdgeMask` with per-edge support written through `edgeToArc`"); design 16.4 item 3 (the structural family consumes the packed arc mask through a `HAS_MASK` override and one group 3 binding); design 17 line 5068; DEP-P11-B.
@@ -634,6 +654,8 @@ Expected: PASS on both.
 ---
 
 ### Task P11-T10: Louvain's move pass
+
+> **2026-09-26:** DEMOTED behind the CPU port and the P11-T5 measurement. Against a typed-array port Louvain is 0.31x / 2.5x / 18x at 10k / 100k / 1M in Chromium on the optimistic model (12 syncs are 24 ms of a 33 ms call at 10k), 0.29x / 1.8x / 10x at the pessimistic group-by rate, and 0.09x / 0.16x / 0.62x on the cuGraph-derived bound; the port alone is 20x over the shipped code. The 6.0 estimated days of this task and P11-T11 wait for both numbers.
 
 **Depends on P11-T5 and P11-T3. Blocks P11-T11. The largest single task in the phase.**
 
@@ -674,6 +696,8 @@ Expected: PASS on both; the community array bitwise identical between the two ad
 
 ### Task P11-T11: Louvain's on-device contraction and the level loop
 
+> **2026-09-26:** DEMOTED with P11-T10 (same numbers). Leiden and ensemble Louvain inherit the class.
+
 **Depends on P11-T10 and P11-T3.**
 
 **Spec:** design 8.6 ("contraction ON THE DEVICE by `radixSort` of arcs by (community src, community dst) + `segmentedReduce` + `cooToCsr`; the format's `contract()` is the CPU alternative the accelerator does not use, so the package never depends on the CPU for a level"); design 6 row 6 (the sort is stable, which is what PD-12 rests on); design 13 row P11's gate items on modularity and on every level's contraction preserving the total weight; design 3.3 line 809; design 9.7 line 3279.
@@ -701,6 +725,8 @@ Expected: PASS on both; labels bitwise identical between the two adapters; every
 
 ### Task P11-T12: The accelerator members and the barrel
 
+> **2026-09-26:** go for `minimumSpanningTree`, `triangleCount` and `labelPropagation`; `kCoreDecomposition` and `louvain` land with their demoted tasks. Routing floors for the element: MST 6.0k, triangles 3.0k, label propagation 2.3k nodes in Chromium on the reference card (11k / 4.8k / 4.0k on a Tesla T4).
+
 **Depends on P11-T4, P11-T6, P11-T7, P11-T8, P11-T9 and P11-T11 -- every driver green.**
 
 **Spec:** design 3.3 lines 805-809; design 9.2 (the accelerator seam, whose five optional members this phase fills); `webgpu-graph-algorithms/CLAUDE.md` step 5 of "Adding an Algorithm / a Kernel".
@@ -721,6 +747,8 @@ Expected: all clean; knip reports nothing for this package.
 
 ### Task P11-T13: The `louvain` benchmark group and T-15 on both runner classes
 
+> **2026-09-26:** DEMOTED with P11-T10. T-15's "expected 2-10x" is withdrawn; when the benchmark runs it compares against the CPU port, and it is the only measurement that narrows the 1,000x bracket on Louvain's per-arc cost on WebGPU.
+
 **Depends on P11-T12. Parallel with P11-T14.**
 
 **Spec:** design 10.4 line 3420 (T-15: Louvain at 100k nodes / 1M edges and at 1M / 10M recorded end to end WITH the CPU comparison, expected 2-10x); design 8.6's expectation-management paragraph (2-10x at a million edges, not 100x, because later passes lose parallelism -- the published nu-Louvain result is that GPU Louvain is 1.03x a 64-thread CPU); design 11.7 (the baseline files and `bench:compare`).
@@ -739,6 +767,8 @@ Expected: the table prints; `bench:compare` finds no tracked median above 3x its
 ---
 
 ### Task P11-T14: The sabotage suite, the tiers, the browser smoke and the `node-limits` tests
+
+> **2026-09-26:** go for the algorithms that ship (the sabotage floor of 45 mutations was set for six algorithms and is re-derived for three).
 
 **Depends on P11-T12. Parallel with P11-T13.**
 
@@ -769,6 +799,8 @@ Expected: every mutation caught; limits green; browser green (a run that hit the
 
 ### Task P11-T15: The decision records and the design index
 
+> **2026-09-26:** go for the triangle and `cooToCsr` records; the k-truss signature record waits with P11-T9. The design index already carries `design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md`.
+
 **May run any time after P11-T3.**
 
 **Files:** Create `$WT/design/decisions/2026-09-23-ktruss-has-a-public-signature.md`, `$WT/design/decisions/2026-09-23-triangles-carry-the-clustering-coefficient.md`, `$WT/design/decisions/2026-09-23-coo-to-csr-is-a-planner.md`; modify `$WT/design/decisions/README.md`.
@@ -784,6 +816,8 @@ Expected: no output.
 ---
 
 ### Task P11-T16: The G11 gate record and the phase close
+
+> **2026-09-26:** go. The gate record carries the routing floors and the two primitive timings (merge step, group-by) the record asked for, so the demoted tasks can be re-decided with a number.
 
 **Last.**
 

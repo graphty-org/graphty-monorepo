@@ -186,7 +186,8 @@ export interface ElementPaint {
      *
      * This is the number a structural hash exists to keep small: it must follow the distinct
      * SHAPES and SIZES in the picture, never the element count, and a colour encoding must not
-     * move it.
+     * move it. A mesh no element is drawn from any more is not counted: its key is released and
+     * never handed out again.
      * @param target - Nodes or edges.
      * @returns The count, which is at least one.
      */
@@ -229,6 +230,17 @@ export interface ElementPaint {
      * @returns A function that stops the notifications.
      */
     onPainted(listener: () => void): () => void;
+    /**
+     * Whether a pass has been asked for and has not finished yet.
+     *
+     * A pass YIELDS TO THE EVENT LOOP and waits behind the pass in front of it, so between the
+     * edit that asks for it and the announcement that ends it there are frames -- as many as the
+     * machine is slow. Nothing is in {@link ElementPaint.lastPainted} for those frames, and a
+     * renderer that asked only whether paint was waiting to be drawn would call the picture
+     * finished, and frame the camera on it, while a node's new size was still on its way.
+     * @returns True from the moment a pass is requested until it has announced what it painted.
+     */
+    painting(): boolean;
     /**
      * The layers the last pass could not paint, and why.
      * @returns The problems, emptied at the start of every pass.
@@ -343,7 +355,8 @@ const MAX_GENERATION = 0x7fff_fffe;
 type ChannelColumn =
     | { readonly channel: Channel; readonly kind: "number"; values: Float64Array }
     | { readonly channel: Channel; readonly kind: "flag"; values: Uint8Array }
-    | { readonly channel: Channel; readonly kind: "ref"; values: unknown[] };
+    | { readonly channel: Channel; readonly kind: "ref"; values: unknown[] }
+    | { readonly channel: Channel; readonly kind: "merge"; values: unknown[] };
 
 /**
  * Which column shape a channel's values pack into.
@@ -351,7 +364,9 @@ type ChannelColumn =
  * Numbers and switches go into typed arrays, so a column of 50,000 sizes is 400 KB of contiguous
  * memory with no per-element object in it. Everything else -- a colour, a word from a closed
  * list, a label, a label style -- is held by reference, which costs nothing extra because the
- * encoding hands back a bounded set of shared values rather than a new one per element.
+ * encoding hands back a bounded set of shared values rather than a new one per element. A label
+ * style is held by reference too, but merged with what the layers beneath painted: see
+ * {@link writeColumn}.
  * @param channel - The channel.
  * @returns The shape its column takes.
  */
@@ -360,6 +375,10 @@ function kindFor(channel: Channel): ChannelColumn["kind"] {
 
     if (accepts === "number") {
         return "number";
+    }
+
+    if (accepts === "labelStyle") {
+        return "merge";
     }
 
     return accepts === "boolean" ? "flag" : "ref";
@@ -456,6 +475,28 @@ function writeColumn(column: ChannelColumn, index: number, value: unknown): void
 
     if (column.kind === "flag") {
         column.values[index] = value === true ? FLAG_TRUE : FLAG_FALSE;
+
+        return;
+    }
+
+    const held = column.values[index];
+
+    // A label style is a bag of fields, and a layer that names one field has said nothing about
+    // the others: `{color}` stacked over `{sizePx: 24}` is a red label at 24 px, not a red label
+    // at the default size. So each field takes the value of the highest layer that wrote it. A
+    // new object, because the value a layer painted is shared by every element it painted. A
+    // field set to undefined says nothing either -- a settings form that clears a field produces
+    // one -- so it never overwrites what a lower layer wrote.
+    if (column.kind === "merge" && typeof held === "object" && held !== null) {
+        const merged: Record<string, unknown> = { ...held };
+
+        for (const [field, fieldValue] of Object.entries(value as object)) {
+            if (fieldValue !== undefined) {
+                merged[field] = fieldValue;
+            }
+        }
+
+        column.values[index] = merged;
 
         return;
     }
@@ -570,8 +611,8 @@ interface TargetStore {
     capacity: number;
     /** How many of those rows are elements that exist. */
     count: number;
-    /** Which source mesh each element is drawn from. */
-    meshKeys: Int32Array;
+    /** Which source mesh each element is drawn from. Doubles, because a key outgrows 32 bits. */
+    meshKeys: Float64Array;
     /** The pass that last marked each element dirty, which is how a mark is cleared for free. */
     stamps: Int32Array;
     /** This pass's number. */
@@ -706,6 +747,9 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
      */
     let inFlight: Promise<void> = Promise.resolve();
 
+    /** How many passes have been asked for and not finished: the one running and those behind it. */
+    let unfinished = 0;
+
     /** Who is told what a pass painted, in the order they asked. */
     const painted = new Set<() => void>();
 
@@ -751,7 +795,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             columns: new Map<Channel, ChannelColumn>(),
             capacity: INITIAL_CAPACITY,
             count: 0,
-            meshKeys: new Int32Array(INITIAL_CAPACITY),
+            meshKeys: new Float64Array(INITIAL_CAPACITY),
             stamps: new Int32Array(INITIAL_CAPACITY),
             generation: 0,
             dirty: new Uint32Array(INITIAL_CAPACITY),
@@ -772,6 +816,14 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
      * @param count - How many elements of that kind the session holds.
      */
     const ensureCapacity = (store: TargetStore, count: number): void => {
+        // An element that is gone is drawn from nothing, so the mesh it was drawn from loses it.
+        for (let index = count; index < store.count; index++) {
+            if (store.meshKeys[index] !== 0) {
+                store.meshes.release(store.meshKeys[index]);
+                store.meshKeys[index] = 0;
+            }
+        }
+
         store.count = count;
 
         if (count <= store.capacity) {
@@ -784,7 +836,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             capacity *= 2;
         }
 
-        const meshKeys = new Int32Array(capacity);
+        const meshKeys = new Float64Array(capacity);
         meshKeys.set(store.meshKeys);
         const stamps = new Int32Array(capacity);
         stamps.set(store.stamps);
@@ -969,8 +1021,9 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
     /**
      * Where a layer's elements come from: the column its selector names, or every element.
      *
-     * ONLY `{match:"has"}` NARROWS, and that is the design's rule that a run-bound layer
-     * iterates the run's measured column rather than a shortcut. An expression is not narrowed even when it reads one column, because
+     * `{match:"has"}` and `{match:"top"}` NARROW to their column's measured elements, and that is
+     * the design's rule that a run-bound layer iterates the run's measured column rather than a
+     * shortcut. An expression is not narrowed even when it reads one column, because
      * ``path == `null` `` is a perfectly good expression that matches exactly the elements the
      * column does NOT hold, and the compiled selector reports which columns it reads without
      * reporting what it asks of them. Narrowing on that would silently paint the wrong set, which
@@ -981,7 +1034,8 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
     const iterationFor = (entry: CompiledLayer): ArrayLike<number> | null => {
         const { selector } = entry;
 
-        if (selector.match !== "has") {
+        // A top selector paints a subset of its column's measured elements, so it narrows too.
+        if (selector.match !== "has" && selector.match !== "top") {
             return null;
         }
 
@@ -1272,7 +1326,23 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                 }
 
                 minting = index;
-                store.meshKeys[index] = meshes.end(mintStyle);
+                const key = meshes.end(mintStyle);
+                const held = store.meshKeys[index];
+
+                // Counted only when an element MOVES to another mesh, so an edit that leaves
+                // every mesh where it was -- a colour, a label -- costs no bookkeeping at all.
+                // Key zero is the default mesh and is never released.
+                if (key !== held) {
+                    if (key !== 0) {
+                        meshes.retain(key);
+                    }
+
+                    if (held !== 0) {
+                        meshes.release(held);
+                    }
+
+                    store.meshKeys[index] = key;
+                }
             }
         };
 
@@ -1432,12 +1502,19 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
      * @returns What it painted.
      */
     const exclusively = async (body: () => Promise<RepaintReport>): Promise<RepaintReport> => {
+        unfinished++;
+
         const mine = inFlight.then(body, body);
 
-        inFlight = mine.then(
-            () => undefined,
-            () => undefined,
-        );
+        // Counted down on the chain the next pass waits on, not on `mine`. A `finally` on the
+        // caller's promise moves the microtask every caller resumes on, and a layer added before
+        // a load and not awaited then goes unpainted (test/browser/first-paint-after-load.test.ts
+        // and style-layer-ordering.test.ts both catch it).
+        const finished = (): void => {
+            unfinished--;
+        };
+
+        inFlight = mine.then(finished, finished);
 
         return mine;
     };
@@ -1491,6 +1568,10 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                     null,
                 ),
             );
+        },
+
+        painting(): boolean {
+            return unfinished > 0;
         },
 
         onPainted(listener: () => void): () => void {

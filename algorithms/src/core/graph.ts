@@ -124,8 +124,10 @@ export class Graph {
             throw new Error("Self-loops are not allowed in this graph");
         }
 
-        // Check parallel edges
-        if (!this.config.allowParallelEdges && this.hasEdge(source, target)) {
+        // Check parallel edges. With allowParallelEdges the adjacency still holds one edge per
+        // pair, so a repeated pair replaces the earlier edge and must not be counted again.
+        const replacing = this.hasEdge(source, target);
+        if (!this.config.allowParallelEdges && replacing) {
             throw new Error("Parallel edges are not allowed in this graph");
         }
 
@@ -157,7 +159,10 @@ export class Graph {
             }
         }
 
-        this.edgeCount++;
+        if (!replacing) {
+            this.edgeCount++;
+        }
+
         this.mutations++;
     }
 

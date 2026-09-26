@@ -149,8 +149,14 @@ expectTypeOf(acc.weaklyConnectedComponents).toMatchTypeOf<
 >();
 expectTypeOf(acc.pageRank).not.toEqualTypeOf<undefined>();
 expectTypeOf(acc.connectedComponents).parameter(1).not.toBeNever(); // the extra option stays optional (PD-19 clause 3)
-// members P7 does not implement keep the mirror's optional type -- the dispatchers read them as `undefined`
-expectTypeOf(acc.breadthFirstSearch).toEqualTypeOf<AlgorithmAccelerator["breadthFirstSearch"]>();
+// the four P8 traversal members (P8-T13 PD-16) are non-optional here too and narrow the mirror's optional type
+expectTypeOf(acc.breadthFirstSearch).toMatchTypeOf<NonNullable<AlgorithmAccelerator["breadthFirstSearch"]>>();
+expectTypeOf(acc.sssp).toMatchTypeOf<NonNullable<AlgorithmAccelerator["sssp"]>>();
+expectTypeOf(acc.bellmanFord).toMatchTypeOf<NonNullable<AlgorithmAccelerator["bellmanFord"]>>();
+expectTypeOf(acc.closenessCentrality).toMatchTypeOf<NonNullable<AlgorithmAccelerator["closenessCentrality"]>>();
+expectTypeOf(acc.breadthFirstSearch).not.toEqualTypeOf<undefined>();
+expectTypeOf(acc.sssp).not.toEqualTypeOf<undefined>();
+// members no phase implements yet keep the mirror's optional type -- the dispatchers read them as `undefined`
 expectTypeOf(acc.betweennessCentrality).toEqualTypeOf<AlgorithmAccelerator["betweennessCentrality"]>();
 // the two P5 layout members (spec 3.3 lines 892-893; PD-19): functions, non-optional, the @graphty/layout option
 // type `| undefined` in and a LayoutSimulation (the GPU simulation) out; `createSimulation` routes on `!== undefined`

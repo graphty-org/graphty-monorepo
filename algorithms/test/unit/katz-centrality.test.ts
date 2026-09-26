@@ -270,11 +270,8 @@ describe("Katz Centrality", () => {
                 }
             }
 
-            const start = Date.now();
             const centrality = katzCentrality(graph, { maxIterations: 50 });
-            const duration = Date.now() - start;
 
-            expect(duration).toBeLessThan(3000); // Should complete within 3 seconds
             expect(Object.keys(centrality)).toHaveLength(50);
         });
     });

@@ -98,10 +98,16 @@ describe("session style paint", () => {
 
         for (const node of graph.getNodes()) {
             assert.instanceOf(node.mesh, InstancedMesh);
-            // The instance is named after the cache key it came from, and that key is where the
-            // interner's number lands: `s3` rather than the reserved bootstrap key a node is
-            // built under before the first pass reaches it.
-            assert.match(node.mesh.name, /^node-style-s\d+/, "the source mesh is keyed by the session's interner");
+            // The key the node is drawn under is where the interner's number lands: `s3` rather
+            // than the reserved bootstrap key a node is built under before the first pass reaches
+            // it. It is read from the mesh's metadata, which the hand-over writes, and not from the
+            // mesh's name: a node whose first pass resolves the style it was built from keeps its
+            // placeholder mesh rather than rebuilding an identical one (issue #388), and that
+            // instance's name still spells the bootstrap key.
+            const drawnUnder = (node.mesh.metadata as { styleId?: unknown } | undefined)?.styleId;
+
+            assert.isString(drawnUnder, "the node's mesh records the key it is drawn under");
+            assert.match(String(drawnUnder), /^s\d+/, "and it is the session's interner's key");
         }
     });
 
@@ -111,6 +117,82 @@ describe("session style paint", () => {
         const sources = new Set(graph.getNodes().map((node) => (node.mesh as InstancedMesh).sourceMesh.uniqueId));
 
         assert.strictEqual(sources.size, 1, "four nodes of one shape and size share one source mesh");
+    });
+
+    it("frees the source meshes of sizes no node is drawn at any more", async () => {
+        // Every size edit is a new look and a new source mesh. The cache has to follow the looks
+        // on screen, not every edit ever made, or a slider dragged across a size range holds one
+        // mesh per stop until the next dataset load.
+        await load();
+
+        const layer = await graph.getSession().styles.add({
+            name: "Reader - size",
+            selector: { match: "everything" },
+            set: { "node.size": 1 },
+        });
+        graph.getUpdateManager().stepFrames(2);
+
+        const settled = graph.getMeshCache().size();
+
+        for (let size = 2; size <= 6; size++) {
+            await graph.getSession().styles.update(layer.id, { set: { "node.size": size } });
+            graph.getUpdateManager().stepFrames(2);
+
+            assert.strictEqual(graph.getMeshCache().size(), settled, `after setting the size to ${String(size)}`);
+        }
+
+        for (const node of graph.getNodes()) {
+            assert.isFalse((node.mesh as InstancedMesh).sourceMesh.isDisposed(), "no node lost the mesh it is drawn from");
+            assert.strictEqual(node.size, 6);
+        }
+    });
+
+    it("holds no more materials, textures or frame callbacks after a look is toggled back and forth", async () => {
+        // A released key is never reused, so switching back to an earlier look builds its source
+        // mesh again. Whatever that mesh brought with it -- its material, an animated line's
+        // texture and per-frame callback -- has to go when the mesh goes, or toggling a size or a
+        // selection-driven layer leaks one set per toggle.
+        await load();
+
+        const session = graph.getSession();
+        const nodeLayer = await session.styles.add({
+            name: "Reader - node size",
+            selector: { match: "everything" },
+            set: { "node.size": 1 },
+        });
+        const edgeLayer = await session.styles.add({
+            name: "Reader - edge width",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.width": 1, "edge.animationSpeed": 0.1 },
+        });
+        graph.getUpdateManager().stepFrames(2);
+
+        const scene = graph.getScene();
+        /**
+         * What the scene is holding, as one comparable record. Babylon takes a removed observer
+         * out of its list on the next macrotask, so the count is read after one.
+         * @returns The counts.
+         */
+        const held = async (): Promise<Record<string, number>> => {
+            await new Promise((resolve) => setTimeout(resolve, 0));
+
+            return {
+                meshes: graph.getMeshCache().size(),
+                materials: scene.materials.length,
+                textures: scene.textures.length,
+                frameCallbacks: scene.onBeforeRenderObservable.observers.length,
+            };
+        };
+        const settled = await held();
+
+        for (const step of [2, 1, 2, 1, 2]) {
+            await session.styles.update(nodeLayer.id, { set: { "node.size": step } });
+            await session.styles.update(edgeLayer.id, { set: { "edge.width": step, "edge.animationSpeed": 0.1 } });
+            graph.getUpdateManager().stepFrames(2);
+
+            assert.deepStrictEqual(await held(), settled, `after toggling to ${String(step)}`);
+        }
     });
 
     it("writes the session's colour into each node's own instance", async () => {

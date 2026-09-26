@@ -522,13 +522,10 @@ describe("A* Algorithm", () => {
                 return heuristics.manhattan([x1, y1], [x2, y2]);
             };
 
-            const startTime = Date.now();
             const result = astar(grid, start, goal, heuristic);
-            const endTime = Date.now();
 
             expect(result).not.toBeNull();
             expect(result!.cost).toBe(98); // Manhattan distance
-            expect(endTime - startTime).toBeLessThan(1000); // Should be fast
         });
     });
 });

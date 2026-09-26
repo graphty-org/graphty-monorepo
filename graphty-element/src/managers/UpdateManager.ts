@@ -6,7 +6,7 @@ import type { EdgeId, NodeId } from "../catalog/types";
 import type { NodeIdType } from "../config/GraphBehavior";
 import { Edge } from "../Edge";
 import { SimulationLayoutEngine } from "../layout/SimulationLayoutEngine";
-import type { NodeRenderState } from "../Node";
+import type { Node, NodeRenderState } from "../Node";
 import type { ElementMask } from "../session/scope/index";
 import type { DataManager } from "./DataManager";
 import type { EventManager } from "./EventManager";
@@ -14,6 +14,117 @@ import type { GraphContext } from "./GraphContext";
 import type { Manager } from "./interfaces";
 import type { LayoutManager } from "./LayoutManager";
 import type { StatsManager } from "./StatsManager";
+
+/** The corners of a box in world space. */
+interface FramingBox {
+    min: Vector3;
+    max: Vector3;
+}
+
+/**
+ * The box the nodes alone occupy: every visible node, where it is in world space, out to its size.
+ * This is what the 2D/3D view-mode switch frames. Zoom-to-fit frames {@link framingBox}, which
+ * grows this one by the labels.
+ *
+ * NO MARGIN on top. A fixed one is paid by every graph, labelled or not, and on a small graph it is
+ * most of the picture: one world unit on each side moved a two-node graph's camera from 6.0 to 8.6
+ * units out. The cameras pad the fit themselves.
+ * @param nodes - The nodes to frame; hidden ones are skipped.
+ * @returns The corners, or undefined when no node is visible.
+ */
+export function nodeFramingBox(nodes: Iterable<Node>): FramingBox | undefined {
+    let min: Vector3 | undefined;
+    let max: Vector3 | undefined;
+
+    for (const node of nodes) {
+        // A node the visibility mask has taken off screen keeps its position, but must not
+        // stretch the box, or zooming to fit a filtered graph would frame what is hidden.
+        if (node.getRenderState() !== "visible") {
+            continue;
+        }
+
+        // WHERE THE NODE IS NOW, not where it was drawn last time. Babylon only refreshes a world
+        // position while it renders, and this runs BEFORE that render, so `getAbsolutePosition()`
+        // alone would hand back the previous frame's value. Computed rather than read off
+        // `mesh.position`, because a node mesh is parented to the "graph-root" transform an XR
+        // gesture moves, rotates and scales.
+        node.mesh.computeWorldMatrix(true);
+
+        const pos = node.mesh.getAbsolutePosition();
+        const half = node.size / 2;
+
+        min ??= pos.clone().setAll(Infinity);
+        max ??= pos.clone().setAll(-Infinity);
+
+        for (const axis of ["x", "y", "z"] as const) {
+            min[axis] = Math.min(min[axis], pos[axis] - half);
+            max[axis] = Math.max(max[axis], pos[axis] + half);
+        }
+    }
+
+    return min && max ? { min, max } : undefined;
+}
+
+/**
+ * Grow a box to take in a label plane, wherever it is anchored.
+ *
+ * Measured from the plane's WORLD bounds rather than from its anchor, so a label above, below,
+ * beside or offset from its node -- every `location` and `attachOffset` the label style allows,
+ * in 2D and 3D -- counts for exactly the room it takes. Those bounds are only refreshed when the
+ * plane's world matrix is computed, and a node label is parented to the node it annotates, so
+ * without the forced compute the label would stretch the box to where it was drawn last frame
+ * rather than to where its node has just moved.
+ * @param box - The box to grow.
+ * @param labelMesh - The plane, or nothing.
+ */
+function growForLabel(box: FramingBox, labelMesh: Mesh | null | undefined): void {
+    if (!labelMesh) {
+        return;
+    }
+
+    labelMesh.computeWorldMatrix(true);
+
+    const { minimumWorld, maximumWorld } = labelMesh.getBoundingInfo().boundingBox;
+
+    for (const axis of ["x", "y", "z"] as const) {
+        box.min[axis] = Math.min(box.min[axis], minimumWorld[axis]);
+        box.max[axis] = Math.max(box.max[axis], maximumWorld[axis]);
+    }
+}
+
+/**
+ * The box zoom-to-fit frames: {@link nodeFramingBox} grown by every label on a visible node and
+ * every label and arrow caption on a visible edge, so no label is cut off by the edge of the
+ * viewport. A label's size depends on its text and font, which is why framing runs on data loads
+ * and layout changes and NOT on label edits: see `Graph`, which asks for a framing only from
+ * those.
+ * @param nodes - The nodes to frame; hidden ones and their labels are skipped.
+ * @param edges - The edges whose labels to frame; hidden ones are skipped.
+ * @returns The corners, or undefined when no node is visible.
+ */
+export function framingBox(nodes: Iterable<Node>, edges: Iterable<Edge>): FramingBox | undefined {
+    const box = nodeFramingBox(nodes);
+
+    if (!box) {
+        return undefined;
+    }
+
+    for (const node of nodes) {
+        if (node.getRenderState() === "visible") {
+            growForLabel(box, node.label?.labelMesh);
+        }
+    }
+
+    for (const edge of edges) {
+        if (edge.isRenderVisible()) {
+            growForLabel(box, edge.label?.labelMesh);
+            growForLabel(box, edge.arrowHeadText?.labelMesh);
+            growForLabel(box, edge.arrowTailText?.labelMesh);
+        }
+    }
+
+    return box;
+}
 
 /**
  * One set of elements the renderer honours, as the session holds it.
@@ -383,6 +494,10 @@ export class UpdateManager implements Manager {
                 edge.applySessionPaint(paint);
             }
         }
+
+        // Every element the pass moved has now left its old source mesh, so a mesh this left
+        // with no instances is a look nothing on screen has any more.
+        this.graphContext.getMeshCache().prune();
     }
 
     /**
@@ -509,6 +624,10 @@ export class UpdateManager implements Manager {
             return "a style repaint is still queued";
         }
 
+        if (painter?.isPainting === true) {
+            return "a style repaint is still painting";
+        }
+
         if (this.willZoomToFit() && !this.framingHasNothingToFrame) {
             return "the camera has not finished framing the graph";
         }
@@ -535,7 +654,9 @@ export class UpdateManager implements Manager {
 
         const painter = this.graphContext.getStylePainter?.();
 
-        if (painter?.hasPending === true) {
+        // Paint that has arrived and not been drawn, and paint that has not arrived yet: either
+        // one changes the picture. See `willZoomToFit` for the second.
+        if (painter?.hasPending === true || painter?.isPainting === true) {
             return false;
         }
 
@@ -700,14 +821,11 @@ export class UpdateManager implements Manager {
 
             // Handle zoom to fit if requested
             if (this.willZoomToFit()) {
-                // Calculate bounding box and update nodes
-                const { boundingBoxMin, boundingBoxMax } = this.updateNodes(true);
-
-                // Update edges (also expands bounding box for edge labels)
-                this.updateEdges(boundingBoxMin, boundingBoxMax);
+                this.updateNodes();
+                this.updateEdges();
 
                 // Handle zoom to fit
-                this.applyZoomToFit(boundingBoxMin, boundingBoxMax);
+                this.applyZoomToFit(this.measure());
 
                 // Update statistics
                 this.updateStatistics();
@@ -726,14 +844,12 @@ export class UpdateManager implements Manager {
         const framing = this.willZoomToFit();
 
         // Update nodes and edges
-        const { boundingBoxMin, boundingBoxMax } = this.updateNodes(framing);
-
-        // Update edges (also expands bounding box for edge labels)
-        this.updateEdges(boundingBoxMin, boundingBoxMax);
+        this.updateNodes();
+        this.updateEdges();
 
         // Handle zoom to fit if needed
         if (framing) {
-            this.applyZoomToFit(boundingBoxMin, boundingBoxMax);
+            this.applyZoomToFit(this.measure());
         }
 
         // Update statistics
@@ -837,116 +953,32 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Update all nodes, and measure the graph when the camera is about to be framed on it.
-     * @param measure - Whether this frame's bounding box will be used. False skips the
-     *     measurement entirely, which is most frames.
-     * @returns Object containing minimum and maximum bounding box vectors
+     * Update all nodes.
      */
-    private updateNodes(measure: boolean): { boundingBoxMin?: Vector3; boundingBoxMax?: Vector3 } {
-        let boundingBoxMin: Vector3 | undefined;
-        let boundingBoxMax: Vector3 | undefined;
-
+    private updateNodes(): void {
         this.statsManager.nodeUpdate.beginMonitoring();
 
         for (const node of this.layoutManager.nodes) {
+            // The mesh position is updated by node.update()
             node.update();
-
-            // The mesh position is already updated by node.update()
-
-            if (!measure) {
-                continue;
-            }
-
-            // A node the visibility mask has taken off screen is still updated -- it keeps its
-            // position so showing it again needs no layout -- but it must not stretch the
-            // bounding box, or zooming to fit a filtered graph would frame what is hidden.
-            if (node.getRenderState() !== "visible") {
-                continue;
-            }
-
-            // WHERE THE NODE IS NOW, not where it was drawn last time. Babylon only refreshes a
-            // world position while it renders, and stamps the render it did it under; this runs
-            // BEFORE that render, so the stamp still matches and `getAbsolutePosition()` would
-            // hand back the previous frame's value -- one whole layout step stale, including on
-            // the frame the layout settles, which is the last frame that frames anything.
-            //
-            // Computed rather than read off `mesh.position`, because a node mesh is parented to
-            // the "graph-root" transform an XR gesture moves, rotates and scales: the local
-            // position is only the world position while that root is the identity.
-            node.mesh.computeWorldMatrix(true);
-
-            // Update bounding box
-            const pos = node.mesh.getAbsolutePosition();
-            const sz = node.size;
-
-            if (!boundingBoxMin || !boundingBoxMax) {
-                boundingBoxMin = pos.clone();
-                boundingBoxMax = pos.clone();
-            }
-
-            this.updateBoundingBoxAxis(pos, boundingBoxMin, boundingBoxMax, sz, "x");
-            this.updateBoundingBoxAxis(pos, boundingBoxMin, boundingBoxMax, sz, "y");
-            this.updateBoundingBoxAxis(pos, boundingBoxMin, boundingBoxMax, sz, "z");
-
-            // Include node label in bounding box
-            if (node.label?.labelMesh) {
-                this.expandBoundingBoxForLabel(node.label.labelMesh, boundingBoxMin, boundingBoxMax);
-            }
         }
 
         this.statsManager.nodeUpdate.endMonitoring();
-
-        return { boundingBoxMin, boundingBoxMax };
     }
 
     /**
-     * Update bounding box for a single axis
-     * @param pos - Position vector
-     * @param min - Minimum bounds vector
-     * @param max - Maximum bounds vector
-     * @param size - Node size
-     * @param axis - Axis to update (x, y, or z)
+     * Measure the graph the camera is about to be framed on. Taken AFTER the nodes and edges have
+     * updated, so the labels are where this frame's positions put them.
+     * @returns The box, or undefined when nothing is visible.
      */
-    private updateBoundingBoxAxis(pos: Vector3, min: Vector3, max: Vector3, size: number, axis: "x" | "y" | "z"): void {
-        const value = pos[axis];
-        const halfSize = size / 2;
-
-        min[axis] = Math.min(min[axis], value - halfSize);
-        max[axis] = Math.max(max[axis], value + halfSize);
+    private measure(): FramingBox | undefined {
+        return framingBox(this.layoutManager.nodes, this.layoutManager.edges);
     }
 
     /**
-     * Expand bounding box to include a label mesh
-     * @param labelMesh - The label mesh to include
-     * @param min - Minimum bounds vector
-     * @param max - Maximum bounds vector
+     * Update all edges.
      */
-    private expandBoundingBoxForLabel(labelMesh: Mesh, min: Vector3, max: Vector3): void {
-        // Stale in exactly the way a node's position was, and worth saying separately because the
-        // reason is different: a label plane is parented to the thing it annotates, and the
-        // `minimumWorld`/`maximumWorld` corners read below are only refreshed when its world
-        // matrix is computed. Without this the label stretches the box to where it was drawn last
-        // frame rather than to where the node it hangs off has just moved.
-        labelMesh.computeWorldMatrix(true);
-
-        const labelBoundingInfo = labelMesh.getBoundingInfo();
-        const labelMin = labelBoundingInfo.boundingBox.minimumWorld;
-        const labelMax = labelBoundingInfo.boundingBox.maximumWorld;
-
-        min.x = Math.min(min.x, labelMin.x);
-        min.y = Math.min(min.y, labelMin.y);
-        min.z = Math.min(min.z, labelMin.z);
-        max.x = Math.max(max.x, labelMax.x);
-        max.y = Math.max(max.y, labelMax.y);
-        max.z = Math.max(max.z, labelMax.z);
-    }
-
-    /**
-     * Update all edges and expand bounding box for edge labels
-     * @param boundingBoxMin - Minimum bounds (optional)
-     * @param boundingBoxMax - Maximum bounds (optional)
-     */
-    private updateEdges(boundingBoxMin?: Vector3, boundingBoxMax?: Vector3): void {
+    private updateEdges(): void {
         this.statsManager.edgeUpdate.beginMonitoring();
 
         // Update rays for all edges (static method on Edge class)
@@ -955,24 +987,6 @@ export class UpdateManager implements Manager {
         // Update individual edges
         for (const edge of this.layoutManager.edges) {
             edge.update();
-
-            // Include edge labels in bounding box if we have one
-            if (boundingBoxMin && boundingBoxMax && edge.isRenderVisible()) {
-                // Edge label (at midpoint)
-                if (edge.label?.labelMesh) {
-                    this.expandBoundingBoxForLabel(edge.label.labelMesh, boundingBoxMin, boundingBoxMax);
-                }
-
-                // Arrow head text label
-                if (edge.arrowHeadText?.labelMesh) {
-                    this.expandBoundingBoxForLabel(edge.arrowHeadText.labelMesh, boundingBoxMin, boundingBoxMax);
-                }
-
-                // Arrow tail text label
-                if (edge.arrowTailText?.labelMesh) {
-                    this.expandBoundingBoxForLabel(edge.arrowTailText.labelMesh, boundingBoxMin, boundingBoxMax);
-                }
-            }
         }
 
         this.statsManager.edgeUpdate.endMonitoring();
@@ -993,8 +1007,17 @@ export class UpdateManager implements Manager {
 
         // Somebody asked. See `enableZoomToFit`: the cadence below paces the element's own
         // periodic re-framing and has no opinion worth having about a request.
+        //
+        // But not while a style pass is on its way. A request is answered ONCE, and a pass can
+        // change a node's size -- the box being framed. A graph loaded with its algorithms asks
+        // for its final framing on the pass after the layout settles, while the run's own size
+        // layer may still be painting; answered then, the camera frames every node at its
+        // unstyled size, the sizes land a few frames later, and nothing frames them. Whether the
+        // pass had finished first depended on how fast the machine was, so the same story drew
+        // two pictures. The pass is waited for here, and `syncStyles` applies what it painted at
+        // the top of the pass that then frames it.
         if (this.forceZoomToFit) {
-            return true;
+            return !this.styleIsPainting();
         }
 
         // Check if we should zoom:
@@ -1026,12 +1049,19 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Frame the camera on a box {@link UpdateManager.willZoomToFit} has already approved.
-     * @param boundingBoxMin - Minimum bounds (optional)
-     * @param boundingBoxMax - Maximum bounds (optional)
+     * Whether a style pass has been asked for and has not announced what it painted yet.
+     * @returns True while the session's style stack is painting.
      */
-    private applyZoomToFit(boundingBoxMin?: Vector3, boundingBoxMax?: Vector3): void {
-        if (!boundingBoxMin || !boundingBoxMax) {
+    private styleIsPainting(): boolean {
+        return this.graphContext.getStylePainter?.()?.isPainting === true;
+    }
+
+    /**
+     * Frame the camera on a box {@link UpdateManager.willZoomToFit} has already approved.
+     * @param box - The box to frame, or undefined when there is nothing to frame.
+     */
+    private applyZoomToFit(box: FramingBox | undefined): void {
+        if (!box) {
             // Nothing to frame yet, so an outstanding request keeps waiting rather than being
             // spent on a graph with no visible nodes in it. It is still waiting for nodes and not
             // for the camera, which is what stops an empty graph reading as a moving one.
@@ -1044,6 +1074,7 @@ export class UpdateManager implements Manager {
         // Update settled state for next frame
         this.wasSettled = isSettled;
 
+        const { min: boundingBoxMin, max: boundingBoxMax } = box;
         const size = boundingBoxMax.subtract(boundingBoxMin);
 
         if (size.length() <= this.config.minBoundingBoxSize) {

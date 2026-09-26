@@ -3,7 +3,7 @@
  * exact pair law of K3 (`LAW` 0: `|F| = k m_i m_j / d` with the 0.01 floor; `LAW` 1: FR's unfloored `k^2 / d`;
  * `LAW` 2: the unfloored coulomb `-g m_i m_j / d^2`; the antisymmetric coincident kick at the law's magnitude at
  * d = 0.01, PD-22) over the 9 (27) finest
- * cells around its own, or over the outside pseudo-cell alone for an outside node; a cell above `nearMax` entries
+ * cells around its own, or over the 2^dim outside pseudo-cells (one per orthant, issue #90) for an outside node; a cell above `nearMax` entries
  * is sampled by `nearMax` INDEPENDENT draws with replacement, draw `k` reading the slot
  * `lowbias32(((c ^ (iteration * 0x9E3779B9)) ^ seed) ^ (k * 0x85EBCA6B)) % count` (every slot's inclusion
  * probability is `nearMax / count` whatever its position in the sorted order, so a duplicated draw is counted twice
@@ -103,7 +103,11 @@ fn grid_near_field(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocat
                 }
             }
         } else {
-            f = cell_sum(i, pi, grid_cells(), true);               // an outside node: the pseudo-cell alone
+            var own = grid_cells() + select(0u, 1u, c0.x >= g / 2) + select(0u, 2u, c0.y >= g / 2);   // G1's orthant key
+            if (P.dim == 3u) { own = own + select(0u, 4u, c0.z >= g / 2); }
+            for (var o = grid_cells(); o < grid_cells() + select(4u, 8u, P.dim == 3u); o = o + 1u) {   // an outside node: every outside pseudo-cell
+                f = f + cell_sum(i, pi, o, o == own);
+            }
         }
     }
     // epilogue (7.9, 7.10): gravity and force += under the guard, the swing / traction reduction outside it (K3's text)

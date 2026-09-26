@@ -12,13 +12,16 @@
  * the element does around it.
  */
 
+import { YIELD_BUDGET_MS } from "../results/types";
 import type { MetricRunContext } from "./types";
 
 /**
- * How many nodes a measurement visits between yields.
+ * How many nodes a measurement visits between progress reports.
  *
- * Large enough that the yields cost nothing on an ordinary graph, small enough that a very large
- * one gives the frame back several times a second.
+ * The frame is NOT given back at every chunk: a yield costs the host a whole frame, which on a
+ * large scene is far more than a chunk of work, so it is given back only once a frame's worth of
+ * work has built up since the last one -- the same budget every declared algorithm's pass uses,
+ * for the same reason (see `YIELD_BUDGET_MS`).
  */
 export const METRIC_CHUNK_SIZE = 2048;
 
@@ -45,8 +48,8 @@ export function detachedRunContext(runId: string): MetricRunContext {
 }
 
 /**
- * Visit every item, checking the signal, reporting progress and giving the host a turn between
- * chunks.
+ * Visit every item, checking the signal, reporting progress between chunks and giving the host a
+ * turn once a frame's worth of work has built up.
  * @param items - What to visit, in order.
  * @param context - Where progress goes and where cancellation arrives.
  * @param phase - What to call this step in a progress line.
@@ -62,6 +65,7 @@ export async function walkInChunks<T>(
     visit: (item: T, index: number) => void,
 ): Promise<void> {
     const total = items.length;
+    let lastYield = performance.now();
 
     for (let index = 0; index < total; index++) {
         context.signal.throwIfAborted();
@@ -69,7 +73,11 @@ export async function walkInChunks<T>(
 
         if ((index + 1) % METRIC_CHUNK_SIZE === 0 && index + 1 < total) {
             context.report({ phase, completed: index + 1, total });
-            await context.yieldNow();
+
+            if (performance.now() - lastYield >= YIELD_BUDGET_MS) {
+                await context.yieldNow();
+                lastYield = performance.now();
+            }
         }
     }
 

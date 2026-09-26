@@ -17,6 +17,7 @@
  * total force after G7 is gravity plus the field of the other nodes at the strays' equilibrium (the design's
  * "gravity alone" item; whether the far field is negligible and whether a stray has a near-field neighbour are
  * printed for the record); the unbiasedness item (3) moved to grid-unbiased.test.ts, whose header says why;
+ * (6) issue #90: a core with outlier groups on opposite sides beyond the extent, asserted on every adapter;
  * (4) expansion parity:
  * the spread of the grid tier's positions after 50 and 200 iterations within grid-expansion of the exact tier's;
  * (asserted on a hardware adapter; printed on a software one, where the scaled clumpy100 case misses -- the same
@@ -32,6 +33,7 @@ import { type GpuContext } from "../../src/context.js";
 import { type GpuLayoutTuning } from "../../src/types/layout.js";
 import { type ForceAtlas2Options } from "../../src/types/options.js";
 import { distributionalError, metricsValues, ORACLE_F64_CLASS, stageError, withSim } from "../helpers/fa2-parity.js";
+import { snapshotOf } from "../helpers/graphs.js";
 import {
     captureGridStages,
     EXACT_TUNING,
@@ -41,6 +43,7 @@ import {
     GRID_TUNING,
     gridFixture,
     gridTolerance,
+    opposingOutliers,
     sampleNodes,
     unbiasedLadder,
 } from "../helpers/grid-parity.js";
@@ -79,9 +82,8 @@ interface Measurement {
 }
 /**
  * The two sizes as fixture scale factors: 20k and 100k on hardware, 400 and 2,000 on a software adapter (read inside
- * a case: the setup's probe runs in beforeAll, so isSoftware() answers only then). The 100k size never runs on
- * lavapipe: its exact tier sums the first 65,536 nodes only (measured 2026-09-20, the record's finding), so the
- * reference itself would be wrong there.
+ * a case: the setup's probe runs in beforeAll, so isSoftware() answers only then). The software sizes are for time
+ * alone: the exact tier is correct above 65,027 nodes on lavapipe since issue #87 (test/layouts/exact-large.test.ts).
  * @returns the scale factors
  */
 function sizes(): readonly number[] {
@@ -354,6 +356,32 @@ describe("exact vs grid (spec 11.4; PD-19, PD-20)", () => {
                     } finally {
                         ctx.release(s);
                     }
+                }
+            },
+            CASE_TIMEOUT,
+        );
+    }
+
+    for (const dim of [2, 3] as const) {
+        it(
+            `(6) issue #90, ${dim}D: a core with two outlier groups beyond the extent on opposite sides stays under grid-exact.rms / grid-exact.p99 (each orthant's outliers push from their own side)`,
+            async (t) => {
+                requireGpu(t);
+                const { start } = opposingOutliers(dim);
+                const n = start.length / 3;
+                const s = snapshotOf([], { nodeCount: n, arena: false });
+                try {
+                    const options = { ...GRID_BASE_OPTIONS, dim };
+                    const a = await exactVsGrid(ctx, s, start, options);
+                    const rms = gridTolerance("grid-exact.rms").value;
+                    const p99 = gridTolerance("grid-exact.p99").value;
+                    console.warn(
+                        `[grid-exact] outliers/${dim}d/n=${n}: rms ${a.rms.toExponential(3)} (tolerance ${rms.toExponential(3)}), p99 ${a.p99.toExponential(3)} (tolerance ${p99.toExponential(3)})`,
+                    );
+                    assertCheckPasses({ worst: ratioOf(a.rms, rms), worstLabel: `outliers/${dim}d/rms`, samples: n });
+                    assertCheckPasses({ worst: ratioOf(a.p99, p99), worstLabel: `outliers/${dim}d/p99`, samples: n });
+                } finally {
+                    ctx.release(s);
                 }
             },
             CASE_TIMEOUT,

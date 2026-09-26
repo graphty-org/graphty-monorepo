@@ -3,13 +3,19 @@ import { assert, describe, it, vi } from "vitest";
 import { type AcceleratedWork, AccelerationController } from "../../src/acceleration/AccelerationController";
 import { AcceleratorRegistry } from "../../src/acceleration/registry";
 import {
+    ACCELERATION_MIN_NODES_BY_CAPABILITY,
     ACCELERATION_MIN_NODES_DEFAULT,
+    ACCELERATION_MIN_NODES_MEASUREMENT,
     type AccelerationPrecision,
     type AccelerationStatus,
     CPU_PRECISION,
+    type FlooredCapability,
     type GraphAccelerator,
 } from "../../src/acceleration/types";
 import { GraphtyError, isGraphtyError } from "../../src/errors";
+import { GraphtyLogger } from "../../src/logging/GraphtyLogger.js";
+import { resetLoggingConfig } from "../../src/logging/LoggerConfig.js";
+import { LogLevel, type LogRecord } from "../../src/logging/types.js";
 import { createFakeAccelerator } from "../../src/testing/fakeAccelerator";
 
 /** A promise the test resolves when it wants to, for device loss and for work in flight. */
@@ -68,6 +74,25 @@ function registryWith(accelerator: GraphAccelerator): AcceleratorRegistry {
     const registry = new AcceleratorRegistry();
     registry.register({ name: "fake", backend: "webgpu", factory: () => Promise.resolve(accelerator) });
     return registry;
+}
+
+/**
+ * A factory on a host whose only adapter is a software renderer: it refuses with
+ * `E_SOFTWARE_ONLY` unless software is acceptable, the way the `./webgpu` entry does.
+ */
+function softwareOnlyFactory(
+    onDispose?: () => void,
+): (options?: { acceptSoftware?: boolean }) => Promise<GraphAccelerator> {
+    return (options) =>
+        options?.acceptSoftware === true
+            ? Promise.resolve(fakeAccelerator({ name: "software", onDispose }))
+            : Promise.reject(
+                  new GraphtyError({
+                      code: "E_SOFTWARE_ONLY",
+                      message: "the only adapter here is a software renderer",
+                      source: "acceleration",
+                  }),
+              );
 }
 
 const LAYOUT: AcceleratedWork = { capability: "forceAtlas2", nodeCount: 10_000 };
@@ -207,19 +232,21 @@ describe("AccelerationController: probing", () => {
         const autoFactory = vi.fn(() => Promise.resolve(fakeAccelerator()));
         auto.register({ name: "fake", factory: autoFactory });
         const required = new AcceleratorRegistry();
-        const requiredFactory = vi.fn(() => Promise.resolve(fakeAccelerator()));
+        const requiredFactory = vi.fn(softwareOnlyFactory());
         required.register({ name: "fake", factory: requiredFactory });
         const underAuto = new AccelerationController({ registry: auto });
         const underRequired = new AccelerationController({ policy: "required", registry: required });
 
         await Promise.all([underAuto.start(), underRequired.start()]);
 
-        assert.deepEqual(autoFactory.mock.calls[0] as unknown[], [
-            { exactMaxNodes: undefined, acceptSoftware: false },
+        assert.deepEqual(autoFactory.mock.calls as unknown[], [[{ exactMaxNodes: undefined, acceptSoftware: false }]]);
+        // Hardware first, and software only once the factory said software is all there is: that
+        // refusal is how the controller knows the attachment is software.
+        assert.deepEqual(requiredFactory.mock.calls as unknown[], [
+            [{ exactMaxNodes: undefined, acceptSoftware: false }],
+            [{ exactMaxNodes: undefined, acceptSoftware: true }],
         ]);
-        assert.deepEqual(requiredFactory.mock.calls[0] as unknown[], [
-            { exactMaxNodes: undefined, acceptSoftware: true },
-        ]);
+        assert.strictEqual(underRequired.state, "idle");
         underAuto.dispose();
         underRequired.dispose();
     });
@@ -324,6 +351,84 @@ describe("AccelerationController: publishing", () => {
     });
 });
 
+describe("AccelerationController: the whileRunning span", () => {
+    /** A span opener that records how many spans are open right now. */
+    function spanCounter(): { open: number; opened: number; whileRunning: () => () => void } {
+        const counter = {
+            open: 0,
+            opened: 0,
+            whileRunning: (): (() => void) => {
+                counter.open += 1;
+                counter.opened += 1;
+                return (): void => {
+                    counter.open -= 1;
+                };
+            },
+        };
+
+        return counter;
+    }
+
+    it("holds the span open for exactly the accelerated call", async () => {
+        const spans = spanCounter();
+        const controller = new AccelerationController({
+            registry: registryWith(fakeAccelerator()),
+            whileRunning: spans.whileRunning,
+        });
+        await controller.start();
+        const gate = deferred<string>();
+        let openDuring = -1;
+
+        const running = controller.run(LAYOUT, async () => {
+            openDuring = spans.open;
+            return gate.promise;
+        });
+        await until(() => openDuring !== -1, "the work to reach the accelerator");
+        assert.strictEqual(openDuring, 1, "the span is open while the work is on the accelerator");
+        gate.resolve("positions");
+        await running;
+
+        assert.strictEqual(spans.open, 0, "and closed once it has come back");
+        assert.strictEqual(spans.opened, 1);
+        controller.dispose();
+    });
+
+    it("closes the span when the accelerated call throws", async () => {
+        const spans = spanCounter();
+        const controller = new AccelerationController({
+            registry: registryWith(fakeAccelerator()),
+            whileRunning: spans.whileRunning,
+        });
+        await controller.start();
+
+        await controller
+            .run(LAYOUT, (): string => {
+                throw new Error("the kernel failed");
+            })
+            .catch(() => undefined);
+
+        assert.strictEqual(spans.opened, 1);
+        assert.strictEqual(spans.open, 0);
+        controller.dispose();
+    });
+
+    it("never opens the span for work the decision sent to the CPU path", async () => {
+        const spans = spanCounter();
+        const controller = new AccelerationController({
+            registry: registryWith(fakeAccelerator()),
+            minNodes: 1_000_000,
+            whileRunning: spans.whileRunning,
+        });
+        await controller.start();
+
+        const outcome = await controller.run(LAYOUT, (): string => "gpu");
+
+        assert.isFalse(outcome.accelerated);
+        assert.strictEqual(spans.opened, 0, "the CPU path must not hold the host's frames");
+        controller.dispose();
+    });
+});
+
 describe("AccelerationController: the acceleration.minNodes threshold", () => {
     it("takes the CPU path just below the threshold and the accelerator at it", async () => {
         const controller = new AccelerationController({ registry: registryWith(fakeAccelerator()), minNodes: 1000 });
@@ -388,6 +493,102 @@ describe("AccelerationController: the acceleration.minNodes threshold", () => {
 
         assert.isFalse(decision.accelerated);
         assert.include(decision.accelerated ? "" : decision.reason, "pageRank");
+        controller.dispose();
+    });
+});
+
+describe("AccelerationController: the built-in floor of a traversal", () => {
+    /** An accelerator that walks, so the floor and not the feature test is what decides. */
+    const walker = (): GraphAccelerator =>
+        fakeAccelerator({
+            members: {
+                forceAtlas2: (): string => "gpu",
+                breadthFirstSearch: (): string => "gpu",
+                sssp: (): string => "gpu",
+            },
+        });
+    // The table is partial by design -- a capability with no measured floor has no entry -- so a
+    // reader of it is `number | undefined`, and the cases below want the number. This is the one
+    // place that asserts the traversal entries exist, so it is the one place that narrows.
+    const floorOf = (capability: FlooredCapability): number => {
+        const measured = ACCELERATION_MIN_NODES_BY_CAPABILITY[capability];
+
+        if (measured === undefined) {
+            throw new Error(`${capability} has no measured floor`);
+        }
+
+        return measured;
+    };
+    const floor = floorOf("breadthFirstSearch");
+
+    it("has a measured floor for each traversal the adapters route, and none for the layout", () => {
+        assert.isAbove(floor, 0);
+        assert.isAbove(floorOf("sssp"), 0);
+        // The layout has no floor, and cannot be given one by accident: the table's keys are the
+        // seam's ALGORITHM members, so naming a layout capability here would not compile. This
+        // asserts the intent for a reader who has only the runtime value in front of them.
+        assert.notInclude(Object.keys(ACCELERATION_MIN_NODES_BY_CAPABILITY), "forceAtlas2");
+    });
+
+    it("takes the CPU path below the floor and the accelerator at it, and says what was measured", async () => {
+        const controller = new AccelerationController({ registry: registryWith(walker()) });
+        await controller.start();
+
+        const below = controller.plan({ capability: "breadthFirstSearch", nodeCount: floor - 1 });
+        const at = controller.plan({ capability: "breadthFirstSearch", nodeCount: floor });
+
+        assert.isFalse(below.accelerated);
+        const reason = below.accelerated ? "" : below.reason;
+        assert.include(reason, String(floor));
+        assert.include(reason, "breadthFirstSearch");
+        assert.include(reason, ACCELERATION_MIN_NODES_MEASUREMENT);
+        assert.include(reason, "acceleration.minNodes");
+        assert.isTrue(at.accelerated);
+        assert.strictEqual(controller.state, "idle");
+        controller.dispose();
+    });
+
+    it("leaves the layout on the accelerator at every size: the zero was measured for it", async () => {
+        const controller = new AccelerationController({ registry: registryWith(walker()) });
+        await controller.start();
+
+        assert.isTrue(controller.plan({ capability: "forceAtlas2", nodeCount: 1 }).accelerated);
+        assert.isFalse(controller.plan({ capability: "breadthFirstSearch", nodeCount: 1 }).accelerated);
+        controller.dispose();
+    });
+
+    it("does not apply under required, so a benchmark of the small end can reach the device", async () => {
+        const controller = new AccelerationController({ policy: "required", registry: registryWith(walker()) });
+        await controller.ready();
+
+        assert.isTrue(controller.plan({ capability: "breadthFirstSearch", nodeCount: 1 }).accelerated);
+        controller.dispose();
+    });
+
+    it("is replaced by a threshold the consumer set, even a zero", async () => {
+        const built = new AccelerationController({ registry: registryWith(walker()), minNodes: 0 });
+        await built.start();
+        assert.isTrue(built.plan({ capability: "breadthFirstSearch", nodeCount: 1 }).accelerated);
+        built.dispose();
+
+        const set = new AccelerationController({ registry: registryWith(walker()) });
+        await set.start();
+        assert.isFalse(set.plan({ capability: "breadthFirstSearch", nodeCount: 1 }).accelerated);
+        set.setMinNodes(0);
+        assert.isTrue(set.plan({ capability: "breadthFirstSearch", nodeCount: 1 }).accelerated);
+        set.setMinNodes(floor + 1000);
+        assert.isFalse(set.plan({ capability: "breadthFirstSearch", nodeCount: floor + 999 }).accelerated);
+        set.dispose();
+    });
+
+    it("reports a missing member as missing, not as too small", async () => {
+        const controller = new AccelerationController({ registry: registryWith(fakeAccelerator()) });
+        await controller.start();
+
+        const decision = controller.plan({ capability: "breadthFirstSearch", nodeCount: 1 });
+
+        assert.isFalse(decision.accelerated);
+        assert.include(decision.accelerated ? "" : decision.reason, "does not implement");
         controller.dispose();
     });
 });
@@ -972,5 +1173,184 @@ describe("AccelerationController: a device that computes the wrong answer", () =
         const next = controller.plan(LAYOUT);
         assert.isFalse(next.accelerated);
         controller.dispose();
+    });
+});
+
+describe("AccelerationController: a software adapter outlives only the policy that accepted it", () => {
+    it("lets go of a software accelerator when required relaxes to auto, and says why", async () => {
+        const disposed = vi.fn();
+        const registry = new AcceleratorRegistry();
+        registry.register({ name: "fake", factory: softwareOnlyFactory(disposed) });
+        const controller = new AccelerationController({ policy: "required", registry });
+        assert.strictEqual((await controller.start()).state, "idle");
+        assert.strictEqual(controller.accelerator?.name, "software");
+
+        controller.setPolicy("auto");
+        await until(() => controller.state === "unavailable", "the re-probe under auto");
+
+        assert.isNull(controller.accelerator);
+        assert.strictEqual(controller.status.code, "E_SOFTWARE_ONLY");
+        assert.strictEqual(disposed.mock.calls.length, 1);
+        controller.dispose();
+    });
+
+    it("keeps a hardware accelerator attached through the same change, having built it once", async () => {
+        const registry = new AcceleratorRegistry();
+        const factory = vi.fn(() => Promise.resolve(fakeAccelerator({ name: "hardware" })));
+        registry.register({ name: "fake", factory });
+        const controller = new AccelerationController({ policy: "required", registry });
+        await controller.start();
+
+        controller.setPolicy("auto");
+        await new Promise((resolve) => setTimeout(resolve, 1));
+
+        assert.strictEqual(controller.state, "idle");
+        assert.strictEqual(controller.accelerator?.name, "hardware");
+        assert.strictEqual(factory.mock.calls.length, 1);
+        controller.dispose();
+    });
+
+    it("leaves an injected accelerator alone, because only a probe knows what it found", () => {
+        const controller = new AccelerationController({ policy: "required", registry: new AcceleratorRegistry() });
+        controller.setAccelerator(fakeAccelerator({ name: "injected" }));
+
+        controller.setPolicy("auto");
+
+        assert.strictEqual(controller.accelerator?.name, "injected");
+        controller.dispose();
+    });
+});
+
+describe("AccelerationController: a policy set after dispose", () => {
+    it("is ignored, and never reaches a factory", async () => {
+        const registry = new AcceleratorRegistry();
+        const factory = vi.fn(() => Promise.resolve(fakeAccelerator()));
+        registry.register({ name: "fake", factory });
+        const controller = new AccelerationController({ policy: "off", registry });
+        await controller.start();
+        controller.dispose();
+
+        assert.doesNotThrow(() => {
+            controller.setPolicy("required");
+        });
+        await new Promise((resolve) => setTimeout(resolve, 5));
+
+        assert.strictEqual(factory.mock.calls.length, 0);
+        assert.strictEqual(controller.policy, "off");
+        assert.strictEqual(controller.state, "off");
+    });
+});
+
+describe("AccelerationController: the policy is part of the published status", () => {
+    it("carries the policy, so a consumer reading capabilities sees what was asked for", async () => {
+        const controller = new AccelerationController({ registry: registryWith(fakeAccelerator()) });
+
+        assert.strictEqual(controller.status.policy, "auto");
+        await controller.start();
+        assert.strictEqual(controller.capabilities.acceleration.policy, "auto");
+        controller.dispose();
+    });
+
+    it("announces a change of policy exactly once even when the state does not move", async () => {
+        const controller = new AccelerationController({ registry: registryWith(fakeAccelerator()) });
+        await controller.start();
+        const seen: AccelerationStatus[] = [];
+        controller.onChange((status) => seen.push(status));
+
+        controller.setPolicy("required");
+
+        assert.deepStrictEqual(
+            seen.map((status) => [status.policy, status.state]),
+            [["required", "idle"]],
+        );
+        assert.strictEqual(controller.status.policy, "required");
+        controller.dispose();
+    });
+
+    it("reports a throwing listener through the element's logger and still tells the others", async () => {
+        resetLoggingConfig();
+        await GraphtyLogger.configure({ enabled: true, level: LogLevel.ERROR, modules: ["acceleration"] });
+        const records: LogRecord[] = [];
+        GraphtyLogger.addSink({ name: "acceleration-test", write: (record) => records.push(record) });
+        const silence = vi.spyOn(console, "error").mockImplementation(() => undefined);
+        const controller = new AccelerationController({ registry: new AcceleratorRegistry() });
+        const heard = vi.fn();
+        controller.onChange(() => {
+            throw new Error("the chip broke");
+        });
+        controller.onChange(heard);
+
+        try {
+            await controller.start();
+
+            assert.strictEqual(heard.mock.calls.length, 1);
+            const logged = records.find((record) => record.message.includes("listener threw"));
+            assert.isDefined(logged);
+            assert.strictEqual(logged?.level, LogLevel.ERROR);
+            assert.deepStrictEqual(logged?.category, ["graphty", "acceleration"]);
+            assert.strictEqual(logged?.error?.message, "the chip broke");
+        } finally {
+            GraphtyLogger.removeSink("acceleration-test");
+            silence.mockRestore();
+            resetLoggingConfig();
+            controller.dispose();
+        }
+    });
+});
+
+describe("AccelerationController: beginWork, the span a simulation opens", () => {
+    it("moves idle to active and back when the span ends", async () => {
+        const controller = new AccelerationController({ registry: registryWith(fakeAccelerator()) });
+        await controller.start();
+
+        const end = controller.beginWork();
+        assert.strictEqual(controller.state, "active");
+        end();
+        assert.strictEqual(controller.state, "idle");
+        controller.dispose();
+    });
+
+    it("counts out once however many times the span is ended", async () => {
+        const controller = new AccelerationController({ registry: registryWith(fakeAccelerator()) });
+        await controller.start();
+        const first = controller.beginWork();
+        const second = controller.beginWork();
+
+        first();
+        first();
+
+        assert.strictEqual(controller.state, "active", "the second span is still open");
+        second();
+        assert.strictEqual(controller.state, "idle");
+        controller.dispose();
+    });
+
+    it("stays active until the last of two overlapping spans ends", async () => {
+        const controller = new AccelerationController({ registry: registryWith(fakeAccelerator()) });
+        await controller.start();
+        const seen: string[] = [];
+        controller.onChange((status) => seen.push(status.state));
+
+        const layout = controller.beginWork();
+        const algorithm = controller.beginWork();
+        layout();
+        assert.strictEqual(controller.state, "active");
+        algorithm();
+
+        assert.deepStrictEqual(seen, ["active", "idle"]);
+        controller.dispose();
+    });
+
+    it("is a no-op after dispose: it neither throws nor publishes", async () => {
+        const controller = new AccelerationController({ registry: registryWith(fakeAccelerator()) });
+        await controller.start();
+        const listener = vi.fn();
+        controller.onChange(listener);
+        controller.dispose();
+
+        const end = controller.beginWork();
+        end();
+
+        assert.strictEqual(listener.mock.calls.length, 0);
     });
 });

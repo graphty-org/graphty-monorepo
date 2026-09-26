@@ -165,6 +165,8 @@ interface SessionParts {
     readonly visibility: SessionVisibilityApi;
     /** The style stack, with the element's own layers already at the bottom of it. */
     readonly styles: SessionStylesApi;
+    /** Cancels every style edit still pending, for `dispose()`. */
+    readonly stopStyleEdits: () => void;
     /** What the last style pass painted, which is what a renderer draws from. */
     readonly paint: ElementPaint;
     /** Everything `estimate` and `plan` read. */
@@ -224,6 +226,8 @@ class Session implements ElementSession {
     readonly styles: SessionStylesApi;
     readonly paint: ElementPaint;
 
+    /** Cancels every style edit still pending. */
+    private readonly stopStyleEdits: () => void;
     private readonly sessionRuns: SessionRunsApi;
     private readonly planning: PlanningContext;
     private readonly watchers: Watchers;
@@ -260,6 +264,7 @@ class Session implements ElementSession {
         this.selection = parts.selection;
         this.visibility = parts.visibility;
         this.styles = parts.styles;
+        this.stopStyleEdits = parts.stopStyleEdits;
         this.paint = parts.paint;
         this.planning = parts.planning;
         this.watchers = parts.watchers;
@@ -491,6 +496,8 @@ class Session implements ElementSession {
         // Runs first: a run still in flight holds a reference to the data it is reading, and
         // disposing the store under it would have it finish against a graph that no longer exists.
         this.sessionRuns.dispose();
+        // Style edits are runs the runs list does not hold, so they are cancelled on their own.
+        this.stopStyleEdits();
         this.watchers.clear();
         this.sessionData.dispose();
         this.ownedAcceleration?.dispose();
@@ -583,13 +590,13 @@ function resolveStore(
  * session's to dispose.
  * @param given - the controller a caller handed in, if any
  * @param policy - the policy a controller built here runs under
- * @param minNodes - the threshold a controller built here runs under
+ * @param minNodes - the threshold a controller built here runs under, or undefined for the default
  * @returns the controller, and the same object again when this call allocated it
  */
 function resolveAcceleration(
     given: AccelerationControllerLike | undefined,
     policy: AccelerationPolicy,
-    minNodes: number,
+    minNodes: number | undefined,
 ): { controller: AccelerationControllerLike; owned: AccelerationController | null } {
     if (given !== undefined) {
         return { controller: given, owned: null };
@@ -597,7 +604,7 @@ function resolveAcceleration(
 
     // Built, not started: probing is deferred to the first read of `session.capabilities`, so a
     // session that nobody asks about the hardware never reaches for it.
-    const owned = new AccelerationController({ policy, minNodes });
+    const owned = new AccelerationController(minNodes === undefined ? { policy } : { policy, minNodes });
 
     return { controller: owned, owned };
 }
@@ -975,6 +982,7 @@ function repaintAgainstCurrentData(
             meshCount: (target) => engine.meshCount(target),
             lastPainted: (target) => engine.lastPainted(target),
             onPainted: (listener) => engine.onPainted(listener),
+            painting: () => engine.painting(),
             problems: () => engine.problems(),
         },
         repaint: async (request, context) => {
@@ -1053,7 +1061,9 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     // A controller handed in is the authority on its own policy: the session does not own it, so
     // it cannot make a configuration value true merely by declaring it.
     const policy = options.acceleration?.policy ?? options.config?.acceleration?.policy ?? ACCELERATION_POLICY_DEFAULT;
-    const minNodes = options.acceleration?.minNodes ?? options.config?.acceleration?.minNodes ?? 0;
+    // Undefined stays undefined: a threshold nobody set leaves the controller's built-in
+    // per-capability floors in force, and a 0 written here would count as the consumer's own.
+    const minNodes = options.acceleration?.minNodes ?? options.config?.acceleration?.minNodes;
     const watchers: Watchers = new Map();
 
     // Assigned below, and read only from inside a callback: a store this session built delivers
@@ -1216,7 +1226,11 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         snapshot,
         elements,
         answers: (path, target) => paths.answers(path, target),
-        searchPaths: () => data.attributes().filter((attribute) => attribute.kind === "node").map((attribute) => attribute.path),
+        searchPaths: () =>
+            data
+                .attributes()
+                .filter((attribute) => attribute.kind === "node")
+                .map((attribute) => attribute.path),
     });
     const engine = query;
 
@@ -1253,6 +1267,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     );
     forgetPreparedBindings = painter.invalidate;
 
+    const teardown = new AbortController();
     const styles = createStylesApi({
         elements,
         base: elementBaseLayers(),
@@ -1275,6 +1290,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         onChange: (change) => {
             publish(watchers, "style:changed", change);
         },
+        disposed: teardown.signal,
     });
 
     stack = styles;
@@ -1308,6 +1324,9 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         selection,
         visibility,
         styles,
+        stopStyleEdits: () => {
+            teardown.abort(new DOMException("The session was disposed.", "AbortError"));
+        },
         paint: painter.paint,
         planning,
         watchers,
@@ -1365,11 +1384,7 @@ function requireQuery(held: QueryEngine | null): QueryEngine {
  * @param event - Which event.
  * @param detail - What to tell them.
  */
-function publish<K extends keyof SessionEventMap>(
-    watchers: Watchers,
-    event: K,
-    detail: SessionEventMap[K],
-): void {
+function publish<K extends keyof SessionEventMap>(watchers: Watchers, event: K, detail: SessionEventMap[K]): void {
     const subscribers = watchers.get(event);
 
     if (subscribers === undefined) {

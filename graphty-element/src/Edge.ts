@@ -160,6 +160,9 @@ export class Edge {
      */
     private drawnLabelText?: string;
 
+    /** The style the current line and caps were built from; see `paintFrom`. */
+    private drawnStyle: EdgeStyleConfig | null = null;
+
     /**
      * The resolved label block the label on screen was built from.
      *
@@ -298,6 +301,7 @@ export class Edge {
 
         // create mesh
         const { style } = paint;
+        this.drawnStyle = style;
 
         // create arrow mesh if needed
         this.arrowMesh = EdgeMesh.createArrowHead(
@@ -572,12 +576,28 @@ export class Edge {
         // into -- so an unchanged key means the line, its caps and its colour are all unchanged.
         // The `content` channels are keyed by nothing, so they are applied here. See
         // `drawnLabelText` for the defect that reached a consumer.
-        if (meshKey === this.meshKey && !meshDisposed) {
+        // A DIFFERENT KEY FOR THE SAME STYLE IS NOT A REBUILD. Every element is constructed from
+        // the bootstrap paint, whose key is a sentinel no session key ever equals, and the first
+        // style pass then hands it the session's key -- for the same style, whenever no layer
+        // touches the element, which is every element of a plain load. Comparing keys alone
+        // rebuilt every node and edge once: dispose the placeholder mesh, build the same mesh
+        // again. Babylon's dispose is a linear search of the scene's mesh list and of the parent's
+        // children, so that rebuild cost the size of the scene per element and the load grew as
+        // its square (issue #388: 4,000 nodes took 28 s, 10,000 never finished). A style that is
+        // deep-equal to the one the current mesh was built from means the same geometry, the same
+        // colour and the same content by construction, so the key is adopted and nothing is
+        // touched.
+        const sameGeometry = meshKey === this.meshKey || _.isEqual(style, this.drawnStyle);
+
+        if (sameGeometry && !meshDisposed) {
+            this.meshKey = meshKey;
+            this.drawnStyle = style;
             this.syncContent(style, false);
             return;
         }
 
         this.meshKey = meshKey;
+        this.drawnStyle = style;
 
         // Invalidate position cache to force edge redraw with new style
         this._lastSrcPos = null;
@@ -589,7 +609,10 @@ export class Edge {
             this.mesh.dispose();
         }
 
-        // recreate arrow mesh if needed
+        // recreate arrow mesh if needed. A cap is an instance of its scene's batch, and the batch
+        // owns the material: disposing an instance's material would dispose the material every
+        // other cap in the batch draws with. The batch disposes it with its last instance
+        // (FilledArrowRenderer.instanceOf).
         if (this.arrowMesh && !this.arrowMesh.isDisposed()) {
             this.arrowMesh.dispose();
         }
@@ -779,10 +802,10 @@ export class Edge {
      * cached SOURCE meshes -- and Babylon disposes a source mesh's instances with it. That is why
      * node spheres and 3D solid edge lines vanished on a dataset clear while roughly sixty grey
      * ARROWHEADS stayed on the canvas, in rosettes where the previous dataset's edges had
-     * converged. Arrowheads are deliberately not cached (`EdgeMesh.createArrowHead` carries a
-     * "PERFORMANCE FIX: Create individual meshes for all arrow types" note): they are built bare
-     * against the scene and parented to the `graph-root` TransformNode, which outlives every
-     * dataset, so nothing ever disposed them. The same was true of the patterned-line meshes
+     * converged. Arrowheads are not in the MeshCache (today each is an instance of a per-scene
+     * batch that `FilledArrowRenderer.instanceOf` frees with its last head): they are parented
+     * to the `graph-root` TransformNode, which outlives every dataset, so nothing but this
+     * dispose frees them. The same was true of the patterned-line meshes
      * (dot/dash/star/...), 2D lines, bezier curves and all three RichTextLabels.
      *
      * Every dispose is guarded with `isDisposed()` -- matching the idiom already used in
@@ -1127,7 +1150,7 @@ export class Edge {
                         ].includes(arrowType)
                     ) {
                         // Filled arrows use shader-based billboarding via lineDirection uniform
-                        FilledArrowRenderer.setLineDirection(this.arrowMesh as Mesh, direction);
+                        FilledArrowRenderer.setLineDirection(this.arrowMesh, direction);
                     } else if (geometry.needsRotation) {
                         // CustomLineRenderer arrows need lookAt (like edge lines) instead of manual rotation
                         // Arrow geometry is along Z-axis, lookAt rotates it to point toward the edge direction
@@ -1207,7 +1230,7 @@ export class Edge {
                     ].includes(arrowType)
                 ) {
                     // Filled arrows use shader-based billboarding via lineDirection uniform
-                    FilledArrowRenderer.setLineDirection(this.arrowMesh as Mesh, direction);
+                    FilledArrowRenderer.setLineDirection(this.arrowMesh, direction);
                 } else if (geometry.needsRotation) {
                     // CustomLineRenderer arrows need lookAt (like edge lines) instead of manual rotation
                     // Arrow geometry is along Z-axis, lookAt rotates it to point toward the edge direction
@@ -1278,7 +1301,7 @@ export class Edge {
                             ].includes(tailType)
                         ) {
                             // Filled arrows use shader-based billboarding via lineDirection uniform
-                            FilledArrowRenderer.setLineDirection(this.arrowTailMesh as Mesh, reversedDirection);
+                            FilledArrowRenderer.setLineDirection(this.arrowTailMesh, reversedDirection);
                         } else if (tailGeometry.needsRotation) {
                             // Other arrow types need explicit rotation
                             // Triangle in XY plane with tip at origin, pointing in +X direction

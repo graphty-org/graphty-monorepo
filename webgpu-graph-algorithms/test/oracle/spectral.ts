@@ -7,9 +7,9 @@
  * device runs it: two chains that alternate the reverse and the forward pull, one seeded as hubs and one as
  * authorities. The oracle runs exactly `maxIterations` iterations, as the device runs a whole batch, and records
  * the first iteration i whose L1 delta sum |x(i) - x(i-p)| (p = 1, or 2 for an alternating chain, whose previous
- * iterate of the same kind is two back) fell below n * tolerance -- but only when a later iteration ran, because
- * the device records that delta one iteration late (PD-9: `pr-scale` at iteration i + 1 compares x(i) with the
- * iterate it is about to overwrite) and so never observes convergence at iteration maxIterations itself. The final
+ * iterate of the same kind is two back) fell below n * tolerance, iteration maxIterations included: the device
+ * records that delta one iteration late (PD-9: `pr-scale` at iteration i + 1 compares x(i) with the iterate it is
+ * about to overwrite), so after the last pull it runs one more scale and finalize, without a pull, to measure it. The final
  * vector is normalised ONCE at the end (sum for HITS, L2 for eigenvector and Katz). The reverse adjacency is walked
  * the way graph-format materialises it, never the device.
  */
@@ -114,7 +114,7 @@ function normalise(x: Float64Array, norm: "sum" | "l2"): Float64Array {
 
 /**
  * Exactly `maxIterations` iterations of x(i) = beta + alpha * A * norm(x(i-1)), the adjacencies taken in turn,
- * recording the first converged one that a later iteration observed (see the file comment).
+ * recording the first converged one (see the file comment).
  * @param adjacencies - the arrays the pulls walk, one per iteration in turn (one, or the alternating pair)
  * @param recurrence - the normaliser and the coefficients
  * @param options - the iteration cap and the tolerance
@@ -148,7 +148,7 @@ function iterate(
         }
         recent.shift();
         recent.push(next);
-        if (first === 0 && err < n * options.tolerance && iteration < options.maxIterations) {
+        if (first === 0 && err < n * options.tolerance) {
             first = iteration;
         }
     }

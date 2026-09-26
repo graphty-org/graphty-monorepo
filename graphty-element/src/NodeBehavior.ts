@@ -114,9 +114,10 @@ export class NodeDragHandler {
             }
         }
 
-        // Make sure graph is running
+        // Make sure graph is running -- through the INTERNAL write, which a consumer's pause
+        // refuses: a drag moves the node without resuming a paused layout.
         const context = this.getContext();
-        context.setRunning(true);
+        context.getLayoutManager().running = true;
 
         // HOLD THE NODE STILL WHILE THE POINTER HAS IT. A simulation layout keeps arranging the
         // row and publishing where it put it, so without a fixed bit the forces would fight the
@@ -200,9 +201,10 @@ export class NodeDragHandler {
         //     finalPosition: this.node.mesh.position.asArray(),
         // });
 
-        // Make sure graph is running
+        // Make sure graph is running -- through the INTERNAL write, which a consumer's pause
+        // refuses: a drag moves the node without resuming a paused layout.
         const context = this.getContext();
-        context.setRunning(true);
+        context.getLayoutManager().running = true;
 
         // BEFORE THE PIN, so the fixed bit is never cleared and set again inside one frame: a
         // drop that pins keeps the bit it has been holding, and a drop that does not gives the
@@ -613,8 +615,8 @@ export class NodeBehavior {
                         return;
                     }
 
-                    // make sure the graph is running
-                    context.setRunning(true);
+                    // make sure the graph is running, unless the consumer paused it
+                    context.getLayoutManager().running = true;
 
                     // fetch all edges for current node
                     const edgeSet = fetchEdges(node, graph as unknown as Graph);

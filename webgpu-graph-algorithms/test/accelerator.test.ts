@@ -1,11 +1,17 @@
+import { type F32, type GraphSnapshot } from "@graphty/graph-format";
+
 import { createAccelerator } from "../src/accelerator.js";
+import { bellmanFord } from "../src/algorithms/bellman-ford.js";
+import { breadthFirstSearch } from "../src/algorithms/bfs.js";
+import { closenessCentrality } from "../src/algorithms/closeness.js";
 import { connectedComponents } from "../src/algorithms/components.js";
 import { pageRank, personalizedPageRank } from "../src/algorithms/pagerank.js";
 import { eigenvectorCentrality, hits, katzCentrality } from "../src/algorithms/spectral.js";
+import { sssp } from "../src/algorithms/sssp.js";
 import { FA2_DEFAULTS, FR_DEFAULTS, LAYOUT_TUNING_DEFAULTS, SE_DEFAULTS } from "../src/constants.js";
 import { isWebGpuGraphError } from "../src/errors.js";
 import { ForceSimulation } from "../src/layouts/force-simulation.js";
-import { type AcceleratorOptions, type AlgorithmAccelerator } from "../src/types/accelerator.js";
+import { type AcceleratorOptions, type AlgorithmAccelerator, type GpuAccelerator } from "../src/types/accelerator.js";
 import {
     type ForceAtlas2Stats,
     type FruchtermanReingoldStats,
@@ -24,7 +30,10 @@ import { KARATE_EDGES, snapshotOf } from "./helpers/graphs.js";
 import { expectBitwiseEqual } from "./helpers/matchers.js";
 import { acquire, requireGpu } from "./setup/gpu.js";
 
-/** The seven P7 algorithm members (spec 9.2; M8b-T8 PD-14), in the order AlgorithmAccelerator declares them. */
+/**
+ * The seven P7 algorithm members (spec 9.2; M8b-T8 PD-14) and the four P8 traversal members (P8-T13 PD-16), in the
+ * order AlgorithmAccelerator declares them.
+ */
 const ALGORITHM_MEMBERS = [
     "pageRank",
     "personalizedPageRank",
@@ -33,6 +42,10 @@ const ALGORITHM_MEMBERS = [
     "katzCentrality",
     "connectedComponents",
     "weaklyConnectedComponents",
+    "breadthFirstSearch",
+    "sssp",
+    "bellmanFord",
+    "closenessCentrality",
 ] as const;
 
 /** The simulation class behind createForceAtlas2, narrowed so the tests can read `tuning` and `options`. */
@@ -51,6 +64,33 @@ function thrownCode(fn: () => unknown): string | null {
     return null;
 }
 
+/**
+ * One algorithm member called with the arguments it needs: the personalization for personalizedPageRank, a source
+ * index for the three P8 source members, the snapshot alone for the rest.
+ * @param acc - the accelerator
+ * @param member - which member
+ * @param snapshot - the snapshot
+ * @param mass - the personalization vector
+ * @returns the member's promise
+ */
+function callMember(
+    acc: GpuAccelerator,
+    member: (typeof ALGORITHM_MEMBERS)[number],
+    snapshot: GraphSnapshot,
+    mass: F32,
+): Promise<unknown> {
+    switch (member) {
+        case "personalizedPageRank":
+            return acc.personalizedPageRank(snapshot, mass);
+        case "breadthFirstSearch":
+        case "sssp":
+        case "bellmanFord":
+            return acc[member](snapshot, 0);
+        default:
+            return acc[member](snapshot);
+    }
+}
+
 /** Narrows the public simulation type to the class (asserting it IS the class, contract 3.13). */
 function asForceSimulation(sim: unknown): Fa2Simulation {
     expect(sim).toBeInstanceOf(ForceSimulation);
@@ -66,7 +106,7 @@ function asModelSimulation<Options extends CommonLayoutOptions & SimulationOptio
 }
 
 describe("createAccelerator (contract 3.14; spec 3.3, 9.2, 9.3)", () => {
-    it("carries kind, ctx and exactly the P3 + P7 members; a missing method is undefined for the dispatchers", async (t) => {
+    it("carries kind, ctx and exactly the P3 + P7 + P8 members; a missing method is undefined for the dispatchers", async (t) => {
         requireGpu(t);
         const ctx = await acquire({ label: "accelerator-members" });
         const acc = createAccelerator(ctx);
@@ -93,7 +133,14 @@ describe("createAccelerator (contract 3.14; spec 3.3, 9.2, 9.3)", () => {
         // throwing stub (P9's member); the P7 members are present and route to the GPU
         expect(acc.betweennessCentrality).toBeUndefined();
         expect("betweennessCentrality" in acc).toBe(false);
-        expect(acc.breadthFirstSearch).toBeUndefined();
+        // P8 PD-16: a member exists when its algorithm ships, so the four traversals are functions now and a consumer's
+        // feature detection (`typeof accel.sssp === "function"`) routes them to the GPU; nothing named harmonic or
+        // eccentricity exists (DEP-P8-F)
+        for (const member of ["breadthFirstSearch", "sssp", "bellmanFord", "closenessCentrality"] as const) {
+            expect(typeof acc[member], member).toBe("function");
+        }
+        expect("harmonicCentrality" in acc).toBe(false);
+        expect("eccentricity" in acc).toBe(false);
         const route = acc.betweennessCentrality !== undefined ? "gpu" : "cpu";
         expect(route).toBe("cpu");
         const p7Route = acc.pageRank !== undefined ? "gpu" : "cpu";
@@ -414,9 +461,61 @@ describe("createAccelerator (contract 3.14; spec 3.3, 9.2, 9.3)", () => {
         // after dispose every member rejects through assertReady (contract 3.14 throws line), never a hang
         acc.dispose();
         for (const member of ALGORITHM_MEMBERS) {
-            const call =
-                member === "personalizedPageRank" ? acc.personalizedPageRank(snapshot, mass) : acc[member](snapshot);
-            await expect(call, member).rejects.toMatchObject({ code: "E_DISPOSED" });
+            await expect(callMember(acc, member, snapshot, mass), member).rejects.toMatchObject({ code: "E_DISPOSED" });
+        }
+    });
+
+    it("carries the four P8 traversal members, each delegating to its driver (P8-T13 PD-16, PD-19; spec 9.2, 9.7)", async (t) => {
+        requireGpu(t);
+        const ctx = await acquire({ label: "accelerator-traversals" });
+        const acc = createAccelerator(ctx);
+        const snapshot = snapshotOf(KARATE_EDGES);
+        const mass = new Float32Array(snapshot.nodeCount);
+        const injected: AlgorithmAccelerator = acc;
+        for (const member of ["breadthFirstSearch", "sssp", "bellmanFord", "closenessCentrality"] as const) {
+            expect(typeof acc[member], member).toBe("function");
+            expect(injected[member], member).toBe(acc[member]);
+        }
+        // breadthFirstSearch: the seam's `maxDepth` reaches the driver (a node at the cap is reached, not expanded)
+        const bfs = await acc.breadthFirstSearch(snapshot, 0, { maxDepth: 2 });
+        const bfsDirect = await breadthFirstSearch(ctx, snapshot, 0, { maxDepth: 2 });
+        expectBitwiseEqual(bfs.depth, bfsDirect.depth, "breadthFirstSearch.depth");
+        expectBitwiseEqual(bfs.parent, bfsDirect.parent, "breadthFirstSearch.parent");
+        expectBitwiseEqual(bfs.order, bfsDirect.order, "breadthFirstSearch.order");
+        expect(bfs.visitedCount).toBe(bfsDirect.visitedCount);
+        expect(bfs.levels).toBe(3);
+        expect(bfs.switches).toBe(bfsDirect.switches);
+        // sssp: the seam's `cutoff` and `weights` reach the driver (an override on the unweighted karate snapshot, one
+        // weight per EDGE so both arcs of an undirected edge agree, which bellmanFord's undirected rule requires)
+        const weights = Float32Array.from({ length: snapshot.arcCount }, (_, a) => 1 + (snapshot.arcToEdge[a] % 3));
+        const dist = await acc.sssp(snapshot, 0, { cutoff: 4, weights });
+        const distDirect = await sssp(ctx, snapshot, 0, { cutoff: 4, weights });
+        expectBitwiseEqual(dist.dist, distDirect.dist, "sssp.dist");
+        expectBitwiseEqual(dist.predArc, distDirect.predArc, "sssp.predArc");
+        expect(dist.reachedCount).toBe(distDirect.reachedCount);
+        expect(dist.reachedCount).toBeLessThan(snapshot.nodeCount);
+        // bellmanFord: the same option type, the negative-cycle flag on top
+        const bf = await acc.bellmanFord(snapshot, 0, { weights });
+        const bfDirect = await bellmanFord(ctx, snapshot, 0, { weights });
+        expectBitwiseEqual(bf.dist, bfDirect.dist, "bellmanFord.dist");
+        expectBitwiseEqual(bf.predArc, bfDirect.predArc, "bellmanFord.predArc");
+        expect(bf.reachedCount).toBe(bfDirect.reachedCount);
+        expect(bf.hasNegativeCycle).toBe(false);
+        // closenessCentrality: the seam's HitsOptionsLike; `weighted: false` reaches the driver
+        const closeness = await acc.closenessCentrality(snapshot, { weighted: false });
+        const closenessDirect = await closenessCentrality(ctx, snapshot, { weighted: false });
+        expectBitwiseEqual(closeness.scores, closenessDirect.scores, "closenessCentrality");
+        expect(closeness.iterations).toBe(closenessDirect.iterations);
+        expect(closeness.precision).toBe("f32");
+        // PD-25: an option the exact traversal cannot honour is refused through the member, never dropped
+        await expect(acc.closenessCentrality(snapshot, { maxIterations: 3 })).rejects.toMatchObject({
+            code: "E_UNSUPPORTED",
+            details: { option: "maxIterations" },
+        });
+        acc.release(snapshot);
+        acc.dispose();
+        for (const member of ["breadthFirstSearch", "sssp", "bellmanFord", "closenessCentrality"] as const) {
+            await expect(callMember(acc, member, snapshot, mass), member).rejects.toMatchObject({ code: "E_DISPOSED" });
         }
     });
 

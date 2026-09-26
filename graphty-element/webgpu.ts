@@ -46,6 +46,14 @@
  * republishes rather than finishing that work anywhere else. Recorded in
  * `docs/decisions/device-computes-incorrectly.md`.
  *
+ * That the ELEMENT reports `E_DEVICE_INCORRECT` on the Windows WARP renderer is inference, by
+ * decision, not a test: no lane runs graphty-element on WARP. The host matrix (`hosts.yml`) runs
+ * only webgpu-graph-algorithms there, whose own tests show the multi-block scan failing. This
+ * file's side -- a failed check becomes `E_DEVICE_INCORRECT`, and the controller refuses the
+ * device at attach -- is pinned against a stubbed peer and a deliberately wrong fake. Adding an
+ * element job to the Windows lane is a CI cost that can be taken on later if the two halves ever
+ * disagree.
+ *
  * ## Detection is not a fallback
  *
  * Finding out, before anything runs, that this host has no WebGPU and letting the element take

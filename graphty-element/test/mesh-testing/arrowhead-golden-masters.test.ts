@@ -27,7 +27,7 @@
  *     could not have seen the difference in either direction.
  */
 
-import { Mesh, ShaderMaterial, StandardMaterial, Vector3 } from "@babylonjs/core";
+import { InstancedMesh, ShaderMaterial, StandardMaterial, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { EdgeStyle } from "../../src/config/EdgeStyle";
@@ -60,7 +60,7 @@ const SCHEMA_TYPES = [...DRAWN_TYPES, "none"];
 
 let ctx: MeshTestScene;
 
-function arrow(type: string, extra: { size?: number; color?: string; opacity?: number } = {}): Mesh {
+function arrow(type: string, extra: { size?: number; color?: string; opacity?: number } = {}): InstancedMesh {
     const mesh = EdgeMesh.createArrowHead(
         ctx.cache,
         `arrow-${type}`,
@@ -68,11 +68,11 @@ function arrow(type: string, extra: { size?: number; color?: string; opacity?: n
         ctx.scene,
     );
     assert.isNotNull(mesh, `createArrowHead returned null for "${type}"`);
-    return mesh as Mesh;
+    return mesh;
 }
 
 /** The mesh's local positions, rounded, as a comparable string. */
-function geometryFingerprint(mesh: Mesh): string {
+function geometryFingerprint(mesh: InstancedMesh): string {
     const positions = mesh.getVerticesData("position");
     assert.isNotNull(positions, "an arrow with no position data draws nothing");
     return Array.from(positions).map((value) => value.toFixed(5)).join(",");
@@ -236,32 +236,24 @@ describe("Arrowhead Golden Masters", () => {
             assert.deepEqual([material.emissiveColor.r, material.emissiveColor.g, material.emissiveColor.b], [1, 0, 0]);
         });
 
-        test("the shader carries the uniforms tangent billboarding needs", () => {
+        test("the shader carries the attributes and uniforms tangent billboarding needs", () => {
             const material = arrow("normal").material as ShaderMaterial;
             const options = material.options as unknown as { uniforms: string[]; attributes: string[] };
 
-            // `lineDirection` is a UNIFORM, not a per-instance attribute. The retired mock declared
-            // it as an attribute and named a `thinInstanceAttribute` besides; the renderer moved off
-            // thin instances for arrows (they measured 35x slower than direct position updates) and
-            // nothing in the test suite noticed, because nothing in the test suite was looking at
-            // the real material.
-            assert.deepEqual(options.attributes, ["position"]);
-            assert.includeMembers(options.uniforms, [
-                "world",
-                "viewProjection",
-                "cameraPosition",
-                "size",
-                "color",
-                "opacity",
-                "lineDirection",
-            ]);
+            // Direction, size and colour are PER-INSTANCE attributes: every edge's head is an
+            // instance of one shared mesh per shape, drawn in one call (issue #25). They were
+            // per-material uniforms while each head was its own mesh and material.
+            assert.deepEqual(options.attributes, ["position", "arrowDirection", "arrowSize", "arrowColor"]);
+            assert.includeMembers(options.uniforms, ["viewProjection", "cameraPosition", "opacity"]);
         });
 
-        test("the shader's size uniform is the world-space arrow length, not a unit scale", () => {
-            const half = arrow("normal", { size: 0.5 }).material as ShaderMaterial;
-            const double = arrow("normal", { size: 2 }).material as ShaderMaterial;
+        test("the head's size is the world-space arrow length, not a unit scale", () => {
+            const half = arrow("normal", { size: 0.5 });
+            const double = arrow("normal", { size: 2 });
 
-            assert.notStrictEqual(half, double, "each cap gets its own material");
+            assert.strictEqual(half.material, double.material, "heads of one shape share one material");
+            assert.equal(half.instancedBuffers.arrowSize, EDGE_CONSTANTS.DEFAULT_ARROW_LENGTH * 0.5);
+            assert.equal(double.instancedBuffers.arrowSize, EDGE_CONSTANTS.DEFAULT_ARROW_LENGTH * 2);
         });
     });
 
@@ -375,14 +367,17 @@ describe("Arrowhead Golden Masters", () => {
 
         [0.5, 1, 2, 4].forEach((size) => {
             test(`size ${size} scales the sphere-dot's diameter`, () => {
-                // sphere-dot is the one cap whose size shows up in the GEOMETRY: the others are
-                // sized by the shader's `size` uniform, so their vertex data is identical at every
-                // size and only sphere-dot can be measured here.
+                // sphere-dot is the one cap whose size shows up in its drawn EXTENT: the others are
+                // sized by the shader's per-instance `arrowSize`, so their bounds are identical at
+                // every size and only sphere-dot can be measured here. The sphere is a unit mesh
+                // shared by every head of its colour, scaled per head, so the extent is measured
+                // in world space.
                 const mesh = arrow("sphere-dot", { size });
-                const { extendSize } = mesh.getBoundingInfo().boundingBox;
+                mesh.computeWorldMatrix(true);
+                const { extendSizeWorld } = mesh.getBoundingInfo().boundingBox;
                 const expected = EDGE_CONSTANTS.DEFAULT_ARROW_LENGTH * size * 0.25;
 
-                assert.closeTo(extendSize.x * 2, expected, 1e-3);
+                assert.closeTo(extendSizeWorld.x * 2, expected, 1e-3);
             });
         });
 
@@ -527,7 +522,7 @@ describe("Arrowhead Golden Masters", () => {
     });
 });
 
-function mesh3DPositions(mesh: Mesh): number[] {
+function mesh3DPositions(mesh: InstancedMesh): number[] {
     const positions = mesh.getVerticesData("position");
     assert.isNotNull(positions, "an arrow with no position data draws nothing");
     return Array.from(positions as Float32Array);

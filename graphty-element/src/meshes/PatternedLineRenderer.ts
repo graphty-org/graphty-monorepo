@@ -112,48 +112,17 @@ export const PATTERN_DEFINITIONS: Record<PatternType, PatternDefinition> = {
  */
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class PatternedLineRenderer {
-    private static activeMaterials = new Set<ShaderMaterial>();
-    private static cameraCallbackRegistered = false;
-
     /**
-     * Unregister a pattern material so the per-frame camera-uniform walk stops visiting it.
+     * Stop a pattern material receiving per-frame camera updates.
      *
-     * WHY THIS EXISTS -- the defect it repairs:
-     * Every pattern element (every dot, dash, star, diamond) owns its own `ShaderMaterial`,
-     * and creating one adds it to {@link PatternedLineRenderer.activeMaterials} and, inside
-     * `FilledArrowRenderer.applyShader`, to that class's own active set as well. Both sets
-     * are iterated once per frame to push the camera position uniform. Nothing ever removed
-     * an entry: `PatternedLineMesh.dispose` disposed the mesh with Babylon's default
-     * arguments, which leaves the material alive, and the `catch` inside each per-frame walk
-     * that looks like an eviction path cannot fire, because `ShaderMaterial.setVector3` does
-     * not throw on a disposed material. The result was a per-frame loop that grew
-     * monotonically for the lifetime of the page: every change of line style, width or colour
-     * rebuilt every edge's meshes and left the previous generation's materials in the walk
-     * forever. That is a second, slower-burning half of the same halt the product owner
-     * reported ("I changed line style to dot and width to 1 and everything crawled to a halt").
-     *
-     * Removal must reach BOTH sets, which is why this delegates to
-     * {@link FilledArrowRenderer.releaseMaterial} as well as clearing its own.
+     * Every pattern element owns its own `ShaderMaterial`, built by
+     * `FilledArrowRenderer.applyShader`, which registers it in that renderer's per-scene camera
+     * walk (see `PerSceneMaterials`). Disposing the material ends the registration on its own;
+     * `PatternedLineMesh` calls this as well, eagerly, before it disposes one.
      * @param material - The ShaderMaterial to stop tracking; passing an untracked material is a no-op
-     * @public
      */
     static releaseMaterial(material: ShaderMaterial): void {
-        this.activeMaterials.delete(material);
         FilledArrowRenderer.releaseMaterial(material);
-    }
-
-    /**
-     * Number of pattern materials currently receiving per-frame camera updates.
-     *
-     * Exists so the material leak described on {@link PatternedLineRenderer.releaseMaterial}
-     * is OBSERVABLE from a test. The leak has no visible symptom until the frame rate has
-     * already collapsed, and the count is the only direct evidence that a disposed pattern
-     * line truly stopped costing anything; asserting on frame time instead would be flaky.
-     * @returns Count of tracked materials
-     * @public
-     */
-    static getActiveMaterialCount(): number {
-        return this.activeMaterials.size;
     }
 
     /**
@@ -181,9 +150,6 @@ export class PatternedLineRenderer {
         is2DMode?: boolean,
         patternCount?: number,
     ): PatternedLineMesh {
-        // Register camera callback for batched shader updates
-        this.registerCameraCallback(scene);
-
         // For connected patterns (zigzag, sinewave), use zero-spacing discrete meshes
         // This is more efficient than creating one large mesh
         const patternDef = PATTERN_DEFINITIONS[pattern];
@@ -275,9 +241,6 @@ export class PatternedLineRenderer {
             } else {
                 // Use shader size=1.0 since geometry is already at correct scale
                 FilledArrowRenderer.applyShader(mesh, { size: 1.0, color, opacity }, scene);
-
-                const material = mesh.material as ShaderMaterial;
-                this.activeMaterials.add(material);
             }
 
             return mesh;
@@ -321,10 +284,6 @@ export class PatternedLineRenderer {
             const size = width / geometryDiameter;
 
             FilledArrowRenderer.applyShader(mesh, { size, color, opacity }, scene);
-
-            // Track material for batched updates
-            const material = mesh.material as ShaderMaterial;
-            this.activeMaterials.add(material);
         }
 
         return mesh;
@@ -891,38 +850,5 @@ export class PatternedLineRenderer {
             default:
                 return "circle";
         }
-    }
-
-    /**
-     * Register camera position update callback
-     * Updates all pattern materials in one batch per frame
-     * @param scene - Babylon.js scene
-     */
-    private static registerCameraCallback(scene: Scene): void {
-        if (this.cameraCallbackRegistered) {
-            return;
-        }
-
-        this.cameraCallbackRegistered = true;
-
-        scene.onBeforeRenderObservable.add(() => {
-            const camera = scene.activeCamera;
-            if (!camera) {
-                return;
-            }
-
-            const cameraPos = camera.globalPosition;
-
-            // Update all active materials in one batch
-            for (const material of this.activeMaterials) {
-                try {
-                    material.setVector3("cameraPosition", cameraPos);
-                    // lineDirection is set per PatternedLineMesh, not here
-                } catch {
-                    // Material was disposed, remove from set
-                    this.activeMaterials.delete(material);
-                }
-            }
-        });
     }
 }

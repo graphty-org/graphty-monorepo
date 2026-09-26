@@ -167,7 +167,15 @@ describe("neo4j corpus (design 16.5)", () => {
 
         it("movies-rels.csv alone creates its endpoints", async () => {
             const { snapshot } = await load(neo4jText("movies-rels.csv"));
-            expect(snapshot.ids.toArray()).toEqual(["p1", "m1", "m2", "p2", "p4", "m3", "p3"]);
+            expect(snapshot.ids.toArray()).toEqual([
+                "Person:p1",
+                "Movie:m1",
+                "Movie:m2",
+                "Person:p2",
+                "Person:p4",
+                "Movie:m3",
+                "Person:p3",
+            ]);
             expect(snapshot.nodes.names()).toEqual([]);
         });
 

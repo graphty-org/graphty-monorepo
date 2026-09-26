@@ -12,6 +12,8 @@
 import { INVALID_INDEX } from "@graphty/graph-format";
 
 import {
+    EXACT_TILES_PER_PASS,
+    F32_INF_BITS,
     FA2_COINCIDENT_SQ,
     FA2_DISTANCE_FLOOR,
     FA2_DISTANCE_FLOOR_SQ,
@@ -51,7 +53,9 @@ export function wgslF32Literal(value: number): string {
 export const PRELUDE_WGSL: string = /* wgsl */ `// ---- prelude: constants, standard overrides, helpers (every module receives this text first)
 const INVALID_INDEX: u32 = ${INVALID_INDEX}u;
 const U32_MAX: u32 = ${U32_MAX}u;
+const F32_INF_BITS: u32 = ${F32_INF_BITS}u;
 const MAX_WORKGROUPS_PER_DIM: u32 = ${MAX_WORKGROUPS_PER_DIM}u;
+const EXACT_TILES_PER_PASS: u32 = ${EXACT_TILES_PER_PASS}u;
 const FA2_DIST_FLOOR: f32 = ${wgslF32Literal(FA2_DISTANCE_FLOOR)};
 const FA2_DIST_FLOOR_SQ: f32 = ${wgslF32Literal(FA2_DISTANCE_FLOOR_SQ)};
 const FA2_COINCIDENT_SQ: f32 = ${wgslF32Literal(FA2_COINCIDENT_SQ)};
@@ -101,7 +105,7 @@ fn kick_dir(i: u32, j: u32, dim: u32) -> vec3f {
 /** Line count of PRELUDE_WGSL (the compilation-info formatter subtracts it plus the emitted declarations). */
 export const PRELUDE_LINES: number = PRELUDE_WGSL.split("\n").length;
 
-/** The workgroup-memory reduction helpers (the twin) (4.3). */
+/** The workgroup-memory reduction helpers (the twin) (4.3), plus the workgroup-memory form of the P8 scan helper. */
 export const REDUCE_HELPERS_WORKGROUP_WGSL: string = /* wgsl */ `var<workgroup> wg_scratch_v: array<vec4f, WG>;
 var<workgroup> wg_scratch_u: array<u32, WG>;
 fn combine_v(a: vec4f, b: vec4f, op: u32) -> vec4f {
@@ -138,9 +142,24 @@ fn wg_reduce_u32(v: u32, lid: u32, op: u32) -> u32 {
     workgroupBarrier();
     return total;
 }
+fn wg_scan_u32(v: u32, lid: u32) -> u32 {
+    workgroupBarrier();
+    wg_scratch_u[lid] = v;
+    workgroupBarrier();
+    for (var s = 1u; s < WG; s = s * 2u) {                       // Hillis-Steele inclusive scan (scan-block's body); uniform: every lane runs every round
+        var t = 0u;
+        if (lid >= s) { t = wg_scratch_u[lid - s]; }
+        workgroupBarrier();
+        wg_scratch_u[lid] = wg_scratch_u[lid] + t;
+        workgroupBarrier();
+    }
+    let inclusive = wg_scratch_u[lid];
+    workgroupBarrier();                                          // the scratch is free for the next call
+    return inclusive;
+}
 fn wg_reduce_f32(v: f32, lid: u32, op: u32) -> f32 { return wg_reduce_vec4(vec4f(v, 0.0, 0.0, 0.0), lid, op).x; }`;
 
-/** The subgroup reduction helpers, spliced only with `enable subgroups;` (4.3). */
+/** The subgroup reduction helpers, spliced only with `enable subgroups;` (4.3), plus the subgroup form of the P8 scan helper. */
 export const REDUCE_HELPERS_SUBGROUP_WGSL: string = /* wgsl */ `override SG_SLOTS: u32 = (WG + SUBGROUP_MIN - 1u) / SUBGROUP_MIN;   // one slot per subgroup; the count is largest when the compiler picks the SMALLEST size
 var<workgroup> sg_counter: atomic<u32>;
 var<workgroup> sg_val_v: array<vec4f, SG_SLOTS>;
@@ -216,10 +235,28 @@ fn wg_reduce_u32(v: u32, lid: u32, op: u32) -> u32 {
     workgroupBarrier();
     return total;
 }
+fn wg_scan_u32(v: u32, lid: u32) -> u32 {
+    workgroupBarrier();
+    if (lid == 0u) { atomicStore(&sg_counter, 0u); }
+    workgroupBarrier();
+    let inSub = subgroupExclusiveAdd(v) + v;                     // the lane's inclusive sum within its subgroup
+    let total = subgroupAdd(v);
+    let key = subgroupMin(lid);                                   // the subgroup's identity: its smallest local id (D16)
+    var slot = 0u;
+    if (subgroupElect()) { slot = atomicAdd(&sg_counter, 1u); }
+    slot = subgroupBroadcast(slot, 0u);
+    if (subgroupElect()) { sg_val_u[slot] = total; sg_key[slot] = key; }
+    workgroupBarrier();
+    let count = atomicLoad(&sg_counter);
+    var carry = 0u;                                               // the totals of every subgroup whose key is below this lane's: LANE order, whatever order the slots were taken in
+    for (var k = 0u; k < count; k = k + 1u) { if (sg_key[k] < key) { carry = carry + sg_val_u[k]; } }
+    workgroupBarrier();                                          // the slots are free for the next call
+    return inSub + carry;
+}
 fn wg_reduce_f32(v: f32, lid: u32, op: u32) -> f32 { return wg_reduce_vec4(vec4f(v, 0.0, 0.0, 0.0), lid, op).x; }`;
 
-/** The helper function names a body may call when its spec lists needs: ["subgroups"]. */
-export const REDUCE_HELPER_NAMES = ["wg_reduce_f32", "wg_reduce_u32", "wg_reduce_vec4"] as const;
+/** The helper function names a body may call when its spec lists needs: ["subgroups"]; `wg_scan_u32(v, lid)` is an INCLUSIVE prefix sum over the workgroup in lane order (P8-T1), bitwise the same in both forms. */
+export const REDUCE_HELPER_NAMES = ["wg_reduce_f32", "wg_reduce_u32", "wg_reduce_vec4", "wg_scan_u32"] as const;
 
 /**
  * The WGSL reserved words of spec section 16.2 (the `_reserved` production), frozen; composeWgsl rejects a body or

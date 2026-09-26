@@ -20,7 +20,7 @@ export interface DataRowProps {
     /** The reader's own string: an identifier, a node label, an attribute name, a filename. */
     name: string;
     /**
-     * The trailing value, drawn small in the secondary text colour. Bare: the
+     * The trailing value, drawn small in the secondary text color. Bare: the
      * repeated unit word belongs on `DataRowHeader`.
      *
      * It is drawn exactly as given. A number is not formatted for you, so pass
@@ -79,9 +79,9 @@ export interface DataRowProps {
  * value, and the reason is worth stating because every other row type exists to
  * replace that label with a glyph. An identifier, a node label, an attribute
  * name or a filename is *data*, and data cannot be drawn: there is no picture of
- * `Mr_Whiskers`. So the string stays, at 11px in the primary text colour, and
+ * `Mr_Whiskers`. So the string stays, at 11px in the primary text color, and
  * the number that describes it rides at the trailing edge in the smaller
- * secondary colour.
+ * secondary color.
  *
  * The number is bare. A run of rows that all measure the same thing carries its
  * unit word once, on a `DataRowHeader` above the column, rather than repeating
@@ -94,7 +94,7 @@ export interface DataRowProps {
  * is a `Tree` (nested) or a `PageList` (flat); a find result is a `ResultRow`.
  * @param props - Component props
  * @param props.name - The reader's own string
- * @param props.value - The trailing value, bare and in the secondary text colour
+ * @param props.value - The trailing value, bare and in the secondary text color
  * @param props.icon - A 16px leading icon, worth drawing only when the rows differ in type
  * @param props.selected - Whether this row is the current one, reported as `aria-current`
  * @param props.onClick - Called when the row is activated, with the event and the activation source
@@ -138,7 +138,7 @@ export function DataRow({
 
     /**
      * Reports an activation to the consumer, with the source stated separately.
-     * @param event - The click, including the one a browser synthesises from Enter or Space
+     * @param event - The click, including the one a browser synthesizes from Enter or Space
      */
     const handleClick = (event: React.MouseEvent<HTMLButtonElement>): void => {
         onClick?.(event, getActivationMeta(event));
@@ -152,9 +152,9 @@ export function DataRow({
                 </span>
             )}
 
-            {/* The reader's own string. It ellipsises when the row is too
+            {/* The reader's own string. It ellipsizes when the row is too
                 narrow, so it carries the whole string as a title for a pointer.
-                Ellipsising is a drawing rather than a truncation: the full
+                Ellipsizing is a drawing rather than a truncation: the full
                 string is still the element's text, so it is still the whole
                 accessible name of the row. */}
             <span className="cm-data-row-name" data-testid="data-row-name" title={name}>
@@ -288,9 +288,9 @@ export interface DataRowHeaderProps {
  * trailing edge becomes a number a reader can compare down rather than a ragged
  * phrase they have to re-read.
  *
- * Both halves are drawn small in the secondary text colour, because a caption is
+ * Both halves are drawn small in the secondary text color, because a caption is
  * chrome rather than content. The name of the sorted column is drawn in the
- * primary colour instead, which is how a reader sees at a glance which column
+ * primary color instead, which is how a reader sees at a glance which column
  * the list is in the order of.
  *
  * Give it `onSortChange` and the caption becomes a button that cycles between
@@ -337,7 +337,7 @@ export function DataRowHeader({
 
     /**
      * Cycles the sort direction and reports it, with the event that asked.
-     * @param event - The click, including the one a browser synthesises from Enter or Space
+     * @param event - The click, including the one a browser synthesizes from Enter or Space
      */
     const handleSort = (event: ActivationEvent): void => {
         // Ascending and descending only. A third state that returns the list to
@@ -348,7 +348,7 @@ export function DataRowHeader({
 
     const caption = (
         <>
-            {/* The caption ellipsises when the column name is long, so it
+            {/* The caption ellipsizes when the column name is long, so it
                 carries the whole name as a title for a pointer. */}
             <span className="cm-data-row-header-label" data-testid="data-row-header-label" title={label}>
                 {label}
@@ -430,8 +430,8 @@ export interface RankChipProps {
  * The denominator is not information the reader is missing -- the panel above it
  * already says how many nodes there are -- so the chip keeps the number that
  * changes and drops the words that do not. It draws Figma's "Beta" badge look
- * (design/figma-spec.md 9.8): 16 tall, radius 5, a 1px border-colour outline drawn
- * inside, transparent, 11/16 in the primary text colour (bottom-toolbar/mode-metronome-full #296).
+ * (design/figma-spec.md 9.8): 16 tall, radius 5, a 1px border-color outline drawn
+ * inside, transparent, 11/16 in the primary text color (bottom-toolbar/mode-metronome-full #296).
  * @param props - Component props
  * @param props.children - The rank, already spelled the short way
  * @returns The rank chip

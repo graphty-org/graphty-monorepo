@@ -11,7 +11,7 @@ export interface ToolbarProps extends BoxProps, ElementProps<"div"> {
     /** Accessible name of the toolbar. Defaults to the "Tools" label. */
     "aria-label"?: string;
     /**
-     * Pin the toolbar to the bottom centre of the window, 12px up (Figma's position). Leave it off
+     * Pin the toolbar to the bottom center of the window, 12px up (Figma's position). Leave it off
      * to position the toolbar yourself.
      */
     floating?: boolean;
@@ -27,7 +27,7 @@ export interface ToolbarProps extends BoxProps, ElementProps<"div"> {
  * It is one Tab stop: focus lands on the selected tool, and ArrowLeft / ArrowRight / Home / End
  * move between tools, chevrons and the mode radios.
  * @param props - Component props
- * @param props.floating - Pin the toolbar to the bottom centre of the window
+ * @param props.floating - Pin the toolbar to the bottom center of the window
  * @param props.children - Tool groups, tool buttons, dividers and a mode switch
  * @param props.className - Extra class on the root
  * @param props.onKeyDown - Called before the roving-focus key handling

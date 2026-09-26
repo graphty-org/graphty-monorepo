@@ -70,7 +70,7 @@ export const States: Story = {
     play: focusMarked,
 };
 
-/** Labelled marks under the track. */
+/** Labeled marks under the track. */
 export const WithMarks: Story = {
     args: {
         defaultValue: [25, 75],

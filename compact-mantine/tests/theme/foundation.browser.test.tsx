@@ -7,7 +7,7 @@ import { Box } from "@mantine/core";
 import { userEvent } from "@vitest/browser/context";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { drive, expectMeasured, normalise, part, renderThemed, resetHarness } from "../harness/measure";
+import { drive, expectMeasured, normalize, part, renderThemed, resetHarness } from "../harness/measure";
 
 afterEach(resetHarness);
 
@@ -22,7 +22,7 @@ describe("type", () => {
 
     it("renders weight 450 and 550 as distinct variable-font instances", async () => {
         // Large text: headless Chromium rounds each advance to a whole pixel, which hides the
-        // few-percent width change between neighbouring weights at 11px.
+        // few-percent width change between neighboring weights at 11px.
         const { container } = await renderThemed(
             <div style={{ fontSize: 200, whiteSpace: "nowrap" }}>
                 <span data-w="450" style={{ fontWeight: 450 }}>
@@ -55,7 +55,7 @@ describe("elevations", () => {
         const { container } = await renderThemed(<div data-testid="s" style={{ boxShadow: "var(--cm-elevation-400)" }} />, {
             scheme,
         });
-        const shadow = normalise("boxShadow", getComputedStyle(part(container, "[data-testid=s]")).boxShadow);
+        const shadow = normalize("boxShadow", getComputedStyle(part(container, "[data-testid=s]")).boxShadow);
         const layers = shadow.split(/,\s(?![^(]*\))/);
         expect(layers).toHaveLength(scheme === "light" ? 3 : 4);
         expect(shadow.includes("inset")).toBe(scheme === "dark");
@@ -76,10 +76,10 @@ describe("focus-ring classes", () => {
         const button = part(container, "button");
         await userEvent.click(button);
         expect(document.activeElement).toBe(button);
-        expect(getComputedStyle(button).outlineStyle === "none" || normalise("c", getComputedStyle(button).outlineColor) === "#00000000").toBe(true);
+        expect(getComputedStyle(button).outlineStyle === "none" || normalize("c", getComputedStyle(button).outlineColor) === "#00000000").toBe(true);
     });
 
-    it("cm-focus-inside: the ring sits 1px inside, dark ring colour in dark", async () => {
+    it("cm-focus-inside: the ring sits 1px inside, dark ring color in dark", async () => {
         const { container } = await renderThemed(<button type="button" className="cm-focus-inside">x</button>, { scheme: "dark" });
         const button = part(container, "button");
         await drive(button, "focus");
@@ -151,7 +151,7 @@ describe("dark menu and light popover primitives", () => {
             borderRadius: "13px",
             paddingTop: "8px",
         });
-        const shadow = normalise("boxShadow", getComputedStyle(part(container, "[data-testid=menu]")).boxShadow);
+        const shadow = normalize("boxShadow", getComputedStyle(part(container, "[data-testid=menu]")).boxShadow);
         expect(shadow.includes("inset")).toBe(false);
     });
 

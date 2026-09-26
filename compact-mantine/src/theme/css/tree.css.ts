@@ -444,7 +444,7 @@ const css = `
 .cm-dt { display: flex; flex-direction: column; gap: 8px; width: 100%; color: var(--cm-text); }
 .cm-dt-count { flex: none; color: var(--cm-text-secondary); ${cmFont("body")} }
 .cm-dt-viewport { position: relative; overflow: auto; background: var(--cm-bg); }
-/* Every cell draws its grid line as a 1px outline over a 1px gap, so neighbouring lines overlap
+/* Every cell draws its grid line as a 1px outline over a 1px gap, so neighboring lines overlap
    instead of doubling. The table's 1px padding keeps the outer lines inside the scroll area. */
 .cm-dt .cm-dt-table {
     display: grid;

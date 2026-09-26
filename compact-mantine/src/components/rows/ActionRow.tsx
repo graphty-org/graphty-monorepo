@@ -36,7 +36,7 @@ export interface ActionRowProps {
     /**
      * What the row reports: a count, a status, a record of the last run.
      *
-     * Always drawn, at the leading edge, in the secondary text colour, and
+     * Always drawn, at the leading edge, in the secondary text color, and
      * truncated with an ellipsis rather than wrapped -- the row is 32px and
      * stays 32px. Only the drawing is truncated: the text itself is complete in
      * the document, so a screen reader reads all of it however little of it
@@ -119,7 +119,7 @@ export interface ActionRowProps {
      * rows below are "dimmed and disabled instead of tagged individually". The reading
      * then takes the disabled ink -- a different token from the ordinary muted one --
      * and the row is announced as unavailable, so nothing about the state depends on
-     * telling two greys apart.
+     * telling two grays apart.
      * @default false
      */
     disabled?: boolean;
@@ -127,7 +127,7 @@ export interface ActionRowProps {
      * Forces `actions` to be drawn, or forces them hidden, instead of letting
      * the row decide from hover and focus.
      *
-     * Leave it out for the usual behaviour. Set it to `true` while a menu or a
+     * Leave it out for the usual behavior. Set it to `true` while a menu or a
      * pop-out opened from this row is still open, so that the control which
      * opened it does not vanish the moment the pointer moves onto the thing it
      * opened.
@@ -234,7 +234,7 @@ function readingText(state: React.ReactNode): string | undefined {
  * Recompute, Copy, a button that opens the advanced settings. The resident
  * ones *report a state* and are never hidden. On a property row Figma draws both
  * always, which is the default here. `reveal="hover"` gives the layer-row
- * behaviour instead: the acting controls fade in (100ms) when the row is
+ * behavior instead: the acting controls fade in (100ms) when the row is
  * reached, while a state -- a crossed-out eye on a hidden layer -- stays
  * visible with no hover at all.
  *
@@ -251,7 +251,7 @@ function readingText(state: React.ReactNode): string | undefined {
  * destructive, anything ending in "anyway". Everything else is a 24px glyph
  * carrying its word as its tooltip and its accessible name.
  * @param props - Component props
- * @param props.state - What the row reports, drawn at the leading edge in the secondary text colour
+ * @param props.state - What the row reports, drawn at the leading edge in the secondary text color
  * @param props.stateTitle - The complete reading, for when `state` is markup or an abbreviation of what the row means
  * @param props.busy - Whether the reading is still being worked out by something that finishes later
  * @param props.live - How urgently a screen reader announces the reading when it changes on its own
@@ -374,7 +374,7 @@ export function ActionRow(props: ActionRowProps): React.JSX.Element {
     /**
      * Report the row's own activation, with the source stated separately so the
      * consumer does not have to work out whether a click came from a key.
-     * @param event - The click, which a browser also synthesises from Enter and Space
+     * @param event - The click, which a browser also synthesizes from Enter and Space
      */
     const handleActivate = (event: React.MouseEvent<HTMLButtonElement>): void => {
         if (disabled) {
@@ -384,7 +384,7 @@ export function ActionRow(props: ActionRowProps): React.JSX.Element {
         onClick?.(event, getActivationMeta(event));
     };
 
-    /** The reading: one line, truncated rather than wrapped, at the secondary text colour (the cm-row-reading class). */
+    /** The reading: one line, truncated rather than wrapped, at the secondary text color (the cm-row-reading class). */
     const readingStyle: React.CSSProperties = {
         flex: "1 1 auto",
         minWidth: 0,
@@ -398,7 +398,7 @@ export function ActionRow(props: ActionRowProps): React.JSX.Element {
         ...readingStyle,
         // The pressable area is the whole height of the row, not the height of
         // one line of 11px text: WCAG 2.2 asks 24px of any target and this is
-        // 32. The line height centres the text inside it without a flex box,
+        // 32. The line height centers the text inside it without a flex box,
         // which would defeat the ellipsis.
         alignSelf: "stretch",
         lineHeight: `${PANEL_GRID.ROW_PITCH}px`,

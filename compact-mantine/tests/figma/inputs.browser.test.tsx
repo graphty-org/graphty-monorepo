@@ -41,7 +41,7 @@ import {
     figmaSpec,
     hex,
     measure,
-    normalise,
+    normalize,
     part,
     renderFigma,
     resetHarness,
@@ -81,9 +81,9 @@ async function listbox(): Promise<HTMLElement> {
     return visibleListbox() as HTMLElement;
 }
 
-/** A box-shadow's layers, normalised and sorted (layer order does not change black shadows). */
+/** A box-shadow's layers, normalized and sorted (layer order does not change black shadows). */
 function shadowSet(value: string): string[] {
-    return normalise("boxShadow", value)
+    return normalize("boxShadow", value)
         .split(/,(?![^(]*\))/)
         .map((layer) => layer.trim())
         .sort();
@@ -452,7 +452,7 @@ describe.skipIf(!available)("6.4 select trigger", () => {
 
     it.each(SCHEMES)("%s: the 208 device trigger, a 24px caret slot, the caret in --cm-icon", async (scheme) => {
         const trigger = await figmaElement(`dt/${scheme}-select-prototype-device--default`, { index: 26 });
-        // The caret's colour is its path fill (#30), not the wrapper's tertiary `color`.
+        // The caret's color is its path fill (#30), not the wrapper's tertiary `color`.
         const caretPath = await figmaElement(`dt/${scheme}-select-prototype-device--default`, { index: 30 });
         const { container } = await renderFigma(
             <Select aria-label="Device" data={["No device", "iPhone 17"]} defaultValue="No device" style={{ width: 208 }} />,

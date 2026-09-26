@@ -4,7 +4,7 @@
  * Each `*Scale` is a CompactSizeScale: one variable set per Mantine size token, with `compactSize`
  * naming the entry the extension's `defaultProps` size resolves to. The compact (sm) entries are
  * Figma's measurements; the other sizes keep a ramp around them so an explicitly sized component
- * still differs from its neighbours (see ./size-scale.ts).
+ * still differs from its neighbors (see ./size-scale.ts).
  *
  * The compact (sm) values:
  * - Badge: 16 tall, 11px, padding 0 4, radius 5 (bt/mode-metronome-full #296)
@@ -54,7 +54,7 @@ export const compactThemeIconScale: CompactSizeScale = {
     },
 };
 
-/** Per-size CSS variables for the Indicator. The sm dot is 9px: 5px of colour in a 2px ring. */
+/** Per-size CSS variables for the Indicator. The sm dot is 9px: 5px of color in a 2px ring. */
 export const compactIndicatorScale: CompactSizeScale = {
     compactSize: "sm",
     sizes: {

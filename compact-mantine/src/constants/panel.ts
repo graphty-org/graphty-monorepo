@@ -3,7 +3,7 @@
  *
  * Every row type in a 240px property panel is laid out from `PANEL_GRID` and painted from
  * `PANEL_INK`, both measured from Figma's editor (design/figma-spec.md 9.1 and 2.2). Nothing in
- * this library writes a raw hex colour and nothing retypes a number that `PANEL_GRID` already
+ * this library writes a raw hex color and nothing retypes a number that `PANEL_GRID` already
  * names.
  *
  * The grid identity is
@@ -83,7 +83,7 @@ export const PANEL_GRID = {
 } as const;
 
 /**
- * The panel ink map: one `--cm-*` token per colour role a panel row paints (spec 2.2).
+ * The panel ink map: one `--cm-*` token per color role a panel row paints (spec 2.2).
  *
  * Every value resolves per element from its `color-scheme`, so the same component reads
  * correctly in light, in dark, inside a dark-scoped menu, and in the AA mode. Light / dark hex

@@ -35,7 +35,7 @@ const meta: Meta<typeof Textarea> = {
 export default meta;
 type Story = StoryObj<typeof Textarea>;
 
-/** A labelled text area in the panel body width. */
+/** A labeled text area in the panel body width. */
 export const Default: Story = {
     args: {
         label: "Notes",

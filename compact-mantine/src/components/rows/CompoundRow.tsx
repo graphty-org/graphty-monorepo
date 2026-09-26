@@ -89,7 +89,7 @@ const MAX_SEGMENTS = 3;
  */
 export interface CompoundSegment {
     /**
-     * A glyph name, a single capital letter, or your own node -- a colour
+     * A glyph name, a single capital letter, or your own node -- a color
      * swatch, say -- drawn in this segment's leading 24px slot.
      *
      * A plain string is deliberately not accepted: a loose word in the slot
@@ -123,7 +123,7 @@ export interface CompoundSegment {
     fullValue?: string;
     /** Dimmed suffix drawn immediately after the value, inside the same segment, such as a percent sign. */
     unit?: string;
-    /** Draw the value in the monospace face. For hex colours, identifiers and anything read character by character. */
+    /** Draw the value in the monospace face. For hex colors, identifiers and anything read character by character. */
     mono?: boolean;
     /** This segment takes the box's remaining width. Exactly one segment should set it, and it should be the main value. */
     grow?: boolean;
@@ -189,9 +189,9 @@ export interface CompoundRowProps {
      * @example
      * ```tsx
      * <CompoundRow
-     *     label="Node colour and opacity"
+     *     label="Node color and opacity"
      *     segments={segments}
-     *     onClick={(event) => { openColourEditor({addToSelection: event.shiftKey}); }}
+     *     onClick={(event) => { openColorEditor({addToSelection: event.shiftKey}); }}
      * />
      * ```
      */
@@ -326,9 +326,9 @@ function CompoundSegmentBox({ segment, grow, index }: CompoundSegmentBoxProps): 
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
-                    // A hex colour or an identifier is a run of Latin text that
+                    // A hex color or an identifier is a run of Latin text that
                     // must not be reordered by the right-to-left paragraph
-                    // around it, and a value must not merge with its neighbour
+                    // around it, and a value must not merge with its neighbor
                     // across the hairline.
                     unicodeBidi: "isolate",
                 }}
@@ -402,14 +402,14 @@ function growCountWarning(label: string, growCount: number): string | undefined 
  * Two or three values that belong to one thing, in a single box divided by
  * hairlines.
  *
- * A colour and its opacity are one setting seen two ways rather than two
- * settings. Drawing them in one box, split by a one-pixel divider in the colour
+ * A color and its opacity are one setting seen two ways rather than two
+ * settings. Drawing them in one box, split by a one-pixel divider in the color
  * of the panel behind it, says exactly that; drawing them in two boxes with a
  * gap between them says the opposite. The divider is a hairline and not a
  * gutter on purpose, because a gutter reads as two separate controls.
  *
  * **The rule people break.** Never put two unrelated values in one box. The
- * test is whether the box has one honest name: "Node colour and opacity" is one
+ * test is whether the box has one honest name: "Node color and opacity" is one
  * thing seen two ways, so it belongs here; "Node size and edge width" is two
  * things that happen to be adjacent, so it belongs in a `FieldRow` pair -- two
  * fields, two boxes, two glyphs. A compound row is a claim about the data, and
@@ -439,7 +439,7 @@ function growCountWarning(label: string, growCount: number): string | undefined 
  * When the "show labels on controls" preference is on -- see
  * `PanelLabelsProvider` -- the row's one name moves out to a column of its own
  * beside the box, and the box fills the rest of the row. The segments are never
- * labelled individually, because they are not individually named things.
+ * labeled individually, because they are not individually named things.
  * @param props - Component props
  * @param props.label - Names the one thing the segments belong to; becomes the box's tooltip and part of its accessible name
  * @param props.segments - Two or three values that belong to one thing
@@ -454,9 +454,9 @@ function growCountWarning(label: string, growCount: number): string | undefined 
  * @example
  * ```tsx
  * <CompoundRow
- *     label="Node colour and opacity"
+ *     label="Node color and opacity"
  *     segments={[
- *         {glyph: <Swatch colour="#4a7ee8" />, value: "4A7EE8", mono: true, grow: true},
+ *         {glyph: <Swatch color="#4a7ee8" />, value: "4A7EE8", mono: true, grow: true},
  *         {value: percentFormatter.format(1), unit: "%"},
  *     ]}
  *     onClick={() => { setEditorOpen(true); }}

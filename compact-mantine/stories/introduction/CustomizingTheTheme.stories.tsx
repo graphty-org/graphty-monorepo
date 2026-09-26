@@ -19,9 +19,9 @@ import React, { useId, useRef } from "react";
 import { compactTheme, PANEL_INK } from "../../src";
 
 /**
- * `compactTheme` is an ordinary Mantine theme, so it is customised the way any Mantine theme
+ * `compactTheme` is an ordinary Mantine theme, so it is customized the way any Mantine theme
  * is: merge your changes on top of it. The stories below each change one thing -- the primary
- * colour, the font, the corner radius -- and show the result beside the default.
+ * color, the font, the corner radius -- and show the result beside the default.
  *
  * ## Making it your own
  *
@@ -38,9 +38,9 @@ import { compactTheme, PANEL_INK } from "../../src";
  * <MantineProvider theme={theme}>{children}</MantineProvider>;
  * ```
  *
- * Colours are the exception. Every colour the compact components draw is a `--cm-*` custom
+ * Colors are the exception. Every color the compact components draw is a `--cm-*` custom
  * property (`--cm-bg`, `--cm-text-secondary`, `--cm-bg-brand`, ...), not a Mantine palette, so
- * a colour is changed by setting its token in CSS, as the ChangePrimaryColor story below shows.
+ * a color is changed by setting its token in CSS, as the ChangePrimaryColor story below shows.
  * Mantine's `primaryColor` does not reach them.
  *
  * If you build your theme from several overrides instead, take `compactThemeOverride` (the same
@@ -77,7 +77,7 @@ import { compactTheme, PANEL_INK } from "../../src";
  * ```
  *
  * Two providers on one page share `<html>` unless you tell the inner one otherwise. To keep
- * the inner theme's CSS variables and colour-scheme attribute inside its region, give it the
+ * the inner theme's CSS variables and color-scheme attribute inside its region, give it the
  * region as its root, as every story on this page does:
  *
  * ```tsx
@@ -112,7 +112,7 @@ import { compactTheme, PANEL_INK } from "../../src";
  * ```
  */
 const meta: Meta = {
-    title: "Introduction/Customising the theme",
+    title: "Introduction/Customizing the theme",
     parameters: {
         layout: "padded",
     },
@@ -124,8 +124,8 @@ type Story = StoryObj;
 
 /**
  * One theme variant, rendered in a region of its own: the provider's CSS variables and its
- * colour-scheme attribute are scoped to the region, so it cannot restyle the rest of the page.
- * It follows the page's colour scheme.
+ * color-scheme attribute are scoped to the region, so it cannot restyle the rest of the page.
+ * It follows the page's color scheme.
  * @param props - Component props
  * @param props.name - The caption above the variant
  * @param props.theme - The merged theme to render with
@@ -181,7 +181,7 @@ function PrimarySample(): React.JSX.Element {
     );
 }
 
-/** A labelled field and a button, where the font shows most. */
+/** A labeled field and a button, where the font shows most. */
 function FontSample(): React.JSX.Element {
     return (
         <>
@@ -203,7 +203,7 @@ function RadiusSample(): React.JSX.Element {
 }
 
 /**
- * The `--cm-*` accent tokens a primary colour has to replace, pointed at one of Mantine's
+ * The `--cm-*` accent tokens a primary color has to replace, pointed at one of Mantine's
  * palettes. Shade 6 fills, 7 and 8 are hover and pressed, and text and glyphs take a darker shade
  * on light and a lighter one on dark.
  * @param palette - A Mantine palette name, such as "teal"

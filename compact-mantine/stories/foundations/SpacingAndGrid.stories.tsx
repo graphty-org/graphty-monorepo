@@ -44,7 +44,7 @@ export default meta;
 type Story = StoryObj;
 
 /**
- * One labelled bar of the scale.
+ * One labeled bar of the scale.
  * @param props - Component props
  * @param props.name - the scale step
  * @param props.px - its value

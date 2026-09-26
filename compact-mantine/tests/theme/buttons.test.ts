@@ -117,9 +117,9 @@ describe("button size scales", () => {
         }
     });
 
-    it("names no colour per SIZE for ActionIcon: colours are per variant", () => {
+    it("names no color per SIZE for ActionIcon: colors are per variant", () => {
         // Item 2, 2026-09-13: variant="filled" color="red" must still render filled in its
-        // colour, so the size scale names only the box; the variant vars decide colour.
+        // color, so the size scale names only the box; the variant vars decide color.
         for (const size of SIZES) {
             const keys = Object.keys(compactVarsForSize(compactActionIconScale, size));
             expect(keys.filter((k) => !["--ai-size", "--cm-ai-padding"].includes(k))).toEqual([]);
@@ -128,7 +128,7 @@ describe("button size scales", () => {
 });
 
 /**
- * The per-variant colours (design/figma-spec.md 4.1, 4.3). Each look writes Mantine's own colour
+ * The per-variant colors (design/figma-spec.md 4.1, 4.3). Each look writes Mantine's own color
  * variables from the `--cm-*` tokens. ActionIcon `light` is Figma's "highlighted" look and no
  * longer carries the 1px accent border older releases added (breaking change 8 in spec 15).
  */
@@ -166,7 +166,7 @@ describe("ActionIcon variant vars", () => {
         expect(compactActionIconVariantVars("subtle", "gray")["--ai-bg"]).toBe("transparent");
     });
 
-    it("leaves a coloured look, outline, transparent, white and gradient to Mantine", () => {
+    it("leaves a colored look, outline, transparent, white and gradient to Mantine", () => {
         expect(compactActionIconVariantVars("filled", "red")).toEqual({});
         expect(compactActionIconVariantVars("light", "grape")).toEqual({});
         for (const variant of ["outline", "transparent", "white", "gradient"]) {
@@ -174,7 +174,7 @@ describe("ActionIcon variant vars", () => {
         }
     });
 
-    it("never names an accent-coloured border", () => {
+    it("never names an accent-colored border", () => {
         for (const variant of ["subtle", "default", "light", "filled", "joined"]) {
             expect(compactActionIconVariantVars(variant)["--ai-bd"], variant).toBe("none");
         }
@@ -199,7 +199,7 @@ describe("Button variant vars", () => {
         expect(compactButtonVariantVars("subtle")["--cm-btn-disabled-bg"]).toBe("transparent");
     });
 
-    it("leaves a non-primary filled colour and the Mantine-only variants alone", () => {
+    it("leaves a non-primary filled color and the Mantine-only variants alone", () => {
         expect(compactButtonVariantVars("filled", "grape")).toEqual({});
         expect(compactButtonVariantVars("gradient")).toEqual({});
         expect(compactButtonVariantVars("white")).toEqual({});

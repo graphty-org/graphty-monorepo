@@ -933,7 +933,7 @@ function DataTableInner<TRow extends object>(
                                                 data-grid-column={index}
                                                 tabIndex={isFocused ? 0 : -1}
                                                 className="cm-dt-cell"
-                                                // A cell ellipsises when the
+                                                // A cell ellipsizes when the
                                                 // column is too narrow for its
                                                 // value, so it carries the whole
                                                 // value as a title for a

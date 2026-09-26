@@ -9,7 +9,7 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
  * A 24 x 24 icon button that stays on or off: lock aspect ratio, use as mask, show or hide.
  *
  * Off is a ghost button. On fills with the selected ground and draws its glyph in the brand
- * colour. The `swap` variant never fills: it swaps its glyph instead (eye, eye closed), which is
+ * color. The `swap` variant never fills: it swaps its glyph instead (eye, eye closed), which is
  * the look a visibility toggle wants in a column of layer rows.
  *
  * ## When to use it

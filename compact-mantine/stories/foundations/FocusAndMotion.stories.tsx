@@ -27,7 +27,7 @@ import { BOTH_SCHEMES } from "../helpers/schemes";
  *
  * | What | Timing |
  * |---|---|
- * | Small state changes: a checkbox tick, a switch knob, a hover colour | 100ms (`--cm-duration-sm`) |
+ * | Small state changes: a checkbox tick, a switch knob, a hover color | 100ms (`--cm-duration-sm`) |
  * | Menus, popovers, list boxes, tooltips and modals | open and close in one frame, no fade |
  * | A tooltip, cold | opens after 1000ms |
  * | A tooltip, warm | the next one opens at once while one shows, or within 300ms after it hides |

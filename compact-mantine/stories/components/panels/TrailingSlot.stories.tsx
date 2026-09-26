@@ -42,7 +42,7 @@ import { StoryState, StoryStates } from "../../helpers/story-panel";
  *
  * ## Keyboard and accessibility
  *
- * - The slot has no role, no name and no keyboard behaviour; whatever you put
+ * - The slot has no role, no name and no keyboard behavior; whatever you put
  *   in it carries all three. An empty slot adds nothing to the reading order.
  * - It writes no left or right of its own, so it moves to the leading edge with
  *   the rest of the row under `dir="rtl"`.
@@ -191,7 +191,7 @@ export const WhatGoesInIt: Story = {
                 </TrailingSlot>
             </Box>
             <Box style={ROW_STYLE}>
-                <PanelField label="Halo colour" glyph="attribute" width={PANEL_GRID.BODY} defaultValue="community" bound />
+                <PanelField label="Halo color" glyph="attribute" width={PANEL_GRID.BODY} defaultValue="community" bound />
                 <TrailingSlot>
                     <Checkbox aria-label="Draw halos" defaultChecked />
                 </TrailingSlot>

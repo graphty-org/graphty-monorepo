@@ -53,7 +53,7 @@ interface NumberFieldInputProps {
     onMouseUp: MouseEventHandler<HTMLInputElement>;
 }
 
-/** The field's behaviour: its input props and the value-changing scrub. */
+/** The field's behavior: its input props and the value-changing scrub. */
 interface NumberField {
     inputProps: NumberFieldInputProps;
     /** scrub callbacks that change the value live and commit once on release */
@@ -63,7 +63,7 @@ interface NumberField {
 }
 
 /**
- * Figma's number field behaviour on a plain text input:
+ * Figma's number field behavior on a plain text input:
  *
  * - typing applies nothing until Enter, Tab or blur; the text may be an expression (`40*2`);
  *   anything that does not evaluate silently reverts;

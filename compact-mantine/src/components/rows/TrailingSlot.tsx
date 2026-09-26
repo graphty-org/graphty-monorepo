@@ -33,7 +33,7 @@ export interface TrailingSlotProps {
 }
 
 // Accessibility: no ARIA pattern applies. This is a layout box with no role,
-// no name and no keyboard behaviour of its own; whatever a caller puts inside
+// no name and no keyboard behavior of its own; whatever a caller puts inside
 // it carries all three. Giving the box a role would put a stop in the reading
 // order for something that is, when empty, deliberately nothing.
 //
@@ -91,7 +91,7 @@ export interface AdvancedButtonProps
      * Names the settings the button opens, such as `"Image export options"`.
      *
      * It becomes both the button's tooltip and the name a screen reader
-     * announces, so write it as a phrase a person would recognise rather than
+     * announces, so write it as a phrase a person would recognize rather than
      * as the word "settings". When `changed` is true the name also states that,
      * so there is no need to spell the change into this string yourself.
      */
@@ -106,7 +106,7 @@ export interface AdvancedButtonProps
      *
      * A changed button draws its glyph in the brand ink instead of the
      * ordinary icon ink, and says so in its accessible name as well, so the
-     * signal survives for a reader who cannot see the difference in colour.
+     * signal survives for a reader who cannot see the difference in color.
      * @default false
      */
     changed?: boolean;
@@ -127,7 +127,7 @@ export interface AdvancedButtonProps
     /**
      * Whether the button cannot be used.
      *
-     * A disabled button is drawn in the same dimmed colour as any other
+     * A disabled button is drawn in the same dimmed color as any other
      * disabled control, refuses activation, and is skipped by the Tab key.
      * @default false
      */
@@ -149,8 +149,8 @@ export interface AdvancedButtonProps
 // Space activation, focus order and the disabled semantics with it; nothing here
 // re-implements them, and nothing here suppresses the theme's focus ring.
 //
-// The changed state is exposed two ways on purpose. Colour alone would fail
-// WCAG 1.4.1 (Use of Colour), so the state is written into the accessible name
+// The changed state is exposed two ways on purpose. Color alone would fail
+// WCAG 1.4.1 (Use of Color), so the state is written into the accessible name
 // as well. The sentence is the same one the section header's configured dot
 // uses, so one condition is stated one way across the library (WCAG 3.2.4,
 // Consistent Identification).

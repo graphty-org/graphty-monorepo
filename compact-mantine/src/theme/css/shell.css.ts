@@ -4,7 +4,7 @@
  * src/components/shell (Toolbar, ToolButton, ToolGroup, SecondaryToolbar, NavRail, RailButton,
  * HelpButton, ShortcutSheet, QuickActions).
  *
- * Every colour is a `--cm-*` token, except the brand palette's shade 2 (#80caff) for the
+ * Every color is a `--cm-*` token, except the brand palette's shade 2 (#80caff) for the
  * highlighted key cap and LABEL_INK, neither of which has a token of its own. Measurements cite
  * the Figma study.
  */

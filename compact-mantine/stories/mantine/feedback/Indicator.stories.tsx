@@ -5,7 +5,7 @@ import { UiGlyph } from "../../../src";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 
 /**
- * Mantine's `Indicator`, themed as Figma's notification dot: 5px of brand colour inside a 2px ring
+ * Mantine's `Indicator`, themed as Figma's notification dot: 5px of brand color inside a 2px ring
  * of the panel ground, at the top end of an icon button. Every prop is Mantine's: see
  * [Indicator on mantine.dev](https://mantine.dev/core/indicator/).
  *

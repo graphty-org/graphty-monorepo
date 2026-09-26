@@ -87,7 +87,7 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
             );
         });
 
-        it("light and dark: the divider is 1 x 48 in the border colour", async () => {
+        it("light and dark: the divider is 1 x 48 in the border color", async () => {
             const light = await renderFigma(toolbar(), { scheme: "light" });
             expectMeasured(part(light.container, ".cm-toolbar-divider"), await fig("bt/toolbar-default", 82, BOX));
             await resetHarness();
@@ -406,7 +406,7 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
             </div>
         );
 
-        it("a rail tooltip opens after 500ms, 6px past the button, its arrow outside the rail, centred on the pill", async () => {
+        it("a rail tooltip opens after 500ms, 6px past the button, its arrow outside the rail, centered on the pill", async () => {
             const { container } = await renderFigma(railIn(null));
             const button = part(container, ".cm-rail-button:not([data-active])");
             await drive(button, "hover");
@@ -419,7 +419,7 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
             const b = button.getBoundingClientRect();
             const pill = part(button, ".cm-rail-pill").getBoundingClientRect();
             // ls/state-rail-button-hover-tooltip #70: bubble at x=62 for a button ending at 56,
-            // arrow box [56, 6 wide]; the tooltip centre is the pill centre.
+            // arrow box [56, 6 wide]; the tooltip center is the pill center.
             expect(t.left - b.right).toBeCloseTo(6, 1);
             const arrow = part(tip as HTMLElement, "[class*='arrow']").getBoundingClientRect();
             expect(arrow.left).toBeGreaterThanOrEqual(b.right - 0.5);
@@ -455,7 +455,7 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
     });
 
     describe("HelpButton (bc/help-button--*)", () => {
-        it("rest: a 32 circle on the panel colour with a transparent border", async () => {
+        it("rest: a 32 circle on the panel color with a transparent border", async () => {
             const { container } = await renderFigma(<HelpButton />);
             expectMeasured(
                 part(container, ".cm-help-button"),
@@ -514,7 +514,7 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
             expectMeasured(disabled, { color: "rgba(0, 0, 0, 0.3)" });
         });
 
-        it("Indicator: a 9px brand dot with a 2px panel-colour ring (ls/rail-default #56)", async () => {
+        it("Indicator: a 9px brand dot with a 2px panel-color ring (ls/rail-default #56)", async () => {
             const { container } = await renderFigma(
                 <Indicator>
                     <span style={{ display: "block", width: 32, height: 32 }} />

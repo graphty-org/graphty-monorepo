@@ -153,8 +153,8 @@ Fix: integrator step 3 (for example, `figma-chrome-divider--states` becomes
     NativeSelect has a story on the Select page, and Popover and HoverCard are on the Popout
     page. Either add Themed Mantine pages for the rest, or say in the README which page shows
     each one.
-11. **Accessibility violations outside colour contrast.** axe-core, run through addon-a11y
-    on every story, reports these. Some are artefacts of rendering a story twice in
+11. **Accessibility violations outside color contrast.** axe-core, run through addon-a11y
+    on every story, reports these. Some are artifacts of rendering a story twice in
     `BOTH_SCHEMES`, such as duplicate landmarks; the rest are real.
     - `aria-required-children`: SplitButton States, Menu States and its three interaction
       stories, HelpButton MenuOpen, QuickActions States and Empty, Toolbar FlyoutOpen, and
@@ -207,7 +207,7 @@ Fix: integrator step 3 (for example, `figma-chrome-divider--states` becomes
   - DataRow's page no longer shows selection, double-click or context-menu stories.
   - CHANGELOG-figma.md, the README and "Introduction/Upgrading to 0.9" list the same four
     removed exports: IconGroupRow, IconGroupRowProps, IconGroupOption and DataRowRole. They
-    also list the removed DataRow props and the behaviour notes. Those four are the only
+    also list the removed DataRow props and the behavior notes. Those four are the only
     exports removed since master.
 - **The page template.** Every Components page has all four description sections, `Default`
   first and `States` second with `BOTH_SCHEMES`. Every story export has a comment. Every

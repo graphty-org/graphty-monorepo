@@ -38,7 +38,7 @@ const SOLO_WIDTH = PANEL_GRID.BODY + PANEL_GRID.TRAIL_GAP;
 
 /**
  * The 4px above the captions, between a caption and its control, and below the
- * control, in the labelled row: 4 + 14 + 4 + 24 + 4 = PANEL_GRID.CAPTION_ROW.
+ * control, in the labeled row: 4 + 14 + 4 + 24 + 4 = PANEL_GRID.CAPTION_ROW.
  */
 const CAPTION_PAD = (PANEL_GRID.CAPTION_ROW - PANEL_GRID.CONTROL_HEIGHT - 14) / 3;
 
@@ -88,7 +88,7 @@ function slotKey(child: React.ReactNode, index: number): string {
  * Read the label word off a child, for the label column.
  *
  * The word is the field's own `label` prop -- the word its glyph replaced -- so
- * a labelled row never invents a caption that the glyph-first row did not
+ * a labeled row never invents a caption that the glyph-first row did not
  * already carry as its title and its accessible name.
  * @param child - One child of the row
  * @returns The child's label word, or undefined when it has none
@@ -157,7 +157,7 @@ export interface FieldRowProps extends Omit<React.ComponentPropsWithoutRef<"div"
      * Where each field's label word goes while the "show labels on controls"
      * preference is on (see `PanelLabelsProvider`).
      *
-     * - `"above"` (default): Figma's labelled two-column row. A 9px caption sits
+     * - `"above"` (default): Figma's labeled two-column row. A 9px caption sits
      *   above each column, and the row grows from 32px to 50px.
      * - `"inline"`: the earlier layout. A pair splits into two rows of one field
      *   each, with the word in a 72px column beside the field.
@@ -172,7 +172,7 @@ export interface FieldRowProps extends Omit<React.ComponentPropsWithoutRef<"div"
  * A panel row holding one or two compact fields and a fixed trailing slot.
  *
  * This is the row a dense property panel is mostly made of: 32px tall, a 24px
- * control centred in it. Each field carries a glyph inside its own box instead
+ * control centered in it. Each field carries a glyph inside its own box instead
  * of a caption above it.
  *
  * The row owns the widths and the gaps; each field owns everything inside its
@@ -194,7 +194,7 @@ export interface FieldRowProps extends Omit<React.ComponentPropsWithoutRef<"div"
  *
  * **When control labels are switched on.** `PanelLabelsProvider` turns on a
  * preference that writes each control's word. By default the row becomes
- * Figma's labelled row: a 9px caption in the secondary ink above each column
+ * Figma's labeled row: a 9px caption in the secondary ink above each column
  * (4 above, 14 caption, 4 gap, 24 control, 4 below = 50px). With
  * `labelPosition="inline"` a pair instead splits into two rows, each with its
  * word in a 72px column beside the field. Either way the word is printed once:
@@ -257,7 +257,7 @@ export const FieldRow = forwardRef<HTMLDivElement, FieldRowProps>(function Field
     const hasTrailing = holdsSomething(trailing);
 
     // The showLabels preference, inline: more than one field becomes one
-    // labelled row per field.
+    // labeled row per field.
     //
     // The identity in this mode is 72 + 8 + <field> + 8 + 24 = 216, so the
     // field takes what is left rather than a fixed width. The trail gap is kept
@@ -268,7 +268,7 @@ export const FieldRow = forwardRef<HTMLDivElement, FieldRowProps>(function Field
         return (
             <Box
                 ref={ref}
-                data-testid="field-row-labelled"
+                data-testid="field-row-labeled"
                 data-fields={count}
                 role={rowRole}
                 aria-label={groupName}
@@ -287,7 +287,7 @@ export const FieldRow = forwardRef<HTMLDivElement, FieldRowProps>(function Field
                         <Box
                             key={slotKey(child, index)}
                             data-testid="field-row"
-                            data-labelled="true"
+                            data-labeled="true"
                             style={{
                                 display: "flex",
                                 alignItems: "center",
@@ -299,7 +299,7 @@ export const FieldRow = forwardRef<HTMLDivElement, FieldRowProps>(function Field
                                 data-testid="field-row-label"
                                 // The column is narrow and a translated word is
                                 // often longer than an English one, so the word
-                                // ellipsises. Clipping it is a paint-time
+                                // ellipsizes. Clipping it is a paint-time
                                 // effect only: the whole word stays in the DOM
                                 // and therefore in the accessibility tree, the
                                 // title serves a mouse, and the field beside it

@@ -29,6 +29,6 @@ export const POPOUT_GAP = 0;
  * Gap in pixels between a pop-out panel and the panel it opened from.
  *
  * Zero: a child popout docks flush to the start of its parent, as Figma's create-style dialog
- * docks against the colour picker (design/figma-spec.md 8.4).
+ * docks against the color picker (design/figma-spec.md 8.4).
  */
 export const POPOUT_NESTED_GAP = 0;

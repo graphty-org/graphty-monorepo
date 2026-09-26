@@ -60,9 +60,9 @@ import { StoryState, StoryStates } from "../../helpers/story-panel";
  * | Part | Value |
  * |---|---|
  * | Text | 11/16 at weight 450 |
- * | Reading and run record | secondary text colour |
- * | Departure | primary text colour, beside a warning triangle |
- * | Run record | one line, ellipsised, chevron at the trailing edge |
+ * | Reading and run record | secondary text color |
+ * | Departure | primary text color, beside a warning triangle |
+ * | Run record | one line, ellipsized, chevron at the trailing edge |
  */
 const meta: Meta<typeof ProseBlock> = {
     title: "Components/Data display/ProseBlock",

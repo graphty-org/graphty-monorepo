@@ -128,9 +128,9 @@ describe("Popout geometry (browser)", () => {
         const sidebarRect = sidebar.getBoundingClientRect();
         const triggerRect = trigger.getBoundingClientRect();
 
-        // Behaviour 1: the panel's inline edge meets the sidebar's.
+        // Behavior 1: the panel's inline edge meets the sidebar's.
         expect(Math.round(panelRect.right)).toBe(Math.round(sidebarRect.left));
-        // Behaviour 3: and its top is the trigger's top, well below the
+        // Behavior 3: and its top is the trigger's top, well below the
         // sidebar's, which is what a single anchor could not express.
         expect(Math.round(panelRect.top)).toBe(Math.round(triggerRect.top));
         expect(panelRect.top).toBeGreaterThan(sidebarRect.top + 100);
@@ -182,7 +182,7 @@ describe("Popout geometry (browser)", () => {
         const childRect = (childPanel as HTMLElement).getBoundingClientRect();
         const childTriggerRect = childTrigger.getBoundingClientRect();
 
-        // Behaviour 2: one level out from the parent panel, not from the sidebar.
+        // Behavior 2: one level out from the parent panel, not from the sidebar.
         expect(Math.round(childRect.right)).toBe(Math.round(parentRect.left) - POPOUT_NESTED_GAP);
         // And level with the row inside the parent that opened it.
         expect(Math.round(childRect.top)).toBe(Math.round(childTriggerRect.top));

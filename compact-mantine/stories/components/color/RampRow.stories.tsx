@@ -11,7 +11,7 @@ import { StoryState, StoryStates } from "../../helpers/story-panel";
 
 /**
  * The gradient the picture is painted with, spelled the way a caller would pass
- * it: theme variables, never a hardcoded hex, so it reads in both colour
+ * it: theme variables, never a hardcoded hex, so it reads in both color
  * schemes.
  */
 const BETWEENNESS_GRADIENT =
@@ -23,7 +23,7 @@ const BETWEENNESS_GRADIENT =
 const SCALE_ORDER = ["sqrt", "linear", "log"] as const;
 
 /**
- * A 32px row that draws a mapping from a value to a size or a colour: the two ends of the
+ * A 32px row that draws a mapping from a value to a size or a color: the two ends of the
  * range, the picture between them, and the transform's curve.
  *
  * ## When to use it
@@ -34,8 +34,8 @@ const SCALE_ORDER = ["sqrt", "linear", "log"] as const;
  *
  * | You need | Reach for |
  * |---|---|
- * | The picture of a continuous mapping to size (`variant="size"`) or colour (`variant="color"`) | **RampRow** |
- * | To edit the colours of that mapping | [GradientEditor](?path=/docs/components-colour-gradienteditor--docs) |
+ * | The picture of a continuous mapping to size (`variant="size"`) or color (`variant="color"`) | **RampRow** |
+ * | To edit the colors of that mapping | [GradientEditor](?path=/docs/components-color-gradienteditor--docs) |
  * | A series of values, not two ends | HistogramRow or SparklineRow (Data display) |
  *
  * It is a picture, not a control. The curve at the end can open a chooser (`onScaleClick`), and
@@ -83,7 +83,7 @@ const SCALE_ORDER = ["sqrt", "linear", "log"] as const;
  * | Curve or trailing slot | 24 x 24 |
  */
 const meta: Meta<typeof RampRow> = {
-    title: "Components/Colour/RampRow",
+    title: "Components/Color/RampRow",
     component: RampRow,
     parameters: {
         layout: "padded",
@@ -133,7 +133,7 @@ export const Default: Story = {
 };
 
 /**
- * Every form, light and dark side by side: the size wedge, the colour bar with the default and
+ * Every form, light and dark side by side: the size wedge, the color bar with the default and
  * with a caller's gradient, a trailing control in place of the curve, and a range still being
  * computed.
  */
@@ -144,10 +144,10 @@ export const States: Story = {
             <StoryState name="Size" padded>
                 <RampRow label="Node size by age" min="45" max="68" scale="sqrt" />
             </StoryState>
-            <StoryState name="Colour, default gradient" padded>
+            <StoryState name="Color, default gradient" padded>
                 <RampRow label="Node color by degree" min="0" max="12" variant="color" scale="sqrt" />
             </StoryState>
-            <StoryState name="Colour, caller's gradient" padded>
+            <StoryState name="Color, caller's gradient" padded>
                 <RampRow
                     label="Node color by betweenness"
                     min="0.00"
@@ -168,7 +168,7 @@ export const States: Story = {
 };
 
 /**
- * The colour form: betweenness from 0.00 (Chonky_Boy, who knows only his own
+ * The color form: betweenness from 0.00 (Chonky_Boy, who knows only his own
  * sofa) to 0.42 (Mr_Whiskers, who connects both halves of the network). The bar
  * carries the same gradient the picture is painted with, so the panel and the
  * picture agree.
@@ -198,9 +198,9 @@ export const LogScale: Story = {
 };
 
 /**
- * The colour form with no gradient of its own falls back to a ramp from the
- * panel's field surface to its accent colour, so it is still a picture of a
- * range and still reads in both colour schemes.
+ * The color form with no gradient of its own falls back to a ramp from the
+ * panel's field surface to its accent color, so it is still a picture of a
+ * range and still reads in both color schemes.
  */
 export const DefaultGradient: Story = {
     args: {
@@ -231,7 +231,7 @@ export const WithoutScale: Story = {
  * it -- and the transform stays in the row's accessible name, because the
  * mapping is still in force.
  *
- * The button is marked `changed`, so it draws in the primary text colour and
+ * The button is marked `changed`, so it draws in the primary text color and
  * says so in its name as well.
  */
 export const WithAdvancedSettings: Story = {
@@ -323,7 +323,7 @@ function ComputedRange(): React.JSX.Element {
 }
 
 /**
- * Three ramps on the 32px row pitch: how size, colour and width are each mapped
+ * Three ramps on the 32px row pitch: how size, color and width are each mapped
  * from the cat network's own values, in three rows and no sentences.
  */
 export const InAPanel: Story = {

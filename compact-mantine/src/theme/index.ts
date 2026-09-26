@@ -69,10 +69,10 @@ function withStyleInjection(
 }
 
 /**
- * Create the compact theme: Figma's editor look in both colour schemes, or with
+ * Create the compact theme: Figma's editor look in both color schemes, or with
  * `highContrast: true` the WCAG 2.2 AA token set (design/figma-spec.md 2.9).
  *
- * Light and dark are Mantine's own colour scheme (`defaultColorScheme`, `forceColorScheme`,
+ * Light and dark are Mantine's own color scheme (`defaultColorScheme`, `forceColorScheme`,
  * `useMantineColorScheme`); one theme object serves both.
  * @param options - `highContrast` switches on the AA tokens
  * @returns a theme override for `MantineProvider`

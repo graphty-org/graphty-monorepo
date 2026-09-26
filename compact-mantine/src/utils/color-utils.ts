@@ -96,9 +96,9 @@ export function isValidHex(color: string): boolean {
 const LIGHT_CHANNEL_FLOOR = 0xe0;
 
 /**
- * Expand a 3-, 4-, 6- or 8-digit hex colour into `#RRGGBBAA`, upper case.
- * @param color - a hex colour, with or without `#`
- * @returns the 8-digit form, or `undefined` when the text is not a hex colour
+ * Expand a 3-, 4-, 6- or 8-digit hex color into `#RRGGBBAA`, upper case.
+ * @param color - a hex color, with or without `#`
+ * @returns the 8-digit form, or `undefined` when the text is not a hex color
  */
 export function normalizeHexa(color: string): string | undefined {
     if (!isValidHex(color)) {
@@ -115,10 +115,10 @@ export function normalizeHexa(color: string): string | undefined {
 }
 
 /**
- * Whether a colour is light enough to need the swatch ring Figma draws on
- * near-white colours (every channel at or above 0xE0).
- * @param color - a hex colour
- * @returns true for near-white colours
+ * Whether a color is light enough to need the swatch ring Figma draws on
+ * near-white colors (every channel at or above 0xE0).
+ * @param color - a hex color
+ * @returns true for near-white colors
  */
 export function isLightColor(color: string): boolean {
     const hexa = normalizeHexa(color);
@@ -129,10 +129,10 @@ export function isLightColor(color: string): boolean {
 }
 
 /**
- * The colour a fraction of the way between two hex colours, channel by channel.
+ * The color a fraction of the way between two hex colors, channel by channel.
  * Used when a click on a gradient bar adds a stop between two others.
- * @param from - the colour at 0
- * @param to - the colour at 1
+ * @param from - the color at 0
+ * @param to - the color at 1
  * @param t - how far along, 0 to 1
  * @returns `#RRGGBB`, upper case
  */

@@ -10,7 +10,7 @@ import React from "react";
 // paint Figma's pixels (checkbox-*-mixed--default.png).
 // Each is drawn twice: a wide halo underneath (the blue variant's 4px
 // --cm-control-icon-outline; the stylesheet hides it on the neutral variant) and the 1.5px glyph
-// on top. Both paths are stroked with a normalised length of 12, so the stylesheet can draw the
+// on top. Both paths are stroked with a normalized length of 12, so the stylesheet can draw the
 // tick in by animating stroke-dashoffset 12 -> 0 when the box is checked (and only then).
 
 const CHECK = "M5 8.5L7.5 11L11.5 5";

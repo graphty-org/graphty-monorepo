@@ -337,7 +337,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "StyleSelect",
     "ToggleWithContent",
 
-    // Buttons, chrome, colour, inputs, overlays, selection, tree
+    // Buttons, chrome, color, inputs, overlays, selection, tree
     "ComboInput",
     "SearchInput",
     "VariablePill",
@@ -828,7 +828,7 @@ describe("Package exports", () => {
                     "toolButton",
                     "toolGroup",
                     "toolItem",
-                    // Buttons, chrome, colour, selection, and the tree and lists.
+                    // Buttons, chrome, color, selection, and the tree and lists.
                     "comboInputItem",
                     "comboInputOption",
                     "comboInput",

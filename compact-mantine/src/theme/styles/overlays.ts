@@ -3,8 +3,8 @@
  * that point each part at the CSS in ../css/overlays.css.ts, the menu's vars, and the timing and
  * placement defaults of design/figma-spec.md section 8.
  *
- * Colours, radii, type and shadows live in the CSS, keyed on these classes and written in
- * tokens; nothing here is a colour.
+ * Colors, radii, type and shadows live in the CSS, keyed on these classes and written in
+ * tokens; nothing here is a color.
  */
 /**
  * CSS variables for the Menu dropdown. The row type is the foundation's cm-menu-row (11/16), and

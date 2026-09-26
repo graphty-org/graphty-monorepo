@@ -143,7 +143,7 @@ export interface PanelFieldProps
      *
      * Pass the name of one of the built-in field glyphs, one of the five
      * capital letters `N`, `E`, `W`, `D` or `K`, or your own node such as a
-     * colour swatch. A bare string is deliberately not accepted: the slot holds
+     * color swatch. A bare string is deliberately not accepted: the slot holds
      * a drawing, not a word.
      */
     glyph?: FieldGlyphName | FieldLetter | Exclude<React.ReactNode, string>;
@@ -181,7 +181,7 @@ export interface PanelFieldProps
      */
     data?: ComboboxData;
     /**
-     * A short unit shown after the value, in the secondary text colour, at the
+     * A short unit shown after the value, in the secondary text color, at the
      * end of the same box -- "%", "px" per second, a count of links.
      */
     unit?: string;
@@ -209,7 +209,7 @@ export interface PanelFieldProps
      */
     mixed?: boolean;
     /**
-     * The text shown in an empty field, in the placeholder colour.
+     * The text shown in an empty field, in the placeholder color.
      *
      * Passing `true` instead of a string is the older spelling: it moves
      * whatever is in `value` into the placeholder, which is what a field
@@ -258,7 +258,7 @@ export interface PanelFieldProps
      * then reports the distances and changes nothing.
      */
     onScrub?: GestureChangeHandler;
-    /** Called once when a drag of the glyph slot finishes or is cancelled. Close the undo transaction here. */
+    /** Called once when a drag of the glyph slot finishes or is canceled. Close the undo transaction here. */
     onScrubEnd?: GestureEndHandler;
     /**
      * Called when the field is activated by a click or by pressing Enter.
@@ -423,7 +423,7 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(function
         placeholderText = placeholder;
     }
 
-    // Accessibility: states that are drawn only as a colour or a mark are
+    // Accessibility: states that are drawn only as a color or a mark are
     // unavailable to a screen reader, so each one also joins the field's
     // accessible description. This is Mantine's `description` element, hidden
     // from sight but wired to the input with aria-describedby by Input.Wrapper.
@@ -760,7 +760,7 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(function
     // widget, so what applies is the ARIA Authoring Practices guidance on
     // "Providing Accessible Names and Descriptions" -- a real <label> element
     // names it, aria-describedby carries the states that are otherwise only a
-    // colour, and the value is the input's own value. A number field is a text
+    // color, and the value is the input's own value. A number field is a text
     // input with role="spinbutton" and aria-valuenow (it has to accept
     // arithmetic, which a numeric input refuses). A field with choices is
     // Mantine's Select, which follows the APG Combobox pattern in its

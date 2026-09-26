@@ -20,7 +20,7 @@ import { focusMarked, StateGrid } from "../../helpers/selection-states";
  * | You have | Use |
  * |---|---|
  * | Two or more related booleans | `ToggleRow`s inside a `ToggleRowGroup` |
- * | A boolean that brings its own settings (a glow with a colour and a radius) | `ToggleWithContent` |
+ * | A boolean that brings its own settings (a glow with a color and a radius) | `ToggleWithContent` |
  * | One lone boolean that qualifies another row | a Mantine `Checkbox` in that row's `TrailingSlot` (see Components/Panels and rows/TrailingSlot) |
  * | Two to six exclusive options that can be drawn | Mantine `SegmentedControl` (see Themed Mantine/Selection/SegmentedControl, `PicturesInAPanelRow`) |
  * | A setting with a value or a unit | a field row (`PanelField`, `FieldRow`) |
@@ -59,7 +59,7 @@ import { focusMarked, StateGrid } from "../../helpers/selection-states";
  * | Part | Value |
  * |---|---|
  * | Row height | 32px (`PANEL_GRID.TOGGLE_PITCH`) |
- * | Checkbox | 16 x 16, radius 2, the neutral variant (grey when checked) |
+ * | Checkbox | 16 x 16, radius 2, the neutral variant (gray when checked) |
  * | Switch | 32 x 16 track, 12 x 8 pill knob |
  * | Word | 8px after the control, 11/16, weight 450 |
  * | Trailing slot | 24px, 8px after the word's column, drawn even when empty |

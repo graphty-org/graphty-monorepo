@@ -8,7 +8,7 @@
  *
  * The ring may be drawn on the focused element, on its `::before` (cm-focus-pseudo), on the
  * sibling Mantine paints a visually hidden input's state on (Checkbox, Switch, Radio), or on a
- * field wrapper through `:focus-within` -- 1px, in the selected-border colour (#0d99ff, dark #0c8ce9),
+ * field wrapper through `:focus-within` -- 1px, in the selected-border color (#0d99ff, dark #0c8ce9),
  * or the strong one (#007be5, dark #7cc4f8) for the switch and the primary button.
  */
 import {
@@ -39,7 +39,7 @@ import { hex, renderThemed, resetHarness } from "../harness/measure";
 afterEach(resetHarness);
 
 // border-selected and border-selected-strong, light then dark (tokens.ts).
-const RING_COLOURS = new Set(["#0d99ff", "#007be5", "#0c8ce9", "#7cc4f8"]);
+const RING_COLORS = new Set(["#0d99ff", "#007be5", "#0c8ce9", "#7cc4f8"]);
 
 /** Describe the 1px ring drawn for the focused element, or null when there is none. */
 function ring(focused: Element): string | null {
@@ -55,14 +55,14 @@ function ring(focused: Element): string | null {
     }
     for (const [el, pseudo] of candidates) {
         const cs = getComputedStyle(el, pseudo);
-        if (cs.outlineStyle !== "none" && cs.outlineWidth === "1px" && RING_COLOURS.has(hex(cs.outlineColor))) {
+        if (cs.outlineStyle !== "none" && cs.outlineWidth === "1px" && RING_COLORS.has(hex(cs.outlineColor))) {
             return `outline on ${el.tagName.toLowerCase()}${pseudo ?? ""}`;
         }
-        if (/0px 0px 0px 2px/.test(cs.boxShadow) && [...RING_COLOURS].some((c) => cs.boxShadow.includes(c))) {
+        if (/0px 0px 0px 2px/.test(cs.boxShadow) && [...RING_COLORS].some((c) => cs.boxShadow.includes(c))) {
             return `double ring on ${el.tagName.toLowerCase()}`;
         }
         const shadowRing = cs.boxShadow.match(/rgb\([^)]*\) 0px 0px 0px 1px/);
-        if (shadowRing && RING_COLOURS.has(hex(shadowRing[0].split(" 0px")[0]))) {
+        if (shadowRing && RING_COLORS.has(hex(shadowRing[0].split(" 0px")[0]))) {
             return `shadow ring on ${el.tagName.toLowerCase()}`;
         }
     }

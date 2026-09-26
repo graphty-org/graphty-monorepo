@@ -46,7 +46,7 @@ export { ALIGNMENT_MATRIX_VALUES, AlignmentMatrix } from "./components/selection
 // Chrome: the panel resize handle (9.9).
 export { ResizeHandle } from "./components/chrome/ResizeHandle";
 
-// Colour: the colour picker panel (7.3).
+// Color: the color picker panel (7.3).
 export { ColorPickerPanel } from "./components/color/ColorPickerPanel";
 
 // Tree and lists: the layer tree, the page list, inline rename and the find result row (10).

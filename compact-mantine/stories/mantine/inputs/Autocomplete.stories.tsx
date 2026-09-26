@@ -43,7 +43,7 @@ const meta: Meta<typeof Autocomplete> = {
 export default meta;
 type Story = StoryObj<typeof Autocomplete>;
 
-/** A labelled field; type to filter the suggestions. */
+/** A labeled field; type to filter the suggestions. */
 export const Default: Story = {
     args: {
         label: "Food",

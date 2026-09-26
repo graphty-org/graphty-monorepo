@@ -18,12 +18,12 @@ export interface TreeNodeData {
      * that other items can be dropped into; one without is a leaf.
      */
     children?: readonly TreeNodeData[];
-    /** `"component"` draws the name and glyph in the component (purple) colour. */
+    /** `"component"` draws the name and glyph in the component (purple) color. */
     tone?: "default" | "component";
-    /** A hidden layer: the name and glyph draw in the tertiary colour. */
+    /** A hidden layer: the name and glyph draw in the tertiary color. */
     dimmed?: boolean;
     /**
-     * Draw the name at weight 600 with a primary-colour glyph. Defaults to true for a top-level
+     * Draw the name at weight 600 with a primary-color glyph. Defaults to true for a top-level
      * item with a `children` array, even an empty one (Figma's top-level frames), false otherwise.
      */
     strong?: boolean;

@@ -11,7 +11,7 @@ import {
 import { compactVarsForSize } from "../styles/size-scale";
 import { CM_TYPE } from "../tokens";
 
-/** Badge colours per variant when no `color` is given (spec 11.6). */
+/** Badge colors per variant when no `color` is given (spec 11.6). */
 const BADGE_TOKENS: Record<string, Record<string, string>> = {
     outline: { "--badge-bg": "transparent", "--badge-color": "var(--cm-text)" },
     filled: { "--badge-bg": "var(--cm-bg-brand)", "--badge-color": "var(--cm-text-onbrand)" },
@@ -24,7 +24,7 @@ const TEXT_ROLE_VARS: Record<string, Record<string, string>> = {
     xs: { "--cm-text-fw": String(CM_TYPE.caption.fontWeight), "--cm-text-ls": CM_TYPE.caption.letterSpacing },
 };
 
-/** ThemeIcon colours per variant when no `color` is given (spec 11.10). */
+/** ThemeIcon colors per variant when no `color` is given (spec 11.10). */
 const THEME_ICON_TOKENS: Record<string, Record<string, string>> = {
     filled: { "--ti-bg": "var(--cm-bg-brand)", "--ti-color": "var(--cm-text-onbrand)" },
     light: { "--ti-bg": "var(--cm-bg-selected)", "--ti-color": "var(--cm-icon-brand)" },
@@ -33,7 +33,7 @@ const THEME_ICON_TOKENS: Record<string, Record<string, string>> = {
 /**
  * Theme extensions for the display components, measured from Figma (design/figma-spec.md
  * 11.6-11.10). Sizes come from the scales in ../styles/display.ts, keyed by the `size` prop;
- * colours come from the `--cm-*` tokens whenever the caller gives no `color`, so an explicit
+ * colors come from the `--cm-*` tokens whenever the caller gives no `color`, so an explicit
  * `color="red"` still gets Mantine's palette. The state rules (the badge's outline, the dot's
  * ring, the avatar ring in a group, the key cap) are in ../css/shell.css.ts.
  *

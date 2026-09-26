@@ -12,7 +12,7 @@ import { isRtl, useDirection } from "../../utils/rtl";
 import { Caret } from "../chrome/Caret";
 
 // Contract section 4: the reading is rebased onto Mantine's Text, which puts
-// its typography, its colour handling and its truncation back under the theme
+// its typography, its color handling and its truncation back under the theme
 // instead of on a raw Box. The two dense variants use `Text span` for the same
 // reason; only the flex wrappers stay Boxes, because they are layout and have
 // no text of their own.
@@ -23,7 +23,7 @@ import { Caret } from "../chrome/Caret";
 
 /**
  * The square slot a glyph takes inside a line of prose: one 16px text line, so
- * the glyph centres on the words beside it. Not `PANEL_GRID.GLYPH_SLOT`, the
+ * the glyph centers on the words beside it. Not `PANEL_GRID.GLYPH_SLOT`, the
  * 24px slot of a control.
  */
 const LINE_SLOT = 16;
@@ -273,7 +273,7 @@ function detailsVariantWarning(
 //   not replace content that says the same thing.
 // - departure: the WAI-ARIA `note` document-structure role, named from the
 //   `departure` label, so the severity the yellow triangle draws is also
-//   stated. Without it the line is text in a colour, which fails WCAG 1.4.1.
+//   stated. Without it the line is text in a color, which fails WCAG 1.4.1.
 //   The triangle itself is then decorative and hidden, so the name is not read
 //   twice.
 // - runRecord: the APG "Button" pattern for the chevron. It is icon-only, so it
@@ -284,7 +284,7 @@ function detailsVariantWarning(
 // WCAG 2.2 2.5.8 (target size): the chevron's 16px slot is under the 24px
 // minimum and rests on the spacing exception. It is the only target on its own
 // line, and a 20px line separated by a panel gap of 8 keeps 28px between its
-// centre and the next target's, past the 24px the exception asks for. Two run
+// center and the next target's, past the 24px the exception asks for. Two run
 // records stacked flush against each other would break that, which is why the
 // row keeps its own height rather than collapsing to the text.
 

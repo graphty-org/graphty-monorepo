@@ -150,8 +150,8 @@ describe("PanelField", () => {
             expect(letter.querySelector("svg")).toBeNull();
         });
 
-        it("draws an arbitrary node such as a colour swatch", () => {
-            renderField(<PanelField label="Node colour" glyph={<span data-testid="swatch" />} value="4A7EE8" />);
+        it("draws an arbitrary node such as a color swatch", () => {
+            renderField(<PanelField label="Node color" glyph={<span data-testid="swatch" />} value="4A7EE8" />);
 
             expect(screen.getByTestId("swatch")).toBeInTheDocument();
         });

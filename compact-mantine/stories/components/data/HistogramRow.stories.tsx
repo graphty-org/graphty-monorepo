@@ -10,7 +10,7 @@ import { StoryState, StoryStates } from "../../helpers/story-panel";
 // exactly what a consumer gets from `@graphty/compact-mantine`.
 
 /**
- * A distribution drawn in a 64px row, instead of the four numbers that summarise it.
+ * A distribution drawn in a 64px row, instead of the four numbers that summarize it.
  *
  * `Links per node: min 2, median 3, max 4, standard deviation 0.62` is four numbers standing in
  * for a shape. A histogram draws the shape in the same space and answers what the four numbers
@@ -43,7 +43,7 @@ import { StoryState, StoryStates } from "../../helpers/story-panel";
  *
  * - `bins` are in order along the axis. Each `label` is a phrase that stands on its own, because
  *   it is both the bar's tooltip and its row in the hidden table of values. `highlighted` draws a
- *   bin in the accent colour.
+ *   bin in the accent color.
  * - `minLabel` and `maxLabel` are required and always drawn: they let the picture be read as the
  *   table it replaced.
  *
@@ -64,7 +64,7 @@ import { StoryState, StoryStates } from "../../helpers/story-panel";
  * | Height | 64px (two row pitches; there is no other height) |
  * | Bars | `--cm-icon-secondary`; the highlighted bin `--cm-bg-brand` |
  * | Baseline | 1px `--cm-border` |
- * | Axis ends | 11px, secondary text colour, in a 16px band |
+ * | Axis ends | 11px, secondary text color, in a 16px band |
  * | Trailing slot | 24px, taken from the chart's width |
  */
 const meta: Meta<typeof HistogramRow> = {

@@ -4,7 +4,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 
 /**
- * Mantine's `Loader`, themed as Figma's spinner: 16px by default and drawn in the icon colour, so
+ * Mantine's `Loader`, themed as Figma's spinner: 16px by default and drawn in the icon color, so
  * it reads on either scheme. Every prop is Mantine's: see
  * [Loader on mantine.dev](https://mantine.dev/core/loader/).
  *
@@ -27,7 +27,7 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
  * | Part | Value |
  * |---|---|
  * | Size | 16px (`sm`, the default) |
- * | Colour | `--cm-icon` |
+ * | Color | `--cm-icon` |
  */
 const meta: Meta<typeof Loader> = {
     title: "Themed Mantine/Feedback/Loader",
@@ -43,7 +43,7 @@ export const Default: Story = {
     args: {},
 };
 
-/** Every size of the ramp, then a colour override, light and dark side by side. */
+/** Every size of the ramp, then a color override, light and dark side by side. */
 export const States: Story = {
     parameters: BOTH_SCHEMES,
     render: () => (
@@ -66,7 +66,7 @@ export const States: Story = {
     ),
 };
 
-/** A colour other than the default keeps Mantine's own palette. */
+/** A color other than the default keeps Mantine's own palette. */
 export const Colors: Story = {
     render: () => (
         <Group gap="md">

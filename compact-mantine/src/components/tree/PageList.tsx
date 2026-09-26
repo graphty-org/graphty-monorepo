@@ -10,7 +10,7 @@ import { InlineRename } from "./InlineRename";
 export interface PageRowProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "children" | "onSelect"> {
     /** The page's name. Ignored by a divider row. */
     name: string;
-    /** This is the page on screen (grey fill, weight 550; `aria-current="page"`). */
+    /** This is the page on screen (gray fill, weight 550; `aria-current="page"`). */
     current?: boolean;
     /** `"group"`: a selectable group in a collection list (selected blue, weight 600). */
     tone?: "page" | "group";
@@ -26,7 +26,7 @@ export interface PageRowProps extends Omit<React.HTMLAttributes<HTMLDivElement>,
 
 /**
  * One row of a page list (design/figma-spec.md 10.2): a 240 x 32 grid cell (padding 4 8) around
- * a 224 x 24 pill, text 16px in at 11/24. Hover fills the pill; the current page is grey and
+ * a 224 x 24 pill, text 16px in at 11/24. Hover fills the pill; the current page is gray and
  * weight 550. The cell carries the focus ring (1px, radius 5, offset 0).
  * @param props - Component props
  * @returns The row

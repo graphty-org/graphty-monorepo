@@ -18,7 +18,7 @@ import { Chit } from "./Chit";
 import { isLeavingWithoutCommit, leaveWithoutCommit } from "./escape";
 import { OpacityInput } from "./OpacityInput";
 
-/** Mantine's colour model: hue 0-360, saturation and value 0-100, alpha 0-1. */
+/** Mantine's color model: hue 0-360, saturation and value 0-100, alpha 0-1. */
 interface Hsva {
     h: number;
     s: number;
@@ -44,7 +44,7 @@ export interface ColorPickerPanelLabels {
     eyedropper: string;
     /** Name of the format select. */
     format: string;
-    /** Name of the colour value box (hex, or three numbers). */
+    /** Name of the color value box (hex, or three numbers). */
     value: string;
     /** Name of the paint-type group. */
     paintType: string;
@@ -78,14 +78,14 @@ const FORMATS: { value: ColorPickerFormat; label: string }[] = [
 
 /** Props for ColorPickerPanel. */
 export interface ColorPickerPanelProps {
-    /** The colour, `#RRGGBB` or `#RRGGBBAA`. */
+    /** The color, `#RRGGBB` or `#RRGGBBAA`. */
     value: string;
     /**
      * Called on every change: live while dragging, once per typed commit, arrow key or swatch.
      * Reports `#RRGGBBAA` (upper case) when `withAlpha`, `#RRGGBB` otherwise.
      */
     onChange: (value: string) => void;
-    /** Called once when a drag in the field or a slider settles, with the settled colour. */
+    /** Called once when a drag in the field or a slider settles, with the settled color. */
     onChangeEnd?: (value: string) => void;
     /**
      * Offer opacity: the opacity slider and box.
@@ -128,8 +128,8 @@ function clamp(n: number, max: number): number {
 }
 
 /**
- * The colour as `#RRGGBBAA`, upper case.
- * @param hsva - the colour
+ * The color as `#RRGGBBAA`, upper case.
+ * @param hsva - the color
  * @returns the hexa string
  */
 function toHexa(hsva: Hsva): string {
@@ -138,7 +138,7 @@ function toHexa(hsva: Hsva): string {
 
 /**
  * The value row's text for a format.
- * @param hsva - the colour
+ * @param hsva - the color
  * @param format - the format
  * @returns the text shown in the value box
  */
@@ -158,7 +158,7 @@ function formatValue(hsva: Hsva, format: ColorPickerFormat): string {
  * @param text - what the reader typed
  * @param format - the format
  * @param alpha - the alpha to keep
- * @returns the colour, or undefined when the text does not read
+ * @returns the color, or undefined when the text does not read
  */
 function parseValue(text: string, format: ColorPickerFormat, alpha: number): Hsva | undefined {
     if (format === "hex") {
@@ -188,7 +188,7 @@ function parseValue(text: string, format: ColorPickerFormat, alpha: number): Hsv
 
 /**
  * The fine keyboard Figma's sliders have: arrows 1 unit, Shift 10, Home / End. Mantine's own
- * colour sliders step 5% and know no Home / End, so this runs in the capture phase and stops
+ * color sliders step 5% and know no Home / End, so this runs in the capture phase and stops
  * the event before Mantine's handler sees it.
  * @param max - the slider's range, 0..max
  * @param current - the current value
@@ -243,12 +243,12 @@ function GradientGlyph(): React.JSX.Element {
 }
 
 /**
- * Figma's colour picker body (design/figma-spec.md 7.3), for a 240-wide light popover: an
+ * Figma's color picker body (design/figma-spec.md 7.3), for a 240-wide light popover: an
  * optional paint-type bar, a 208 x 208 saturation / brightness field with a keyboard-operable
  * reticle, the eyedropper (where the browser has one) beside the hue and opacity sliders, a
  * format select and a joined value / opacity field, and the swatch set under a divider.
  *
- * It holds the colour in HSV so that dragging through grey keeps its hue. Put it inside a
+ * It holds the color in HSV so that dragging through gray keeps its hue. Put it inside a
  * `Popout.Panel` (CompactColorInput does), which supplies the header, the close button, Escape
  * and one-popover-at-a-time.
  * @param props - Component props
@@ -290,7 +290,7 @@ export function ColorPickerPanel({
     const [draft, setDraft] = useState(formatValue(hsva, format));
 
     // Follow the value from outside, but keep our own HSV (and so the hue) while it still
-    // describes the same colour.
+    // describes the same color.
     useEffect(() => {
         const incoming = normalizeHexa(value);
         if (incoming !== undefined && incoming !== toHexa(hsvaRef.current)) {
@@ -303,7 +303,7 @@ export function ColorPickerPanel({
     }, [hsva, format]);
 
     /**
-     * Report a colour.
+     * Report a color.
      * @param hexa - `#RRGGBBAA`
      * @returns the reported string
      */
@@ -317,8 +317,8 @@ export function ColorPickerPanel({
     };
 
     /**
-     * Report an exact colour string (a swatch or the eyedropper), not rounded through HSV.
-     * @param color - a hex or hexa colour
+     * Report an exact color string (a swatch or the eyedropper), not rounded through HSV.
+     * @param color - a hex or hexa color
      */
     const emitExact = (color: string): void => {
         const hexa = normalizeHexa(color);

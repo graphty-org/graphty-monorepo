@@ -25,8 +25,8 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
  *
  * Every other row type in this library replaces its text label with a drawing, because a
  * setting can be drawn. Data cannot: there is no picture of `Mr_Whiskers`. So this row keeps the
- * string at the leading edge in the primary text colour and puts the value at the trailing edge
- * in the quieter secondary colour. The value is bare: a run of rows that measure the same thing
+ * string at the leading edge in the primary text color and puts the value at the trailing edge
+ * in the quieter secondary color. The value is bare: a run of rows that measure the same thing
  * carries its unit once, on a `DataRowHeader` above them.
  *
  * ## When to use it
@@ -72,7 +72,7 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
  *   activate it. The handler's second argument says whether a pointer or the keyboard did it.
  * - `selected` marks the current row of a ranking. It draws the accent tint and is reported as
  *   `aria-current`, so the current row is announced as well as drawn.
- * - The name ellipsises when it is too long for the row, carries the whole string as its
+ * - The name ellipsizes when it is too long for the row, carries the whole string as its
  *   `title`, and stays whole in the accessible name.
  * - The `trailing` control sits outside the row's button, so it is reachable and clickable in
  *   its own right without activating the row.
@@ -83,8 +83,8 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
  * |---|---|
  * | Row | 240 x 32 (`PANEL_GRID.DATA_PITCH`) |
  * | Pill (hover, selected, focus ring) | 24px tall, inset 4 8 4 12, radius 5 |
- * | Name | 11px, line height 32, weight 450, primary text colour |
- * | Value | 11px, secondary text colour, right-aligned |
+ * | Name | 11px, line height 32, weight 450, primary text color |
+ * | Value | 11px, secondary text color, right-aligned |
  * | Icon | 16px leading slot |
  * | Trailing slot | 24 x 24, ending at x 232 |
  */
@@ -252,7 +252,7 @@ export const OpensWhatItNames: Story = {
                 {[
                     { file: "cats.graphml", nodes: "20" },
                     { file: "shelter.gexf", nodes: "318" },
-                    { file: "neighbourhood.csv", nodes: "1,284" },
+                    { file: "neighborhood.csv", nodes: "1,284" },
                 ].map((row) => (
                     <DataRow
                         key={row.file}
@@ -337,7 +337,7 @@ export const Inert: Story = {
     render: (): React.JSX.Element => (
         <Stack gap={0}>
             <DataRowHeader label="Components" unit="nodes" />
-            <DataRow name="Neighbourhood cats" value="14" />
+            <DataRow name="Neighborhood cats" value="14" />
             <DataRow name="Shelter cats" value="4" />
             <DataRow name="Chonky_Boy" value="2" />
         </Stack>
@@ -345,7 +345,7 @@ export const Inert: Story = {
 };
 
 /**
- * A name longer than the row. It ellipsises and carries the whole string as a title for the
+ * A name longer than the row. It ellipsizes and carries the whole string as a title for the
  * pointer, and stays whole in the accessible name. The value never gives up its width, because
  * the number is the thing being compared.
  */
@@ -360,7 +360,7 @@ export const LongName: Story = {
  * Rows whose values are formatted for the active locale by `useNumberFormatter()`.
  * @returns The rows
  */
-function LocalisedRows(): React.JSX.Element {
+function LocalizedRows(): React.JSX.Element {
     const formatter = useNumberFormatter();
     return (
         <Stack gap={0}>
@@ -403,7 +403,7 @@ export const RightToLeft: Story = {
         <DirectionProvider initialDirection="rtl" detectDirection={false}>
             <LabelsProvider locale="ar-EG">
                 <div dir="rtl">
-                    <LocalisedRows />
+                    <LocalizedRows />
                 </div>
             </LabelsProvider>
         </DirectionProvider>

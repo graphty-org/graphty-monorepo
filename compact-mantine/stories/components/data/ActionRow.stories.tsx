@@ -19,7 +19,7 @@ import { StoryState, StoryStates } from "../../helpers/story-panel";
  *
  * It lets every other row in a panel stay a value: no field, toggle or data row grows an Apply, a
  * Run or a Copy of its own, because the action row at the end of the section holds them. The
- * state (`state`) sits at the leading edge in the secondary text colour; the controls
+ * state (`state`) sits at the leading edge in the secondary text color; the controls
  * (`actions`) cluster at the trailing edge.
  *
  * ## When to use it
@@ -69,7 +69,7 @@ import { StoryState, StoryStates } from "../../helpers/story-panel";
  * - Each control is its own tab stop. Focus inside the row reveals a `reveal="hover"` cluster.
  * - With `onClick` the state becomes a button filling the row: Tab reaches it, Enter and Space
  *   activate it. A click on a control in the cluster never activates the row.
- * - The state ellipsises for the eye and stays whole for a screen reader. `stateTitle` gives the
+ * - The state ellipsizes for the eye and stays whole for a screen reader. `stateTitle` gives the
  *   full reading when `state` is an abbreviation or markup; it is the tooltip and what is read.
  * - `busy` makes the state a live region, announced when it changes. Give it to the one row that
  *   reports progress, not to every row of a list.
@@ -82,7 +82,7 @@ import { StoryState, StoryStates } from "../../helpers/story-panel";
  * | Row | 240 x 32, padding 0 8 0 16 |
  * | Controls | 24px buttons, 4px apart |
  * | Hover reveal | opacity 0 to 1 over 100ms, ease-out |
- * | State text | 11/16, secondary text colour |
+ * | State text | 11/16, secondary text color |
  */
 const meta: Meta<typeof ActionRow> = {
     title: "Components/Data display/ActionRow",
@@ -118,7 +118,7 @@ type Story = StoryObj<typeof ActionRow>;
  * @param root0 - Component props
  * @param root0.label - The word the glyph replaces, used as both tooltip and accessible name
  * @param root0.glyph - Which shared UI glyph to draw
- * @param root0.reports - Draw in the primary text colour, the way a control that reports a state does
+ * @param root0.reports - Draw in the primary text color, the way a control that reports a state does
  * @returns The icon button
  */
 function GlyphAction({
@@ -244,7 +244,7 @@ export const Running: Story = {
 };
 
 /**
- * A reading longer than the row. It ellipsises rather than wrapping -- the row stays 32px -- and
+ * A reading longer than the row. It ellipsizes rather than wrapping -- the row stays 32px -- and
  * the whole text stays in the document and in the tooltip.
  */
 export const LongState: Story = {

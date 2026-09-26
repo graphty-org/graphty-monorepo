@@ -41,7 +41,7 @@ const PHYSICAL_SPACING = /(^|-)(margin|padding|border|inset)?-?(left|right)\b/;
  */
 function physicalCandidates(): HTMLElement[] {
     return [
-        ...screen.queryAllByTestId("field-row-labelled"),
+        ...screen.queryAllByTestId("field-row-labeled"),
         ...screen.queryAllByTestId("field-row"),
         ...screen.queryAllByTestId("field-row-slot"),
         ...screen.queryAllByTestId("field-row-label"),
@@ -229,7 +229,7 @@ describe("FieldRow", () => {
             expect(slots[1]).toHaveStyle({ marginInlineStart: "8px", marginInlineEnd: "8px" });
         });
 
-        it("writes no physical spacing anywhere on a labelled row", () => {
+        it("writes no physical spacing anywhere on a labeled row", () => {
             renderRow(
                 <PanelLabelsProvider showLabels>
                     <FieldRow labelPosition="inline" trailing={<AdvancedButton label="Range and scale" onClick={vi.fn()} />}>{pair()}</FieldRow>
@@ -241,7 +241,7 @@ describe("FieldRow", () => {
             }
         });
 
-        it("keeps the gutter and the trail gap on a labelled row's slot", () => {
+        it("keeps the gutter and the trail gap on a labeled row's slot", () => {
             renderRow(
                 <PanelLabelsProvider showLabels>
                     <FieldRow labelPosition="inline">{pair()}</FieldRow>
@@ -471,7 +471,7 @@ describe("FieldRow", () => {
             );
 
             const group = screen.getByRole("group", { name: "Node size range" });
-            expect(group).toBe(screen.getByTestId("field-row-labelled"));
+            expect(group).toBe(screen.getByTestId("field-row-labeled"));
             expect(screen.getAllByTestId("field-row")).toHaveLength(2);
         });
     });
@@ -551,7 +551,7 @@ describe("FieldRow", () => {
                 </PanelLabelsProvider>,
             );
 
-            expect(ref.current).toBe(screen.getByTestId("field-row-labelled"));
+            expect(ref.current).toBe(screen.getByTestId("field-row-labeled"));
         });
     });
 
@@ -576,8 +576,8 @@ describe("FieldRow", () => {
 
             const rows = screen.getAllByTestId("field-row");
             expect(rows).toHaveLength(2);
-            expect(rows[0]).toHaveAttribute("data-labelled", "true");
-            expect(rows[1]).toHaveAttribute("data-labelled", "true");
+            expect(rows[0]).toHaveAttribute("data-labeled", "true");
+            expect(rows[1]).toHaveAttribute("data-labeled", "true");
         });
 
         it("never splits into a two-line stack: every row is one pitch tall", () => {
@@ -606,12 +606,12 @@ describe("FieldRow", () => {
         });
 
         // The column is narrow and a translated word is often longer than an
-        // English one, so the word ellipsises. Clipping it is a paint-time
+        // English one, so the word ellipsizes. Clipping it is a paint-time
         // effect only: the whole word stays in the DOM and so in the
         // accessibility tree, the title serves a mouse, and the field beside it
         // carries the same word as its own accessible name for a keyboard or a
         // touch screen, neither of which can reach a title.
-        it("keeps an ellipsised word readable in full", () => {
+        it("keeps an ellipsized word readable in full", () => {
             renderRow(
                 <PanelLabelsProvider showLabels>
                     <FieldRow labelPosition="inline">{pair()}</FieldRow>
@@ -707,8 +707,8 @@ describe("FieldRow", () => {
         });
     });
 
-    describe("captions above the columns (the default labelled row)", () => {
-        it("draws Figma's labelled two-column row: one 50px row, a caption above each column", () => {
+    describe("captions above the columns (the default labeled row)", () => {
+        it("draws Figma's labeled two-column row: one 50px row, a caption above each column", () => {
             renderRow(
                 <PanelLabelsProvider showLabels>
                     <FieldRow>{pair()}</FieldRow>

@@ -53,7 +53,7 @@ const ITEMS: TreeNodeData[] = [
 /**
  * A 240px panel around the tree, as in Figma's left sidebar.
  * @param props - Tree props
- * @param scheme - colour scheme
+ * @param scheme - color scheme
  * @returns the tree element
  */
 async function renderTree(
@@ -207,7 +207,7 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
         expectMeasured(ring, { x: 12, y: 4, width: 220, height: 24, outline: "#0d99ff solid 1px", borderRadius: "5px" }, { origin: top });
     });
 
-    it("hidden layer: name and glyph in the tertiary colour", async () => {
+    it("hidden layer: name and glyph in the tertiary color", async () => {
         await renderTree({ items: [{ id: "h", name: "hidden", dimmed: true, icon: <UiGlyph name="rectangle" size={10} /> }] });
         expectMeasured(part(row("hidden"), ".cm-tree-name"), { color: "#0000004d" });
         expectMeasured(part(row("hidden"), ".cm-tree-icon"), { color: "#0000004d" });
@@ -337,7 +337,7 @@ describe.skipIf(!(await figmaAvailable()))("Page rows against Figma", () => {
         expectMeasured(cells[0], figmaSpec(fig, ["width", "height", "outline", "outlineOffset", "borderRadius"]));
     });
 
-    it("divider: a 208 x 1 border line, 16px in, centred", async () => {
+    it("divider: a 208 x 1 border line, 16px in, centered", async () => {
         const cells = await renderPages();
         const fig = await figmaElement("ls/scratch-pages-list", { index: 71 });
         const line = part(cells[2], ".cm-page-divider");
@@ -389,7 +389,7 @@ describe.skipIf(!(await figmaAvailable()))("Find result rows against Figma", () 
     };
     const ROW = ["width", "height", "backgroundColor", "borderTopColor", "borderTopWidth", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft"];
 
-    it("current and rest: 240 x 52, padding 8 8 8 16, a 1px border the colour of the fill", async () => {
+    it("current and rest: 240 x 52, padding 8 8 8 16, a 1px border the color of the fill", async () => {
         const rows = await renderResults();
         expectMeasured(rows[0], figmaSpec(await figmaElement(fig, { index: 127 }), ROW));
         expectMeasured(rows[1], figmaSpec(await figmaElement(fig, { index: 139 }), ROW));

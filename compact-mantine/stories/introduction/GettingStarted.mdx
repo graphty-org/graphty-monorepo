@@ -7,7 +7,7 @@ import { Meta } from "@storybook/blocks";
 Compact components and a compact theme for [Mantine 8](https://mantine.dev), for interfaces
 where screen space is the scarce resource: property panels, inspectors, sidebars, editors and
 dashboards. The look is measured from the Figma editor's own interface, in its light and its
-dark theme: 24px controls, 11px Inter, Figma's colours, radii, shadows and timing.
+dark theme: 24px controls, 11px Inter, Figma's colors, radii, shadows and timing.
 
 The package gives you two things, and you can take either one on its own.
 
@@ -33,7 +33,7 @@ their versions: React 18 or later, Mantine 8 or later.
 ## Switch it on
 
 Import Mantine's stylesheet and hand `MantineProvider` the compact theme. That is the whole
-setup: the theme puts its own stylesheet (the Inter typeface, the colour tokens and the component
+setup: the theme puts its own stylesheet (the Inter typeface, the color tokens and the component
 rules) into `document.head` when it is created, so there is no second CSS import.
 
 ```tsx
@@ -66,7 +66,7 @@ export function App() {
 
 ## Light and dark
 
-Light and dark are Mantine's own colour scheme: `defaultColorScheme`, `forceColorScheme` and
+Light and dark are Mantine's own color scheme: `defaultColorScheme`, `forceColorScheme` and
 `useMantineColorScheme` work as they always do, and one theme object serves both.
 
 ```tsx
@@ -74,17 +74,17 @@ Light and dark are Mantine's own colour scheme: `defaultColorScheme`, `forceColo
 <MantineProvider theme={compactTheme} forceColorScheme="dark">    {/* always dark */}
 ```
 
-Every colour is a CSS custom property (`--cm-bg`, `--cm-text-secondary`, `--cm-bg-brand`, ...)
+Every color is a CSS custom property (`--cm-bg`, `--cm-text-secondary`, `--cm-bg-brand`, ...)
 written with `light-dark()`, so it follows the `color-scheme` of whatever element uses it.
 Menus, list boxes, tooltips and the toast render dark in both schemes, as Figma's do. The
-[Colour](?path=/docs/foundations-colour--docs) page shows every token in both schemes.
+[Color](?path=/docs/foundations-color--docs) page shows every token in both schemes.
 
 ## Exact Figma, or WCAG 2.2 AA
 
-`compactTheme` is exact Figma, and a few of Figma's own colours fall short of WCAG 2.2 AA:
+`compactTheme` is exact Figma, and a few of Figma's own colors fall short of WCAG 2.2 AA:
 secondary text, placeholder text, field and checkbox edges, the focus ring on white, and white
 text on the blue, red and green fills. Create the theme with `highContrast` to move exactly those
-tokens to the next darker colour in Figma's palette. Nothing moves or resizes.
+tokens to the next darker color in Figma's palette. Nothing moves or resizes.
 
 ```tsx
 import { createCompactTheme } from "@graphty/compact-mantine";
@@ -104,7 +104,7 @@ The theme sets Inter (the variable font, latin subset) and ships it inlined into
 so Figma's 450, 550 and 600 weights render exactly with no font setup and no network request.
 Inter is licensed under the SIL Open Font License 1.1; the license text is in
 `dist/fonts/LICENSE-Inter.txt`. To use another face, set `fontFamily` in a theme merged over this
-one (see [Customising the theme](?path=/docs/introduction-customising-the-theme--docs)).
+one (see [Customizing the theme](?path=/docs/introduction-customizing-the-theme--docs)).
 
 ## Three optional wrappers
 
@@ -131,17 +131,17 @@ import { compactTheme, LabelsProvider, PopoutManager } from "@graphty/compact-ma
 </MantineProvider>;
 ```
 
-## How this Storybook is organised
+## How this Storybook is organized
 
 The sidebar has five sections, in the order a new reader needs them:
 
 - **Introduction** -- these pages: setup, [choosing a component](?path=/docs/introduction-choosing-a-component--docs),
-  [customising the theme](?path=/docs/introduction-customising-the-theme--docs), languages and direction, the event and
+  [customizing the theme](?path=/docs/introduction-customizing-the-theme--docs), languages and direction, the event and
   prop conventions, accessibility, and [upgrading to 0.9](?path=/docs/introduction-upgrading-to-0-9--docs).
-- **Foundations** -- what the theme sets: colour, type, spacing and the panel grid, elevation,
+- **Foundations** -- what the theme sets: color, type, spacing and the panel grid, elevation,
   focus and motion, and the glyphs.
 - **Components** -- this package's own components, grouped by the job you are doing: panels and
-  rows, inputs, selection, colour, actions, overlays, lists and trees, data display, and the app
+  rows, inputs, selection, color, actions, overlays, lists and trees, data display, and the app
   shell. Each group opens with an Overview page that says when to reach for which.
 - **Patterns** -- whole settings panels assembled from the components.
 - **Themed Mantine** -- Mantine components the theme restyles but does not wrap, so you can see

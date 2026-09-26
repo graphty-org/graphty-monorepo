@@ -12,11 +12,11 @@ import { createElement, type ReactNode } from "react";
 
 import { PANEL_INK } from "../../src/constants/panel";
 
-/** One labelled cell of a state grid. */
+/** One labeled cell of a state grid. */
 export type StateCell = readonly [label: string, content: ReactNode];
 
 /**
- * A grid of labelled states.
+ * A grid of labeled states.
  * @param props - the cells
  * @param props.cells - label and content per state
  * @param props.columns - the column width, px

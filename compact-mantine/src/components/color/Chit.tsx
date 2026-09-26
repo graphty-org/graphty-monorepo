@@ -5,18 +5,18 @@ import { isLightColor, normalizeHexa } from "../../utils/color-utils";
 
 /** Props for the internal Chit. */
 interface ChitProps {
-    /** Any hex colour, 3 to 8 digits; an alpha channel below FF shows the checkerboard half. */
+    /** Any hex color, 3 to 8 digits; an alpha channel below FF shows the checkerboard half. */
     color: string;
     /** `field` is the 14px chit inside a paint field; omit it for the 16px picker chit. */
     variant?: "field";
 }
 
 /**
- * Figma's colour chit (design/figma-spec.md 7.1) on Mantine's ColorSwatch: the opaque colour on
- * the inline-start half, the colour over a checkerboard on the other half when it carries alpha,
- * and a ring on near-white colours. Decorative: the control around it carries the name.
+ * Figma's color chit (design/figma-spec.md 7.1) on Mantine's ColorSwatch: the opaque color on
+ * the inline-start half, the color over a checkerboard on the other half when it carries alpha,
+ * and a ring on near-white colors. Decorative: the control around it carries the name.
  * @param props - Component props
- * @param props.color - the colour
+ * @param props.color - the color
  * @param props.variant - `field` for the in-field form
  * @returns the chit
  */

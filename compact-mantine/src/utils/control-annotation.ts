@@ -70,7 +70,7 @@ export interface ControlAnnotationOptions {
     /**
      * The control's own name, which is what the reason is appended to.
      *
-     * Usually the `label` prop. It may be absent -- an unlabelled colour
+     * Usually the `label` prop. It may be absent -- an unlabelled color
      * control, or an icon group named by a heading elsewhere -- in which case
      * the reason stands alone rather than being appended to nothing.
      */

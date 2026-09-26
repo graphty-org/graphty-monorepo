@@ -1,12 +1,12 @@
 /**
  * The measurement harness for compact-mantine's browser tests (Vitest browser mode, Chromium via
- * Playwright): render a component under the theme in a chosen colour scheme and contrast mode,
+ * Playwright): render a component under the theme in a chosen color scheme and contrast mode,
  * drive it into a state with real input, read the computed style and box of its parts, and
  * compare them with a spec -- written by hand, or read from a Figma capture with ./figma.ts.
  *
  * Tolerances: box width / height / x / y within 0.5px; every other px length within 0.01px;
- * colours exact after normalising to hex (8-digit when translucent); font weight exact; any other
- * value exact after normalisation.
+ * colors exact after normalizing to hex (8-digit when translucent); font weight exact; any other
+ * value exact after normalization.
  *
  * @example
  * ```ts
@@ -37,14 +37,14 @@ declare module "@vitest/browser/context" {
 
 /** How a component is rendered. */
 interface ThemedOptions {
-    /** Mantine colour scheme, forced. Default "light". */
+    /** Mantine color scheme, forced. Default "light". */
     scheme?: "light" | "dark";
     /** The AA token set. Default false (exact Figma). */
     highContrast?: boolean;
 }
 
 /**
- * Render `ui` inside MantineProvider with the compact theme, the colour scheme forced, and wait
+ * Render `ui` inside MantineProvider with the compact theme, the color scheme forced, and wait
  * until the bundled Inter face is ready so text boxes measure in Inter. The pointer is parked in
  * the page's far corner first, so nothing renders already hovered.
  * @param ui - the element to render
@@ -140,9 +140,9 @@ function channel(n: number): string {
 }
 
 /**
- * Normalise one colour to hex: `#rrggbb` when opaque, `#rrggbbaa` when translucent.
+ * Normalize one color to hex: `#rrggbb` when opaque, `#rrggbbaa` when translucent.
  * Accepts `rgb()`, `rgba()` and 3/4/6/8-digit hex.
- * @param color - the colour
+ * @param color - the color
  * @returns the hex form
  */
 export function hex(color: string): string {
@@ -166,7 +166,7 @@ export function hex(color: string): string {
     } else {
         const m = /rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:\s*[,/]\s*([\d.]+%?))?\s*\)/.exec(c);
         if (!m) {
-            throw new Error(`not a colour: ${color}`);
+            throw new Error(`not a color: ${color}`);
         }
         [r, g, b] = [m[1], m[2], m[3]].map(Number);
         if (m[4] !== undefined) {
@@ -178,14 +178,14 @@ export function hex(color: string): string {
 }
 
 /**
- * Normalise a computed value for comparison: every colour inside it becomes hex, and a
- * `box-shadow` loses its fully transparent layers (the elevation tokens carry the other colour
+ * Normalize a computed value for comparison: every color inside it becomes hex, and a
+ * `box-shadow` loses its fully transparent layers (the elevation tokens carry the other color
  * scheme's layers as transparent ones).
  * @param property - the camelCase property name
  * @param value - the computed value
- * @returns the normalised value
+ * @returns the normalized value
  */
-export function normalise(property: string, value: string): string {
+export function normalize(property: string, value: string): string {
     let v = value.trim().replace(COLOR, (c) => hex(c));
     if (property === "boxShadow" && v !== "none") {
         const layers = splitLayers(v).filter((layer) => !/#[0-9a-f]{6}00\b/.test(layer));
@@ -222,14 +222,14 @@ export function computed(el: Element, pseudo?: string): CSSStyleDeclaration {
     return getComputedStyle(el, pseudo);
 }
 
-/** What `measure` reads: the border box and the requested computed properties, normalised. */
+/** What `measure` reads: the border box and the requested computed properties, normalized. */
 interface Measured {
     box: { x: number; y: number; width: number; height: number };
     style: Record<string, string>;
 }
 
 /**
- * Read an element's box and the named computed properties, normalised.
+ * Read an element's box and the named computed properties, normalized.
  * @param el - the element
  * @param properties - camelCase CSS properties
  * @param options - `pseudo` element, `origin` element for x / y
@@ -247,7 +247,7 @@ export function measure(
     const cs = computed(el, options.pseudo);
     const style: Record<string, string> = {};
     for (const p of properties) {
-        style[p] = normalise(p, String(cs[p as keyof CSSStyleDeclaration] ?? ""));
+        style[p] = normalize(p, String(cs[p as keyof CSSStyleDeclaration] ?? ""));
     }
     return { box: { x: r.left - o.left, y: r.top - o.top, width: r.width, height: r.height }, style };
 }
@@ -256,7 +256,7 @@ function matches(property: string, actual: string | number, expected: string | n
     if (typeof actual === "number" && typeof expected === "number") {
         return Math.abs(actual - expected) <= BOX_TOLERANCE;
     }
-    const want = typeof expected === "number" ? `${expected}px` : normalise(property, expected);
+    const want = typeof expected === "number" ? `${expected}px` : normalize(property, expected);
     const got = String(actual);
     if (want === got) {
         return true;

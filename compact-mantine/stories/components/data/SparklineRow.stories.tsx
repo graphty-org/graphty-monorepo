@@ -14,7 +14,7 @@ import { StoryState, StoryStates } from "../../helpers/story-panel";
  * of the axis.
  *
  * The line reports the shape and the two end labels report the magnitude; neither is any use
- * alone, so both are always drawn. The series is normalised over its own extremes, so the line
+ * alone, so both are always drawn. The series is normalized over its own extremes, so the line
  * fills the height whatever the numbers are -- and two sparklines in one panel are not comparable
  * to each other unless their labels say so. There is no legend, title or summary line.
  *
@@ -50,7 +50,7 @@ import { StoryState, StoryStates } from "../../helpers/story-panel";
  * | Row | 32px (`PANEL_GRID.SPARKLINE_HEIGHT`) |
  * | Line | 24px tall, 1px stroke, `--cm-icon-secondary` |
  * | Baseline | 1px `--cm-border` |
- * | Axis ends | 11px, secondary text colour, beside the line |
+ * | Axis ends | 11px, secondary text color, beside the line |
  * | Trailing slot | 24px, taken from the line's width |
  */
 const meta: Meta<typeof SparklineRow> = {
@@ -189,7 +189,7 @@ export const WithATrailingControl: Story = {
 };
 
 /**
- * Two sparklines in one panel. They are not comparable to each other: each is normalised over its
+ * Two sparklines in one panel. They are not comparable to each other: each is normalized over its
  * own extremes, so the labels are what make the magnitudes readable.
  */
 export const SeveralAtOnce: Story = {
@@ -211,7 +211,7 @@ export const SeveralAtOnce: Story = {
 export const Translated: Story = {
     render: (): React.JSX.Element => (
         <LabelsProvider locale="fr-FR">
-            <SparklineRow label="Stabilisation de la disposition" values={SETTLING} minLabel="Pas 1" maxLabel="Pas 20" />
+            <SparklineRow label="Stabilization de la disposition" values={SETTLING} minLabel="Pas 1" maxLabel="Pas 20" />
         </LabelsProvider>
     ),
 };

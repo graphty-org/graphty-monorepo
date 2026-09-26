@@ -2,7 +2,7 @@
  * The button family's CSS (design/figma-spec.md 4.1, 4.3-4.7): Button, ActionIcon (ghost, open,
  * highlighted, filled, joined), ActionIcon.Group, CloseButton, ToggleIconButton and SplitButton.
  *
- * Colours are never written here: each variant's colours arrive as variables from the theme's
+ * Colors are never written here: each variant's colors arrive as variables from the theme's
  * vars resolvers (../styles/buttons.ts), and the states Mantine has no variable for read the
  * `--cm-btn-*` / `--cm-ai-*` ones. Every state selector also accepts `[data-state="hover" |
  * "press" | "focus"]`, so the States stories can show a state a pseudo class cannot be forced
@@ -18,7 +18,7 @@ const PRESSED = ':is(:active, [data-state="press"])';
 const FOCUS = ':is(:focus-visible, [data-state="focus"])';
 const ENABLED = ":not(:disabled, [data-disabled], [data-loading])";
 const DISABLED = ":is(:disabled, [data-disabled]):not([data-loading])";
-/** Variants that keep a grey (or danger) edge, so their focus ring moves onto ::before. */
+/** Variants that keep a gray (or danger) edge, so their focus ring moves onto ::before. */
 const EDGED_BUTTON = ':is([data-variant="default"], [data-variant="outline"], [data-variant="danger-outline"])';
 const EDGED_ICON = ':is([data-variant="default"], [aria-haspopup]:not([aria-haspopup="false"]))';
 /** An icon button showing the "on" look: its popover is open, or it is a pressed toggle. */
@@ -40,7 +40,7 @@ const css = `
     letter-spacing: 0.055px;
     cursor: default;
 }
-/* The resting outline slot (and the secondary's grey edge). Keyed on :not(:focus-visible) so that
+/* The resting outline slot (and the secondary's gray edge). Keyed on :not(:focus-visible) so that
    Mantine's .mantine-focus-never:focus { outline: none }, which has one class and one pseudo
    class too, cannot erase it when a mouse press focuses the button. */
 .cm-button:not(:focus-visible) {
@@ -103,7 +103,7 @@ const css = `
     cursor: auto;
 }
 .cm-button${DISABLED} .cm-button-section[data-position="right"] { color: inherit; }
-/* Loading: width unchanged, the label fades out, a 16px spinner fades in centred (2.8). */
+/* Loading: width unchanged, the label fades out, a 16px spinner fades in centered (2.8). */
 .cm-button[data-loading] { cursor: progress; }
 .cm-button[data-loading] .cm-button-inner { opacity: 0; transform: none; }
 /* Mantine's Transition writes the spinner's slide as inline style, so only !important reaches it. */

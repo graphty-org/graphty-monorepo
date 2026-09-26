@@ -19,7 +19,7 @@ export interface VariablePillProps {
     /** Called when the pill (or the fill row) is clicked: reopen the variable picker here. */
     onClick?: ActivationHandler;
     /**
-     * A colour: draws the bound FILL row instead of a number field -- one 156 x 24 button with
+     * A color: draws the bound FILL row instead of a number field -- one 156 x 24 button with
      * a 14px chit and the variable's name.
      */
     swatch?: string;

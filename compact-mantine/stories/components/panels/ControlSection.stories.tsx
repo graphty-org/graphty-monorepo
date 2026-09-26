@@ -12,7 +12,7 @@ import { StoryState, StoryStates } from "../../helpers/story-panel";
  *
  * Naming a subject once in its header is what lets every row inside spend its
  * width on values instead of on a label of its own. A panel built from sections
- * reads as a short list of subjects -- Size, Colour, Layout -- rather than as
+ * reads as a short list of subjects -- Size, Color, Layout -- rather than as
  * forty controls.
  *
  * ## When to use it
@@ -62,7 +62,7 @@ import { StoryState, StoryStates } from "../../helpers/story-panel";
  *   with the name whether or not the bubble is open.
  * - `hasConfiguredValues` draws a 6px accent dot that is announced as well as
  *   drawn ("Size has configured values").
- * - An empty section is never signalled by colour alone: it loses its chevron
+ * - An empty section is never signaled by color alone: it loses its chevron
  *   and gains an "Add ..." button.
  * - Every string comes from `LabelsProvider` and can be translated; padding and
  *   chevron follow the text direction.
@@ -310,7 +310,7 @@ export const APanelOfSections: Story = {
             <ControlSection
                 label="Color"
                 hasConfiguredValues
-                info="Cats are coloured by the attribute chosen here. Age and Betweenness both carry a ramp."
+                info="Cats are colored by the attribute chosen here. Age and Betweenness both carry a ramp."
             >
                 <FieldRow trailing={<AdvancedButton label="Ramp and domain" changed onClick={() => undefined} />}>
                     <PanelField label="Color by attribute" glyph="attribute" value="Betweenness" bound kind="select" />

@@ -100,7 +100,7 @@ export interface StyleSelectProps {
  * been chosen here", so the control shows `defaultValue` and offers no reset.
  * As soon as the reader picks something a reset button appears beside it, and pressing that reset reports `undefined`
  * again. A panel built from these reads at a glance as a list of what has been
- * customised and what has not.
+ * customized and what has not.
  *
  * Reach for Mantine's own `Select` for an ordinary form. Reach for this one
  * where a value has a sensible default that the reader is overriding rather
@@ -182,7 +182,7 @@ export function StyleSelect({
 
     /**
      * Give the control back to its default.
-     * @param event - The click, or the click a browser synthesises from Enter or Space
+     * @param event - The click, or the click a browser synthesizes from Enter or Space
      */
     const handleReset = (event: React.MouseEvent<HTMLButtonElement>): void => {
         setSelected(undefined, event);

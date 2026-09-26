@@ -155,7 +155,7 @@ export const SectionsAndSizes: Story = {
     ),
 };
 
-/** A colour other than the primary keeps Mantine's own derivation on the filled variant. */
+/** A color other than the primary keeps Mantine's own derivation on the filled variant. */
 export const Colors: Story = {
     render: () => (
         <Group gap="xs">

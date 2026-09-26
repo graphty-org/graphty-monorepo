@@ -99,7 +99,7 @@ describe("ControlSection", () => {
             expect(screen.getByTestId("control-section-content")).toHaveStyle({ paddingBottom: "12px" });
         });
 
-        it("draws the name in the primary text colour when the section holds something", () => {
+        it("draws the name in the primary text color when the section holds something", () => {
             renderSection(
                 <ControlSection label="Size">
                     <div>Smallest node size</div>
@@ -112,7 +112,7 @@ describe("ControlSection", () => {
             expect(screen.getByTestId("control-section-name")).toHaveClass("cm-section-title");
         });
 
-        it("draws the name in the secondary text colour when the section is empty", () => {
+        it("draws the name in the secondary text color when the section is empty", () => {
             renderSection(<ControlSection label="Edge properties" empty onAdd={vi.fn()} />);
 
             // .cm-section[data-empty] dims the header to --cm-text-secondary.
@@ -715,9 +715,9 @@ describe("ControlSection", () => {
             expect(screen.queryByText(/default/i)).not.toBeInTheDocument();
         });
 
-        // WCAG 1.4.1 (Use of Colour): the dimmed name cannot be the only thing
+        // WCAG 1.4.1 (Use of Color): the dimmed name cannot be the only thing
         // that says a section is not set up.
-        it("says it in shape as well as in colour", () => {
+        it("says it in shape as well as in color", () => {
             const { container } = renderSection(<ControlSection label="Edge properties" empty onAdd={vi.fn()} />);
 
             expect(screen.queryByTestId("control-section-chevron-slot")).not.toBeInTheDocument();

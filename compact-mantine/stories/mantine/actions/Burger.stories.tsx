@@ -5,8 +5,8 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
 import { focusMarked, StateGrid } from "../../helpers/selection-states";
 
 /**
- * Mantine's `Burger`, redrawn on the panel's icon colour so it matches the other glyphs. Figma has
- * no burger, so only the colour and line weight change. Every prop is Mantine's: see
+ * Mantine's `Burger`, redrawn on the panel's icon color so it matches the other glyphs. Figma has
+ * no burger, so only the color and line weight change. Every prop is Mantine's: see
  * [Burger on mantine.dev](https://mantine.dev/core/burger/).
  *
  * ## Usage

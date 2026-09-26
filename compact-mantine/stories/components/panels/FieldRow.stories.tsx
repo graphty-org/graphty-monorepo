@@ -19,9 +19,9 @@ import { StoryState, StoryStates } from "../../helpers/story-panel";
  *
  * | Reach for | When |
  * |---|---|
- * | **FieldRow** | Any changeable value -- a number, a name, a choice, a colour -- or two that are the two ends of one property, such as a smallest and a largest size. |
+ * | **FieldRow** | Any changeable value -- a number, a name, a choice, a color -- or two that are the two ends of one property, such as a smallest and a largest size. |
  * | **PanelField** | The field itself. A FieldRow lays out one or two of them; do not size them yourself. |
- * | **CompoundRow** | Two or three values that are parts of one thing (a colour and its opacity), in one box. |
+ * | **CompoundRow** | Two or three values that are parts of one thing (a color and its opacity), in one box. |
  * | **TrailingSlot** | You are laying out a row of your own by hand and need the same 24px end column. |
  *
  * ## Usage
@@ -66,7 +66,7 @@ import { StoryState, StoryStates } from "../../helpers/story-panel";
  * | Pair | 88 + 8 + 88 + 8 + 24 |
  * | One field beside a trailing control | 184 + 8 + 24 |
  * | One field alone | 192 + 24 (the field takes the 8px gap) |
- * | Row height | 32, a 24px control centred |
+ * | Row height | 32, a 24px control centered |
  * | With captions above | 50 (4 + 14 caption + 4 + 24 control + 4) |
  * | Inline label column | 72 + 8 gutter |
  */
@@ -117,7 +117,7 @@ export const Default: Story = {
 
 /**
  * The row's arrangements, light and dark: a pair, one field beside a trailing
- * control (184), one field alone (192), the labelled row with a caption above
+ * control (184), one field alone (192), the labeled row with a caption above
  * each column (50px), and the inline labels layout.
  */
 export const States: Story = {

@@ -1,17 +1,17 @@
 /**
- * The design tokens: every colour, type role, spacing step, radius, elevation and duration the
+ * The design tokens: every color, type role, spacing step, radius, elevation and duration the
  * package draws with, measured from the Figma editor (design/figma-spec.md section 2).
  *
- * Colours become CSS custom properties `--cm-<name>` written with `light-dark()`, so each one
+ * Colors become CSS custom properties `--cm-<name>` written with `light-dark()`, so each one
  * resolves from the `color-scheme` of the element that USES it. Mantine sets `color-scheme` on
  * `:root`; a subtree that must render dark in the light app (menus, tooltips, the toast) sets
  * `color-scheme: dark` on a wrapper (`cm-dark-surface`) and every token inside it resolves dark.
  *
- * Components never write a raw colour: they read `var(--cm-*)` (or PANEL_INK, which resolves to
+ * Components never write a raw color: they read `var(--cm-*)` (or PANEL_INK, which resolves to
  * these tokens).
  */
 
-/** A colour token: its light value, its dark value and the Figma variable it was read from. */
+/** A color token: its light value, its dark value and the Figma variable it was read from. */
 export interface CmColorToken {
     readonly light: string;
     readonly dark: string;
@@ -24,7 +24,7 @@ function t(light: string, dark: string, figma?: string): CmColorToken {
 }
 
 /**
- * The colour roles (spec 2.1). Keys are token names without the `--cm-` prefix.
+ * The color roles (spec 2.1). Keys are token names without the `--cm-` prefix.
  */
 export const CM_COLORS = {
     bg: t("#ffffff", "#2c2c2c", "--color-bg"),
@@ -107,12 +107,12 @@ export const CM_COLORS = {
     "segment-edge": t("#e6e6e6", "#444444"),
 } as const satisfies Record<string, CmColorToken>;
 
-/** The name of a colour token, without the `--cm-` prefix. */
+/** The name of a color token, without the `--cm-` prefix. */
 export type CmColorName = keyof typeof CM_COLORS;
 
 /**
  * The WCAG 2.2 AA option (spec 2.9): the ONLY tokens `createCompactTheme({ highContrast: true })`
- * changes. Every value is a Figma palette colour, so the look stays inside Figma's palette.
+ * changes. Every value is a Figma palette color, so the look stays inside Figma's palette.
  *
  * The first block is the owner's list. The second block is what AA also needs because Figma's
  * own values fail there; each line can be vetoed on its own.
@@ -139,7 +139,7 @@ export const CM_HIGH_CONTRAST: Partial<Record<CmColorName, { light: string; dark
 
 /**
  * Elevations (spec 2.6). Each is written for both schemes; `elevationValue` merges the two into
- * one `box-shadow` whose colour stops use `light-dark()`, with `transparent` for a layer that
+ * one `box-shadow` whose color stops use `light-dark()`, with `transparent` for a layer that
  * exists in only one scheme. A computed box-shadow therefore carries both layer lists, and the
  * other scheme's layers are fully transparent (the test harness drops them before comparing).
  */
@@ -198,7 +198,7 @@ const CM_ELEVATION_TOAST =
 const RGBA_IN_LAYER = /rgba\([^)]*\)/;
 
 /**
- * One `box-shadow` value holding both schemes' layers, each colour stop wrapped in
+ * One `box-shadow` value holding both schemes' layers, each color stop wrapped in
  * `light-dark()` so the layers of the scheme not in use are transparent.
  * @param level - the elevation level
  * @returns the CSS value
@@ -236,7 +236,7 @@ interface CmTypeRole {
     readonly letterSpacing: string;
 }
 
-/** The type roles (spec 2.3). Emphasis is weight, never size or colour. */
+/** The type roles (spec 2.3). Emphasis is weight, never size or color. */
 export const CM_TYPE = {
     body: { fontSize: 11, lineHeight: 16, fontWeight: 450, letterSpacing: "0.055px" },
     bodyStrong: { fontSize: 11, lineHeight: 16, fontWeight: 550, letterSpacing: "0.055px" },
@@ -314,7 +314,7 @@ export const compactShadows = {
 };
 
 /**
- * The declarations of a token block: every colour token as `light-dark()`, the elevations and
+ * The declarations of a token block: every color token as `light-dark()`, the elevations and
  * the motion values.
  * @returns CSS declarations, one per line
  */

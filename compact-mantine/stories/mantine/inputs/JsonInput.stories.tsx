@@ -38,7 +38,7 @@ const meta: Meta<typeof JsonInput> = {
 export default meta;
 type Story = StoryObj<typeof JsonInput>;
 
-/** A labelled, empty JSON field. */
+/** A labeled, empty JSON field. */
 export const Default: Story = {
     args: {
         label: "JSON data",

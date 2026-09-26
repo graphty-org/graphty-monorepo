@@ -156,7 +156,7 @@ describe("normalizeHexa", () => {
         expect(normalizeHexa("#5B8FF980")).toBe("#5B8FF980");
     });
 
-    it("returns undefined for anything that is not a hex colour", () => {
+    it("returns undefined for anything that is not a hex color", () => {
         expect(normalizeHexa("red")).toBeUndefined();
         expect(normalizeHexa("#12345")).toBeUndefined();
     });
@@ -168,7 +168,7 @@ describe("isLightColor", () => {
         ["#FFFFFF", "#E6E6E6", "#F5F5F5", "#FFFFE5", "#EBEBF7"].forEach((c) => {
             expect(isLightColor(c)).toBe(true);
         });
-        ["#D9D9D9", "#D9E5FF", "#000000", "not a colour"].forEach((c) => {
+        ["#D9D9D9", "#D9E5FF", "#000000", "not a color"].forEach((c) => {
             expect(isLightColor(c)).toBe(false);
         });
     });

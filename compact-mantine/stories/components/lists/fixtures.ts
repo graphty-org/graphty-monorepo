@@ -64,7 +64,7 @@ export const LAYERS: TreeNodeData[] = [
  */
 export const STYLE_LAYERS: TreeNodeData[] = [
     { id: "selection", name: "Selection highlight" },
-    { id: "degree", name: "Degree colour" },
+    { id: "degree", name: "Degree color" },
     { id: "labels", name: "Node labels" },
     { id: "base", name: "Base style" },
 ];

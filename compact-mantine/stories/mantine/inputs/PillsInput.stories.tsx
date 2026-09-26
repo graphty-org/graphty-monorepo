@@ -39,7 +39,7 @@ const meta: Meta<typeof PillsInput> = {
 export default meta;
 type Story = StoryObj<typeof PillsInput>;
 
-/** A labelled field with one removable pill and room to type. */
+/** A labeled field with one removable pill and room to type. */
 export const Default: Story = {
     render: () => (
         <PillsInput label="Select items" w={200}>

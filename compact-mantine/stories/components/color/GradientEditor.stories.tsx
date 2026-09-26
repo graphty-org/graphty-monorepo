@@ -10,22 +10,22 @@ import { ForceState, StateCell } from "../../helpers/force-state";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 
 /**
- * An editor for a multi-stop linear gradient: stop handles over a gradient bar, one colour
+ * An editor for a multi-stop linear gradient: stop handles over a gradient bar, one color
  * picker for the selected stop, a list of stops, and an optional direction row.
  *
  * ## When to use it
  *
  * | You need | Reach for |
  * |---|---|
- * | Several colours at positions along a line, and the angle they run at | **GradientEditor** |
- * | A picker that offers solid or gradient paint | [ColorPickerPanel](?path=/docs/components-colour-colorpickerpanel--docs) with a GradientEditor in its `gradient` slot (see `InsideColorPickerPanel` below) |
- * | One colour | [CompactColorInput](?path=/docs/components-colour-compactcolorinput--docs) |
- * | A picture of a colour mapping, not an editor for it | [RampRow](?path=/docs/components-colour-ramprow--docs) with `variant="color"` |
+ * | Several colors at positions along a line, and the angle they run at | **GradientEditor** |
+ * | A picker that offers solid or gradient paint | [ColorPickerPanel](?path=/docs/components-color-colorpickerpanel--docs) with a GradientEditor in its `gradient` slot (see `InsideColorPickerPanel` below) |
+ * | One color | [CompactColorInput](?path=/docs/components-color-compactcolorinput--docs) |
+ * | A picture of a color mapping, not an editor for it | [RampRow](?path=/docs/components-color-ramprow--docs) with `variant="color"` |
  *
- * One stop is selected at a time, and the picker under the bar edits its colour. Selecting a
+ * One stop is selected at a time, and the picker under the bar edits its color. Selecting a
  * stop -- its handle, its row's chit, or focus entering its row -- moves the picker to it. The
- * stop rows open nothing: a row's hex box edits the same colour as text. The picker is a
- * ColorPickerPanel without opacity (a stop's colour is `#RRGGBB`) and without the paint-type
+ * stop rows open nothing: a row's hex box edits the same color as text. The picker is a
+ * ColorPickerPanel without opacity (a stop's color is `#RRGGBB`) and without the paint-type
  * bar, so a GradientEditor inside a ColorPickerPanel's `gradient` slot shows one paint-type bar.
  *
  * It needs no provider: nothing it draws opens a pop-out. It fills its container, and at 240
@@ -61,7 +61,7 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
  *
  * - Each handle is a `slider` named "Stop N position": arrows move it 1% (Shift 10%), Home / End
  *   send it to an end, Delete or Backspace removes it. Focusing a handle selects its stop.
- * - A click on the bar adds a stop there, its colour mixed from its neighbours; the "+" button is
+ * - A click on the bar adds a stop there, its color mixed from its neighbors; the "+" button is
  *   the keyboard route to a new stop (halfway between the last stop and the end).
  * - In a stop row: the position field steps with ArrowUp / ArrowDown (Shift 10) and commits typed
  *   values on Enter or blur; the chit is a toggle button (`aria-pressed` on the selected stop)
@@ -85,7 +85,7 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
  * | Stop row | 32 tall: position field 46 wide, paint field, 24px minus button |
  */
 const meta: Meta<typeof GradientEditor> = {
-    title: "Components/Colour/GradientEditor",
+    title: "Components/Color/GradientEditor",
     component: GradientEditor,
     parameters: {
         layout: "padded",
@@ -142,7 +142,7 @@ export const Default: Story = {
 
 /**
  * Every state, light and dark side by side: the first stop selected with the picker under the
- * bar, the second stop selected (its chit pressed, the picker on its colour), a stop's hex box
+ * bar, the second stop selected (its chit pressed, the picker on its color), a stop's hex box
  * being edited (focus forced), a focused handle (forced), and five stops with add disabled.
  */
 export const States: Story = {
@@ -180,7 +180,7 @@ export const States: Story = {
 };
 
 /**
- * Selecting a stop: pressing the second row's chit marks it pressed, and the picker moves to that stop's colour.
+ * Selecting a stop: pressing the second row's chit marks it pressed, and the picker moves to that stop's color.
  */
 export const SelectingAStop: Story = {
     args: {
@@ -199,8 +199,8 @@ export const SelectingAStop: Story = {
 };
 
 /**
- * Typing a stop's colour: `22C55E` and Enter in the second row's hex box give the stop that
- * colour, and the picker, now on that stop, follows.
+ * Typing a stop's color: `22C55E` and Enter in the second row's hex box give the stop that
+ * color, and the picker, now on that stop, follows.
  */
 export const TypingAStopColor: Story = {
     args: {

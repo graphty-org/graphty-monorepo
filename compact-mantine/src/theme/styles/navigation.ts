@@ -3,7 +3,7 @@
  * components (Anchor, Burger, NavLink, Pagination, Stepper, Tabs), measured from the Figma editor
  * where it has them (design/figma-spec.md 4.2, 5.1, 5.9).
  *
- * Every colour, state and focus ring lives in ../css/selection.css.ts, keyed on the `cm-*`
+ * Every color, state and focus ring lives in ../css/selection.css.ts, keyed on the `cm-*`
  * classes below. Each `*Scale` is a CompactSizeScale (see ./size-scale.ts): one variable set per
  * Mantine size token, with the sm entry the compact default:
  * - Pagination: 24 controls at 11px (the ghost 24 button of 4.3)

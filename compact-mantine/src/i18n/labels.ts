@@ -150,13 +150,13 @@ export interface CompactMantineLabels {
 
     // CompactColorInput
 
-    /** Accessible name of the swatch button that opens the colour picker. */
+    /** Accessible name of the swatch button that opens the color picker. */
     colorSwatch: string;
-    /** Accessible name of the text box holding the colour's hex value. */
+    /** Accessible name of the text box holding the color's hex value. */
     colorHexValue: string;
-    /** Accessible name of the number box holding the colour's opacity percentage. */
+    /** Accessible name of the number box holding the color's opacity percentage. */
     opacity: string;
-    /** Title of the colour picker pop-out when the caller supplied no label. */
+    /** Title of the color picker pop-out when the caller supplied no label. */
     colorPanelTitle: string;
     /**
      * Stands in for a missing control name inside a reset button's accessible

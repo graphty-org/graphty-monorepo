@@ -386,7 +386,7 @@ describe("SparklineRow", () => {
             expect(screen.getByTestId("sparkline-row")).toHaveStyle({ height: "32px" });
         });
 
-        it("normalises the series over its own extremes", () => {
+        it("normalizes the series over its own extremes", () => {
             renderChart(<SparklineRow values={[0, 5, 10]} minLabel="Tick 1" maxLabel="Tick 3" />);
 
             const polyline = screen.getByTestId("sparkline-plot").querySelector("polyline");
@@ -681,7 +681,7 @@ describe("MetricRow", () => {
         });
 
         it("leaves the whole name reachable when the row is too narrow to draw it", () => {
-            const long = "Betweenness centrality, normalised over the largest component";
+            const long = "Betweenness centrality, normalized over the largest component";
             renderChart(<MetricRow name={long} percentile={41} value="0.04" />);
 
             const name = screen.getByTestId("metric-row-name");

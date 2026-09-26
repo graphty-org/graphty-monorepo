@@ -155,7 +155,7 @@ export interface ToastProviderProps {
 }
 
 /**
- * The one toast the page shows (design/figma-spec.md 8.6): centred
+ * The one toast the page shows (design/figma-spec.md 8.6): centered
  * horizontally near the bottom of the window. Only one exists; a new one
  * replaces the text and restarts the timer. It appears and goes in one frame,
  * and hovering it does not pause the timer. Wrap the application once and call

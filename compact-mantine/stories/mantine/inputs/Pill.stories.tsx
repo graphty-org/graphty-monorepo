@@ -9,7 +9,7 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
  * [Pill on mantine.dev](https://mantine.dev/core/pill/).
  *
  * For a field bound to a design variable use `VariablePill` (Components/Inputs), which adds the
- * detach action and the bound-field behaviour.
+ * detach action and the bound-field behavior.
  *
  * ## Usage
  *

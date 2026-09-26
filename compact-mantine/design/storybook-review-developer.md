@@ -33,7 +33,7 @@ stories fails, and the published text is full of pointers to a repository file
 | A number with a unit | Yes | Components / Inputs / PanelField, story "With Unit" | Sidebar search "unit" finds it. "Choosing a component" also sends you to `CompoundRow` for "a width and its unit" -- but that page's tables are unreadable (finding 1). |
 | Pick one of five icons | Only through an Overview | Themed Mantine / Selection / SegmentedControl, stories "Five Options" and "Pictures In A Panel Row" | Not under Components / Selection, where you would look first. The Selection and Inputs Overviews both point to it, and the Selection link works. Searching "icon" returns ToggleIconButton, ActionIcon and ThemeIcon first. |
 | Search a list | Yes | Components / Inputs / SearchInput; Lists and trees / ResultRow "Driven From A Search Field" | Good. |
-| A colour with opacity | Yes | Components / Colour / CompactColorInput | The first sentence of the page says exactly this. Searching "opacity" only finds "Without Opacity", which still lands on the right page. |
+| A color with opacity | Yes | Components / Color / CompactColorInput | The first sentence of the page says exactly this. Searching "opacity" only finds "Without Opacity", which still lands on the right page. |
 | A tree of layers I can reorder | Yes | Components / Lists and trees / Tree, stories "Flat Reorderable List" and "Dragging" | The usage snippet calls two helpers that do not exist (finding 5). Searching "layer" finds nothing. |
 
 ## Getting started
@@ -43,7 +43,7 @@ peer dependencies, a complete `App` with `MantineProvider`, `ControlSection`, `F
 `PanelField` and `ToggleRow`, then light and dark, high contrast, the bundled typeface and the
 optional wrappers. The snippet type-checks against the package source. Two gaps: the page has no
 rendered preview of what that snippet produces, and its "Three optional wrappers" and "How this
-Storybook is organised" tables are raw pipes (finding 1).
+Storybook is organized" tables are raw pipes (finding 1).
 
 ## Findings
 
@@ -51,7 +51,7 @@ Ranked most severe first.
 
 ### 1. Every Markdown table in the MDX pages renders as raw text (blocker)
 
-The MDX compiler Storybook 8 uses does not include GitHub-flavoured Markdown, and `remark-gfm` is
+The MDX compiler Storybook 8 uses does not include GitHub-flavored Markdown, and `remark-gfm` is
 not configured in `.storybook/main.ts`. Every pipe table in an `.mdx` file is printed as one
 paragraph of `| If you have | Use | Not | |---|---|---| ...`. Affected:
 `stories/introduction/ChoosingAComponent.mdx` (65 table lines -- the whole page is tables, so the

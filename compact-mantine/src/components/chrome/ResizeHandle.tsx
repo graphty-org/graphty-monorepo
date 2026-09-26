@@ -8,7 +8,7 @@ import { isRtl, useDirection } from "../../utils/rtl";
 // Figma's panel resize handle (design/figma-spec.md 9.9, components.md 54; captures
 // left-sidebar/resize-handle-focus, left-sidebar/split-handle-keyboard-focus,
 // right-sidebar-selection/resize-panel-min|max): an 8px strip straddling a panel edge, with no
-// visible hover or drag indicator. Keyboard focus draws a grip pill in the focus colour, 4 wide
+// visible hover or drag indicator. Keyboard focus draws a grip pill in the focus color, 4 wide
 // and up to 500 tall on a vertical handle, 120 x 4 on a horizontal one. The look is the
 // cm-resize-handle rules in src/theme/css/chrome.css.ts.
 //

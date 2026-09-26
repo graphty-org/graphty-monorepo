@@ -444,7 +444,7 @@ describe("calculatePopoutPosition", () => {
             expect(position.left).toBe(300);
         });
 
-        it("leaves centring alone, which reads the same either way", () => {
+        it("leaves centering alone, which reads the same either way", () => {
             const anchorRect = createAnchorRect();
 
             const ltr = calculatePopoutPosition(anchorRect, panelWidth, POPOUT_GAP, {

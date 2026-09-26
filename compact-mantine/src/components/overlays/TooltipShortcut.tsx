@@ -13,7 +13,7 @@ export interface TooltipShortcutProps {
 /**
  * A tooltip label with its keyboard shortcut on the same line (design/figma-spec.md
  * 8.3): the shortcut sits 12px after the label in the tooltip's secondary text
- * colour, as Figma's "Align left  Alt+A". Pass it as a Tooltip's `label`. The
+ * color, as Figma's "Align left  Alt+A". Pass it as a Tooltip's `label`. The
  * tooltip's `aria-describedby` reads both.
  * @param props - Component props
  * @param props.label - What the control does

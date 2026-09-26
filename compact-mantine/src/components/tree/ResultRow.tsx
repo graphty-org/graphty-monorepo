@@ -16,7 +16,7 @@ export interface ResultRowProps extends Omit<React.HTMLAttributes<HTMLDivElement
     icon?: React.ReactNode;
     /** The current result (blue fill; `aria-selected`). */
     current?: boolean;
-    /** `"component"`: both lines and the glyph in the component (purple) colour. */
+    /** `"component"`: both lines and the glyph in the component (purple) color. */
     tone?: "default" | "component";
 }
 
@@ -43,7 +43,7 @@ function highlight(name: string, match: string | undefined): React.ReactNode {
 /**
  * A find result (design/figma-spec.md 10.4): 240 x 52 with a path line, 34 without, padding
  * 8 8 8 16, a 16px glyph, the name at 11/16 with the match at 600 and the path at 10/16 in the
- * secondary colour. The current result is blue; hover is grey.
+ * secondary color. The current result is blue; hover is gray.
  *
  * It is an `option`: put the rows in an element with `role="listbox"` and drive them from the
  * search field with `aria-activedescendant` (give each row an `id`), so focus stays in the

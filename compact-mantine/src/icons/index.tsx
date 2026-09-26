@@ -147,7 +147,7 @@ export const UI_GLYPH_NAMES: readonly UiGlyphName[] = [
 
 /**
  * The attributes every glyph in the set carries: a 16-unit viewBox drawn as
- * round strokes in the parent's own colour. Colour never comes from the SVG.
+ * round strokes in the parent's own color. Color never comes from the SVG.
  * The stroke width is set per render (strokeFor) so a stroke is 1 CSS pixel at
  * any drawn size, Figma's weight (design/figma-spec.md 13).
  */
@@ -225,7 +225,7 @@ const FIELD_GLYPH_SHAPES: Record<FieldGlyphName, (filled: boolean) => React.JSX.
                     <path d="M2.5 7.2V3.5a1 1 0 0 1 1-1h3.7l6.3 6.3-4.7 4.7z" {...FILL_ATTRIBUTES} />
                     {/*
                         The hole in the filled tag is knocked back out in the
-                        colour of the field behind it. It goes through `style`
+                        color of the field behind it. It goes through `style`
                         rather than the `fill` attribute because `SURFACE` is a
                         `light-dark()` value, which resolves in CSS but not
                         reliably in an SVG presentation attribute.
@@ -515,7 +515,7 @@ export interface FieldGlyphProps {
  * the field itself carries the word as its title and accessible name.
  * @param props - Component props
  * @param props.name - Which glyph of the closed field register to draw
- * @param props.filled - Draw the bound form: the glyph's closed shapes fill with the current colour, which is how a field says its value comes from a data attribute rather than from a fixed literal
+ * @param props.filled - Draw the bound form: the glyph's closed shapes fill with the current color, which is how a field says its value comes from a data attribute rather than from a fixed literal
  * @param props.size - Drawn size in pixels, defaulting to the 12px nominal glyph size
  * @returns The field glyph SVG
  */
@@ -578,7 +578,7 @@ export function UiGlyph({ name, size = PANEL_GRID.GLYPH }: UiGlyphProps): React.
  * Whether a value names a glyph in the closed field register.
  *
  * A field's `glyph` prop takes a register name, one of the five capital
- * letters, or an arbitrary node such as a colour swatch; this is how a row type
+ * letters, or an arbitrary node such as a color swatch; this is how a row type
  * tells the first case from the third.
  * @param value - The candidate glyph
  * @returns True when the value is a name in the closed field register
@@ -590,7 +590,7 @@ export function isFieldGlyphName(value: unknown): value is FieldGlyphName {
 /**
  * Whether a value is one of the five capital letters allowed in a field slot.
  *
- * A letter draws as an 11px capital in the secondary text colour instead of an
+ * A letter draws as an 11px capital in the secondary text color instead of an
  * SVG, for a concept no drawing stands for.
  * @param value - The candidate glyph
  * @returns True when the value is one of `N`, `E`, `W`, `D` or `K`

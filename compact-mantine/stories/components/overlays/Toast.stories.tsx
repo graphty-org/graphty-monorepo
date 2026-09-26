@@ -58,7 +58,7 @@ const INTERACTION_TEST_TAGS = ["!dev", "!autodocs"];
  * | Message | 11/16 weight 550, white; optional 16px icon |
  * | Action | 24px tall, 1px `rgba(255,255,255,.1)` outline, radius 5px |
  * | Dismiss | a 33px segment with a 1px start border |
- * | Placement | centred, 76px above the window's bottom by default |
+ * | Placement | centered, 76px above the window's bottom by default |
  */
 const meta: Meta<typeof Toast> = {
     title: "Components/Overlays/Toast",

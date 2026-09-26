@@ -4,7 +4,7 @@ import React, { forwardRef } from "react";
 import { useShellStyles } from "./roving";
 
 /**
- * A tooltip's text with its shortcut 12px after it in the menu's secondary colour ("Frame  F").
+ * A tooltip's text with its shortcut 12px after it in the menu's secondary color ("Frame  F").
  * @param props - Component props
  * @param props.label - The tooltip text
  * @param props.shortcut - The keyboard shortcut, if any

@@ -45,12 +45,12 @@ export interface ControlSectionProps extends DisclosureProps {
      * Whether the section is set up at all.
      *
      * An empty section is drawn as one 32px row: the name in the secondary text
-     * colour, no chevron, and a single "+" in the trailing slot. It shows no
+     * color, no chevron, and a single "+" in the trailing slot. It shows no
      * content and no empty-state sentence, and its children are not rendered.
      *
      * The dimmed name is never the only thing that says so. The chevron is
      * gone, the "+" is there, and the group holds nothing, so the state still
-     * reads for someone who cannot tell the two text colours apart. Give
+     * reads for someone who cannot tell the two text colors apart. Give
      * `onAdd` whenever a section can be empty: its "Add ..." button is what
      * states the section is waiting to be set up, in words, to a screen reader.
      */
@@ -119,12 +119,12 @@ export interface ControlSectionProps extends DisclosureProps {
  *    advanced settings button belongs in `actions`, beside the rows rather than
  *    instead of them.
  *
- * The name is drawn in the primary text colour when the section holds
- * something and in the secondary colour when it is `empty`. That dimming is the
+ * The name is drawn in the primary text color when the section holds
+ * something and in the secondary color when it is `empty`. That dimming is the
  * whole empty state -- no "Not set", no "None", no sentence -- so a column of
  * dim section names reads as an inventory of what has not been set up yet. It
  * is never the only signal: an empty section also loses its chevron and gains a
- * "+", so nothing about the state depends on telling two greys apart.
+ * "+", so nothing about the state depends on telling two grays apart.
  *
  * The section draws the panel's own horizontal padding, 16px at the leading
  * edge and 8px at the trailing edge, so a section dropped straight into a 240px
@@ -220,7 +220,7 @@ export function ControlSection(props: ControlSectionProps): React.JSX.Element {
 
     /**
      * Expand or collapse the section from its header.
-     * @param event - The click, or the click a browser synthesises from Enter or Space
+     * @param event - The click, or the click a browser synthesizes from Enter or Space
      */
     const handleToggle = (event: React.MouseEvent<HTMLButtonElement>): void => {
         setOpen(!isOpen, event);
@@ -256,7 +256,7 @@ export function ControlSection(props: ControlSectionProps): React.JSX.Element {
     // it. The expand button's own name keeps the verb in front of that text,
     // which is what makes a list of collapsed sections navigable by name.
     //
-    // WCAG 1.4.1 (Use of Colour): an empty section's dim name is a second
+    // WCAG 1.4.1 (Use of Color): an empty section's dim name is a second
     // signal, never the only one. It also has no chevron and carries a "+",
     // and the "+" is what carries the state into the accessibility tree, as
     // the button named "Add <section>".

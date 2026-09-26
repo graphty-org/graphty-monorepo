@@ -15,7 +15,7 @@ import { isLeavingWithoutCommit, leaveWithoutCommit } from "./color/escape";
 
 // Figma's gradient editor (design/figma-spec.md 7.5, measured on
 // popovers-and-menus/color-picker-gradient-existing): a direction row, 24px square stop handles
-// over a 32-tall gradient bar, the colour picker for the selected stop, a "Stops" header with
+// over a 32-tall gradient bar, the color picker for the selected stop, a "Stops" header with
 // "+", and one 32-tall row per stop (position, chit and hex, minus). The look lives in
 // src/theme/css/color.css.ts.
 //
@@ -23,7 +23,7 @@ import { isLeavingWithoutCommit, leaveWithoutCommit } from "./color/escape";
 // Delete / Backspace removes); the stops sit in a group named by the "Stops" heading; the angle
 // is a spinbutton.
 
-/** The fewest stops: one stop is a flat colour, not a gradient. */
+/** The fewest stops: one stop is a flat color, not a gradient. */
 const DEFAULT_MIN_STOPS = 2;
 
 /** The most stops offered by default. */
@@ -184,8 +184,8 @@ interface StopHexFieldProps {
  * A stop's hex box: typing commits on Enter or blur (three or six hex digits, otherwise it
  * redraws), Escape reverts.
  * @param props - Component props
- * @param props.color - the stop's colour, `#RRGGBB`
- * @param props.onCommit - called with the typed colour, `#RRGGBB` upper case, once it differs
+ * @param props.color - the stop's color, `#RRGGBB`
+ * @param props.onCommit - called with the typed color, `#RRGGBB` upper case, once it differs
  * @param props.ariaLabel - the accessible name
  * @returns the field
  */
@@ -245,7 +245,7 @@ function StopHexField({ color, onCommit, ariaLabel }: StopHexFieldProps): React.
  */
 export interface GradientEditorProps {
     /**
-     * The gradient's colour stops, when you drive the editor from your own
+     * The gradient's color stops, when you drive the editor from your own
      * state. Order them by `offset`; the editor keeps them in order as it
      * works.
      */
@@ -271,12 +271,12 @@ export interface GradientEditorProps {
      */
     showDirection?: boolean;
     /**
-     * Called whenever the gradient changes: a colour, a position, a stop added
+     * Called whenever the gradient changes: a color, a position, a stop added
      * or a stop removed.
      *
      * Both halves of the gradient are passed on every change, so a consumer
      * never has to remember which one moved. The event that caused the change
-     * is third and optional -- a drag and the colour picker report none.
+     * is third and optional -- a drag and the color picker report none.
      *
      * While a stop handle is being dragged this is called on every step. Use
      * `onChangeEnd` if you want the settled value only.
@@ -369,15 +369,15 @@ function RotateShapeGlyph(): React.JSX.Element {
 
 /**
  * An editor for a multi-stop linear gradient, laid out as Figma's: square stop handles over a
- * gradient bar, a colour picker (ColorPickerPanel, without opacity) for the selected stop, a
+ * gradient bar, a color picker (ColorPickerPanel, without opacity) for the selected stop, a
  * "Stops" list of rows (position, chit and hex, remove), and an optional direction row (the
  * angle, flip and rotate).
  *
  * One stop is selected at a time: its handle, its row's chit, or focus entering its row selects
- * it, and the picker edits its colour. The row's hex box edits it too. Nothing opens a pop-out.
+ * it, and the picker edits its color. The row's hex box edits it too. Nothing opens a pop-out.
  *
- * Drag a handle to move its stop, click the bar to add a stop there (its colour mixed from its
- * neighbours), and use the arrow keys on a focused handle to nudge it (Shift for 10%), Home /
+ * Drag a handle to move its stop, click the bar to add a stop there (its color mixed from its
+ * neighbors), and use the arrow keys on a focused handle to nudge it (Shift for 10%), Home /
  * End to send it to an end, and Delete or Backspace to remove it. The list is bounded by
  * `minStops` and `maxStops`; at either bound the button that would cross it is disabled.
  *
@@ -388,7 +388,7 @@ function RotateShapeGlyph(): React.JSX.Element {
  * Every stop carries an `id`, which keeps the right controls attached to the right stop as stops
  * are added, removed and reordered. Build stops with `createColorStop`.
  * @param props - Component props
- * @param props.stops - The gradient's colour stops, when you drive the editor from your own state
+ * @param props.stops - The gradient's color stops, when you drive the editor from your own state
  * @param props.defaultStops - The stops the editor starts with when it keeps its own state
  * @param props.direction - The angle the gradient runs at, when you drive the editor from your own state
  * @param props.defaultDirection - The angle the editor starts at when it keeps its own state
@@ -531,7 +531,7 @@ export function GradientEditor({
     };
 
     /**
-     * A click on the bar adds a stop there, its colour mixed from the stops either side.
+     * A click on the bar adds a stop there, its color mixed from the stops either side.
      * @param event - the click
      */
     const addStopAt = (event: React.MouseEvent<HTMLDivElement>): void => {
@@ -626,9 +626,9 @@ export function GradientEditor({
     };
 
     /**
-     * The stops with one stop recoloured.
+     * The stops with one stop recolored.
      * @param id - which stop
-     * @param color - the new colour
+     * @param color - the new color
      * @returns a new array of stops
      */
     const withStopColor = (id: string, color: string): ColorStop[] =>

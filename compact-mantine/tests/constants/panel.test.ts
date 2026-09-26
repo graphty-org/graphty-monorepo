@@ -4,7 +4,7 @@ import { PANEL_GRID, PANEL_INK } from "../../src/constants/panel";
 import { CM_COLORS, CM_HIGH_CONTRAST, type CmColorName } from "../../src/theme/tokens";
 
 // PANEL_INK resolves through the --cm-* token table. These tests resolve each ink in each
-// scheme and contrast mode and measure WCAG 2.x contrast on the composited colour, so the AA
+// scheme and contrast mode and measure WCAG 2.x contrast on the composited color, so the AA
 // option provably reaches AA and a token moved below its role's ratio fails here.
 
 type Scheme = "light" | "dark";
@@ -26,7 +26,7 @@ function resolve(name: CmColorName, scheme: Scheme, mode: Mode): Rgba {
     return [parseInt(hex.slice(0, 2), 16), parseInt(hex.slice(2, 4), 16), parseInt(hex.slice(4, 6), 16), a];
 }
 
-/** Composite a (possibly translucent) colour over an opaque ground. */
+/** Composite a (possibly translucent) color over an opaque ground. */
 function over(top: Rgba, ground: Rgba): Rgba {
     const a = top[3];
     return [0, 1, 2].map((i) => top[i] * a + ground[i] * (1 - a)).concat(1) as Rgba;

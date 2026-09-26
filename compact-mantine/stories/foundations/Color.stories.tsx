@@ -6,18 +6,18 @@ import { CM_COLORS, CM_HIGH_CONTRAST } from "../../src/theme/tokens";
 import { BOTH_SCHEMES } from "../helpers/schemes";
 
 /**
- * Every colour the theme draws with, and how light and dark work.
+ * Every color the theme draws with, and how light and dark work.
  *
- * Each colour is a CSS custom property named `--cm-<role>` (`--cm-bg`, `--cm-text-secondary`,
+ * Each color is a CSS custom property named `--cm-<role>` (`--cm-bg`, `--cm-text-secondary`,
  * `--cm-bg-brand`, ...), written with the CSS `light-dark()` function, so it resolves from the
  * `color-scheme` of the element that uses it rather than from a class on the page. That is why
  * one theme serves both schemes, and why a subtree can render dark inside a light app: menus,
  * list boxes, tooltips and the toast set `color-scheme: dark` on their surface and every token
  * inside follows.
  *
- * ## Using the colours in your own code
+ * ## Using the colors in your own code
  *
- * Read `PANEL_INK` rather than a token name or a hex. It names one colour per role a panel row
+ * Read `PANEL_INK` rather than a token name or a hex. It names one color per role a panel row
  * paints -- `VALUE` for primary text, `CHROME` for secondary, `SURFACE` for a field, `SELECTED`,
  * `HOVER`, `BORDER`, `ACCENT`, `FOCUS`, `MENU` and more -- and every entry is a `var(--cm-*)`, so it
  * follows the scheme and the contrast option with no further work.
@@ -43,7 +43,7 @@ import { BOTH_SCHEMES } from "../helpers/schemes";
  * them for reuse. Every other Mantine palette (`red`, `blue`, ...) is Mantine's own.
  */
 const meta: Meta = {
-    title: "Foundations/Colour",
+    title: "Foundations/Color",
     parameters: { layout: "padded" },
 };
 
@@ -81,7 +81,7 @@ function Swatch({ name, scheme }: { name: TokenName; scheme: "light" | "dark" })
 /**
  * One panel, rendered once in each scheme from the same theme object: a section, a field pair,
  * a toggle, a segmented control and a group. Nothing in the components names a scheme; each
- * colour resolves from the `color-scheme` of the half it is in.
+ * color resolves from the `color-scheme` of the half it is in.
  */
 export const LightAndDark: Story = {
     parameters: BOTH_SCHEMES,
@@ -104,7 +104,7 @@ export const LightAndDark: Story = {
 };
 
 /**
- * Every colour token, light and dark side by side, with its value in each. Each swatch sets
+ * Every color token, light and dark side by side, with its value in each. Each swatch sets
  * `color-scheme` on a wrapper and the token resolves for that scheme: the same mechanism a dark
  * menu uses inside the light app.
  */
@@ -142,7 +142,7 @@ export const Tokens: Story = {
 };
 
 /**
- * Every `PANEL_INK` role: the constant to import, the token it reads, and the colour it
+ * Every `PANEL_INK` role: the constant to import, the token it reads, and the color it
  * resolves to in each scheme. Paint your own rows from these and they match the components.
  */
 export const PanelInk: Story = {

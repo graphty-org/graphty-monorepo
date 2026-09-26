@@ -36,7 +36,7 @@ import { BOTH_SCHEMES } from "../helpers/schemes";
  *
  * | Story | Composed from |
  * |---|---|
- * | Sidebar | a 240px column in a [Popout.Anchor](?path=/docs/components-overlays-popout--docs); one [ControlSection](?path=/docs/components-panels-and-rows-controlsection--docs) per subject; [FieldRow](?path=/docs/components-panels-and-rows-fieldrow--docs) of [PanelField](?path=/docs/components-inputs-panelfield--docs); a [RampRow](?path=/docs/components-colour-ramprow--docs); [CompactColorInput](?path=/docs/components-colour-compactcolorinput--docs); [ToggleWithContent](?path=/docs/components-selection-togglewithcontent--docs); an [AdvancedButton](?path=/docs/components-actions-advancedbutton--docs) in a section header opening a [Popout](?path=/docs/components-overlays-popout--docs) |
+ * | Sidebar | a 240px column in a [Popout.Anchor](?path=/docs/components-overlays-popout--docs); one [ControlSection](?path=/docs/components-panels-and-rows-controlsection--docs) per subject; [FieldRow](?path=/docs/components-panels-and-rows-fieldrow--docs) of [PanelField](?path=/docs/components-inputs-panelfield--docs); a [RampRow](?path=/docs/components-color-ramprow--docs); [CompactColorInput](?path=/docs/components-color-compactcolorinput--docs); [ToggleWithContent](?path=/docs/components-selection-togglewithcontent--docs); an [AdvancedButton](?path=/docs/components-actions-advancedbutton--docs) in a section header opening a [Popout](?path=/docs/components-overlays-popout--docs) |
  * | PopOutPanel | rows ending in a [TrailingSlot](?path=/docs/components-panels-and-rows-trailingslot--docs) that holds a [PopoutButton](?path=/docs/components-overlays-popoutbutton--docs); each pop-out holds [ControlGroup](?path=/docs/components-panels-and-rows-controlgroup--docs)s under a [PanelLabelsProvider](?path=/docs/components-panels-and-rows-fieldrow--docs) |
  * | GroupedControls | two [ControlSection](?path=/docs/components-panels-and-rows-controlsection--docs)s, each holding named [ControlGroup](?path=/docs/components-panels-and-rows-controlgroup--docs)s of [FieldRow](?path=/docs/components-panels-and-rows-fieldrow--docs)s, and a [ToggleWithContent](?path=/docs/components-selection-togglewithcontent--docs) with a [StyleNumberInput](?path=/docs/components-inputs-stylenumberinput--docs) inside |
  * | InlineSettings | [FieldRow](?path=/docs/components-panels-and-rows-fieldrow--docs) with `labelPosition="inline"` under a [PanelLabelsProvider](?path=/docs/components-panels-and-rows-fieldrow--docs), and a [ToggleRowGroup](?path=/docs/components-selection-togglerowgroup--docs) |
@@ -46,13 +46,13 @@ import { BOTH_SCHEMES } from "../helpers/schemes";
  * - **The panel is 240px wide** and every row spends it the same way:
  *   `16 + 88 + 8 + 88 + 8 + 24 + 8`. `PANEL_GRID` names each number, so a row of your own can
  *   match without retyping them. See [Spacing, radii and grid](?path=/docs/foundations-spacing-radii-and-grid--docs).
- * - **A section's name does the labelling.** Fields carry a glyph instead of a caption, so a
+ * - **A section's name does the labeling.** Fields carry a glyph instead of a caption, so a
  *   row stays one line. Switch the words on with `PanelLabelsProvider` where there is no glyph
  *   to draw, as the pop-outs here do.
  * - **Rare settings go behind a gear.** A section or a row shows what is adjusted often; an
  *   `AdvancedButton` opens a pop-out with the rest. It is always beside something, never the
  *   only content of a section.
- * - **Every colour is a token.** Use `PANEL_INK` roles (or the `--cm-*` custom properties) for
+ * - **Every color is a token.** Use `PANEL_INK` roles (or the `--cm-*` custom properties) for
  *   your own surfaces, so the panel follows light and dark and the WCAG AA option.
  * - **Pop-outs need a `PopoutManager`** somewhere above them, once per application.
  *
@@ -137,7 +137,7 @@ function PopoutRow({
 
 /**
  * A node settings sidebar beside a canvas: a Size section with a pair of fields and the ramp
- * between them, a Colour section, and a Labels section whose gear opens "Label settings" to the
+ * between them, a Color section, and a Labels section whose gear opens "Label settings" to the
  * left, flush with the sidebar's edge.
  */
 export const Sidebar: Story = {
@@ -173,7 +173,7 @@ export const Sidebar: Story = {
                         <RampRow label="Size range" min="1.0" max="4.0" variant="size" scale="sqrt" />
                     </ControlSection>
 
-                    <ControlSection label="Colour">
+                    <ControlSection label="Color">
                         <CompactColorInput label="Fill" defaultColor="#4A90D9" defaultOpacity={100} />
                         <CompactColorInput label="Border" defaultColor="#2D5A87" showOpacity={false} />
                     </ControlSection>
@@ -197,7 +197,7 @@ export const Sidebar: Story = {
                             placement="left"
                         >
                             <Popout.Content>
-                                <CompactColorInput label="Text colour" defaultColor="#FFFFFF" showOpacity={false} />
+                                <CompactColorInput label="Text color" defaultColor="#FFFFFF" showOpacity={false} />
                                 <CompactColorInput label="Background" defaultColor="#000000" defaultOpacity={60} />
                                 <ToggleRowGroup label="Label options">
                                     <ToggleRow label="Bold" />
@@ -229,7 +229,7 @@ export const PopOutPanel: Story = {
                     <FieldRow>
                         <PanelField label="Maximum items" kind="number" defaultValue={100} min={1} />
                     </FieldRow>
-                    <ToggleRowGroup label="Behaviour">
+                    <ToggleRowGroup label="Behavior">
                         <ToggleRow label="Auto-save" defaultChecked />
                         <ToggleRow label="Tooltips" defaultChecked />
                     </ToggleRowGroup>
@@ -260,7 +260,7 @@ export const PopOutPanel: Story = {
 };
 
 /**
- * A panel organised into sections, and sections into named groups: a section is a subject that
+ * A panel organized into sections, and sections into named groups: a section is a subject that
  * folds, a group is a named cluster of rows inside it that never does. Shown in light and dark.
  */
 export const GroupedControls: Story = {
@@ -284,7 +284,7 @@ export const GroupedControls: Story = {
 
             <ControlSection label="Effects">
                 <ToggleWithContent label="Shadow">
-                    <CompactColorInput label="Colour" defaultColor="#000000" defaultOpacity={25} />
+                    <CompactColorInput label="Color" defaultColor="#000000" defaultOpacity={25} />
                     <StyleNumberInput label="Blur" defaultValue={4} min={0} max={64} suffix="px" />
                 </ToggleWithContent>
                 <ToggleWithContent label="Glow" defaultChecked>

@@ -94,7 +94,7 @@ export const Default: Story = {
 };
 
 /**
- * One held-open tooltip in a labelled cell, rendered in place.
+ * One held-open tooltip in a labeled cell, rendered in place.
  * @param props - the caption and the tooltip
  * @param props.caption - what the cell shows
  * @param props.children - the tooltip and its trigger
@@ -160,7 +160,7 @@ export const States: Story = {
 
 /**
  * The live timing inside one `Tooltip.Group`, as an application shell has it: hover one button
- * and wait a second, then slide to its neighbours and each tooltip follows at once.
+ * and wait a second, then slide to its neighbors and each tooltip follows at once.
  */
 export const WarmHandOff: Story = {
     render: () => (

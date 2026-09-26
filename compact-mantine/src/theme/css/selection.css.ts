@@ -5,7 +5,7 @@
  *
  * Every rule is keyed on a `cm-*` class the theme extensions hand to Mantine through
  * `classNames` (../styles/controls.ts, ../styles/navigation.ts) or that a component of this
- * package renders itself. Colours are tokens only, so light, dark and the AA option need no
+ * package renders itself. Colors are tokens only, so light, dark and the AA option need no
  * rule of their own.
  *
  * Specificity: Mantine's stylesheet loads first and ours is appended after it, so a rule of the
@@ -68,7 +68,7 @@ const css = `
     transition: none;
     cursor: default;
 }
-/* Neutral checked keeps the unchecked face (Mantine paints :checked with the primary colour). */
+/* Neutral checked keeps the unchecked face (Mantine paints :checked with the primary color). */
 .cm-checkbox[data-variant="neutral"] .cm-checkbox-input:is(:checked, [data-indeterminate]) {
     background-color: var(--cm-bg-secondary);
     border-color: var(--cm-border-translucent-strong);
@@ -140,7 +140,7 @@ const css = `
 }
 .cm-checkbox-input:disabled + .cm-checkbox-icon { color: var(--cm-icon-ondisabled); }
 .cm-checkbox-input:disabled + .cm-checkbox-icon .cm-checkbox-halo { display: none; }
-/* The neutral (panel) variant stays grey when checked; its glyph is the ink. */
+/* The neutral (panel) variant stays gray when checked; its glyph is the ink. */
 .cm-checkbox[data-variant="neutral"] .cm-checkbox-icon { color: var(--cm-icon); }
 .cm-checkbox[data-variant="neutral"] .cm-checkbox-halo { display: none; }
 .cm-checkbox[data-variant="neutral"] .cm-checkbox-input:disabled + .cm-checkbox-icon { color: var(--cm-icon-disabled); }
@@ -238,7 +238,7 @@ const css = `
     inset-inline-start: calc(var(--switch-width) - var(--switch-thumb-size) * 1.5 - var(--switch-height) / 4 - 1px);
     box-shadow: 0 0 0 1px var(--cm-control-icon-outline);
 }
-/* Mixed: a 10 x 2 bar centred in the track. */
+/* Mixed: a 10 x 2 bar centered in the track. */
 .cm-switch-input[data-indeterminate] + * > .cm-switch-thumb {
     width: calc(var(--switch-thumb-size) * 1.25);
     height: 2px;
@@ -465,7 +465,7 @@ const css = `
 }
 .cm-anchor:not([data-variant="secondary"]):active::before,
 .cm-anchor:not([data-variant="secondary"])[data-cm-state="pressed"]::before { background-color: var(--cm-bg-selected); }
-/* The secondary link ("Drafts"): grey, a hover pill of its own, a 2px inner ring. */
+/* The secondary link ("Drafts"): gray, a hover pill of its own, a 2px inner ring. */
 .cm-anchor[data-variant="secondary"] {
     display: inline-block;
     padding: 0 4px;

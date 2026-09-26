@@ -1,6 +1,6 @@
 /**
- * A row of labelled cells for the input family's `States` stories: every state side by side, in
- * whatever colour scheme and contrast the Storybook toolbar selects. Hover and focus that a
+ * A row of labeled cells for the input family's `States` stories: every state side by side, in
+ * whatever color scheme and contrast the Storybook toolbar selects. Hover and focus that a
  * pointer cannot hold still are forced with `data-state` (src/theme/css/inputs.css.ts).
  *
  * Written without JSX so it is a plain `.ts` module the stories import (the lint setup types only
@@ -13,7 +13,7 @@ import { createElement, type FC, type ReactElement, type ReactNode } from "react
 // same component typed as the plain paragraph it renders here.
 const Caption = Text as unknown as FC<TextProps & { children?: ReactNode }>;
 
-/** One labelled cell. */
+/** One labeled cell. */
 export interface StateCell {
     /** The state's name, drawn above the cell. */
     state: string;

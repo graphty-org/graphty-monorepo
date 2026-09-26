@@ -86,7 +86,7 @@ describe("type roles (spec 2.3)", () => {
     });
 });
 
-describe.skipIf(!STUDY)("colour tokens equal the Figma variables (spec 2.1)", () => {
+describe.skipIf(!STUDY)("color tokens equal the Figma variables (spec 2.1)", () => {
     const study = STUDY ?? "";
     const light = STUDY
         ? (JSON.parse(readFileSync(join(study, "tokens/css-variables.json"), "utf8")) as { vars: Record<string, string> }).vars
@@ -147,7 +147,7 @@ describe("the AA option (spec 2.9)", () => {
 });
 
 describe("elevations (spec 2.6)", () => {
-    it("carries both schemes' layers, each colour stop light-dark() with transparent for the other", () => {
+    it("carries both schemes' layers, each color stop light-dark() with transparent for the other", () => {
         const value = elevationValue("400");
         const layers = value.split(/,\s*(?![^(]*\))/);
         expect(layers.length).toBeGreaterThan(0);
@@ -165,7 +165,7 @@ describe("elevations (spec 2.6)", () => {
 describe("the stylesheet", () => {
     const css = compactGlobalCss();
 
-    it("declares every colour token with light-dark() where the schemes differ", () => {
+    it("declares every color token with light-dark() where the schemes differ", () => {
         for (const [name, token] of Object.entries(CM_COLORS) as [string, CmColorToken][]) {
             const expected = token.light === token.dark ? token.light : `light-dark(${token.light}, ${token.dark})`;
             expect(css).toContain(`--cm-${name}: ${expected};`);

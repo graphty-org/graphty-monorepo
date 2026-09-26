@@ -17,7 +17,7 @@ import { focusMarked, StateGrid } from "../../helpers/selection-states";
  * cell draws three bars lined up the way the children will be; every other cell is a dot, and the
  * cell under the pointer previews its bars.
  *
- * Reach for a Mantine `SegmentedControl` when the choice runs along one axis only (left, centre,
+ * Reach for a Mantine `SegmentedControl` when the choice runs along one axis only (left, center,
  * right), and for a `Select` when the positions are named rather than drawn.
  *
  * ## Usage
@@ -47,7 +47,7 @@ import { focusMarked, StateGrid } from "../../helpers/selection-states";
  * |---|---|
  * | Box | 88 x 56 on `--cm-bg-secondary`, radius 5 |
  * | Cell | 29.3 x 16; an idle cell is a 2 x 2 dot |
- * | Chosen cell | three bars 7, 10 and 5 long, 2 wide, 2 apart, in the brand text colour |
+ * | Chosen cell | three bars 7, 10 and 5 long, 2 wide, 2 apart, in the brand text color |
  */
 const meta: Meta<typeof AlignmentMatrix> = {
     title: "Components/Selection/AlignmentMatrix",

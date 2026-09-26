@@ -40,11 +40,11 @@ export interface ControlSubGroupProps extends DisclosureProps {
  * settings off the panel. Where a fold inside the section is still wanted, this
  * draws it the Figma way: a 32px row whose chevron hangs in the 16px gutter to
  * the left of the section's content edge, and a label in the secondary text
- * colour that comes up to the primary one under the pointer. The content opens
+ * color that comes up to the primary one under the pointer. The content opens
  * in one frame, on the same grid as the rows around it.
  *
  * The header is one button carrying the open state, and the controls it reveals
- * are a labelled region that the button points at. Nothing inside a closed
+ * are a labeled region that the button points at. Nothing inside a closed
  * sub-group can be reached by Tab.
  *
  * Drive it from your own state with `opened` and `onOpenChange`, or leave both

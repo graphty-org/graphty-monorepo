@@ -165,7 +165,7 @@ describe("TextInput - All CSS Values (Browser)", () => {
             expect(styleOf(container, ".mantine-TextInput-input").paddingRight).toBe("8px");
         });
 
-        it("text colour is --cm-text", () => {
+        it("text color is --cm-text", () => {
             const { container } = renderWithTheme(<TextInput label="Test" />);
             expect(hex(styleOf(container, ".mantine-TextInput-input").color)).toBe("#000000e5");
         });

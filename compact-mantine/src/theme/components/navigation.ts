@@ -33,7 +33,7 @@ const TAB_DEFAULT_PROPS = {
 /**
  * Theme extensions for the navigation components (design/figma-spec.md 4.2, 5.1, 5.9).
  *
- * - Anchor: Figma's link, 11/16 brand text with no underline; `variant="secondary"` is the grey
+ * - Anchor: Figma's link, 11/16 brand text with no underline; `variant="secondary"` is the gray
  *   "Drafts" link. The pressed pill and the focus ring are the stylesheet's.
  * - Tabs: Figma's pill tabs are the DEFAULT (`variant="pills"`); `variant="default"` still draws
  *   Mantine's underline tabs. A tab activates on mouse-down as well as on click and on the arrow
@@ -43,7 +43,7 @@ const TAB_DEFAULT_PROPS = {
  * - NavLink, Pagination, Stepper, Burger: re-skinned on the tokens at their existing sizes.
  *
  * Sizes travel through `vars` resolvers that read `props.size` (see ../styles/size-scale.ts);
- * colours, states and focus rings through the `cm-*` classNames and ../css/selection.css.ts.
+ * colors, states and focus rings through the `cm-*` classNames and ../css/selection.css.ts.
  */
 export const navigationComponentExtensions = {
     Anchor: Anchor.extend({

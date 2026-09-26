@@ -43,7 +43,7 @@ describe("DataRow", () => {
         expect(screen.getByText("Mr_Whiskers")).toBeInTheDocument();
     });
 
-    it("carries the whole string as a title, because the name ellipsises", () => {
+    it("carries the whole string as a title, because the name ellipsizes", () => {
         renderRow(<DataRow name="Mrs_Henderson_from_the_house_on_the_corner" />);
 
         const label = screen.getByTestId("data-row-name");
@@ -83,7 +83,7 @@ describe("DataRow", () => {
     });
 
     describe("the value", () => {
-        it("draws bare, at the secondary text colour", () => {
+        it("draws bare, at the secondary text color", () => {
             renderRow(<DataRow name="Mr_Whiskers" value="4" />);
 
             const value = screen.getByTestId("data-row-value");
@@ -112,7 +112,7 @@ describe("DataRow", () => {
     });
 
     describe("the leading icon", () => {
-        it("draws in a 16px slot at the secondary colour when the row has a type", () => {
+        it("draws in a 16px slot at the secondary color when the row has a type", () => {
             renderRow(<DataRow name="Betweenness" icon={<FieldGlyph name="attribute" />} value="Number" />);
 
             const slot = screen.getByTestId("data-row-icon");
@@ -483,7 +483,7 @@ describe("DataRowHeader", () => {
         expect(screen.queryByTestId("data-row-header-unit")).toBeNull();
     });
 
-    it("is a 32px caption at 11/16 550, both halves at the secondary colour", () => {
+    it("is a 32px caption at 11/16 550, both halves at the secondary color", () => {
         renderRow(<DataRowHeader label="Highest betweenness" unit="score" />);
 
         const header = screen.getByTestId("data-row-header");
@@ -616,14 +616,14 @@ describe("DataRowHeader", () => {
             expect(screen.getByTestId("data-row-header")).toHaveAttribute("aria-sort", "descending");
         });
 
-        it("draws the sorted column's name in the primary text colour", () => {
+        it("draws the sorted column's name in the primary text color", () => {
             renderRow(<DataRowHeader label="Most connected" sortDirection="ascending" onSortChange={vi.fn()} />);
 
             expect(screen.getByTestId("data-row-header")).toHaveAttribute("data-sorted");
             expect(treeCss).toMatch(/\.cm-data-row-header\[data-sorted\] \.cm-data-row-header-label,[^{]*\{ color: var\(--cm-text\); \}/);
         });
 
-        it("leaves an unsorted column's name at the secondary colour of the caption", () => {
+        it("leaves an unsorted column's name at the secondary color of the caption", () => {
             renderRow(<DataRowHeader label="Most connected" onSortChange={vi.fn()} />);
 
             expect(screen.getByTestId("data-row-header")).not.toHaveAttribute("data-sorted");
@@ -741,7 +741,7 @@ describe("RankChip", () => {
         expect(treeCss).not.toMatch(/\.cm-rank-chip \{[^}]*text-transform/);
     });
 
-    it("is transparent, labelled in the primary text colour (Figma's Beta badge)", () => {
+    it("is transparent, labeled in the primary text color (Figma's Beta badge)", () => {
         renderRow(<RankChip>#1</RankChip>);
 
         expect(screen.getByTestId("rank-chip")).not.toHaveAttribute("style");

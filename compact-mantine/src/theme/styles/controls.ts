@@ -3,7 +3,7 @@
  * Slider, RangeSlider, SegmentedControl), measured from the Figma editor
  * (design/figma-spec.md section 5).
  *
- * Sizes travel through the `vars` resolvers in ../components/controls.ts; every colour, state and
+ * Sizes travel through the `vars` resolvers in ../components/controls.ts; every color, state and
  * pseudo element lives in ../css/selection.css.ts, keyed on the `cm-*` class names below, which
  * the extensions hand to Mantine through `classNames`.
  *
@@ -15,7 +15,7 @@
  * - Slider: the small variant, 8px track and 12px thumb (C29)
  * - SegmentedControl: 11px type, 0 8px padding (C17)
  * The other sizes keep a monotonic ramp around them so an explicit `size` still differs from its
- * neighbours (product owner, 2026-09-13: "sizes aren't varying anymore"; see ./size-scale.ts).
+ * neighbors (product owner, 2026-09-13: "sizes aren't varying anymore"; see ./size-scale.ts).
  */
 
 import type { CompactSizeScale } from "./size-scale";

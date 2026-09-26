@@ -40,7 +40,7 @@ export function StoryPanel({ children, padded = false }: { children: ReactNode; 
  * @param props.force - The state to force on the subtree
  * @param props.padded - Pad the content band like a section's rows
  * @param props.children - The component in that state
- * @returns The labelled state
+ * @returns The labeled state
  */
 export function StoryState({
     name,

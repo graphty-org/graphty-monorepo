@@ -40,7 +40,7 @@ const meta: Meta<typeof Switch> = {
 export default meta;
 type Story = StoryObj<typeof Switch>;
 
-/** A labelled switch; use Controls to try `checked` and `disabled`. */
+/** A labeled switch; use Controls to try `checked` and `disabled`. */
 export const Default: Story = {
     args: {
         label: "Enable feature",

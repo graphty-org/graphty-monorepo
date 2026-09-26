@@ -109,7 +109,7 @@ export const RailButton = forwardRef<HTMLButtonElement, RailButtonProps>(functio
     ref,
 ) {
     const isActive = active === true || others["aria-expanded"] === true || others["aria-expanded"] === "true";
-    // The tooltip is centred on the 32px pill, 8px above the 56px button's centre, its bubble 6px
+    // The tooltip is centered on the 32px pill, 8px above the 56px button's center, its bubble 6px
     // past the button's end edge (ls/state-rail-button-hover-tooltip #70). With an object offset
     // Mantine no longer adds half the arrow, so the main axis is the whole gap.
     return (

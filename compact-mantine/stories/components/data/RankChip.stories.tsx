@@ -47,7 +47,7 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
  * |---|---|
  * | Height | 16px |
  * | Radius | 5px |
- * | Outline | 1px, border colour, drawn inside |
+ * | Outline | 1px, border color, drawn inside |
  * | Text | 11/16 at weight 450 |
  * | Fill | transparent |
  */

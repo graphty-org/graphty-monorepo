@@ -16,16 +16,16 @@ import { ForceState, StateCell } from "../../helpers/force-state";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 
 /**
- * The colour picker body on its own: a saturation and brightness field, hue and opacity
+ * The color picker body on its own: a saturation and brightness field, hue and opacity
  * sliders, the eyedropper, a format select with a joined value field, and a swatch set.
  *
  * ## When to use it
  *
  * | You need | Reach for |
  * |---|---|
- * | A colour setting in a panel row | [CompactColorInput](?path=/docs/components-colour-compactcolorinput--docs), which opens this picker from its chit |
+ * | A color setting in a panel row | [CompactColorInput](?path=/docs/components-color-compactcolorinput--docs), which opens this picker from its chit |
  * | The picker on a surface of your own: your own pop-over, a toolbar, an inline editor | **ColorPickerPanel** |
- * | Solid or gradient paint in one picker | ColorPickerPanel with a [GradientEditor](?path=/docs/components-colour-gradienteditor--docs) in its `gradient` slot |
+ * | Solid or gradient paint in one picker | ColorPickerPanel with a [GradientEditor](?path=/docs/components-color-gradienteditor--docs) in its `gradient` slot |
  *
  * It draws no header and no close button. Put it inside a `Popout.Panel` (as CompactColorInput
  * does) for the header, Escape and one-pop-over-at-a-time, or on any 240-wide surface.
@@ -59,7 +59,7 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
  * - Hue and opacity are Mantine sliders: arrows step 1, Shift 10, Home / End go to the ends.
  * - The value box commits on Enter or blur and reverts on Escape; the format select offers Hex,
  *   RGB, HSL and HSB.
- * - Each swatch is a button named by its colour string; the set is a group named "Swatches".
+ * - Each swatch is a button named by its color string; the set is a group named "Swatches".
  * - The eyedropper appears only where the browser has the EyeDropper API (Chromium).
  * - Every name can be replaced through the `labels` prop.
  *
@@ -75,7 +75,7 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
  * | Swatches | 16 x 16, radius 20%, on a 24px pitch |
  */
 const meta: Meta<typeof ColorPickerPanel> = {
-    title: "Components/Colour/ColorPickerPanel",
+    title: "Components/Color/ColorPickerPanel",
     component: ColorPickerPanel,
     parameters: { layout: "padded" },
 };
@@ -99,7 +99,7 @@ function Card({ children }: { children: React.ReactNode }): React.JSX.Element {
 
 /**
  * The picker driven from its own state, starting at `value` and following it when it changes.
- * @param props - ColorPickerPanel props; `value` is the starting colour
+ * @param props - ColorPickerPanel props; `value` is the starting color
  * @returns the picker on a card
  */
 function Live({ value: initial, onChange, ...props }: ColorPickerPanelProps): React.JSX.Element {
@@ -217,7 +217,7 @@ export const SolidOrGradient: Story = {
 
 /**
  * Mantine's own ColorSwatch, HueSlider and AlphaSlider under the theme: the 16px picker chit
- * (a ring on near-white, a checkerboard half on translucent colours), the 14px in-field chit
+ * (a ring on near-white, a checkerboard half on translucent colors), the 14px in-field chit
  * (`variant="field"`), and the sliders' 172 x 16 tracks with the 16px thumb.
  */
 export const MantineParts: Story = {

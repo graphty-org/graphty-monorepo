@@ -10,16 +10,16 @@ import { ForceState, StateCell } from "../../helpers/force-state";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 
 /**
- * A colour and its opacity in one 24px panel field: a colour chit that opens a picker, the hex
+ * A color and its opacity in one 24px panel field: a color chit that opens a picker, the hex
  * value, and the opacity.
  *
  * ## When to use it
  *
  * | You need | Reach for |
  * |---|---|
- * | A colour setting in a panel row, with its picker a click away | **CompactColorInput** |
- * | The picker itself on a surface of your own (a toolbar pop-over, an inline editor) | [ColorPickerPanel](?path=/docs/components-colour-colorpickerpanel--docs) |
- * | Several colours at positions along a line | [GradientEditor](?path=/docs/components-colour-gradienteditor--docs) |
+ * | A color setting in a panel row, with its picker a click away | **CompactColorInput** |
+ * | The picker itself on a surface of your own (a toolbar pop-over, an inline editor) | [ColorPickerPanel](?path=/docs/components-color-colorpickerpanel--docs) |
+ * | Several colors at positions along a line | [GradientEditor](?path=/docs/components-color-gradienteditor--docs) |
  *
  * CompactColorInput is ColorPickerPanel inside a pop-out, plus the field that opens it. Its one
  * idea beyond the field: `undefined` means "the reader has chosen nothing here". While nothing is
@@ -74,7 +74,7 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
  * | Opacity box | 54 x 24 after a 1px seam, "%" is a 14 x 24 scrub handle |
  */
 const meta: Meta<typeof CompactColorInput> = {
-    title: "Components/Colour/CompactColorInput",
+    title: "Components/Color/CompactColorInput",
     component: CompactColorInput,
     parameters: {
         layout: "padded",
@@ -93,7 +93,7 @@ const meta: Meta<typeof CompactColorInput> = {
 export default meta;
 type Story = StoryObj<typeof CompactColorInput>;
 
-/** Nothing has been chosen, so the colour and the opacity are drawn in italics and there is no reset. */
+/** Nothing has been chosen, so the color and the opacity are drawn in italics and there is no reset. */
 export const Default: Story = {
     args: {
         defaultColor: "#5B8FF9",
@@ -103,8 +103,8 @@ export const Default: Story = {
 
 /**
  * Every state, light and dark side by side: rest, the default in italics, hover, focus and
- * picker open (forced, since a story cannot hold the pointer), a translucent colour with the
- * checkerboard half, a near-white colour with its ring, disabled, and without opacity.
+ * picker open (forced, since a story cannot hold the pointer), a translucent color with the
+ * checkerboard half, a near-white color with its ring, disabled, and without opacity.
  */
 export const States: Story = {
     parameters: BOTH_SCHEMES,
@@ -165,7 +165,7 @@ export const WithLabel: Story = {
     },
 };
 
-/** Without the opacity box, for a colour that is always solid: the hex box runs to the end of the field. */
+/** Without the opacity box, for a color that is always solid: the hex box runs to the end of the field. */
 export const WithoutOpacity: Story = {
     args: {
         label: "Nose Boop",

@@ -269,7 +269,7 @@ describe.each(DIRECTIONS)("a field row under dir=%s", (dir) => {
         }
     });
 
-    it("draws Figma's labelled row: 50 tall, captions above each column on the same grid", () => {
+    it("draws Figma's labeled row: 50 tall, captions above each column on the same grid", () => {
         renderInBand(
             <PanelLabelsProvider showLabels>
                 <FieldRow trailing={<AdvancedButton label="Individual corners" onClick={() => undefined} />}>

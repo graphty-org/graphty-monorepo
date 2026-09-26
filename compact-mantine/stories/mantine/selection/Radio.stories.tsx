@@ -5,7 +5,7 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
 import { focusMarked, StateGrid } from "../../helpers/selection-states";
 
 /**
- * Mantine's `Radio`, themed on the checkbox's colours: Figma's chrome has no free-standing radio,
+ * Mantine's `Radio`, themed on the checkbox's colors: Figma's chrome has no free-standing radio,
  * so it wears the checkbox look with a 6px white dot when checked. Every prop is Mantine's: see
  * [Radio on mantine.dev](https://mantine.dev/core/radio/).
  *
@@ -45,7 +45,7 @@ const meta: Meta<typeof Radio> = {
 export default meta;
 type Story = StoryObj<typeof Radio>;
 
-/** One labelled radio; use Controls to try `checked` and `disabled`. */
+/** One labeled radio; use Controls to try `checked` and `disabled`. */
 export const Default: Story = {
     args: {
         label: "Option A",

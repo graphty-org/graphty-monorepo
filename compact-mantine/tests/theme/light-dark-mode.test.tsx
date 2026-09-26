@@ -1,8 +1,8 @@
 /**
- * Light and dark are Mantine's own colour scheme; one theme object serves both
+ * Light and dark are Mantine's own color scheme; one theme object serves both
  * (design/figma-spec.md 2 and 3.1). The tokens are `light-dark()` values that resolve from the
  * `color-scheme` Mantine sets on :root, so what has to hold here is that Mantine keeps setting it,
- * and that the dark-scoped surfaces exist. The resolved colours are measured in Chromium by
+ * and that the dark-scoped surfaces exist. The resolved colors are measured in Chromium by
  * tests/theme/css-tokens.browser.test.tsx.
  */
 import { Button, MantineProvider, useMantineColorScheme } from "@mantine/core";

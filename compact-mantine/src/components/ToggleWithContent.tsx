@@ -12,7 +12,7 @@ import { useControlAnnotation } from "../utils/control-annotation";
 // value-first change handler with the event second, the forwarded focus and
 // blur, the logical properties, the ARIA and the user-facing documentation.
 //
-// Kept rather than deprecated in favour of ToggleRow, and the reasoning is
+// Kept rather than deprecated in favor of ToggleRow, and the reasoning is
 // worth recording: ToggleRow is one boolean on one row and has nowhere to put
 // dependent controls. Reveal is the whole of this component, so ToggleRow does
 // not replace it. What ToggleRow *does* replace is a bare checkbox row with
@@ -75,7 +75,7 @@ export interface ToggleWithContentProps {
      * Whether the toggle can be changed.
      *
      * A disabled toggle keeps its place and its word, drops to the dimmed text
-     * colour Mantine's own disabled controls use, and is announced as
+     * color Mantine's own disabled controls use, and is announced as
      * unavailable rather than merely looking it. Controls already revealed stay
      * revealed; disable them yourself if they should not be touched either.
      */
@@ -135,7 +135,7 @@ export interface ToggleWithContentProps {
  * it.
  *
  * Reach for it when a setting is a yes or no that brings its own settings with
- * it -- a glow with a radius and a colour, an outline with a width, a legend
+ * it -- a glow with a radius and a color, an outline with a width, a legend
  * with a position. Turning the feature off takes its controls off the screen,
  * so a panel shows only what is currently in play.
  *
@@ -208,7 +208,7 @@ export function ToggleWithContent({
     };
 
     // The minimum widths of zero are what let a label longer than the panel
-    // shrink and ellipsise rather than pushing the row wider, which is what a
+    // shrink and ellipsize rather than pushing the row wider, which is what a
     // translation of a short English word usually does.
     const controlStyles: Record<"root" | "body" | "labelWrapper" | "label", React.CSSProperties> = {
         root: { minWidth: 0 },
@@ -234,7 +234,7 @@ export function ToggleWithContent({
     // The per-toggle string is an override of the shared one rather than the
     // only way to set it, so a toggle that says nothing about its own bound
     // state still announces it in whatever language LabelsProvider was given.
-    // An empty string is the caller saying "announce nothing", and is honoured.
+    // An empty string is the caller saying "announce nothing", and is honored.
     const boundText = boundDescription ?? labels.fieldBound;
 
     // Unlike the Input.Wrapper controls in this library, a Mantine Checkbox DOES

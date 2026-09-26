@@ -8,7 +8,7 @@
 // no single component to live beside.
 
 /**
- * One stop of a gradient: a colour, and where along the ramp it sits.
+ * One stop of a gradient: a color, and where along the ramp it sits.
  *
  * Build these with `createColorStop` rather than writing the object by hand, so
  * that the identifier is unique. The identifier is what React keys the stop by
@@ -20,7 +20,7 @@ export interface ColorStop {
     id: string;
     /** Where the stop sits along the ramp, from 0 at the start to 1 at the end. */
     offset: number;
-    /** The stop's colour, as a hex string such as `#6366f1`. */
+    /** The stop's color, as a hex string such as `#6366f1`. */
     color: string;
 }
 
@@ -134,7 +134,7 @@ export type {
 // Selection: the alignment matrix.
 export type { AlignmentMatrixProps, AlignmentMatrixValue } from "../components/selection/AlignmentMatrix";
 
-// Buttons, chrome, colour, and the tree and lists.
+// Buttons, chrome, color, and the tree and lists.
 export type { SplitButtonProps, ToggleIconButtonProps } from "../components/buttons";
 export type { ResizeHandleBounds, ResizeHandleEdge, ResizeHandleProps } from "../components/chrome/ResizeHandle";
 export type {

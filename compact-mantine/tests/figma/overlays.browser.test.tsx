@@ -8,7 +8,7 @@
  * the spec section beside them.
  *
  * Box shadows are compared as SETS of layers: Figma lists the same layers in a different order
- * from the elevation tokens, and the order of equal-colour outer shadows does not change the
+ * from the elevation tokens, and the order of equal-color outer shadows does not change the
  * picture.
  */
 import { Button, Loader, Menu, Modal, Popover, Progress, ScrollArea, Tooltip } from "@mantine/core";
@@ -30,7 +30,7 @@ import {
     figmaAvailable,
     figmaElement,
     figmaSpec,
-    normalise,
+    normalize,
     part,
     renderFigma,
     resetHarness,
@@ -45,12 +45,12 @@ beforeAll(async () => {
 
 const SCHEMES = ["light", "dark"] as const;
 
-/** Every layer of a box-shadow, normalised, as a sorted list. */
+/** Every layer of a box-shadow, normalized, as a sorted list. */
 function layers(value: string): string[] {
     const out: string[] = [];
     let depth = 0;
     let start = 0;
-    const v = normalise("boxShadow", value);
+    const v = normalize("boxShadow", value);
     for (let i = 0; i < v.length; i++) {
         if (v[i] === "(") {
             depth++;
@@ -359,7 +359,7 @@ describe("8.1 dark menu keyboard and scroll", () => {
         expect(box(menu).bottom).toBeLessThanOrEqual(window.innerHeight - 6 + 0.5);
         const after = computed(menu, "::after");
         expect(after.height).toBe("24px");
-        expect(normalise("backgroundColor", after.backgroundColor)).toBe(normalise("backgroundColor", computed(menu).backgroundColor));
+        expect(normalize("backgroundColor", after.backgroundColor)).toBe(normalize("backgroundColor", computed(menu).backgroundColor));
         // Hovering the bottom chevron scrolls the menu down; the top chevron then appears.
         await userEvent.hover(menu, { position: { x: 40, y: box(menu).height - 10 } });
         await waitFor(() => (menu.scrollTop > 40 ? true : null), 2000);
@@ -474,7 +474,7 @@ describe.skipIf(!available)("8.3 tooltip", () => {
             // Width: Figma's 109 is 16 of padding around 93 of text; our text is within 3px of it
             // (the bundled Inter Variable 4 sets these glyphs slightly narrower than Figma's Inter).
             expect(Math.abs(box(bubble).width - figma.box[2])).toBeLessThan(3);
-            // below, 6px from the trigger, centred, with an arrow filling the gap
+            // below, 6px from the trigger, centered, with an arrow filling the gap
             expect(box(bubble).top - box(trigger).bottom).toBeCloseTo(6, 0);
             expect(box(bubble).left + box(bubble).width / 2).toBeCloseTo(box(trigger).left + box(trigger).width / 2, 0);
             // Figma's arrow element below the trigger is 14 x 7 but overlaps the bubble by 1px
@@ -860,7 +860,7 @@ describe.skipIf(!available)("8.5 modal", () => {
             const buttons = bottom.querySelectorAll("button");
             expect(box(buttons[1]).left - box(buttons[0]).right).toBeCloseTo(8, 0);
             expect(box(bottom).right - box(buttons[1]).right).toBeCloseTo(8, 0);
-            // centred, no backdrop by default, focus in the first field
+            // centered, no backdrop by default, focus in the first field
             expect(document.querySelector(".mantine-Modal-overlay")).toBeNull();
             await waitFor(() => (document.activeElement?.getAttribute("aria-label") === "Title" ? true : null));
         });

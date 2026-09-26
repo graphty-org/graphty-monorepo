@@ -58,7 +58,7 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
  * | Part | Value |
  * |---|---|
  * | Field | 24px tall, filled, radius 5px, 88px wide by default (`width`) |
- * | Chevron slot | 24px; 25px with `divided` (a 1px divider in the panel colour) |
+ * | Chevron slot | 24px; 25px with `divided` (a 1px divider in the panel color) |
  * | List | dark in both schemes, 24px rows, opens over the field with the current value on it |
  */
 const meta: Meta<typeof ComboInput> = {

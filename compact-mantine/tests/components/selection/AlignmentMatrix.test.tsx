@@ -137,7 +137,7 @@ describe("AlignmentMatrix", () => {
         expect(screen.getByRole("radio", { name: "Align top left" })).toBeInTheDocument();
     });
 
-    it("writes no raw colour: the look is the stylesheet's", () => {
+    it("writes no raw color: the look is the stylesheet's", () => {
         const { container } = renderMatrix();
         for (const el of container.querySelectorAll<HTMLElement>("[style]")) {
             expect(el.getAttribute("style")).not.toMatch(/#[0-9a-f]{3,8}|rgb/iu);

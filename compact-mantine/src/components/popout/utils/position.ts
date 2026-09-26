@@ -12,7 +12,7 @@ import { type Direction, isRtl } from "../../../utils/rtl";
 // calculation over viewport coordinates from getBoundingClientRect, which are
 // physical in both reading directions; expressing them logically would mean
 // converting them back through the viewport width and would move the panel by a
-// scrollbar's width. Reading direction is honoured where it actually belongs
+// scrollbar's width. Reading direction is honored where it actually belongs
 // instead: in which side "start" and "end" name, resolved by resolvePlacement
 // and applied to the inline axis below.
 

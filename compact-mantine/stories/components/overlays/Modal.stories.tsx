@@ -52,7 +52,7 @@ const INTERACTION_TEST_TAGS = ["!dev", "!autodocs"];
  *
  * | Part | Value |
  * |---|---|
- * | Frame | 480px wide (`size` sm 320, lg 760), `--cm-bg`, radius 13px, elevation 500, centred |
+ * | Frame | 480px wide (`size` sm 320, lg 760), `--cm-bg`, radius 13px, elevation 500, centered |
  * | Header | 40px with a 1px divider; title 11/16 weight 550, 16px in; 24px close button |
  * | Body | padding 16px |
  * | Footer | 40px, 1px divider above, padding 0 8px 0 16px, 24px buttons end-aligned 8px apart |

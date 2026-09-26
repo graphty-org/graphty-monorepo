@@ -48,8 +48,8 @@ import { Panel } from "./fixtures";
  * | Row | 240 x 52 with a path line, 34 without; padding 8 8 8 16 |
  * | Icon | 16px |
  * | Name | 11px on a 16px line, 400; the match at 600 |
- * | Path | 10px on a 16px line, secondary colour |
- * | Current | blue fill with a 1px border in the same colour |
+ * | Path | 10px on a 16px line, secondary color |
+ * | Current | blue fill with a 1px border in the same color |
  */
 const meta: Meta<typeof ResultRow> = {
     title: "Components/Lists and trees/ResultRow",

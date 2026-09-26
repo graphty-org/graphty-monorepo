@@ -160,7 +160,7 @@ export const JoinedGroup: Story = {
     },
 };
 
-/** A colour other than the primary keeps Mantine's own derivation. */
+/** A color other than the primary keeps Mantine's own derivation. */
 export const Colors: Story = {
     render: () => (
         <Group gap="xs">

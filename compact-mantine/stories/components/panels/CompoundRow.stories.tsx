@@ -7,9 +7,9 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
 import { StoryState, StoryStates } from "../../helpers/story-panel";
 
 /**
- * A 12px colour swatch, drawn in a segment's leading slot in place of a glyph.
+ * A 12px color swatch, drawn in a segment's leading slot in place of a glyph.
  * @param root0 - Component props
- * @param root0.color - The colour the swatch shows
+ * @param root0.color - The color the swatch shows
  * @returns The swatch
  */
 function Swatch({ color }: { color: string }): React.JSX.Element {
@@ -31,17 +31,17 @@ function Swatch({ color }: { color: string }): React.JSX.Element {
  * Two or three values that belong to one thing, in a single box divided by
  * hairlines.
  *
- * A colour and its opacity are one setting seen two ways. Drawing them in one
- * box, split by a 1px seam in the panel's own colour, says so; two boxes with a
+ * A color and its opacity are one setting seen two ways. Drawing them in one
+ * box, split by a 1px seam in the panel's own color, says so; two boxes with a
  * gap between them would say the opposite.
  *
  * ## When to use it
  *
  * | Reach for | When |
  * |---|---|
- * | **CompoundRow** | A value and the parts that belong to it: a colour and its opacity, a colour as three channels, a graph's node and edge counts. The box has one honest name. |
+ * | **CompoundRow** | A value and the parts that belong to it: a color and its opacity, a color as three channels, a graph's node and edge counts. The box has one honest name. |
  * | **FieldRow** pair | Two separate values that happen to sit together, such as node size and edge width: two fields, two boxes, two glyphs. |
- * | **CompactColorInput** | The colour should be edited in place with a picker, not opened elsewhere. |
+ * | **CompactColorInput** | The color should be edited in place with a picker, not opened elsewhere. |
  * | **DataRow** | A read-only name and value in a list of readings. |
  *
  * ## Usage
@@ -51,13 +51,13 @@ function Swatch({ color }: { color: string }): React.JSX.Element {
  * import { AdvancedButton, CompoundRow } from "@graphty/compact-mantine";
  *
  * <CompoundRow
- *     label="Node colour and opacity"
+ *     label="Node color and opacity"
  *     segments={[
  *         { glyph: <ColorSwatch color="#4a7ee8" size={12} />, value: "4A7EE8", mono: true, grow: true },
  *         { value: "100", unit: "%" },
  *     ]}
- *     onClick={openColourEditor}
- *     trailing={<AdvancedButton label="Node colour options" onClick={openOptions} />}
+ *     onClick={openColorEditor}
+ *     trailing={<AdvancedButton label="Node color options" onClick={openOptions} />}
  * />
  * ```
  *
@@ -134,20 +134,20 @@ export default meta;
 type Story = StoryObj<typeof CompoundRow>;
 
 /**
- * A node's colour and its opacity, with a button in the trailing slot. The
+ * A node's color and its opacity, with a button in the trailing slot. The
  * swatch and hex value take the leftover width; the percentage sizes to its
  * content. Switch `width` and `busy` in the Controls table.
  */
 export const Default: Story = {
     args: {
-        label: "Node colour and opacity",
+        label: "Node color and opacity",
         segments: [
             { glyph: <Swatch color={PANEL_INK.ACCENT} />, value: "4A7EE8", mono: true, grow: true },
             { value: "100", unit: "%" },
         ],
         trailing: (
             <AdvancedButton
-                label="Show node colour on canvas"
+                label="Show node color on canvas"
                 icon={<UiGlyph name="eye" />}
                 onClick={() => {
                     // Story only: the real row opens the canvas preview.
@@ -185,7 +185,7 @@ export const States: Story = {
                 </StoryState>
                 <StoryState name="Narrow (88)" padded>
                     <CompoundRow
-                        label="Label colour"
+                        label="Label color"
                         width={PANEL_GRID.FIELD}
                         segments={[
                             { value: "D5D7DA", grow: true },
@@ -199,12 +199,12 @@ export const States: Story = {
 };
 
 /**
- * Three values of one thing: a colour as its three channels. Three is the
+ * Three values of one thing: a color as its three channels. Three is the
  * ceiling; a fourth turns the box into a table, and development says so.
  */
 export const ThreeSegments: Story = {
     args: {
-        label: "Node colour, red green and blue",
+        label: "Node color, red green and blue",
         segments: [
             { glyph: <Swatch color={PANEL_INK.ACCENT} />, value: "74", mono: true, grow: true },
             { value: "126", mono: true },
@@ -248,7 +248,7 @@ export const Interactive: Story = {
         return (
             <Stack gap="xs">
                 <CompoundRow
-                    label="Node colour and opacity"
+                    label="Node color and opacity"
                     segments={[
                         { glyph: <Swatch color={PANEL_INK.ACCENT} />, value: "4A7EE8", mono: true, grow: true },
                         { value: "100", unit: "%" },
@@ -268,9 +268,9 @@ export const Interactive: Story = {
                     }}
                     trailing={
                         <AdvancedButton
-                            label="Node colour options"
+                            label="Node color options"
                             onClick={() => {
-                                // Story only: the real button opens the colour settings.
+                                // Story only: the real button opens the color settings.
                             }}
                         />
                     }
@@ -341,22 +341,22 @@ export const Busy: Story = {
 };
 
 /**
- * Three rows of a real panel: the node's colour, the edge's colour and the
+ * Three rows of a real panel: the node's color, the edge's color and the
  * dataset's size, on the same 32px pitch and ending on the same line.
  */
 export const InAPanel: Story = {
     render: (): React.JSX.Element => (
         <Stack gap={0}>
             <CompoundRow
-                label="Node colour and opacity"
+                label="Node color and opacity"
                 segments={[
                     { glyph: <Swatch color={PANEL_INK.ACCENT} />, value: "4A7EE8", mono: true, grow: true },
                     { value: "100", unit: "%" },
                 ]}
-                trailing={<AdvancedButton label="Node colour options" onClick={() => undefined} />}
+                trailing={<AdvancedButton label="Node color options" onClick={() => undefined} />}
             />
             <CompoundRow
-                label="Edge colour and opacity"
+                label="Edge color and opacity"
                 segments={[
                     { glyph: <Swatch color="var(--mantine-color-dark-4)" />, value: "48525C", mono: true, grow: true },
                     { value: "60", unit: "%" },
@@ -376,14 +376,14 @@ export const InAPanel: Story = {
 /**
  * The `showLabels` preference (`PanelLabelsProvider`). The row's one name moves
  * out to a column of its own and the box fills the rest. Segments are never
- * labelled one by one: they are not separately named things.
+ * labeled one by one: they are not separately named things.
  */
 export const WithLabels: Story = {
     render: (): React.JSX.Element => (
         <PanelLabelsProvider showLabels>
             <Stack gap={0}>
                 <CompoundRow
-                    label="Node colour"
+                    label="Node color"
                     segments={[
                         { glyph: <Swatch color={PANEL_INK.ACCENT} />, value: "4A7EE8", mono: true, grow: true },
                         { value: "100", unit: "%" },
@@ -411,12 +411,12 @@ export const RightToLeft: Story = {
             <Box dir="rtl">
                 <Stack gap={0}>
                     <CompoundRow
-                        label="Node colour and opacity"
+                        label="Node color and opacity"
                         segments={[
                             { glyph: <Swatch color={PANEL_INK.ACCENT} />, value: "4A7EE8", mono: true, grow: true },
                             { value: "100", unit: "%" },
                         ]}
-                        trailing={<AdvancedButton label="Node colour options" onClick={() => undefined} />}
+                        trailing={<AdvancedButton label="Node color options" onClick={() => undefined} />}
                     />
                     <CompoundRow
                         label="Graph size, nodes and edges"

@@ -23,15 +23,15 @@ import { compactVarsForSize } from "../styles/size-scale";
  * Each extension does three things:
  * - `vars`: the per-size CSS variables of ../styles/controls.ts. The resolver reads `props.size`
  *   (with optional chaining, because the regression suites call `vars!()` with no arguments), so
- *   an explicitly sized control differs from its neighbours; see ../styles/size-scale.ts.
- * - `classNames`: the `cm-*` classes ../css/selection.css.ts keys every colour, state and focus
+ *   an explicitly sized control differs from its neighbors; see ../styles/size-scale.ts.
+ * - `classNames`: the `cm-*` classes ../css/selection.css.ts keys every color, state and focus
  *   ring on, light and dark and the AA option alike (the stylesheet reads tokens only).
- * - `defaultProps`: size sm (the compact default) and the behaviour Figma has and Mantine does
+ * - `defaultProps`: size sm (the compact default) and the behavior Figma has and Mantine does
  *   not: the checkbox tick glyph, no sliding segmented indicator, options that activate on
  *   mouse-down.
  *
  * Checkbox variants: `filled` (Mantine's default, kept) is Figma's blue checkbox of dialogs and
- * popovers; `variant="neutral"` is the panel checkbox that stays grey when checked (ToggleRow
+ * popovers; `variant="neutral"` is the panel checkbox that stays gray when checked (ToggleRow
  * uses it). SegmentedControl variants: the default is the panel track (5.2),
  * `variant="toolbar"` the mode switch with a raised thumb (5.3), `variant="loose"` the paint-type
  * row of separate 24 x 24 options (5.2).

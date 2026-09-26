@@ -73,7 +73,7 @@ export const States: Story = {
     ),
 };
 
-/** A colour other than the primary keeps Mantine's own derivation, filled and light. */
+/** A color other than the primary keeps Mantine's own derivation, filled and light. */
 export const Colors: Story = {
     render: () => (
         <Stack gap={8}>

@@ -41,7 +41,7 @@ const meta: Meta<typeof NumberInput> = {
 export default meta;
 type Story = StoryObj<typeof NumberInput>;
 
-/** A labelled number in the 88px field width. */
+/** A labeled number in the 88px field width. */
 export const Default: Story = {
     args: {
         label: "Amount",

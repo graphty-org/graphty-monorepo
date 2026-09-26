@@ -14,7 +14,7 @@ import { Panel } from "./fixtures";
  *
  * `Tree` and `PageList` already open an InlineRename on F2 or a double-click when you pass
  * `onRename`, so most readers never place one by hand. Reach for it directly when a row of your
- * own (a card title, a tab) needs the same rename-in-place behaviour. Reach for `PanelField` or
+ * own (a card title, a tab) needs the same rename-in-place behavior. Reach for `PanelField` or
  * Mantine `TextInput` when the name is a field that is always editable, not a label that turns
  * into a field for a moment.
  *

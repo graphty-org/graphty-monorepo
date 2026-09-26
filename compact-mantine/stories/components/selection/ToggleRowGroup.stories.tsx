@@ -50,7 +50,7 @@ import { focusMarked } from "../../helpers/selection-states";
  * - `role="group"`, so the rows are announced as one set rather than loose checkboxes.
  * - Name it with `labelledBy` (the id of the heading already on screen, preferred, so the spoken
  *   and written names cannot drift apart) or `label` when there is no visible heading.
- * - Each row keeps its own keyboard behaviour: Tab reaches it, Space toggles it.
+ * - Each row keeps its own keyboard behavior: Tab reaches it, Space toggles it.
  *
  * ## Measurements
  *

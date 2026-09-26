@@ -15,8 +15,8 @@ import {
 } from "../../../src/types/events";
 
 /**
- * The gradient a caller passes for the colour form, spelled the way the panel
- * spells colours: scheme-aware variables, never a hardcoded hex.
+ * The gradient a caller passes for the color form, spelled the way the panel
+ * spells colors: scheme-aware variables, never a hardcoded hex.
  */
 const GRADIENT = "linear-gradient(to right, var(--mantine-color-default), var(--mantine-color-green-6))";
 
@@ -231,7 +231,7 @@ describe("RampRow", () => {
         });
     });
 
-    describe("the colour form", () => {
+    describe("the color form", () => {
         it("paints the caller's gradient", () => {
             renderRow(<RampRow min="0.00" max="0.42" variant="color" gradient={GRADIENT} />);
 
@@ -278,7 +278,7 @@ describe("RampRow", () => {
             expect(ramp.style.clipPath).toBe("polygon(0 calc(100% - 4px), 100% 0, 100% 100%, 0 100%)");
         });
 
-        it("draws a colour bar unmirrored where text runs left to right", () => {
+        it("draws a color bar unmirrored where text runs left to right", () => {
             renderRow(<RampRow min="0.00" max="0.42" variant="color" gradient={GRADIENT} />);
 
             expect(screen.getByTestId("ramp-row-ramp").style.transform).toBe("");

@@ -41,7 +41,7 @@ export const Default: Story = {
     args: { "aria-label": "Progress", w: 240 },
 };
 
-/** Empty, part and full, then a caller colour, light and dark side by side. */
+/** Empty, part and full, then a caller color, light and dark side by side. */
 export const States: Story = {
     parameters: BOTH_SCHEMES,
     render: () => (
@@ -64,7 +64,7 @@ export const States: Story = {
     ),
 };
 
-/** Mantine's colours, `striped` and `animated`. */
+/** Mantine's colors, `striped` and `animated`. */
 export const Variants: Story = {
     render: () => (
         <Stack gap="sm">

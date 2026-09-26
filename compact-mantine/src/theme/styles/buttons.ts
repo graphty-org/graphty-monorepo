@@ -2,7 +2,7 @@
  * Per-size and per-variant CSS variables for the button family (design/figma-spec.md 4).
  *
  * Sizes are CompactSizeScale entries (see ./size-scale.ts for why a keyed scale and not one frozen
- * object). Colours are per VARIANT and come from the `--cm-*` tokens: each look below is written
+ * object). Colors are per VARIANT and come from the `--cm-*` tokens: each look below is written
  * into Mantine's own variables (`--button-bg`, `--ai-bg`, ...) by the vars resolvers in
  * ../components/buttons.ts, and the states Mantine has no variable for (pressed, the resting
  * outline, the disabled fill, the shortcut ink) go into `--cm-btn-*` / `--cm-ai-*` variables that
@@ -58,7 +58,7 @@ export const compactCloseButtonScale: CompactSizeScale = {
 /** How a variant draws when disabled (C7-C9). */
 type DisabledKind = "solid" | "outline" | "text";
 
-/** One text-button look: every value is a CSS colour expression over the tokens. */
+/** One text-button look: every value is a CSS color expression over the tokens. */
 interface ButtonLook {
     bg: string;
     hover: string;
@@ -141,9 +141,9 @@ const BUTTON_LOOKS: Readonly<Record<string, ButtonLook>> = {
 const COLORLESS = new Set(["danger", "danger-outline", "inverse", "success", "default", "outline", "subtle"]);
 
 /**
- * Whether a `color` prop leaves the primary look in place: no colour, or the primary palette.
+ * Whether a `color` prop leaves the primary look in place: no color, or the primary palette.
  * @param color - the color prop
- * @param primary - the theme's primary colour name
+ * @param primary - the theme's primary color name
  * @returns true when the Figma look applies
  */
 function isPrimary(color: unknown, primary: string | undefined): boolean {
@@ -151,12 +151,12 @@ function isPrimary(color: unknown, primary: string | undefined): boolean {
 }
 
 /**
- * The look a Button renders with, or undefined to leave Mantine's own derivation (a coloured
- * `light`, `gradient`, `white`, `transparent`, or a non-primary filled colour).
+ * The look a Button renders with, or undefined to leave Mantine's own derivation (a colored
+ * `light`, `gradient`, `white`, `transparent`, or a non-primary filled color).
  * `color="red"` on a filled button is the danger look (spec 4.1).
  * @param variant - the variant prop (theme default: filled)
  * @param color - the color prop
- * @param primary - the theme's primary colour name
+ * @param primary - the theme's primary color name
  * @returns the look, or undefined
  */
 function buttonLook(variant: string | undefined, color: unknown, primary?: string): ButtonLook | undefined {
@@ -178,11 +178,11 @@ const DISABLED: Record<DisabledKind, { bg: string; color: string; outline: strin
 };
 
 /**
- * The Button colour variables for one variant / colour pair.
+ * The Button color variables for one variant / color pair.
  * @param variant - the variant prop
  * @param color - the color prop
- * @param primary - the theme's primary colour name
- * @returns Mantine's `--button-*` colour variables plus the `--cm-btn-*` state variables, or
+ * @param primary - the theme's primary color name
+ * @returns Mantine's `--button-*` color variables plus the `--cm-btn-*` state variables, or
  *   nothing when Mantine's derivation is kept
  */
 export function compactButtonVariantVars(variant?: string, color?: unknown, primary?: string): CompactVars {
@@ -268,12 +268,12 @@ const ACTION_ICON_LOOKS: Readonly<Record<string, IconLook>> = {
 const NEUTRAL = new Set(["gray", "dark"]);
 
 /**
- * The ActionIcon colour variables for one variant / colour pair.
+ * The ActionIcon color variables for one variant / color pair.
  * @param variant - the variant prop (theme default: subtle)
  * @param color - the color prop
- * @param primary - the theme's primary colour name
- * @returns Mantine's `--ai-*` colour variables plus `--cm-ai-pressed` / `--cm-ai-outline`, or
- *   nothing when Mantine's derivation is kept (a coloured non-neutral look, outline, transparent,
+ * @param primary - the theme's primary color name
+ * @returns Mantine's `--ai-*` color variables plus `--cm-ai-pressed` / `--cm-ai-outline`, or
+ *   nothing when Mantine's derivation is kept (a colored non-neutral look, outline, transparent,
  *   white, gradient)
  */
 export function compactActionIconVariantVars(variant?: string | null, color?: unknown, primary?: string): CompactVars {

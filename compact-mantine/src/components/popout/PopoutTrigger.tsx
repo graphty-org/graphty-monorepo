@@ -27,7 +27,7 @@ import { usePopoutContext } from "./PopoutContext";
  * @param props - Component props
  * @param props.children - The trigger element (typically a button or icon button)
  * @param props.action - What activating the trigger does: toggle the panel, or only open it
- * @returns The trigger element with the pop-out's behaviour attached
+ * @returns The trigger element with the pop-out's behavior attached
  */
 export function PopoutTrigger({ children, action = "toggle" }: PopoutTriggerProps): JSX.Element {
     const {

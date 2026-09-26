@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { compactBrandColors, compactColors, compactDarkColors } from "../../src/theme/colors";
 
 describe("compactDarkColors (spec 3.3)", () => {
-    it("is Figma's neutral ramp, not the old blue-grey one", () => {
+    it("is Figma's neutral ramp, not the old blue-gray one", () => {
         expect(compactDarkColors).toEqual([
             "#ffffff",
             "#b3b3b3",

@@ -70,7 +70,7 @@ const INTERACTION_TEST_TAGS = ["!dev", "!autodocs"];
  * | `Popout` | Settings that belong to something on screen and should float beside it, while the page stays live. Panels can be dragged, can nest (a panel opened from a panel steps out from it), and share one set of dismissal rules |
  * | Mantine `Popover` | A one-off bubble that is not dragged and never opens another from inside it. It is drawn with the same light shell (see `LightPopoverSurfaces`), but it has its own dismissal rules, so avoid mixing the two on one screen |
  * | `InfoCircle` | An explanation of one name, opened by hover, focus or tap |
- * | Mantine `Modal` | A task that must be finished or cancelled before the page can be used again |
+ * | Mantine `Modal` | A task that must be finished or canceled before the page can be used again |
  *
  * ## Usage
  *
@@ -1743,7 +1743,7 @@ export const ComponentCompatibility: Story = {
                                                         <GradientEditor showDirection={false} />
                                                         <Text size="xs" c="dimmed" mt={4}>
                                                             GradientEditor edits the selected stop in its own inline
-                                                            colour picker; no second pop-out opens.
+                                                            color picker; no second pop-out opens.
                                                         </Text>
                                                     </Box>
                                                 </Stack>

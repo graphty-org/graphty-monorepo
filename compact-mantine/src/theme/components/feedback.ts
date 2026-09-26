@@ -18,7 +18,7 @@ import { compactVarsForSize } from "../styles/size-scale";
  * ../styles/feedback.ts answer with the compact values this package has always
  * shipped. Each `vars` resolver reads `props.size` and looks that size up in the
  * component's scale, so an explicitly sized loader or bar differs from its
- * neighbours instead of collapsing onto the compact value. Before 2026-09-13
+ * neighbors instead of collapsing onto the compact value. Before 2026-09-13
  * these resolvers took no arguments and returned one frozen object, so xs
  * through xl all rendered identically -- see ../styles/size-scale.ts for the
  * mechanism and the product owner's report.
@@ -33,7 +33,7 @@ import { compactVarsForSize } from "../styles/size-scale";
  * - RingProgress: uses a numeric size prop (recommended: size={48} for compact); track and
  *   label read tokens
  *
- * Colours come from ../css/overlays.css.ts through the classNames; a `color` prop still wins.
+ * Colors come from ../css/overlays.css.ts through the classNames; a `color` prop still wins.
  */
 export const feedbackComponentExtensions = {
     Loader: Loader.extend({

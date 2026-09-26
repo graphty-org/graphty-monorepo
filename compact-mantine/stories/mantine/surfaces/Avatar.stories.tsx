@@ -5,7 +5,7 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
 
 /**
  * Mantine's `Avatar`, themed as the avatars in Figma's header: 24px circles with a white initial
- * on the user's colour, and a ringed, overlapping stack in `Avatar.Group`. Every prop is Mantine's:
+ * on the user's color, and a ringed, overlapping stack in `Avatar.Group`. Every prop is Mantine's:
  * see [Avatar on mantine.dev](https://mantine.dev/core/avatar/).
  *
  * ## Usage

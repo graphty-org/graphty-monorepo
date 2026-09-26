@@ -21,7 +21,7 @@ import { focusMarked, StateGrid } from "../../helpers/selection-states";
  * ## When to use it
  *
  * Reach for `ToggleWithContent` for a yes or no that brings its own settings with it: a glow
- * with a colour and a radius, an outline with a width, a legend with a position. Turning the
+ * with a color and a radius, an outline with a width, a legend with a position. Turning the
  * feature off takes its settings off the screen, so the panel shows only what is in play.
  *
  * Reach for `ToggleRow` (inside a `ToggleRowGroup`) when the boolean has nothing underneath it,

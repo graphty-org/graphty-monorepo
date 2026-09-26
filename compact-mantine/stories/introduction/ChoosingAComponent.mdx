@@ -20,7 +20,7 @@ with. [Overview](?path=/docs/components-panels-and-rows-overview--docs)
 | A few rarely-opened settings under a section you already have | `ControlSubGroup` | a second `ControlSection`, which is louder |
 | One or two fields sharing a line | `FieldRow` | a hand-built flex row, which will not line up with the rows around it |
 | A row you are laying out by hand that must end level with the others | `TrailingSlot` | -- |
-| Two or three values that are one thing (a colour and its opacity, a width and its unit) | `CompoundRow` | two separate fields |
+| Two or three values that are one thing (a color and its opacity, a width and its unit) | `CompoundRow` | two separate fields |
 | A resizable panel edge | `ResizeHandle` | -- |
 
 ## Inputs
@@ -53,16 +53,16 @@ say one bit. Put it in the trailing slot of the row it modifies, or make it one 
 `SegmentedControl`. `ToggleRowGroup` warns in development when given only one child, for exactly
 this reason.
 
-## Colour
+## Color
 
-[Overview](?path=/docs/components-colour-overview--docs)
+[Overview](?path=/docs/components-color-overview--docs)
 
 | If you have | Use | Not |
 |---|---|---|
-| A colour and its opacity on one line, with a picker | `CompactColorInput` (needs a `PopoutManager`) | Mantine `ColorInput`, which has no opacity field and no Figma picker |
+| A color and its opacity on one line, with a picker | `CompactColorInput` (needs a `PopoutManager`) | Mantine `ColorInput`, which has no opacity field and no Figma picker |
 | The picker itself, on a surface of your own | `ColorPickerPanel` | -- |
 | A multi-stop linear gradient | `GradientEditor`, alone or in `ColorPickerPanel`'s `gradient` slot | -- |
-| A range drawn as a size wedge or a colour ramp | `RampRow` | two numbers and a sentence |
+| A range drawn as a size wedge or a color ramp | `RampRow` | two numbers and a sentence |
 
 ## Actions
 

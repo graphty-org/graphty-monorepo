@@ -337,13 +337,13 @@ export const FlatReorderableList: Story = {
         // Both halves hold their own list; drive the first.
         const tree = within(within(canvasElement).getAllByRole("tree", { name: "Style layers" })[0]);
         const names = (): string[] => tree.getAllByRole("treeitem").map((row) => row.getAttribute("aria-label") ?? "");
-        const degree = tree.getByRole("treeitem", { name: "Degree colour" });
+        const degree = tree.getByRole("treeitem", { name: "Degree color" });
         degree.focus();
         await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
-        await waitFor(() => expect(names()).toEqual(["Selection highlight", "Node labels", "Degree colour", "Base style"]));
-        await expect(tree.getByRole("treeitem", { name: "Degree colour" })).toHaveFocus();
+        await waitFor(() => expect(names()).toEqual(["Selection highlight", "Node labels", "Degree color", "Base style"]));
+        await expect(tree.getByRole("treeitem", { name: "Degree color" })).toHaveFocus();
         await userEvent.keyboard("{Alt>}{ArrowUp}{/Alt}");
-        await waitFor(() => expect(names()).toEqual(["Selection highlight", "Degree colour", "Node labels", "Base style"]));
+        await waitFor(() => expect(names()).toEqual(["Selection highlight", "Degree color", "Node labels", "Base style"]));
         // Rename, then try to empty the name: the empty name is refused.
         await userEvent.keyboard("{F2}");
         const field = tree.getByRole("textbox", { name: "Layer name" });

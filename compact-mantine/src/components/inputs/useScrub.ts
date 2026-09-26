@@ -95,7 +95,7 @@ export function useScrub(enabled: boolean, rtl: boolean, callbacks: ScrubCallbac
             }
             event.preventDefault();
             event.stopPropagation();
-            // Guarded: not every environment implements pointer capture, and a synthesised
+            // Guarded: not every environment implements pointer capture, and a synthesized
             // pointer (a test, an automation tool) has no active pointer id to capture.
             try {
                 event.currentTarget.setPointerCapture(event.pointerId);

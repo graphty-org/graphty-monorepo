@@ -28,7 +28,7 @@ export interface PopoutButtonProps
  *
  * It is Figma's 24px ghost icon button (design/figma-spec.md 4.3): transparent
  * at rest, and while its panel is up it takes the "open" look -- the selected
- * ground (#e5f4ff / #394360) with a brand-coloured glyph -- which the theme
+ * ground (#e5f4ff / #394360) with a brand-colored glyph -- which the theme
  * draws from the `aria-expanded="true"` that `Popout.Trigger` sets. A column of
  * them therefore says at a glance which panel is on screen. Give it an
  * `aria-label`: an icon on its own has no accessible name.

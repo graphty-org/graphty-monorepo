@@ -10,7 +10,7 @@ import {
 } from "@mantine/core";
 import { createElement } from "react";
 
-import { installOverlayBehaviour } from "../../components/overlays/overlayBehaviour";
+import { installOverlayBehavior } from "../../components/overlays/overlayBehavior";
 import { FLOATING_UI_Z_INDEX, TOOLTIP_Z_INDEX } from "../../constants/popout";
 import { UiGlyph } from "../../icons";
 import {
@@ -38,7 +38,7 @@ import {
  *
  * Each extension hands Mantine `classNames` that point its parts at ../css/overlays.css.ts (and
  * at the foundation's shared cm-menu-surface / cm-menu-row / cm-popover-surface), plus the
- * behaviour defaults Figma measures: no transitions, the tooltip's 1000 / 300 ms timing, the
+ * behavior defaults Figma measures: no transitions, the tooltip's 1000 / 300 ms timing, the
  * menu's placement. The dropdowns keep their elevated z-index so they clear an open Popout.
  *
  * `TooltipGroup` gets the same timing as `Tooltip`, so a bare `<Tooltip.Group>` wrapped once
@@ -59,9 +59,9 @@ export const overlayComponentExtensions: MantineThemeComponents = {
         },
         classNames: compactMenuClassNames,
         // vars runs on every render: the first one installs the document-level type-ahead and
-        // scroll chevrons (idempotent; see overlayBehaviour.ts).
+        // scroll chevrons (idempotent; see overlayBehavior.ts).
         vars: () => {
-            installOverlayBehaviour();
+            installOverlayBehavior();
             return { dropdown: compactMenuVars };
         },
     }),
@@ -106,9 +106,9 @@ export const overlayComponentExtensions: MantineThemeComponents = {
         },
         classNames: compactTooltipClassNames,
         // vars runs on every render: the first one installs the instant dismiss and the focus
-        // delay (idempotent; see overlayBehaviour.ts).
+        // delay (idempotent; see overlayBehavior.ts).
         vars: () => {
-            installOverlayBehaviour();
+            installOverlayBehavior();
             return { tooltip: {} };
         },
     }),

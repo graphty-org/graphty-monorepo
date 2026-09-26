@@ -16,7 +16,7 @@ import { CM_FONT_FAMILY, CM_TYPE, compactFontSizes, compactLineHeights } from ".
  *
  * - **Body text is 11/16 at weight 450**, with 0.055px of tracking: Mantine's `Text size="sm"`,
  *   and every control's face.
- * - **Emphasis is weight, never size or colour**: 550 for headings and strong labels, 600 for
+ * - **Emphasis is weight, never size or color**: 550 for headings and strong labels, 600 for
  *   top-level layer names.
  * - **Captions are 9/14** (`size="xs"`): field captions above a field row, legends, the state
  *   names in the stories here.

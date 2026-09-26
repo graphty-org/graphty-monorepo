@@ -5,7 +5,7 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
 
 /**
  * Mantine's `RingProgress`, drawn on the panel tokens: the track in the secondary ground and the
- * label in the text colour. Every prop is Mantine's: see
+ * label in the text color. Every prop is Mantine's: see
  * [RingProgress on mantine.dev](https://mantine.dev/core/ring-progress/).
  *
  * ## Usage
@@ -74,7 +74,7 @@ export const States: Story = {
     ),
 };
 
-/** Mantine's colours, and several sections with `roundCaps`. */
+/** Mantine's colors, and several sections with `roundCaps`. */
 export const Variants: Story = {
     render: () => (
         <Group gap="md">

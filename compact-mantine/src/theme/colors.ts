@@ -1,7 +1,7 @@
 import { DEFAULT_THEME, type MantineColorsTuple } from "@mantine/core";
 
 /**
- * Mantine's `dark` ramp, re-pointed at Figma's neutral greys (spec 3.3), so an unthemed Mantine
+ * Mantine's `dark` ramp, re-pointed at Figma's neutral grays (spec 3.3), so an unthemed Mantine
  * surface in the dark scheme matches the panels around it.
  *
  * - 0: text (#fff)
@@ -26,7 +26,7 @@ export const compactDarkColors: MantineColorsTuple = [
 /**
  * The accent palette, the theme's `primaryColor` (spec 3.3). Mantine reads shade 6 filled and
  * 7 hover in light (#0d99ff / #007be5), 8 / 9 in dark (#0c8ce9 / #0a6dc2), and shade 4 as the
- * dark-scheme anchor colour (#7cc4f8, Figma's dark brand text).
+ * dark-scheme anchor color (#7cc4f8, Figma's dark brand text).
  */
 export const compactBrandColors: MantineColorsTuple = [
     "#e5f4ff",
@@ -42,7 +42,7 @@ export const compactBrandColors: MantineColorsTuple = [
 ];
 
 /**
- * Color configuration for the compact theme: every Mantine colour, the neutral `dark` ramp and
+ * Color configuration for the compact theme: every Mantine color, the neutral `dark` ramp and
  * the `brand` accent.
  */
 export const compactColors = {

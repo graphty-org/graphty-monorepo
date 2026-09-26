@@ -10,14 +10,14 @@ import { BOTH_SCHEMES } from "../helpers/schemes";
  * keeps working.
  *
  * Each elevation is one `box-shadow` value holding both schemes' layers, so it follows the
- * colour scheme of the element it is on like every other token. In dark, each carries Figma's
+ * color scheme of the element it is on like every other token. In dark, each carries Figma's
  * 0.5px inner white hairlines, which is what separates a dark panel from a dark canvas.
  *
  * | Mantine | Token | Where the components use it |
  * |---|---|---|
  * | `xs` | `--cm-elevation-100` | the lowest lift, for a control raised off its track |
  * | `sm` | `--cm-elevation-200` | the floating toolbars, the help button and the quick actions palette (with a 1px first blur over the canvas) |
- * | `md` | `--cm-elevation-300` | tooltips, slider and colour-picker thumbs |
+ * | `md` | `--cm-elevation-300` | tooltips, slider and color-picker thumbs |
  * | `lg` | `--cm-elevation-400` | menus, list boxes, popovers and pop-out panels |
  * | `xl` | `--cm-elevation-500` | modals |
  *

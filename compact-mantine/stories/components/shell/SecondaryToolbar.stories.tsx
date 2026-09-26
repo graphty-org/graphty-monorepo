@@ -68,7 +68,7 @@ const meta: Meta<typeof SecondaryToolbar> = {
 export default meta;
 type Story = StoryObj<typeof SecondaryToolbar>;
 
-/** The vector-editing bar: labelled tools, dividers, a "More" dropdown and a close button. */
+/** The vector-editing bar: labeled tools, dividers, a "More" dropdown and a close button. */
 export const Default: Story = {
     args: { "aria-label": "Vector editing", flush: false },
     render: (args) => (

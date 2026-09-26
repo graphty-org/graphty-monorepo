@@ -20,7 +20,7 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
  * | Form | Props | Looks like |
  * |---|---|---|
  * | Bound number field | `glyph`, `name`, `value` | an 88px field with a 20px pill after the glyph |
- * | Bound fill row | `swatch`, `name` | one 156px button: a colour chit and the name |
+ * | Bound fill row | `swatch`, `name` | one 156px button: a color chit and the name |
  * | Component property | `kind="property"`, `name` | a 156px chip on the component tint |
  *
  * ## Usage
@@ -89,7 +89,7 @@ export const States: Story = {
     ),
 };
 
-/** The bound fill row: one button with the colour's chit and the variable's name. */
+/** The bound fill row: one button with the color's chit and the variable's name. */
 export const FillRow: Story = {
     args: { swatch: "#0d99ff", name: "rsu/brand" },
 };

@@ -10,12 +10,12 @@ The measurements come from the Figma study in the repository at `design/ui/figma
 this package). Its `components.md` is the consolidated inventory; each `<name>.styles.json`
 beside a `<name>.png` holds the computed styles of one captured region. When `components.md` and
 a `styles.json` disagree, the `styles.json` wins. The Figma study says not to copy Figma's icons,
-logos, CSS, class names or markup: we copy measurements and behaviour, and draw our own glyphs.
+logos, CSS, class names or markup: we copy measurements and behavior, and draw our own glyphs.
 
 ## 0. How to read this file
 
-- Sizes are CSS pixels, `width x height`. Colours are written `light / dark`. A translucent
-  colour is written as 8-digit hex (`#000000e5` is black at 90 percent).
+- Sizes are CSS pixels, `width x height`. Colors are written `light / dark`. A translucent
+  color is written as 8-digit hex (`#000000e5` is black at 90 percent).
 - A citation is `folder/capture #n`, where `n` is the element index in that capture's
   `styles.json` (`elements[n]`). Folder abbreviations:
 
@@ -34,23 +34,23 @@ logos, CSS, class names or markup: we copy measurements and behaviour, and draw 
   | ac | `accessibility/` |
   | C | `components.md` section number (the consolidated value, itself cited there) |
 
-- A tool that prints a capture as one line per element (box, colours, font, padding, radius,
+- A tool that prints a capture as one line per element (box, colors, font, padding, radius,
   border, outline, shadow) is at `tmp/digest.py` in the worktree root:
   `python3 tmp/digest.py bc/btn-primary-md-enabled--default` style paths, relative to the study
   folder, without `.styles.json`. It keeps only the elements inside the capture's region. Use it
   to check a value before arguing with this file.
 - "Token" below always means one of this package's CSS custom properties, `--cm-*`, defined in
-  section 2. Components never write a raw colour; they read a token (or `PANEL_INK`, which now
+  section 2. Components never write a raw color; they read a token (or `PANEL_INK`, which now
   resolves to the tokens).
 
 ## 1. Rules that hold everywhere
 
 These restate the owner's settled decisions. They are not open for re-argument in a package.
 
-1. **Default look is exact Figma in both themes**: colours, sizes, radii, weights,
+1. **Default look is exact Figma in both themes**: colors, sizes, radii, weights,
    letter-spacing, shadows, row geometry, menu and tooltip darkness, motion, timing.
-2. **Neutral dark greys.** Dark panels are #2c2c2c, fields #383838, pressed #444. The old
-   blue-grey `dark` ramp (#1f2428 ...) goes.
+2. **Neutral dark grays.** Dark panels are #2c2c2c, fields #383838, pressed #444. The old
+   blue-gray `dark` ramp (#1f2428 ...) goes.
 3. **Panel 240 px, field 88 px.** Grid `16 | 88 | 8 | 88 | 8 | 24 | 8`.
 4. **Typeface: Inter Variable**, bundled in this package (SIL OFL, latin subset woff2, license
    file shipped). Weights 450 body, 550 strong, 600 top-level layer names. Consumers do nothing.
@@ -71,7 +71,7 @@ These restate the owner's settled decisions. They are not open for re-argument i
 9. **One popover at a time.** Opening another light popover (Popout) replaces the open one.
 10. **Menus and listboxes are dark in both themes** (#1e1e1e surface, #0c8ce9 inset highlight).
 11. **Accessibility we keep beyond Figma**: tooltip `aria-describedby`; a real ARIA tree for the
-    layer tree with arrow-key navigation; every control's keyboard behaviour at least as good as
+    layer tree with arrow-key navigation; every control's keyboard behavior at least as good as
     today (see section 14 for the list).
 12. **Compatibility.** Every existing export keeps its name and its props; restyles land inside
     them. New Figma components are new exports. Anything that cannot stay compatible is listed in
@@ -93,7 +93,7 @@ custom property is resolved where the property is USED, which is what makes that
 Source for every value in this section: `design/ui/figma/tokens/css-variables.json` (light) and
 `css-variables-dark.json` (dark), read with the Figma variable in the last column.
 
-### 2.1 Colour roles
+### 2.1 Color roles
 
 | Token | Light | Dark | Figma variable |
 |---|---|---|---|
@@ -234,8 +234,8 @@ Mantine theme mapping (`theme.fontSizes` / `theme.lineHeights`, both px):
 
 `theme.fontFamily` is the family above; `theme.headings.fontWeight` 550. The injected stylesheet
 sets `body` to 11/16 weight 450 letter-spacing 0.055px (Figma's app root measures
-`Inter, sans-serif 11px/16px`, bc/btn-primary-md-enabled--default #2). Text selection colour is
-`--cm-text-highlight`. No uppercase anywhere; emphasis is weight, never size or colour.
+`Inter, sans-serif 11px/16px`, bc/btn-primary-md-enabled--default #2). Text selection color is
+`--cm-text-highlight`. No uppercase anywhere; emphasis is weight, never size or color.
 
 Source: C1, `tokens-and-typography/README.md`, `--text-*` variables.
 
@@ -275,7 +275,7 @@ the help button. The segmented-thumb option radius is 3 (`calc(5px - 2px)`). One
 Panels have no shadow; they are separated by 1px `--cm-border`. Floating surfaces use these five
 (C4; the first blur is 0.5px as measured live, not the 1px in the token text). Each is one
 `--cm-elevation-*` token; the dark value adds white inset hairlines, so the tokens are written
-with `light-dark()` per colour stop and `transparent` where a layer exists in only one theme:
+with `light-dark()` per color stop and `transparent` where a layer exists in only one theme:
 
 | Token | Light | Dark | Used by |
 |---|---|---|---|
@@ -298,18 +298,18 @@ md = 300, lg = 400, xl = 500.
 
 ### 2.7 Focus ring
 
-One colour and one width: `1px solid var(--cm-border-selected)`, on `:focus-visible`, drawn in one
+One color and one width: `1px solid var(--cm-border-selected)`, on `:focus-visible`, drawn in one
 frame. Resting focusable controls carry `outline: 1px solid transparent` with the same offset. The
 variants and who uses them (C5, ac/focus-rings.json, ii/focus-ring-tab-01..14):
 
 | Class (foundation) | Rule | Used by |
 |---|---|---|
 | `cm-focus-outside` | `outline-offset: 1px` | ghost icon buttons, text buttons, tabs, segmented faces, checkbox face, toggle icon label |
-| `cm-focus-pseudo` | ring on `::before` (inset 0) at offset +1px, element keeps its own outline | secondary button (its grey outline stays), icon buttons that open a popover |
+| `cm-focus-pseudo` | ring on `::before` (inset 0) at offset +1px, element keeps its own outline | secondary button (its gray outline stays), icon buttons that open a popover |
 | `cm-focus-flush` | `outline-offset: 0` | page rows, search field wrapper, rail pill (inactive), grid cells |
 | `cm-focus-inside` | `outline-offset: -1px` | field wrappers (any focus, `:focus-within`), select trigger, joined group segments, toolbar tools, active rail pill, scroll containers |
 | `cm-focus-inside-2` | 1px at `-2px` | round help button (fades in 200ms ease-out), main-menu-style 32 buttons |
-| `cm-focus-double` | `box-shadow: inset 0 0 0 1px var(--cm-bg), 0 0 0 1px var(--cm-bg), 0 0 0 2px var(--cm-border-selected)` | selected (blue) toolbar tool, colour chit |
+| `cm-focus-double` | `box-shadow: inset 0 0 0 1px var(--cm-bg), 0 0 0 1px var(--cm-bg), 0 0 0 2px var(--cm-border-selected)` | selected (blue) toolbar tool, color chit |
 | `cm-focus-primary` | `outline: 1px solid var(--cm-border-selected-strong)` at -1px plus `box-shadow: inset 0 0 0 2px #fff` | primary button (Share style). Generic primary: 1px #0d99ff at +1px (bc/btn-primary-md-enabled--focus #63) -- use the generic |
 | `cm-focus-switch` | 1px `var(--cm-border-selected-strong)` at +1px on the track | switch |
 
@@ -346,7 +346,7 @@ animations and removes only large slides, which we do not have).
 ### 2.9 The `highContrast` option (WCAG 2.2 AA)
 
 Off by default. When on, ONLY these tokens change; nothing else moves. Contrast figures are WCAG
-ratios computed from the composited colours on the surface named.
+ratios computed from the composited colors on the surface named.
 
 Owner's list:
 
@@ -400,7 +400,7 @@ export function ensureCompactStyles(options?: CompactThemeOptions): void; // ide
 
 Usage stays one line: `<MantineProvider theme={compactTheme}>`, or
 `<MantineProvider theme={createCompactTheme({ highContrast: true })}>`. Light / dark is Mantine's
-own colour scheme (`defaultColorScheme`, `forceColorScheme`, `useMantineColorScheme`); there is no
+own color scheme (`defaultColorScheme`, `forceColorScheme`, `useMantineColorScheme`); there is no
 second theme object per scheme. The resolved options are published on
 `theme.other.compact = { highContrast: boolean }` and `theme.other.panelGrid` stays.
 
@@ -425,7 +425,7 @@ second theme object per scheme. The resolved options are published on
 - Mantine's own CSS still loads first (`@mantine/core/styles.css`, the consumer's existing
   import). Our stylesheet is appended later and targets our own `cm-*` classes, which components
   receive through theme `classNames` or their own markup, so it wins without `!important`.
-- Mantine component extensions keep using `vars` for sizes; colours come from tokens. Where a
+- Mantine component extensions keep using `vars` for sizes; colors come from tokens. Where a
   state needs a selector (`:hover`, `[data-active]`, `::before`), the rule lives in the owning
   package's `.css.ts`, keyed on a `cm-*` class set through that extension's `classNames`.
 
@@ -433,7 +433,7 @@ second theme object per scheme. The resolved options are published on
 
 `primaryColor: "brand"` with a 10-shade palette whose shades land on Figma's tokens where Mantine
 reads them (Mantine uses shade 6 filled / 7 hover in light, 8 / 9 in dark, shade 4 as the dark
-anchor colour):
+anchor color):
 
 | Index | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -463,9 +463,9 @@ Geometry for every text variant (C7, bc/btn-primary-md-enabled--default #63, #66
 - "Button" label measures 52.3 x 24 (sm) and 60.3 x 32 (md) (bc/btn-primary-lg-enabled--default #25).
 - Left section (icon): a 24 x 24 slot with `margin-inline-start: -4px`, so the visible start
   inset is 4px; the label follows directly ("Create" 73.3 x 24, bc/btn-primary-md-icon--default
-  #25, #28 at x-4). Right section shortcut: `padding-inline-start: 4px`, colour the variant's
+  #25, #28 at x-4). Right section shortcut: `padding-inline-start: 4px`, color the variant's
   secondary text (`#ffffffcc` on primary: bc/btn-primary-md-shortcut--default #29).
-- Loading: width unchanged, `cursor: progress`, label fades out 200ms, a 16 x 16 spinner centred
+- Loading: width unchanged, `cursor: progress`, label fades out 200ms, a 16 x 16 spinner centered
   (bc/btn-primary-md-loading--default #28).
 - Disabled: skipped by Tab (native `disabled`), `cursor: auto`, no hover.
 
@@ -474,7 +474,7 @@ States per variant (bc/btn-<variant>-md-enabled--default|hover|pressed|focus, bc
 | Variant | Default bg / text | Hover bg | Pressed bg / text | Rest outline | Focus | Disabled |
 |---|---|---|---|---|---|---|
 | filled (primary) | `--cm-bg-brand` #0d99ff / #0c8ce9, `--cm-text-onbrand` | `--cm-bg-brand-hover` #007be5 / #0a6dc2 | `--cm-bg-brand-pressed` #0768cf / #105cad, text #ffffffcc | none | 1px `--cm-border-selected` at +1px | bg `--cm-bg-disabled` #d9d9d9 / #757575, text `--cm-text-ondisabled` #fff / #2c2c2c |
-| default (secondary) | transparent / `--cm-text` | `--cm-bg-transparent-hover` | `--cm-bg-transparent-pressed` / `--cm-text` | `outline: 1px solid --cm-border-translucent` at -1px | grey outline stays; blue ring on `::before` inset 0, offset +1px | text `--cm-text-disabled`, outline `--cm-border-disabled` |
+| default (secondary) | transparent / `--cm-text` | `--cm-bg-transparent-hover` | `--cm-bg-transparent-pressed` / `--cm-text` | `outline: 1px solid --cm-border-translucent` at -1px | gray outline stays; blue ring on `::before` inset 0, offset +1px | text `--cm-text-disabled`, outline `--cm-border-disabled` |
 | subtle (ghost) | transparent / `--cm-text` | `--cm-bg-transparent-hover` | `--cm-bg-transparent-pressed` | none | +1px ring | text `--cm-text-disabled` |
 | danger (`color="red"` filled, or new `variant="danger"`) | `--cm-bg-danger` / #fff | `--cm-bg-danger-hover` | `--cm-bg-danger-pressed` / #ffffffcc | none | +1px ring | as filled |
 | danger-outline (new) | transparent / `--cm-text-danger` | transparent-hover | transparent-pressed | 1px `--cm-border-danger` at -1px | pseudo ring | text disabled |
@@ -578,7 +578,7 @@ defaults to a new `"joined"` look.
 ### 4.7 Close button (Mantine `CloseButton`, and `InputClearButton` shares its scale)
 
 Figma's close is a 24 x 24 ghost icon button with a 10 x 10 X (C35 "Close"). Default size
-becomes `sm` = 24 box, 10 icon; `xs` = 16 box, 10 icon (inline clear in a 24 field). Colours as
+becomes `sm` = 24 box, 10 icon; `xs` = 16 box, 10 icon (inline clear in a 24 field). Colors as
 4.3.
 
 ## 5. Selection controls
@@ -606,7 +606,7 @@ Keyboard: automatic activation (arrows move focus AND select; Mantine `activateT
 true, `loop` true); one Tab stop. Activation on pointer DOWN (set `onMouseDown` to activate).
 The old `variant="default"` underline tabs remain reachable with `variant="default"`.
 Row tabs (184 x 24 in a left nav, Manage libraries): `orientation="vertical"` renders full-width
-24-tall rows with the same colours.
+24-tall rows with the same colors.
 
 ### 5.2 Segmented control, panel (Mantine `SegmentedControl` + `IconGroupRow`)
 
@@ -614,7 +614,7 @@ Row tabs (184 x 24 in a left nav, Manage libraries): `orientation="vertical"` re
 
 - Track `<fieldset role=radiogroup>`: `--cm-bg-secondary`, radius 5, height 24, NO padding,
   no gap. Options `flex: 1 1 0` (3 in 88 = 29.3; 3 in 184 = 61.3; 4 in 184 = 46).
-- Icon option: 24 x 24 glyph box centred. Text option: padding 0 8, 11/16 450.
+- Icon option: 24 x 24 glyph box centered. Text option: padding 0 8, 11/16 450.
 - Checked face: `--cm-bg` #fff / #2c2c2c, radius 5, `box-shadow: inset 0 0 0 1px
   var(--cm-segment-edge)` (= `--cm-border` #e6e6e6 / #444 in Figma mode; dt/... #31
   `rgb(68,68,68) 0 0 0 1px inset`). Icon / text `--cm-text`.
@@ -627,7 +627,7 @@ Row tabs (184 x 24 in a left nav, Manage libraries): `orientation="vertical"` re
 `IconGroupRow` becomes this look (its `SELECTED` inverted patch, `TRACK_PADDING` 1,
 `SEGMENT_GAP` 2 and `SEGMENT_RADIUS` 3 go).
 
-Loose group variant (colour picker paint types): six 24 x 24 radios 4px apart, no track; selected
+Loose group variant (color picker paint types): six 24 x 24 radios 4px apart, no track; selected
 `--cm-bg-secondary` radius 5; hover `--cm-bg-secondary`; focus 2px ring at -2px. Offer as
 `SegmentedControl` `variant="loose"`.
 
@@ -649,7 +649,7 @@ Loose group variant (colour picker paint types): six 24 x 24 radios 4px apart, n
 - Face 16 x 16, radius 2, 1px border, `outline: 1px solid transparent` offset +1px. Hidden input
   over it. Label 11/16 450, 8px after the box. Wrapper margin 4px 0 (24 row) -- in a panel
   ToggleRow the row is 32 (section 9.6).
-- Two variants: `variant="neutral"` (panel: stays grey when checked, `--cm-icon` glyph) and the
+- Two variants: `variant="neutral"` (panel: stays gray when checked, `--cm-icon` glyph) and the
   default `variant="filled"` = blue (dialogs, popovers, table headers: brand fill, white glyph).
   Which is the DEFAULT: **blue** (Mantine's default look family); `ToggleRow` uses neutral, the
   Figma panel convention.
@@ -686,7 +686,7 @@ Glyphs: check 9 x 8.5 (as the menu check column) drawn with a stroke so the tick
 | on | `--cm-bg-brand` | x+16, outline `--cm-control-icon-outline` |
 | on hover | unchanged | |
 | on pressed | `--cm-bg-brand-hover` | |
-| mixed (new `indeterminate` prop) | `--cm-bg-brand` | a 10 x 2 bar centred at x+11 |
+| mixed (new `indeterminate` prop) | `--cm-bg-brand` | a 10 x 2 bar centered at x+11 |
 | focus-visible | `cm-focus-switch` on the track | |
 | disabled off / on | transparent + `--cm-border-disabled` / `--cm-bg-disabled` | `--cm-icon-disabled` / #fff |
 
@@ -695,7 +695,7 @@ Label (when present) 8px to the right, 11/16 450 ("True" / "False" in tables).
 ### 5.6 Radio (Mantine `Radio`)
 
 Figma has no free-standing radio in the chrome (radios are segmented faces). Keep Mantine's
-Radio themed on the checkbox's colours: 16 x 16 circle, border `--cm-border-translucent-strong`,
+Radio themed on the checkbox's colors: 16 x 16 circle, border `--cm-border-translucent-strong`,
 fill `--cm-bg-secondary`; checked `--cm-bg-brand` with a 6px white dot; focus 1px ring +1px;
 label 11/16 450 8px after.
 
@@ -716,12 +716,12 @@ label 11/16 450 8px after.
 
 ### 5.8 Slider and RangeSlider (Mantine), plain
 
-Plain (non-colour) slider: small variant (C29): 8px track radius full on `--cm-bg-secondary`
+Plain (non-color) slider: small variant (C29): 8px track radius full on `--cm-bg-secondary`
 with a 1px inset `--cm-border-translucent-strong` outline; fill `--cm-bg-brand`; thumb 12 x 12
 circle, 2px white border, `box-shadow: 0 0 0 1px rgba(0,0,0,.2), inset 0 0 0 1px rgba(0,0,0,.2)`
 plus `--cm-elevation-300`; hover no change; mouse-down jumps; focus-visible 1px ring on the thumb
 at -2px; disabled track `--cm-bg` with `--cm-border-disabled`, thumb `--cm-icon-ondisabled`.
-Mark labels 9/14. Colour sliders are the colour package's (section 7.4).
+Mark labels 9/14. Color sliders are the color package's (section 7.4).
 
 ### 5.9 Other navigation components (Burger, NavLink, Pagination, Stepper)
 
@@ -755,7 +755,7 @@ ColorInput, the panel fields):
 - 24 tall, `--cm-bg-secondary`, radius 5, NO border at rest: `--input-bd: transparent`, plus an
   outline slot `outline: 1px solid transparent; outline-offset: -1px` on the wrapper.
 - Value 11/16 weight 450 0.055px `--cm-text`; placeholder `--cm-text-tertiary`; text inset 7-8
-  (8 by default; 7 where measured: select-like combos). Selection colour `--cm-text-highlight`.
+  (8 by default; 7 where measured: select-like combos). Selection color `--cm-text-highlight`.
 - Hover: outline `--cm-border` (#e6e6e6 / #444; dt/dark-number-input-x--hover #27
   `rgb(68,68,68) solid 1px -1px`).
 - Focus (mouse OR keyboard, `:focus-within` on the wrapper): outline `--cm-border-selected`
@@ -886,7 +886,7 @@ inset 0 8px, #0c8ce9), cr/export-format-select-*, dt/dark-select-*--open)
 - Bound fill row: one 156 x 24 button, 1px `--cm-border` outline, radius 5: a 14 chit + name (128
   wide); hover adds a 24 Detach button.
 - Component-property chip: 156 x 24 on `--cm-bg-component-tertiary`.
-- Props: `name`, `value` (for the tooltip), `onDetach`, `onClick`, `swatch` (a colour for the
+- Props: `name`, `value` (for the tooltip), `onDetach`, `onClick`, `swatch` (a color for the
   fill form).
 
 ### 6.7 Other Mantine inputs
@@ -902,20 +902,20 @@ inset 0 8px, #0c8ce9), cr/export-format-select-*, dt/dark-select-*--open)
   app-side copy is removed by the shell package once these exist). NativeSelect = the outlined
   trigger 6.4; ColorInput = a filled field with a 14 chit at x+5 (section 7.1).
 
-## 7. Colour
+## 7. Color
 
-Package: colour. Theme files: `src/theme/components/color.ts` (new; the foundation's registry picks
+Package: color. Theme files: `src/theme/components/color.ts` (new; the foundation's registry picks
 up every `*ComponentExtensions` export in `src/theme/components/` on its own), `src/theme/css/color.css.ts`.
 
-### 7.1 Colour chit (Mantine `ColorSwatch`, themed)
+### 7.1 Color chit (Mantine `ColorSwatch`, themed)
 
 (C27; bc/chit-swatch--*, ii/select-listbox-option-hover #42 14 x 14 radius 2 at x+5)
 
 - In a field: 14 x 14, radius 2, at x+5 y+5 of the 24 field; a half-pixel inner border
-  (`inset 0 0 0 1px var(--cm-border)` drawn at 0.5 scale on `::after`); a colour with alpha
+  (`inset 0 0 0 1px var(--cm-border)` drawn at 0.5 scale on `::after`); a color with alpha
   shows a checkerboard on the right half (7 x 14). Focus: `inset 0 0 0 1px
   var(--cm-border-selected)` on `::after` (`cm-focus-double` on a standalone chit).
-- In pickers and lists: 16 x 16, radius 20%, 24 pitch (8 gaps), 9 per row; light colours add
+- In pickers and lists: 16 x 16, radius 20%, 24 pitch (8 gaps), 9 per row; light colors add
   `inset 0 0 0 2px var(--cm-border-translucent)`. Style swatch: 16 circle.
 - Click opens the picker (7.3); the row that triggered it shows `--cm-bg-pressed` while open.
 
@@ -924,7 +924,7 @@ up every `*ComponentExtensions` export in `src/theme/components/` on its own), `
 (C28; rs/fill-opacity-default|hover|focus, bc/color-row-composite(--hover), ii/tooltip-panel-below #49-#50 and pseudo)
 
 - ONE field 156 x 24 (184 without row icons), radius 5, `--cm-bg-secondary` with a 1px border in
-  the same colour (hover: whole field border `--cm-border`; focus: `--cm-border-selected`).
+  the same color (hover: whole field border `--cm-border`; focus: `--cm-border-selected`).
 - Inside: chit 14 x 14 at x+5; hex input 77 x 24 from x+24 (11px, uppercase, 450, left padding
   0 -- the text starts at x+24); a 1px seam (`::before`, `--cm-bg`, 22 tall) between hex and
   opacity; opacity part 54 x 24 (input 38 wide, padding-inline-start 7, value without "%", then a
@@ -935,11 +935,11 @@ up every `*ComponentExtensions` export in `src/theme/components/` on its own), `
   0.5 per px on the "%".
 - `HEX_WIDTH` 72 / `OPACITY_WIDTH` 54 / `JOINED_RADIUS` 4 become 77 / 54 / 5; the swatch is no
   longer a separate 24 button but the chit inside the field (still a real button for keyboard
-  access, named "Open colour picker"). The existing reset button stays in the trailing slot.
+  access, named "Open color picker"). The existing reset button stays in the trailing slot.
 - Image / gradient: chit thumbnail and the word "Linear" / "Image" in place of the hex. Mixed:
   placeholder "Mixed".
 
-### 7.3 Colour picker (NEW export `ColorPickerPanel`; used by CompactColorInput)
+### 7.3 Color picker (NEW export `ColorPickerPanel`; used by CompactColorInput)
 
 (C30; ii/colour-picker-solid, pm/color-picker-open, dt/dark-color-picker)
 
@@ -947,7 +947,7 @@ A light popover (section 8.4 shell, 240 wide, height fits) opened from the chit,
 the panel. Top to bottom:
 
 1. Header 40: pill tabs "Custom" / "Libraries" at x+8 (only "Custom" when there are no
-   libraries: then a title "Colour"); "+" and Close 24 x 24 at the end; divider `inset 0 -1px 0
+   libraries: then a title "Color"); "+" and Close 24 x 24 at the end; divider `inset 0 -1px 0
    var(--cm-border)`.
 2. Paint-type bar 41 (padding 8, 1px bottom border): the loose segmented group (5.2) of 24 x 24
    radios 4 apart (Solid, Gradient) -- only the types the caller supports.
@@ -960,18 +960,18 @@ the panel. Top to bottom:
    ring around the joined pair on focus.
 6. Divider, then swatches (7.1 grid) -- the caller's swatch set (`SWATCH_COLORS_HEXA`).
 
-Behaviour: stays open while other panel rows are clicked; Escape or Close dismisses; focus
+Behavior: stays open while other panel rows are clicked; Escape or Close dismisses; focus
 returns to the chit; one popover at a time (8.4). Mantine's `ColorPicker` may be used for the
 saturation field and sliders if its parts can be themed to these values; otherwise draw them.
 
-### 7.4 Colour sliders (Mantine `HueSlider`, `AlphaSlider`, themed)
+### 7.4 Color sliders (Mantine `HueSlider`, `AlphaSlider`, themed)
 
 (C29; bc/slider-hue--*, bc/slider-opacity--*, pm/color-picker-hue-pressed)
 
 - Hit area 180 x 24, `role=slider`. Visible track 172 x 16, radius full, 1px inset outline
-  `--cm-border-translucent-strong`; hue = rainbow gradient; opacity = colour to transparent over a
+  `--cm-border-translucent-strong`; hue = rainbow gradient; opacity = color to transparent over a
   checkerboard. The track extends half a thumb past each end.
-- Thumb 16 x 16 circle, 4px white border, filled with the current colour, `box-shadow: 0 0 0 1px
+- Thumb 16 x 16 circle, 4px white border, filled with the current color, `box-shadow: 0 0 0 1px
   rgba(0,0,0,.2), inset 0 0 0 1px rgba(0,0,0,.2)`, with a 12 x 12 under-layer carrying
   `--cm-elevation-300`.
 - Hover no change; mouse-down jumps; drag live. Focus-visible: 1px ring on the thumb at -2px.
@@ -983,7 +983,7 @@ saturation field and sliders if its parts can be themed to these values; otherwi
 (C30 gradient mode; pm/color-picker-type-gradient)
 
 - A 208 x 24 gradient bar (radius 5, the gradient over a checkerboard) with square stop handles
-  (16 x 16 squares, 2px white border, the stop colour inside, `--cm-elevation-300`); the selected
+  (16 x 16 squares, 2px white border, the stop color inside, `--cm-elevation-300`); the selected
   stop is ringed `--cm-border-selected`. Dragging a handle moves the stop live; click on the bar
   adds a stop; Delete / Backspace on a focused handle removes it (respect `minStops`).
 - A "Stops" header row (11/16 550 title, "+" 24 ghost button) then one 32 row per stop:
@@ -1011,14 +1011,14 @@ cr/main-menu-hover-highlight, bt/flyout-*, bc/tab-design--default #40)
 | Label | 11/16 450 0.055px `--cm-text-menu`; text starts 16px from the menu edge (32 with a check column) |
 | Leading slot | 16 x 16 check column (white 9 x 8.5 check, `opacity: 0` when unchecked) and/or a 24 x 24 icon with 4px gap |
 | Shortcut (`rightSection`) | right-aligned, same font, `--cm-text-menu-secondary` #ffffffb2, at least 16px after the label |
-| Submenu chevron | 24 x 24 box, 3 x 5 glyph, shortcut colour |
+| Submenu chevron | 24 x 24 box, 3 x 5 glyph, shortcut color |
 | Divider (`Menu.Divider`) | 1px `--cm-border-translucent` (dark scope #ffffff1a) with 8px above and below: 17px between two rows |
 | Label (`Menu.Label`) | same row, text `--cm-text-menu-secondary` |
 | Scroll | clamp to viewport - 6px each side; 24px chevron rows at the ends that auto-scroll on hover; native scrollbar hidden |
 
 | State | Look |
 |---|---|
-| hover, keyboard highlight (`data-hovered`), pressed | highlight `--cm-bg-brand` (dark scope #0c8ce9), text #fff, shortcut and chevron `--cm-text-onbrand-secondary` #ffffffcc. No separate pressed colour |
+| hover, keyboard highlight (`data-hovered`), pressed | highlight `--cm-bg-brand` (dark scope #0c8ce9), text #fff, shortcut and chevron `--cm-text-onbrand-secondary` #ffffffcc. No separate pressed color |
 | checked (`menuitemcheckbox` / `menuitemradio`) | white check in the check column |
 | submenu open | parent row stays highlighted |
 | disabled | label and shortcut `--cm-text-menu-disabled` #ffffff66, no highlight on hover |
@@ -1060,7 +1060,7 @@ returns focus to the element that had it.
   109 x 24).
 - Arrow on (`withArrow` default true), same fill: 14 x 7 when the bubble is below, 12 x 6 above,
   6 x 12 beside. The bubble edge sits 6px from the trigger (`offset: 6`), arrow fills the gap.
-- Placement: `bottom` by default, flipping above when there is no room; centred; clamped 6px
+- Placement: `bottom` by default, flipping above when there is no room; centered; clamped 6px
   inside the viewport.
 - Timing: `openDelay: 1000`, `closeDelay: 300` in the Tooltip theme `defaultProps`; transition
   duration 0. Warm hand-off needs Mantine's `Tooltip.Group` around the whole shell, and a theme
@@ -1093,7 +1093,7 @@ start border (`POPOUT_GAP` 0), top aligned with the row that opened it, moved up
 A child popout docks flush to the start of its parent (`POPOUT_NESTED_GAP` 0; Figma: the 304
 create dialog sits at x = picker.x - 304, rs/README 959).
 
-Behaviour: ONE root popout at a time -- opening another root popout closes the open one (the
+Behavior: ONE root popout at a time -- opening another root popout closes the open one (the
 PopoutManager enforces it; a child of an open popout is the one allowed second dialog). Escape,
 Close or a click outside dismisses; focus returns to the trigger. The trigger shows its open state
 (`aria-expanded` -> 4.3 open look: #e5f4ff with a brand icon) while the popout is up. No open or
@@ -1113,7 +1113,7 @@ body text 11/16 450 `--cm-text-secondary`.
 ac/dialog-accessibility-settings, hm/comment-delete-confirm-dialog)
 
 - Frame 480 wide default (`size`: sm 320, md 480, lg 760), `--cm-bg`, radius 13,
-  `--cm-elevation-500`, centred. Overlay: none by default (`withOverlay` false), `--cm-modal-backdrop`
+  `--cm-elevation-500`, centered. Overlay: none by default (`withOverlay` false), `--cm-modal-backdrop`
   when the caller asks.
 - Header 40 (41 with its 1px bottom border `inset 0 -1px 0 var(--cm-border)`), padding
   `0 32px 0 16px`, title 11/16 550 at x+16, Close 24 ghost at the end.
@@ -1128,7 +1128,7 @@ ac/dialog-accessibility-settings, hm/comment-delete-confirm-dialog)
 dt/dark-toast-zoom-to-selection)
 
 - Pill 40 tall, radius 13, padding 0 8, `--cm-bg-toolbar` #2c2c2c in both themes,
-  `--cm-elevation-toast`, `color-scheme: dark` inside; centred horizontally, bottom 16px above
+  `--cm-elevation-toast`, `color-scheme: dark` inside; centered horizontally, bottom 16px above
   the bottom toolbar (caller supplies the bottom offset; default 76).
 - Message `role=alert`, padding 8, 11/16 550 0.055px #fff, optional 16 leading icon.
 - Action button: 24 tall, transparent, 1px `rgba(255,255,255,.1)` outline, radius 5, 11/16 450,
@@ -1227,7 +1227,7 @@ ii/tooltip-panel-below #25-#39, cr/empty-section-title-hover)
 - `fieldset` 240 x 48: a 16 legend band (11/16 weight 400, letter-spacing normal,
   `--cm-text-secondary`), 4 gap, 24 controls, 4 bottom. Controls on the grid (88 | 8 | 88 | 8 |
   24).
-- Labelled two-column row (`FieldRow showLabels` / captions): 50 tall, 9/14 weight 500 0.27px
+- Labeled two-column row (`FieldRow showLabels` / captions): 50 tall, 9/14 weight 500 0.27px
   `--cm-text-secondary` captions ABOVE each column, 3 gap, 24 control. The old "word beside each
   control" layout (`LABEL_COLUMN` beside) stays only for `labelPosition="inline"` (new prop,
   default `"above"`), for compatibility where a caller relies on it -- listed in section 15.
@@ -1251,7 +1251,7 @@ glyph and the open look while its popout is up.
 
 (C45, C46 actions, C28 paint row)
 
-- Single row 240 x 32, the control centred (4 above / below), padding `0 8px 0 16px`.
+- Single row 240 x 32, the control centered (4 above / below), padding `0 8px 0 16px`.
 - `ActionRow`: trailing icon cluster, 24 buttons 4 apart. Row actions on property rows (paint,
   effect) are ALWAYS visible (Figma); hover-revealed actions (opacity 0 -> 1, 100ms ease-out) are
   the tree's (10.1) -- keep `ActionRow`'s existing reveal prop but default it to always visible
@@ -1273,8 +1273,8 @@ glyph and the open look while its popout is up.
 | dark menu | 1px `--cm-border-translucent` (dark scope) with 8 above and below |
 | sticky tree row | `box-shadow: 0 1px 0 0 var(--cm-border)` |
 
-Mantine `Divider` default colour becomes `--cm-border` (a theme extension owned by the chrome
-package in its CSS: `.mantine-Divider-root` border colour).
+Mantine `Divider` default color becomes `--cm-border` (a theme extension owned by the chrome
+package in its CSS: `.mantine-Divider-root` border color).
 
 ### 9.8 Ramp, chart and prose rows (`RampRow`, `HistogramRow`, `SparklineRow`, `MetricRow`, `ProseBlock`, `RankChip`)
 
@@ -1390,7 +1390,7 @@ own classNames (no new theme variant needed in the inputs package).
 
 240 x 52 (34 for one line), padding `8 8 8 16`, 16 icon, name 11/16 400 with the matched
 substring weight 600, parent path 10/16 `--cm-text-secondary`; current result `--cm-bg-selected`
-with a 1px border in the same colour; hover `--cm-bg-hover`. `role=option` inside a listbox driven
+with a 1px border in the same color; hover `--cm-bg-hover`. `role=option` inside a listbox driven
 from a SearchInput (focus stays in the input, `aria-activedescendant` -- ours, Figma has none).
 
 ### 10.5 DataRow, DataRowHeader, RankChip (existing)
@@ -1428,7 +1428,7 @@ the i18n strings, the docs pages and the graphty integration). Theme files:
 - `role=toolbar` (with `aria-label`), height 48, padding 8, gap 8 between groups, `--cm-bg`,
   radius 13, `--cm-elevation-200`, no border. Width hugs content (529 in Figma's design mode).
 - `Toolbar.Divider`: 1 x 48 `--cm-border`, full height (negative block margin 8).
-- Position is the caller's (Figma centres it on the window, bottom 12). Export a `floating`
+- Position is the caller's (Figma centers it on the window, bottom 12). Export a `floating`
   prop that applies `position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%)`.
 - Keyboard: one Tab stop, roving focus starting on the selected tool; ArrowLeft / Right move
   through tools, chevrons and the mode radios; Home / End.
@@ -1464,7 +1464,7 @@ The mode switch at the toolbar end is `SegmentedControl variant="toolbar"` (5.3)
 (C42; bt/secondary-vector-bar, bt/secondary-image-bar)
 
 A second bar 8px above the main one: 40 tall, padding 8 (0 for a crop-style bar), gap 8, radius
-13, `--cm-elevation-200`, `--cm-bg`, 1 x 40 dividers. Items 24 tall: icon buttons or labelled
+13, `--cm-elevation-200`, `--cm-bg`, 1 x 40 dividers. Items 24 tall: icon buttons or labeled
 buttons (24 icon + 11/16 400 label, padding-inline-end 8); selected `--cm-bg-brand` with white
 content; hover `--cm-bg-hover`; a "More" dropdown button turns `--cm-bg-selected` with brand text
 while open. Optional hint banner under it: `--cm-bg-info`, 13/22 500 `--cm-text-brand`, radius
@@ -1512,7 +1512,7 @@ shows and hides immediately (`openDelay` 0). Opens a dark Menu (the caller's ite
 
 (C52; hm/header-right-default, hidpi-2x-captures/06-right-panel-header)
 
-- Avatar 24 x 24 (sm), radius 100%, initial 12/24 400 white on the user's colour (`color` prop /
+- Avatar 24 x 24 (sm), radius 100%, initial 12/24 400 white on the user's color (`color` prop /
   `bg`); in a stack each avatar has a 2px `--cm-bg` ring (28 including the ring) and steps 21px
   (overlap 3). `Avatar.Group` spacing -3 (plus the ring).
 - Avatar buttons: focus ring 1px `--cm-border-strong` at -3px. Tooltip / hover card after 150ms.
@@ -1569,12 +1569,12 @@ library card yet. Add them when a panel needs one.
 |---|---|---|---|
 | `compactTheme`, `compactThemeOverride` | theme | foundation | Figma defaults; now built by `createCompactTheme()` |
 | `compactColors`, `compactDarkColors` | theme | foundation | neutral dark ramp, `brand` palette added |
-| `CompactColorInput` | component | colour | paint row field 7.2 + picker 7.3 |
+| `CompactColorInput` | component | color | paint row field 7.2 + picker 7.3 |
 | `ControlGroup` | component | chrome | legend row 9.3 |
 | `ControlSection` | component | chrome | section header 9.2 |
 | `ControlSubGroup` | component | chrome | 9.4 |
 | `DataTable` | component | tree | 10.6 |
-| `GradientEditor` | component | colour | 7.5 |
+| `GradientEditor` | component | color | 7.5 |
 | `InfoCircle` | component | overlays | 8.4 |
 | `Popout`, `PopoutButton`, `PopoutManager`, `PopoutRegion`, `usePopoutManager`, `usePopoutRegion` | components | overlays | light popover 8.4, one at a time |
 | `StyleNumberInput` | component | inputs | 6.1 |
@@ -1595,8 +1595,8 @@ library card yet. Add them when a panel needs one.
 | `COMPACT_SIZING`, `MANTINE_SPACING` | constants | foundation | FONT_SIZE 11, HEIGHT 24 unchanged; SECTION_GAP 4 |
 | `PANEL_GRID`, `PANEL_INK` | constants | foundation | 9.1, 2.2 |
 | `POPOUT_GAP`, `POPOUT_NESTED_GAP`, `POPOUT_Z_INDEX_BASE` | constants | overlays | gaps 0 / 0 |
-| `DEFAULT_GRADIENT_STOP_COLOR`, `SWATCH_COLORS_HEXA` | constants | colour | unchanged unless the picker needs 9 per row |
-| colour utils (`createColorStop`, `isValidHex`, ...) | utils | colour | unchanged |
+| `DEFAULT_GRADIENT_STOP_COLOR`, `SWATCH_COLORS_HEXA` | constants | color | unchanged unless the picker needs 9 per row |
+| color utils (`createColorStop`, `isValidHex`, ...) | utils | color | unchanged |
 | `getActivationMeta` | util | foundation | unchanged |
 | all types | types | shell (`src/types/index.ts`) | new types added |
 
@@ -1607,7 +1607,7 @@ MultiSelect, NumberInput, PasswordInput, PillsInput, Select, TagsInput, Textarea
 NativeSelect, ColorInput (inputs); HoverCard, Menu, Popover, Tooltip, Loader, Progress,
 RingProgress + new Modal, Notification, ScrollArea, TooltipGroup (overlays); Avatar, Badge,
 Indicator, Kbd, Pill, Text, ThemeIcon (shell); new ColorSwatch, HueSlider, AlphaSlider,
-ColorPicker (colour).
+ColorPicker (color).
 
 ## 13. Foundation deliverables (what every package can rely on)
 
@@ -1633,10 +1633,10 @@ ColorPicker (colour).
     `[aria-selected="true"]` and `:hover`; disabled rule; the 16 check column), used by the
     overlays package's Menu and the inputs package's listbox;
   - `cm-popover-surface` (`--cm-bg`, radius 13, `--cm-elevation-400`, no border), used by
-    Popout, Popover, HoverCard, the colour picker.
+    Popout, Popover, HoverCard, the color picker.
 - `src/theme/components/index.ts`: collects every `*ComponentExtensions` export of the files in
   its folder with `import.meta.glob("./*.ts", { eager: true })`, so a package adds a theme file
-  (the colour package's new `color.ts`) without touching the registry.
+  (the color package's new `color.ts`) without touching the registry.
 - `src/fonts/inter-latin-wght-normal.woff2` and `src/fonts/LICENSE-Inter.txt` (from
   `@fontsource-variable/inter`, SIL OFL 1.1), copied to `dist/fonts/LICENSE-Inter.txt` by the
   build; a `*.woff2` module declaration so TypeScript accepts the import.
@@ -1652,7 +1652,7 @@ ColorPicker (colour).
 - The harness: `.storybook/preview.tsx` gains a "Contrast" toolbar (Figma / AA) that renders with
   `createCompactTheme({ highContrast })`; `tests/setup.ts` and `tests/setup.browser.ts` inject
   the stylesheet; `tests/figma/harness.tsx` exports `renderFigma(ui, { scheme, highContrast })`
-  (MantineProvider + forced scheme), `computed(el, pseudo?)`, `hex(color)` (normalises
+  (MantineProvider + forced scheme), `computed(el, pseudo?)`, `hex(color)` (normalizes
   `rgb()/rgba()` to 8-digit hex), and `expectBox(el, { w, h })`, so every package's browser tests
   compare against this spec the same way.
 - Cross-cutting regression suites that pin the OLD values (`tests/theme/css-baseline-regression`,
@@ -1681,7 +1681,7 @@ These are the places the result will NOT match Figma, and why. Everything else m
 | Existing props | -- | every existing component and prop keeps working | owner decision; restyles land inside |
 | `InfoCircle` | no equivalent (tooltips only) | kept, restyled as a light popover | existing export; graphty uses it |
 | `ControlSubGroup` in-panel foldaway | never (always a popover) | kept, restyled | existing export |
-| `StyleNumberInput` / `StyleSelect` / `CompactColorInput` reset button | none | kept in the trailing slot | existing prop and graphty behaviour |
+| `StyleNumberInput` / `StyleSelect` / `CompactColorInput` reset button | none | kept in the trailing slot | existing prop and graphty behavior |
 | `RampRow`, chart rows, `ProseBlock`, `RankChip`, `DataTable` extras | no equivalent | kept, restyled on tokens | existing exports |
 | Nested popouts | only the create-style dialog docks to the left | a child popout docks flush to its parent | existing API; root popouts are one-at-a-time as Figma |
 | Checkbox default | neutral in the panel, blue in dialogs | Mantine `Checkbox` defaults to blue; `ToggleRow` uses neutral | a bare Mantine Checkbox reads as a dialog checkbox |
@@ -1698,7 +1698,7 @@ These are the places the result will NOT match Figma, and why. Everything else m
 3. Theme scale values: `spacing.sm` 6 -> 8; `radius.sm/md` 4/6 -> 5, `lg/xl` 8/12 -> 13;
    `fontSizes.xs` 10 -> 9, `lg` 14 -> 15, `xl` 16 -> 24; `lineHeights` now px; shadows replaced.
 4. `colors.dark` is a neutral ramp; `primaryColor` is the new `brand` palette. Components that
-   passed `color="blue"` expecting the primary colour get Mantine blue, not the accent.
+   passed `color="blue"` expecting the primary color get Mantine blue, not the accent.
 5. `focusRing` is `"never"`; the ring is ours (1px). A consumer's own `focusRing` override no
    longer controls compact-mantine components.
 6. Overlays have no transitions; Tooltip opens after 1000 ms (was immediate).
@@ -1725,9 +1725,9 @@ These are the places the result will NOT match Figma, and why. Everything else m
   dark.
 - A browser test `tests/figma/<package>.browser.test.tsx` that renders each component with the
   harness in light and dark (and AA where the component reads an AA token) and asserts, for each
-  state in this file: box width / height, padding, radius, background, text colour, font size /
+  state in this file: box width / height, padding, radius, background, text color, font size /
   weight / line-height / letter-spacing, border / outline / box-shadow, using `hex()` so
-  translucent colours compare exactly. Hover and pressed are driven with Playwright pointer
+  translucent colors compare exactly. Hover and pressed are driven with Playwright pointer
   actions through `@vitest/browser`'s `userEvent`.
 - Visual check against the Figma PNG of the same state (the study's `@2x` captures) for anything
   a computed style cannot show (glyph drawing, pseudo elements): screenshot the story, crop, and
@@ -1740,11 +1740,11 @@ exact file lists are in the plan the orchestrator holds; in short:
 
 | Order | Package | Sections | Owns (besides its own new folders `src/components/<key>/`, `stories/figma/<key>/`, `tests/components/<key>/`, `tests/figma/<key>.browser.test.tsx`, `src/theme/css/<key>.css.ts`) |
 |---|---|---|---|
-| 1 | foundation | 2, 3, 9.1, 13 | theme assembly, tokens, colours, fonts, global stylesheet, `PANEL_GRID` / `PANEL_INK`, icons, harness, Storybook preview, cross-cutting token tests |
+| 1 | foundation | 2, 3, 9.1, 13 | theme assembly, tokens, colors, fonts, global stylesheet, `PANEL_GRID` / `PANEL_INK`, icons, harness, Storybook preview, cross-cutting token tests |
 | 2 (parallel) | buttons | 4 (not 4.2) | `theme/components/buttons.ts`, `theme/styles/buttons.ts` |
 | 2 | selection | 4.2, 5 | `theme/components/controls.ts` + `navigation.ts` and their styles; IconGroupRow, ToggleRow, ToggleWithContent |
 | 2 | inputs | 6 | `theme/components/inputs.ts` + styles; PanelField, StyleNumberInput, StyleSelect |
-| 2 | colour | 7 | `theme/components/color.ts` (new); CompactColorInput, GradientEditor, colour constants and utils |
+| 2 | color | 7 | `theme/components/color.ts` (new); CompactColorInput, GradientEditor, color constants and utils |
 | 2 | overlays | 8 | `theme/components/overlays.ts` + `feedback.ts` and their styles; the popout family, InfoCircle, `constants/popout.ts` |
 | 2 | chrome | 9 (not 9.1) | ControlSection, ControlGroup, ControlSubGroup, FieldRow, TrailingSlot, ActionRow, CompoundRow, RampRow, ChartRow, ProseBlock |
 | 2 | tree | 10 | DataRow, DataTable, the new tree components |

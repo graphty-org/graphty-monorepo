@@ -39,7 +39,7 @@ type Scheme = "light" | "dark";
  * One half of a `BOTH_SCHEMES` story (stories/helpers/schemes.ts): a wrapper that carries the
  * scheme as `color-scheme` (every `--cm-*` token is a `light-dark()` and resolves from it) and as
  * Mantine's `data-mantine-color-scheme`, with a nested MantineProvider whose CSS variables and
- * colour-scheme attribute are scoped to this wrapper instead of `<html>`.
+ * color-scheme attribute are scoped to this wrapper instead of `<html>`.
  * @param props - Component props
  * @param props.scheme - the scheme this half renders
  * @param props.theme - the theme the outer provider uses
@@ -199,7 +199,7 @@ const preview: Preview = {
             // properties and Mantine's own stylesheet read. The wrapper paints
             // the theme's ground: on a docs page the story sits on Storybook's
             // own white canvas, where dark-scheme text would otherwise vanish.
-            // In the canvas view it is the same colour as the body, so nothing
+            // In the canvas view it is the same color as the body, so nothing
             // a Chromatic snapshot captures changes.
             const inDocs = context.viewMode === "docs";
             return (
@@ -234,14 +234,14 @@ const preview: Preview = {
                     [
                         "Getting started",
                         "Choosing a component",
-                        "Customising the theme",
+                        "Customizing the theme",
                         "Languages and direction",
                         "Events and shared props",
                         "Accessibility",
                         "Upgrading to 0.9",
                     ],
                     "Foundations",
-                    ["Colour", "Typography", "Spacing, radii and grid", "Elevation", "Focus and motion", "Glyphs"],
+                    ["Color", "Typography", "Spacing, radii and grid", "Elevation", "Focus and motion", "Glyphs"],
                     "Components",
                     [
                         "Panels and rows",
@@ -250,7 +250,7 @@ const preview: Preview = {
                         ["Overview"],
                         "Selection",
                         ["Overview"],
-                        "Colour",
+                        "Color",
                         ["Overview"],
                         "Actions",
                         ["Overview"],

@@ -196,7 +196,7 @@ describe("GradientEditor", () => {
         expect(onChange).not.toHaveBeenCalled();
     });
 
-    // Figma's stop rows have no reset (7.5): a stop always has a colour of its own.
+    // Figma's stop rows have no reset (7.5): a stop always has a color of its own.
     it("offers no per-stop reset", () => {
         renderGradientEditor(<GradientEditor stops={defaultStops} onChange={vi.fn()} />);
         expect(screen.queryByRole("button", { name: /reset/i })).not.toBeInTheDocument();
@@ -430,7 +430,7 @@ describe("GradientEditor", () => {
             expect(screen.getAllByTestId("gradient-editor-stop")[0]).not.toHaveAttribute("data-selected");
         });
 
-        it("adds a stop where the bar is clicked, its colour mixed from its neighbours", () => {
+        it("adds a stop where the bar is clicked, its color mixed from its neighbors", () => {
             const onChange = vi.fn();
             renderGradientEditor(<GradientEditor defaultStops={defaultStops} onChange={onChange} />);
 
@@ -484,7 +484,7 @@ describe("GradientEditor", () => {
     });
 
     // One picker, under the bar, edits the selected stop; the stop rows open no pop-out.
-    describe("the selected stop's colour picker", () => {
+    describe("the selected stop's color picker", () => {
         it("draws one picker, with no paint-type bar and no opacity, showing the first stop", () => {
             renderGradientEditor(<GradientEditor defaultStops={defaultStops} />);
 
@@ -511,7 +511,7 @@ describe("GradientEditor", () => {
             expect(screen.getByRole("textbox", { name: "Color value" })).toHaveValue("0000FF");
         });
 
-        it("a colour typed into the picker writes the selected stop as one complete gesture", async () => {
+        it("a color typed into the picker writes the selected stop as one complete gesture", async () => {
             const user = userEvent.setup();
             const order: string[] = [];
             const onChange = vi.fn(() => order.push("change"));
@@ -580,7 +580,7 @@ describe("GradientEditor", () => {
             expect(hex).toHaveValue("00FF00");
         });
 
-        it("the hex field commits on blur and ignores text that is not a colour", async () => {
+        it("the hex field commits on blur and ignores text that is not a color", async () => {
             const user = userEvent.setup();
             const onChange = vi.fn();
             renderGradientEditor(<GradientEditor defaultStops={defaultStops} onChange={onChange} />);
@@ -622,14 +622,14 @@ describe("GradientEditor", () => {
     });
 
     describe("stop count bounds", () => {
-        it("honours a maxStops lower than the default", () => {
+        it("honors a maxStops lower than the default", () => {
             const threeStops = [...defaultStops, createColorStop(0.5, "#00FF00")];
             renderGradientEditor(<GradientEditor stops={threeStops} maxStops={3} onChange={vi.fn()} />);
 
             expect(screen.getByRole("button", { name: /add/i })).toBeDisabled();
         });
 
-        it("honours a minStops higher than the default", () => {
+        it("honors a minStops higher than the default", () => {
             const threeStops = [...defaultStops, createColorStop(0.5, "#00FF00")];
             renderGradientEditor(<GradientEditor stops={threeStops} minStops={3} onChange={vi.fn()} />);
 

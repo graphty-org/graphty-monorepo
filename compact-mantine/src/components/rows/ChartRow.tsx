@@ -63,7 +63,7 @@ const AXIS_ROW_HEIGHT = 16;
 const BAR_GAP = 2;
 
 /**
- * A bar's corner radius. Smaller than every radius in a colour ramp on purpose:
+ * A bar's corner radius. Smaller than every radius in a color ramp on purpose:
  * an 11px bar with a 4px radius reads as a lozenge rather than as a count.
  */
 const BAR_RADIUS = 1;
@@ -103,7 +103,7 @@ const MICRO_BAR_HEIGHT = 4;
 const MICRO_BAR_RADIUS = MICRO_BAR_HEIGHT / 2;
 
 /**
- * The gap between a glyph and a word, or a value and its neighbour, inside one
+ * The gap between a glyph and a word, or a value and its neighbor, inside one
  * control.
  */
 const INLINE_GAP = 4;
@@ -144,7 +144,7 @@ export interface HistogramBin {
     label: string;
     /** How many things fell in this bin. The bar's height is this over the tallest bin's. */
     count: number;
-    /** Draws this bar in the accent colour, for the bin the reader has selected or the one being explained. */
+    /** Draws this bar in the accent color, for the bin the reader has selected or the one being explained. */
     highlighted?: boolean;
 }
 
@@ -301,7 +301,7 @@ export interface MetricRowProps {
      * The event comes first, so you can read modifier keys for a multiple
      * selection and call `preventDefault`. The second argument states whether
      * the activation came from a pointer or from the keyboard, which is the
-     * distinction selection behaviour usually turns on.
+     * distinction selection behavior usually turns on.
      *
      * Supplying it makes the row a real button: focusable, with a pointer
      * cursor, and answering Enter and Space.
@@ -447,7 +447,7 @@ function ChartValueTable({ caption, rows, testId }: ChartValueTableProps): React
  * The polyline points of a sparkline, in a 100 by 100 user space that is then
  * stretched to the width of the row.
  *
- * The series is normalised over its own extremes, because a sparkline reports
+ * The series is normalized over its own extremes, because a sparkline reports
  * shape and the two axis-end labels report magnitude. A series with no range
  * draws down the middle rather than at the top or the bottom, and a series of
  * one value draws as a flat line across the row rather than as a single
@@ -516,7 +516,7 @@ function useAxisIds(): AxisIds {
 }
 
 /**
- * A distribution drawn instead of the four numbers that summarise it.
+ * A distribution drawn instead of the four numbers that summarize it.
  *
  * `min 2, median 3, max 4, standard deviation 0.62` is four numbers standing in
  * for a shape. A histogram draws the shape in the same space, and answers what
@@ -709,7 +709,7 @@ export function HistogramRow({
  * row pitch has no second line to put them on. They are still always drawn: a
  * sparkline with no ends is a squiggle.
  *
- * The series is normalised over its own extremes, so the line reports shape and
+ * The series is normalized over its own extremes, so the line reports shape and
  * the labels report magnitude. No legend, no title, no summary line.
  *
  * The line is drawn from the start of the axis to its end, following the text

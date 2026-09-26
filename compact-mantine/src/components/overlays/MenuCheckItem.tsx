@@ -6,7 +6,7 @@ import { UiGlyph } from "../../icons";
 // Accessibility: a real menuitemcheckbox (or menuitemradio) with aria-checked.
 // Mantine's Menu.Item writes role="menuitem" after the props it is given, so the
 // role is set on the rendered root through renderRoot, which receives the final
-// props. Keyboard behaviour (arrows, Home / End, type-ahead, Enter / Space) is
+// props. Keyboard behavior (arrows, Home / End, type-ahead, Enter / Space) is
 // the menu's own, unchanged: the row keeps data-menu-item.
 
 /**

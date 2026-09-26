@@ -11,7 +11,7 @@ import {
 } from "../../src/theme/styles/overlays";
 
 /**
- * The overlay theme extensions: z-index layering, the Figma behaviour defaults (no transitions,
+ * The overlay theme extensions: z-index layering, the Figma behavior defaults (no transitions,
  * tooltip timing, menu placement) and the classNames that point each part at the overlay CSS
  * (design/figma-spec.md section 8). The computed look is measured in
  * tests/figma/overlays.browser.test.tsx.

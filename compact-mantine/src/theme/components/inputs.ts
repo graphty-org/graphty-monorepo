@@ -26,7 +26,7 @@ import {
     overTriggerComboboxProps,
     renderListboxOption,
 } from "../../components/inputs/listbox";
-import { installOverlayBehaviour } from "../../components/overlays/overlayBehaviour";
+import { installOverlayBehavior } from "../../components/overlays/overlayBehavior";
 import {
     compactInputClearButtonScale,
     compactInputScale,
@@ -105,7 +105,7 @@ function fieldClassNames(fallback: "filled" | "outlined", extra = "") {
 
 /**
  * The dark listbox's classNames (spec 6.5). The dropdown is also a `cm-menu`: it scrolls itself
- * (no ScrollArea) and takes the menus' 24px scroll chevron rows (overlayBehaviour.ts).
+ * (no ScrollArea) and takes the menus' 24px scroll chevron rows (overlayBehavior.ts).
  */
 const LISTBOX_CLASS_NAMES = {
     dropdown: "cm-menu-surface cm-menu cm-listbox",
@@ -164,7 +164,7 @@ const BELOW_LIST_DEFAULTS = {
 };
 
 /**
- * The per-size variables of a field with a list, installing the document-level list behaviour
+ * The per-size variables of a field with a list, installing the document-level list behavior
  * (scroll chevrons) on first use.
  * @param scale - the size scale
  * @param size - the field's size
@@ -174,7 +174,7 @@ function listVars(
     scale: CompactSizeScale,
     size?: string | number | null,
 ): { root: Record<string, never>; wrapper: CompactVars } {
-    installOverlayBehaviour();
+    installOverlayBehavior();
     return { root: {}, wrapper: compactVarsForSize(scale, size) };
 }
 
@@ -310,7 +310,7 @@ export const inputComponentExtensions = {
         classNames: fieldClassNames("filled"),
     }),
 
-    // A filled field with the 14px colour chit at x+5 in a 24px leading slot (spec 6.7, 7.1).
+    // A filled field with the 14px color chit at x+5 in a 24px leading slot (spec 6.7, 7.1).
     ColorInput: ColorInput.extend({
         defaultProps: { size: "sm", variant: "filled" },
         vars: (_theme, props) => ({

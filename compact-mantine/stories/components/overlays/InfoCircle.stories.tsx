@@ -57,7 +57,7 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
  *
  * | Part | Value |
  * |---|---|
- * | Trigger | 24 x 24 ghost icon button, 12px info glyph, secondary text colour |
+ * | Trigger | 24 x 24 ghost icon button, 12px info glyph, secondary text color |
  * | Bubble | the light popover shell, 240px wide, radius 13px, elevation 400, no border |
  * | Text | 11/16 weight 450, `--cm-text-secondary` |
  * | Gap | 4px between the circle and the bubble |

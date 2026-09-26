@@ -11,7 +11,7 @@ export {
     expectMeasured,
     hex,
     measure,
-    normalise,
+    normalize,
     part,
     renderThemed as renderFigma,
     resetHarness,

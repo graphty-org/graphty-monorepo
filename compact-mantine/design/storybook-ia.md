@@ -28,7 +28,7 @@ The last section splits the work into packages with disjoint files.
   `src/**/*.stories.*`, with addon-essentials, addon-a11y and the Chromatic addon.
 - Autodocs is opt-in per file. 36 files tag `autodocs`; none of the `stories/theme/*` or
   `stories/figma/*` files do (two exceptions: ResizeHandle and AlignmentMatrix).
-- Every States story shows one colour scheme, whichever the toolbar selects. The only
+- Every States story shows one color scheme, whichever the toolbar selects. The only
   side-by-side light and dark render is `Compact Theme/Mantine Components/Light-Dark Mode`,
   which nests a second `MantineProvider` with `cssVariablesSelector`.
 - Four near-identical story helpers draw state grids: `stories/figma/inputs/StateGrid.ts`,
@@ -51,13 +51,13 @@ as a group, the third as the component.
 INTRODUCTION
   Getting started
   Choosing a component
-  Customising the theme
+  Customizing the theme
   Languages and direction
   Events and shared props
   Accessibility
   Upgrading to 0.9
 FOUNDATIONS
-  Colour
+  Color
   Typography
   Spacing, radii and grid
   Elevation
@@ -69,7 +69,7 @@ COMPONENTS
   Inputs               Overview, PanelField, Select, StyleNumberInput, SearchInput,
                        ComboInput, VariablePill
   Selection            Overview, ToggleRow, ToggleRowGroup, ToggleWithContent, AlignmentMatrix
-  Colour               Overview, CompactColorInput, ColorPickerPanel, GradientEditor, RampRow
+  Color               Overview, CompactColorInput, ColorPickerPanel, GradientEditor, RampRow
   Actions              Overview, ToggleIconButton, SplitButton, AdvancedButton
   Overlays             Overview, Popout, PopoutButton, InfoCircle, Menu, Tooltip, Modal, Toast
   Lists and trees      Overview, Tree, PageList, InlineRename, ResultRow
@@ -116,10 +116,10 @@ Rules the sidebar keeps:
 ```
 stories/
   helpers/          shared story helpers (not stories)
-  introduction/     Introduction MDX pages, plus CustomisingTheTheme.stories.tsx
+  introduction/     Introduction MDX pages, plus CustomizingTheTheme.stories.tsx
   foundations/
   components/
-    panels/ inputs/ selection/ colour/ actions/ overlays/ lists/ data/ shell/
+    panels/ inputs/ selection/ color/ actions/ overlays/ lists/ data/ shell/
   patterns/
   mantine/
     actions/ inputs/ selection/ navigation/ feedback/ surfaces/
@@ -140,24 +140,24 @@ moved into the named file and the old file is deleted.
 |---|---|---|
 | `docs/Introduction.mdx` (Getting Started/Introduction) | `introduction/GettingStarted.mdx` | Introduction/Getting started |
 | (new; from README "Which one should I use?" and the old overviews) | `introduction/ChoosingAComponent.mdx` | Introduction/Choosing a component |
-| `Theming.stories.tsx` stories ChangePrimaryColor, ChangeFonts, ChangeBorderRadius (Compact Theme/Showcase) | `introduction/CustomisingTheTheme.stories.tsx` | Introduction/Customising the theme |
+| `Theming.stories.tsx` stories ChangePrimaryColor, ChangeFonts, ChangeBorderRadius (Compact Theme/Showcase) | `introduction/CustomizingTheTheme.stories.tsx` | Introduction/Customizing the theme |
 | (new; from README "Internationalization" and "Right-to-left languages") | `introduction/LanguagesAndDirection.mdx` | Introduction/Languages and direction |
 | (new; from README "Handling events" and "The shared prop names") | `introduction/EventsAndProps.mdx` | Introduction/Events and shared props |
 | (new; from README "Accessibility") | `introduction/Accessibility.mdx` | Introduction/Accessibility |
 | (new; from CHANGELOG-figma.md) | `introduction/Upgrading.mdx` | Introduction/Upgrading to 0.9 |
-| `docs/CompactTheme.mdx` (Compact Theme/Overview) | split: provider, light/dark and WCAG AA into Getting started; "What it sets" into Foundations; "Making it your own", "A compact region", "Server rendering and shadow roots" into Customising the theme | -- |
+| `docs/CompactTheme.mdx` (Compact Theme/Overview) | split: provider, light/dark and WCAG AA into Getting started; "What it sets" into Foundations; "Making it your own", "A compact region", "Server rendering and shadow roots" into Customizing the theme | -- |
 
 Getting started covers: what the package is, install and peers, `MantineProvider` with
 `compactTheme`, `createCompactTheme({ highContrast: true })`, light and dark
 (`forceColorScheme`, `defaultColorScheme`), the bundled Inter font, the three optional wrappers
-(`Tooltip.Group`, `PopoutManager`, `LabelsProvider`), and how this Storybook is organised with
+(`Tooltip.Group`, `PopoutManager`, `LabelsProvider`), and how this Storybook is organized with
 the toolbar globals.
 
 **Foundations**
 
 | Old | New file | New title |
 |---|---|---|
-| `theme/LightDarkMode.stories.tsx` (Compact Theme/Mantine Components/Light-Dark Mode): Tokens, SideBySide | `foundations/Colour.stories.tsx` (Tokens, LightAndDark, plus a new PanelInk story listing every `PANEL_INK` role) | Foundations/Colour |
+| `theme/LightDarkMode.stories.tsx` (Compact Theme/Mantine Components/Light-Dark Mode): Tokens, SideBySide | `foundations/Color.stories.tsx` (Tokens, LightAndDark, plus a new PanelInk story listing every `PANEL_INK` role) | Foundations/Color |
 | same file: SegmentedControlIndicator, ControlGroupColors, ControlSectionColors | deleted: each is a cell of the SegmentedControl, ControlGroup and ControlSection States stories, which now render both schemes | -- |
 | (new) | `foundations/Typography.stories.tsx` (the xs-xl scale with line heights, weights 450/550/600, tracking, Inter) | Foundations/Typography |
 | (new) | `foundations/SpacingAndGrid.stories.tsx` (theme spacing, radii, `PANEL_GRID` drawn as 16 + 88 + 8 + 88 + 8 + 24 + 8, `COMPACT_SIZING`, 24px control and 32px row) | Foundations/Spacing, radii and grid |
@@ -182,7 +182,7 @@ the toolbar globals.
 
 | Old | New file | New title |
 |---|---|---|
-| `docs/EditingAValue.mdx` (Editing a Value/Overview) | split into the Inputs, Selection and Colour overviews | -- |
+| `docs/EditingAValue.mdx` (Editing a Value/Overview) | split into the Inputs, Selection and Color overviews | -- |
 | (new) | `components/inputs/Overview.mdx` | Components/Inputs/Overview |
 | `PanelField.stories.tsx` (Editing a Value/PanelField) | `components/inputs/PanelField.stories.tsx` | Components/Inputs/PanelField |
 | `theme/Select.stories.tsx` (Compact Theme/Mantine Components/Select) | merge into `components/inputs/Select.stories.tsx` | Components/Inputs/Select |
@@ -211,15 +211,15 @@ and Listbox `TriggerStates` (the same cells as States).
 | `figma/selection/AlignmentMatrix.stories.tsx` | `components/selection/AlignmentMatrix.stories.tsx` | Components/Selection/AlignmentMatrix |
 | `IconGroupRow.stories.tsx` (Editing a Value/IconGroupRow) | deleted with the component (section 4.2); its coverage is Themed Mantine/Selection/SegmentedControl `PicturesInAPanelRow` | -- |
 
-**Components / Colour**
+**Components / Color**
 
 | Old | New file | New title |
 |---|---|---|
-| (new) | `components/colour/Overview.mdx` | Components/Colour/Overview |
-| `CompactColorInput.stories.tsx` | `components/colour/CompactColorInput.stories.tsx` | Components/Colour/CompactColorInput |
-| `figma/color/ColorPickerPanel.stories.tsx` (Figma/Colour/ColorPickerPanel) | `components/colour/ColorPickerPanel.stories.tsx` | Components/Colour/ColorPickerPanel |
-| `GradientEditor.stories.tsx` | `components/colour/GradientEditor.stories.tsx` | Components/Colour/GradientEditor |
-| `RampRow.stories.tsx` (Editing a Value/RampRow) | `components/colour/RampRow.stories.tsx` | Components/Colour/RampRow |
+| (new) | `components/color/Overview.mdx` | Components/Color/Overview |
+| `CompactColorInput.stories.tsx` | `components/color/CompactColorInput.stories.tsx` | Components/Color/CompactColorInput |
+| `figma/color/ColorPickerPanel.stories.tsx` (Figma/Color/ColorPickerPanel) | `components/color/ColorPickerPanel.stories.tsx` | Components/Color/ColorPickerPanel |
+| `GradientEditor.stories.tsx` | `components/color/GradientEditor.stories.tsx` | Components/Color/GradientEditor |
+| `RampRow.stories.tsx` (Editing a Value/RampRow) | `components/color/RampRow.stories.tsx` | Components/Color/RampRow |
 
 **Components / Actions**
 
@@ -333,13 +333,13 @@ for no reader-visible change.
 storySort: {
     method: "alphabetical",
     order: [
-        "Introduction", ["Getting started", "Choosing a component", "Customising the theme",
+        "Introduction", ["Getting started", "Choosing a component", "Customizing the theme",
             "Languages and direction", "Events and shared props", "Accessibility", "Upgrading to 0.9"],
-        "Foundations", ["Colour", "Typography", "Spacing, radii and grid", "Elevation",
+        "Foundations", ["Color", "Typography", "Spacing, radii and grid", "Elevation",
             "Focus and motion", "Glyphs"],
         "Components", [
             "Panels and rows", ["Overview"], "Inputs", ["Overview"], "Selection", ["Overview"],
-            "Colour", ["Overview"], "Actions", ["Overview"], "Overlays", ["Overview"],
+            "Color", ["Overview"], "Actions", ["Overview"], "Overlays", ["Overview"],
             "Lists and trees", ["Overview"], "Data display", ["Overview"], "App shell", ["Overview"],
         ],
         "Patterns",
@@ -480,10 +480,10 @@ Two mechanisms, for two audiences:
 
 ## 4. Component consolidations
 
-### 4.1 GradientEditor picks colours with ColorPickerPanel
+### 4.1 GradientEditor picks colors with ColorPickerPanel
 
 Today each stop row holds a `CompactColorInput`, which opens its own pop-out picker per stop.
-Inside a colour picker that is a pop-out on a pop-out, and it is not how Figma's gradient mode
+Inside a color picker that is a pop-out on a pop-out, and it is not how Figma's gradient mode
 works: Figma shows one picker, under the gradient bar, editing the selected stop.
 
 New layout of `GradientEditor`, top to bottom (figma-spec 7.5):
@@ -501,8 +501,8 @@ New layout of `GradientEditor`, top to bottom (figma-spec 7.5):
    `color/escape` helpers), and the minus button. No pop-out.
 
 Selecting a stop -- its handle, its row's chit, or focus entering its row -- makes the picker
-edit it (the editor already tracks `selectedId`). Public props do not change. Behaviour change
-for the changelog: stop colours are edited in the editor's own picker; the stop rows no longer
+edit it (the editor already tracks `selectedId`). Public props do not change. Behavior change
+for the changelog: stop colors are edited in the editor's own picker; the stop rows no longer
 open a pop-out. When a GradientEditor is placed in a `ColorPickerPanel`'s `gradient` slot,
 the outer panel draws Solid / Gradient and the inner one draws only the picker body, so there is
 one paint-type bar.
@@ -547,7 +547,7 @@ could not use IconGroupRow. With IconGroupRow gone, both should become `Segmente
 
 The owner's note says the style layer list is built on DataRow. It is not: it is
 `graphty/src/components/layout/LeftSidebar.tsx`, a hand-built list with dnd-kit sorting, its own
-drag-handle glyph, a Mantine TextInput for rename and hard-coded Mantine colours, embedded in
+drag-handle glyph, a Mantine TextInput for rename and hard-coded Mantine colors, embedded in
 `StylePanel`'s "Layers" section. The DataRow rows in `StylePanel` are the Styles library
 (apply a built-in or saved style), which is a name/value reading and stays on DataRow.
 
@@ -559,7 +559,7 @@ The list becomes a flat `Tree`:
 - `selected={selectedLayerId === null ? [] : [selectedLayerId]}`, `onSelect(ids)` calls
   `onLayerSelect(ids[0])`;
 - `onRename(id, name)`: a trimmed non-empty name replaces that layer's name through
-  `onLayersChange`; an empty name is refused (the current behaviour);
+  `onLayersChange`; an empty name is refused (the current behavior);
 - `onMove({ id, index })`: reorder in the reversed list, reverse back, `onLayersChange`.
 
 A new file `graphty/src/components/shell/panel/StyleLayerList.tsx` holds this mapping and
@@ -615,7 +615,7 @@ additive change.
 
 `CHANGELOG-figma.md` currently says "Every existing export keeps its name and its props". That
 sentence becomes false and is replaced by a "Breaking changes in 0.9.0" section listing 4.2 and
-4.4 with their migrations, plus behaviour notes for 4.1 (stop colours edited in the editor's
+4.4 with their migrations, plus behavior notes for 4.1 (stop colors edited in the editor's
 own picker) and the Tree keyboard move (4.3). The README's "Breaking changes in the Figma
 release" section and the Introduction "Upgrading to 0.9" page repeat the same list.
 
@@ -653,17 +653,17 @@ overview MDX it reads.
 
 | Key | Section | Owns |
 |---|---|---|
-| `docs-and-foundations` | Introduction and Foundations, plus the Storybook config | `.storybook/preview.tsx`, `.storybook/main.ts`, `stories/helpers/*` (new), `stories/introduction/*.mdx` (new), `stories/foundations/*` (new), `stories/theme/LightDarkMode.stories.tsx` (moves to Colour), `stories/Glyphs.stories.tsx` (moves), `README.md` |
+| `docs-and-foundations` | Introduction and Foundations, plus the Storybook config | `.storybook/preview.tsx`, `.storybook/main.ts`, `stories/helpers/*` (new), `stories/introduction/*.mdx` (new), `stories/foundations/*` (new), `stories/theme/LightDarkMode.stories.tsx` (moves to Color), `stories/Glyphs.stories.tsx` (moves), `README.md` |
 | `components-panels` | Components/Panels and rows | `stories/components/panels/*`; moves `ControlSection`, `ControlGroup`, `ControlSubGroup`, `FieldRow`, `CompoundRow`, `TrailingSlot` stories and `stories/figma/chrome/ResizeHandle.stories.tsx`; reads `stories/docs/BuildingAPanel.mdx` |
 | `components-inputs` | Components/Inputs | `stories/components/inputs/*` (not ComboInput); moves `PanelField`, `StyleNumberInput`, `figma/inputs/SearchInput`, `figma/inputs/VariablePill`; merges `theme/Select`, `figma/inputs/Listbox`, `StyleSelect` into `Select.stories.tsx`; reads `stories/docs/EditingAValue.mdx` |
 | `components-selection` | Components/Selection | `stories/components/selection/*`; moves `ToggleRow`, `ToggleRowGroup`, `ToggleWithContent`, `figma/selection/AlignmentMatrix`; reads `stories/docs/EditingAValue.mdx` |
-| `components-colour` | Components/Colour | `stories/components/colour/*`; moves `CompactColorInput`, `GradientEditor`, `RampRow`, `figma/color/ColorPickerPanel`; reads `stories/docs/EditingAValue.mdx` |
+| `components-color` | Components/Color | `stories/components/color/*`; moves `CompactColorInput`, `GradientEditor`, `RampRow`, `figma/color/ColorPickerPanel`; reads `stories/docs/EditingAValue.mdx` |
 | `components-actions` | Components/Actions | `stories/components/actions/*`; moves `figma/buttons/ToggleIconButton`, `figma/buttons/SplitButton`, `AdvancedButton` |
 | `components-overlays` | Components/Overlays | `stories/components/overlays/*`; merges `src/components/popout/Popout.stories.tsx`, `src/components/popout/PopoutAnchor.stories.tsx`, `figma/overlays/Popover` into `Popout.stories.tsx`; moves `src/components/popout/PopoutButton.stories.tsx`, `InfoCircle`, `figma/overlays/Menu`, `figma/overlays/Tooltip`, `figma/overlays/Modal`, `figma/overlays/Toast`; reads `stories/docs/FloatingPanels.mdx` |
 | `components-lists` | Components/Lists and trees | `stories/components/lists/*`; moves `figma/tree/Tree`, `PageList`, `InlineRename`, `ResultRow`, `fixtures.ts`; adds the `FlatReorderableList` Tree story |
 | `components-data` | Components/Data display | `stories/components/data/*`; moves `DataRow` (dropping the object-list stories), `DataRowHeader`, `RankChip`, `MetricRow`, `HistogramRow`, `SparklineRow`, `ProseBlock`, `ActionRow`, `DataTable`; reads `stories/docs/ShowingData.mdx` |
 | `components-shell` | Components/App shell | `stories/components/shell/*`; moves `figma/shell/*` stories and `fixtures.ts` |
-| `patterns` | Patterns (and the Customising the theme CSF) | `stories/patterns/*`, `stories/introduction/CustomisingTheTheme.stories.tsx`; splits and deletes `stories/Theming.stories.tsx`; reads `stories/docs/CompactTheme.mdx` |
+| `patterns` | Patterns (and the Customizing the theme CSF) | `stories/patterns/*`, `stories/introduction/CustomizingTheTheme.stories.tsx`; splits and deletes `stories/Theming.stories.tsx`; reads `stories/docs/CompactTheme.mdx` |
 | `themed-mantine` | Themed Mantine | `stories/mantine/**`; moves every `stories/theme/*` file except `Select` and `LightDarkMode`, plus `figma/chrome/Divider` and `figma/overlays/ScrollArea`; adds `PicturesInAPanelRow` to SegmentedControl |
 
 ### 5.3 The integrator (phase 3, last)

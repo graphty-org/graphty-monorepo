@@ -81,7 +81,7 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
  *
  * | Part | Value |
  * |---|---|
- * | Header row | 40px, 11/16 at weight 600, primary text colour |
+ * | Header row | 40px, 11/16 at weight 600, primary text color |
  * | Data rows | 40px (`rowHeight`), 11/16 at weight 450 |
  * | Cell padding | 0 16 in the first column, 0 8 elsewhere |
  * | Grid lines | 1px `--cm-border` outline on every cell |
@@ -196,7 +196,7 @@ function Frame({ children }: { children: React.ReactNode }): React.JSX.Element {
 }
 
 /**
- * A line of explanation under a story, in the secondary text colour.
+ * A line of explanation under a story, in the secondary text color.
  * @param root0 - Component props
  * @param root0.children - The explanation
  * @returns The line

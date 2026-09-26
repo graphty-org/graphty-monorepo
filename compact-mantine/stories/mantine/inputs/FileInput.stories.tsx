@@ -38,7 +38,7 @@ const meta: Meta<typeof FileInput> = {
 export default meta;
 type Story = StoryObj<typeof FileInput>;
 
-/** A labelled file field; click it to pick a file. */
+/** A labeled file field; click it to pick a file. */
 export const Default: Story = {
     args: {
         label: "Upload file",
@@ -67,7 +67,7 @@ export const States: Story = {
     ),
 };
 
-/** A description under the label, in the secondary text colour. */
+/** A description under the label, in the secondary text color. */
 export const WithDescription: Story = {
     args: {
         label: "Upload file",

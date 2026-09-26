@@ -165,7 +165,7 @@ export const PicturesInAPanelRow: Story = {
         const left = within(group).getByRole("radio", { name: "Left" });
         await expect(left).toBeChecked();
         // Tab in, as a reader does: the checked option is the group's one Tab stop. (The arrow
-        // keys are native radio behaviour, which the simulated keyboard here does not perform;
+        // keys are native radio behavior, which the simulated keyboard here does not perform;
         // tests/figma/selection.browser.test.tsx drives them with real key presses.)
         for (let i = 0; i < 10 && canvasElement.ownerDocument.activeElement !== left; i++) {
             await userEvent.tab();

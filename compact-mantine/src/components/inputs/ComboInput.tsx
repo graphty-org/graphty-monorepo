@@ -58,7 +58,7 @@ export interface ComboInputProps {
     suffix?: string;
     /** A 24px leading slot: a glyph or a letter. On a numeric field it is the scrub handle. */
     glyph?: React.ReactNode;
-    /** Draws the chevron slot 25 wide with a 1px divider in the panel colour (the font-size field). */
+    /** Draws the chevron slot 25 wide with a 1px divider in the panel color (the font-size field). */
     divided?: boolean;
     /** The field's width. @default 88 (PANEL_GRID.FIELD) */
     width?: number | string;

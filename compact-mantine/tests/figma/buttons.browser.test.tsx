@@ -97,7 +97,7 @@ describe.skipIf(!(await figmaAvailable()))("buttons against Figma", () => {
                 await drive(button, v.state as DriveState);
                 expectMeasured(button, figmaSpec(figma, [...FILL, ...(v.state === "focus" || v.edged ? RING : [])]));
                 if (v.state === "focus" && v.edged) {
-                    // The grey edge stays on the element; the ring is drawn by ::before, 1px outside.
+                    // The gray edge stays on the element; the ring is drawn by ::before, 1px outside.
                     expectMeasured(button, RING_LIGHT, { pseudo: "::before" });
                 }
             },
@@ -166,7 +166,7 @@ describe.skipIf(!(await figmaAvailable()))("buttons against Figma", () => {
             expectMeasured(part(container, '.cm-button-section[data-position="right"]'), figmaSpec(shortcut, ["color"]));
         });
 
-        it("loading keeps the width, shows progress, and centres a 16px spinner", async () => {
+        it("loading keeps the width, shows progress, and centers a 16px spinner", async () => {
             const path = "bc/btn-primary-md-loading--default";
             const [figma, spinner] = await Promise.all([specimen(path), figmaElement(path, { tag: "svg" })]);
             const { container } = await renderFigma(<Button loading>Button</Button>);

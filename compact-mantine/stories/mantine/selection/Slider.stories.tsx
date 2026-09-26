@@ -9,8 +9,8 @@ import { focusMarked, StateGrid } from "../../helpers/selection-states";
  * white thumb. Every prop is Mantine's: see [Slider on mantine.dev](https://mantine.dev/core/slider/).
  *
  * For a pair of values use `RangeSlider`. For a number the reader types or scrubs in a panel row,
- * use `PanelField kind="number"` (Components/Inputs). Colour sliders (hue, alpha) are part of
- * `ColorPickerPanel` (Components/Colour).
+ * use `PanelField kind="number"` (Components/Inputs). Color sliders (hue, alpha) are part of
+ * `ColorPickerPanel` (Components/Color).
  *
  * ## Usage
  *
@@ -75,7 +75,7 @@ export const States: Story = {
     play: focusMarked,
 };
 
-/** Labelled marks under the track. */
+/** Labeled marks under the track. */
 export const WithMarks: Story = {
     args: {
         defaultValue: 50,

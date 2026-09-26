@@ -43,7 +43,7 @@ const meta: Meta<typeof TextInput> = {
 export default meta;
 type Story = StoryObj<typeof TextInput>;
 
-/** A labelled field in the panel body width; use Controls to try `variant`, `disabled` and `error`. */
+/** A labeled field in the panel body width; use Controls to try `variant`, `disabled` and `error`. */
 export const Default: Story = {
     args: {
         label: "Name",

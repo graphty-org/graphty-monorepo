@@ -42,7 +42,7 @@ const meta: Meta<typeof TagsInput> = {
 export default meta;
 type Story = StoryObj<typeof TagsInput>;
 
-/** A labelled, empty TagsInput; type a word and press Enter. */
+/** A labeled, empty TagsInput; type a word and press Enter. */
 export const Default: Story = {
     args: {
         label: "Keywords",

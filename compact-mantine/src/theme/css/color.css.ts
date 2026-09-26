@@ -1,10 +1,10 @@
 /**
- * The colour package's CSS (design/figma-spec.md section 7): the chit (Mantine ColorSwatch), the
- * paint field (CompactColorInput), the light colour picker (ColorPickerPanel), the colour sliders
+ * The color package's CSS (design/figma-spec.md section 7): the chit (Mantine ColorSwatch), the
+ * paint field (CompactColorInput), the light color picker (ColorPickerPanel), the color sliders
  * (Mantine HueSlider / AlphaSlider), and the gradient editor.
  *
- * Every colour is a --cm-* token except the checkerboards behind translucent colours, which are
- * image content rather than surface colours (the chit's is #e1e1e1 / white in both themes).
+ * Every color is a --cm-* token except the checkerboards behind translucent colors, which are
+ * image content rather than surface colors (the chit's is #e1e1e1 / white in both themes).
  *
  * Two rules use !important, each against an inline style Mantine's ColorSlider writes from
  * JavaScript that no class can outrank: the overlays' inset box-shadow and the alpha overlay's
@@ -17,7 +17,7 @@ export const CHECKER = "repeating-conic-gradient(#ffffff 0 25%, #e1e1e1 0 50%) 0
 
 /**
  * The slider track's checkerboard: three rows of cells across the 16px track. Unlike the chit's,
- * it follows the theme: white / #e1e1e1 in light, the panel greys #2c2c2c / #383838 in dark
+ * it follows the theme: white / #e1e1e1 in light, the panel grays #2c2c2c / #383838 in dark
  * (sampled from dark-theme/dark-color-picker@2x.png).
  */
 const TRACK_CHECKER =
@@ -28,7 +28,7 @@ const css = `
    (design/figma-spec.md 16); each rule below lists the forced state beside the real one. */
 
 /* 7.1 Chit (Mantine ColorSwatch). Picker form by default: 16 x 16, radius 20%. The alpha
-   checkerboard covers the inline-end half only; the ring on near-white colours sits above
+   checkerboard covers the inline-end half only; the ring on near-white colors sits above
    everything so the translucent half cannot hide it. */
 .cm-chit { overflow: hidden; border-radius: var(--cs-radius); }
 .cm-chit .cm-chit-alpha {
@@ -68,7 +68,7 @@ const css = `
     ${cmFont("legend")}
 }
 
-/* 7.2 Paint field: one 24-tall field, a 1px border in the fill colour that hover and focus
+/* 7.2 Paint field: one 24-tall field, a 1px border in the fill color that hover and focus
    repaint, the chit at x+5, hex from x+24, a 1px seam, then opacity and its "%" handle. */
 .cm-paint {
     display: flex;
@@ -205,7 +205,7 @@ const css = `
     cursor: default;
 }
 
-/* 7.3 Colour picker, the body of a light popover 240 wide. */
+/* 7.3 Color picker, the body of a light popover 240 wide. */
 .cm-color-picker {
     box-sizing: border-box;
     width: 240px;
@@ -332,8 +332,8 @@ const css = `
     cursor: default;
 }
 
-/* 7.4 Colour sliders (Mantine HueSlider / AlphaSlider): a 180 x 24 slot, the role=slider element
-   156 wide in its middle so the pointer maps onto the thumb's centre, the 172 x 16 track half a
+/* 7.4 Color sliders (Mantine HueSlider / AlphaSlider): a 180 x 24 slot, the role=slider element
+   156 wide in its middle so the pointer maps onto the thumb's center, the 172 x 16 track half a
    thumb past each end, a 16px thumb with a 12px elevated layer beneath it. */
 .cm-color-slider {
     position: relative;
@@ -509,8 +509,8 @@ const css = `
 .cm-gradient-stops { margin-top: 4px; }
 .cm-gradient-stop[data-selected] { background-color: var(--cm-bg-selected); }
 .cm-gradient-position { flex: none; width: 48px; padding-inline: 8px 0; }
-/* A stop's colour: a paint field (7.2) holding the chit button that selects the stop and its hex
-   box; the colour itself is picked in the editor's own picker, so nothing pops out. */
+/* A stop's color: a paint field (7.2) holding the chit button that selects the stop and its hex
+   box; the color itself is picked in the editor's own picker, so nothing pops out. */
 .cm-gradient-color { flex: 1 1 0; min-width: 0; }
 .cm-gradient-color .cm-paint-chit { width: 16px; height: 16px; border-radius: 20%; }
 /* The field chit writes --cs-size / --cs-radius inline, so the size is set directly. Its inner

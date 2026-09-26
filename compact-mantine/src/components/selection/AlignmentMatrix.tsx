@@ -4,7 +4,7 @@ import React from "react";
 
 import type { ChangeHandler } from "../../types/events";
 
-// Figma's 3 x 3 auto layout alignment picker (design/figma-spec.md 5.7): an 88 x 56 grey box of
+// Figma's 3 x 3 auto layout alignment picker (design/figma-spec.md 5.7): an 88 x 56 gray box of
 // nine cells, each a radio with a tooltip. An idle cell is a 2 x 2 dot; the chosen cell draws
 // three bars (7, 10 and 5 long) lined up the way the children will be; the cell under the
 // pointer previews the bars in the secondary ink. The look is the stylesheet's

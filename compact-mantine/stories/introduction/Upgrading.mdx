@@ -62,9 +62,9 @@ A list the reader selects, renames or reorders is a [`Tree`](?path=/docs/compone
 multiple selection, F2 and double-click rename, and a context menu. A find result is a
 `ResultRow`.
 
-## Behaviour changes
+## Behavior changes
 
-- **`GradientEditor`** edits stop colours in its own picker, under the gradient bar, which
+- **`GradientEditor`** edits stop colors in its own picker, under the gradient bar, which
   follows the selected stop. Selecting a stop -- its handle, its row's chit, or focus entering its
   row -- points the picker at it. Stop rows keep a chit and a hex field and no longer open a
   pop-out, so a `GradientEditor` no longer needs a `PopoutManager`. Its props do not change.
@@ -73,7 +73,7 @@ multiple selection, F2 and double-click rename, and a context menu. A find resul
 - **Tooltips** open after 1000ms (they opened at once), and hand off warm for 300ms inside a
   `Tooltip.Group`. Wrap your app in one.
 - **Pop-outs**: only one root pop-out is open on the page at a time; opening another replaces it.
-- **Escape in a colour field** reverts the typed value and stops at the field; a second Escape
+- **Escape in a color field** reverts the typed value and stops at the field; a second Escape
   closes the picker.
 - **Select and Autocomplete** have `role="combobox"`: query them in tests with
   `getByRole("combobox")`, not `"textbox"`.
@@ -95,7 +95,7 @@ wrong:
 | `DataTable` row and header height | 28 / 24 | 40 / 40 |
 
 And the look: `colors.dark` is a neutral ramp, `primaryColor` is the new `brand` palette (code
-that passed `color="blue"` expecting the primary colour now gets Mantine's blue), `focusRing` is
+that passed `color="blue"` expecting the primary color now gets Mantine's blue), `focusRing` is
 `"never"` with the theme's own 1px ring, `PANEL_INK.SELECTED` is Figma's pale selected ground
 rather than an inverted patch, `Select` defaults to the outlined trigger with a dark list, `Tabs`
 default to pills, `Badge` to the outlined look, `Modal` has no backdrop by default, and the body

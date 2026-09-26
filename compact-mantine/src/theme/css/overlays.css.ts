@@ -5,7 +5,7 @@
  *
  * Every rule is keyed on a `cm-*` class the theme extensions in ../components/overlays.ts and
  * ../components/feedback.ts hand Mantine through `classNames`, or that this package's own
- * components render. Colours are tokens only. The shared primitives it builds on --
+ * components render. Colors are tokens only. The shared primitives it builds on --
  * `cm-menu-surface`, `cm-menu-row`, `cm-menu-row-check`, `cm-popover-surface` -- live in
  * 00-foundation.css.ts.
  *
@@ -31,7 +31,7 @@ const css = `
 
 /* Figma's scroll chevron rows: 24 tall, the menu's fill, a 5 x 3 chevron (the register's
    chevronUp / chevronDown polyline drawn in a 10px box; white because the menu is dark in both
-   themes). src/components/overlays/overlayBehaviour.ts sets data-cm-scroll-up / -down on a
+   themes). src/components/overlays/overlayBehavior.ts sets data-cm-scroll-up / -down on a
    clamped menu for each end it can still scroll towards, and scrolls it while one is hovered.
    The rows are sticky pseudo elements laid over the first and last visible rows. */
 .cm-menu[data-cm-scroll-up]::before,
@@ -56,13 +56,13 @@ const css = `
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpolyline points='4,6 8,10 12,6' fill='none' stroke='%23fff' stroke-width='1.6'/%3E%3C/svg%3E");
 }
 
-/* A mount hook: overlayBehaviour.ts listens for these animations' animationstart to see a
+/* A mount hook: overlayBehavior.ts listens for these animations' animationstart to see a
    menu or tooltip appear, without observing the whole page. */
 @keyframes cm-overlay-mount { from { outline-offset: 0; } to { outline-offset: 0; } }
 .cm-menu { animation: cm-overlay-mount 1ms; }
 /* A tooltip's mount hook also keeps it hidden for its first frame. animationstart fires one frame
    after the element appears, so without this a focus-opened tooltip would paint once before
-   overlayBehaviour.ts holds it for the cold delay. */
+   overlayBehavior.ts holds it for the cold delay. */
 @keyframes cm-tooltip-mount { from { visibility: hidden; } to { visibility: hidden; } }
 .cm-tooltip { animation: cm-tooltip-mount 1ms; }
 
@@ -143,9 +143,9 @@ const css = `
 .cm-menu-item:where([data-disabled], :disabled) .cm-menu-item-section { color: var(--cm-text-menu-disabled); }
 .cm-menu-item:focus { outline: none; }
 
-/* Danger rows (color="red"): Mantine writes the colour into the row's inline --menu-item-color;
+/* Danger rows (color="red"): Mantine writes the color into the row's inline --menu-item-color;
    the danger slots replace the menu's. ponytail: keyed on the inline style Mantine writes for
-   color="red"; any other colour keeps the menu's white. */
+   color="red"; any other color keeps the menu's white. */
 .cm-menu-item[style*="--mantine-color-red"] { color: var(--cm-text-danger); }
 .cm-menu-item[style*="--mantine-color-red"]:is(:hover, :focus, [data-hovered])::before { background: var(--cm-bg-danger); }
 .cm-menu-item[style*="--mantine-color-red"]:is(:hover, :focus, [data-hovered]) { color: var(--cm-text-onbrand); }
@@ -188,11 +188,11 @@ const css = `
     ${cmFont("body")}
 }
 .cm-tooltip-arrow { border: 0; }
-/* Hidden by overlayBehaviour.ts: dismissed (pointer-down, key, wheel, pointer left the window)
+/* Hidden by overlayBehavior.ts: dismissed (pointer-down, key, wheel, pointer left the window)
    for the rest of this tooltip's life, or held for the cold delay after a keyboard focus. */
 .cm-tooltip:is([data-cm-dismissed], [data-cm-held]) { visibility: hidden; }
 
-/* TooltipShortcut: the label, then the shortcut 12px after it in the secondary text colour. */
+/* TooltipShortcut: the label, then the shortcut 12px after it in the secondary text color. */
 .cm-tooltip-shortcut-row { display: flex; align-items: center; white-space: nowrap; }
 .cm-tooltip-shortcut { margin-inline-start: 12px; color: var(--cm-text-menu-secondary); }
 
@@ -249,7 +249,7 @@ const css = `
    bottom edge (12 here + the row's own 4). */
 .cm-popout-content { padding: 12px 16px; }
 
-/* InfoCircle's bubble: body text in the secondary colour. */
+/* InfoCircle's bubble: body text in the secondary color. */
 .cm-info-bubble {
     box-sizing: border-box;
     padding: 12px 16px;
@@ -289,7 +289,7 @@ const css = `
     letter-spacing: 0.055px;
 }
 .cm-modal-body {
-    /* Every Figma dialog capture (save-to-version-history, colour-profile, export-frames-to-pdf,
+    /* Every Figma dialog capture (save-to-version-history, color-profile, export-frames-to-pdf,
        element 29): 8px 16px, so the first field sits 8px below the header divider. */
     padding: 8px 16px;
     ${cmFont("body")}
@@ -390,7 +390,7 @@ const css = `
 .cm-toast-close:hover { background-color: var(--cm-bg-transparent-hover); }
 .cm-toast-close:focus-visible { outline: 1px solid var(--cm-border-selected); outline-offset: -1px; }
 
-/* The provider's layer: centred horizontally, its bottom edge a caller-set distance above the
+/* The provider's layer: centered horizontally, its bottom edge a caller-set distance above the
    window's (16px above the bottom toolbar in Figma). */
 .cm-toast-layer {
     position: fixed;
@@ -438,7 +438,7 @@ const css = `
 
 /* ---------------------------------------------------------------- 8.8 feedback */
 
-/* The loader draws in the icon colour; a color prop still wins through --loader-color. */
+/* The loader draws in the icon color; a color prop still wins through --loader-color. */
 .cm-loader { --loader-color: var(--cm-icon); }
 
 /* Progress: a 4px track in the field fill, the fill in the brand token, fully round. */
@@ -449,7 +449,7 @@ const css = `
 .cm-progress-section { background-color: var(--progress-section-color, var(--cm-bg-brand)); }
 .cm-progress-label { ${cmFont("caption")} color: var(--cm-text-onbrand); }
 
-/* RingProgress: the track in the field fill and the label in the text colour. Mantine sets the
+/* RingProgress: the track in the field fill and the label in the text color. Mantine sets the
    track at [scheme] .m_x (0,2,0). */
 .cm-ring-progress .cm-ring-curve { --rp-curve-root-color: var(--cm-bg-secondary); }
 .cm-ring-progress-label { color: var(--cm-text); ${cmFont("body")} }

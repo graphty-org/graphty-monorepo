@@ -44,7 +44,7 @@ type Story = StoryObj<typeof MultiSelect>;
 
 const data = ["Pizza", "Tacos", "Sushi", "Burgers", "Pasta"];
 
-/** A labelled, empty MultiSelect; open it and pick a few. */
+/** A labeled, empty MultiSelect; open it and pick a few. */
 export const Default: Story = {
     args: {
         label: "Favorite foods",

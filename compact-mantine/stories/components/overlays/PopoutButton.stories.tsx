@@ -60,7 +60,7 @@ const INTERACTION_TEST_TAGS = ["!dev", "!autodocs"];
  * | Size | 24 x 24 (`size="sm"`, the default), radius 5px |
  * | Glyph | 12px |
  * | Rest | transparent (the ghost icon button) |
- * | Open | selected ground `#e5f4ff` light / `#394360` dark, brand-coloured glyph |
+ * | Open | selected ground `#e5f4ff` light / `#394360` dark, brand-colored glyph |
  */
 const meta: Meta<typeof PopoutButton> = {
     title: "Components/Overlays/PopoutButton",

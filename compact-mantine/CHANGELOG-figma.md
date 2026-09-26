@@ -2,16 +2,16 @@
 
 This release redraws every compact-mantine component to match the Figma editor's own UI,
 measured property by property from captures of Figma in light and dark. compact-mantine is
-0.x, so the visual changes and the handful of behaviour changes below ship in a minor release.
+0.x, so the visual changes and the handful of behavior changes below ship in a minor release.
 The restyles land inside the existing components, but a few exports and props are removed;
 they are listed, with their migrations, under "Breaking changes in 0.9.0: removed exports and
 props" below.
 
 ## What changed visually
 
-- **Colour.** Every colour is a `--cm-*` CSS custom property written with `light-dark()`, so it
-  follows the colour scheme of the element that uses it. The dark scheme uses Figma's neutral
-  greys (#2c2c2c panels, #383838 fields, #1e1e1e menus) instead of the old blue-grey ramp. The
+- **Color.** Every color is a `--cm-*` CSS custom property written with `light-dark()`, so it
+  follows the color scheme of the element that uses it. The dark scheme uses Figma's neutral
+  grays (#2c2c2c panels, #383838 fields, #1e1e1e menus) instead of the old blue-gray ramp. The
   accent is Figma's: #0d99ff for filled surfaces (primary button, selected tool, checked box),
   #007be5 for links, #0768cf pressed, and #0c8ce9 where Figma's dark theme uses it.
 - **Type.** The body face is Inter at 11/16 weight 450 with Figma's letter-spacing. Captions are
@@ -38,7 +38,7 @@ props" below.
 | `ToggleIconButton`, `SplitButton`                                | Figma's toggle icon button (with drag-to-toggle) and split button                                                          |
 | `SearchInput`, `ComboInput`, `VariablePill`                      | Search field, combo input with a dark list, variable pill for a bound field                                                |
 | `AlignmentMatrix`, `ALIGNMENT_MATRIX_VALUES`                     | The 3 x 3 alignment matrix (radios with 2D arrow keys)                                                                     |
-| `ColorPickerPanel`                                               | The colour picker: paint type, format, saturation field, hue and alpha sliders                                             |
+| `ColorPickerPanel`                                               | The color picker: paint type, format, saturation field, hue and alpha sliders                                             |
 | `ContextMenu`, `MenuCheckItem`, `TooltipShortcut`, `ModalFooter` | Right-click menu (also Shift+F10 and the ContextMenu key), checkable menu row, a tooltip's shortcut label, a dialog footer |
 | `Toast`, `ToastProvider`, `useToast`                             | Figma's dark toast and the queue that shows it                                                                             |
 | `ResizeHandle`                                                   | The panel edge resize handle (role separator)                                                                              |
@@ -48,7 +48,7 @@ props" below.
 | `Toolbar`, `ToolButton`, `ToolGroup`, `SecondaryToolbar`         | The floating toolbar, its tools and flyout, and the contextual bar                                                         |
 | `NavRail`, `RailButton`, `HelpButton`                            | The navigation rail and the floating help button                                                                           |
 | `ShortcutSheet`, `QuickActions`                                  | The keyboard shortcuts sheet and the quick actions palette                                                                 |
-| `isLightColor`, `mixHex`, `normalizeHexa`                        | Colour helpers                                                                                                             |
+| `isLightColor`, `mixHex`, `normalizeHexa`                        | Color helpers                                                                                                             |
 
 Every component's prop types are exported alongside it (for example `TreeProps`,
 `TreeNodeData`, `TreeMove`, `ToastApi`).
@@ -58,7 +58,7 @@ New looks through ordinary Mantine props, with no new export:
 - Button: `variant="danger"`, `"danger-outline"`, `"inverse"`, `"success"`; `color="red"` with
   `variant="filled"` is Figma's danger button.
 - ActionIcon: `variant="joined"`; `ActionIcon.Group` is themed as Figma's joined group.
-- Checkbox: `variant="neutral"` is the grey panel checkbox (the default is the blue dialog one).
+- Checkbox: `variant="neutral"` is the gray panel checkbox (the default is the blue dialog one).
 - SegmentedControl: `variant="toolbar"` (sliding thumb) and `variant="loose"`.
 - Anchor: `variant="secondary"`.
 - Card: Figma's library card by default (padding 8, a transparent 1px edge, radius 5, no fill);
@@ -73,7 +73,7 @@ New props on existing components: `ControlSection.collapsible`, `FieldRow.labelP
 
 ## The high-contrast option (WCAG 2.2 AA)
 
-The default is exact Figma, and some of Figma's colours fall short of WCAG 2.2 AA. To pass AA,
+The default is exact Figma, and some of Figma's colors fall short of WCAG 2.2 AA. To pass AA,
 create the theme with `highContrast`:
 
 ```tsx
@@ -87,14 +87,14 @@ import { createCompactTheme } from "@graphty/compact-mantine";
 
 For server rendering, use `compactGlobalCss({ highContrast: true })` as the stylesheet.
 
-It changes colour tokens only; nothing moves or resizes:
+It changes color tokens only; nothing moves or resizes:
 
 - Secondary text and icons go from 50% to 55% black (4.74:1 on white). Dark already passes.
 - Checkbox and switch edges go to 3:1, and fields gain a 1px inside edge at 3:1 (drawn as a
   shadow, so the field does not grow). Hovering a field darkens that edge.
 - The selected segment of a segmented control gets a 3:1 edge.
 - Dividers stay as Figma draws them.
-- Beyond that list, these also change, each to the next darker colour in Figma's own palette:
+- Beyond that list, these also change, each to the next darker color in Figma's own palette:
   placeholder text, the focus ring (#007be5 in light), links (#0768cf), and the brand, danger and
   success fills that carry white text. These were added so every text and control pairing
   passes; each is one line in `src/theme/tokens.ts` if any should be dropped.
@@ -131,7 +131,7 @@ the license text ships as `dist/fonts/LICENSE-Inter.txt`, and the package's lice
    `fontSizes.xs` 10 -> 9, `lg` 14 -> 15, `xl` 16 -> 24; `lineHeights` are px; `shadows` are
    Figma's elevations.
 4. `colors.dark` is a neutral ramp and `primaryColor` is the new `brand` palette. Code that
-   passed `color="blue"` expecting the primary colour now gets Mantine's blue.
+   passed `color="blue"` expecting the primary color now gets Mantine's blue.
 5. `focusRing` is `"never"`; the ring is the theme's own 1px one. A consumer's own `focusRing`
    no longer controls compact-mantine components.
 6. `<Text size="sm">` and `size="xs"` render at weight 450 with Figma's letter-spacing (Mantine
@@ -149,7 +149,7 @@ the license text ships as `dist/fonts/LICENSE-Inter.txt`, and the package's lice
    `lg` / `xl` are 24 / 32 / 36 / 44.
 10. Button reports `padding: 0`; the inset is a margin on the label. Button type is 11/16 weight
     450, letter-spacing 0.055px.
-11. With no `color`, or with the primary colour, Button and ActionIcon draw Figma's token colours
+11. With no `color`, or with the primary color, Button and ActionIcon draw Figma's token colors
     instead of Mantine's derived ones.
 12. Buttons use `cursor: default` (`auto` when disabled). The loading slide animation is gone.
 13. A disabled ActionIcon with `variant="default"` draws the disabled border (#e6e6e6 / #444444).
@@ -181,20 +181,20 @@ the license text ships as `dist/fonts/LICENSE-Inter.txt`, and the package's lice
 25. A `Textarea` with `autosize` now floors at `minRows` lines (one line is 24px) instead of the
     fixed 56px of its size.
 
-### Colour
+### Color
 
 26. `CompactColorInput` is one paint field: a 14px chit inside the field, a hex box 77 wide that
     grows, radius 5, default width 184. The opacity box shows the bare number and the "%" is a
     separate scrub handle. The hex and opacity boxes are plain inputs, so Mantine
     `TextInput` / `NumberInput` class names and styles no longer reach them. The picker is 240
     wide and docks to the start side; while it is open the field and its `FieldRow` turn the
-    pressed colour.
+    pressed color.
 27. `GradientEditor`: the per-stop position sliders and the direction slider are replaced by the
     gradient bar with square handles (role slider), a position field per row, and a direction row
     (angle spinbutton plus flip and rotate buttons). The direction heading is visually hidden,
     the tick marks and the stop-row reset buttons are gone, and the editor is 216 tall at 240
-    wide. Delete or Backspace on a handle moves focus to the neighbouring handle.
-28. Escape in any colour text field reverts the value, commits nothing and stops at the field; a
+    wide. Delete or Backspace on a handle moves focus to the neighboring handle.
+28. Escape in any color text field reverts the value, commits nothing and stops at the field; a
     second Escape closes the picker. Before, one Escape committed the typed value and closed the
     enclosing pop-out.
 
@@ -213,7 +213,7 @@ the license text ships as `dist/fonts/LICENSE-Inter.txt`, and the package's lice
 34. Tooltip timing and placement as described above; z-index 1200. `NavRail`, `RailButton` and
     `HelpButton` no longer nest their own `Tooltip.Group`: inside an app-wide group they share
     its timing (1000ms cold, 300ms hide); outside one they keep 500ms and 0 / 0.
-35. `Modal` is centred with no backdrop by default (`withOverlay` brings it back); sizes are sm
+35. `Modal` is centered with no backdrop by default (`withOverlay` brings it back); sizes are sm
     320, md 480, lg 760; body padding is 8 top and bottom, 16 left and right (was 16 all round).
 36. `ScrollArea` defaults to `type="hover"`, a 10px scrollbar and no hide delay. `Loader`
     defaults to 16px (was 18). `Progress` is fully round.
@@ -227,7 +227,7 @@ the license text ships as `dist/fonts/LICENSE-Inter.txt`, and the package's lice
     caret in a 16px gutter and the name starts at x 16 (was 36). An empty section has no blank
     chevron slot, and clicking its title calls `onAdd`.
 39. `ControlGroup`'s title is Figma's legend (a 16px band with a 9/14 weight-500 caption in the
-    secondary colour); its rule and 8px inline padding are gone and `bleed` has no effect.
+    secondary color); its rule and 8px inline padding are gone and `bleed` has no effect.
 40. `ControlSubGroup` is a 32px row with the chevron in the gutter and an 11px label; its content
     is no longer indented, it opens without animation, and it is no longer a Mantine Accordion
     (no `mantine-Accordion-*` classes).
@@ -239,7 +239,7 @@ the license text ships as `dist/fonts/LICENSE-Inter.txt`, and the package's lice
     button's ink, changed it draws the brand glyph. It no longer passes `color="gray"`.
 44. `CompoundRow`: 24px glyph slot, no leading padding next to a glyph (8px without one), default
     width 184, half width 88.
-45. Chart rows and `ProseBlock`: all text 11/16; bars and lines use the secondary icon colour;
+45. Chart rows and `ProseBlock`: all text 11/16; bars and lines use the secondary icon color;
     histogram axis row 16 (was 13); sparkline stroke 1px (was 1.5); `RampRow` minimum drawing
     width 96 (was 120).
 46. `DataRow` is 32 tall with an 11px name; hover and selected are a 24px pill instead of a
@@ -259,7 +259,7 @@ the license text ships as `dist/fonts/LICENSE-Inter.txt`, and the package's lice
     ring (`withBorder` on), `Kbd` is a dark key cap in both schemes, and `Avatar` defaults to
     `variant="filled"`.
 51. `Card` defaults to padding 8, radius 5, `withBorder` (a transparent edge) and no fill (was
-    Mantine's md padding on the body colour).
+    Mantine's md padding on the body color).
 
 ## Known differences from Figma
 
@@ -274,7 +274,7 @@ These remain after the release; the comparison gallery lists them per component.
 - Inside one app-wide `Tooltip.Group` every tooltip opens after 1000ms cold, where Figma's rail
   uses 500ms and its help button 0ms: Mantine cannot give one tooltip its own delay inside a
   shared group.
-- A hover tooltip still waiting out its delay is not cancelled by a mouse-down, key or wheel.
+- A hover tooltip still waiting out its delay is not canceled by a mouse-down, key or wheel.
 - A disabled `ToggleIconButton` looks like an enabled one, as the Figma capture shows; the spec
   text asked for a dimmed glyph.
 - In dark, a disabled plain slider's thumb nearly disappears (Figma has no capture to settle it).
@@ -337,9 +337,25 @@ item has `children`) or a `PageList` (flat pages with dividers). Both have rovin
 multiple selection, F2 and double-click rename and a context menu of their own. A find result is
 a `ResultRow`.
 
-### Behaviour changes
+### American spelling
 
-- `GradientEditor`: stop colours are edited in the editor's own `ColorPickerPanel`, under the
+compact-mantine is written in American English. The hooks a test or a stylesheet can reach that
+changed spelling in 0.9:
+
+- `FieldRow`: the labeled group's `data-testid` is `field-row-labeled` (was `field-row-labelled`)
+  and each captioned column carries `data-labeled="true"` (was `data-labelled`).
+- `CompactColorInput`: the labeled wrapper's `data-testid` is `compact-color-input-labeled` (was
+  `compact-color-input-labelled`) and its class is `cm-paint-labeled` (was `cm-paint-labelled`).
+- Storybook: the "Colour" groups are "Color" (`Foundations/Color`, `Components/Color/*`), and
+  "Customising the theme" is "Customizing the theme", so their story ids changed.
+
+`DataTable` and `ToggleRowGroup` keep the `labelledBy` prop they had in 0.8: it is released API
+that 0.9 does not otherwise change, and it names the `aria-labelledby` attribute it sets, which
+the platform spells that way.
+
+### Behavior changes
+
+- `GradientEditor`: stop colors are edited in the editor's own `ColorPickerPanel`, under the
   gradient bar, which edits the selected stop. Selecting a stop -- its handle, its row's chit, or
   focus entering its row -- points the picker at it. The stop rows keep a chit and a hex field and
   no longer open a pop-out picker. Public props do not change.

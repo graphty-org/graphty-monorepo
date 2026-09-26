@@ -74,7 +74,7 @@ const INK = {
 /**
  * Render UI inside a 240px panel painted with the panel ground.
  * @param ui - the rows
- * @param scheme - the colour scheme
+ * @param scheme - the color scheme
  * @param highContrast - the AA token set
  * @returns the panel element
  */
@@ -88,7 +88,7 @@ async function inPanel(ui: React.ReactElement, scheme: Scheme, highContrast = fa
     return part(container, '[data-testid="panel"]');
 }
 
-/** Let a 100ms colour transition finish. */
+/** Let a 100ms color transition finish. */
 async function settle(): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 150));
 }
@@ -260,14 +260,14 @@ describe.skipIf(!(await figmaAvailable()))("chrome against Figma", () => {
             const text = part(panel, '[data-testid="control-group-label"]');
             expectMeasured(text, figmaSpec(figmaText, TYPE));
             expectBoxNear(boxIn(part(panel, '[data-testid="control-group"]'), panel), { x: 16, y: 0, height: 48 });
-            // The text's vertical centre: Figma's span sits at y 3, 11 tall.
+            // The text's vertical center: Figma's span sits at y 3, 11 tall.
             const t = boxIn(text, panel);
             expect(Math.abs(t.y + t.height / 2 - (3 + 11 / 2))).toBeLessThanOrEqual(0.5);
             // The control at y 20, as Figma's (#117 at 190 - 170).
             expectBoxNear(boxIn(part(panel, '[data-testid="c"]'), panel), { x: 16, y: 20, height: 24 });
         });
 
-        it("draws Figma's labelled two-column row: captions above, 50 tall", async () => {
+        it("draws Figma's labeled two-column row: captions above, 50 tall", async () => {
             const Control = ({ label }: { label: string }): React.JSX.Element => (
                 <div aria-label={label} data-testid="ctl" style={{ height: 24, width: "100%" }} />
             );
@@ -425,7 +425,7 @@ describe.skipIf(!(await figmaAvailable()))("chrome against Figma", () => {
     });
 
     describe.each(SCHEMES)("dividers (spec 9.7), %s", (scheme) => {
-        it("Mantine's Divider draws Figma's border colour", async () => {
+        it("Mantine's Divider draws Figma's border color", async () => {
             const panel = await inPanel(<Divider data-testid="d" />, scheme);
             expectMeasured(part(panel, '[data-testid="d"]'), {
                 borderTopColor: INK[scheme].border,
@@ -530,7 +530,7 @@ describe.skipIf(!(await figmaAvailable()))("chrome against Figma", () => {
             expectMeasured(handle, { content: "none" }, { pseudo: "::before" });
 
             await drive(handle, "focus");
-            // left-sidebar/resize-handle-focus.pseudo.json: 4 x 500, 2px in, the focus colour,
+            // left-sidebar/resize-handle-focus.pseudo.json: 4 x 500, 2px in, the focus color,
             // radius 9999.
             expectMeasured(
                 handle,

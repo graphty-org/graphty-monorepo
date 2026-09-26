@@ -35,7 +35,7 @@ import { TrailingSlot } from "./TrailingSlot";
 // dir="rtl" without a direction hook.
 
 // Figma's checkbox row (design/figma-spec.md 5.10, 9.6): 32 tall, the neutral
-// (panel) checkbox -- grey when checked, the tick in the ink colour -- and the
+// (panel) checkbox -- gray when checked, the tick in the ink color -- and the
 // word 8px after the box, 11/16 weight 450.
 
 /**
@@ -49,7 +49,7 @@ const INLINE_GAP = PANEL_GRID.GUTTER;
 // WCAG 2.2 target size (2.5.8): the word is drawn at 11px, but its clickable
 // box is stretched to the full 32px row, so the pointer target for the word is
 // 32px tall rather than the 16px its line height would give it. The word is
-// centred with the line box rather than with flex, because text-overflow does
+// centered with the line box rather than with flex, because text-overflow does
 // not apply to the anonymous item a flex container makes of its text.
 //
 // A checkbox and its label are one target, because clicking either activates
@@ -59,7 +59,7 @@ const INLINE_GAP = PANEL_GRID.GUTTER;
 // spacing exception a bare 16px control would need.
 
 /**
- * The line height that both centres the label word on the row and gives it a
+ * The line height that both centers the label word on the row and gives it a
  * pointer target as tall as the row.
  */
 const LABEL_LINE_HEIGHT = `${String(PANEL_GRID.TOGGLE_PITCH)}px`;
@@ -140,7 +140,7 @@ export interface ToggleRowProps {
      * Whether the toggle can be changed.
      *
      * A disabled row keeps its place and its word, drops to the dimmed text
-     * colour that Mantine's own disabled controls use, and is announced as
+     * color that Mantine's own disabled controls use, and is announced as
      * unavailable rather than merely looking it.
      */
     disabled?: boolean;
@@ -198,7 +198,7 @@ export interface ToggleRowProps {
  *    it.** `Show labels` is `Labels`; `Animate transitions` is `Transitions`.
  *    The checkbox already says "show", so the word is spent on what is shown.
  * 2. **It is Figma's checkbox row**: 32px tall like every other property row,
- *    the neutral (panel) checkbox that stays grey when checked, and the word
+ *    the neutral (panel) checkbox that stays gray when checked, and the word
  *    8px after the box (design/figma-spec.md 5.10).
  *
  * The control is a Mantine `Checkbox` at 16px (`variant="neutral"`), or a
@@ -265,7 +265,7 @@ export function ToggleRow({
 
     // The control grows so the trailing slot stays pinned to the row's end. The
     // minimum widths of zero are what let a label longer than the row shrink
-    // and ellipsise instead of pushing the slot out of the panel, which is what
+    // and ellipsize instead of pushing the slot out of the panel, which is what
     // a translation of an English word usually does.
     const controlStyles: Record<"root" | "body" | "labelWrapper" | "label", React.CSSProperties> = {
         root: { flex: "1 1 auto", minWidth: 0 },
@@ -291,7 +291,7 @@ export function ToggleRow({
     // The per-row string is an override of the shared one rather than the only
     // way to set it, so a row that says nothing about its own bound state still
     // announces it in whatever language LabelsProvider was given. An empty
-    // string is the caller saying "announce nothing", and is honoured.
+    // string is the caller saying "announce nothing", and is honored.
     const boundText = boundDescription ?? labels.fieldBound;
 
     // The whole word is the accessible name whether or not it fits, because an

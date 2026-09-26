@@ -1,15 +1,15 @@
 /**
  * The chrome package's CSS (design/figma-spec.md section 9): section headers, legends, captions,
- * sub-groups, property rows, chart rows, the resize handle, and Mantine's Divider colour.
+ * sub-groups, property rows, chart rows, the resize handle, and Mantine's Divider color.
  *
  * Geometry that never changes lives in the components' own inline styles, laid out from
  * PANEL_GRID. What lives here is what inline styles cannot express: hover and focus states, the
- * 100ms colour transitions, the type roles, and colours that must yield to a state rule.
+ * 100ms color transitions, the type roles, and colors that must yield to a state rule.
  */
 import { cmFont } from "../tokens";
 
 const css = `
-/* Mantine Divider: Figma's divider colour (spec 9.7). Doubled class so it outranks Mantine's
+/* Mantine Divider: Figma's divider color (spec 9.7). Doubled class so it outranks Mantine's
    per-scheme rule; a caller's color prop still wins because Mantine writes it inline. */
 .mantine-Divider-root.mantine-Divider-root { --divider-color: var(--cm-border); }
 
@@ -134,7 +134,7 @@ const css = `
 .cm-row-reading[data-disabled] { color: var(--cm-text-disabled); }
 .cm-row-actions { transition: opacity 100ms ease-out; }
 
-/* The compound readout: one filled field, 1px panel-coloured seams between segments. */
+/* The compound readout: one filled field, 1px panel-colored seams between segments. */
 .cm-compound {
     box-sizing: border-box;
     background-color: var(--cm-bg-secondary);

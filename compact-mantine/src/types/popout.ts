@@ -38,7 +38,7 @@ interface PopoutHeaderAction {
      *
      * The button is icon-only, so this is its accessible name and there is no
      * other text to fall back on. Write it as a phrase a person would
-     * recognise.
+     * recognize.
      */
     label: string;
     /**
@@ -122,7 +122,7 @@ export type PopoutPhysicalPlacement = "left" | "right" | "top" | "bottom";
  *
  * For a panel placed to the left or right, this is the vertical axis:
  * - "start": the panel's top edge meets the top of what it aligns to
- * - "center": the panel is centred on it
+ * - "center": the panel is centered on it
  * - "end": the panel's bottom edge meets its bottom
  *
  * For a panel placed above or below, this is the horizontal axis, and "start"

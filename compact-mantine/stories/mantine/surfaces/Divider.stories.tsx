@@ -5,7 +5,7 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
 import { StoryPanel, StoryState, StoryStates } from "../../helpers/story-panel";
 
 /**
- * Mantine's `Divider`, drawn in Figma's divider colour, `--cm-border` (#e6e6e6 light, #444 dark).
+ * Mantine's `Divider`, drawn in Figma's divider color, `--cm-border` (#e6e6e6 light, #444 dark).
  * A `color` prop still wins. Every prop is Mantine's: see
  * [Divider on mantine.dev](https://mantine.dev/core/divider/).
  *

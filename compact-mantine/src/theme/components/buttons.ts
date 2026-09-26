@@ -17,7 +17,7 @@ import { compactVarsForSize } from "../styles/size-scale";
  *
  * Each `vars` resolver reads `props.size` (the per-size scale, see ../styles/size-scale.ts) and
  * `props.variant` / `props.color` (the Figma look for that variant, see ../styles/buttons.ts). The
- * look is written into Mantine's own colour variables, so Mantine's hover rule and every
+ * look is written into Mantine's own color variables, so Mantine's hover rule and every
  * consumer's `vars` prop keep working; the states Mantine has no variable for are drawn by the
  * `cm-*` classes these extensions add, in ../css/buttons.css.ts.
  *
@@ -34,7 +34,7 @@ import { compactVarsForSize } from "../styles/size-scale";
  *   "highlighted" look; it no longer draws the 1px accent border older releases added.
  * - ActionIcon.Group: the joined 88 x 24 bar (4.6); subtle and default icons inside it take the
  *   joined look.
- * - CloseButton: default size sm (24 box, 10px X), Figma's ghost colours.
+ * - CloseButton: default size sm (24 box, 10px X), Figma's ghost colors.
  */
 export const buttonComponentExtensions = {
     Button: Button.extend({

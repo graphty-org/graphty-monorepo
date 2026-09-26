@@ -5,7 +5,7 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
 
 /**
  * Mantine's `Stepper`, redrawn on the panel tokens: 24px step icons, the secondary ground while
- * pending and the brand colour once active or completed. Figma has no stepper, so only the look
+ * pending and the brand color once active or completed. Figma has no stepper, so only the look
  * changes. Every prop is Mantine's: see [Stepper on mantine.dev](https://mantine.dev/core/stepper/).
  *
  * ## Usage

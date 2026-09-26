@@ -1,5 +1,5 @@
 /**
- * The layer tree's behaviour with real input in Chromium: the WAI-ARIA tree-view keyboard model
+ * The layer tree's behavior with real input in Chromium: the WAI-ARIA tree-view keyboard model
  * (design/figma-spec.md 10.1), the Alt+Arrow keyboard move, pointer selection, the caret, rename,
  * drag and drop, and virtualization. Every key here is a real key press through Playwright.
  */

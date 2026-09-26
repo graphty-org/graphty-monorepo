@@ -45,7 +45,7 @@ import { StoryState, StoryStates } from "../../helpers/story-panel";
  *   receives the event and whether a pointer or the keyboard activated it.
  * - The row is a live region when `busy` is given; `busy={true}` holds the announcement back
  *   until the computation finishes, so the result is heard once.
- * - A long name ellipsises for the eye and stays whole for a screen reader.
+ * - A long name ellipsizes for the eye and stays whole for a screen reader.
  *
  * ## Measurements
  *
@@ -53,7 +53,7 @@ import { StoryState, StoryStates } from "../../helpers/story-panel";
  * |---|---|
  * | Row | 32px (`PANEL_GRID.ROW_PITCH`) |
  * | Bar | 64 x 4, radius 2 |
- * | Bar colour | accent fill on the field-surface track |
+ * | Bar color | accent fill on the field-surface track |
  * | Name and value | 11/16 at weight 450 |
  * | Rank | a `RankChip` (16px) |
  */
@@ -157,7 +157,7 @@ export const Busy: Story = {
  */
 export const ALongName: Story = {
     args: {
-        name: "Betweenness centrality, normalised over the largest component",
+        name: "Betweenness centrality, normalized over the largest component",
         percentile: 41,
         value: "0.04",
         rank: "#12",

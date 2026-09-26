@@ -91,7 +91,7 @@ describe("compactTheme", () => {
 });
 
 describe("theme values (spec 3.3)", () => {
-    it("uses the brand palette as the primary colour at Mantine's default shades", () => {
+    it("uses the brand palette as the primary color at Mantine's default shades", () => {
         expect(compactTheme.primaryColor).toBe("brand");
         expect(compactTheme.primaryShade).toEqual({ light: 6, dark: 8 });
     });

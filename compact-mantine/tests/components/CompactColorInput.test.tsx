@@ -131,7 +131,7 @@ describe("CompactColorInput", () => {
             expect(onColorChange.mock.calls[0][0]).toBe("#00FF00");
         });
 
-        it("hands the blur that committed the colour to onColorChange", async () => {
+        it("hands the blur that committed the color to onColorChange", async () => {
             const user = userEvent.setup();
             const onColorChange = vi.fn();
             render(
@@ -414,7 +414,7 @@ describe("CompactColorInput", () => {
             expect(hex).toHaveFocus();
         });
 
-        it("reverts the hex on Escape and on anything that is not a colour", async () => {
+        it("reverts the hex on Escape and on anything that is not a color", async () => {
             const user = userEvent.setup();
             const onColorChange = vi.fn();
             render(
@@ -425,7 +425,7 @@ describe("CompactColorInput", () => {
 
             const hex = screen.getByRole("textbox", { name: /hex/i });
             await user.clear(hex);
-            // A valid colour, so only Escape can stop it being committed.
+            // A valid color, so only Escape can stop it being committed.
             await user.type(hex, "123456{Escape}");
             expect(hex).toHaveValue("FF0000");
             expect(hex).not.toHaveFocus();
@@ -488,7 +488,7 @@ describe("CompactColorInput", () => {
     // `onChange` doc comment in CompactColorInput.tsx.
     describe("one write per gesture", () => {
         /**
-         * The half of the colour a controlled consumer is holding.
+         * The half of the color a controlled consumer is holding.
          */
         interface ColorSnapshot {
             color?: string | undefined;
@@ -497,7 +497,7 @@ describe("CompactColorInput", () => {
 
         /**
          * A controlled consumer shaped exactly like the style panel: it keeps
-         * both halves of the colour in ONE state object and rebuilds that
+         * both halves of the color in ONE state object and rebuilds that
          * object from the snapshot the current render is holding.
          *
          * That closure is the whole point. It is what every controlled consumer
@@ -560,7 +560,7 @@ describe("CompactColorInput", () => {
 
         /**
          * Opens the picker and presses the half-transparent blue swatch, which
-         * is one gesture that moves BOTH halves of the colour: `#5B8FF980` is
+         * is one gesture that moves BOTH halves of the color: `#5B8FF980` is
          * `#5B8FF9` at 50 per cent.
          * @param user - The user-event session driving the test
          */
@@ -573,7 +573,7 @@ describe("CompactColorInput", () => {
 
         // THE DEFECT, pinned rather than fixed: two callbacks cannot carry one
         // gesture, and this is why `onChange` exists. It is asserted as the
-        // behaviour it is so that nobody deletes the combined callback on the
+        // behavior it is so that nobody deletes the combined callback on the
         // grounds that the two separate ones "look fine".
         it("the two separate callbacks cannot carry one gesture", async () => {
             const user = userEvent.setup();
@@ -590,11 +590,11 @@ describe("CompactColorInput", () => {
             expect(writes).toHaveBeenCalledTimes(2);
             expect(writes.mock.calls[0][0]).toEqual({ color: "#5B8FF9" });
             // The second write was rebuilt from the same stale snapshot as the
-            // first, so the colour the reader just picked is gone.
+            // first, so the color the reader just picked is gone.
             expect(writes.mock.calls[1][0]).toEqual({ opacity: 50 });
         });
 
-        it("a picker gesture reports colour and opacity in ONE onChange call", async () => {
+        it("a picker gesture reports color and opacity in ONE onChange call", async () => {
             const user = userEvent.setup();
             const writes = vi.fn();
 
@@ -694,7 +694,7 @@ describe("CompactColorInput", () => {
             expect(onChange.mock.calls[0][2].type).toBe("click");
         });
 
-        // The glow and outline colour fields pass showOpacity={false}, which is
+        // The glow and outline color fields pass showOpacity={false}, which is
         // the arrangement the application's fork used to paper over with a
         // hardcoded opacity of 100. The control must still be usable, and must
         // not clear an opacity the reader cannot see or reach.

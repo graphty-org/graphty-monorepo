@@ -12,7 +12,7 @@ import { StoryState, StoryStates } from "../../helpers/story-panel";
  * the arrow keys, or back to its default size by double-click.
  *
  * Like Figma's, it draws nothing on hover or while dragging; the cursor is the
- * only pointer cue. Keyboard focus draws a grip pill in the focus colour.
+ * only pointer cue. Keyboard focus draws a grip pill in the focus color.
  *
  * ## When to use it
  *
@@ -58,7 +58,7 @@ import { StoryState, StoryStates } from "../../helpers/story-panel";
  *
  * | Part | Value |
  * |---|---|
- * | Hit strip | 8px, centred on the edge |
+ * | Hit strip | 8px, centered on the edge |
  * | Cursor | `ew-resize`; `e-resize` at min and `w-resize` at max on an end edge; `ns-resize` on a split |
  * | Focus grip | `--cm-border-selected`, fully rounded: 4px wide on a side edge, 120 x 4 on a split |
  * | Hover and drag | nothing drawn |

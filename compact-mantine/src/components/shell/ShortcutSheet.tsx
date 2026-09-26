@@ -34,7 +34,7 @@ export interface ShortcutSheetTab {
     value: string;
     /** The tab's text. */
     label: string;
-    /** The tab's columns, laid out side by side and centred. */
+    /** The tab's columns, laid out side by side and centered. */
     groups: readonly ShortcutGroup[];
     /**
      * `"list"` (the default) draws rows of 12px labels and small key caps. `"essential"` draws

@@ -180,7 +180,7 @@ describe("Indicator - All CSS Values (Browser)", () => {
         expect(cssVar(el, "--indicator-size")).toBe("9px");
     });
 
-    it("is a 9px dot: 5px of colour in a 2px ring, round", () => {
+    it("is a 9px dot: 5px of color in a 2px ring, round", () => {
         const s = getComputedStyle(dot());
         expect(s.width).toBe("9px");
         expect(s.height).toBe("9px");

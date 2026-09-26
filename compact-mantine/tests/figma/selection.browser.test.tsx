@@ -84,7 +84,7 @@ async function checkboxFace(path: string): Promise<FigmaElement> {
 }
 
 /**
- * Drive a state, then let a 100ms colour transition (checkbox fill, switch track) finish.
+ * Drive a state, then let a 100ms color transition (checkbox fill, switch track) finish.
  * @param el - the element
  * @param state - the state
  */
@@ -179,7 +179,7 @@ describe.skipIf(!available)("Checkbox (5.4)", () => {
         expectMeasured(box, { y: 4 }, { origin: part(container, ".cm-checkbox-body") });
     });
 
-    it("the neutral glyph is the ink colour, the blue glyph white", async () => {
+    it("the neutral glyph is the ink color, the blue glyph white", async () => {
         const { container } = await renderFigma(
             <>
                 <Checkbox variant="neutral" defaultChecked aria-label="a" />
@@ -278,7 +278,7 @@ describe.skipIf(!available)("Switch (5.5)", () => {
         );
     });
 
-    it("mixed (data-indeterminate): brand track, a 10 x 2 bar centred at x+11", async () => {
+    it("mixed (data-indeterminate): brand track, a 10 x 2 bar centered at x+11", async () => {
         const { container } = await renderFigma(<Switch aria-label="Show icon" data-indeterminate />);
         const trackEl = part(container, ".cm-switch-track");
         expectMeasured(trackEl, { backgroundColor: "#0d99ff" });
@@ -322,7 +322,7 @@ describe.skipIf(!available)("Switch (5.5)", () => {
 });
 
 describe.skipIf(!available)("Radio (5.6)", () => {
-    it("16 circle on the checkbox colours; checked brand with a 6px white dot", async () => {
+    it("16 circle on the checkbox colors; checked brand with a 6px white dot", async () => {
         const { container } = await renderFigma(
             <>
                 <Radio aria-label="a" />
@@ -666,7 +666,7 @@ describe.skipIf(!available)("Anchor (4.2)", () => {
         expectMeasured(link2, figmaSpec(focus, ["outline", "outlineOffset", "color"]));
     });
 
-    it("dark link colour is #7cc4f8", async () => {
+    it("dark link color is #7cc4f8", async () => {
         const { container } = await renderFigma(<Anchor href="#x">Link</Anchor>, { scheme: "dark" });
         expectMeasured(part(container, "a"), { color: "#7cc4f8" });
     });
@@ -684,7 +684,7 @@ describe.skipIf(!available)("Slider (5.8)", () => {
         expectMeasured(thumb, { outline: "#0d99ff solid 1px", outlineOffset: "-2px" });
     });
 
-    it("disabled keeps the thumb, on the disabled colours", async () => {
+    it("disabled keeps the thumb, on the disabled colors", async () => {
         const { container } = await renderFigma(<Slider defaultValue={40} w={160} disabled />);
         expectMeasured(part(container, ".cm-slider-track"), { backgroundColor: "#ffffff", boxShadow: "#e6e6e6 0px 0px 0px 1px inset" }, { pseudo: "::before" });
         expectMeasured(part(container, ".cm-slider-thumb"), { display: "flex", backgroundColor: "#ffffff" });

@@ -18,7 +18,7 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
  *
  * Reach for `StyleNumberInput` when a number has a sensible default that the reader overrides
  * rather than fills in, and the panel should read at a glance as a list of what has been
- * customised. Reach for `PanelField kind="number"` for a number in a dense panel row (a glyph
+ * customized. Reach for `PanelField kind="number"` for a number in a dense panel row (a glyph
  * instead of a caption, scrubbing from the glyph, no reset). Reach for Mantine's `NumberInput`
  * for an ordinary number in a form.
  *

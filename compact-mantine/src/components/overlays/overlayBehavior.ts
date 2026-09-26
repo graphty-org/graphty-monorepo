@@ -1,5 +1,5 @@
 /**
- * The overlay behaviour a Mantine theme cannot express through props (design/figma-spec.md 8.1
+ * The overlay behavior a Mantine theme cannot express through props (design/figma-spec.md 8.1
  * and 8.3), installed once per document by the Tooltip and Menu theme extensions the first time
  * one renders:
  *
@@ -206,7 +206,7 @@ function trackChevronHover(event: PointerEvent): void {
 }
 
 /** Install the document listeners once. Safe to call on every render and during SSR. */
-export function installOverlayBehaviour(): void {
+export function installOverlayBehavior(): void {
     if (installed || typeof document === "undefined") {
         return;
     }

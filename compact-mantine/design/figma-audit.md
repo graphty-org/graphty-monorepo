@@ -10,7 +10,7 @@ The implementation plan is `figma-spec.md` in this folder.
 - the component has a `States` story, which Chromatic captures in its light and dark modes;
 - side by side with the Figma capture, the story shows no visible difference.
 
-The properties measured are box size, padding, radius, fill, text colour, font size, weight,
+The properties measured are box size, padding, radius, fill, text color, font size, weight,
 line-height, letter-spacing, border, outline and shadow. The browser tests are in
 `tests/figma/*.browser.test.tsx` and `tests/theme/*.browser.test.tsx`.
 
@@ -70,7 +70,7 @@ Vitest has no Storybook project. All eight were stale after the Figma rebuild: t
 strip is now a tablist (the stories looked for radios), a nested popout now docks flush (the
 story expected a 4px gap), `PopoutButton`'s open state is `aria-expanded` on the ghost variant
 (the stories expected the `light` variant), the Select trigger is a `combobox` (the story looked
-for a textbox), the colour input and its picker both have an Opacity box (the story's query
+for a textbox), the color input and its picker both have an Opacity box (the story's query
 matched both), and the toggle story read `aria-pressed` before React had committed the state
 from a native pointer event.
 
@@ -78,7 +78,7 @@ Differences left as they are:
 
 - Stories that end with keyboard focus show our focus rings (the popout panel, the modal's close
   button, the resize handle's bar). Figma draws none; the rings are ours on purpose.
-- Without the browser's EyeDropper API (headless Chromium, Firefox, Safari) the colour picker
+- Without the browser's EyeDropper API (headless Chromium, Firefox, Safari) the color picker
   hides the eyedropper and leaves its slot empty, so the sliders keep Figma's position.
 - An expanded top-level row in a `stickyRoots` tree always draws its hairline, stuck or not.
 - The context menu is compared with the current dark-scoped capture (`ctx-canvas-frame`), not
@@ -113,7 +113,7 @@ The numbers in the first column are the section numbers in `components.md`.
 | 16 Pill tabs | Mantine `Tabs` (default `variant="pills"`) | PASS; labels 1-2% narrower |
 | 17 Segmented control (panel) | Mantine `SegmentedControl`, `IconGroupRow` | PASS |
 | 18 Segmented control with a sliding thumb | `SegmentedControl variant="toolbar"` | PASS. The thumb shadow's first blur is 1px, as captured; the shared elevation-100 token is 0.5px |
-| 19 Checkbox | Mantine `Checkbox` (blue); `variant="neutral"` (grey) | PASS. Kept on purpose: a bare Checkbox is the blue dialog checkbox; ToggleRow uses the neutral one |
+| 19 Checkbox | Mantine `Checkbox` (blue); `variant="neutral"` (gray) | PASS. Kept on purpose: a bare Checkbox is the blue dialog checkbox; ToggleRow uses the neutral one |
 | 20 Toggle switch | Mantine `Switch` | PASS |
 | 21 Alignment matrix | `AlignmentMatrix` (new) | PASS. Kept on purpose: arrow keys move in 2D |
 | 22 Scrubbable number input | `NumberInput`, `PanelField`, `StyleNumberInput` | PASS. Kept on purpose: Enter keeps focus in the field, and the reset button stays in the trailing slot |
@@ -121,14 +121,14 @@ The numbers in the first column are the section numbers in `components.md`.
 | 24 Text input, inline rename | `TextInput`, `Textarea`, `InlineRename` (new) | PASS |
 | 25 Search field | `SearchInput` (new) | PASS |
 | 26 Select trigger and listbox | `Select`, `NativeSelect`, `StyleSelect`, dark listbox | PASS |
-| 27 Colour swatch (chit) | `ColorSwatch`, chit inside the paint field | PASS |
+| 27 Color swatch (chit) | `ColorSwatch`, chit inside the paint field | PASS |
 | 28 Paint row | `CompactColorInput` | PASS |
 | 29 Slider | `Slider`, `RangeSlider`, `HueSlider`, `AlphaSlider` | Deviation: in dark, a disabled plain slider's thumb is #2c2c2c on a #2c2c2c-based track and nearly disappears. Figma has no capture of this state |
-| 30 Colour picker, gradient editor | `ColorPickerPanel` (new), `GradientEditor` | Deviation: gradient stop rows have no opacity box, because `ColorStop.color` would need to accept `#RRGGBBAA` (a data-format change). Enter keeps focus in the value box |
+| 30 Color picker, gradient editor | `ColorPickerPanel` (new), `GradientEditor` | Deviation: gradient stop rows have no opacity box, because `ColorStop.color` would need to accept `#RRGGBBAA` (a data-format change). Enter keeps focus in the value box |
 | 31 Variable pill, bound field | `VariablePill` (new) | PASS |
 | 32 Dark menu | Mantine `Menu` | PASS; row text widths slightly off (font width). A submenu is the same dark surface as its parent (it was drawn as a light popover until the second pass) |
 | 33 Context menu | `ContextMenu` (new) | PASS. Kept on purpose: it also opens with Shift+F10 and the ContextMenu key |
-| 34 Tooltip | Mantine `Tooltip`, `TooltipShortcut` (new) | PASS for timing, look and arrow. Deviations: a pending tooltip is not cancelled by a click, key or wheel; outside a `Tooltip.Group`, two tooltips can show at once; tooltips stay in the accessibility tree (on purpose) |
+| 34 Tooltip | Mantine `Tooltip`, `TooltipShortcut` (new) | PASS for timing, look and arrow. Deviations: a pending tooltip is not canceled by a click, key or wheel; outside a `Tooltip.Group`, two tooltips can show at once; tooltips stay in the accessibility tree (on purpose) |
 | 35 Light popover | Popout family, `Popover`, `HoverCard`, `InfoCircle` | PASS; one root popover at a time. Kept on purpose: a nested popout docks flush to its parent |
 | 36 Modal dialog | Mantine `Modal`, `ModalFooter` (new) | PASS |
 | 37 Toast | `Toast`, `ToastProvider`, `useToast` (new) | PASS |
@@ -156,14 +156,14 @@ The numbers in the first column are the section numbers in `components.md`.
 
 ## Interaction
 
-| Behaviour | Result |
+| Behavior | Result |
 |---|---|
 | Tooltip timing: 1000 ms cold, instant warm, 300 ms hide | PASS. Measured in `overlays.browser.test.tsx`, for both the pointer and keyboard focus |
 | No overlay animation | PASS. Menu, sub-menu, tooltip, popover, hover card, modal and the combobox lists all have a transition duration of 0 |
 | One popover at a time | PASS. Only one root popout is open on the page; a menu opened outside a popover closes it |
 | Dark menus in both themes | PASS. Menu, context menu, listbox and tooltip use #1e1e1e in light and in dark |
 | Focus ring geometry | PASS. The ring is 1px `--cm-border-selected`: inside fields and joined segments, outside buttons, and on keyboard focus only (fields ring on any focus). Tests are in `tests/theme/focus-ring.*` and each package's suite |
-| Keyboard models | PASS. Covered for the tree, page list, menus (including type-ahead), listbox, combo input, tabs (activate on press), segmented control, alignment matrix, toolbar and flyout, quick actions, resize handle, DataTable, colour fields (Escape reverts) and context menu (Shift+F10) |
+| Keyboard models | PASS. Covered for the tree, page list, menus (including type-ahead), listbox, combo input, tabs (activate on press), segmented control, alignment matrix, toolbar and flyout, quick actions, resize handle, DataTable, color fields (Escape reverts) and context menu (Shift+F10) |
 
 ## Global differences that stay
 

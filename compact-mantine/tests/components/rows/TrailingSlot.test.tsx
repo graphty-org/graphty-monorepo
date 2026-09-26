@@ -174,7 +174,7 @@ describe("AdvancedButton", () => {
             expect(changed.querySelector('[data-glyph="settings"]')).toBeInTheDocument();
         });
 
-        it("is never colour alone: the state is in the accessible name too", () => {
+        it("is never color alone: the state is in the accessible name too", () => {
             renderSlot(<AdvancedButton label="Options" changed onClick={vi.fn()} />);
 
             const button = screen.getByTestId("advanced-button");

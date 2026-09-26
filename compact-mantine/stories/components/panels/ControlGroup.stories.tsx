@@ -56,8 +56,8 @@ import { StoryState, StoryStates } from "../../helpers/story-panel";
  * | Part | Value |
  * |---|---|
  * | Legend band | 16px tall |
- * | Legend text | 9/14 caption, weight 500, secondary ink, ellipsised |
- * | Field row under a legend | 48px in all: 16 legend + 32 row with its 24px control centred |
+ * | Legend text | 9/14 caption, weight 500, secondary ink, ellipsized |
+ * | Field row under a legend | 48px in all: 16 legend + 32 row with its 24px control centered |
  * | Rule | none (groups inside a section are not divided) |
  */
 const meta: Meta<typeof ControlGroup> = {

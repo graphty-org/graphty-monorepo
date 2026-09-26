@@ -6,7 +6,7 @@ import { focusMarked, StateGrid } from "../../helpers/selection-states";
 
 /**
  * Mantine's `Checkbox`, themed as Figma's two checkboxes: the blue dialog checkbox (the default,
- * `variant="filled"`) and the grey panel checkbox (`variant="neutral"`), which stays grey when
+ * `variant="filled"`) and the gray panel checkbox (`variant="neutral"`), which stays gray when
  * checked. Every prop is Mantine's: see [Checkbox on mantine.dev](https://mantine.dev/core/checkbox/).
  *
  * In a panel, prefer `ToggleRow` (Components/Selection): it lays the neutral checkbox out on the
@@ -41,7 +41,7 @@ const meta: Meta<typeof Checkbox> = {
 export default meta;
 type Story = StoryObj<typeof Checkbox>;
 
-/** A labelled checkbox; use Controls to switch `variant`, `checked`, `indeterminate` or `disabled`. */
+/** A labeled checkbox; use Controls to switch `variant`, `checked`, `indeterminate` or `disabled`. */
 export const Default: Story = {
     args: {
         label: "Enable feature",

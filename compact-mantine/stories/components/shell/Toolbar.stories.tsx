@@ -44,7 +44,7 @@ import { frameTools, icons, moveTools, shapeTools, textTools } from "./fixtures"
  * </Toolbar>
  * ```
  *
- * A tool is `{ value, label, icon, shortcut? }`. `floating` pins the bar to the bottom centre of
+ * A tool is `{ value, label, icon, shortcut? }`. `floating` pins the bar to the bottom center of
  * the window, 12px up; leave it off to place the bar yourself.
  *
  * ## Keyboard and accessibility
@@ -69,7 +69,7 @@ import { frameTools, icons, moveTools, shapeTools, textTools } from "./fixtures"
  * | Chevron | 16 x 32, 1px after its tool (a group is 49 x 32) |
  * | Divider | 1 x 48, full height |
  * | Flyout | the dark menu, 4px above the chevron, start-aligned |
- * | `floating` | fixed, bottom 12, centred |
+ * | `floating` | fixed, bottom 12, centered |
  */
 const meta: Meta<typeof Toolbar> = {
     title: "Components/App shell/Toolbar",

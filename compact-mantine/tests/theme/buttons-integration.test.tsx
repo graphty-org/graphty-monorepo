@@ -149,7 +149,7 @@ describe("Button Components Integration", () => {
     });
 
     describe("ActionIcon variants", () => {
-        it("renders variant='filled' filled in its colour at the compact size", () => {
+        it("renders variant='filled' filled in its color at the compact size", () => {
             // Item 2, 2026-09-13: the compact theme names only --ai-size, so
             // Mantine's own resolver still derives the ground and the ink from
             // color + variant. A filled icon must get a real background.
@@ -197,7 +197,7 @@ describe("Button Components Integration", () => {
             expect(cssVar(root, "--ai-size")).toBe("24px");
         });
 
-        it("leaves a coloured light icon to Mantine's derivation, with no accent border", () => {
+        it("leaves a colored light icon to Mantine's derivation, with no accent border", () => {
             const { container } = render(
                 <MantineProvider theme={compactTheme}>
                     <ActionIcon variant="light" color="red" aria-label="light red" />
@@ -208,7 +208,7 @@ describe("Button Components Integration", () => {
             expect(cssVar(root, "--ai-color")).toBe("var(--mantine-color-red-light-color)");
         });
 
-        it("never draws an accent-coloured border on any variant", () => {
+        it("never draws an accent-colored border on any variant", () => {
             for (const variant of ["subtle", "filled", "outline", "transparent", "default", "light"]) {
                 const { container } = render(
                     <MantineProvider theme={compactTheme}>
@@ -220,7 +220,7 @@ describe("Button Components Integration", () => {
             }
         });
 
-        it("draws the ghost in Figma's icon ink when no colour is given", () => {
+        it("draws the ghost in Figma's icon ink when no color is given", () => {
             const { container } = render(
                 <MantineProvider theme={compactTheme}>
                     <ActionIcon aria-label="ghost" />
@@ -286,7 +286,7 @@ describe("Button Components Integration", () => {
             expect(cssVar(el, "--cm-btn-outline")).toBe(edge);
         });
 
-        it("leaves a non-primary filled colour and gradient to Mantine", () => {
+        it("leaves a non-primary filled color and gradient to Mantine", () => {
             expect(cssVar(root(<Button color="grape">Grape</Button>), "--button-bg")).toBe("var(--mantine-color-grape-filled)");
             expect(cssVar(root(<Button variant="gradient">G</Button>), "--cm-btn-pressed")).toBe("");
         });

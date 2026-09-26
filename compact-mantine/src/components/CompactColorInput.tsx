@@ -22,7 +22,7 @@ import { Popout } from "./popout";
 // Accessibility: the APG "Grouping controls" pattern round three separately named controls --
 // the chit button (Popout.Trigger adds aria-haspopup="dialog" and aria-expanded), the hex text
 // box and the opacity text box. The group carries the field's own name, so a screen reader
-// announces "Fill group" once and each control then says which part of the colour it holds.
+// announces "Fill group" once and each control then says which part of the color it holds.
 
 /** The default field width: the panel grid's body column. */
 const DEFAULT_WIDTH = PANEL_GRID.BODY;
@@ -41,13 +41,13 @@ const HEXA_ALPHA_START = 7;
  */
 export interface CompactColorInputProps {
     /**
-     * The colour, as `#RRGGBB`, when you drive the control from your own state.
+     * The color, as `#RRGGBB`, when you drive the control from your own state.
      *
-     * `undefined` does not mean "no colour" here: it means the reader has
+     * `undefined` does not mean "no color" here: it means the reader has
      * chosen none and the control is showing `defaultColor`.
      */
     color?: string | undefined;
-    /** The colour shown, in italics, while the reader has chosen none of their own. */
+    /** The color shown, in italics, while the reader has chosen none of their own. */
     defaultColor: string;
     /**
      * The opacity as a percentage from 0 to 100, when you drive the control
@@ -62,10 +62,10 @@ export interface CompactColorInputProps {
      */
     defaultOpacity?: number;
     /**
-     * Called when the colour changes, and with `undefined` when the control is
+     * Called when the color changes, and with `undefined` when the control is
      * reset to its default.
      *
-     * The colour comes first, as `#RRGGBB` in upper case; the event that caused
+     * The color comes first, as `#RRGGBB` in upper case; the event that caused
      * the change is second and is absent for a change made from the picker,
      * which reports none.
      */
@@ -78,7 +78,7 @@ export interface CompactColorInputProps {
      */
     onOpacityChange?: ChangeHandler<number | undefined>;
     /**
-     * Called once per gesture with BOTH halves of the colour, whichever of them
+     * Called once per gesture with BOTH halves of the color, whichever of them
      * moved.
      *
      * Reach for this one, alone, whenever you drive the control from your own
@@ -86,10 +86,10 @@ export interface CompactColorInputProps {
      * already use them, but they cannot carry a gesture that moves both halves
      * at once.
      *
-     * Why: a picker gesture can move the colour and the opacity at once. With
+     * Why: a picker gesture can move the color and the opacity at once. With
      * the two separate callbacks, both run against the same props, so a
      * controlled consumer that rebuilds its state from those props in each one
-     * loses the colour when the opacity write lands second.
+     * loses the color when the opacity write lands second.
      *
      * Both halves are always passed, so a consumer never has to remember which
      * one moved -- the same shape `GradientEditor` already uses for its stops
@@ -114,12 +114,12 @@ export interface CompactColorInputProps {
      * The field's name, drawn above the control and used to name the group the
      * three controls sit in.
      *
-     * Leave it out for a colour that is already named by what surrounds it,
+     * Leave it out for a color that is already named by what surrounds it,
      * such as one stop of a gradient.
      */
     label?: string;
     /**
-     * Whether to offer an opacity box beside the colour.
+     * Whether to offer an opacity box beside the color.
      * @default true
      */
     showOpacity?: boolean;
@@ -138,7 +138,7 @@ export interface CompactColorInputProps {
      * is true.
      *
      * It is appended to the control's own name after a full stop and drawn as
-     * the tooltip -- "Glow colour. Glow is not drawn yet" -- and it also joins
+     * the tooltip -- "Glow color. Glow is not drawn yet" -- and it also joins
      * the accessible description of the swatch, the hex box and the opacity
      * box, so the reason reaches a pointer user and a screen reader user alike.
      * With no `label` to append to, the sentence stands on its own.
@@ -171,26 +171,26 @@ export interface CompactColorInputProps {
 }
 
 /**
- * A colour in one paint field: the chit, the hex value and the opacity.
+ * A color in one paint field: the chit, the hex value and the opacity.
  *
- * Pressing the chit opens the colour picker in a pop-out (one at a time, docked to the start
+ * Pressing the chit opens the color picker in a pop-out (one at a time, docked to the start
  * side of the panel); the hex box takes `RRGGBB` (or `RGB`) and commits on blur or Enter, and
  * reverts on Escape; the opacity box commits on blur or Enter, steps with ArrowUp / ArrowDown
  * (Shift for 10) and scrubs by dragging its "%".
  *
  * As in the other controls of this family, `undefined` means "the reader has chosen nothing
  * here": the control shows the default in italics and offers no reset until something of the
- * reader's own is set, and pressing the reset reports `undefined` again. Colour and opacity are
+ * reader's own is set, and pressing the reset reports `undefined` again. Color and opacity are
  * tracked separately, so either can be the reader's while the other is still the default.
  * Typed opacity is read in the reader's own locale.
  * @param props - Component props
- * @param props.color - The colour, when you drive the control from your own state
- * @param props.defaultColor - The colour shown while the reader has chosen none of their own
+ * @param props.color - The color, when you drive the control from your own state
+ * @param props.defaultColor - The color shown while the reader has chosen none of their own
  * @param props.opacity - The opacity as a percentage, when you drive the control from your own state
  * @param props.defaultOpacity - The opacity shown while the reader has set none of their own
- * @param props.onColorChange - Called with the new colour, or with `undefined` when the control is reset
+ * @param props.onColorChange - Called with the new color, or with `undefined` when the control is reset
  * @param props.onOpacityChange - Called with the new opacity, or with `undefined` when the control is reset
- * @param props.onChange - Called once per gesture with both halves of the colour, whichever of them moved
+ * @param props.onChange - Called once per gesture with both halves of the color, whichever of them moved
  * @param props.label - The field's name, drawn above the control and used to name the group
  * @param props.showOpacity - Whether to offer the opacity box
  * @param props.disabled - Whether the control cannot be used at all
@@ -261,7 +261,7 @@ export function CompactColorInput({
     }, [displayColor]);
 
     /**
-     * Take a colour from the picker, splitting off its alpha channel. One onChange for the whole
+     * Take a color from the picker, splitting off its alpha channel. One onChange for the whole
      * gesture, after both halves are settled: two separate callbacks inside one React batch
      * would each rebuild a controlled consumer's state from the same stale snapshot.
      * @param picked - `#RRGGBBAA`, or `#RRGGBB` when the picker carries no alpha
@@ -304,7 +304,7 @@ export function CompactColorInput({
     };
 
     /**
-     * Give the colour, and the opacity when it is shown, back to their defaults. With no opacity
+     * Give the color, and the opacity when it is shown, back to their defaults. With no opacity
      * box the reader's opacity is untouched and reported back as it stands.
      * @param event - the click
      */
@@ -435,8 +435,8 @@ export function CompactColorInput({
 
     return (
         <div
-            data-testid="compact-color-input-labelled"
-            className="cm-paint-labelled"
+            data-testid="compact-color-input-labeled"
+            className="cm-paint-labeled"
             role="group"
             aria-labelledby={labelId}
             title={annotation.title}

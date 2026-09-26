@@ -18,7 +18,7 @@
  * - Progress: --progress-size: 4px, a full radius, track --cm-bg-secondary, fill --cm-bg-brand
  * - RingProgress: tokens only (numeric size prop)
  *
- * Colours are in ../css/overlays.css.ts, keyed on the classNames below.
+ * Colors are in ../css/overlays.css.ts, keyed on the classNames below.
  */
 
 import type { CompactSizeScale } from "./size-scale";
@@ -66,7 +66,7 @@ export const compactProgressStyles = {
 /** A fully round bar (spec 8.8: radius full). */
 export const PROGRESS_RADIUS = "9999px";
 
-/** The Loader part: drawn in the icon colour. */
+/** The Loader part: drawn in the icon color. */
 export const compactLoaderClassNames = { root: "cm-loader" } as const;
 
 /** The Progress parts: the track and the fill. */
@@ -76,7 +76,7 @@ export const compactProgressClassNames = {
     label: "cm-progress-label",
 } as const;
 
-/** The RingProgress parts: the track colour and the label type. */
+/** The RingProgress parts: the track color and the label type. */
 export const compactRingProgressClassNames = {
     root: "cm-ring-progress",
     curve: "cm-ring-curve",

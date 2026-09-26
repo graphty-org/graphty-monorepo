@@ -8,7 +8,7 @@
  * fill, radius and 1px outline slot on the wrapper and nothing on the input, so the input here
  * is borderless and transparent and the wrapper is the field.
  *
- * Colours are tokens only. The AA option needs nothing here: `cm-field` reads
+ * Colors are tokens only. The AA option needs nothing here: `cm-field` reads
  * `--cm-field-shadow` / `--cm-field-border`, which the AA token block switches.
  */
 import { cmFont } from "../tokens";
@@ -293,7 +293,7 @@ const css = `
     color: var(--cm-text);
     ${cmFont("body")}
 }
-/* The label fills the 18px inside the pill's 1px edges; its text centred in it. */
+/* The label fills the 18px inside the pill's 1px edges; its text centered in it. */
 .cm-input-pill .mantine-Pill-label,
 .cm-pills-field .mantine-Pill-root .mantine-Pill-label {
     line-height: 18px;

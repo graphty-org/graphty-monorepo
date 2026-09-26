@@ -1,6 +1,6 @@
 /**
- * The colour package against the Figma study (design/figma-spec.md section 7): the paint field
- * (CompactColorInput), the chit (ColorSwatch), the picker body (ColorPickerPanel), the colour
+ * The color package against the Figma study (design/figma-spec.md section 7): the paint field
+ * (CompactColorInput), the chit (ColorSwatch), the picker body (ColorPickerPanel), the color
  * sliders (HueSlider / AlphaSlider) and the gradient editor, in light and dark, at rest, hover,
  * focus and in the AA mode. Expected values are read from the captures wherever Figma measured
  * them; positions are compared relative to the component's own origin.
@@ -75,7 +75,7 @@ async function renderPaint(scheme: "light" | "dark", highContrast = false): Prom
     return container;
 }
 
-describe.skipIf(!(await figmaAvailable()))("colour package against Figma", () => {
+describe.skipIf(!(await figmaAvailable()))("color package against Figma", () => {
     describe.each(["light", "dark"] as const)("paint field (7.2), %s", (scheme) => {
         it("rest: field, chit, hex, opacity and the % handle", async () => {
             const cap = PAINT[scheme].rest;
@@ -143,7 +143,7 @@ describe.skipIf(!(await figmaAvailable()))("colour package against Figma", () =>
                 { origin: mine },
             );
             expectMeasured(part(mine, ".cm-paint-suffix"), suffixSpec, { origin: mine });
-            // The seam: 1px of the panel colour, 22 tall, at the opacity part's start edge.
+            // The seam: 1px of the panel color, 22 tall, at the opacity part's start edge.
             const seam = computed(part(mine, ".cm-paint-opacity"), "::before");
             expect([seam.width, seam.height, hex(seam.backgroundColor)]).toEqual([
                 "1px",
@@ -254,9 +254,9 @@ describe.skipIf(!(await figmaAvailable()))("colour package against Figma", () =>
     describe.each([
         ["light", "ii/colour-picker-solid"],
         ["dark", "dt/dark-color-picker"],
-    ] as const)("colour picker (7.3) and sliders (7.4), %s", (scheme, cap) => {
+    ] as const)("color picker (7.3) and sliders (7.4), %s", (scheme, cap) => {
         /**
-         * The picker body on a panel-coloured surface, as Figma's solid picker shows it.
+         * The picker body on a panel-colored surface, as Figma's solid picker shows it.
          * @returns the picker root
          */
         async function renderPicker(): Promise<HTMLElement> {
@@ -307,7 +307,7 @@ describe.skipIf(!(await figmaAvailable()))("colour package against Figma", () =>
 
             const [hue, alpha] = [...picker.querySelectorAll<HTMLElement>(".cm-color-slider")];
             // Figma's role=slider is the 180 slot; ours is its middle 156 so the pointer maps onto
-            // the thumb's centre. The slot, the track and the thumbs land on Figma's pixels.
+            // the thumb's center. The slot, the track and the thumbs land on Figma's pixels.
             const hueSlot = offset(hueSlider, canvas);
             expectMeasured(hue, { width: 156, height: 24, x: hueSlot.x + 12, y: hueSlot.y }, { origin: field });
             const track = part(hue, ".cm-color-slider-track");
@@ -328,7 +328,7 @@ describe.skipIf(!(await figmaAvailable()))("colour package against Figma", () =>
             const under = computed(part(hue, ".cm-color-thumb"), "::before");
             expect([under.width, under.height]).toEqual(["12px", "12px"]);
             expect(under.boxShadow).not.toBe("none");
-            // The opacity track's checkerboard follows the theme (dark: the panel greys).
+            // The opacity track's checkerboard follows the theme (dark: the panel grays).
             expect(computed(part(alpha, ".cm-color-slider-track")).backgroundImage).toContain(
                 scheme === "light" ? "rgb(225, 225, 225)" : "rgb(56, 56, 56)",
             );
@@ -408,7 +408,7 @@ describe.skipIf(!(await figmaAvailable()))("colour package against Figma", () =>
         });
     });
 
-    describe("colour picker behaviour", () => {
+    describe("color picker behavior", () => {
         it("the sliders step 1 unit with the arrows, 10 with Shift, and jump with Home / End", async () => {
             const onChange = vi.fn();
             const { container } = await renderFigma(<ColorPickerPanel value="#FF0000FF" onChange={onChange} />);
@@ -613,7 +613,7 @@ describe.skipIf(!(await figmaAvailable()))("colour package against Figma", () =>
             expect(computed(part(chit, ".cm-chit"), "::after").boxShadow).toContain("inset");
         });
 
-        it("dragging in the picker recolours the selected stop live and reports one start and one end", async () => {
+        it("dragging in the picker recolors the selected stop live and reports one start and one end", async () => {
             const onChange = vi.fn();
             const onChangeStart = vi.fn();
             const onChangeEnd = vi.fn();
@@ -726,7 +726,7 @@ describe.skipIf(!(await figmaAvailable()))("colour package against Figma", () =>
         });
     });
 
-    describe("keyboard and pointer behaviour of the text fields", () => {
+    describe("keyboard and pointer behavior of the text fields", () => {
         it("Escape reverts what was typed in the hex and opacity boxes and commits nothing", async () => {
             const onChange = vi.fn();
             const { container } = await renderFigma(
@@ -800,7 +800,7 @@ describe.skipIf(!(await figmaAvailable()))("colour package against Figma", () =>
             expect(onChange).not.toHaveBeenCalled();
         });
 
-        it("Delete on a handle moves focus to the neighbouring handle", async () => {
+        it("Delete on a handle moves focus to the neighboring handle", async () => {
             const { container } = await renderFigma(
                 <PopoutManager>
                     <div style={{ width: 240 }}>

@@ -400,7 +400,7 @@ export function renderListboxOption({
 }
 
 /**
- * The 5 x 3 caret of a select trigger or a combo field, in the field's section colour.
+ * The 5 x 3 caret of a select trigger or a combo field, in the field's section color.
  * @returns the caret
  */
 export function FieldCaret(): React.JSX.Element {

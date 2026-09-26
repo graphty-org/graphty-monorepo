@@ -35,7 +35,7 @@ const meta: Meta<typeof PasswordInput> = {
 export default meta;
 type Story = StoryObj<typeof PasswordInput>;
 
-/** A labelled password field in the panel body width. */
+/** A labeled password field in the panel body width. */
 export const Default: Story = {
     args: {
         label: "Password",

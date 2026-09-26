@@ -60,7 +60,7 @@ const PAGES = [
  * |---|---|
  * | Cell | 240 x 32, padding 4 8 |
  * | Pill | 224 x 24, radius 5, text 16px in at 11px on a 24px line |
- * | Current | grey fill, weight 550 (no blue) |
+ * | Current | gray fill, weight 550 (no blue) |
  * | Group selected | blue fill, weight 600 |
  * | Divider | a 208 x 1 line |
  * | Focus ring | 1px on the whole 240 x 32 cell, radius 5 |

@@ -1,4 +1,4 @@
-// Story helpers for the colour package's States stories. A .ts file (createElement rather than
+// Story helpers for the color package's States stories. A .ts file (createElement rather than
 // JSX) so the stories lint block, which covers stories/**/*.ts, covers it too.
 import { createElement, type ReactNode, useEffect, useRef } from "react";
 
@@ -28,7 +28,7 @@ export function ForceState({
 }
 
 /**
- * One labelled cell of a States grid.
+ * One labeled cell of a States grid.
  * @param props - Component props
  * @param props.label - the state's name
  * @param props.children - the component in that state

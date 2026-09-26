@@ -12,7 +12,7 @@ import type { CompactSizeScale, CompactVars } from "./size-scale";
  * frozen object).
  *
  * The compact entry (sm) is Figma's field: 24 tall, 11/16 text. The other entries
- * keep an explicitly sized field distinct from its neighbours: xs 20, md 32 with 13/24 text (the
+ * keep an explicitly sized field distinct from its neighbors: xs 20, md 32 with 13/24 text (the
  * quick-actions search), lg 36, xl 44.
  *
  * Section widths are NOT set here: a theme variable wins over the component's own, so setting

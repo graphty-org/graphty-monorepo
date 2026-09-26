@@ -43,7 +43,7 @@ export interface ControlGroupProps {
 }
 
 /**
- * A labelled group of controls: a 16px legend band carrying the group's name
+ * A labeled group of controls: a 16px legend band carrying the group's name
  * as a small caption, then the rows.
  *
  * The group is always open. That is the whole difference between this and
@@ -55,7 +55,7 @@ export interface ControlGroupProps {
  *   Figma's "Alignment" or "Position" legends -- or inside a pop-out.
  *
  * A field row under a legend comes out at Figma's 48px: the 16px band, then the
- * 32px row with its 24px control centred. The legend shortens with an ellipsis
+ * 32px row with its 24px control centered. The legend shortens with an ellipsis
  * when the container is narrow, header buttons stay pinned to its end, and
  * everything is laid out in inline terms so the group mirrors right to left.
  * @param props - Component props

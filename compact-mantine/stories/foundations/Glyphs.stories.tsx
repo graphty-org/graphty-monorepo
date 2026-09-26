@@ -36,7 +36,7 @@ import {
  *   `UI_GLYPH_NAMES` lists them.
  *
  * Both components take a `name` and an optional `size`, are drawn at 12px by
- * default from strokes that stay 1px at any size (Figma's weight), and take their colour from
+ * default from strokes that stay 1px at any size (Figma's weight), and take their color from
  * whatever contains them -- so a glyph inside a disabled control dims with it,
  * and a glyph on a selected tile inverts with it. Both are hidden from assistive
  * technology, because the control around them already carries the name.
@@ -102,7 +102,7 @@ const UI_GLYPH_MEANINGS: Record<UiGlyphName, string> = {
     chevronRight: "A closed section, in a left-to-right interface.",
     chevronLeft: "A closed section, in a right-to-left interface: the mirror of chevronRight.",
     close: "Dismiss this panel.",
-    plus: "Add one -- a colour stop, a rule -- or set up a section that is still empty.",
+    plus: "Add one -- a color stop, a rule -- or set up a section that is still empty.",
     minus: "Remove one. Drawn at the same weight as plus, so adding and removing match.",
     gear: "Advanced settings, opened in a pop-out.",
     warning: "A caveat: the result is approximate, or covers only part of the data.",
@@ -124,15 +124,15 @@ const UI_GLYPH_MEANINGS: Record<UiGlyphName, string> = {
     settings: "Settings. The same drawing as gear.",
     link: "Linked: the values move together.",
     unlink: "Detach the link.",
-    eyedropper: "Pick a colour from the screen.",
+    eyedropper: "Pick a color from the screen.",
     rotate: "Rotation.",
     flipHorizontal: "Mirror left to right.",
     flipVertical: "Mirror top to bottom.",
     alignLeft: "Align left edges.",
-    alignCenterH: "Align horizontal centres.",
+    alignCenterH: "Align horizontal centers.",
     alignRight: "Align right edges.",
     alignTop: "Align top edges.",
-    alignCenterV: "Align vertical centres.",
+    alignCenterV: "Align vertical centers.",
     alignBottom: "Align bottom edges.",
     more: "More actions.",
     help: "Help.",
@@ -192,7 +192,7 @@ function GlyphCard({
 }
 
 /**
- * The 24px tile a glyph is drawn on, painted in the colour of a field so that
+ * The 24px tile a glyph is drawn on, painted in the color of a field so that
  * the drawings read the way they will in a panel.
  * @param root0 - Component props
  * @param root0.children - The glyph to draw
@@ -248,7 +248,7 @@ function Gallery({caption, children}: {caption: string; children: React.ReactNod
  * The eight field glyphs, each drawn twice: hollow on the left, filled on the
  * right.
  *
- * **Hollow means the value is the reader's own.** A number they typed, a colour
+ * **Hollow means the value is the reader's own.** A number they typed, a color
  * they picked, a default nobody has touched.
  *
  * **Filled means the value is bound to data.** The field is showing what an
@@ -332,7 +332,7 @@ export const UiGlyphs: Story = {
  *
  * Every field here is 24px tall, and every value starts 24px from the field's
  * leading edge, because the 24px slot holding the drawing is what puts it there.
- * That is the whole saving: four labelled values in the height two
+ * That is the whole saving: four labeled values in the height two
  * caption-above-input pairs would have taken.
  *
  * The last field is bound to an attribute, so its glyph is filled.
@@ -366,8 +366,8 @@ export const InAField: Story = {
  * 24px slot, and both take a `size` in pixels for anywhere else. The stroke stays
  * 1px at every size.
  *
- * Colour is never set by the drawing: it is `currentColor`, inherited from
- * whatever contains it. Set the colour on the parent, and a glyph dims with a
+ * Color is never set by the drawing: it is `currentColor`, inherited from
+ * whatever contains it. Set the color on the parent, and a glyph dims with a
  * disabled control and inverts on a selected one without being told to.
  */
 export const Sizes: Story = {

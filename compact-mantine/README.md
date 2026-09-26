@@ -8,7 +8,7 @@ Compact components and a compact theme for [Mantine 8](https://mantine.dev), for
 interfaces where screen space is the scarce resource: property panels,
 inspectors, sidebars, editors and dashboards. The look is measured from the
 Figma editor's own interface, in its light and its dark theme: the same 24px
-controls, the same 11px Inter, the same colours, radii, shadows and timing.
+controls, the same 11px Inter, the same colors, radii, shadows and timing.
 
 It gives you two things, and you can take either one on its own:
 
@@ -36,7 +36,7 @@ works in light and dark schemes, and works in right-to-left languages.
   - [Panels and rows](#panels-and-rows)
   - [Inputs](#inputs)
   - [Selection](#selection)
-  - [Colour](#colour)
+  - [Color](#color)
   - [Actions](#actions)
   - [Floating panels](#floating-panels)
   - [Other overlays](#other-overlays)
@@ -104,7 +104,7 @@ export function App() {
 ```
 
 That is the whole setup: the theme puts its stylesheet (the Inter typeface, the
-colour tokens and the component rules) on the page the first time a themed
+color tokens and the component rules) on the page the first time a themed
 component renders. Three further pieces are optional and are introduced where
 they matter: [`Tooltip.Group`](#tooltips-wrap-your-app-once) around your app for
 Figma's tooltip timing, [`PopoutManager`](#floating-panels) if you use pop-outs,
@@ -115,9 +115,9 @@ strings.
 
 `compactTheme` is a complete Mantine theme, already merged with Mantine's
 default, that draws every component the way the Figma editor draws its own.
-Light and dark are Mantine's own colour scheme (`defaultColorScheme`,
+Light and dark are Mantine's own color scheme (`defaultColorScheme`,
 `forceColorScheme`, `useMantineColorScheme`); one theme serves both, and the dark
-scheme uses Figma's neutral greys (#2c2c2c panels, #383838 fields).
+scheme uses Figma's neutral grays (#2c2c2c panels, #383838 fields).
 
 | Token | Values |
 |-------|--------|
@@ -127,9 +127,9 @@ scheme uses Figma's neutral greys (#2c2c2c panels, #383838 fields).
 | `shadows` | xs to xl map onto Figma's five elevations |
 | `primaryColor` | `brand`: #0d99ff for filled surfaces, #007be5 for links |
 
-Every colour is a CSS custom property named `--cm-*` (for example `--cm-bg`,
+Every color is a CSS custom property named `--cm-*` (for example `--cm-bg`,
 `--cm-text-secondary`, `--cm-bg-brand`), written with the CSS `light-dark()`
-function, so it resolves from the colour scheme of the element that uses it. A
+function, so it resolves from the color scheme of the element that uses it. A
 subtree that has to render dark inside a light app -- a menu, a tooltip, the
 shortcuts sheet -- sets `color-scheme: dark` and every token inside it follows.
 Read the tokens in your own CSS; `PANEL_INK` (see [the panel grid](#the-panel-grid))
@@ -161,11 +161,11 @@ import { createCompactTheme } from "@graphty/compact-mantine";
 <MantineProvider theme={createCompactTheme({ highContrast: true })}>{children}</MantineProvider>;
 ```
 
-`highContrast` changes colour tokens only -- nothing moves. It darkens secondary
+`highContrast` changes color tokens only -- nothing moves. It darkens secondary
 text and icons (50% to 55% black, 4.7:1), raises checkbox, switch and field
 boundaries to 3:1 (fields gain a 1px inside edge), gives the selected segment of
 a segmented control a 3:1 edge, and darkens placeholder text, the focus ring,
-links and the brand, danger and success fills to the next darker colour in
+links and the brand, danger and success fills to the next darker color in
 Figma's own palette. Dividers stay as Figma draws them. `createCompactTheme()`
 with no options is `compactThemeOverride`, and the options it was built with are
 published on `theme.other.compact`.
@@ -216,7 +216,7 @@ and you get larger sizes back.
 | Inputs | TextInput, NumberInput, Select, NativeSelect, Textarea, PasswordInput, Autocomplete, MultiSelect, TagsInput, PillsInput, FileInput, JsonInput, ColorInput, InputClearButton |
 | Buttons | Button, ActionIcon, CloseButton |
 | Controls | Switch, Checkbox, Radio, Slider, RangeSlider, SegmentedControl |
-| Colour | ColorSwatch, ColorPicker, HueSlider, AlphaSlider |
+| Color | ColorSwatch, ColorPicker, HueSlider, AlphaSlider |
 | Display | Badge, Text, Avatar, Avatar.Group, ThemeIcon, Indicator, Kbd, Pill |
 | Navigation | Tabs, NavLink, Pagination, Stepper, Anchor, Burger |
 | Feedback | Loader, Progress, RingProgress, Notification |
@@ -278,7 +278,7 @@ make one region dense -- which is the common case for a sidebar or an inspector.
 
 Also exported: `compactColors` (the palettes this theme adds), `compactDarkColors`
 (its neutral dark scale) and `compactBrandColors` (the brand scale), if you want
-to reuse the colours elsewhere.
+to reuse the colors elsewhere.
 
 ## The components
 
@@ -299,7 +299,7 @@ with. [Overview](https://graphty.app/storybook/compact-mantine/?path=/docs/compo
 | [`ControlGroup`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-panels-and-rows-controlgroup--docs) | the same, but it must never fold, or it sits in a padded container such as a pop-out. |
 | [`ControlSubGroup`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-panels-and-rows-controlsubgroup--docs) | a handful of rarely-opened settings belong under a section you already have. Quieter than a section. |
 | [`FieldRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-panels-and-rows-fieldrow--docs) | one or two fields share a line. It owns the widths and the gaps, so a column of rows lines up. |
-| [`CompoundRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-panels-and-rows-compoundrow--docs) | two or three values are one thing seen several ways -- a colour and its opacity, a width and its unit -- and must read as one control. |
+| [`CompoundRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-panels-and-rows-compoundrow--docs) | two or three values are one thing seen several ways -- a color and its opacity, a width and its unit -- and must read as one control. |
 | [`TrailingSlot`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-panels-and-rows-trailingslot--docs) | you are laying out a row by hand and need the fixed 24px slot every row ends with. |
 | [`ResizeHandle`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-panels-and-rows-resizehandle--docs) | a panel's edge can be dragged: pointer, arrow keys, or a double-click back to the default size. |
 
@@ -332,16 +332,16 @@ glyph and a visually hidden word in each segment; its
 [Storybook page](https://graphty.app/storybook/compact-mantine/?path=/docs/themed-mantine-selection-segmentedcontrol--docs) shows the recipe in a panel
 row. (`IconGroupRow` did this until 0.9.)
 
-### Colour
+### Color
 
-[Overview](https://graphty.app/storybook/compact-mantine/?path=/docs/components-colour-overview--docs)
+[Overview](https://graphty.app/storybook/compact-mantine/?path=/docs/components-color-overview--docs)
 
 | Component | Reach for it when |
 |-----------|-------------------|
-| [`CompactColorInput`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-colour-compactcolorinput--docs) | a colour and its opacity, on one 24px line, with Figma's picker in a pop-out. Needs a [`PopoutManager`](#floating-panels). |
-| [`ColorPickerPanel`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-colour-colorpickerpanel--docs) | you want Figma's picker itself on a surface of your own: paint type, saturation field, hue and alpha, eyedropper, swatches. |
-| [`GradientEditor`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-colour-gradienteditor--docs) | a multi-stop linear gradient: a bar with stop handles, one picker for the selected stop, positions and angle. Alone, or in `ColorPickerPanel`'s `gradient` slot. |
-| [`RampRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-colour-ramprow--docs) | a range is better drawn than described: a size wedge or a colour ramp with its two endpoints. |
+| [`CompactColorInput`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-color-compactcolorinput--docs) | a color and its opacity, on one 24px line, with Figma's picker in a pop-out. Needs a [`PopoutManager`](#floating-panels). |
+| [`ColorPickerPanel`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-color-colorpickerpanel--docs) | you want Figma's picker itself on a surface of your own: paint type, saturation field, hue and alpha, eyedropper, swatches. |
+| [`GradientEditor`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-color-gradienteditor--docs) | a multi-stop linear gradient: a bar with stop handles, one picker for the selected stop, positions and angle. Alone, or in `ColorPickerPanel`'s `gradient` slot. |
+| [`RampRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-color-ramprow--docs) | a range is better drawn than described: a size wedge or a color ramp with its two endpoints. |
 
 ### Actions
 
@@ -431,7 +431,7 @@ Readings: things the reader looks at rather than changes. [Overview](https://gra
 | [`DataRowHeader`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-datarowheader--docs) | a run of data rows needs a caption. Give it `onSortChange` and it becomes a sort control. |
 | [`RankChip`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-rankchip--docs) | a rank belongs beside a row: `#6`, rather than "rank 6 of 318". |
 | [`MetricRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-metricrow--docs) | one reading has a percentile and a rank: the name, a bar filled to the percentile, the number and the chip. |
-| [`HistogramRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-histogramrow--docs) | a distribution would otherwise be spelled as the numbers that summarise it. 64px tall. |
+| [`HistogramRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-histogramrow--docs) | a distribution would otherwise be spelled as the numbers that summarize it. 64px tall. |
 | [`SparklineRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-sparklinerow--docs) | a series is going somewhere and you want to see which way. 32px tall. |
 | [`ProseBlock`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-proseblock--docs) | the panel has to say something in words: a reading, a caveat, a record of the last run. |
 | [`ActionRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-actionrow--docs) | a row reports a state and offers verbs beside it. |
@@ -445,7 +445,7 @@ tab list: one Tab stop, arrow keys inside, names for screen readers.
 
 | Component | What it is |
 |-----------|------------|
-| [`Toolbar`, `ToolButton`, `ToolGroup`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-app-shell-toolbar--docs) | The floating bottom toolbar (48 tall, 13px corners, `floating` pins it bottom centre), its 32 x 32 tools (`label`, `icon`, `shortcut`, `selected`), and a tool with a flyout of related tools whose face shows the last one picked. |
+| [`Toolbar`, `ToolButton`, `ToolGroup`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-app-shell-toolbar--docs) | The floating bottom toolbar (48 tall, 13px corners, `floating` pins it bottom center), its 32 x 32 tools (`label`, `icon`, `shortcut`, `selected`), and a tool with a flyout of related tools whose face shows the last one picked. |
 | [`SecondaryToolbar`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-app-shell-secondarytoolbar--docs) | The contextual 40-tall bar above the toolbar while a mode is active. |
 | [`NavRail`, `RailButton`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-app-shell-navrail--docs) | The 56-wide navigation rail at the window's edge, and its destinations: a 32 x 32 pill over a 9px caption. |
 | [`HelpButton`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-app-shell-helpbutton--docs) | The round floating help button; its children are the items of the menu it opens. |
@@ -495,7 +495,7 @@ capital letters a field may show when a concept has no picture. See every drawin
 The Mantine components the theme restyles but does not wrap have their own section in Storybook,
 [Themed Mantine](https://graphty.app/storybook/compact-mantine/?path=/docs/themed-mantine-actions-button--docs), grouped as actions, inputs,
 selection, navigation, feedback and surfaces. Their props are Mantine's. Looks the theme adds through
-`variant`: `Checkbox` `neutral` (Figma's grey panel checkbox; the default is the blue dialog one),
+`variant`: `Checkbox` `neutral` (Figma's gray panel checkbox; the default is the blue dialog one),
 `SegmentedControl` `toolbar` (the sliding mode switch) and `loose`, `Anchor` `secondary`, and
 `Tabs` `default` (the underline tabs; pills are the default).
 
@@ -600,10 +600,10 @@ pad   field  gut  field   gap  trail  pad
 match without retyping them. It is also published on the theme as
 `theme.other.panelGrid`.
 
-`PANEL_INK` is the matching colour map: one entry per role a row paints
+`PANEL_INK` is the matching color map: one entry per role a row paints
 (`VALUE`, `CHROME`, `SURFACE`, `ACCENT`, `BORDER`, `SELECTED`, `HOVER`,
 `FOCUS`, `DISABLED` and so on), each one a `--cm-*` token rather than a fixed
-colour. Paint your own rows from it and they follow the light scheme, the dark
+color. Paint your own rows from it and they follow the light scheme, the dark
 scheme and the AA option for free.
 
 ```tsx
@@ -640,7 +640,7 @@ modifier keys, call `preventDefault()`, or find the element that was activated:
 }} />
 ```
 
-Rows whose selection behaviour depends on how they were activated -- `DataRow`,
+Rows whose selection behavior depends on how they were activated -- `DataRow`,
 `MetricRow`, `ActionRow` and `DataTable`'s rows -- get a second argument saying
 so, rather than making you sniff the event:
 
@@ -788,7 +788,7 @@ as a set of props you must remember:
 
 - **Every control is a real control.** Fields are inputs, toggles are checkboxes
   or switches, segmented options are radios, the advanced button is a button, so
-  keyboard behaviour, focus order and disabled semantics come from the platform.
+  keyboard behavior, focus order and disabled semantics come from the platform.
 - **Keyboard focus is always visible**, and pointer focus is not, so a dense
   surface stays quiet under the mouse without giving up the focus indicator.
 - **Exact Figma by default, AA on request.** Figma's own contrast falls short
@@ -801,7 +801,7 @@ as a set of props you must remember:
   named dialog with a combobox and a list box; the shortcuts sheet closes with
   Escape.
 - **State is announced, not only drawn.** Expanded, checked, selected, disabled,
-  busy and current are all exposed as ARIA in addition to colour.
+  busy and current are all exposed as ARIA in addition to color.
 - **Charts are one named image with a hidden table behind them**, so a screen
   reader announces the chart and can then read every value, rather than
   announcing a run of anonymous bars. Give every chart a `label`.
@@ -812,7 +812,7 @@ as a set of props you must remember:
   reader set themselves.
 - **Hover-revealed controls also appear on focus**, stay in the document, and
   stay in the tab order.
-- **Colour is never the only signal.** An advanced button whose settings have
+- **Color is never the only signal.** An advanced button whose settings have
   changed says so in its accessible name; a section with non-default values does
   the same.
 
@@ -866,7 +866,7 @@ page has the full list, group by group.
 | An icon button that opens a pop-out | `PopoutButton`, inside `Popout.Trigger` | `AdvancedButton`, which is for a row's or a section's advanced settings and does not light up while a panel is open |
 | A floating panel that can be dragged and nest | `Popout` | Mantine `Popover`: one-off, not draggable, no nesting |
 | An explanation bubble | `InfoCircle` | a `Tooltip`, which closes when the pointer leaves |
-| A colour with its opacity | `CompactColorInput` | Mantine `ColorInput`, which has no opacity field and no Figma picker |
+| A color with its opacity | `CompactColorInput` | Mantine `ColorInput`, which has no opacity field and no Figma picker |
 
 A lone boolean is not a row: put it in the trailing slot of the row it modifies, or make it one
 segment of a `SegmentedControl`. `ToggleRowGroup` warns in development when given only one child,
@@ -893,9 +893,9 @@ page has the migrations.
    `onContextMenu` are removed; a selected row is always `aria-current`. A list the reader
    selects, renames or reorders is a `Tree` or a `PageList`; a find result is a `ResultRow`.
 
-**Behaviour changes:**
+**Behavior changes:**
 
-3. **`GradientEditor`** edits stop colours in one picker under the gradient bar, which follows the
+3. **`GradientEditor`** edits stop colors in one picker under the gradient bar, which follows the
    selected stop; stop rows no longer open a pop-out, so it no longer needs a `PopoutManager`.
 4. **`Tree`**: with `onMove`, Alt+ArrowUp / Alt+ArrowDown move the focused item among its
    siblings (additive).
@@ -905,7 +905,7 @@ page has the migrations.
    keeps one open per region. `POPOUT_GAP` 8 -> 0, `POPOUT_NESTED_GAP` 4 -> 0.
 7. **Select and Autocomplete** have `role="combobox"`; `Select` defaults to the outlined trigger
    with a dark list opening over it. `Tabs` default to `variant="pills"`.
-8. **Escape in a colour field** reverts the typed value and stops at the field.
+8. **Escape in a color field** reverts the typed value and stops at the field.
 
 **Values and looks:**
 
@@ -914,7 +914,7 @@ page has the migrations.
 10. **Theme scales.** `spacing.sm` 6 -> 8; `radius.sm` / `md` 4 / 6 -> 5, `lg` / `xl` 8 / 12 ->
     13; `fontSizes.xs` 10 -> 9, `lg` 14 -> 15, `xl` 16 -> 24; `lineHeights` are px; `shadows` are
     Figma's elevations.
-11. **Colours.** `colors.dark` is a neutral ramp, and `primaryColor` is the new `brand` palette
+11. **Colors.** `colors.dark` is a neutral ramp, and `primaryColor` is the new `brand` palette
     (`color="blue"` now gets Mantine's blue). `PANEL_INK.SELECTED` / `ON_SELECTED` are Figma's
     pale selected ground and brand glyph; every `PANEL_INK` value is a `--cm-*` token.
 12. **Focus.** `focusRing` is `"never"` and the ring is the theme's own 1px ring.
@@ -947,7 +947,7 @@ Storybook is the development environment: every component has a page, and a
 change to a component shows up there without a rebuild.
 
 Stories live under `stories/`, one folder per sidebar section: `introduction/` (MDX pages),
-`foundations/`, `components/<group>/` (`panels`, `inputs`, `selection`, `colour`, `actions`,
+`foundations/`, `components/<group>/` (`panels`, `inputs`, `selection`, `color`, `actions`,
 `overlays`, `lists`, `data`, `shell`, each with an `Overview.mdx`), `patterns/`, and
 `mantine/<group>/` for the themed Mantine components. `stories/helpers/` holds the shared story
 helpers. A component has exactly one story file, titled `Components/<Group>/<Name>`, laid out
@@ -962,7 +962,7 @@ like every other:
   the page shows every state in light and dark side by side. Chromatic still captures every story
   once per scheme.
 - Feature stories follow, then `Keyboard`, `Translated` and `RightToLeft`. Every story has a
-  one-sentence JSDoc comment, and a story whose job is to test behaviour keeps a `play` function.
+  one-sentence JSDoc comment, and a story whose job is to test behavior keeps a `play` function.
 
 New components need a story, a test and complete prop documentation -- the prop comments are compiled
 into both the published type declarations and Storybook's tables, so they are

@@ -148,7 +148,7 @@ describe("every component that can announce follows one live-region rule", () =>
             "compound-row-box",
             (props) => (
                 <CompoundRow
-                    label="Node colour and opacity"
+                    label="Node color and opacity"
                     segments={[{ value: "4A7EE8", grow: true }, { value: "100", unit: "%" }]}
                     {...props}
                 />

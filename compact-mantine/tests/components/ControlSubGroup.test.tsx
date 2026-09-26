@@ -84,7 +84,7 @@ describe("ControlSubGroup", () => {
             const name = screen.getByTestId("control-sub-group-label");
             expect(name).toHaveStyle({ textOverflow: "ellipsis", whiteSpace: "nowrap" });
             expect(name).toHaveAttribute("title", label);
-            // Ellipsising is a drawing, not a truncation: the whole string is
+            // Ellipsizing is a drawing, not a truncation: the whole string is
             // still the element's text.
             expect(name).toHaveTextContent(label);
         });

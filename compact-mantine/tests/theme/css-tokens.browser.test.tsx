@@ -1,5 +1,5 @@
 /**
- * The tokens as Chromium resolves them: Mantine's scales on :root, and every --cm-* colour in
+ * The tokens as Chromium resolves them: Mantine's scales on :root, and every --cm-* color in
  * light, in dark, in the AA mode, and inside a dark-scoped surface in the light app
  * (design/figma-spec.md 2, 3.3).
  */
@@ -15,7 +15,7 @@ function rootVar(name: string): string {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
-/** The colour a token paints, read back through `color` on a probe element. */
+/** The color a token paints, read back through `color` on a probe element. */
 function paint(token: string, within: HTMLElement): string {
     const probe = document.createElement("span");
     probe.style.color = `var(--cm-${token})`;
@@ -65,7 +65,7 @@ describe("Mantine scales on :root", () => {
     });
 });
 
-describe.each(["light", "dark"] as const)("--cm-* colours resolve (%s)", (scheme) => {
+describe.each(["light", "dark"] as const)("--cm-* colors resolve (%s)", (scheme) => {
     it.each(COLORS)("--cm-%s", async (name, token) => {
         const { container } = await renderThemed(<Box />, { scheme });
         expect(paint(name, container)).toBe(expected(token[scheme]));

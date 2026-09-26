@@ -16,7 +16,7 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
  * same thing the unit goes here once -- "links" above the column -- and each row prints a bare
  * `4` instead of `4 links`, so the trailing edge becomes a column of numbers a reader compares by
  * scanning. Both halves are small and quiet, because a caption is chrome rather than content;
- * the name of the column the list is sorted by is drawn in the primary text colour, so a reader
+ * the name of the column the list is sorted by is drawn in the primary text color, so a reader
  * sees at a glance which order they are looking at.
  *
  * ## When to use it
@@ -59,7 +59,7 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
  * | Part | Value |
  * |---|---|
  * | Height | 32px |
- * | Label and unit | 11/16 at weight 550, secondary text colour (the sorted column's label in the primary colour) |
+ * | Label and unit | 11/16 at weight 550, secondary text color (the sorted column's label in the primary color) |
  * | Sort caret | 5 x 3 |
  * | Sort priority | a `RankChip` beside the caret |
  */

@@ -270,7 +270,7 @@ export const OpensYourOwnPanel: Story = {
 
 /**
  * An unset value. Passing placeholder text leaves the field empty and shows the
- * text in the placeholder colour, which is both what it looked like before and
+ * text in the placeholder color, which is both what it looked like before and
  * what it now means to a screen reader.
  */
 export const Placeholder: Story = {
@@ -341,12 +341,12 @@ export const Letter: Story = {
 };
 
 /**
- * A colour swatch in the slot, which is the one glyph that is not a drawing from
+ * A color swatch in the slot, which is the one glyph that is not a drawing from
  * the built-in set.
  */
 export const Swatch: Story = {
     args: {
-        label: "Node colour",
+        label: "Node color",
         glyph: (
             <Box
                 style={{

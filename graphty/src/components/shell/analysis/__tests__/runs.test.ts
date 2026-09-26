@@ -8,7 +8,7 @@
  * that is not a finite number is reported as absent rather than as a fabricated score.
  */
 
-import type { RankingEntry, ResultSummary, RunResult, SummaryGroup } from "@graphty/graphty-element/session";
+import type { Histogram, HistogramOptions, RankingEntry, ResultSummary, RunResult, SummaryGroup } from "@graphty/graphty-element/session";
 import { describe, expect, it } from "vitest";
 
 import type { ElementGraph } from "../elementBridge";
@@ -24,7 +24,12 @@ interface Published {
     readonly measured?: number;
     /** The graph-level fields, e.g. louvain's modularity. */
     readonly graph?: Readonly<Record<string, unknown>>;
+    /** What `histogram()` answers; no bins when absent. */
+    readonly histogram?: Histogram;
 }
+
+/** Every `histogram()` call a fake result was asked, so a test can see what the pass asked for. */
+const histogramCalls: { field: string; options?: HistogramOptions }[] = [];
 
 /** The graph stub, plus the calls a test wants to see. */
 interface Stub {
@@ -70,6 +75,11 @@ function fakeResult(published: Published): RunResult {
     return {
         ranking: () => ranking,
         summary: () => summary,
+        histogram: (field: string, options?: HistogramOptions) => {
+            histogramCalls.push({ field, options });
+
+            return published.histogram ?? { bins: [], scale: "linear", suggestedScale: "linear", binning: "empty" };
+        },
         graph: published.graph ?? {},
     } as unknown as RunResult;
 }
@@ -126,7 +136,6 @@ describe("runDegreePass", () => {
 
         expect(stub.started).toEqual(["degree"]);
         expect(results.byDegreeDescending.map((reading) => reading.id)).toEqual(["b", "c", "a"]);
-        expect(results.degreesDescending).toEqual([9, 5, 2]);
         expect(results.maxDegree).toBe(9);
     });
 
@@ -164,6 +173,75 @@ describe("runDegreePass", () => {
     });
 });
 
+/**
+ * The karate club's degrees as graphty-element bins them: one bar per degree that OCCURS, so
+ * eleven bars over the span 1 to 17 -- where the shell's own copy drew seventeen, one per
+ * degree across the whole span, six of them empty.
+ */
+const KARATE_DEGREE_COUNTS: readonly (readonly [number, number])[] = [
+    [1, 1],
+    [2, 11],
+    [3, 6],
+    [4, 6],
+    [5, 3],
+    [6, 2],
+    [9, 1],
+    [10, 1],
+    [12, 1],
+    [16, 1],
+    [17, 1],
+];
+
+describe("the degree distribution", () => {
+    it("draws graphty-element's own bins for the run, bar for bar, and bins nothing itself", async () => {
+        const bins = KARATE_DEGREE_COUNTS.map(([degree, count]) => ({ from: degree, to: degree, count }));
+        const ranking = KARATE_DEGREE_COUNTS.flatMap(([degree, count]) =>
+            Array.from({ length: count }, (_, index) => entry(`${String(degree)}-${String(index)}`, degree, 1)),
+        ).reverse();
+        const stub = makeStub({
+            degree: { ranking, histogram: { bins, scale: "linear", suggestedScale: "linear", binning: "per-value" } },
+        });
+        histogramCalls.length = 0;
+
+        const results = await runDegreePass(stub.graph);
+
+        /* The same options the Most connected result card asks with, so the two charts agree. */
+        expect(histogramCalls).toEqual([{ field: "value", options: { bins: 20, scale: "auto" } }]);
+        expect(results.distribution.bins).toHaveLength(11);
+        expect(results.distribution.bins.map((bin) => bin.count)).toEqual(bins.map((bin) => bin.count));
+        expect(results.distribution.bins[1].label).toBe("2 links: 11 nodes");
+        expect(results.distribution.axisMin).toBe("1");
+        expect(results.distribution.axisMax).toBe("17");
+        expect(results.distribution.logX).toBe(false);
+    });
+
+    it("names both ends of a band, and says so when the element laid the bands out on a log scale", async () => {
+        const stub = makeStub({
+            degree: {
+                ranking: [entry("a", 40, 1), entry("b", 2, 2)],
+                histogram: {
+                    bins: [
+                        { from: 2, to: 5, count: 40 },
+                        { from: 6, to: 40, count: 3 },
+                    ],
+                    scale: "log",
+                    suggestedScale: "log",
+                    binning: "banded",
+                },
+            },
+        });
+
+        const results = await runDegreePass(stub.graph);
+
+        expect(results.distribution.bins.map((bin) => bin.label)).toEqual(["2 to 5 links: 40 nodes", "6 to 40 links: 3 nodes"]);
+        expect(results.distribution.logX).toBe(true);
+    });
+
+    it("draws no bar before a pass has run", () => {
+        expect(readDegreeResults(makeStub({}).graph).distribution.bins).toEqual([]);
+    });
+});
+
 describe("readDegreeResults", () => {
     it("reads a pass that already ran without running another one", () => {
         const stub = makeStub({ degree: { ranking: [entry("b", 4, 1), entry("a", 1, 2)] } });
@@ -171,7 +249,7 @@ describe("readDegreeResults", () => {
         const again = readDegreeResults(stub.graph);
 
         expect(stub.started).toEqual([]);
-        expect(again.degreesDescending).toEqual([4, 1]);
+        expect(again.byDegreeDescending.map((reading) => reading.degree)).toEqual([4, 1]);
         expect(again.runId).toBe("degree_1");
     });
 
@@ -182,7 +260,6 @@ describe("readDegreeResults", () => {
 
         expect(results.byDegreeDescending).toEqual([]);
         expect(results.maxDegree).toBe(0);
-        expect(results.degreesDescending).toEqual([]);
         expect(results.runId).toBeUndefined();
     });
 });

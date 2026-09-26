@@ -1,4 +1,4 @@
-import { type IndexedPageRankOptions } from "@graphty/algorithms";
+import { type BfsOptions, type IndexedPageRankOptions, type SsspOptions } from "@graphty/algorithms";
 import { type F32, type F64, type GraphSnapshot, type NumericVector, type U32 } from "@graphty/graph-format";
 import {
     type AcceleratorOptions,
@@ -7,11 +7,14 @@ import {
     type AlgorithmAccelerator,
     type ApspResultLike,
     ARC_WINDOW_ALIGN,
+    bellmanFord,
     type BellmanFordResultLike,
     type BetweennessAcceleratorOptions,
     type BfsResultLike,
+    breadthFirstSearch,
     calibrateLayout,
     type CalibrateOptions,
+    closenessCentrality,
     type CommonLayoutOptions,
     type CommunityResultLike,
     type ComponentsOptions,
@@ -35,6 +38,8 @@ import {
     type FruchtermanReingoldStats,
     type FruchtermanReingoldTraceRecord,
     type GpuAccelerator,
+    type GpuBellmanFordResult,
+    type GpuBfsResult,
     type GpuCalibration,
     type GpuCaps,
     GpuContext,
@@ -46,6 +51,7 @@ import {
     type GpuPageRankResult,
     type GpuRunOptions,
     type GpuScoresResult,
+    type GpuSsspResult,
     hasErrorCode,
     hits,
     type HitsOptions,
@@ -84,6 +90,7 @@ import {
     type SpringElectricalOptions,
     type SpringElectricalStats,
     type SpringElectricalTraceRecord,
+    sssp,
     type SsspResultLike,
     STORAGE_ALIGN,
     WebGpuGraphError,
@@ -297,6 +304,48 @@ expectTypeOf<GpuPageRankResult>().toMatchTypeOf<PageRankResultLike>();
 expectTypeOf<GpuScoresResult>().toMatchTypeOf<ScoresResultLike>();
 expectTypeOf<GpuHitsResult>().toMatchTypeOf<HitsResultLike>();
 expectTypeOf<GpuLabelResult>().toMatchTypeOf<LabelResultLike>();
+
+// ---- the P8 traversals (spec 3.3 lines 807-810, 830-832, 8.4, 9.7; PD-19): the seam's option types in, the design's
+// result records out
+expectTypeOf(breadthFirstSearch).parameter(1).toEqualTypeOf<GraphSnapshot>();
+expectTypeOf(breadthFirstSearch).parameter(2).toBeNumber();
+expectTypeOf(breadthFirstSearch).parameter(3).toEqualTypeOf<(BfsOptions & GpuRunOptions) | undefined>();
+expectTypeOf(breadthFirstSearch).returns.resolves.toEqualTypeOf<GpuBfsResult>();
+expectTypeOf(sssp).parameter(2).toBeNumber();
+expectTypeOf(sssp).parameter(3).toEqualTypeOf<(SsspOptions & GpuRunOptions) | undefined>();
+expectTypeOf(sssp).returns.resolves.toEqualTypeOf<GpuSsspResult>();
+expectTypeOf(bellmanFord).parameter(2).toBeNumber();
+expectTypeOf(bellmanFord).parameter(3).toEqualTypeOf<(SsspOptions & GpuRunOptions) | undefined>();
+expectTypeOf(bellmanFord).returns.resolves.toEqualTypeOf<GpuBellmanFordResult>();
+expectTypeOf(closenessCentrality).parameter(2).toEqualTypeOf<(HitsOptionsLike & GpuRunOptions) | undefined>();
+expectTypeOf(closenessCentrality).returns.resolves.toEqualTypeOf<GpuScoresResult>();
+expectTypeOf<GpuBfsResult["depth"]>().toEqualTypeOf<U32>();
+expectTypeOf<GpuBfsResult["parent"]>().toEqualTypeOf<U32>();
+expectTypeOf<GpuBfsResult["order"]>().toEqualTypeOf<U32>();
+expectTypeOf<keyof GpuBfsResult>().toEqualTypeOf<
+    "depth" | "parent" | "order" | "visitedCount" | "levels" | "switches"
+>();
+expectTypeOf<GpuSsspResult["dist"]>().toEqualTypeOf<F32>();
+expectTypeOf<GpuSsspResult["predArc"]>().toEqualTypeOf<U32>();
+expectTypeOf<GpuSsspResult["reachedCount"]>().toBeNumber();
+expectTypeOf<GpuBellmanFordResult>().toMatchTypeOf<GpuSsspResult>();
+expectTypeOf<GpuBellmanFordResult["hasNegativeCycle"]>().toBeBoolean();
+expectTypeOf<BfsOptions["maxDepth"]>().toEqualTypeOf<number | undefined>();
+expectTypeOf<SsspOptions["cutoff"]>().toEqualTypeOf<number | undefined>();
+expectTypeOf<SsspOptions["weights"]>().toEqualTypeOf<NumericVector | undefined>();
+// spec 9.7: every GPU result satisfies the CPU mirror it is handed back through
+expectTypeOf<GpuBfsResult>().toMatchTypeOf<BfsResultLike>();
+expectTypeOf<GpuSsspResult>().toMatchTypeOf<SsspResultLike>();
+expectTypeOf<GpuBellmanFordResult>().toMatchTypeOf<BellmanFordResultLike>();
+// the four members on the accelerator (PD-19): the seam's option types, non-optional on the GPU side
+expectTypeOf<GpuAccelerator["breadthFirstSearch"]>().parameter(2).toEqualTypeOf<BfsOptions | undefined>();
+expectTypeOf<GpuAccelerator["breadthFirstSearch"]>().returns.resolves.toEqualTypeOf<GpuBfsResult>();
+expectTypeOf<GpuAccelerator["sssp"]>().parameter(2).toEqualTypeOf<SsspOptions | undefined>();
+expectTypeOf<GpuAccelerator["sssp"]>().returns.resolves.toEqualTypeOf<GpuSsspResult>();
+expectTypeOf<GpuAccelerator["bellmanFord"]>().parameter(2).toEqualTypeOf<SsspOptions | undefined>();
+expectTypeOf<GpuAccelerator["bellmanFord"]>().returns.resolves.toEqualTypeOf<GpuBellmanFordResult>();
+expectTypeOf<GpuAccelerator["closenessCentrality"]>().parameter(1).toEqualTypeOf<HitsOptionsLike | undefined>();
+expectTypeOf<GpuAccelerator["closenessCentrality"]>().returns.resolves.toEqualTypeOf<GpuScoresResult>();
 
 // ---- layouts (P3; contract 3.3, 3.13)
 expectTypeOf(seedPositions).parameter(2).toEqualTypeOf<number | null>();

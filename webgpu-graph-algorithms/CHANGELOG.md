@@ -1,3 +1,13 @@
+## 0.6.7 (2026-09-26)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** keep each dawn instance alive for the process ([#30](https://github.com/graphty-org/graphty-monorepo/issues/30))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.6.6 (2026-09-26)
 
 ### 🩹 Fixes

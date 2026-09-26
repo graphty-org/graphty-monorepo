@@ -1,3 +1,18 @@
+## 0.8.12 (2026-09-26)
+
+### 🩹 Fixes
+
+- **graphty:** mark the command palette's rows, not its always-mounted modal root ([#403](https://github.com/graphty-org/graphty-monorepo/issues/403))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.7
+- Updated graphty-element to 2.4.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.11 (2026-09-26)
 
 ### 🚀 Features

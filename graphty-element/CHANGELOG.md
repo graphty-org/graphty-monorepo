@@ -1,3 +1,17 @@
+## 2.4.1 (2026-09-26)
+
+### 🩹 Fixes
+
+- **graphty-element:** do not apply style paint while a pass is painting ([#440](https://github.com/graphty-org/graphty-monorepo/issues/440))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.7
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.4.0 (2026-09-26)
 
 ### 🚀 Features

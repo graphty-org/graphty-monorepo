@@ -4,7 +4,8 @@ import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { useState } from "react";
 
 import { ContextMenu as ContextMenuComponent, MenuCheckItem, UiGlyph } from "../../../src";
-import { BOTH_SCHEMES } from "../../helpers/schemes";
+import { expectStatesApply } from "../../helpers/assert-states";
+import { BOTH_SCHEMES, OPEN_OVERLAY } from "../../helpers/schemes";
 
 // ContextMenu is imported under another name so the story that shows it can be called
 // `ContextMenu`, which is what a reader types into the sidebar search.
@@ -232,11 +233,14 @@ export const States: Story = {
             </OpenMenu>
         </Group>
     ),
+    // A text button keeps its rest look while its menu is open, as in Figma.
+    play: ({ canvasElement }) => expectStatesApply(canvasElement, { unchanged: ['.cm-button[aria-expanded="true"]'] }),
 };
 
 /** The assertions for the context menu: Shift+F10 opens it with the first row focused. */
 export const ContextMenuInteractions: Story = {
     ...ContextMenu,
+    parameters: OPEN_OVERLAY,
     tags: INTERACTION_TEST_TAGS,
     play: async ({ canvasElement }) => {
         const area = within(canvasElement).getByTestId("context-area");

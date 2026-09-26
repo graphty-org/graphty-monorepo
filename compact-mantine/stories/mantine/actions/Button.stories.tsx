@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, within } from "@storybook/test";
 
 import { PANEL_GRID, UiGlyph } from "../../../src";
+import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 
 /**
@@ -122,6 +123,8 @@ export const States: Story = {
             ))}
         </Stack>
     ),
+    // Loading draws the spinner in place of the disabled look.
+    play: ({ canvasElement }) => expectStatesApply(canvasElement, { unchanged: ["[data-loading]"] }),
 };
 
 /** Sections and sizes: a leading icon 4px from the edge, a shortcut, `md` (32 tall) and full width in a panel. */

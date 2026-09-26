@@ -4,6 +4,7 @@ import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { useState } from "react";
 
 import { ModalFooter } from "../../../src";
+import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 
 // Demo stories carry no play function; the assertions live on the `*Interactions` twin, hidden
@@ -140,6 +141,7 @@ export const States: Story = {
             </ContainedModal>
         </Stack>
     ),
+    play: ({ canvasElement }) => expectStatesApply(canvasElement),
 };
 
 /** "Save to version history": a title field (focused on open), a description, Cancel and Save. */

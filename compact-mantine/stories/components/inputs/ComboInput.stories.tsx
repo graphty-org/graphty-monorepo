@@ -3,6 +3,7 @@ import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { useState } from "react";
 
 import { ComboInput } from "../../../src";
+import { expectStatesApply } from "../../helpers/assert-states";
 import { StateGrid } from "../../helpers/input-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 
@@ -123,6 +124,7 @@ export const States: Story = {
             ]}
         />
     ),
+    play: ({ canvasElement }) => expectStatesApply(canvasElement),
 };
 
 /** The chevron opens the list with 24 exactly over the field; ArrowDown and Enter pick 32. */

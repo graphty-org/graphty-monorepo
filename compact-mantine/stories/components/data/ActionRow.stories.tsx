@@ -4,6 +4,7 @@ import { expect, userEvent, within } from "@storybook/test";
 import React from "react";
 
 import { ActionRow, PANEL_GRID, PANEL_INK, UiGlyph } from "../../../src";
+import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 import { StoryState, StoryStates } from "../../helpers/story-panel";
 
@@ -190,6 +191,7 @@ export const States: Story = {
             </StoryStates>
         );
     },
+    play: ({ canvasElement }) => expectStatesApply(canvasElement),
 };
 
 /** A row that only reports: the record of the last run, with nothing to press. */

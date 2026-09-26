@@ -4,6 +4,7 @@ import { expect, fn, userEvent, within } from "@storybook/test";
 import { useState } from "react";
 
 import { PageList, PageRow } from "../../../src";
+import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 import { Panel } from "./fixtures";
 
@@ -130,6 +131,8 @@ export const States: Story = {
             </Stack>
         </Group>
     ),
+    // Figma hovers the current page in the same #f5f5f5 it rests in.
+    play: ({ canvasElement }) => expectStatesApply(canvasElement, { unchanged: ['.cm-page-cell[aria-current="page"][data-state="hover"]'] }),
 };
 
 /** A working list: arrows move focus, Enter switches, F2 or a double-click renames. */

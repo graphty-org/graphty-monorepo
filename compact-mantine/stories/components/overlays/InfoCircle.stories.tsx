@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import React from "react";
 
 import { InfoCircle, PANEL_GRID, PANEL_INK } from "../../../src";
+import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 
 // Imported from "../../../src", the package's published entry point, so the stories exercise the
@@ -110,6 +111,7 @@ export const States: Story = {
             </Group>
         </Stack>
     ),
+    play: ({ canvasElement }) => expectStatesApply(canvasElement),
 };
 
 /** Where it lives: immediately after the name it explains, in a section header row. */

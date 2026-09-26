@@ -35,6 +35,9 @@ function getDirection(globals: Record<string, unknown>): "ltr" | "rtl" {
 
 type Scheme = "light" | "dark";
 
+/** Room around a story in the canvas view for rings and shadows (see the decorator below). */
+const STORY_FRAME_PADDING = 32;
+
 /**
  * One half of a `BOTH_SCHEMES` story (stories/helpers/schemes.ts): a wrapper that carries the
  * scheme as `color-scheme` (every `--cm-*` token is a `light-dark()` and resolves from it) and as
@@ -199,8 +202,14 @@ const preview: Preview = {
             // properties and Mantine's own stylesheet read. The wrapper paints
             // the theme's ground: on a docs page the story sits on Storybook's
             // own white canvas, where dark-scheme text would otherwise vanish.
-            // In the canvas view it is the same color as the body, so nothing
-            // a Chromatic snapshot captures changes.
+            // In the canvas view it is the same color as the body.
+            //
+            // The canvas padding is the snapshot frame. Chromatic crops a
+            // snapshot to the story root's box, and an outline or a
+            // box-shadow is not part of any box: a 1px focus ring drawn 1px
+            // outside a button at the root's edge, or a toolbar's shadow,
+            // was cut off. 32px holds the deepest elevation the theme draws
+            // (--cm-elevation-400 reaches 26px below its surface).
             const inDocs = context.viewMode === "docs";
             return (
                 <DirectionProvider initialDirection={direction} detectDirection={false}>
@@ -210,7 +219,7 @@ const preview: Preview = {
                             style={{
                                 background: "var(--cm-bg)",
                                 color: "var(--cm-text)",
-                                padding: inDocs ? 16 : undefined,
+                                padding: inDocs ? 16 : STORY_FRAME_PADDING,
                             }}
                         >
                             <Story />

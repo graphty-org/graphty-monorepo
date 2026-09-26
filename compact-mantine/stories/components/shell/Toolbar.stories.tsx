@@ -4,6 +4,7 @@ import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { useState } from "react";
 
 import { Toolbar, type ToolbarProps, ToolButton, ToolGroup } from "../../../src";
+import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 import { frameTools, icons, moveTools, shapeTools, textTools } from "./fixtures";
 
@@ -168,6 +169,8 @@ export const States: Story = {
             </Stack>
         </Stack>
     ),
+    // Figma draws the selected tool's hover as selected, no change.
+    play: ({ canvasElement }) => expectStatesApply(canvasElement, { unchanged: ['.cm-tool[aria-pressed="true"][data-state="hover"], .cm-tool[aria-checked="true"][data-state="hover"]'] }),
 };
 
 /** A flyout left open: the dark menu 4px above the chevron, start-aligned, a check on the face. */

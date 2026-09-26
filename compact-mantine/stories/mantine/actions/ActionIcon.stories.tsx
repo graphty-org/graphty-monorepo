@@ -3,7 +3,8 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, within } from "@storybook/test";
 
 import { UiGlyph } from "../../../src";
-import { BOTH_SCHEMES } from "../../helpers/schemes";
+import { expectStatesApply } from "../../helpers/assert-states";
+import { BOTH_SCHEMES, OPEN_OVERLAY } from "../../helpers/schemes";
 
 /**
  * Mantine's `ActionIcon`, themed as Figma's icon buttons: a 24 x 24 ghost button by default, and
@@ -107,6 +108,8 @@ export const States: Story = {
             ))}
         </Stack>
     ),
+    // Loading draws the spinner in place of the disabled look; a disabled or loading button draws no open look.
+    play: ({ canvasElement }) => expectStatesApply(canvasElement, { unchanged: ["[data-loading]", '[aria-expanded="true"]:is(:disabled, [data-loading])'] }),
 };
 
 const ALIGN = [
@@ -128,6 +131,7 @@ const VALIGN = [
  * function tabs to the first button and checks the ring is drawn inside it.
  */
 export const JoinedGroup: Story = {
+    parameters: OPEN_OVERLAY,
     render: () => (
         <Stack gap={8}>
             <Group gap={8}>

@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, within } from "@storybook/test";
 
 import { ControlGroup, Popout, PopoutButton, PopoutManager, UiGlyph } from "../../../src";
+import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 
 // Imported from "../../../src", the package's published entry point, so a story stops compiling
@@ -155,6 +156,7 @@ export const States: Story = {
             </Cell>
         </Group>
     ),
+    play: ({ canvasElement }) => expectStatesApply(canvasElement),
 };
 
 /** The assertions for the default button: rest, open look while the panel is up, Escape. */

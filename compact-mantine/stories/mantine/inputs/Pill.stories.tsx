@@ -1,6 +1,7 @@
 import { Group, Pill } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
+import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 
 /**
@@ -59,6 +60,7 @@ export const States: Story = {
             <Pill disabled>disabled</Pill>
         </Group>
     ),
+    play: ({ canvasElement }) => expectStatesApply(canvasElement),
 };
 
 /** Several pills in a row, as a tag list. */

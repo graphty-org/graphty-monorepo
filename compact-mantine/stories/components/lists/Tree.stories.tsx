@@ -12,6 +12,7 @@ import {
     type TreeNodeData,
     UiGlyph,
 } from "../../../src";
+import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 import { LAYERS, Panel, STYLE_LAYERS } from "./fixtures";
 
@@ -237,6 +238,7 @@ export const States: Story = {
             </Stack>
         </Group>
     ),
+    play: ({ canvasElement }) => expectStatesApply(canvasElement),
 };
 
 /**

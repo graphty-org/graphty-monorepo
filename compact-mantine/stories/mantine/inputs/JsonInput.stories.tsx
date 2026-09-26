@@ -1,6 +1,7 @@
 import { JsonInput } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
+import { expectStatesApply } from "../../helpers/assert-states";
 import { StateGrid } from "../../helpers/input-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 
@@ -65,6 +66,7 @@ export const States: Story = {
             ]}
         />
     ),
+    play: ({ canvasElement }) => expectStatesApply(canvasElement),
 };
 
 /** `formatOnBlur` re-indents the JSON when the field loses focus; `autosize` grows with it. */

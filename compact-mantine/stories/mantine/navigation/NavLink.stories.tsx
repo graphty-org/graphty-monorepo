@@ -2,6 +2,7 @@ import { NavLink } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
 import { UiGlyph } from "../../../src";
+import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 import { focusMarked, StateGrid } from "../../helpers/selection-states";
 
@@ -70,5 +71,8 @@ export const States: Story = {
             />
         </div>
     ),
-    play: focusMarked,
+    play: async (context) => {
+        await focusMarked(context);
+        await expectStatesApply(context.canvasElement);
+    },
 };

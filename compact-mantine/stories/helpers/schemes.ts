@@ -13,3 +13,12 @@
  * `comboboxProps={{ withinPortal: false }}`).
  */
 export const BOTH_SCHEMES = { schemes: "both" } as const;
+
+/**
+ * Story parameter for a story that ends with an overlay open (a pop-out, a menu, a tooltip, a
+ * toast). Chromatic crops a snapshot to the story's box, and an overlay is positioned against its
+ * trigger rather than laid out inside that box, so its shadow -- or the overlay itself -- fell
+ * outside the crop. Capturing the whole viewport keeps it. Spread it with other parameters:
+ * `parameters: { ...BOTH_SCHEMES, ...OPEN_OVERLAY }`.
+ */
+export const OPEN_OVERLAY = { chromatic: { cropToViewport: true } } as const;

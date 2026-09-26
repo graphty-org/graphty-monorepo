@@ -4,6 +4,7 @@ import { expect, userEvent, within } from "@storybook/test";
 import React, { useState } from "react";
 
 import { ResizeHandle, type ResizeHandleProps } from "../../../src";
+import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 import { StoryState, StoryStates } from "../../helpers/story-panel";
 
@@ -153,4 +154,5 @@ export const States: Story = {
             </StoryState>
         </StoryStates>
     ),
+    play: ({ canvasElement }) => expectStatesApply(canvasElement),
 };

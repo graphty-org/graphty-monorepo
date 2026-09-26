@@ -14,6 +14,7 @@ import {
     UiGlyph,
     useNumberFormatter,
 } from "../../../src";
+import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 
 // Imported from "../../../src", the package's published entry point, so the stories exercise
@@ -180,6 +181,8 @@ export const States: Story = {
             />
         </Stack>
     ),
+    // Selected + hover is drawn as selected (Figma's layer rows).
+    play: ({ canvasElement }) => expectStatesApply(canvasElement, { unchanged: ['.cm-data-row[data-state="hover"]:has([aria-current])'] }),
 };
 
 /**

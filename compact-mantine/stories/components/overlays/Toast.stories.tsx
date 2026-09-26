@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
 import { Toast, ToastProvider, UiGlyph, useToast } from "../../../src";
-import { BOTH_SCHEMES } from "../../helpers/schemes";
+import { BOTH_SCHEMES, OPEN_OVERLAY } from "../../helpers/schemes";
 
 // Demo stories carry no play function; the assertions live on the `*Interactions` twin, hidden
 // from the sidebar and the docs page and still run by the test runner and Chromatic.
@@ -142,6 +142,7 @@ export const WithProvider: Story = {
 /** The assertions for the provider: one toast at a time, replaced by the next. */
 export const WithProviderInteractions: Story = {
     ...WithProvider,
+    parameters: OPEN_OVERLAY,
     tags: INTERACTION_TEST_TAGS,
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);

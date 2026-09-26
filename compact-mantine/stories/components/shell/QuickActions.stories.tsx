@@ -4,6 +4,7 @@ import { expect, fn, userEvent, within } from "@storybook/test";
 import React, { useState } from "react";
 
 import { QuickActions, type QuickActionsProps } from "../../../src";
+import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 import { actions, visualSearchIcon } from "./fixtures";
 
@@ -127,6 +128,8 @@ export const States: Story = {
             ))}
         </Stack>
     ),
+    // Figma's quick actions field draws no ring and no open look.
+    play: ({ canvasElement }) => expectStatesApply(canvasElement, { unchanged: [".cm-qa-input"] }),
 };
 
 /** A search with results: the field's trailing button becomes the clear button. */

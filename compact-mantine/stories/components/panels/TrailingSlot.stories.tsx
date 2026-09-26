@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import React from "react";
 
 import { AdvancedButton, FieldRow, PANEL_GRID, PANEL_INK, PanelField, ToggleRow, TrailingSlot, UiGlyph } from "../../../src";
+import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 import { StoryState, StoryStates } from "../../helpers/story-panel";
 
@@ -132,6 +133,7 @@ export const States: Story = {
             </StoryStates>
         );
     },
+    play: ({ canvasElement }) => expectStatesApply(canvasElement),
 };
 
 /**

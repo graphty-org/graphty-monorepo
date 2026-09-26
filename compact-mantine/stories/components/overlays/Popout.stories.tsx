@@ -26,6 +26,7 @@ import {
     ControlGroup,
     GradientEditor,
     InfoCircle,
+    PANEL_GRID,
     Popout,
     POPOUT_NESTED_GAP,
     PopoutButton,
@@ -42,6 +43,7 @@ import { LabelSettingsPopout } from "../../../src/components/popout/examples/Lab
 import { PopoutAnchor } from "../../../src/components/popout/PopoutAnchor";
 import { PopoutPanel } from "../../../src/components/popout/PopoutPanel";
 import { PopoutTrigger } from "../../../src/components/popout/PopoutTrigger";
+import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 
 // Components come from "../../../src", the package's published entry point, so a story stops
@@ -328,6 +330,7 @@ export const States: Story = {
             </Column>
         </Group>
     ),
+    play: ({ canvasElement }) => expectStatesApply(canvasElement),
 };
 
 /**
@@ -611,11 +614,17 @@ export const AnchorAxesInteractions: Story = {
     },
 };
 
-/** A bordered 240px box standing in for a sidebar. */
+/** A bordered box standing in for a sidebar. */
 const SIDEBAR_BOX = {
     backgroundColor: "var(--cm-bg)",
     border: "1px solid var(--cm-border)",
-    borderRadius: 8,
+    borderRadius: 5,
+} as const;
+
+/** The same box laid out as a Figma panel section: 16px in at the start, 8px at the end, 32px rows. */
+const SIDEBAR_PANEL = {
+    ...SIDEBAR_BOX,
+    paddingInline: `${String(PANEL_GRID.PAD_LEFT)}px ${String(PANEL_GRID.PAD_RIGHT)}px`,
 } as const;
 
 /**
@@ -627,7 +636,7 @@ export const AnchorToPanel: Story = {
     render: function AnchorToPanelRender() {
         return (
             <Popout.Anchor>
-                <Box w={260} p="sm" style={SIDEBAR_BOX}>
+                <Box w={260} style={SIDEBAR_PANEL}>
                     <Stack gap="xs">
                         <Text size="sm" fw={500} mb="xs">
                             Settings Panel
@@ -741,10 +750,10 @@ export const WithAndWithoutAnchor: Story = {
                     <Text size="sm" fw={500} mb="xs">
                         Without Anchor
                     </Text>
-                    <Box w={200} p="sm" style={SIDEBAR_BOX}>
+                    <Box w={200} style={SIDEBAR_PANEL}>
                         <Popout>
-                            <Group justify="space-between">
-                                <Text size="xs">Settings</Text>
+                            <Group justify="space-between" h={PANEL_GRID.ROW_PITCH}>
+                                <Text size="sm">Settings</Text>
                                 <Popout.Trigger>
                                     <PopoutButton
                                         icon={<UiGlyph name="gear" size={12} />}
@@ -766,10 +775,10 @@ export const WithAndWithoutAnchor: Story = {
                         With Anchor
                     </Text>
                     <Popout.Anchor>
-                        <Box w={200} p="sm" style={SIDEBAR_BOX}>
+                        <Box w={200} style={SIDEBAR_PANEL}>
                             <Popout>
-                                <Group justify="space-between">
-                                    <Text size="xs">Settings</Text>
+                                <Group justify="space-between" h={PANEL_GRID.ROW_PITCH}>
+                                    <Text size="sm">Settings</Text>
                                     <Popout.Trigger>
                                         <PopoutButton
                                             icon={<UiGlyph name="gear" size={12} />}

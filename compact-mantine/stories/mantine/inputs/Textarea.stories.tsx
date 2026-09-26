@@ -1,6 +1,7 @@
 import { Textarea } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
+import { expectStatesApply } from "../../helpers/assert-states";
 import { StateGrid } from "../../helpers/input-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 
@@ -63,6 +64,7 @@ export const States: Story = {
             ]}
         />
     ),
+    play: ({ canvasElement }) => expectStatesApply(canvasElement),
 };
 
 /** `autosize` with `minRows={1}`: one 24px line that grows as the reader types, up to `maxRows`. */

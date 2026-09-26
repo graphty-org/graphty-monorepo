@@ -1,6 +1,7 @@
 import { Stepper } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
+import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 
 /**
@@ -62,4 +63,5 @@ export const States: Story = {
             <Stepper.Step label="Next" description="Pending" />
         </Stepper>
     ),
+    play: ({ canvasElement }) => expectStatesApply(canvasElement),
 };

@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import React, { useState } from "react";
 
 import { AdvancedButton, ControlSection, FieldRow, LabelsProvider, PANEL_GRID, PanelField, UiGlyph } from "../../../src";
+import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 import { StoryState, StoryStates } from "../../helpers/story-panel";
 
@@ -203,6 +204,8 @@ export const States: Story = {
             </StoryStates>
         );
     },
+    // Open and closed differ by the chevron glyph the component swaps, not by a style.
+    play: ({ canvasElement }) => expectStatesApply(canvasElement, { ignore: ["expanded"] }),
 };
 
 /**

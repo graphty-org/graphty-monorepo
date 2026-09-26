@@ -12,6 +12,7 @@ import {
     GradientEditor,
     SWATCH_COLORS_HEXA,
 } from "../../../src";
+import { expectStatesApply } from "../../helpers/assert-states";
 import { ForceState, StateCell } from "../../helpers/force-state";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 
@@ -188,6 +189,8 @@ export const States: Story = {
             </Group>
         );
     },
+    // A stop chit's pressed state is announced; the selection is drawn on its row and handle (data-selected).
+    play: ({ canvasElement }) => expectStatesApply(canvasElement, { unchanged: [".cm-paint-chit"] }),
 };
 
 /**

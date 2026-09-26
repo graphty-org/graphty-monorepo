@@ -4,6 +4,7 @@ import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { useState } from "react";
 
 import { LabelsProvider, StyleSelect } from "../../../src";
+import { expectStatesApply } from "../../helpers/assert-states";
 import { StateGrid } from "../../helpers/input-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 // Imported from "../../../src", the package's published entry point, so the stories exercise
@@ -137,6 +138,8 @@ export const States: Story = {
             ]}
         />
     ),
+    // Figma's select trigger draws no hover (the cell says "no change").
+    play: ({ canvasElement }) => expectStatesApply(canvasElement, { unchanged: ['input[data-state="hover"]'] }),
 };
 
 /**
@@ -156,6 +159,7 @@ export const OpenList: Story = {
             />
         </div>
     ),
+    play: ({ canvasElement }) => expectStatesApply(canvasElement),
 };
 
 /**
@@ -315,6 +319,7 @@ export const ResetToDefaultStates: Story = {
             />
         );
     },
+    play: ({ canvasElement }) => expectStatesApply(canvasElement),
 };
 
 /**

@@ -13,7 +13,8 @@ import {
     TrailingSlot,
     UiGlyph,
 } from "../../../src";
-import { BOTH_SCHEMES } from "../../helpers/schemes";
+import { expectStatesApply } from "../../helpers/assert-states";
+import { BOTH_SCHEMES, OPEN_OVERLAY } from "../../helpers/schemes";
 
 /**
  * A 24px gear button that opens the rarely-changed settings of a row or a section, and shows
@@ -156,6 +157,8 @@ export const States: Story = {
             ))}
         </Stack>
     ),
+    // Loading draws the spinner instead of the disabled look, and the changed ink gives way to disabled, loading and open.
+    play: ({ canvasElement }) => expectStatesApply(canvasElement, { unchanged: ["[data-loading]", '[data-changed="true"]:is(:disabled, [aria-expanded="true"])'] }),
 };
 
 /**
@@ -163,6 +166,7 @@ export const States: Story = {
  * open look while the pop-out is up. The trigger reports the open state as `aria-expanded`.
  */
 export const OpensAPopout: Story = {
+    parameters: OPEN_OVERLAY,
     render: (): React.JSX.Element => (
         <PopoutManager>
             <Group gap={PANEL_GRID.TRAIL_GAP} wrap="nowrap" h={PANEL_GRID.ROW_PITCH}>

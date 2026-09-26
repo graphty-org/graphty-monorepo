@@ -4,6 +4,7 @@ import { expect, userEvent, within } from "@storybook/test";
 import { useState } from "react";
 
 import { SearchInput, UiGlyph } from "../../../src";
+import { expectStatesApply } from "../../helpers/assert-states";
 import { StateGrid } from "../../helpers/input-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 
@@ -97,6 +98,8 @@ export const States: Story = {
             ]}
         />
     ),
+    // Figma's search field draws no hover (design/figma-spec.md 6.2).
+    play: ({ canvasElement }) => expectStatesApply(canvasElement, { unchanged: ['input[data-state="hover"]'] }),
 };
 
 /** Driven from your own state: the text below the field is what `onChange` reported. */

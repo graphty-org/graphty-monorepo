@@ -4,7 +4,8 @@ import { expect, userEvent, within } from "@storybook/test";
 import { useState } from "react";
 
 import { AlignmentMatrix, type AlignmentMatrixValue, ComboInput, UiGlyph } from "../../../src";
-import { BOTH_SCHEMES } from "../../helpers/schemes";
+import { expectStatesApply } from "../../helpers/assert-states";
+import { BOTH_SCHEMES, OPEN_OVERLAY } from "../../helpers/schemes";
 import { focusMarked, StateGrid } from "../../helpers/selection-states";
 
 /**
@@ -88,7 +89,10 @@ export const States: Story = {
             ]}
         />
     ),
-    play: focusMarked,
+    play: async (context) => {
+        await focusMarked(context);
+        await expectStatesApply(context.canvasElement);
+    },
 };
 
 /**
@@ -114,6 +118,7 @@ const GAPS = [{ value: "Auto" }, { separator: true as const }, ...[0, 4, 8, 16].
  * stop at the edges. 
  */
 export const Keyboard: Story = {
+    parameters: OPEN_OVERLAY,
     render: function Render() {
         const [value, setValue] = useState<AlignmentMatrixValue>("top-left");
         return (

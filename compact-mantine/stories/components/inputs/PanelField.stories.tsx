@@ -10,6 +10,7 @@ import {
     PanelField,
     PanelLabelsProvider,
 } from "../../../src";
+import { expectStatesApply } from "../../helpers/assert-states";
 import { StateGrid } from "../../helpers/input-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 // Imported from "../../../src", the package's published entry point, so the stories exercise
@@ -135,6 +136,8 @@ export const States: Story = {
             ]}
         />
     ),
+    // "Mixed" is the value itself, drawn in the value ink through an inline variable.
+    play: ({ canvasElement }) => expectStatesApply(canvasElement, { unchanged: ["[data-mixed]"] }),
 };
 
 /**

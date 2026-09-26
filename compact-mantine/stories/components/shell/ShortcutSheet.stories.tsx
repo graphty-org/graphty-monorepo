@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { expect, fn, userEvent, within } from "@storybook/test";
 
 import { ShortcutSheet } from "../../../src";
+import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 import { sheetTabs } from "./fixtures";
 
@@ -100,6 +101,7 @@ export const States: Story = {
             </Text>
         </Stack>
     ),
+    play: ({ canvasElement }) => expectStatesApply(canvasElement),
 };
 
 /** The "essential" tab: a caption, numbered columns, a description under each label, larger caps. */

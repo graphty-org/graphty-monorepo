@@ -1,7 +1,7 @@
 import { Badge, Group, Menu, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
-import { BOTH_SCHEMES } from "../../helpers/schemes";
+import { BOTH_SCHEMES, OPEN_OVERLAY } from "../../helpers/schemes";
 
 /**
  * Mantine's `Badge`, themed as Figma's small label ("Beta"): 16px tall with a 1px outline by
@@ -51,7 +51,7 @@ export const Default: Story = {
  * Light and dark side by side.
  */
 export const States: Story = {
-    parameters: BOTH_SCHEMES,
+    parameters: { ...BOTH_SCHEMES, ...OPEN_OVERLAY },
     render: () => (
         <Stack gap={12}>
             <Group gap={8}>

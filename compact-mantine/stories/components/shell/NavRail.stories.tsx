@@ -4,6 +4,7 @@ import { expect, userEvent, within } from "@storybook/test";
 import { useState } from "react";
 
 import { NavRail, type NavRailProps, RailButton, UiGlyph } from "../../../src";
+import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 import { icons } from "./fixtures";
 
@@ -145,6 +146,7 @@ export const States: Story = {
             ))}
         </Group>
     ),
+    play: ({ canvasElement }) => expectStatesApply(canvasElement),
 };
 
 /** Keyboard: one Tab stop on the open destination; ArrowDown moves, Enter opens. */

@@ -4,6 +4,7 @@ import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { useState } from "react";
 
 import { AdvancedButton, ControlSection, PANEL_GRID, TrailingSlot, UiGlyph } from "../../../src";
+import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 import { focusMarked, StateGrid } from "../../helpers/selection-states";
 import { StoryPanel } from "../../helpers/story-panel";
@@ -111,7 +112,11 @@ export const States: Story = {
             ]}
         />
     ),
-    play: focusMarked,
+    // The selected face is the sliding indicator, a separate element.
+    play: async (context) => {
+        await focusMarked(context);
+        await expectStatesApply(context.canvasElement, { unchanged: [".cm-sc-control[data-active]"] });
+    },
 };
 
 const PICTURES = [

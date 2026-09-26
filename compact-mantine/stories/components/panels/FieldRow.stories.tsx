@@ -186,12 +186,13 @@ export const PairWithReset: Story = {
 /**
  * A selection whose members disagree: three nodes share an opacity but not a
  * size, so the size reads "Mixed" -- still editable, because setting it sets
- * all three. The advanced settings button is marked `changed`, which darkens it
- * and says so in its accessible name.
+ * all three. The row's trailing button keeps its ordinary icon ink, as Figma's
+ * does beside "Mixed" fields: a multiple selection changes the values, not the
+ * buttons. Only `changed` turns the gear to the brand color.
  */
 export const MultiSelection: Story = {
     args: {
-        trailing: <AdvancedButton label="Selection style" changed onClick={() => undefined} />,
+        trailing: <AdvancedButton label="Selection style" onClick={() => undefined} />,
         children: (
             <>
                 <PanelField label="Node size" glyph="sizeLargest" value="2.5" mixed />

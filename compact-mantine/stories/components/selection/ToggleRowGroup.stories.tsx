@@ -11,6 +11,7 @@ import {
     ToggleRow,
     ToggleRowGroup,
 } from "../../../src";
+import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 import { focusMarked } from "../../helpers/selection-states";
 // Imported from "../../../src", the package's published entry point, so the
@@ -111,7 +112,10 @@ export const States: Story = {
             </ToggleRowGroup>
         </Box>
     ),
-    play: focusMarked,
+    play: async (context) => {
+        await focusMarked(context);
+        await expectStatesApply(context.canvasElement);
+    },
 };
 
 /**

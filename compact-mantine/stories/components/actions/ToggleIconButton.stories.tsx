@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { expect, fireEvent, userEvent, waitFor, within } from "@storybook/test";
 
 import { ToggleIconButton, UiGlyph } from "../../../src";
+import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 
 /**
@@ -127,6 +128,8 @@ export const States: Story = {
             ))}
         </Stack>
     ),
+    // Disabled looks enabled, as Figma's capture shows (CHANGELOG-figma.md, known differences); a swap toggle changes its glyph, not its style.
+    play: ({ canvasElement }) => expectStatesApply(canvasElement, { unchanged: [".cm-toggle-icon:disabled", ".cm-toggle-icon[data-swap]"] }),
 };
 
 /** The visibility eye: the `swap` variant never fills; the glyph changes instead. */

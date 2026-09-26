@@ -4,6 +4,7 @@ import { expect, userEvent, within } from "@storybook/test";
 import React, { useState } from "react";
 
 import { ResultRow, SearchInput, UiGlyph } from "../../../src";
+import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 import { Panel } from "./fixtures";
 
@@ -106,6 +107,7 @@ export const States: Story = {
             </div>
         </Panel>
     ),
+    play: ({ canvasElement }) => expectStatesApply(canvasElement),
 };
 
 const LAYER_NAMES = [

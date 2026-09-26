@@ -4,7 +4,8 @@ import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { useEffect, useRef } from "react";
 
 import { SplitButton, UiGlyph } from "../../../src";
-import { BOTH_SCHEMES } from "../../helpers/schemes";
+import { expectStatesApply } from "../../helpers/assert-states";
+import { BOTH_SCHEMES, OPEN_OVERLAY } from "../../helpers/schemes";
 
 /**
  * Two icon buttons joined into one control: a main action, and a chevron that opens a menu of
@@ -160,6 +161,7 @@ export const States: Story = {
             </Stack>
         </Stack>
     ),
+    play: ({ canvasElement }) => expectStatesApply(canvasElement),
 };
 
 /** The `sm` size: both halves 24px tall, to sit in a 32px panel row beside 24px controls. */
@@ -172,6 +174,7 @@ export const Small: Story = {
  * chevron. Enter on the focused chevron opens the menu again.
  */
 export const Keyboard: Story = {
+    parameters: OPEN_OVERLAY,
     render: () => <Present />,
     play: async ({ canvasElement }) => {
         const chevron = within(canvasElement).getByRole("button", { name: "Prototype view" });

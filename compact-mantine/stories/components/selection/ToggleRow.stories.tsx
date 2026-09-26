@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import React from "react";
 
 import { AdvancedButton, PANEL_GRID, PANEL_INK, ToggleRow, ToggleRowGroup } from "../../../src";
+import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 import { focusMarked, StateGrid } from "../../helpers/selection-states";
 // Imported from "../../../src", the package's published entry point, so the
@@ -126,7 +127,10 @@ export const States: Story = {
             />
         </Box>
     ),
-    play: focusMarked,
+    play: async (context) => {
+        await focusMarked(context);
+        await expectStatesApply(context.canvasElement);
+    },
 };
 
 /**

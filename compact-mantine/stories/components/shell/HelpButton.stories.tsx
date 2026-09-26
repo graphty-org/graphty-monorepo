@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
 import { HelpButton } from "../../../src";
+import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 
 /**
@@ -86,6 +87,7 @@ export const States: Story = {
             ))}
         </Group>
     ),
+    play: ({ canvasElement }) => expectStatesApply(canvasElement),
 };
 
 /** A click opens the caller's menu above the button. */

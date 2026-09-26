@@ -11,6 +11,7 @@ import {
     PANEL_GRID,
     PANEL_INK,
 } from "../../../src";
+import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 
 // Imported from "../../../src", the package's published entry point, so the stories exercise
@@ -279,6 +280,7 @@ export const States: Story = {
         grid?.focus();
         first?.focus();
         first?.setAttribute("data-state", "focus");
+        await expectStatesApply(canvasElement, { unchanged: ['td[data-state="focus"]'] });
     },
 };
 

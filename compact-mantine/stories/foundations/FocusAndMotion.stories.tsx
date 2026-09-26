@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, within } from "@storybook/test";
 
 import { PANEL_INK, UiGlyph } from "../../src";
+import { expectStatesApply } from "../helpers/assert-states";
 import { StateGrid } from "../helpers/input-states";
 import { BOTH_SCHEMES } from "../helpers/schemes";
 
@@ -72,6 +73,7 @@ export const FocusRing: Story = {
             ]}
         />
     ),
+    play: ({ canvasElement }) => expectStatesApply(canvasElement),
 };
 
 /**
@@ -128,4 +130,26 @@ export const Motion: Story = {
             </Text>
         </Stack>
     ),
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const doc = canvasElement.ownerDocument;
+        const duration = (selector: string): string =>
+            getComputedStyle(canvasElement.querySelector(selector) as Element).transitionDuration;
+        // The checkbox and the switch move for 100ms (0s when the reader asks for reduced motion).
+        const moving = doc.defaultView?.matchMedia("(prefers-reduced-motion: reduce)").matches ? "0s" : "0.1s";
+        await expect(duration(".mantine-Checkbox-input")).toBe(moving);
+        await expect(duration(".mantine-Switch-thumb")).toBe(moving);
+        // The menu is drawn in full the moment it opens.
+        await userEvent.click(canvas.getByRole("button", { name: "Open a menu" }));
+        const menu = await within(doc.body).findByRole("menu");
+        await expect(getComputedStyle(menu).opacity).toBe("1");
+        await expect(getComputedStyle(menu).transitionDuration).toBe("0s");
+        await userEvent.keyboard("{Escape}");
+        // The tooltip waits out its cold delay before it opens.
+        await userEvent.hover(canvas.getByRole("button", { name: "Hover me" }));
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        await expect(within(doc.body).queryByRole("tooltip")).toBeNull();
+        await expect(await within(doc.body).findByRole("tooltip", {}, { timeout: 2000 })).toBeVisible();
+        await userEvent.unhover(canvas.getByRole("button", { name: "Hover me" }));
+    },
 };

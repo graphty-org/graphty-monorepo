@@ -6,8 +6,9 @@ import { useState } from "react";
 // Imported from "../../../src", the package's published entry point, so the stories exercise
 // exactly what a consumer gets from `@graphty/compact-mantine`.
 import { CompactColorInput, LabelsProvider, PopoutManager } from "../../../src";
+import { expectStatesApply } from "../../helpers/assert-states";
 import { ForceState, StateCell } from "../../helpers/force-state";
-import { BOTH_SCHEMES } from "../../helpers/schemes";
+import { BOTH_SCHEMES, OPEN_OVERLAY } from "../../helpers/schemes";
 
 /**
  * A color and its opacity in one 24px panel field: a color chit that opens a picker, the hex
@@ -154,6 +155,7 @@ export const States: Story = {
             </Stack>
         );
     },
+    play: ({ canvasElement }) => expectStatesApply(canvasElement),
 };
 
 /** With a label above it; the label also names the group the three controls sit in. */
@@ -209,6 +211,7 @@ export const Controlled: Story = {
  * The picker, opened from the chit, with its opacity nudged down one from the keyboard.
  */
 export const PickerOpen: Story = {
+    parameters: OPEN_OVERLAY,
     args: {
         label: "Fill",
         defaultColor: "#3373E5",

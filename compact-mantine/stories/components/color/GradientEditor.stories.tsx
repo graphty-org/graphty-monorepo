@@ -6,6 +6,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 // Imported from "../../../src", the package's published entry point, so the stories exercise
 // exactly what a consumer gets from `@graphty/compact-mantine`.
 import { ColorPickerPanel, type ColorStop, createColorStop, GradientEditor, LabelsProvider } from "../../../src";
+import { expectStatesApply } from "../../helpers/assert-states";
 import { ForceState, StateCell } from "../../helpers/force-state";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 
@@ -177,6 +178,8 @@ export const States: Story = {
             </Stack>
         );
     },
+    // A stop chit's pressed state is announced; the selection is drawn on its row and handle (data-selected).
+    play: ({ canvasElement }) => expectStatesApply(canvasElement, { unchanged: [".cm-paint-chit"] }),
 };
 
 /**

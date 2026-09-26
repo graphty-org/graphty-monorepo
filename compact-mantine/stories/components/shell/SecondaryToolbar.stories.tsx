@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, within } from "@storybook/test";
 
 import { SecondaryToolbar, UiGlyph } from "../../../src";
+import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 import { icons } from "./fixtures";
 
@@ -127,6 +128,7 @@ export const States: Story = {
             ))}
         </Stack>
     ),
+    play: ({ canvasElement }) => expectStatesApply(canvasElement),
 };
 
 /** `flush`: no padding, for a crop-style bar whose items sit on its edges. */

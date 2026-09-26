@@ -156,6 +156,15 @@ export const States: Story = {
             </Cell>
         </Group>
     ),
+    play: async ({ canvasElement }) => {
+        // Every cell holds its tooltip open, drawn on the dark tooltip surface.
+        const tips = [...canvasElement.querySelectorAll<HTMLElement>(".mantine-Tooltip-tooltip")];
+        await expect(tips).toHaveLength(5);
+        for (const tip of tips) {
+            await expect(getComputedStyle(tip).display).not.toBe("none");
+            await expect(getComputedStyle(tip).backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
+        }
+    },
 };
 
 /**

@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import React from "react";
 
 import { DataRow, DataRowHeader, MetricRow, PANEL_GRID, PANEL_INK, RankChip } from "../../../src";
+import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 
 // Imported from "../../../src", the package's published entry point.
@@ -101,6 +102,7 @@ export const States: Story = {
             <DataRowHeader label="In a caption" sortDirection="descending" sortPriority={2} onSortChange={() => undefined} />
         </Stack>
     ),
+    play: ({ canvasElement }) => expectStatesApply(canvasElement),
 };
 
 /**

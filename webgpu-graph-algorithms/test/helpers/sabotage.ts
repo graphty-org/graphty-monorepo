@@ -11,7 +11,14 @@
  * Rows: degree, reduce, K3 (fa2-repulsion-exact) and K4 (fa2-speed-finalize) at P1-T5; segmented-reduce at P2-T2
  * (which lists "P2"); P3-T5 adds K1 / K2 / K5 and lists "P3"; M8b-T10 adds the six non-exempt P7 kernels (spmv-pull,
  * pr-scale, pr-finalize and the three Afforest link / compress kernels) and lists "P7", measured by
- * test/sabotage/spmv.test.ts and test/sabotage/wcc.test.ts. SABOTAGE_P3_ADDENDUM carries the rows P3 adds on the P1
+ * test/sabotage/spmv.test.ts and test/sabotage/wcc.test.ts; P8-T3 adds the three compact / dedupe kernels, measured
+ * by test/sabotage/compact.test.ts, P8-T4 the three frontier-finalize rows measured by test/sabotage/frontier.test.ts,
+ * P8-T5 the five advance-expand rows measured by test/sabotage/advance.test.ts, P8-T6 the three bfs-contract and four
+ * sssp-pred rows measured by test/sabotage/bfs.test.ts, P8-T7 the three bfs-fused rows and the seventh
+ * frontier-finalize row (the inverted fused threshold), measured by test/sabotage/bfs.test.ts too, P8-T9 the four
+ * sssp-relax rows and three f32-mode sssp-pred rows measured by test/sabotage/sssp.test.ts, P8-T10 the three bf-relax
+ * rows measured by test/sabotage/bellman-ford.test.ts, P8-T11 the three closeness-sweep and three closeness-reduce rows
+ * measured by test/sabotage/closeness.test.ts ("P8" is listed by P8-T15, when the last P8 kernel has its rows). SABOTAGE_P3_ADDENDUM carries the rows P3 adds on the P1
  * kernels (measured by the P3 checks of test/sabotage/fa2.test.ts only); SABOTAGE_P5 carries the rows of the FR and
  * spring-electrical BRANCHES P5 adds to K1 / K2 / K3 / K5 (PD-8; measured by test/sabotage/fr.test.ts and se.test.ts
  * only, since the FA2 checks never reach those lines).
@@ -47,6 +54,13 @@ const RADIX_TEST = "test/primitives/radix-sort.test.ts";
 const GRID_TEST = "test/primitives/grid.test.ts";
 const PYRAMID_TEST = "test/primitives/grid-pyramid.test.ts";
 const GRID_INSPECT_TEST = "test/layouts/grid-inspect.test.ts";
+const COMPACT_TEST = "test/primitives/compact.test.ts";
+const FRONTIER_TEST = "test/primitives/frontier.test.ts";
+const ADVANCE_TEST = "test/primitives/advance.test.ts";
+const BFS_TEST = "test/algorithms/bfs.test.ts";
+const SSSP_TEST = "test/algorithms/sssp.test.ts";
+const BF_TEST = "test/algorithms/bellman-ford.test.ts";
+const CLOSENESS_TEST = "test/algorithms/closeness.test.ts";
 
 /** At least three mutations per kernel that has rows (spec 13 rule f); PARTIAL so a phase's kernels can land before its rows (the coverage test below gates by phase). */
 export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> = Object.freeze({
@@ -583,7 +597,8 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             // the last key is never counted (the three-line find documents the intent; the body has one such line)
             name: "last-key-skipped",
             find: "if (i >= P.count) { return; }                                  // no barrier follows\n    let k = keys[i];\n    if (k < P.bins)",
-            replace: "if (i + 1u >= P.count) { return; }                             // no barrier follows\n    let k = keys[i];\n    if (k < P.bins)",
+            replace:
+                "if (i + 1u >= P.count) { return; }                             // no barrier follows\n    let k = keys[i];\n    if (k < P.bins)",
             minFactor: 10,
             test: HISTOGRAM_TEST,
         },
@@ -845,6 +860,516 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             replace: "let valid = t + 1u < P.n;",
             minFactor: 10,
             test: GRID_INSPECT_TEST,
+        },
+    ]),
+    "compact-scatter": Object.freeze([
+        {
+            // the flag test inverted: the UNflagged entries are scattered (at the flagged ones' offsets)
+            name: "flag-test-inverted",
+            find: "if (flags[i] != 0u) { out[offsets[i]] = queue[i]; }",
+            replace: "if (flags[i] == 0u) { out[offsets[i]] = queue[i]; }",
+            minFactor: 10,
+            test: COMPACT_TEST,
+        },
+        {
+            // the total drops the last flag: one short whenever the last entry is flagged (the alternating case's 4096 is)
+            name: "total-from-offsets-only",
+            find: "offsets[P.count - 1u] + flags[P.count - 1u]",
+            replace: "offsets[P.count - 1u]",
+            minFactor: 10,
+            test: COMPACT_TEST,
+        },
+        {
+            // the last entry is never scattered: its slot keeps the poison
+            name: "last-element-skipped",
+            find: "if (i >= P.count) { return; }",
+            replace: "if (i >= P.count - 1u) { return; }",
+            minFactor: 10,
+            test: COMPACT_TEST,
+        },
+    ]),
+    "dedupe-claim": Object.freeze([
+        {
+            // the claim lands at the entry's own index instead of its vertex's: the repeated vertex survives once
+            // (owner[5] = 5) but the reversed tail keeps only its fixed point, so the surviving set is wrong
+            name: "claims-own-slot",
+            find: "atomicStore(&owner[queue[i]], i);",
+            replace: "atomicStore(&owner[i], i);",
+            minFactor: 10,
+            test: COMPACT_TEST,
+        },
+        {
+            // every claim writes 0: only entry 0 owns its vertex, so one entry survives
+            name: "claims-zero",
+            find: "atomicStore(&owner[queue[i]], i);",
+            replace: "atomicStore(&owner[queue[i]], 0u);",
+            minFactor: 10,
+            test: COMPACT_TEST,
+        },
+        {
+            // the last entry never claims: its vertex (a tail vertex nobody else names) is dropped
+            name: "last-entry-unclaimed",
+            find: "i < count; i = i + P.stride) {   // grid-stride; no barrier anywhere\n        atomicStore",
+            replace: "i + 1u < count; i = i + P.stride) {\n        atomicStore",
+            minFactor: 10,
+            test: COMPACT_TEST,
+        },
+    ]),
+    "dedupe-filter": Object.freeze([
+        {
+            // every entry is kept: the repeats survive and the count is the queue's length
+            name: "keeps-everything",
+            find: "select(0u, 1u, atomicLoad(&owner[v]) == i)",
+            replace: "1u",
+            minFactor: 10,
+            test: COMPACT_TEST,
+        },
+        {
+            // the inclusive rank written as an exclusive one: slot 0 keeps the poison and the last write lands past the count
+            name: "inclusive-off-by-one",
+            find: "out[base + inclusive - 1u] = v;",
+            replace: "out[base + inclusive] = v;",
+            minFactor: 10,
+            test: COMPACT_TEST,
+        },
+        {
+            // the block's aggregate is lane 0's own keep bit: the count word and every base are wrong
+            name: "aggregate-from-lane-zero",
+            find: "if (lid.x == WG - 1u) { base = atomicAdd(&outCount[P.outIndex], inclusive); }",
+            replace: "if (lid.x == 0u) { base = atomicAdd(&outCount[P.outIndex], inclusive); }",
+            minFactor: 10,
+            test: COMPACT_TEST,
+        },
+    ]),
+    // P8-T4: every row is measured by frontierReport (test/helpers/frontier.ts) through the frontier test; the
+    // rotation and fused-path rows are measured again by the BFS suites of P8-T6 / P8-T7. The two rows that once
+    // mutated the indirect-slot arithmetic (`ceil-wraps`, `second-row-floored`) went with the slots (2026-09-25):
+    // no dispatch consumed what they broke
+    "frontier-finalize": Object.freeze([
+        {
+            // the rotation writes 0: the first boundary rotates nothing in and every traversal is the source alone
+            name: "rotation-dropped",
+            find: "atomicStore(&counters[0], next);                               // the rotation",
+            replace: "atomicStore(&counters[0], 0u);",
+            minFactor: 10,
+            test: FRONTIER_TEST,
+        },
+        {
+            // a boundary that finds done set keeps counting: level and visitedCount move on every recorded level past the end
+            name: "done-boundary-keeps-counting",
+            find: "if (atomicLoad(&counters[15]) != 0u) {                         // done already: a no-op level the host recorded past the end",
+            replace: "if (false) {",
+            minFactor: 10,
+            test: FRONTIER_TEST,
+        },
+        {
+            // role 1 counts a two-phase level whether or not role 0 chose one
+            name: "role-1-counts-every-level",
+            find: "if (atomicLoad(&counters[24]) != 1u) {                         // role 0 did not choose the two-phase path (done, fused or bottom-up): nothing to clamp, nothing to count",
+            replace: "if (false) {",
+            minFactor: 10,
+            test: FRONTIER_TEST,
+        },
+        {
+            // P8-T7: the fused threshold inverted -- every depth stays right (both paths are exact), so only the
+            // exact fusedLevels / twoPhaseLevels count against the oracle's level sizes catches it (bfsReport's
+            // rmat14 run at the default threshold; a counter, never a timing)
+            name: "fused-threshold-inverted",
+            find: "} else if (next < P.fusedMax) {",
+            replace: "} else if (next >= P.fusedMax) {",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // P8-T8: the growing half of Beamer's switch-into-bottom-up test inverted -- every depth stays right
+            // (both directions are exact), so only the direction model of bfsReport (rmat14's per-boundary direction
+            // words and switch count against the host replay) catches it; a counter, never a timing
+            name: "growing-test-inverted",
+            find: "&& next > finished) { direction = 1u; }",
+            replace: "&& next < finished) { direction = 1u; }",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+    ]),
+    // P8-T5: every row is measured by advanceReport (test/helpers/advance.ts) through the advance test
+    "advance-expand": Object.freeze([
+        {
+            // the unscanned degrees are stored: the binary search walks a non-monotone array and every lane gets the
+            // wrong source (the helper itself is prelude code and is not a per-kernel row)
+            name: "scan-result-dropped",
+            find: "sh[lid.x] = inclusive;",
+            replace: "sh[lid.x] = deg;",
+            minFactor: 10,
+            test: ADVANCE_TEST,
+        },
+        {
+            // lower_bound instead of upper_bound: off by one at every block boundary (the reversed frontier and the
+            // grid levels read a neighbouring row's arc there)
+            name: "lower-bound-not-upper",
+            find: "if (sh[mid] > p) { hi = mid; } else { lo = mid + 1u; }",
+            replace: "if (sh[mid] >= p) { hi = mid; } else { lo = mid + 1u; }",
+            minFactor: 10,
+            test: ADVANCE_TEST,
+        },
+        {
+            // the aggregate is reserved once per LANE: edgeCount is WG times the oracle's and the queue is left with
+            // holes. The store into var<workgroup> base stays under lid.x == 0u, as in the normative body: FXC
+            // (the D3D12 leg of hosts.yml compiles through it) rejects an unconditional groupshared store from
+            // every lane as a race (X3695), so a mutant that dropped the guard never built a pipeline there
+            name: "per-lane-reservation",
+            find: "if (lid.x == 0u) {\n            base = atomicAdd(&counters[8], aggregate);",
+            replace:
+                "let mine = atomicAdd(&counters[8], aggregate);\n        if (lid.x == 0u) {\n            base = mine;",
+            minFactor: 10,
+            test: ADVANCE_TEST,
+        },
+        {
+            // the last entry of the frontier is never loaded: its arcs are missing from the queue and the counters
+            name: "last-entry-skipped",
+            find: "if (i < count) {                                                 // guarded loads into locals (3.5 rule 1)",
+            replace: "if (i + 1u < count) {",
+            minFactor: 10,
+            test: ADVANCE_TEST,
+        },
+        {
+            // the overflow detector counts nothing: caught by the unclamped word, which every case pins
+            name: "unclamped-not-counted",
+            find: "atomicAdd(&counters[9], aggregate);",
+            replace: "atomicAdd(&counters[9], 0u);",
+            minFactor: 10,
+            test: ADVANCE_TEST,
+        },
+        {
+            // the row is not clipped to the bound window (P8-T12; the twin of degree's rebase-ignored): invisible on the
+            // first window, wrong on every later one -- the windowed star hub of advanceReport re-counts the whole row
+            name: "clip-ignored",
+            find: "let lo = max(rowPtr[v], P.arcBase);",
+            replace: "let lo = rowPtr[v];",
+            minFactor: 10,
+            test: ADVANCE_TEST,
+        },
+    ]),
+    // P8-T6: every row is measured by bfsReport (test/helpers/bfs.ts) through the BFS test
+    "bfs-contract": Object.freeze([
+        {
+            // the claim is an exchange, not a min: a later level overwrites a smaller depth (a depth miss)
+            name: "claim-not-a-min",
+            find: "let old = atomicMin(&depth[v], claim);",
+            replace: "let old = atomicExchange(&depth[v], claim);",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // every same-level claimant appends: duplicates in the next frontier (visitedCount and order miss)
+            name: "same-level-claimants-append",
+            find: "won = select(0u, 1u, old == INVALID_INDEX);",
+            replace: "won = select(0u, 1u, old >= claim);",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // the claim writes the level itself: every depth from level 1 on is one too small
+            name: "claim-is-the-level",
+            find: "let claim = atomicLoad(&counters[11]) + 1u;",
+            replace: "let claim = atomicLoad(&counters[11]);",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+    ]),
+    "sssp-pred": Object.freeze([
+        {
+            // a same-depth neighbour attains: level consistency breaks (parent miss against the host rule)
+            name: "same-depth-attains",
+            find: "tight = (du + 1u) == dv;",
+            replace: "tight = du == dv;",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // the largest predecessor wins: the grid's interior nodes have two (parent miss)
+            name: "largest-predecessor",
+            find: "atomicMin(&pred[v], select(a, u, P.predKind == 1u));",
+            replace: "atomicMax(&pred[v], select(a, u, P.predKind == 1u));",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // the last row is never visited: from the LAST index of the path its one child keeps INVALID_INDEX
+            name: "last-row-skipped",
+            find: "for (var u = first; u < P.n; u = u + P.stride) {",
+            replace: "for (var u = first; u + 1u < P.n; u = u + P.stride) {",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // the per-invocation form: every traversal under the dispatch cap passes, so the one-workgroup case of
+            // the BFS test is what catches it (rows 256 and up keep INVALID_INDEX)
+            name: "stride-dropped",
+            find: "for (var u = first; u < P.n; u = u + P.stride) {",
+            replace: "for (var u = first; u < P.n; u = P.n) {",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // P8-T9: every arc from a reached node into a reached node is "tight" (du + w >= dv always holds on a
+            // settled dist, so <= would be a no-op; >= admits every non-tight arc): predArc names a non-tight arc
+            name: "attains-is-ge",
+            find: "tight = (dv != F32_INF_BITS) && (bitcast<u32>(bitcast<f32>(du) + w) == dv);",
+            replace: "tight = (dv != F32_INF_BITS) && (bitcast<u32>(bitcast<f32>(du) + w) >= dv);",
+            minFactor: 10,
+            test: SSSP_TEST,
+        },
+        {
+            // P8-T9: the 2026-09-23 rule brought back inside a plateau -- any equal-distance tight arc is admitted,
+            // so zeroPlateau walks j -> j - 1 into the 0 <-> 1 cycle (the chain check fails at its bound)
+            name: "plateau-step-ignored",
+            find: "admit = (du == dv) && (hu + 1u == hv);",
+            replace: "admit = (du == dv);",
+            minFactor: 10,
+            test: SSSP_TEST,
+        },
+        {
+            // P8-T9: no root but the source, so every node above distance 0 keeps hops INVALID_INDEX and the orphan
+            // word is non-zero: the driver refuses the result as E_VALIDATION
+            name: "roots-unseeded",
+            find: "if (P.mode == 0u && below) { atomicMin(&pred[hb + v], 0u); }",
+            replace: "if (false) { atomicMin(&pred[hb + v], 0u); }",
+            minFactor: 10,
+            test: SSSP_TEST,
+        },
+    ]),
+    // P8-T7: every row is measured by bfsReport's always-fused runs (fusedMax U32_MAX) through the BFS test
+    "bfs-fused": Object.freeze([
+        {
+            // the claim runs past the row's end: the lanes beyond the degree read the next rows' arcs (the robustness
+            // clamp at the end of colIdx) and claim their targets at this level (a depth miss)
+            name: "claim-outside-the-guard",
+            find: "if (p < deg) {                                               // guarded claim into locals",
+            replace: "if (true) {",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // a scan round dropped: the appends land at the wrong slots and the strip's total is wrong
+            name: "fused-scan-round-dropped",
+            find: "for (var s = 1u; s < WG; s = s * 2u) {                       // Hillis-Steele inclusive scan of won (bfs-contract's, verbatim)",
+            replace: "for (var s = 1u; s < WG; s = s * 4u) {",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // the claim writes the level itself: every fused depth from level 1 on is one too small
+            name: "fused-claim-is-the-level",
+            find: "let claim = atomicLoad(&counters[11]) + 1u;\n    if (lid.x == 0u) {",
+            replace: "let claim = atomicLoad(&counters[11]);\n    if (lid.x == 0u) {",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+    ]),
+    // P8-T8: every row is measured by bfsReport's forced-bottom-up runs (alpha U32_MAX, beta 0: the 500-node path
+    // from its middle, the hub-clique fixture) and its rmat14 runs at the default rule, through the BFS test
+    "bfs-bottom-up": Object.freeze([
+        {
+            // the early exit removed: every depth stays right, so the answer never catches it -- the arcsScanned word
+            // does: on the hub-clique fixture each of the 253 claims reads one in-arc with the exit and the whole
+            // 254-arc row without it (the check allows one extra read per claim)
+            name: "early-exit-removed",
+            find: "{ won = 1u; break; }",
+            replace: "{ won = 1u; }",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // a stale entry (claimed since the rebuild) is claimed again at a later level: a depth miss on the path
+            // from its middle, whose list is stale from the second bottom-up level on
+            name: "stale-entries-claimed",
+            find: "if (atomicLoad(&depth[v]) == INVALID_INDEX) {                // a stale entry, claimed since the rebuild, is skipped",
+            replace: "if (true) {",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // the claim writes the level itself: every bottom-up depth is one too small
+            name: "bottom-up-claim-is-the-level",
+            find: "let claim = atomicLoad(&counters[11]) + 1u;\n    if (lid.x == 0u) { wcount",
+            replace: "let claim = atomicLoad(&counters[11]);\n    if (lid.x == 0u) { wcount",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+    ]),
+    "bfs-bitset-build": Object.freeze([
+        {
+            // a store instead of an or: two frontier vertices in one word keep one bit (the path's two ends of a
+            // level share a word near the middle), so a vertex goes unclaimed at its level
+            name: "or-is-a-store",
+            find: "atomicOr(&bits[P.bitsBase + (v >> 5u)], 1u << (v & 31u));",
+            replace: "atomicStore(&bits[P.bitsBase + (v >> 5u)], 1u << (v & 31u));",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // the bit lands in the wrong word: the sweep tests word u >> 5 and finds nothing (or a stranger's bit)
+            name: "bit-of-the-wrong-word",
+            find: "(v >> 5u)",
+            replace: "(v >> 4u)",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // the last frontier entry's bit is never set: the vertices only it reaches go unclaimed (one side of the
+            // path from its middle)
+            name: "last-frontier-entry-unset",
+            find: "i < count; i = i + P.stride) {   // grid-stride; no barrier anywhere\n        let v = frontierIn[i];",
+            replace: "i + 1u < count; i = i + P.stride) {\n        let v = frontierIn[i];",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+    ]),
+    "bfs-unvisited-flags": Object.freeze([
+        {
+            // every vertex with an in-arc is listed, claimed or not: unvisitedListLen misses the oracle's complement
+            // on every rebuild but the first
+            name: "everyone-listed",
+            find: "let listed = unv && (inDegree[v] != 0u);",
+            replace: "let listed = (inDegree[v] != 0u);",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // only the vertices nobody points at are listed: unvisitedListLen misses, and no bottom-up level claims
+            name: "in-degree-test-inverted",
+            find: "let listed = unv && (inDegree[v] != 0u);",
+            replace: "let listed = unv && (inDegree[v] == 0u);",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // the in-degree is summed instead of the out-degree: caught on a DIRECTED fixture (the path built from
+            // vertex 0, whose in-degree 0 differs from its out-degree 1), where unvisitedDegreeSum misses the model
+            name: "in-degree-summed",
+            find: "select(0u, outDegree[v], unv)",
+            replace: "select(0u, inDegree[v], unv)",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+    ]),
+    "sssp-relax": Object.freeze([
+        {
+            // the claim is an exchange, not a min: a later larger candidate overwrites a smaller distance (dist miss)
+            name: "min-is-a-store",
+            find: "let old = atomicMin(&dist[v], bits);",
+            replace: "let old = atomicExchange(&dist[v], bits);",
+            minFactor: 10,
+            test: SSSP_TEST,
+        },
+        {
+            // the weight is ignored: dist is the hop count (dist miss on every non-unit fixture)
+            name: "hop-counts",
+            find: "let nd = du + select(1.0, weights[a], HAS_WEIGHTS);",
+            replace: "let nd = du + 1.0;",
+            minFactor: 10,
+            test: SSSP_TEST,
+        },
+        {
+            // the cutoff excludes the node that attains it exactly (the <= case of the integer-cutoff fixture)
+            name: "cutoff-exclusive",
+            find: "if (nd > cutoff) { continue; }",
+            replace: "if (nd >= cutoff) { continue; }",
+            minFactor: 10,
+            test: SSSP_TEST,
+        },
+        {
+            // the pass-through never returns a far entry to the near pile: on the weight-2 path only the first
+            // bucket is reached and 48 nodes stay at +Inf (dist miss; no round-count timing needed)
+            name: "far-never-returns",
+            find: "if (du < threshold) {\n                let q = atomicAdd(&counters[1], 1u);",
+            replace: "if (false) {\n                let q = atomicAdd(&counters[1], 1u);",
+            minFactor: 10,
+            test: SSSP_TEST,
+        },
+    ]),
+    "bf-relax": Object.freeze([
+        {
+            // the compare-exchange result is ignored: a lane whose exchange failed gives up as if it had changed
+            // something; the next round repairs the lost update, so dist never misses -- the witness is the retry
+            // bound, which the real kernel's losing lanes exhaust under maxRetries 1 and this mutant never reaches
+            name: "exchange-result-ignored",
+            find: "if (r.exchanged) { atomicStore(&flags[0], 1u); break; }",
+            replace: "{ atomicStore(&flags[0], 1u); break; }",
+            minFactor: 10,
+            test: BF_TEST,
+        },
+        {
+            // relaxes only when NOT improving: everything but the source stays +Inf (dist miss everywhere)
+            name: "improvement-test-inverted",
+            find: "if (!(nd < bitcast<f32>(cur))) { break; }",
+            replace: "if (nd < bitcast<f32>(cur)) { break; }",
+            minFactor: 10,
+            test: BF_TEST,
+        },
+        {
+            // the reverse direction of an undirected edge is never relaxed (dist miss on every undirected fixture)
+            name: "reverse-direction-dropped",
+            find: "if (UNDIRECTED) {",
+            replace: "if (false) {",
+            minFactor: 10,
+            test: BF_TEST,
+        },
+    ]),
+    "closeness-sweep": Object.freeze([
+        {
+            // a claim is counted without its atomicOr result: every lane whose SIMD group loaded the visited word
+            // together counts the vertex (the funnel's middle layer reaches one vertex from four lanes of every
+            // subgroup at once; newCount, reached and sum then overshoot)
+            name: "already-visited-recounted",
+            find: "let fresh = mask & ~old;",
+            replace: "let fresh = mask;",
+            minFactor: 10,
+            test: CLOSENESS_TEST,
+        },
+        {
+            // the won bits never reach the next region: the level-1 list is compacted from the flags but every
+            // frontier mask is 0, so nothing at distance 2 or beyond is ever claimed
+            name: "next-bits-not-set",
+            find: "atomicOr(&bits[nextBase + x], fresh);",
+            replace: "atomicOr(&bits[nextBase + x], 0u);",
+            minFactor: 10,
+            test: CLOSENESS_TEST,
+        },
+        {
+            // every fresh bit is tallied to source 0: the other sources' counts stay 0 and source 0's overshoot
+            name: "source-word-not-bit",
+            find: "let s = firstTrailingBit(b);",
+            replace: "let s = 0u;",
+            minFactor: 10,
+            test: CLOSENESS_TEST,
+        },
+    ]),
+    "closeness-reduce": Object.freeze([
+        {
+            // the claims of a level are summed at the level instead of the distance (one short everywhere)
+            name: "distance-is-the-level",
+            find: "let d = level + 1u;",
+            replace: "let d = level;",
+            minFactor: 10,
+            test: CLOSENESS_TEST,
+        },
+        {
+            // reached never accumulates (stays 0 for every source)
+            name: "reached-not-accumulated",
+            find: "atomicLoad(&perSource[32u + s]) + c",
+            replace: "atomicLoad(&perSource[32u + s])",
+            minFactor: 10,
+            test: CLOSENESS_TEST,
+        },
+        {
+            // the carry of the 64-bit add is dropped: caught by the hand-seeded role-0 dispatch alone (no runnable
+            // fixture's per-source sum crosses 2^32), whose BigInt sum reads 4295028736n instead of 8589996032n
+            name: "carry-dropped",
+            find: "select(0u, 1u, lo < before)",
+            replace: "0u",
+            minFactor: 10,
+            test: CLOSENESS_TEST,
         },
     ]),
 });
@@ -1373,8 +1898,8 @@ export const SABOTAGE_P4_LAW: Readonly<Partial<Record<KernelId, readonly Mutatio
     ]),
 });
 
-/** The phases whose kernels ALL have their rows: ["P1"] at P1-T5, + "P2" at P2-T2, + "P3" at P3-T5, + "P7" at M8b-T10, + "P4" at P4-T12 (PD-1: when the last P4 kernel has its rows); test/sabotage/coverage.test.ts asserts every KERNELS entry whose `phase` is listed here has >= 3 rows, except SABOTAGE_EXEMPT. */
-export const SABOTAGE_PHASES: readonly KernelEntry["phase"][] = Object.freeze(["P1", "P2", "P3", "P7", "P4"]);
+/** The phases whose kernels ALL have their rows: ["P1"] at P1-T5, + "P2" at P2-T2, + "P3" at P3-T5, + "P7" at M8b-T10, + "P4" at P4-T12 (PD-1: when the last P4 kernel has its rows), + "P8" at P8-T15 (the fifteen frontier-family kernels, 58 rows written by the tasks that wrote the kernels); test/sabotage/coverage.test.ts asserts every KERNELS entry whose `phase` is listed here has >= 3 rows, except SABOTAGE_EXEMPT. */
+export const SABOTAGE_PHASES: readonly KernelEntry["phase"][] = Object.freeze(["P1", "P2", "P3", "P7", "P4", "P8"]);
 
 /**
  * Kernels with no oracle-sensitive arithmetic to mutate: a wrong fill / toScene fails the exact-equality tests

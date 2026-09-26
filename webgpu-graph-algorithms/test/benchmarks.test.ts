@@ -15,6 +15,7 @@ import {
     ATTRACTION_SCALE_GROUP,
     POSITION_BYTES_PER_NODE,
 } from "../benchmarks/attraction-scale.bench.js";
+import { BFS_GROUP, BFS_RMAT_RUNGS, GRID_SIDE, gridRowName, SSSP_WEIGHT_RANGE } from "../benchmarks/bfs.bench.js";
 import { gridEdges, KARATE_EDGES, randomEdges, rmatEdges, snapshotOf, TIERS } from "../benchmarks/datasets.js";
 import {
     appendSession,
@@ -585,6 +586,133 @@ describe("scripts/bench-compare.js (contract 6.8; spec 10.4 T-13)", () => {
         );
         expect(r.status).toBe(1);
         expect(existsSync(SCRIPT)).toBe(true);
+    });
+});
+
+describe("benchmarks/bfs.bench.ts (spec 10.4 T-10; P8-T14)", () => {
+    it("the group is bfs; its RMAT rungs are the 100k / 1M and 1M / 10M tiers as 2^17 x 8 and 2^20 x 10; the grid is 1000 x 1000", () => {
+        expect(BFS_GROUP).toBe("bfs");
+        expect(BFS_RMAT_RUNGS.map((r) => [r.name, 2 ** r.scale, 2 ** r.scale * r.edgeFactor])).toEqual([
+            ["100k/1M", 131072, 1048576],
+            ["1M/10M", 1048576, 10485760],
+        ]);
+        expect(BFS_RMAT_RUNGS.map((r) => r.name)).toEqual(TIERS.slice(1).map((t) => t.name));
+        expect(GRID_SIDE).toBe(1000);
+        expect(SSSP_WEIGHT_RANGE).toEqual([0.1, 10]);
+        // the grid row's name carries the level count the traversal reported, so a changed traversal is a new row
+        expect(gridRowName(1999)).toBe("bfs grid 1000x1000 levels=1999");
+    });
+});
+
+describe("scripts/bench-append-session.js (P8-T14 Step 3; contract 6.4)", () => {
+    const SCRIPT = resolve("scripts/bench-append-session.js");
+    /** Every group `pnpm run bench` records; a baseline session must carry all of them (bench-compare reads the pinned best per row, so a missing group leaves its rows unguarded, never red). */
+    const REQUIRED_GROUPS = [
+        "upload",
+        "roundtrip",
+        "layout-exact",
+        "pagerank",
+        "wcc",
+        "layout-fr",
+        "layout-grid",
+        "attraction-scale",
+        "bfs",
+    ] as const;
+    /** A hardware session of the dev-box class with one row per group: the one the script accepts. */
+    const complete = (): BenchSession[] =>
+        JSON.parse(readFileSync(resolve("test/fixtures/bench/append-session-out.json"), "utf8")) as BenchSession[];
+    const lastOf = (sessions: readonly BenchSession[]): BenchSession => sessions[sessions.length - 1];
+    /** The fixture's session with its `gpu` or `results` replaced. */
+    const variant = (patch: Partial<BenchSession>): BenchSession[] => [{ ...lastOf(complete()), ...patch }];
+
+    /**
+     * Runs the script over `out` and `results` (null: no results file) written into a fresh directory; returns the
+     * exit status, the printed text and the results file as it stands afterwards (null when it does not exist).
+     */
+    function append(
+        out: unknown,
+        results: unknown,
+    ): { status: number | null; text: string; results: BenchSession[] | null } {
+        const dir = mkdtempSync(join(tmpdir(), "wgpu-append-"));
+        try {
+            writeFileSync(join(dir, "out.json"), JSON.stringify(out));
+            if (results !== null) {
+                writeFileSync(join(dir, "results.json"), JSON.stringify(results));
+            }
+            const proc = spawnSync(process.execPath, [SCRIPT, "out.json", "results.json"], {
+                cwd: dir,
+                encoding: "utf8",
+            });
+            const file = join(dir, "results.json");
+            const after = existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as BenchSession[]) : null;
+            return { status: proc.status, text: `${proc.stdout}${proc.stderr}`, results: after };
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    }
+
+    it("appends the LAST out session to the results file, sorted by date, and creates the file when absent", () => {
+        const sessions = complete();
+        const last = lastOf(sessions);
+        expect(new Set(last.results.map((r) => r.group))).toEqual(new Set(REQUIRED_GROUPS));
+        const older = { ...session([result("a", 1)]), date: "2026-09-20T00:00:00.000Z" };
+        const newer = { ...session([result("a", 2)]), date: "2026-09-30T00:00:00.000Z" };
+        // an earlier out session lacking every group is ignored: only the last one is appended
+        const r = append([{ ...older, results: [] }, ...sessions], [newer, older]);
+        expect(r.status).toBe(0);
+        expect(r.results?.map((s) => s.date)).toEqual([older.date, last.date, newer.date]);
+        expect(r.results?.[1]).toEqual(last);
+        expect(r.text).toContain(`appended the session of ${last.date} (${last.runnerClass}`);
+        expect(r.text).toContain(`${String(last.results.length)} results`);
+        for (const group of REQUIRED_GROUPS) {
+            expect(r.text).toContain(group);
+        }
+        expect(r.text).toContain("3 sessions now");
+        const created = append(sessions, null);
+        expect(created.status).toBe(0);
+        expect(created.results).toEqual([last]);
+    });
+
+    it("refusal 1: an out file with no session", () => {
+        for (const out of [[], {}, "text"]) {
+            const r = append(out, null);
+            expect(r.status).toBe(1);
+            expect(r.text).toContain("no session");
+            expect(r.results).toBeNull();
+        }
+    });
+
+    it("refusal 2: a session that ran on a software adapter (spec 11.7: never a baseline)", () => {
+        const last = lastOf(complete());
+        const r = append(variant({ gpu: { ...last.gpu, software: true } }), null);
+        expect(r.status).toBe(1);
+        expect(r.text).toContain("software adapter");
+        expect(r.results).toBeNull();
+    });
+
+    it("refusal 3: a session missing any one of the nine groups, named; the T4 run of 2026-09-23 lacks two", () => {
+        const last = lastOf(complete());
+        for (const group of REQUIRED_GROUPS) {
+            const r = append(variant({ results: last.results.filter((row) => row.group !== group) }), null);
+            expect(r.status, group).toBe(1);
+            expect(r.text).toContain(`lacks the ${group} group`);
+            expect(r.results).toBeNull();
+        }
+        // a real out file: the GPU lane's session before the attraction-scale and bfs groups existed
+        const t4 = JSON.parse(
+            readFileSync(resolve("test/fixtures/bench", "gpu-linux-t4-run-35828560733.json"), "utf8"),
+        ) as BenchSession[];
+        const r = append(t4, null);
+        expect(r.status).toBe(1);
+        expect(r.text).toContain("lacks the attraction-scale group");
+    });
+
+    it("refusal 4: a session whose date is already in the results file (nothing is appended twice)", () => {
+        const sessions = complete();
+        const r = append(sessions, sessions);
+        expect(r.status).toBe(1);
+        expect(r.text).toContain("already in");
+        expect(r.results).toEqual(sessions);
     });
 });
 

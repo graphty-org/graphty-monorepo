@@ -1,5 +1,5 @@
 {
-    "recordedAt": "2026-09-26T05:46:54.132Z",
+    "recordedAt": "2026-09-26T14:41:23.911Z",
     "adapters": [
         {
             "class": "mesa-software-node",
@@ -31,6 +31,39 @@
         }
     ],
     "rows": [
+        {
+            "id": "reduce.sum.twin",
+            "kernel": "reduce",
+            "fixture": "random1k",
+            "comparison": "twin",
+            "a": "mesa-software-node",
+            "b": "mesa-software-node/no-subgroups",
+            "maxRelError": 1.583126656148373e-7,
+            "maxAbsError": 0.0001220703125,
+            "samples": 11
+        },
+        {
+            "id": "reduce.sum.cross",
+            "kernel": "reduce",
+            "fixture": "random1k",
+            "comparison": "cross-adapter",
+            "a": "mesa-software-node",
+            "b": "nvidia-lovelace-node",
+            "maxRelError": 1.583126656148373e-7,
+            "maxAbsError": 0.0001220703125,
+            "samples": 11
+        },
+        {
+            "id": "degree.cross",
+            "kernel": "degree",
+            "fixture": "random1k",
+            "comparison": "cross-adapter",
+            "a": "mesa-software-node",
+            "b": "nvidia-lovelace-node",
+            "maxRelError": 0,
+            "maxAbsError": 0,
+            "samples": 1000
+        },
         {
             "id": "fa2-skeleton.force.oracle-f64.google-swiftshader-browser",
             "kernel": "fa2-repulsion-exact",
@@ -142,83 +175,6 @@
             "samples": 1000
         },
         {
-            "id": "spmv-pull.oracle-f64.nvidia-lovelace-node",
-            "kernel": "spmv-pull",
-            "fixture": "random1k",
-            "comparison": "oracle-f64",
-            "a": "nvidia-lovelace-node",
-            "b": "oracle-f64",
-            "maxRelError": 2.2098131992670379e-7,
-            "maxAbsError": 0.0000032706391124293077,
-            "samples": 1000
-        },
-        {
-            "id": "spmv-pull.cross.nvidia-lovelace-node--mesa-software-node",
-            "kernel": "spmv-pull",
-            "fixture": "random1k",
-            "comparison": "cross-adapter",
-            "a": "nvidia-lovelace-node",
-            "b": "mesa-software-node",
-            "maxRelError": 2.6626686401183217e-7,
-            "maxAbsError": 0.0000019073486328125,
-            "samples": 1000
-        },
-        {
-            "id": "degree.cross",
-            "kernel": "degree",
-            "fixture": "random1k",
-            "comparison": "cross-adapter",
-            "a": "mesa-software-node",
-            "b": "nvidia-lovelace-node",
-            "maxRelError": 0,
-            "maxAbsError": 0,
-            "samples": 1000
-        },
-        {
-            "id": "reduce.sum.twin",
-            "kernel": "reduce",
-            "fixture": "random1k",
-            "comparison": "twin",
-            "a": "mesa-software-node",
-            "b": "mesa-software-node/no-subgroups",
-            "maxRelError": 1.583126656148373e-7,
-            "maxAbsError": 0.0001220703125,
-            "samples": 11
-        },
-        {
-            "id": "reduce.sum.cross",
-            "kernel": "reduce",
-            "fixture": "random1k",
-            "comparison": "cross-adapter",
-            "a": "mesa-software-node",
-            "b": "nvidia-lovelace-node",
-            "maxRelError": 1.583126656148373e-7,
-            "maxAbsError": 0.0001220703125,
-            "samples": 11
-        },
-        {
-            "id": "spmv-pull.oracle-f64.mesa-software-node",
-            "kernel": "spmv-pull",
-            "fixture": "random1k",
-            "comparison": "oracle-f64",
-            "a": "mesa-software-node",
-            "b": "oracle-f64",
-            "maxRelError": 2.3894086227815794e-7,
-            "maxAbsError": 0.000003676361302495934,
-            "samples": 1000
-        },
-        {
-            "id": "spmv-pull.cross.mesa-software-node--nvidia-lovelace-node",
-            "kernel": "spmv-pull",
-            "fixture": "random1k",
-            "comparison": "cross-adapter",
-            "a": "mesa-software-node",
-            "b": "nvidia-lovelace-node",
-            "maxRelError": 2.662669349098939e-7,
-            "maxAbsError": 0.0000019073486328125,
-            "samples": 1000
-        },
-        {
             "id": "segmented-reduce.sum.oracle-f64.mesa-software-node",
             "kernel": "segmented-reduce",
             "fixture": "random1k",
@@ -327,6 +283,61 @@
             "maxRelError": 0.0943435236073985,
             "maxAbsError": 31976.37672999408,
             "samples": 2400
+        },
+        {
+            "id": "spmv-pull.oracle-f64.mesa-software-node",
+            "kernel": "spmv-pull",
+            "fixture": "random1k",
+            "comparison": "oracle-f64",
+            "a": "mesa-software-node",
+            "b": "oracle-f64",
+            "maxRelError": 2.3894086227815794e-7,
+            "maxAbsError": 0.000003676361302495934,
+            "samples": 1000
+        },
+        {
+            "id": "spmv-pull.cross.mesa-software-node--nvidia-lovelace-node",
+            "kernel": "spmv-pull",
+            "fixture": "random1k",
+            "comparison": "cross-adapter",
+            "a": "mesa-software-node",
+            "b": "nvidia-lovelace-node",
+            "maxRelError": 2.662669349098939e-7,
+            "maxAbsError": 0.0000019073486328125,
+            "samples": 1000
+        },
+        {
+            "id": "spmv-pull.oracle-f64.nvidia-lovelace-node",
+            "kernel": "spmv-pull",
+            "fixture": "random1k",
+            "comparison": "oracle-f64",
+            "a": "nvidia-lovelace-node",
+            "b": "oracle-f64",
+            "maxRelError": 2.2098131992670379e-7,
+            "maxAbsError": 0.0000032706391124293077,
+            "samples": 1000
+        },
+        {
+            "id": "spmv-pull.cross.nvidia-lovelace-node--mesa-software-node",
+            "kernel": "spmv-pull",
+            "fixture": "random1k",
+            "comparison": "cross-adapter",
+            "a": "nvidia-lovelace-node",
+            "b": "mesa-software-node",
+            "maxRelError": 2.6626686401183217e-7,
+            "maxAbsError": 0.0000019073486328125,
+            "samples": 1000
+        },
+        {
+            "id": "sssp-relax.f32-vs-f64",
+            "kernel": "sssp-relax",
+            "fixture": "p8-t9-fixtures",
+            "comparison": "oracle-f64",
+            "a": "oracle-f32",
+            "b": "oracle-f64",
+            "maxRelError": 6.422317386040102e-7,
+            "maxAbsError": 7,
+            "samples": 76447
         },
         {
             "id": "fa2-skeleton.force.cross",
@@ -1647,6 +1658,50 @@
             "maxRelError": 0.023782891422166212,
             "maxAbsError": 2026633.942312479,
             "samples": 15000
+        },
+        {
+            "id": "bfs.depth.cross",
+            "kernel": "bfs-contract",
+            "fixture": "rmat14-depth",
+            "comparison": "cross-adapter",
+            "a": "mesa-software-node",
+            "b": "nvidia-lovelace-node",
+            "maxRelError": 0,
+            "maxAbsError": 0,
+            "samples": 16329
+        },
+        {
+            "id": "sssp-relax.dist.cross",
+            "kernel": "sssp-relax",
+            "fixture": "grid30-integer-dist",
+            "comparison": "cross-adapter",
+            "a": "mesa-software-node",
+            "b": "nvidia-lovelace-node",
+            "maxRelError": 0,
+            "maxAbsError": 0,
+            "samples": 900
+        },
+        {
+            "id": "advance-expand.cross",
+            "kernel": "advance-expand",
+            "fixture": "karate-reversed-queue",
+            "comparison": "cross-adapter",
+            "a": "mesa-software-node",
+            "b": "nvidia-lovelace-node",
+            "maxRelError": 0,
+            "maxAbsError": 0,
+            "samples": 156
+        },
+        {
+            "id": "advance-expand.twin",
+            "kernel": "advance-expand",
+            "fixture": "karate-reversed-queue",
+            "comparison": "twin",
+            "a": "mesa-software-node",
+            "b": "mesa-software-node/no-subgroups",
+            "maxRelError": 0,
+            "maxAbsError": 0,
+            "samples": 156
         }
     ],
     "tolerances": {
@@ -2218,6 +2273,11 @@
         "grid-unbiased.cross": {
             "value": 5.960464477539062e-7,
             "basis": "grid-unbiased.cross",
+            "factor": 10
+        },
+        "sssp-relax.f32-vs-f64": {
+            "value": 0.000006422317386040102,
+            "basis": "sssp-relax.f32-vs-f64",
             "factor": 10
         }
     }

@@ -18,6 +18,14 @@ import type { UniformBlock, UniformValues } from "./struct-block.js";
 export class UniformRing {
     /** Number of slots. */
     readonly slots: number;
+    /**
+     * How many reservations covered a DIRTY slot (written since the last `flush()`): the one reuse that corrupts,
+     * because the batch being recorded still reads that record and the shadow overwrites it before the flush sends
+     * either. A wrap onto slots an earlier, flushed batch wrote is harmless: its `writeBuffer` is ordered before that
+     * batch's submit and the next flush after it. A driver sizes its ring so this stays 0 (P8-T12: `bfsRingSlots`).
+     */
+    overruns = 0;
+    private readonly dirty: Uint8Array;
     private readonly device: GPUDevice;
     private readonly allocator: AllocationTracker;
     private readonly buffer: GPUBuffer;
@@ -54,6 +62,7 @@ export class UniformRing {
         this.label = label;
         this.shadow = new ArrayBuffer(slots * UNIFORM_SLOT_BYTES);
         this.view = new DataView(this.shadow);
+        this.dirty = new Uint8Array(slots);
         this.buffer = allocator.createBuffer({
             label,
             size: slots * UNIFORM_SLOT_BYTES,
@@ -105,6 +114,9 @@ export class UniformRing {
         }
         const first = this.next;
         this.next += count;
+        if (this.dirty.subarray(first, first + count).includes(1)) {
+            this.overruns += 1;
+        }
         return first;
     }
 
@@ -118,6 +130,7 @@ export class UniformRing {
         this.checkSlot(slot);
         this.assertFits(block);
         block.write(this.view, values, slot * UNIFORM_SLOT_BYTES);
+        this.dirty[slot] = 1;
         if (this.dirtyLo < 0 || slot < this.dirtyLo) {
             this.dirtyLo = slot;
         }
@@ -138,6 +151,7 @@ export class UniformRing {
         const begin = this.dirtyLo * UNIFORM_SLOT_BYTES;
         const end = (this.dirtyHi + 1) * UNIFORM_SLOT_BYTES;
         this.device.queue.writeBuffer(this.buffer, begin, this.shadow, begin, end - begin);
+        this.dirty.fill(0);
         this.dirtyLo = -1;
         this.dirtyHi = -1;
     }

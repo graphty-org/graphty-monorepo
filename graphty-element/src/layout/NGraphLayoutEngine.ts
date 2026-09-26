@@ -103,7 +103,7 @@ export class NGraphEngine extends LayoutEngine {
     _stepCount = 0;
     _lastMoves: number[] = [];
     /** Places each new node when `seed` is set; null leaves placement to ngraph. */
-    private seededPlacement: { rng: ReturnType<typeof random>; extent: number; dim: number } | null = null;
+    private seededPlacement: { rng: ReturnType<typeof random>; dim: number } | null = null;
 
     /**
      * Create an NGraph layout engine
@@ -150,13 +150,7 @@ export class NGraphEngine extends LayoutEngine {
         // hard-coded 42, so every seed used to give the same picture. A seeded layout therefore
         // places each node itself, from this generator, before the simulation moves it.
         if (typeof typedConfig.seed === "number") {
-            const springLength = typeof typedConfig.springLength === "number" ? typedConfig.springLength : 30;
-            this.seededPlacement = {
-                rng: random(typedConfig.seed),
-                // ponytail: a fixed box of ten spring lengths; scale with node count if large seeded graphs start too tight
-                extent: springLength * 5,
-                dim: ngraphConfig.dimensions as number,
-            };
+            this.seededPlacement = { rng: random(typedConfig.seed), dim: ngraphConfig.dimensions as number };
         }
 
         this.ngraphLayout = ngraphCreateLayout(this.ngraph, ngraphConfig);
@@ -238,8 +232,13 @@ export class NGraphEngine extends LayoutEngine {
         const ngraphNode: NGraphNode = this.ngraph.addNode(n.id, { parentNode: n });
         this.nodeMapping.set(n, ngraphNode);
         if (this.seededPlacement) {
-            const { rng, extent, dim } = this.seededPlacement;
-            const coord = (): number => (rng.nextDouble() * 2 - 1) * extent;
+            // THE RULE NGRAPH ITSELF USES for a node with no placed neighbour -- within half a
+            // spring length of the origin -- only drawn from the seed. A wider start is a graph
+            // that flies in from far away: a box of ten spring lengths took a 20-node graph four
+            // times as long to settle, and was drawn a few pixels wide while it did.
+            const { rng, dim } = this.seededPlacement;
+            const { springLength } = this.ngraphLayout.simulator.settings;
+            const coord = (): number => (rng.nextDouble() - 0.5) * springLength;
             const x = coord();
             const y = coord();
             this.ngraphLayout.setNodePosition(n.id, x, y, dim === 3 ? coord() : 0);

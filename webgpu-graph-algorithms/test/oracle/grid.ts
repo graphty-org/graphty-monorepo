@@ -3,8 +3,9 @@
  * in f32 arithmetic exactly as G1 computes it (PD-10: `q = fround(fround(p - gridMin) * invCellSize)` per axis, a
  * subtraction and a multiply, both correctly rounded on every IEEE device, so the keys are BITWISE the GPU's when the
  * oracle reads the GPU's own `gridMin` / `invCellSize`), the STABLE order by key (key, then index: what the radix sort
- * produces), `cellHist` and its exclusive scan `cellStart` over `cells + 2` entries (the outside pseudo-cell at index
- * `cells`, and one more so `cellStart[cells + 1] === n`). Pure; no device. T9 extends it with the pyramid.
+ * produces), `cellHist` and its exclusive scan `cellStart` over `histWords` entries (the 2^dim outside pseudo-cells
+ * from index `cells`, one per orthant about the grid centre, issue #90, and one more so `cellStart[histWords - 1] ===
+ * n`). Pure; no device. T9 extends it with the pyramid.
  */
 
 import { type U32 } from "@graphty/graph-format";
@@ -31,19 +32,20 @@ export interface GridOracleBuild {
     readonly cellKey: U32;
     /** Stable: by key, then by index. */
     readonly sortedIdx: U32;
-    /** `cells + 2` words. */
+    /** `histWords` words. */
     readonly cellHist: U32;
-    /** `cells + 2` words: the exclusive scan of `cellHist`. */
+    /** `histWords` words: the exclusive scan of `cellHist`. */
     readonly cellStart: U32;
-    /** The nodes whose key is the pseudo-cell. */
+    /** The nodes whose key is an outside pseudo-cell. */
     readonly outside: number;
-    /** The largest real cell's count (the pseudo-cell excluded). */
+    /** The largest real cell's count (the pseudo-cells excluded). */
     readonly maxOccupancy: number;
 }
 
 /**
  * The finest cell key of one node in f32 arithmetic (G1's text): `c = floor(clamp(q, -1, G + 1))` per axis, inside iff
- * `0 <= c < G` on every axis of `dim`, key `cx + G cy (+ G^2 cz)`, else the pseudo-cell `cells`.
+ * `0 <= c < G` on every axis of `dim`, key `cx + G cy (+ G^2 cz)`, else the pseudo-cell `cells + orthant`, bit `a` of
+ * the orthant set when `c[a] >= G / 2` (issue #90).
  * @param p - the position (x, y, z)
  * @param input - the frame
  * @returns the key
@@ -64,7 +66,11 @@ function keyOf(p: readonly [number, number, number], input: GridOracleInput): nu
         inside = inside && c[2] >= 0 && c[2] < g;
     }
     if (!inside) {
-        return spec.cells;
+        let orthant = 0;
+        for (let axis = 0; axis < spec.dim; axis++) {
+            orthant += c[axis] >= g / 2 ? 2 ** axis : 0;
+        }
+        return spec.cells + orthant;
     }
     let key = c[0] + g * c[1];
     if (spec.dim === 3) {
@@ -87,7 +93,7 @@ export function gridOracleBuild(input: GridOracleInput): GridOracleBuild {
         const key = keyOf([positions[4 * i], positions[4 * i + 1], positions[4 * i + 2]], input);
         cellKey[i] = key;
         cellHist[key] += 1;
-        if (key === spec.cells) {
+        if (key >= spec.cells) {
             outside++;
         }
     }

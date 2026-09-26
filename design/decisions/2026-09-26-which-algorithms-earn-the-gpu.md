@@ -70,8 +70,10 @@ gaps belongs to the missing CPU port.
 Every GPU figure is a sum of five terms, each measured on this repository's own benchmarks or
 derived from one by arithmetic shown in the model note:
 
-- a per-call floor (0.5 ms for the SpMV family; 6.9 ms in Node and 9 ms in Chromium for a
-  traversal, from the resident karate / 1k / 10k BFS rows of 7.2 / 6.9 / 7.8 ms);
+- a per-call floor (0.5 ms for the SpMV family; 6.9 ms in Node for a traversal, from the
+  resident karate / 1k / 10k BFS rows of 7.2 / 6.9 / 7.8 ms; the 9 ms Chromium traversal floor is
+  ASSUMED, because no post-direct Chromium traversal row exists -- the empirical model brackets
+  the whole Chromium floor, syncs included, at 12.9-17 ms);
 - one host-device round trip per synchronisation point: 0.10 ms in Node, 2.0 ms in Chromium
   (one measurement inside a real Chromium traversal, cross-checked against the 2.5 ms WGLog
   reports, https://arxiv.org/html/2607.17571v1);
@@ -85,8 +87,8 @@ derived from one by arithmetic shown in the model note:
 
 Two worked rows show the shape. Betweenness at 100k nodes with 100 sampled sources in Chromium:
 kernel = 100 sources x 2 passes x 2M arcs x 0.5 ns = 200 ms, plus floor 9 ms, plus round
-boundaries 4 batches x 2 x 5 levels x 0.23 ms = 9.2 ms, plus syncs 9 x 2 ms = 18 ms, plus
-readback 1 ms = 237 ms against the CPU's 3,272 ms: 13.7x. At the pessimistic traversal rate of
+boundaries 4 batches x 2 x 5 levels x 0.23 ms = 9.2 ms, plus syncs 9 x 2 ms = 18 ms, plus 132
+dispatches x 10 us = 1.3 ms, plus readback 1 ms = 238 ms against the CPU's 3,272 ms: 13.7x. At the pessimistic traversal rate of
 2.45 ns/arc the kernel is 980 ms and the whole call 1.02 s: 3.2x. Minimum spanning tree at 100k
 in Chromium: floor 6.2 ms + 8 syncs x 2 ms + 7 rounds x (0.23 ms + 2 x 2M arcs x 0.045 ns) =
 2.9 ms + readback 1.0 ms = 26 ms against Kruskal's 276 ms: 10.4x.
@@ -97,7 +99,12 @@ that are not: resident BFS at 10k / 100k / 1M is modelled at 8.12 / 9.33 / 63.0 
 100 iterations at 100k / 1M at 12.9 / 72.8 ms against 10.4 resident / 70-82 derived; the
 1000 x 1000 grid BFS at 425 ms against 427 measured. Every reconciled figure is within 1.3x of
 its measured row except the 10k SpMV row in Node (1.9x, because the Node round trip at the
-working clock is 0.041 ms, not the 0.10 ms the model charges; Chromium is unaffected).
+working clock is 0.041 ms, not the 0.10 ms the model charges; Chromium is unaffected). Three of
+those agreements are partly by construction: the 100k and 1M traversal rates were solved from
+the 100k and 1M BFS rows, the SSSP rates from the SSSP rows and the per-level floor from the
+grid row. The independent checks are the 10k BFS row (which is what fixes the 7 ms floor) and
+the PageRank rows (whose SpMV fit came from the upload-subtracted benchmark rows, not from the
+resident measurement).
 
 Five constants have no measurement and are carried as brackets: the traversal rate at 100k
 (0.5 ns/arc from a 1.0 ms residual of a 9.2 ms row, so 2.45 ns/arc is the pessimistic end);
@@ -131,7 +138,8 @@ Numbers are Chromium on the RTX 4070 SUPER unless stated.
    (the plan's own risk RP-6 says so). Reinstate only with incremental support maintenance,
    at which point it inherits the triangle row.
 3. **Girvan-Newman on the GPU.** One edge-betweenness call per removed edge: 1M edges x 0.24 s
-   per 100-source call at 100k = 66 hours whatever the per-call speedup.
+   per 100-source call at 100k = 66 hours whatever the per-call speedup, and that is a floor:
+   Girvan-Newman needs exact edge betweenness, not 100 sampled sources.
 4. **The single-query algorithms of section 17** (A-star, bidirectional Dijkstra, DFS,
    topological order, Prim, max flow, hierarchical clustering): a 9-15 ms Chromium floor against
    CPU calls of microseconds to a few milliseconds. Section 17 already keeps them on the CPU;
@@ -147,7 +155,9 @@ Numbers are Chromium on the RTX 4070 SUPER unless stated.
 6. **k-core.** 0.82x at 100k against an indexed port (46 peel rounds x 0.23 ms = 10.6 ms of a
    28 ms call), 2.1-4.0x at 1M; the port is 25-30x over the shipped code on its own. Port first.
 7. **BFS as a routed single-source call.** 0.03x / 0.69x / 3.2x; 3x only near 900k; on the
-   1000 x 1000 grid the CPU is 7.4x (Node) to 12x (Chromium) faster (57 ms against 425 / 684 ms).
+   1000 x 1000 grid the CPU is 7.4x (Node) to 12x (Chromium) faster (57 ms against 425 / 684 ms;
+   the 57 ms is the 1M random-graph CPU rate of 14.3 ns/arc applied to the grid's 4M arcs, not a
+   measured grid row, and the Chromium 684 ms is modelled -- only the Node 427 ms is measured).
    It stays as the primitive under betweenness and closeness, where its 7-9 ms floor is paid
    once per hundred traversals.
 8. **SSSP near-far.** 0.11x / 1.4x / 6.7x; 3x from ~275k.
@@ -317,13 +327,19 @@ regenerated from that file alone.
   of the measured rows -- reconciled row by row; where they disagreed by more than 2x the row was
   recomputed from the underlying measurements with a verdict on which erred and why. The table
   above is its section 1; the routing floors are its section 5.
-- **`cpu-measurements.md`** (its header is dated 2026-09-26; the file was written 2026-09-25 at
-  20:54 local). Node v22.22.1 on the Intel i9-14900KF, one JavaScript thread of
-  `@graphty/algorithms`, seeded random graphs of n nodes and 10 n edges at n = 1,000 / 10,000 /
-  100,000 / 1,000,000, integer weights 1-100. Every time is the median of 5 runs (3 at 1M), and
-  every row records the 1-minute load average when it finished: 8.9 to 22 across the rows the
-  table uses (Louvain at 1M: 99 s, runs 99.1 / 127.6 / 81.7 s, load 12.8). Its raw log, raw JSON
-  and the benchmark script sit beside it.
+- **`cpu-measurements.md`** (its header is dated 2026-09-26 because `make-table.mjs` stamps the
+  UTC date; the file was written 2026-09-25 at 20:54 local). Node v22.22.1 on the Intel
+  i9-14900KF, one JavaScript thread of `@graphty/algorithms`, seeded random graphs of n nodes and
+  10 n edges at n = 1,000 / 10,000 / 100,000 / 1,000,000, integer weights 1-100. Every time is
+  the median of 5 runs (3 at 1M; 1 for Katz at 1M; HITS and label propagation at 1M were not run,
+  and their 1M CPU figures -- and so the 2,835x and 603x "vs shipped" figures above -- are
+  extrapolated from the 100k rows), and every row records the 1-minute load average when it
+  finished: 8.9 to 22 across the rows the table uses (Louvain at 1M: 99 s, runs 99.1 / 127.6 /
+  81.7 s, load 12.8). The runs of one row spread up to 2.8x under that load (BFS at 100k: 9.6 /
+  10.7 / 13.4 / 17.1 / 27.1 ms; triangles at 10k: 31.8-71.5 ms; sampled betweenness at 10k:
+  226-541 ms; PageRank converged at 1M: 0.92-1.67 s), so every crossover and speedup in the table
+  is a point estimate with roughly a 2x band around it, not a figure good to two digits. Its raw
+  log, raw JSON and the benchmark script sit beside it.
 - **`gpu-calibration.md`** (extracted 2026-09-25). Every GPU constant, read from:
   `webgpu-graph-algorithms/benchmarks/results/nvidia-lovelace-driver580.json` (the RTX 4070
   SUPER, Dawn architecture `lovelace`, driver 580.173.02, `webgpu` npm 0.4.0, Node v22.22.1;

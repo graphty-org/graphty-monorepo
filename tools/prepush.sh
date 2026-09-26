@@ -1,7 +1,11 @@
 #!/bin/bash
 # Pre-push validation script
-# Runs build, lint (including knip), the fast 'default'-project tests for every package
-# that has one, and graphty's full browser suite. No package is skipped.
+# Runs build, lint (including knip), the fast 'default'-project tests and graphty's full
+# browser suite -- for the packages this push AFFECTS only. "Affected" is nx's answer for
+# the commits since this branch left origin/master: a package whose files changed, and
+# every package that depends on one. CI still runs everything, so a package this push
+# cannot have changed is left to CI instead of costing every push its test time.
+# PREPUSH_ALL=1 runs every package.
 # This script avoids nx to work around git hook issues with nx daemon
 
 # Note: We don't use 'set -e' because we want to track all failures and report them at the end
@@ -48,19 +52,41 @@ run_step() {
     fi
 }
 
-# Build all packages (required for cross-package imports).
+# The affected projects, as nx names them. The base is where this branch left origin/master,
+# so commits other people landed on master since then do not count as this push's changes.
+if [ "${PREPUSH_ALL:-0}" = "1" ]; then
+    PROJECTS=$(NX_DAEMON=false pnpm exec nx show projects --json 2>/dev/null)
+else
+    BASE=$(git merge-base origin/master HEAD)
+    PROJECTS=$(NX_DAEMON=false pnpm exec nx show projects --affected --base="$BASE" --head=HEAD --json 2>/dev/null)
+fi
+PROJECT_LIST=$(echo "$PROJECTS" | tr -d '[]" ')
+affected() { echo ",$PROJECT_LIST," | grep -q ",$1,"; }
+# The same packages as directories (nx names remote-logger by its package name).
+DIR_LIST=$(echo "$PROJECT_LIST" | tr ',' ' ' | sed 's#@graphty/##g')
+
+if [ -z "$PROJECT_LIST" ]; then
+    echo -e "${GREEN}No package is affected by this push; nothing to check.${NC}"
+    exit 0
+fi
+echo "Affected packages: $PROJECT_LIST"
+echo ""
+
+# Build the affected packages (nx builds what they depend on first: build dependsOn ^build).
 # nx, not `pnpm -r run build`: for graph-format and layout the nx build TARGET is `npm run build:all`,
 # while their `build` SCRIPT is a plain tsc that never writes the bundled dist/<pkg>.d.ts the strict-consumer
 # compiles resolve through. On a clean tree the script form left those missing and the gate failed at Lint.
 # It is also what CI runs (.github/workflows/ci.yml), which is the parity CLAUDE.md asks for.
-run_step "Build" "pnpm exec nx run-many -t build --parallel=3"
+run_step "Build" "pnpm exec nx run-many -t build --projects=$PROJECT_LIST --parallel=3"
 
 # webgpu-graph-algorithms: its lint runs the strict-consumer compile against the d.ts shims that only
 # build:bundle writes (tsc emits none; the package has no root entry file), so bundle it before Lint
-run_step "Bundle webgpu-graph-algorithms" "(cd webgpu-graph-algorithms && npm run build:bundle)"
+if affected webgpu-graph-algorithms; then
+    run_step "Bundle webgpu-graph-algorithms" "(cd webgpu-graph-algorithms && npm run build:bundle)"
+fi
 
-# Lint all packages
-run_step "Lint" "pnpm -r run lint"
+# Lint the affected packages
+run_step "Lint" "NX_DAEMON=false pnpm exec nx run-many -t lint --projects=$PROJECT_LIST --parallel=3 --skip-nx-cache"
 
 # Run knip for dead code detection (blocks push if issues found)
 run_step "Knip (dead code detection)" "pnpm run lint:knip"
@@ -76,7 +102,7 @@ run_step "Knip (production dependencies)" "pnpm run lint:knip:prod"
 # no longer satisfies, a test or tool config file in the tarball. Source-level checks cannot see
 # any of these; `pupt` shipped in @graphty/algorithms for six releases, and graphty-element's
 # WebGPU peer fell four breaking releases behind. Needs the build above. About 3 seconds (2026-09-24).
-run_step "Published dependencies" "pnpm run check:published-deps"
+run_step "Published dependencies" "pnpm run check:published-deps -- $DIR_LIST"
 
 # Dead relative links and #anchors in the Markdown, MDX and HTML, and links to this repository's own
 # files on GitHub, resolved against the working tree. Offline: the network half of the check
@@ -94,30 +120,30 @@ echo -e "${YELLOW}> Fast tests${NC}"
 
 # graph-format - single project, all tests are fast (node, no browser)
 echo "  Testing graph-format..."
-(cd graph-format && npm run test:run) || { FAILED=1; TESTS_FAILED=1; }
+affected graph-format && { (cd graph-format && npm run test:run) || { FAILED=1; TESTS_FAILED=1; }; }
 
 # graph-io - single project, all tests are fast (node, no browser); needs graph-format/dist (built above)
 echo "  Testing graph-io..."
-(cd graph-io && npm run test:run) || { FAILED=1; TESTS_FAILED=1; }
+affected graph-io && { (cd graph-io && npm run test:run) || { FAILED=1; TESTS_FAILED=1; }; }
 
 # graph-samples - single project, all tests are fast (node, no browser); needs graph-format/dist (built above)
 echo "  Testing graph-samples..."
-(cd graph-samples && npm run test:run) || { FAILED=1; TESTS_FAILED=1; }
+affected graph-samples && { (cd graph-samples && npm run test:run) || { FAILED=1; TESTS_FAILED=1; }; }
 
 # webgpu-graph-algorithms - the node project only (design 12.5): Dawn on the local adapter -- NVIDIA when
 # LD_LIBRARY_PATH carries the libEGL tree (package CLAUDE.md), else Mesa lavapipe (about 5 minutes); the
 # browser project and the no-subgroups pass run in CI. GRAPHTY_GPU_REQUIRE=any: a machine with no adapter
 # fails up front instead of skipping every GPU test and reporting a vacuous pass
 echo "  Testing webgpu-graph-algorithms..."
-(cd webgpu-graph-algorithms && GRAPHTY_GPU_REQUIRE=any npm run test:run) || { FAILED=1; TESTS_FAILED=1; }
+affected webgpu-graph-algorithms && { (cd webgpu-graph-algorithms && GRAPHTY_GPU_REQUIRE=any npm run test:run) || { FAILED=1; TESTS_FAILED=1; }; }
 
 # algorithms - has test:run that runs --project=default
 echo "  Testing algorithms..."
-(cd algorithms && npm run test:run) || { FAILED=1; TESTS_FAILED=1; }
+affected algorithms && { (cd algorithms && npm run test:run) || { FAILED=1; TESTS_FAILED=1; }; }
 
 # layout - single project, all tests are fast
 echo "  Testing layout..."
-(cd layout && npm run test:run) || { FAILED=1; TESTS_FAILED=1; }
+affected layout && { (cd layout && npm run test:run) || { FAILED=1; TESTS_FAILED=1; }; }
 
 # graphty-element - four projects: default, mesh, contract and xr. The browser, interactions,
 # storybook and llm-regression projects stay in CI.
@@ -151,7 +177,7 @@ echo "  Testing layout..."
 # five and four shards absorb them. The contract lane is the cheap substitute: same class of defect,
 # a twentieth of the time.
 echo "  Testing graphty-element (default + mesh + contract + xr)..."
-(cd graphty-element && npm run test:prepush) || { FAILED=1; TESTS_FAILED=1; }
+affected graphty-element && { (cd graphty-element && npm run test:prepush) || { FAILED=1; TESTS_FAILED=1; }; }
 
 # The cost-estimate stopwatch test is NOT part of this gate: run it by hand on a quiet machine with
 # `pnpm --filter @graphty/graphty-element run test:cost`. Its rates were fitted on this reference
@@ -165,11 +191,11 @@ echo "  Testing graphty-element (default + mesh + contract + xr)..."
 
 # remote-logger - has multiple projects, run default and ui-unit
 echo "  Testing remote-logger..."
-(cd remote-logger && npm run test:run -- --project=default --project=ui-unit) || { FAILED=1; TESTS_FAILED=1; }
+affected @graphty/remote-logger && { (cd remote-logger && npm run test:run -- --project=default --project=ui-unit) || { FAILED=1; TESTS_FAILED=1; }; }
 
 # compact-mantine - run only default project
 echo "  Testing compact-mantine..."
-(cd compact-mantine && npm run test:run -- --project=default) || { FAILED=1; TESTS_FAILED=1; }
+affected compact-mantine && { (cd compact-mantine && npm run test:run -- --project=default) || { FAILED=1; TESTS_FAILED=1; }; }
 
 if [ $TESTS_FAILED -eq 0 ]; then
     echo -e "${GREEN}[PASS] Fast tests passed${NC}"
@@ -195,7 +221,9 @@ echo ""
 # Its own flag, per the rule at the top of this file: graphty must not be graded by the
 # fast-test block's failures, nor its failures reported against them.
 echo -e "${YELLOW}> graphty tests (full browser suite)${NC}"
-(cd graphty && npm run test:run) || { FAILED=1; GRAPHTY_FAILED=1; }
+if affected graphty; then
+    (cd graphty && npm run test:run) || { FAILED=1; GRAPHTY_FAILED=1; }
+fi
 
 if [ $GRAPHTY_FAILED -eq 0 ]; then
     echo -e "${GREEN}[PASS] graphty tests passed${NC}"

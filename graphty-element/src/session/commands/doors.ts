@@ -70,7 +70,7 @@ export const PHASES = [
 type PlanPhase = (typeof PHASES)[number];
 
 /** The phase this branch has reached. Each phase's commit raises it. */
-export const PLAN_PHASE: PlanPhase = "7";
+export const PLAN_PHASE: PlanPhase = "8";
 
 /** How the doors tests call a door. */
 export type DoorCall =
@@ -164,6 +164,16 @@ function gapSet(phase: PlanPhase, op: string, value: unknown): Door {
  */
 function calls(args: readonly unknown[], expect: readonly SessionCommand[]): Door {
     return { kind: "dispatches", op: expect[0]?.op ?? "", call: { kind: "call", args }, expect };
+}
+
+/**
+ * A property door that dispatches, called by assignment.
+ * @param value - The value to assign.
+ * @param expect - The commands the assignment must dispatch, in order; the first names its op.
+ * @returns The door.
+ */
+function assigns(value: unknown, expect: readonly SessionCommand[]): Door {
+    return { kind: "dispatches", op: expect[0]?.op ?? "", call: { kind: "set", value }, expect };
 }
 
 /**
@@ -294,9 +304,12 @@ const VISIBILITY_API: Readonly<Record<string, Door>> = {
     summary: READ,
     filter: READ,
     window: READ,
-    set: gap("8", "visibility.set", [{ kind: "degree", min: 1 }]),
-    setWindow: gap("8", "visibility.window", [{ attribute: "data.t", from: 0, to: 1 }]),
-    showContext: gapSet("8", "visibility.context", true),
+    set: calls([{ kind: "degree", min: 1 }], [{ op: "visibility.set", filter: { kind: "degree", min: 1 } }]),
+    setWindow: calls(
+        [{ attribute: "data.t", from: 0, to: 1 }],
+        [{ op: "visibility.window", window: { attribute: "data.t", from: 0, to: 1 } }],
+    ),
+    showContext: assigns(true, [{ op: "visibility.context", show: true }]),
 };
 
 /** A layer the style doors add. */
@@ -803,6 +816,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             addNodes: gap("12", "data.apply", [[{ id: "door-d" }]]),
             getNode: READ,
             removeNodeAndIncidentEdges: gap("13", "data.apply", ["n2"]),
+            noteAttributesChanged: escape("12"),
             addEdge: gap("12", "data.apply", [{ src: "n1", dst: "n3" }]),
             addEdges: gap("12", "data.apply", [[{ src: "n3", dst: "n2" }]]),
             getEdge: READ,

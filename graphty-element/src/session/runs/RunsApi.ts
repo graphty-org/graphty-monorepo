@@ -190,8 +190,13 @@ export interface RunsApiOptions {
     readonly onChange?: (change: RunChange) => void;
 }
 
-/** The runs API, plus the two things a session needs and a consumer never calls. */
+/** The runs API, plus the things a session needs and a consumer never calls. */
 export interface SessionRunsApi extends RunsApi {
+    /**
+     * Moves whenever a run is removed or publishes a result: what a reader of `results.*` keys a
+     * cache on (a visibility mask copy).
+     */
+    readonly revision: number;
     /**
      * Whether the element minted this run's id rather than the author naming it with `as:`.
      *
@@ -389,6 +394,9 @@ class Runs implements SessionRunsApi {
 
     private disposed = false;
 
+    /** See {@link SessionRunsApi.revision}. */
+    private revisionValue = 0;
+
     /**
      * Build the runs API.
      * @param options - The queue, the catalogue, the scope resolver and the thing that does the
@@ -552,6 +560,7 @@ class Runs implements SessionRunsApi {
         if (run !== undefined) {
             run.cancel(`Run "${id}" was removed.`);
             this.runs.delete(id);
+            this.revisionValue++;
             this.identities.delete(id);
             this.derivedIds.delete(id);
             // The layers this run painted went with it, so starting the same work again is a
@@ -564,6 +573,14 @@ class Runs implements SessionRunsApi {
         }
 
         return Object.freeze({ removedLayers: layerIds.length, layerIds });
+    }
+
+    /**
+     * Moves whenever a run is removed or publishes a result.
+     * @returns The revision.
+     */
+    get revision(): number {
+        return this.revisionValue;
     }
 
     /**
@@ -605,6 +622,7 @@ class Runs implements SessionRunsApi {
 
         this.batches.clear();
         this.runs.clear();
+        this.revisionValue++;
         this.identities.clear();
         this.derivedIds.clear();
     }
@@ -663,6 +681,10 @@ class Runs implements SessionRunsApi {
             resolveScope: () => this.options.resolveScope(spec),
             enqueue: (body) => (policy === "now" ? enqueueBesideQueue(body, id) : this.enqueueOnQueue(id, body)),
             notify: (phase) => {
+                if (phase === "end") {
+                    this.revisionValue++;
+                }
+
                 this.announce(run, phase);
 
                 if (phase === "end") {

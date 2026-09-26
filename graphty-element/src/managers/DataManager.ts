@@ -1311,6 +1311,14 @@ export class DataManager implements Manager {
     }
 
     /**
+     * Say that node or edge attributes were written in place, so every reader keyed on the
+     * snapshot (the visibility masks, a filter's mask copy) sees a new graph and asks again.
+     */
+    noteAttributesChanged(): void {
+        this.store.touch();
+    }
+
+    /**
      * Removes an edge from the graph
      * @param edgeId - Edge identifier to remove
      * @returns True if the edge was removed, false if not found

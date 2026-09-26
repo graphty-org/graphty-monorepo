@@ -7,7 +7,7 @@
  * The session runs on a fake clock and a fake queue (`./fakes.ts`), so fast-check decides when
  * time passes and when every scheduled promise settles, and a failure replays from its seed. The
  * model grows with every op a phase ports (design/undo/undo-plan.md, "How to read this plan",
- * rule 3); today it covers the style ops.
+ * rule 3); today it covers the style and visibility ops.
  *
  * Checked around every action: before it, the live state digest equals the digest recorded for
  * the current position, so a change that records no step fails at the next action; after every
@@ -43,6 +43,8 @@ const COALESCE_MS = 1000;
 interface Model {
     /** The state digest sealed for each history position; index 0 is the baseline. */
     digests: string[];
+    /** The visible node and edge ids at each history position. */
+    visible: string[];
     position: number;
     /** The coalesce key of the top step, while the next edit could still merge into it. */
     mergeKey: string | null;
@@ -67,6 +69,16 @@ type Command = fc.AsyncCommand<Model, Real>;
  */
 function live(real: Real): string {
     return stateDigest(dispatcherOf(real.session).state);
+}
+
+/**
+ * The visible ids, once the masks have caught up.
+ * @param real - The system.
+ * @returns Their canonical text.
+ */
+function shown(real: Real): string {
+    const { visibility } = real.session;
+    return JSON.stringify([[...visibility.nodes].map(String).sort(), [...visibility.edges].map(String).sort()]);
 }
 
 /**
@@ -136,6 +148,7 @@ async function edit(model: Model, real: Real, label: string, key: string | null,
         assert.isFalse(refused, `${label} was refused and recorded a step`);
         assert.lengthOf(history.steps, model.position + 1, `${label}: recording empties the redo tail`);
         model.digests = [...model.digests.slice(0, model.position + 1), live(real)];
+        model.visible = [...model.visible.slice(0, model.position + 1), shown(real)];
         model.position++;
         model.mergeKey = key;
         model.lastAt = now;
@@ -148,6 +161,7 @@ async function edit(model: Model, real: Real, label: string, key: string | null,
     const merges = !refused && key !== null && model.mergeable && model.mergeKey === key && now - model.lastAt < COALESCE_MS;
     if (merges) {
         model.digests[model.position] = live(real);
+        model.visible[model.position] = shown(real);
         model.lastAt = now;
     } else {
         expectSealed(model, real, `${label} recorded nothing, so it changed nothing`);
@@ -195,6 +209,7 @@ class Move implements Command {
         expectSealed(model, real, `before ${this.toString()}`);
         const { session } = real;
         const last = model.digests.length - 1;
+        const from = model.position;
         switch (this.kind) {
             case "undo": {
                 const outcome = await session.undo();
@@ -223,9 +238,15 @@ class Move implements Command {
             }
         }
 
-        model.mergeable = false;
+        // A move that did nothing (a redo at the end, an undo at the start) leaves the top step
+        // open to a merge; one that moved the cursor closes it.
+        if (model.position !== from) {
+            model.mergeable = false;
+        }
+
         assert.strictEqual(session.history.position, model.position, `${this.toString()} moved the cursor`);
         expectSealed(model, real, `after ${this.toString()}`);
+        assert.strictEqual(shown(real), model.visible[model.position], `after ${this.toString()}: the visible ids`);
     }
 
     toString(): string {
@@ -300,6 +321,7 @@ class Clear implements Command {
         expectSealed(model, real, "before clear");
         real.session.history.clear();
         model.digests = [live(real)];
+        model.visible = [shown(real)];
         model.position = 0;
         model.mergeable = false;
         assert.isFalse(real.session.canUndo);
@@ -370,6 +392,30 @@ const COMMANDS = [
     fc.tuple(fc.array(color, { minLength: 1, maxLength: 3 }), fc.boolean()).map(
         ([colors, throws]) => new Transaction(colors, throws),
     ),
+    fc.option(fc.nat({ max: 3 })).map(
+        (min) =>
+            new Edit(`filter degree >= ${String(min)}`, (real) => ({
+                key: "filter",
+                run: () => real.session.visibility.set(min === null ? null : { kind: "degree", min }),
+            })),
+    ),
+    fc.option(fc.nat({ max: 3 })).map(
+        (to) =>
+            new Edit(`window to ${String(to)}`, (real) => ({
+                key: "window",
+                run: () => real.session.visibility.setWindow(to === null ? null : { attribute: "data.t", from: 0, to: to + 1 }),
+            })),
+    ),
+    fc.boolean().map(
+        (show) =>
+            new Edit(`context ${String(show)}`, (real) => ({
+                key: null,
+                run: async () => {
+                    real.session.visibility.showContext = show;
+                    await real.session.styles.settled();
+                },
+            })),
+    ),
     fc.constant(new Move("undo")),
     fc.constant(new Move("redo")),
     fc.constant(new Move("undo-twice")),
@@ -396,7 +442,14 @@ async function runSeed(seed: number, numRuns: number): Promise<void> {
                     await session.runs.start("degree", {}, { as: "deg", style: false });
                     await session.runs.start("shortest-path", { source: "n1", target: "n3" }, { as: "route", style: false });
                     real = { session, clock };
-                    model = { digests: [live(real)], position: 0, mergeKey: null, lastAt: 0, mergeable: false };
+                    model = {
+                        digests: [live(real)],
+                        visible: [shown(real)],
+                        position: 0,
+                        mergeKey: null,
+                        lastAt: 0,
+                        mergeable: false,
+                    };
                     return { model, real };
                 },
                 commands,
@@ -419,7 +472,7 @@ async function runSeed(seed: number, numRuns: number): Promise<void> {
     );
 }
 
-describe("random sequences of style edits and history moves", () => {
+describe("random sequences of style and visibility edits and history moves", () => {
     const only = process.env.FC_SEED;
     for (const seed of only === undefined ? SEEDS : [Number(only)]) {
         it(`holds for seed ${String(seed)}`, () => runSeed(seed, NUM_RUNS), SEED_TIMEOUT_MS);

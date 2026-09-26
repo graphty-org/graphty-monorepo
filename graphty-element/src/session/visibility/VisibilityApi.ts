@@ -38,16 +38,25 @@
  * setting this same window and summarising what it left visible, and playback is a cursor over
  * that list calling `setWindow` per step. Nothing about the masks needs to change for either.
  *
+ * THE FILTER, THE WINDOW AND THE CONTEXT FLAG ARE PROJECT STATE; THE MASKS ARE NOT. The three
+ * values live in the session's `visibility` slice and change only through the `visibility.*`
+ * commands, so each change is one undoable step. The masks are derived from them and the graph,
+ * and are brought up to date on the derivation lane or on the next read, whichever is first.
+ * Undoing to a filter step whose masks were kept (a mask copy) puts the kept bytes back instead of
+ * evaluating the filter again. See design/undo/undo-design.md section 3.4.
+ *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
+import { type GraphSnapshot, INVALID_INDEX, type U8 } from "@graphty/graph-format";
 
 import type { EdgeId, FieldDescriptor, NodeId, Path, Scope } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
+import { VISIBILITY_DEFINITIONS, type VisibilityCommand } from "../commands/visibility";
+import { Dispatcher } from "../project/Dispatcher";
+import type { VisibilityState } from "../project/state";
 import {
     type Caveats,
-    createLocalRunQueue,
     deriveRunId,
     ENGINE_VERSIONS,
     type EngineVersions,
@@ -57,12 +66,10 @@ import {
     type RunBody,
     type RunDefinition,
     type RunOptions,
-    type RunQueue,
+    type RunQueueContext,
     type RunSurroundings,
     type RunTicket,
 } from "../runs";
-// The explicit `/index` matters: `src/session/scope.ts` still exists beside the directory and
-// wins a bare `../scope`. It goes when the resolver behind it is retired.
 import {
     edgeSpaceOf,
     ElementMask,
@@ -71,13 +78,16 @@ import {
     nodeSpaceOf,
     type ScopeVisibilitySource,
 } from "../scope/index";
+// The explicit `/index` matters: `src/session/scope.ts` still exists beside the directory and
+// wins a bare `../scope`. It goes when the resolver behind it is retired.
+import type { HistoryCause } from "../types";
 import {
+    assertEvaluable,
     assertVisibility,
     compileVisibility,
     type Filter,
     type FilterSources,
     runPass,
-    runPassInSlices,
     type TimeWindow,
 } from "./filter";
 
@@ -141,6 +151,8 @@ export interface FilterResult {
 export interface VisibilityChange extends FilterResult {
     /** What produced this change. */
     readonly filterKind: string;
+    /** Whether an edit, an undo, a redo, a restore or a rolled-back transaction made it. */
+    readonly cause: HistoryCause;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -196,17 +208,20 @@ export interface VisibilityApi {
     /**
      * Apply a filter, or clear it with null.
      *
-     * A `Run`, so a filter over a large graph reports progress and can be cancelled. Starting one
-     * CANCELS whatever visibility pass is already in flight: dragging a slider must not leave
-     * five walks queued behind each other, and only the latest instruction's answer matters. A
-     * cancelled pass changes nothing at all -- the masks are written in one step at the end.
+     * One undoable step: the filter is recorded at once (`filter` reads it as soon as this
+     * returns), and the masks are evaluated on the next pass against whatever filter is in force
+     * then, so a slider dragged through sixty values evaluates the last one, not all sixty, and
+     * the drag is one step. The run settles once that pass has run, with the counts it left.
+     *
+     * A signal already aborted when this is called writes nothing. A `cancel()` or an abort after
+     * the call does NOT take the filter back -- it has been recorded, and may have merged into a
+     * larger step -- so `session.undo()` is the way back.
      *
      * The time window is untouched. The two compose.
      *
-     * Of the run options, `signal` and `onProgress` are honoured; `queue` is not, because the
-     * coalescing above decides the order instead, and `dryRun` is REFUSED rather than ignored --
-     * `plan({ op: "visibility.set", filter })` is the call that answers "what would this leave
-     * showing" without doing it.
+     * Of the run options, `signal` and `onProgress` are honoured; `queue` is not, and `dryRun` is
+     * REFUSED rather than ignored -- `plan({ op: "visibility.set", filter })` is the call that
+     * answers "what would this leave showing" without doing it.
      * @param filter - What to keep, or null to stop filtering.
      * @param options - A signal to cancel with, and a progress handler.
      * @returns The run, which resolves with the counts.
@@ -214,7 +229,8 @@ export interface VisibilityApi {
      */
     set(filter: Filter | null, options?: RunOptions): Run<FilterResult>;
     /**
-     * Apply a time window, or clear it with null.
+     * Apply a time window, or clear it with null: one undoable step, on the same terms as
+     * {@link VisibilityApi.set}.
      *
      * The SAME masks as {@link VisibilityApi.set}, produced the same way, composed with whatever
      * filter is in force. Moving the window never re-layouts, rebuilds or removes data, which is
@@ -233,7 +249,8 @@ export interface VisibilityApi {
      * hid. The flag is owned here because it is part of what "visible" means to a consumer, and
      * it is honoured by the renderer, which draws the hidden nodes as a low-alpha point layer.
      * Turning it on changes NOTHING about the masks: a context node is still hidden, still
-     * outside every run's default scope, and still absent from `nodes`.
+     * outside every run's default scope, and still absent from `nodes`. Changing it is one
+     * undoable step.
      */
     showContext: boolean;
 }
@@ -247,7 +264,10 @@ export interface VisibilityApi {
  * anything.
  */
 export interface SessionVisibilityApi extends VisibilityApi {
-    /** The live masks, for the scope resolver. */
+    /**
+     * The masks, for the scope resolver and the renderer: read-only copies carrying the live
+     * masks' `version`, one per membership, so nothing holding one can change what is visible.
+     */
     readonly masks: ScopeVisibilitySource;
 }
 
@@ -264,11 +284,16 @@ export interface VisibilitySources extends FilterSources {
      */
     snapshot(): GraphSnapshot;
     /**
-     * The queue a pass takes its turn in. Absent builds a sequential one of its own, which is
-     * right for a headless session and wrong for a rendered graph -- a rendered graph hands in
-     * the element's own operation queue so that a filter does not interleave with a load.
+     * The dispatcher whose `visibility` slice holds the filter, the window and the context flag.
+     * Absent, the model makes one of its own.
      */
-    readonly queue?: RunQueue;
+    readonly dispatcher?: Dispatcher;
+    /**
+     * A counter over everything a filter reads besides the graph (the run results its `results.*`
+     * paths name), which a mask copy is tagged with. Absent reads as never moving.
+     * @returns The revision.
+     */
+    readonly inputsRevision?: () => number;
     /**
      * Resolve a scope specification, so a pass can record what it looked at.
      *
@@ -281,7 +306,9 @@ export interface VisibilitySources extends FilterSources {
     /** Which versions are producing the numbers. Defaults to the element's own. */
     readonly engine?: EngineVersions;
     /**
-     * Called whenever what is visible changes, so a host can mirror it onto an event.
+     * Called whenever what is visible changes, so a host can mirror it onto an event: once the
+     * pass deriving the change has run, one call per edit, and one per step an undo, a redo or a
+     * restore passes.
      *
      * One hook for every producer -- a filter, a window and the context flag all arrive here --
      * because a status bar reading "showing X of Y" has to update for all three and must not
@@ -295,7 +322,7 @@ export interface VisibilitySources extends FilterSources {
 // Internals
 // ---------------------------------------------------------------------------------------------
 
-/** The name a visibility pass runs under, which is also the command that performs it. */
+/** The name a visibility edit's run carries, which is also the command that performs it. */
 const VISIBILITY_ALGORITHM = "visibility.set";
 
 /**
@@ -309,11 +336,21 @@ const WHOLE_GRAPH: Scope = "graph";
 /** No paths went unanswered. */
 const NO_PATHS: readonly Path[] = Object.freeze([]);
 
-/** A visibility pass publishes no per-element field: the mask is not a result bag. */
+/** A visibility edit publishes no per-element field: the mask is not a result bag. */
 const NO_FIELDS: readonly FieldDescriptor[] = Object.freeze([]);
 
 /** Nothing further qualifies a pass's numbers. */
 const NO_NOTES: readonly string[] = Object.freeze([]);
+
+/** What an edit's run is handed in place of a queue slot: it is never stopped. */
+const IMMEDIATE: RunQueueContext = {
+    signal: new AbortController().signal,
+    progress: { setProgress: () => undefined, setMessage: () => undefined, setPhase: () => undefined },
+    id: "visibility-edit",
+};
+
+/** An edit's run has nothing on a queue to cancel. */
+const NO_TICKET: RunTicket = { cancel: () => undefined };
 
 /** The snapshot, and the two identity spaces every mask over it reads ids through. */
 interface VisibilityFrame {
@@ -323,6 +360,37 @@ interface VisibilityFrame {
     readonly nodeSpace: MaskIdSpace<NodeId>;
     /** The edge identity space, one object for the life of the frame. */
     readonly edgeSpace: MaskIdSpace<EdgeId>;
+}
+
+/**
+ * Everything the masks are a function of. Two equal tags mean equal masks, which is what lets a
+ * mask copy stand in for an evaluation.
+ */
+interface MaskTag {
+    /** The snapshot: every data write makes a new one. */
+    readonly graph: GraphSnapshot;
+    readonly filter: Filter | null;
+    readonly window: TimeWindow | null;
+    /** The revision of the run results a filter reads; 0 when nothing is filtering. */
+    readonly inputs: number;
+}
+
+/** One filter step's after-masks, kept on the step so undoing or redoing to it needs no walk. */
+interface MaskCopy {
+    readonly tag: MaskTag;
+    readonly nodes: U8;
+    readonly edges: U8;
+    readonly unresolved: readonly Path[];
+}
+
+/**
+ * Whether two tags name the same masks.
+ * @param a - A tag.
+ * @param b - Another.
+ * @returns True when every input is identical.
+ */
+function sameTag(a: MaskTag, b: MaskTag): boolean {
+    return a.graph === b.graph && a.filter === b.filter && a.window === b.window && a.inputs === b.inputs;
 }
 
 /**
@@ -360,9 +428,9 @@ function sealedSet<TId>(values: readonly TId[]): ReadonlySet<TId> {
 }
 
 /**
- * What to call a pass, in the queue and on the run.
- * @param filter - The filter it applies, or null.
- * @param window - The window it applies, or null.
+ * What to call an edit, on its run.
+ * @param filter - The filter it leaves in force, or null.
+ * @param window - The window it leaves in force, or null.
  * @returns The label.
  */
 function labelFor(filter: Filter | null, window: TimeWindow | null): string {
@@ -378,9 +446,9 @@ function labelFor(filter: Filter | null, window: TimeWindow | null): string {
 }
 
 /**
- * What qualifies a pass's numbers.
- * @param filter - The filter it applies, or null.
- * @param window - The window it applies, or null.
+ * What qualifies an edit's numbers.
+ * @param filter - The filter it leaves in force, or null.
+ * @param window - The window it leaves in force, or null.
  * @returns The caveats.
  */
 function caveatsFor(filter: Filter | null, window: TimeWindow | null): Caveats {
@@ -399,6 +467,25 @@ function caveatsFor(filter: Filter | null, window: TimeWindow | null): Caveats {
     return Object.freeze(caveats);
 }
 
+/**
+ * What produced a change of the slice, as an announcement names it.
+ * @param was - The slice before.
+ * @param now - The slice after.
+ * @param otherwise - The answer when none of the three moved.
+ * @returns The filter's kind, "window", "context" or "none".
+ */
+function kindOf(was: VisibilityState, now: VisibilityState, otherwise: string): string {
+    if (was.filter !== now.filter) {
+        return now.filter?.kind ?? "none";
+    }
+
+    if (was.window !== now.window) {
+        return now.window === null ? "none" : "window";
+    }
+
+    return was.showContext === now.showContext ? otherwise : "context";
+}
+
 // ---------------------------------------------------------------------------------------------
 // The model
 // ---------------------------------------------------------------------------------------------
@@ -410,20 +497,21 @@ function caveatsFor(filter: Filter | null, window: TimeWindow | null): Caveats {
  * what makes the mask version a usable cache key for everything downstream: a new mask object
  * would start its revision at zero, and a reader keyed on it could not tell a fresh empty mask
  * from the one it had already seen.
- * @param sources - The snapshot, the queue, and the capabilities a filter needs.
+ * @param sources - The snapshot, the dispatcher, and the capabilities a filter needs.
  * @returns The visibility model, including the masks the scope resolver reads.
  */
 export function createVisibilityApi(sources: VisibilitySources): SessionVisibilityApi {
-    const queue = sources.queue ?? createLocalRunQueue();
     const engine = sources.engine ?? ENGINE_VERSIONS;
+    const dispatcher = sources.dispatcher ?? new Dispatcher({ definitions: VISIBILITY_DEFINITIONS });
+    const { history } = dispatcher;
 
     let frame: VisibilityFrame | null = null;
-    let evaluated: GraphSnapshot | null = null;
-    let filterValue: Filter | null = null;
-    let windowValue: TimeWindow | null = null;
-    let showContextValue = false;
+    /** What the live pair holds, and the step whose after-masks those are. */
+    let shown: (MaskTag & { readonly step: string | null }) | null = null;
     let unresolvedValue: readonly Path[] = NO_PATHS;
-    let pending: ManagedRun<FilterResult> | null = null;
+    /** What the last pass changed, and how long its walk took: what an announcement reports. */
+    let lastKind = "none";
+    let lastDurationMs = 0;
 
     /**
      * The frame to answer from, rebuilt when the snapshot moves.
@@ -454,16 +542,18 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     let cachedScopeGraph: GraphSnapshot | null = null;
 
     /**
-     * Write the whole membership into the masks from the stored filter and window.
+     * Write the whole membership into the masks from a filter and a window.
      * @param graph - The snapshot to evaluate against.
+     * @param filter - The filter, or null.
+     * @param window - The window, or null.
      */
-    const evaluate = (graph: GraphSnapshot): void => {
+    const evaluate = (graph: GraphSnapshot, filter: Filter | null, window: TimeWindow | null): void => {
         nodeMaskValue.grow(graph.nodeCount);
         edgeMaskValue.grow(graph.edgeCount);
         nodeMaskValue.clear();
         edgeMaskValue.clear();
 
-        if (filterValue === null && windowValue === null) {
+        if (filter === null && window === null) {
             nodeMaskValue.fill();
             edgeMaskValue.fill();
             unresolvedValue = NO_PATHS;
@@ -471,29 +561,119 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             return;
         }
 
-        const compiled = compileVisibility(graph, filterValue, windowValue, sources);
+        const compiled = compileVisibility(graph, filter, window, sources);
         runPass({ compiled, edges: edgeMaskValue, graph, nodes: nodeMaskValue });
         unresolvedValue = compiled.unresolvedPaths();
     };
 
     /**
-     * Make the masks describe the graph as it now stands, re-applying the stored filter when it
-     * has moved.
-     *
-     * Synchronous, and deliberately so. Every reader here -- a status bar, the scope resolver, a
-     * run about to resolve its scope -- needs the answer for the current graph, and none of them
-     * can await. The walk is the same one a pass does, without the slicing.
+     * The revision of what a filter and a window read besides the graph.
+     * @param filter - The filter, or null.
+     * @param window - The window, or null.
+     * @returns The revision; 0 when nothing is filtering, which reads nothing.
+     */
+    const inputsFor = (filter: Filter | null, window: TimeWindow | null): number =>
+        filter === null && window === null ? 0 : (sources.inputsRevision?.() ?? 0);
+
+    /**
+     * The tag of the masks the slice and the graph call for now.
+     * @returns The tag.
+     */
+    const wantedTag = (): MaskTag => {
+        const { filter, window } = dispatcher.state.visibility;
+
+        return { graph: currentFrame().graph, filter, window, inputs: inputsFor(filter, window) };
+    };
+
+    /**
+     * The nearest done step that changed the visibility slice: the step whose after-masks the
+     * masks are once they are up to date.
+     * @returns Its id, or null when no done step changed it.
+     */
+    const ownerStep = (): string | null => {
+        const { steps, position } = history;
+        for (let index = position - 1; index >= 0; index--) {
+            if (steps[index].slices.includes("visibility")) {
+                return steps[index].id;
+            }
+        }
+
+        return null;
+    };
+
+    /**
+     * Keep the live pair on the step whose after-masks it holds, unless that step already keeps
+     * these. Taken only when the pair is about to be rewritten for another step, so a drag
+     * merging into one step sixty times copies nothing until it is over.
+     * @param held - What the pair holds.
+     */
+    const keepCopy = (held: MaskTag & { readonly step: string }): void => {
+        const kept = history.cacheOf(held.step) as MaskCopy | undefined;
+        if (kept !== undefined && sameTag(kept.tag, held)) {
+            return;
+        }
+
+        const copy: MaskCopy = {
+            tag: { graph: held.graph, filter: held.filter, window: held.window, inputs: held.inputs },
+            nodes: nodeMaskValue.bytes(),
+            edges: edgeMaskValue.bytes(),
+            unresolved: unresolvedValue,
+        };
+        history.setCache(held.step, copy, copy.nodes.byteLength + copy.edges.byteLength);
+    };
+
+    /**
+     * Make the masks describe the slice and the graph as they now stand: from the owning step's
+     * mask copy when its tag matches, by evaluating the filter otherwise. What the `visibility`
+     * hook runs.
      * @returns The frame the masks now describe.
      */
     const sync = (): VisibilityFrame => {
         const active = currentFrame();
-
-        if (evaluated !== active.graph) {
-            evaluated = active.graph;
-            evaluate(active.graph);
+        const tag = wantedTag();
+        if (shown !== null && sameTag(shown, tag)) {
+            return active;
         }
 
+        const step = ownerStep();
+        if (shown !== null && shown.step !== null && shown.step !== step) {
+            keepCopy({ ...shown, step: shown.step });
+        }
+
+        const kept = step === null ? undefined : (history.cacheOf(step) as MaskCopy | undefined);
+        if (kept !== undefined && sameTag(kept.tag, tag)) {
+            nodeMaskValue.load(kept.nodes);
+            edgeMaskValue.load(kept.edges);
+            unresolvedValue = kept.unresolved;
+        } else {
+            const startedAt = performance.now();
+            evaluate(active.graph, tag.filter, tag.window);
+            lastDurationMs = Math.round(performance.now() - startedAt);
+        }
+
+        shown = { ...tag, step };
+
         return active;
+    };
+
+    /**
+     * The masks as a reader gets them: brought up to date at once when the graph, or the results
+     * a filter reads, moved underneath them, because a mask kept across a data change hides
+     * nodes that no longer exist. A change of the slice itself waits for its pass, so a filter
+     * superseded before then is never evaluated, even when something reads in between.
+     *
+     * Synchronous, and deliberately so. Every reader here -- a status bar, the scope resolver, a
+     * run about to resolve its scope -- needs the answer for the current graph, and none of them
+     * can await.
+     * @returns The frame the masks describe.
+     */
+    const upToDate = (): VisibilityFrame => {
+        const active = currentFrame();
+        if (shown !== null && shown.graph === active.graph && shown.inputs === inputsFor(shown.filter, shown.window)) {
+            return active;
+        }
+
+        return sync();
     };
 
     /**
@@ -501,7 +681,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      * @returns The summary.
      */
     const summaryOf = (): VisibilitySummary => {
-        const active = sync();
+        const active = upToDate();
         const key = `${nodeMaskValue.version}:${edgeMaskValue.version}:${active.graph.nodeCount}:${active.graph.edgeCount}`;
 
         if (cachedSummary === null || cachedSummaryKey !== key) {
@@ -518,7 +698,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     };
 
     /**
-     * What a pass looked at, which is always the whole graph.
+     * What an edit looked at, which is always the whole graph.
      *
      * A filter has to be evaluated over everything it could possibly show, not over what is
      * showing now; a filter resolved against the visible set could only ever hide, and widening
@@ -564,126 +744,96 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     };
 
     /**
-     * The counts, the unresolved paths and the duration, as a pass reports them.
-     * @param durationMs - How long the pass took.
+     * The counts, the unresolved paths and the duration of the last walk.
      * @returns The result.
      */
-    const resultOf = (durationMs: number): FilterResult => {
+    const resultOf = (): FilterResult => {
         const summary = summaryOf();
 
         return Object.freeze({
-            durationMs,
+            durationMs: lastDurationMs,
             total: Object.freeze({ edges: summary.totalEdges, nodes: summary.totalNodes }),
             unresolvedPaths: unresolvedValue,
             visible: Object.freeze({ edges: summary.visibleEdges, nodes: summary.visibleNodes }),
         });
     };
 
-    /**
-     * Tell whoever is listening that what is visible has changed.
-     * @param result - The counts the change left behind.
-     * @param filterKind - What produced the change.
-     */
-    const announce = (result: FilterResult, filterKind: string): void => {
-        sources.onChange?.({ ...result, filterKind });
+    // The visibility ops of this dispatcher refuse what this session cannot evaluate.
+    dispatcher.services.visibility = {
+        check: (filter, window) => {
+            assertEvaluable(filter, window, sources);
+        },
     };
 
-    /**
-     * Take a finished pass's answer, or throw it away when the graph moved under it.
-     * @param against - The snapshot the pass walked.
-     * @param scratchNodes - The node membership it computed.
-     * @param scratchEdges - The edge membership it computed.
-     * @param unresolved - The paths nothing answered.
-     */
-    const commit = (
-        against: GraphSnapshot,
-        scratchNodes: ElementMask<NodeId>,
-        scratchEdges: ElementMask<EdgeId>,
-        unresolved: readonly Path[],
-    ): void => {
-        if (sources.snapshot() !== against) {
-            // The graph moved while the pass was walking it, so its answer describes a graph that
-            // is gone. Re-walk the stored filter against what is actually there rather than
-            // committing a membership indexed against elements that have been renumbered.
-            evaluated = null;
-            sync();
+    // The `visibility` hook: the masks follow the slice, whatever moved it -- an edit, an undo, a
+    // redo, a restore or a rollback.
+    dispatcher.lane.register("visibility", (rendered, target) => {
+        lastKind = kindOf(rendered.visibility, target.visibility, lastKind);
+        sync();
+    });
 
-            return;
+    // Told once the pass deriving a change has run: one call per edit, one per step passed.
+    const previousDerived = dispatcher.events.derived;
+    dispatcher.events.derived = (change) => {
+        previousDerived?.(change);
+        if (change.slices.includes("visibility")) {
+            sources.onChange?.({ ...resultOf(), filterKind: lastKind, cause: change.cause });
         }
-
-        const active = currentFrame();
-        nodeMaskValue.grow(active.graph.nodeCount);
-        edgeMaskValue.grow(active.graph.edgeCount);
-        nodeMaskValue.clear();
-        nodeMaskValue.union(scratchNodes);
-        edgeMaskValue.clear();
-        edgeMaskValue.union(scratchEdges);
-        unresolvedValue = unresolved;
-        evaluated = active.graph;
     };
 
     /**
-     * Hand a pass's work to the queue.
-     * @param label - What to call it in the queue's own events.
+     * An edit's run is never queued: the command is dispatched as the run starts.
+     * @param label - What to call it.
      * @returns The surroundings a run asks of whoever holds it.
      */
     const surroundingsFor = (label: string): RunSurroundings => ({
         label: () => label,
-        // A visibility pass is not one of the runs a consumer browses: it holds no result to rank
+        // A visibility edit is not one of the runs a consumer browses: it holds no result to rank
         // and nothing binds a style layer to it, so it never takes a place in the runs list.
         queuePosition: () => null,
-        // Never stale: the masks are re-evaluated whenever the graph moves, so a pass's counts
-        // cannot go on describing a graph that has changed underneath them.
+        // Never stale: the masks are brought up to date whenever the graph moves, so an edit's
+        // counts cannot go on describing a graph that has changed underneath them.
         stale: () => null,
         resolveScope: () => wholeGraphScope(),
         enqueue: (body: RunBody): RunTicket => {
-            const id = queue.queueOperation("algorithm-run", body, { description: label });
+            void body(IMMEDIATE);
 
-            return {
-                cancel: () => {
-                    queue.cancelOperation(id);
-                },
-            };
+            return NO_TICKET;
         },
     });
 
     /**
-     * Start a pass that applies one filter and one window.
-     * @param nextFilter - The filter to apply, or null.
-     * @param nextWindow - The window to apply, or null.
-     * @param options - A signal to cancel with, and a progress handler.
-     * @param filterKind - What produced this change, for the announcement.
+     * Make one edit: dispatch its command, which records the value at once, and hand back a run
+     * that settles once the pass evaluating the masks has run.
+     * @param command - The command.
+     * @param filter - The filter the edit leaves in force.
+     * @param window - The window the edit leaves in force.
+     * @param options - A signal, and a progress handler.
      * @returns The run.
-     * @throws A `GraphtyError` when either is malformed, or when a dry run was asked for.
+     * @throws A `GraphtyError` when a dry run was asked for.
      */
-    const startPass = (
-        nextFilter: Filter | null,
-        nextWindow: TimeWindow | null,
+    const edit = (
+        command: VisibilityCommand,
+        filter: Filter | null,
+        window: TimeWindow | null,
         options: RunOptions,
-        filterKind: string,
     ): Run<FilterResult> => {
-        assertVisibility(nextFilter, nextWindow);
-
         if (options.dryRun === true) {
             throw new GraphtyError({
                 code: "E_UNSUPPORTED",
                 message:
-                    "A visibility pass cannot be a dry run. Ask what a filter would leave showing " +
+                    "A visibility edit cannot be a dry run. Ask what a filter would leave showing " +
                     'with plan({ op: "visibility.set", filter }), which performs nothing.',
                 source: "data",
-                details: { op: VISIBILITY_ALGORITHM },
+                details: { op: command.op },
             });
         }
 
-        // Only the latest instruction's answer matters: a slider being dragged produces one pass
-        // per frame, and every pass but the last is work nobody will ever look at.
-        pending?.cancel("A newer visibility instruction replaced this one.");
-
-        const label = labelFor(nextFilter, nextWindow);
-        const params = Object.freeze({ filter: nextFilter, window: nextWindow });
+        const label = labelFor(filter, window);
+        const params = Object.freeze({ filter, window });
         const definition: RunDefinition<FilterResult> = {
             algorithm: VISIBILITY_ALGORITHM,
-            caveats: caveatsFor(nextFilter, nextWindow),
+            caveats: caveatsFor(filter, window),
             engine,
             exact: null,
             fields: NO_FIELDS,
@@ -698,70 +848,65 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             params,
             sample: null,
             seed: null,
-            // "fact" rather than "node-set": a pass publishes two counts about the graph, not a
+            // "fact" rather than "node-set": an edit publishes two counts about the graph, not a
             // set of elements to paint. Calling it a node-set would make it eligible to become an
             // exclusive highlight layer, and hiding something is not highlighting it.
             shape: "fact",
             style: false,
             timeBoxMs: null,
+            // A cancel settles the run with the edit applied rather than rejecting it.
+            publishOnCancel: true,
             execute: async (context) => {
-                const startedAt = performance.now();
-                const active = currentFrame();
-                const compiled = compileVisibility(active.graph, nextFilter, nextWindow, sources);
-                const scratchNodes = new ElementMask<NodeId>(
-                    () => active.nodeSpace,
-                    Math.max(1, active.graph.nodeCount),
-                );
-                const scratchEdges = new ElementMask<EdgeId>(
-                    () => active.edgeSpace,
-                    Math.max(1, active.graph.edgeCount),
-                );
-                scratchNodes.grow(active.graph.nodeCount);
-                scratchEdges.grow(active.graph.edgeCount);
+                await dispatcher.dispatch(command);
+                context.report({ completed: 1, message: label, phase: "filtering", total: 1 });
 
-                await runPassInSlices(
-                    { compiled, edges: scratchEdges, graph: active.graph, nodes: scratchNodes },
-                    context.signal,
-                    (completed, total) => {
-                        context.report({ completed, message: label, phase: "filtering", total });
-                    },
-                );
-
-                filterValue = nextFilter;
-                windowValue = nextWindow;
-                commit(active.graph, scratchNodes, scratchEdges, compiled.unresolvedPaths());
-
-                const result = resultOf(Math.round(performance.now() - startedAt));
-                announce(result, filterKind);
-
-                return { result };
+                return { result: resultOf() };
             },
-            ...(options.signal === undefined ? {} : { signal: options.signal }),
+            // Only a signal that is already aborted is handed over: it refuses the edit before
+            // anything is written. One aborted later has nothing left to stop.
+            ...(options.signal?.aborted === true ? { signal: options.signal } : {}),
             ...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),
         };
 
         const run = new ManagedRun<FilterResult>(definition, surroundingsFor(label));
-        pending = run;
         run.start();
 
         return run;
     };
 
+    /**
+     * A read-only copy of one live mask, made again only when the live one changes.
+     * @param live - The live mask.
+     * @returns The reader.
+     */
+    const copies = <TId>(live: ElementMask<TId>): (() => ElementMask<TId>) => {
+        let held: { version: number; count: number; copy: ElementMask<TId> } | null = null;
+
+        return () => {
+            upToDate();
+            if (held?.version !== live.version || held.count !== live.count) {
+                held = { version: live.version, count: live.count, copy: live.readOnlyCopy() };
+            }
+
+            return held.copy;
+        };
+    };
+
     return {
         nodeMask(): Uint8Array {
-            sync();
+            upToDate();
 
             return nodeMaskValue.bytes();
         },
 
         edgeMask(): Uint8Array {
-            sync();
+            upToDate();
 
             return edgeMaskValue.bytes();
         },
 
         isVisible(id: NodeId | EdgeId): boolean {
-            sync();
+            upToDate();
             const node = nodeMaskValue.indexOf(id);
 
             if (node !== INVALID_INDEX) {
@@ -778,7 +923,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         },
 
         get nodes(): ReadonlySet<NodeId> {
-            sync();
+            upToDate();
             const ids = nodeMaskValue.ids();
 
             if (cachedNodeSet === null || cachedNodeIds !== ids) {
@@ -790,7 +935,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         },
 
         get edges(): ReadonlySet<EdgeId> {
-            sync();
+            upToDate();
             const ids = edgeMaskValue.ids();
 
             if (cachedEdgeSet === null || cachedEdgeIds !== ids) {
@@ -806,45 +951,38 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         },
 
         get filter(): Filter | null {
-            return filterValue;
+            return dispatcher.state.visibility.filter;
         },
 
         get window(): TimeWindow | null {
-            return windowValue;
+            return dispatcher.state.visibility.window;
         },
 
         set(filter: Filter | null, options: RunOptions = {}): Run<FilterResult> {
-            return startPass(filter, windowValue, options, filter === null ? "none" : filter.kind);
+            assertVisibility(filter, null);
+
+            return edit({ op: "visibility.set", filter }, filter, dispatcher.state.visibility.window, options);
         },
 
         setWindow(window: TimeWindow | null, options: RunOptions = {}): Run<FilterResult> {
-            return startPass(filterValue, window, options, window === null ? "none" : "window");
+            assertVisibility(null, window);
+
+            return edit({ op: "visibility.window", window }, dispatcher.state.visibility.filter, window, options);
         },
 
         get showContext(): boolean {
-            return showContextValue;
+            return dispatcher.state.visibility.showContext;
         },
 
         set showContext(value: boolean) {
-            if (showContextValue === value) {
-                return;
+            if (dispatcher.state.visibility.showContext !== value) {
+                void dispatcher.dispatch({ op: "visibility.context", show: value });
             }
-
-            showContextValue = value;
-            announce(resultOf(0), "context");
         },
 
         masks: {
-            nodes: (): ElementMask<NodeId> => {
-                sync();
-
-                return nodeMaskValue;
-            },
-            edges: (): ElementMask<EdgeId> => {
-                sync();
-
-                return edgeMaskValue;
-            },
+            nodes: copies(nodeMaskValue),
+            edges: copies(edgeMaskValue),
         },
     };
 }

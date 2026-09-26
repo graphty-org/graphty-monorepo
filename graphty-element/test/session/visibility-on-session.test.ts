@@ -116,7 +116,7 @@ describe("session.visibility", () => {
         await harness.session.visibility.setWindow(EARLY);
 
         assert.deepStrictEqual([...harness.session.visibility.nodes].sort(), ["a", "b", "c"]);
-        assert.strictEqual(harness.session.visibility.filter, HOSTS, "the window did not take the filter away");
+        assert.deepStrictEqual(harness.session.visibility.filter, HOSTS, "the window did not take the filter away");
 
         await harness.session.visibility.set(null);
 
@@ -125,17 +125,19 @@ describe("session.visibility", () => {
         harness.session.dispose();
     });
 
-    it("announces the context flag through the same door as a filter", () => {
+    it("announces the context flag through the same door as a filter", async () => {
         const harness = harnessOf();
         const seen = watchVisibility(harness);
 
         harness.session.visibility.showContext = true;
+        await harness.session.styles.settled();
 
         assert.lengthOf(seen, 1);
         assert.strictEqual(seen[0]?.filterKind, "context");
         assert.strictEqual(harness.session.visibility.summary.visibleNodes, 5, "drawing a hidden node is not showing it");
 
         harness.session.visibility.showContext = true;
+        await harness.session.styles.settled();
 
         assert.lengthOf(seen, 1, "setting it to what it already is is not a change");
         harness.session.dispose();

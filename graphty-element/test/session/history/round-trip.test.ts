@@ -28,6 +28,10 @@ describe("round trip per command", () => {
         session.dispose();
     });
 
+    it.skip("filter across a data step: set a filter, remove nodes, undo both, and the masks equal a fresh evaluation of the original filter on the original graph (node removal is undoable from phase 13)", () => {
+        // Phase 13 writes this with `data.apply` remove-nodes and enables it.
+    });
+
     it.skip("digests the positions lane and the arrangement: nothing restores coordinates until phase 16a", () => {
         // Phase 16a turns on `stateDigest(state, { arrangement: true })` and the lane at rest.
     });

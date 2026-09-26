@@ -586,6 +586,12 @@ export interface CommandOutcomeMap {
     "style.encode": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */
     "style.template": Promise<void>;
+    /** Settles once the filter is recorded and the pass that evaluates the masks has run. */
+    "visibility.set": Promise<void>;
+    /** Settles once the window is recorded and the pass that evaluates the masks has run. */
+    "visibility.window": Promise<void>;
+    /** Settles once the flag is recorded and the pass that follows it has run. */
+    "visibility.context": Promise<void>;
 }
 
 /** What `execute` returns for one command. */

@@ -122,7 +122,7 @@ describe("applying a filter", () => {
         assert.deepStrictEqual([...visibility.nodes].sort(), ["a", "b"]);
         assert.deepStrictEqual([...visibility.edges], [edgeBetween(harness, "a", "b")], "b:c lost an endpoint");
         assert.isFalse(visibility.isVisible("c"));
-        assert.strictEqual(visibility.filter, HOSTS);
+        assert.deepStrictEqual(visibility.filter, HOSTS, "a frozen copy of the filter, not the caller's object");
         harness.session.dispose();
     });
 
@@ -212,7 +212,7 @@ describe("a filter and a window are two producers of one model", () => {
 
         await visibility.setWindow({ attribute: "data.at", from: 0, to: 10 });
         assert.deepStrictEqual([...visibility.nodes], ["a"], "a host, inside the window");
-        assert.strictEqual(visibility.filter, HOSTS, "setting a window left the filter alone");
+        assert.deepStrictEqual(visibility.filter, HOSTS, "setting a window left the filter alone");
 
         await visibility.set(null);
         assert.deepStrictEqual([...visibility.nodes].sort(), ["a", "c"], "the window is still in force");
@@ -303,7 +303,24 @@ describe("a pass is a run", () => {
         harness.session.dispose();
     });
 
-    it("changes nothing when it is cancelled", async () => {
+    it("writes nothing when its signal is already aborted", async () => {
+        const harness = harnessOf([
+            { id: "a", type: "host" },
+            { id: "b", type: "service" },
+        ]);
+        const visibility = modelOf(harness);
+        const controller = new AbortController();
+        controller.abort();
+
+        const run = visibility.set(HOSTS, { signal: controller.signal });
+
+        assert.strictEqual(await nameOfRejection(run), "AbortError");
+        assert.strictEqual(visibility.summary.visibleNodes, 2, "the masks were never written");
+        assert.strictEqual(visibility.filter, null);
+        harness.session.dispose();
+    });
+
+    it("keeps the filter when it is cancelled after the call: undo is the way back", async () => {
         const harness = harnessOf([
             { id: "a", type: "host" },
             { id: "b", type: "service" },
@@ -313,14 +330,13 @@ describe("a pass is a run", () => {
         const run = visibility.set(HOSTS);
         run.cancel("no longer wanted");
 
-        assert.strictEqual(await nameOfRejection(run), "AbortError");
-        assert.strictEqual(visibility.summary.visibleNodes, 2, "the masks were never written");
-        assert.strictEqual(visibility.filter, null);
+        assert.deepStrictEqual((await run).visible, { edges: 0, nodes: 1 });
+        assert.deepStrictEqual(visibility.filter, HOSTS);
         harness.session.dispose();
     });
 
-    it("is replaced by the next instruction rather than queued behind it", async () => {
-        // A slider being dragged makes one pass per frame; only the last one's answer matters.
+    it("evaluates only the latest instruction when several arrive before the masks catch up", async () => {
+        // A slider being dragged makes one edit per frame; only the last one's answer matters.
         const harness = harnessOf([
             { id: "a", type: "host" },
             { id: "b", type: "service" },
@@ -330,7 +346,7 @@ describe("a pass is a run", () => {
         const first = visibility.set(HOSTS);
         const second = visibility.set({ kind: "categories", attribute: "data.type", values: ["service"] });
 
-        assert.strictEqual(await nameOfRejection(first), "AbortError");
+        assert.deepStrictEqual((await first).visible.nodes, 1, "the first settles with the counts the masks now show");
         await second;
         assert.deepStrictEqual([...visibility.nodes], ["b"]);
         harness.session.dispose();
@@ -370,6 +386,8 @@ describe("telling a host what changed", () => {
         await visibility.setWindow({ attribute: "data.at", from: 0, to: 10 });
         await visibility.set(null);
         visibility.showContext = true;
+        // The flag's announcement follows the pass that derives it, one turn of the loop later.
+        await new Promise((resolve) => setTimeout(resolve, 0));
 
         assert.deepStrictEqual(
             changes.map((change) => change.filterKind),

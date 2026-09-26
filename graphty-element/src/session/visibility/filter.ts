@@ -492,6 +492,79 @@ export function assertVisibility(filter: Filter | null, window: TimeWindow | nul
     }
 }
 
+/**
+ * Refuse a filter or a window this session could not evaluate, without evaluating it: the checks
+ * {@link compileVisibility} makes before it walks anything, so a filter is refused before it is
+ * recorded rather than on every later evaluation.
+ * @param filter - The filter, or null for none.
+ * @param window - The time window, or null for none.
+ * @param sources - What this session can evaluate with.
+ * @throws A `GraphtyError` when either is malformed or needs a capability this session lacks.
+ */
+export function assertEvaluable(filter: Filter | null, window: TimeWindow | null, sources: FilterSources): void {
+    assertVisibility(filter, window);
+
+    const check = (each: Filter): void => {
+        switch (each.kind) {
+            case "expression":
+                if (sources.match === undefined) {
+                    throw unsupported("expression", "a query engine");
+                }
+
+                return;
+            case "edges":
+                if (sources.matchEdges === undefined) {
+                    throw unsupported("edges", "a query engine for edges");
+                }
+
+                return;
+            case "range":
+            case "categories":
+                if (sources.values === undefined) {
+                    throw unsupported(each.kind, "a source of attribute values");
+                }
+
+                return;
+            case "component": {
+                if (sources.components === undefined) {
+                    throw unsupported("component", "the connected components");
+                }
+
+                const { count } = sources.components();
+                if (each.id >= count) {
+                    throw outOfRange(
+                        `This graph has ${String(count)} components, so there is no component ${String(each.id)}.`,
+                        {
+                            id: each.id,
+                            count,
+                        },
+                    );
+                }
+
+                return;
+            }
+            case "all":
+            case "any":
+                each.of.forEach(check);
+                return;
+            case "not":
+                check(each.of);
+                return;
+            default:
+                // "degree" and "neighborhood" read only the graph.
+                return;
+        }
+    };
+
+    if (filter !== null) {
+        check(filter);
+    }
+
+    if (window !== null && sources.values === undefined) {
+        throw unsupported("window", "a source of attribute values");
+    }
+}
+
 // ---------------------------------------------------------------------------------------------
 // Compiling
 // ---------------------------------------------------------------------------------------------

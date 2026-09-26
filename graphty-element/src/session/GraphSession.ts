@@ -1317,10 +1317,20 @@ function buildSession(options: CreateGraphSessionOptions, internals: SessionInte
         match: (where: Query) => requireQuery(query).nodes(where),
     });
 
+    // Built before the visibility model and the style stack, which live in its slices and write
+    // through it.
+    const dispatcher = new Dispatcher({
+        definitions: DEFINITIONS,
+        ...(internals.now === undefined ? {} : { now: internals.now }),
+        ...(internals.scheduler === undefined ? {} : { scheduler: internals.scheduler }),
+    });
+
     const visibility = createVisibilityApi({
         snapshot,
         components,
-        queue,
+        dispatcher,
+        // Read through a call: the runs are built below, and a filter reads their results.
+        inputsRevision: () => runs.revision,
         resolveScope: (spec: Scope) => scope.resolveNow(spec),
         match: (where: Query) => requireQuery(query).nodes(where),
         matchEdges: (where: Query) => requireQuery(query).edges(where),
@@ -1473,13 +1483,6 @@ function buildSession(options: CreateGraphSessionOptions, internals: SessionInte
         snapshot,
     );
     forgetPreparedBindings = painter.invalidate;
-
-    // Built before the style stack, which lives in its `styles` slice and writes through it.
-    const dispatcher = new Dispatcher({
-        definitions: DEFINITIONS,
-        ...(internals.now === undefined ? {} : { now: internals.now }),
-        ...(internals.scheduler === undefined ? {} : { scheduler: internals.scheduler }),
-    });
 
     const styles = createStylesApi({
         dispatcher,

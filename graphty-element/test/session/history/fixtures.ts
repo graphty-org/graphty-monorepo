@@ -32,7 +32,7 @@ export interface RoundTripFixture {
     readonly before?: (session: GraphSession) => Promise<void>;
 }
 
-/** Both twins run every style fixture. */
+/** Both twins run every style and visibility fixture. */
 const BOTH = ["session", "renderer"] as const;
 
 /**
@@ -142,5 +142,34 @@ export const FIXTURES: readonly RoundTripFixture[] = [
             document: { version: 1, layers: [nodeLayer("Fixture T", "#00ffff")] },
             templateId: "fixture-template",
         },
+    },
+    {
+        name: "visibility.set",
+        tags: BOTH,
+        // Only n2 has degree 2, so n1 and n3 are hidden, with both edges.
+        command: { op: "visibility.set", filter: { kind: "degree", min: 2 } },
+    },
+    {
+        name: "visibility.set clears a filter",
+        tags: BOTH,
+        // The layer ends the filter step, so clearing it is a step of its own, not a merge.
+        before: async (session) => {
+            await session.visibility.set({ kind: "degree", min: 2 });
+            await session.styles.add(nodeLayer("Fixture A", "#ff0000"));
+        },
+        command: { op: "visibility.set", filter: null },
+    },
+    {
+        name: "visibility.window",
+        tags: BOTH,
+        command: { op: "visibility.window", window: { attribute: "data.t", from: 0, to: 10 } },
+    },
+    {
+        name: "visibility.context",
+        tags: BOTH,
+        before: async (session) => {
+            await session.visibility.set({ kind: "degree", min: 2 });
+        },
+        command: { op: "visibility.context", show: true },
     },
 ];

@@ -18,7 +18,7 @@ const DEFAULT_COALESCE_MS = 1000;
 const EVICT_TO = 0.9;
 
 /** Why the history changed. */
-export type HistoryChangeReason = "record" | "merge" | "undo" | "redo" | "restore" | "evict" | "clear";
+export type HistoryChangeReason = "record" | "merge" | "undo" | "redo" | "restore" | "evict" | "clear" | "size";
 
 /** How the history reaches the patches it holds. */
 export interface HistoryOptions<P> {
@@ -82,6 +82,11 @@ interface Step<P> {
     readonly beforeCapture: unknown;
     readonly afterCapture: unknown;
     readonly rowPatch: unknown;
+    /**
+     * Something kept only to make undoing or redoing the step cheaper (a mask copy): counted in
+     * `bytes` on both sides of the cursor, and the first thing dropped when a limit is exceeded.
+     */
+    cache: { readonly value: unknown; readonly bytes: number } | null;
     view: HistoryStepView | undefined;
 }
 
@@ -219,6 +224,7 @@ export class History<P> {
             beforeCapture: null,
             afterCapture: null,
             rowPatch: null,
+            cache: null,
             view: undefined,
         });
         this.cursor++;
@@ -244,6 +250,35 @@ export class History<P> {
 
         this.mergeInto(top, input, this.now(), new Date().toISOString());
         return true;
+    }
+
+    /**
+     * What a step keeps as a cache, if anything.
+     * @param id - The step.
+     * @returns The cached value, or undefined when the step keeps none or is gone.
+     */
+    cacheOf(id: string): unknown {
+        return this.entries.find((step) => step.id === id)?.cache?.value;
+    }
+
+    /**
+     * Keep a cache on a step, replacing any it had. It is counted in `bytes` and dropped before
+     * any step is evicted.
+     * @param id - The step; nothing happens when it is gone.
+     * @param value - What to keep.
+     * @param bytes - What it costs.
+     */
+    setCache(id: string, value: unknown, bytes: number): void {
+        const step = this.entries.find((each) => each.id === id);
+        if (step === undefined) {
+            return;
+        }
+
+        this.total += bytes - (step.cache?.bytes ?? 0);
+        step.cache = { value, bytes };
+        step.view = undefined;
+        this.changed("size");
+        this.evictIfOver();
     }
 
     /**
@@ -328,6 +363,9 @@ export class History<P> {
         const done = input.bytes?.done ?? 0;
         const undone = input.bytes?.undone ?? 0;
         top.patch = this.options.merge(top.patch, input.patch);
+        // The step now ends somewhere else, so what it cached about its end is no longer true.
+        this.total -= top.cache?.bytes ?? 0;
+        top.cache = null;
         top.at = at;
         top.lastMerge = time;
         top.ops = [...top.ops, ...(input.ops ?? [])];
@@ -392,7 +430,7 @@ export class History<P> {
      * @returns Bytes, with the fixed overhead.
      */
     private size(step: Step<P>, done: boolean): number {
-        return (done ? step.doneBytes : step.undoneBytes) + STEP_OVERHEAD_BYTES;
+        return (done ? step.doneBytes : step.undoneBytes) + STEP_OVERHEAD_BYTES + (step.cache?.bytes ?? 0);
     }
 
     /** Evict the oldest done steps, then the farthest redo steps, down to 90% of both limits. */
@@ -403,12 +441,26 @@ export class History<P> {
 
         const bytesTarget = this.maxBytes * EVICT_TO;
         const stepsTarget = Math.floor(this.maxSteps * EVICT_TO);
+        let dropOld = 0;
         const over = (): boolean => this.total > bytesTarget || this.entries.length - dropOld > stepsTarget;
 
-        // ponytail: no caches exist yet; mask copies are dropped here first once they do.
+        // Caches go first, oldest first, while the bytes are over: they can be recomputed.
+        let dropped = false;
+        for (const step of this.entries) {
+            if (this.total <= bytesTarget) {
+                break;
+            }
+
+            if (step.cache !== null) {
+                this.total -= step.cache.bytes;
+                step.cache = null;
+                step.view = undefined;
+                dropped = true;
+            }
+        }
+
         // The latest done step (cursor - 1) and the next redo step (cursor) are never evicted.
         const before = this.entries.length;
-        let dropOld = 0;
         while (over() && dropOld < this.cursor - 1) {
             this.total -= this.size(this.entries[dropOld], true);
             dropOld++;
@@ -427,6 +479,8 @@ export class History<P> {
 
         if (this.entries.length < before) {
             this.changed("evict");
+        } else if (dropped) {
+            this.changed("size");
         }
     }
 

@@ -1964,6 +1964,7 @@ export class Graph implements GraphContext {
                     Object.assign(node.data, update);
                 }
             });
+            this.dataManager.noteAttributesChanged();
 
             // A layer can select on any of the values that just changed, so the whole stack is
             // asked again rather than each node being re-resolved by hand.
@@ -1985,6 +1986,7 @@ export class Graph implements GraphContext {
                         Object.assign(node.data, update);
                     }
                 });
+                this.dataManager.noteAttributesChanged();
 
                 // See the skipQueue branch above: the values a layer selects on have moved, so
                 // the stack is asked again rather than each node being re-resolved by hand.

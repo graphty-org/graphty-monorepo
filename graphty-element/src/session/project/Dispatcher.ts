@@ -29,6 +29,7 @@
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { OperationCategory } from "../../managers/OperationQueueManager";
 import type { StyleService } from "../commands/style";
+import type { VisibilityService } from "../commands/visibility";
 import { DerivationLane } from "./derive";
 import {
     createProjectStore,
@@ -66,6 +67,7 @@ const RUN_CATEGORY: OperationCategory = "algorithm-run";
  */
 interface CommandServices {
     styles?: StyleService;
+    visibility?: VisibilityService;
 }
 
 /** What an undoable command executes with: the state to read, and the draft that writes it. */

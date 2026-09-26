@@ -33,8 +33,8 @@ export interface LayoutRecommendation {
      * The arrangement, exactly as `catalog.layouts()` publishes it.
      *
      * `layout.id` is the public arrangement name -- `"force"`, `"circular"` -- and `layout.engine`
-     * is the registered engine name `setLayout` takes. A consumer needs the second in order to
-     * act: `element.setLayout(recommendation.layout.engine)`.
+     * is the registered engine that runs it by default. `setLayout` takes either, so a consumer
+     * acts on the id: `element.setLayout(recommendation.layout.id)`.
      */
     readonly layout: LayoutDescriptor;
     /** Why this arrangement suits this graph, in a sentence a consumer can show a reader. */
@@ -168,7 +168,7 @@ function servable(descriptor: LayoutDescriptor, nodeCount: number): boolean {
  * });
  *
  * if (advice !== undefined) {
- *     await element.setLayout(advice.layout.engine);
+ *     await element.setLayout(advice.layout.id);
  * }
  * ```
  */

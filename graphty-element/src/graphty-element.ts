@@ -2482,7 +2482,10 @@ export class Graphty extends LitElement {
 
     /**
      * Set the layout algorithm.
-     * @param type - Layout algorithm name
+     *
+     * Takes a layout id from `catalog.layouts()` (such as `"force"`), which runs that layout's
+     * default engine, or a registered engine name (such as `"ngraph"`).
+     * @param type - Layout id or engine name
      * @param opts - Layout-specific options
      * @param options - Queue options
      * @returns Promise that resolves when layout is initialized
@@ -2490,6 +2493,7 @@ export class Graphty extends LitElement {
      * @example
      * ```typescript
      * await element.setLayout('circular', { radius: 5 });
+     * await element.setLayout('force'); // the catalogue id; runs the "ngraph" engine
      * await element.setLayout('ngraph', { springLength: 100 });
      * ```
      */
@@ -2808,9 +2812,11 @@ export class Graphty extends LitElement {
      * camera, picking and styling stay live. There is no event for this: `isRunning()` reports
      * the state and `graph-settled` reports the arrangement coming to rest.
      *
-     * A pause is not a mode the element remembers: anything that (re)starts a layout -- loading
-     * more nodes, an accelerator attaching, setting another layout, dropping a dragged node --
-     * runs it again, so pause it after those, not before.
+     * A pause holds until `setRunning(true)`. Loading more nodes, a freeze, an accelerator
+     * attaching, setting another layout and dragging a node all still happen -- new nodes are
+     * placed and a dragged node moves -- but none of them resumes the layout. To tell a paused,
+     * half-finished arrangement from a converged one, read `getLayoutManager().isPaused` and
+     * `isSettled`.
      * @param running - True to run the layout, false to pause it.
      * @since 2.0.0
      * @example

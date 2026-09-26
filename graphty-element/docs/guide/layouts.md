@@ -8,6 +8,10 @@ Layout algorithms determine how nodes are positioned in the visualization. Choos
 
 ## Available Layouts
 
+`setLayout` takes either an engine name from the table below or a layout id from
+`catalog.layouts()`. An id runs that layout's default engine, so `setLayout("force")` runs
+`ngraph`, `"force-2d"` runs `arf`, `"hierarchical"` runs `bfs` and `"layers"` runs `multipartite`.
+
 | Layout              | Type           | Best For                                  | Dimensions |
 | ------------------- | -------------- | ----------------------------------------- | ---------- |
 | `ngraph`            | Force-directed | General graphs                            | 2D/3D      |
@@ -23,7 +27,10 @@ Layout algorithms determine how nodes are positioned in the visualization. Choos
 
 The last three are live simulations: they keep stepping until the arrangement comes to rest
 rather than computing one arrangement and stopping, so `element.setRunning(false)` pauses one and
-`element.setRunning(true)` sets it going again. They are also the three that run on a hardware
+`element.setRunning(true)` sets it going again. The pause holds until you resume it: loading more
+nodes, setting another layout, an accelerator attaching or dragging a node places and moves nodes
+but never restarts the simulation. `getLayoutManager().isPaused` is true for a layout stopped
+before it came to rest, and `isSettled` is true only once it has. They are also the three that run on a hardware
 accelerator when there is one -- and `spring-electrical` only runs on one. It has no CPU
 implementation at all, so `setLayout("spring-electrical")` without an accelerator that implements
 it throws `E_NO_ACCELERATOR` rather than quietly arranging the graph some other way. See the

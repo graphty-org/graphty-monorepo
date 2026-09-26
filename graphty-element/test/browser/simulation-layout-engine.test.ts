@@ -676,6 +676,77 @@ describe("the simulation layout bridge", () => {
         assert.isFalse(rig.engine.isSettled, "so the layout has work to do again");
     });
 
+    it("a consumer pause holds through a load, a freeze and an accelerator attaching: nothing is submitted or reheated", async () => {
+        const graph = await pathGraph(5);
+        const fake = createFakeAccelerator({ settleAfter: 1 });
+        graph.acceleration.setAccelerator(fake);
+
+        const rig = await bridge(graph);
+        const layout = graph.getLayoutManager();
+        rig.step();
+        await drain(fake);
+        assert.isTrue(rig.engine.isSettled, "one landed batch settles this fake");
+
+        graph.setRunning(false);
+        const submitted = fake.calls.step;
+
+        // A LOAD AND THE FREEZE IT CAUSES. Both used to write `running = true`, and the setter
+        // reheats a settled simulation on false -> true, so a paused layout started cooling again.
+        await graph.addNodes([{ id: "late" }]);
+        graph.getDataManager().getSnapshot();
+        layout.stepBatch();
+
+        assert.isFalse(graph.isRunning(), "new data does not resume a paused layout");
+        assert.strictEqual(fake.calls.reheat, 0, "and does not reheat it");
+        assert.strictEqual(fake.calls.step, submitted, "and no batch was submitted");
+        assert.isTrue(Number.isFinite(rig.x(rig.row("late"))), "but the new node was placed");
+
+        // AN ACCELERATOR LEAVING AND ANOTHER ATTACHING each rebuild the simulation, and neither
+        // may resume it. (Detached first: the controller only announces a change of status, and
+        // one idle accelerator replacing another is not one.)
+        graph.acceleration.setAccelerator(null);
+        assert.isFalse(rig.engine.isAccelerated, "the layout was rebuilt on the CPU");
+        assert.isFalse(graph.isRunning(), "an accelerator leaving does not resume a paused layout");
+
+        const second = createFakeAccelerator({ settleAfter: 1 });
+        graph.acceleration.setAccelerator(second);
+        assert.strictEqual(second.calls.forceAtlas2, 1, "the layout moved onto the new accelerator");
+        layout.stepBatch();
+
+        assert.isFalse(graph.isRunning(), "an accelerator attaching does not resume a paused layout");
+        assert.strictEqual(second.calls.step, 0, "and nothing was submitted to it");
+        assert.strictEqual(graph.acceleration.state, "idle", "so the controller says nothing is using it");
+
+        graph.setRunning(true);
+        layout.stepBatch();
+        assert.isTrue(graph.isRunning(), "the consumer's resume runs it again");
+        assert.strictEqual(second.calls.step, 1, "and the frames go back to work");
+        await drain(second);
+    });
+
+    it("a layout paused mid-settle returns the controller to idle once its in-flight batches land", async () => {
+        const graph = await pathGraph(5);
+        const fake = createFakeAccelerator({ maxInFlight: 2, settleAfter: 4 });
+        graph.acceleration.setAccelerator(fake);
+
+        const rig = await bridge(graph, "forceatlas2", { maxInFlight: 2 });
+        rig.step();
+        rig.step();
+        assert.strictEqual(graph.acceleration.state, "active", "two batches are in flight");
+
+        graph.setRunning(false);
+        assert.strictEqual(graph.acceleration.state, "active", "the batches already submitted are still landing");
+
+        await drain(fake);
+        await until(() => graph.acceleration.state === "idle");
+        assert.isFalse(rig.engine.isSettled, "idle because nothing is being submitted, not because it arrived");
+
+        graph.setRunning(true);
+        graph.getLayoutManager().stepBatch();
+        assert.strictEqual(graph.acceleration.state, "active", "resuming submits again");
+        await drain(fake);
+    });
+
     it("a node the pointer is holding keeps its fixed bit through a freeze that renumbers the rows", async () => {
         const graph = await pathGraph(5);
         graph.acceleration.setAccelerator(createFakeAccelerator());

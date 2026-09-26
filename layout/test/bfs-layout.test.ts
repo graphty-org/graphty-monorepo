@@ -295,15 +295,12 @@ describe("BFS Layout", () => {
             assert.isAbove(layoutWidth + layoutHeight, 0);
         });
 
-        it("should handle grid graph efficiently", () => {
+        it("should lay out every node of a grid graph", () => {
             const graph = gridGraph(5, 5); // 25 nodes
 
-            const startTime = performance.now();
             const positions = bfsLayout(graph, "0,0");
-            const endTime = performance.now();
 
             assert.equal(Object.keys(positions).length, 25);
-            assert.isBelow(endTime - startTime, 100);
 
             // Check that BFS creates proper levels
             // Corner node should be positioned

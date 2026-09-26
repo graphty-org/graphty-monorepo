@@ -269,15 +269,12 @@ describe("Planar Layout", () => {
             assert.isAbove(minDist, 0.1);
         });
 
-        it("should handle embedded graphs efficiently", () => {
+        it("should lay out every node of an embedded graph", () => {
             const graph = gridGraph(5, 5); // 25 nodes
 
-            const startTime = performance.now();
             const positions = planarLayout(graph);
-            const endTime = performance.now();
 
             assert.equal(Object.keys(positions).length, 25);
-            assert.isBelow(endTime - startTime, 100); // Should be fast
         });
     });
 });

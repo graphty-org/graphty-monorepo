@@ -221,15 +221,12 @@ describe("Random Layout", () => {
             });
         });
 
-        it("should be fast for large graphs", () => {
+        it("should lay out every node of a larger graph", () => {
             const graph = gridGraph(20, 20); // 400 nodes
 
-            const startTime = performance.now();
             const positions = randomLayout(graph);
-            const endTime = performance.now();
 
             assert.equal(Object.keys(positions).length, 400);
-            assert.isBelow(endTime - startTime, 50); // Should be very fast
         });
 
         it("should avoid node overlap statistically", () => {

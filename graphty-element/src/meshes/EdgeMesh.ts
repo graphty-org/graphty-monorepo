@@ -18,6 +18,7 @@ import { CreateGreasedLine } from "@babylonjs/core/Meshes/Builders/greasedLineBu
 import type { EdgeStyleConfig } from "../config";
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { CustomLineRenderer } from "./CustomLineRenderer";
+import type { EdgeLineBatch } from "./EdgeLineBatch";
 import { FilledArrowRenderer } from "./FilledArrowRenderer";
 import type { MeshCache } from "./MeshCache";
 import { PatternedLineMesh } from "./PatternedLineMesh";
@@ -331,6 +332,55 @@ void main() {
     }
 
     /**
+     * The thin-instance batch that draws one edge appearance, when this style can be batched.
+     *
+     * THE ONE STYLE THIS DRAWS, FOR NOW: a straight solid line in 3D, which is what the default
+     * edge style and the great majority of every graph is made of. That line used to be an
+     * `InstancedMesh` per edge -- a scene object and about 12.7 KB of heap each -- and it is the
+     * one branch of {@link EdgeMesh.create} whose geometry is already a shared unit segment
+     * placed by a world matrix, so moving it into a batch changes where the matrix lives and
+     * nothing else. No shader is edited: the line shader composes `finalWorld` through Babylon's
+     * `instancesDeclaration` / `instancesVertex` includes, which carry the thin-instance branch.
+     *
+     * Every other edge -- bezier, patterned, animated, and everything in 2D -- answers null here
+     * and is drawn exactly as it was, one mesh at a time. Those are separate pieces of work with
+     * separate reviews, and each of them needs something a single slot cannot express yet (a run
+     * of slots for a curve's segments, per-instance colour for a 2D line's material).
+     *
+     * The colour, the width and the opacity stay folded into the key, so there are exactly as
+     * many batches as there were cached source meshes.
+     * @param cache - The mesh cache, which owns the batches so that they die when it does.
+     * @param options - Edge mesh options including styleId, width, and color.
+     * @param style - Full edge style configuration.
+     * @param scene - Babylon.js scene.
+     * @returns The batch to take a slot in, or null for an edge this path cannot draw.
+     */
+    static lineBatch(
+        cache: MeshCache,
+        options: EdgeMeshOptions,
+        style: EdgeStyleConfig,
+        scene: Scene,
+    ): EdgeLineBatch | null {
+        const lineType = style.line?.type ?? "solid";
+        const batchable =
+            this.USE_CUSTOM_RENDERER &&
+            lineType === "solid" &&
+            style.line?.bezier !== true &&
+            !style.line?.animationSpeed &&
+            !this.is2DMode(scene);
+
+        if (!batchable) {
+            return null;
+        }
+
+        return cache.getBatch(
+            `edge-style-${options.styleId}`,
+            () => this.createStaticLine(options, style, scene, cache),
+            scene,
+        );
+    }
+
+    /**
      * Creates an arrow head mesh for edge endpoints.
      *
      * Supports multiple arrow types:
@@ -382,9 +432,15 @@ void main() {
             "sphere-dot",
         ];
 
-        // PERFORMANCE FIX: Create individual meshes for all arrow types
-        // Thin instances were causing 1,147ms bottleneck (35x slower than direct position updates)
-        // Individual meshes use direct position/rotation which is much faster for frequent updates
+        // ONE MESH AND ONE MATERIAL PER CAP, which is about 23 KB of heap each and the larger
+        // half of what an edge costs. The note that used to stand here said thin instances had
+        // been measured at a 1,147 ms bottleneck, 35 times slower than moving a mesh, and that
+        // sentence is why every cap and every line in this file is a scene object today. What it
+        // measured was an API misuse: `thinInstanceSetMatrixAt` re-uploads the WHOLE buffer
+        // unless it is told not to, so moving n of them one at a time is O(n^2) -- 42 seconds a
+        // frame at 20,000 instances. Writing the floats and uploading once a frame is 1.7 ms for
+        // the same 20,000, and 7x faster than the InstancedMesh path this file uses now. See
+        // EdgeLineBatch, which draws the 3D solid line that way; the caps are next.
 
         let mesh: Mesh;
         const arrowType = options.type ?? "";
@@ -517,11 +573,11 @@ void main() {
         options: EdgeMeshOptions,
         style: EdgeStyleConfig,
         scene: Scene,
-         
+
         _cache: MeshCache,
     ): Mesh {
         // Use custom line renderer if flag is enabled
-         
+
         if (this.USE_CUSTOM_RENDERER) {
             const points = [
                 new Vector3(this.UNIT_VECTOR_POINTS[0], this.UNIT_VECTOR_POINTS[1], this.UNIT_VECTOR_POINTS[2]),
@@ -629,7 +685,7 @@ void main() {
         mesh: GreasedLineBaseMesh,
         texture: RawTexture,
         scene: Scene,
-         
+
         _animationSpeed?: number,
     ): void {
         const material = mesh.material as StandardMaterial;

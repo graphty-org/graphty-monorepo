@@ -9,6 +9,7 @@ import { edgeIdOf } from "./data/edgeIdentity";
 import type { Graph } from "./Graph";
 import type { GraphContext } from "./managers/GraphContext";
 import { bootstrapEdgePaint, type EdgePaint } from "./managers/StylePainter";
+import type { EdgeLineBatch } from "./meshes/EdgeLineBatch";
 import { EdgeMesh } from "./meshes/EdgeMesh";
 import { FilledArrowRenderer } from "./meshes/FilledArrowRenderer";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
@@ -111,9 +112,29 @@ export class Edge {
     dstNode: Node;
     srcNode: Node;
     data: AdHocData;
+    /**
+     * The mesh this edge's line is drawn by.
+     *
+     * NOT ALWAYS THIS EDGE'S OWN MESH ANY MORE. A straight solid line in 3D is drawn as one thin
+     * instance of a batch shared by every edge of the same appearance, and this then points at
+     * the batch's mesh -- so it still answers what the line is drawn as, and it is still the
+     * thing to ask whether the renderer's geometry has been disposed under it, but disposing it
+     * or enabling it would reach every other edge in the batch. {@link Edge.lineBatch} says which
+     * of the two an edge is, and every write below is routed through it.
+     */
     mesh: AbstractMesh | PatternedLineMesh; // PHASE 5: Support both solid lines and patterned lines
     arrowMesh: AbstractMesh | null = null;
     arrowTailMesh: AbstractMesh | null = null;
+
+    /**
+     * The batch this edge's line is one thin instance of, or null when the line is a mesh of this
+     * edge's own -- which is every bezier, patterned, animated and 2D line. See
+     * {@link EdgeMesh.lineBatch} for why only one style is batched so far.
+     */
+    private lineBatch: EdgeLineBatch | null = null;
+
+    /** Which slot of {@link Edge.lineBatch} draws this edge, and -1 when there is no batch. */
+    private lineSlot = -1;
 
     /**
      * The source mesh this edge is currently drawn from.
@@ -234,6 +255,29 @@ export class Edge {
     }
 
     /**
+     * What this edge's line is drawn as, when it is drawn from a shared batch.
+     *
+     * THE ONLY READING OF A BATCHED LINE THERE IS. A line drawn as a thin instance has no mesh of
+     * its own in the scene and no material of its own, so the scene walk that reads an edge's
+     * appearance off `scene.meshes` -- which is how the story assertions have always read it --
+     * finds one batch where it used to find one mesh per edge. The edge itself is where the
+     * answer moved to: the batch's name carries the interned appearance, exactly as the instance
+     * name did, and the length is the drawn extent the bounding box used to carry.
+     * @returns The appearance, or null for an edge that still owns its line mesh.
+     */
+    get drawnLine(): { name: string; length: number; visibility: number } | null {
+        if (this.lineBatch === null) {
+            return null;
+        }
+
+        return {
+            name: this.lineBatch.name,
+            length: this.lineBatch.lengthOf(this.lineSlot),
+            visibility: this.lineBatch.mesh.visibility,
+        };
+    }
+
+    /**
      * How many edges share this edge's ordered endpoint pair, including this one.
      * @returns the count
      */
@@ -333,26 +377,15 @@ export class Edge {
 
         // create edge line mesh
         // Note: Edge.transformArrowCap() provides start/end positions already adjusted for node surfaces and arrows
-        this.mesh = EdgeMesh.create(
-            this.context.getMeshCache(),
-            {
-                styleId: paint.meshKey,
-                width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
-                color: style.line?.color ?? "#FFFFFF",
-            },
-
-            style,
-            this.context.getScene(),
-        );
-
-        this.mesh.isPickable = false;
-        this.mesh.metadata = this.mesh.metadata ?? {};
-        this.mesh.metadata.parentEdge = this;
+        this.mesh = this.createLine(paint.meshKey, style);
 
         // Parent edge meshes to graph-root for XR gesture support (zoom, rotate, pan)
         const graphRoot = this.context.getScene().getTransformNodeByName("graph-root");
         if (graphRoot) {
-            if (this.mesh instanceof PatternedLineMesh) {
+            // A batch parents its own mesh when it is built, once for every edge in it.
+            if (this.lineBatch !== null) {
+                // nothing to parent here
+            } else if (this.mesh instanceof PatternedLineMesh) {
                 // PatternedLineMesh is a wrapper with an array of meshes
                 for (const mesh of this.mesh.meshes) {
                     mesh.parent = graphRoot;
@@ -603,11 +636,7 @@ export class Edge {
         this._lastSrcPos = null;
         this._lastDstPos = null;
         // PHASE 5: Dispose pattern lines or solid lines appropriately
-        if (this.mesh instanceof PatternedLineMesh) {
-            this.mesh.dispose(); // PatternedLineMesh has its own dispose logic
-        } else if (!this.mesh.isDisposed()) {
-            this.mesh.dispose();
-        }
+        this.releaseLine();
 
         // recreate arrow mesh if needed
         if (this.arrowMesh && !this.arrowMesh.isDisposed()) {
@@ -658,28 +687,15 @@ export class Edge {
             }
         }
 
-        this.mesh = EdgeMesh.create(
-            this.context.getMeshCache(),
-            {
-                styleId: meshKey,
-                width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
-                color: style.line?.color ?? "#FFFFFF",
-            },
-
-            style,
-            this.context.getScene(),
-            srcPoint,
-            dstPoint,
-        );
-
-        this.mesh.isPickable = false;
-        this.mesh.metadata = this.mesh.metadata ?? {};
-        this.mesh.metadata.parentEdge = this;
+        this.mesh = this.createLine(meshKey, style, srcPoint, dstPoint);
 
         // Parent edge meshes to graph-root for XR gesture support (zoom, rotate, pan)
         const graphRoot = this.context.getScene().getTransformNodeByName("graph-root");
         if (graphRoot) {
-            if (this.mesh instanceof PatternedLineMesh) {
+            // A batch parents its own mesh when it is built, once for every edge in it.
+            if (this.lineBatch !== null) {
+                // nothing to parent here
+            } else if (this.mesh instanceof PatternedLineMesh) {
                 // PatternedLineMesh is a wrapper with an array of meshes
                 for (const mesh of this.mesh.meshes) {
                     mesh.parent = graphRoot;
@@ -707,6 +723,81 @@ export class Edge {
         // Every mesh above is new, so whatever the visibility mask said about this edge has to be
         // said again -- otherwise a restyle silently puts a filtered-out edge back on screen.
         this.applyRenderState();
+    }
+
+    /**
+     * Build this edge's line, as a slot in a shared batch when the style allows one and as a mesh
+     * of this edge's own otherwise.
+     *
+     * {@link EdgeMesh.lineBatch} makes the choice, and it makes it from the style and the scene,
+     * so one call site cannot get a different answer from another. What comes back is what
+     * {@link Edge.mesh} points at either way: the batch's mesh, or this edge's own.
+     * @param meshKey - Which appearance this edge is drawn with.
+     * @param style - The resolved style to draw from.
+     * @param srcPoint - Where the line starts, which only a bezier needs at build time.
+     * @param dstPoint - Where the line ends, likewise.
+     * @returns The mesh the line is drawn by.
+     */
+    private createLine(
+        meshKey: string,
+        style: EdgeStyleConfig,
+        srcPoint?: Vector3,
+        dstPoint?: Vector3,
+    ): AbstractMesh | PatternedLineMesh {
+        const options = {
+            styleId: meshKey,
+            width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
+            color: style.line?.color ?? "#FFFFFF",
+        };
+
+        this.lineBatch = EdgeMesh.lineBatch(this.context.getMeshCache(), options, style, this.context.getScene());
+
+        if (this.lineBatch) {
+            this.lineSlot = this.lineBatch.acquire();
+
+            // No per-edge mesh to make unpickable and nothing to hang `parentEdge` on: the batch
+            // is unpickable as a whole, and the back-reference was only ever written and never
+            // read -- reproducing it would be an array of Edge references one per edge, which is
+            // the kind of per-edge object a batch exists to remove.
+            return this.lineBatch.mesh;
+        }
+
+        const mesh = EdgeMesh.create(
+            this.context.getMeshCache(),
+            options,
+            style,
+            this.context.getScene(),
+            srcPoint,
+            dstPoint,
+        );
+
+        mesh.isPickable = false;
+        mesh.metadata = mesh.metadata ?? {};
+        mesh.metadata.parentEdge = this;
+
+        return mesh;
+    }
+
+    /**
+     * Stop drawing this edge's line, whichever of the two it is.
+     *
+     * A BATCH IS SHARED, so a batched line is handed its slot back rather than disposed -- calling
+     * `dispose()` on what {@link Edge.mesh} points at would take every other edge of the same
+     * appearance off the screen with it.
+     */
+    private releaseLine(): void {
+        if (this.lineBatch) {
+            this.lineBatch.release(this.lineSlot);
+            this.lineBatch = null;
+            this.lineSlot = -1;
+            return;
+        }
+
+        if (this.mesh instanceof PatternedLineMesh) {
+            this.mesh.dispose(); // PatternedLineMesh has its own dispose logic
+        } else if (!this.mesh.isDisposed()) {
+            this.mesh.dispose();
+        }
     }
 
     /**
@@ -822,11 +913,7 @@ export class Edge {
 
         this.disposed = true;
 
-        if (this.mesh instanceof PatternedLineMesh) {
-            this.mesh.dispose();
-        } else if (!this.mesh.isDisposed()) {
-            this.mesh.dispose();
-        }
+        this.releaseLine();
 
         if (this.arrowMesh && !this.arrowMesh.isDisposed()) {
             this.arrowMesh.dispose();
@@ -940,7 +1027,9 @@ export class Edge {
 
         const drawn = this.renderVisible;
 
-        if (this.mesh instanceof PatternedLineMesh) {
+        if (this.lineBatch) {
+            this.lineBatch.setDrawn(this.lineSlot, drawn);
+        } else if (this.mesh instanceof PatternedLineMesh) {
             for (const segment of this.mesh.meshes) {
                 if (!segment.isDisposed()) {
                     segment.setEnabled(drawn);
@@ -1036,8 +1125,11 @@ export class Edge {
      * @param dstPoint - The destination point position
      */
     transformEdgeMesh(srcPoint: Vector3, dstPoint: Vector3): void {
-        // PHASE 5: Check if mesh is PatternedLineMesh and route accordingly
-        if (this.mesh instanceof PatternedLineMesh) {
+        // A batched line is sixteen floats in a shared buffer, and this is the write that moves
+        // it. The whole buffer reaches the GPU once a frame, from the batch itself.
+        if (this.lineBatch) {
+            this.lineBatch.place(this.lineSlot, srcPoint, dstPoint);
+        } else if (this.mesh instanceof PatternedLineMesh) {
             // Pattern lines: Update mesh positions in world space
             this.mesh.update(srcPoint, dstPoint);
         } else if (this.mesh.metadata?.is2DLine) {

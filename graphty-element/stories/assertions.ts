@@ -169,9 +169,11 @@ export interface Drawn {
     /**
      * The distinct appearances the edge lines in the picture are drawn with.
      *
-     * TWO RENDERERS DRAW AN EDGE AND THIS HAS TO SEE BOTH. In 3D a solid edge is an instance of a
-     * source mesh the element interns per appearance, and Babylon names the instance after the
-     * cache key -- `edge-style-s1|#d55e00|` -- so the name IS the appearance. In 2D there is no
+     * THREE RENDERERS DRAW AN EDGE AND THIS HAS TO SEE ALL OF THEM. In 3D a straight solid edge
+     * is one thin instance of a batch the element interns per appearance, and the batch carries
+     * the cache key as its name -- `edge-style-s1|#d55e00|` -- so the name IS the appearance; a
+     * batched line has no mesh of its own, so it is read off the edge rather than off the scene.
+     * A bezier or a patterned line in 3D still owns its mesh and is read off it. In 2D there is no
      * interning at all: `EdgeMesh.createLineMesh` routes a solid line to
      * `Simple2DLineRenderer.create`, which builds one mesh per edge, names every one of them
      * `line-2d`, and puts the colour in that mesh's own material. Counting names alone therefore
@@ -254,9 +256,12 @@ async function until(done: () => boolean, deadline: number, complaint: string): 
 async function within(work: Promise<unknown>, deadline: number, complaint: string): Promise<void> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const expired = new Promise<"expired">((resolve) => {
-        timer = setTimeout(() => {
-            resolve("expired");
-        }, Math.max(0, deadline - Date.now()));
+        timer = setTimeout(
+            () => {
+                resolve("expired");
+            },
+            Math.max(0, deadline - Date.now()),
+        );
     });
 
     const outcome = await Promise.race([work.then(() => "done" as const), expired]);
@@ -348,7 +353,7 @@ function labelInk(mesh: AbstractMesh | null | undefined): { ink: number; colours
     return { ink, colours };
 }
 
-/** The names the element gives a mesh that draws one edge line on its own, rather than as an instance. */
+/** The names the element gives a mesh that draws one edge line on its own, rather than as an instance of a batch. */
 const OWN_LINE_MESHES = ["line-2d", "custom-line", "edge-plain"] as const;
 
 /**
@@ -400,6 +405,14 @@ function materialPaint(mesh: AbstractMesh): { hex: string; alpha: number } | nul
 function edgeLineAppearance(mesh: AbstractMesh): string | null {
     // A cached source mesh is hidden and parked below the graph; only its instances are drawn.
     if (!mesh.isVisible) {
+        return null;
+    }
+
+    // A BATCH IS NOT AN EDGE. A 3D solid line is now one thin instance of a mesh shared by every
+    // edge of the same appearance, so this one visible mesh stands for however many edges are in
+    // it -- counting it here would report one line for a thousand. Those edges are read off the
+    // edges themselves, in `drawn()` below.
+    if (mesh.thinInstanceCount > 0) {
         return null;
     }
 
@@ -505,7 +518,10 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
     // One read per SOURCE mesh, not per node: a thousand nodes instanced from three shapes cost
     // three digests.
     const digests = new Map<number, string>();
-    const digestOf = (mesh: { uniqueId: number; getVerticesData: (kind: string) => Float32Array | number[] | null }): string => {
+    const digestOf = (mesh: {
+        uniqueId: number;
+        getVerticesData: (kind: string) => Float32Array | number[] | null;
+    }): string => {
         const seen = digests.get(mesh.uniqueId);
 
         if (seen !== undefined) {
@@ -571,10 +587,12 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
     // generated name, so nothing in the scene graph distinguishes them; the edge that owns a
     // caption knows which end it hangs from, and that is the only place the answer exists.
     const captions: DrawnCaption[] = [...graph.getDataManager().edges.values()].flatMap((edge) =>
-        ([
-            ["arrowHead", edge.arrowHeadText],
-            ["arrowTail", edge.arrowTailText],
-        ] as const)
+        (
+            [
+                ["arrowHead", edge.arrowHeadText],
+                ["arrowTail", edge.arrowTailText],
+            ] as const
+        )
             .filter(([, caption]) => caption !== null)
             .map(([end, caption]) => {
                 const read = labelInk(caption?.labelMesh ?? null);
@@ -583,9 +601,17 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
             }),
     );
     const nodePlanes = nodes.filter((node) => node.hasLabelMesh).length;
-    const drawnEdgeLines = graph.scene.meshes
-        .map((mesh) => edgeLineAppearance(mesh))
-        .filter((appearance): appearance is string => appearance !== null);
+    const edges = [...graph.getDataManager().edges.values()];
+
+    // The lines drawn from a shared batch, which have no mesh of their own to be read off the
+    // scene, and the lines that do, together and in one list -- what an edge is drawn BY is a
+    // renderer decision and no assertion should have to know which half an edge fell into.
+    const drawnEdgeLines = [
+        ...edges.flatMap((edge) => (edge.drawnLine === null ? [] : [edge.drawnLine.name])),
+        ...graph.scene.meshes
+            .map((mesh) => edgeLineAppearance(mesh))
+            .filter((appearance): appearance is string => appearance !== null),
+    ];
 
     return {
         story,
@@ -608,22 +634,35 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
         arrowCaptions: captions,
         edgeStyleNames: [...new Set(drawnEdgeLines)].sort(),
         edgeMeshNames: [...drawnEdgeLines].sort(),
-        edgeDigest: graph.scene.meshes
-            .filter(
-                (mesh) =>
-                    mesh.name.startsWith("edge-style-") ||
-                    mesh.name.startsWith("pattern-") ||
-                    mesh.name.startsWith("custom-line") ||
-                    mesh.name.includes("arrow"),
-            )
-            .map((mesh) => {
-                const box = mesh.getBoundingInfo().boundingBox.extendSizeWorld;
+        edgeDigest: [
+            // A batched line's drawn extent is its own, not its batch's: the batch mesh is a unit
+            // segment and the matrix in the slot carries the length. Spelled the way the scene
+            // walk below spells a mesh's extent, so the two halves of the list are comparable.
+            ...edges.flatMap((edge) =>
+                edge.drawnLine === null
+                    ? []
+                    : [
+                          `${edge.drawnLine.name}@0.000,0.000,${(edge.drawnLine.length / 2).toFixed(3)}:${String(
+                              edge.drawnLine.visibility,
+                          )}`,
+                      ],
+            ),
+            ...graph.scene.meshes
+                .filter(
+                    (mesh) =>
+                        (mesh.name.startsWith("edge-style-") && mesh.thinInstanceCount === 0) ||
+                        mesh.name.startsWith("pattern-") ||
+                        mesh.name.startsWith("custom-line") ||
+                        mesh.name.includes("arrow"),
+                )
+                .map((mesh) => {
+                    const box = mesh.getBoundingInfo().boundingBox.extendSizeWorld;
 
-                return `${mesh.name}@${box.x.toFixed(3)},${box.y.toFixed(3)},${box.z.toFixed(3)}:${String(
-                    mesh.visibility,
-                )}`;
-            })
-            .sort(),
+                    return `${mesh.name}@${box.x.toFixed(3)},${box.y.toFixed(3)},${box.z.toFixed(3)}:${String(
+                        mesh.visibility,
+                    )}`;
+                }),
+        ].sort(),
         backgroundHex: `#${[graph.scene.clearColor.r, graph.scene.clearColor.g, graph.scene.clearColor.b]
             .map((value) =>
                 Math.round(Math.min(1, Math.max(0, value)) * 255)
@@ -823,13 +862,11 @@ export async function assertLabelsDrawn(
     scene: Drawn,
     options: { readonly ids?: readonly string[]; readonly minimumInk?: number } = {},
 ): Promise<void> {
-    const wanted = options.ids === undefined ? scene.nodes : scene.nodes.filter((node) => options.ids?.includes(node.id));
+    const wanted =
+        options.ids === undefined ? scene.nodes : scene.nodes.filter((node) => options.ids?.includes(node.id));
     const minimumInk = options.minimumInk ?? 1;
 
-    await holds(
-        wanted.length > 0,
-        `${scene.story}: no node of the ones this assertion names is in the graph at all`,
-    );
+    await holds(wanted.length > 0, `${scene.story}: no node of the ones this assertion names is in the graph at all`);
 
     const missing = wanted.filter((node) => !node.hasLabelMesh).map((node) => node.id);
 
@@ -850,7 +887,9 @@ export async function assertLabelsDrawn(
     );
 
     if (options.ids !== undefined) {
-        const extra = scene.nodes.filter((node) => !options.ids?.includes(node.id) && node.hasLabelMesh).map((n) => n.id);
+        const extra = scene.nodes
+            .filter((node) => !options.ids?.includes(node.id) && node.hasLabelMesh)
+            .map((n) => n.id);
 
         await holds(
             extra.length === 0,
@@ -1180,18 +1219,20 @@ function arrangementDistance(
         return Number.POSITIVE_INFINITY;
     }
 
-    const normalise = (
-        cloud: ReadonlyMap<string, readonly [number, number, number]>,
-    ): [number, number, number][] => {
+    const normalise = (cloud: ReadonlyMap<string, readonly [number, number, number]>): [number, number, number][] => {
         const points = shared.map((id) => cloud.get(id) as readonly [number, number, number]);
         const centre = [0, 1, 2].map((axis) => points.reduce((sum, p) => sum + p[axis], 0) / points.length);
         const radius =
             Math.sqrt(
-                points.reduce((sum, p) => sum + [0, 1, 2].reduce((d, axis) => d + (p[axis] - centre[axis]) ** 2, 0), 0) /
-                    points.length,
+                points.reduce(
+                    (sum, p) => sum + [0, 1, 2].reduce((d, axis) => d + (p[axis] - centre[axis]) ** 2, 0),
+                    0,
+                ) / points.length,
             ) || 1;
 
-        return points.map((p) => [0, 1, 2].map((axis) => (p[axis] - centre[axis]) / radius) as [number, number, number]);
+        return points.map(
+            (p) => [0, 1, 2].map((axis) => (p[axis] - centre[axis]) / radius) as [number, number, number],
+        );
     };
 
     const left = normalise(a);
@@ -1655,8 +1696,7 @@ export async function assertBackgroundColour(scene: Drawn, hex: string): Promise
 
     await holds(
         close,
-        `${scene.story}: asks for a ${hex} background and the scene is cleared to ` +
-            `rgb(${drawn_.join(", ")})`,
+        `${scene.story}: asks for a ${hex} background and the scene is cleared to ` + `rgb(${drawn_.join(", ")})`,
     );
 }
 
@@ -1684,8 +1724,9 @@ export async function assertNodesOnACircle(scene: Drawn, tolerance = 0.05): Prom
     await holds(
         mean > 0 && spread / mean <= tolerance,
         `${scene.story}: a circular layout draws every node the same distance from the centre, and these run ` +
-            `from ${Math.min(...radii).toFixed(3)} to ${Math.max(...radii).toFixed(3)} around a mean of ${ 
-            mean.toFixed(3)}`,
+            `from ${Math.min(...radii).toFixed(3)} to ${Math.max(...radii).toFixed(3)} around a mean of ${mean.toFixed(
+                3,
+            )}`,
     );
 }
 
@@ -1759,7 +1800,7 @@ export async function assertSelectionDrawn(scene: Drawn, id: string): Promise<vo
     const haloed = scene.graph
         .getNodes()
         .filter((node) => {
-            const {halo} = (node as unknown as { halo?: { isDisposed: () => boolean } | null });
+            const { halo } = node as unknown as { halo?: { isDisposed: () => boolean } | null };
 
             return halo !== undefined && halo !== null && !halo.isDisposed();
         })

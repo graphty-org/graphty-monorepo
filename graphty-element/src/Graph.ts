@@ -2779,8 +2779,13 @@ export class Graph implements GraphContext {
             // Note: Edge meshes from Simple2DLineRenderer are NOT tracked by MeshCache,
             // so we must explicitly dispose them before calling updateStyle()
             for (const edge of this.dataManager.edges.values()) {
-                // Dispose edge mesh if not already disposed (handles non-cached meshes like Simple2DLineRenderer)
-                if (edge.mesh instanceof PatternedLineMesh) {
+                // Dispose edge mesh if not already disposed (handles non-cached meshes like Simple2DLineRenderer).
+                // A batched line is not disposed here: `meshCache.clear()` above disposed the
+                // batch it belongs to, and `edge.mesh` then points at that disposed mesh, which
+                // is what tells `updateStyle()` below to build the line again.
+                if (edge.drawnLine !== null) {
+                    // the batch this edge was drawn from is already gone
+                } else if (edge.mesh instanceof PatternedLineMesh) {
                     edge.mesh.dispose();
                 } else if (!edge.mesh.isDisposed()) {
                     edge.mesh.dispose();

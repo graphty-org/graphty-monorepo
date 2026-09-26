@@ -12,25 +12,42 @@
  * turns from `"defaults"` into `"probe"`, which is how a consumer can tell which kind of number it
  * is holding.
  *
- * TWO OF THEM ARE ENFORCED, AND WERE MEASURED ONCE. `renderCeiling` and `edgesDrawn` used to be
- * the design table's figures, 200,000 nodes and 500,000 edges, and nothing checked them. The
- * renderer could not reach either: at 18,000 nodes / 180,000 edges the page stopped producing
- * frames (issue #405). The measurement behind the numbers below, taken 2026-09-26 in headless
- * Chromium on an RTX 4070 SUPER with `layout="random"`, ten edges per node and the default
- * style, found that the wall is not the GPU. It is V8's heap: `performance.memory.jsHeapSizeLimit`
- * is 3.5 GB in that Chromium and the renderer draws every edge as two Babylon meshes plus, on
- * the default arrow-headed style, a ShaderMaterial of its own, which costs about 20 KB of heap
- * per edge and 10 KB per node. The heap was at its limit from 15,000 / 150,000 up (every load
- * past that point is garbage-collection bound: 12.6 s, then 19.4 s at 17,000) and the renderer
- * process died at 18,000 / 180,000. Nodes alone are cheap: 200,000 with no edges used 2.0 GB.
+ * TWO OF THEM ARE ENFORCED, AND WERE MEASURED. `renderCeiling` and `edgesDrawn` were once the
+ * design table's figures, 200,000 nodes and 500,000 edges, and nothing checked them. The renderer
+ * could not reach either: at 18,000 nodes / 180,000 edges the page stopped producing frames
+ * (issue #405). The wall was never the GPU. It is V8's heap -- `performance.memory.jsHeapSizeLimit`
+ * is 3.5 GB in headless Chromium -- and what filled it was the renderer, which drew every edge as
+ * two Babylon meshes plus, on the default arrow-headed style, a ShaderMaterial of its own: about
+ * 20 KB per edge.
  *
- * The ceilings below keep the worst case they allow together, 50,000 nodes AND 100,000 edges,
- * at 2.7 GB of heap (74 % of the limit, loaded in 8.0 s), which leaves room for a layout and a
- * run to allocate. 100,000 nodes with the same edges reached 84 % and 11.4 s, which is why the
- * node ceiling is the lower of the two measured figures. `DataManager` refuses a load past
- * either with `E_TOO_LARGE`; see `refuseAboveCeiling` there for why a refusal and not a
- * degraded draw. When the arrowheads share one material (pull request #394 in flight) the
- * per-edge cost falls and the same measurement should be repeated to raise these.
+ * AN EDGE NOW COSTS ABOUT A TENTH OF THAT, and these numbers moved with it. Its line and its two
+ * caps are thin instances of shared meshes, so an edge adds no scene object and no material at
+ * all (`EdgeLineBatch`, `ArrowCapBatch`, issue #419). Re-measured 2026-09-26 in headless Chromium
+ * on an RTX 4070 SUPER, the same way as before -- `layout="random"`, ten edges per node, the
+ * default style, on a machine under a load average of 25 to 50, so the load times below are
+ * upper bounds:
+ *
+ * | nodes | edges | heap | scene meshes | load |
+ * | --- | --- | --- | --- | --- |
+ * | 10,000 | 100,000 | 268 MB | 10,003 | 5.2 s |
+ * | 20,000 | 200,000 | 468 MB | 20,003 | 8.4 s |
+ * | 30,000 | 300,000 | 697 MB | 30,003 | 14.0 s |
+ * | 50,000 | 500,000 | 1,030 MB | 50,003 | 23.4 s |
+ * | 80,000 | 800,000 | 1,660 MB | 80,003 | 44.8 s |
+ *
+ * The same 10,000 / 100,000 graph was 2,272 MB and 210,002 meshes before any of this work, and
+ * 1,564 MB and 110,002 meshes with only the lines batched. The mesh count is now the node count:
+ * the edges have left the scene.
+ *
+ * The ceilings below keep the worst case they allow together, 50,000 nodes AND 500,000 edges, at
+ * 1.03 GB of heap -- 29 % of the limit, where the same pair of ceilings used to sit at 74 % with
+ * a fifth of the edges. The node ceiling is unchanged because nothing here made a node cheaper: a
+ * node is still an `InstancedMesh` of its own. `DataManager` refuses a load past either with
+ * `E_TOO_LARGE`; see `refuseAboveCeiling` there for why a refusal and not a degraded draw.
+ *
+ * WHAT THESE NUMBERS DO NOT COVER, and it is the same exclusion as before: a patterned line style
+ * gives every dot and dash a mesh and a ShaderMaterial of its own (`PatternedLineRenderer`), and
+ * an animated line is never batched. Under either, the heap runs out earlier than this says.
  *
  * ONE OF THE SIX FIELDS IS ABSENT, and it is worth saying why the other five are not.
  *
@@ -72,16 +89,16 @@ export const DEFAULT_LIMITS: Readonly<DefaultableLimits> = Object.freeze({
     largeGraphThreshold: 10_000,
     /**
      * The most nodes the element will hold. Enforced: a load past it fails with `E_TOO_LARGE`.
-     * Measured once (see the file comment), on one machine; not this machine's figure.
+     * Measured (see the file comment), on one machine; not this machine's figure.
      */
     renderCeiling: 50_000,
     /** The most elements one selection will hold before it refuses to grow. A shipped default, not measured. */
     selectionCap: DEFAULT_SELECTION_CAP,
     /**
      * The most edges the element will hold. Enforced: a load past it fails with `E_TOO_LARGE`.
-     * Measured once (see the file comment), on one machine; not this machine's figure.
+     * Measured (see the file comment), on one machine; not this machine's figure.
      */
-    edgesDrawn: 100_000,
+    edgesDrawn: 500_000,
     /**
      * Above this NODE COUNT an approximable algorithm is approximated rather than computed
      * exactly. A shipped default, not measured. Not to be confused with the cost gate's

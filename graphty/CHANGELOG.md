@@ -1,3 +1,26 @@
+## 0.8.11 (2026-09-26)
+
+### 🚀 Features
+
+- **graphty-element:** export the edge line and arrow types for pickers ([#46](https://github.com/graphty-org/graphty-monorepo/issues/46))
+
+### 🩹 Fixes
+
+- **graphty-element:** load ids, replace only after a load succeeds, and nodeData replaces ([#49](https://github.com/graphty-org/graphty-monorepo/issues/49), [#50](https://github.com/graphty-org/graphty-monorepo/issues/50), [#110](https://github.com/graphty-org/graphty-monorepo/issues/110), [#198](https://github.com/graphty-org/graphty-monorepo/issues/198))
+- **graphty:** the legend's other row shows the colours it rolls up ([#201](https://github.com/graphty-org/graphty-monorepo/issues/201))
+- **graphty-element:** seeded ngraph and random layouts are reproducible ([#114](https://github.com/graphty-org/graphty-monorepo/issues/114), [#115](https://github.com/graphty-org/graphty-monorepo/issues/115))
+- **graphty:** the help menu is a mantine menu anchored to its button ([#199](https://github.com/graphty-org/graphty-monorepo/issues/199))
+- **graphty-element:** acceleration policy changes detach, reach status and stop at dispose ([#150](https://github.com/graphty-org/graphty-monorepo/issues/150), [#151](https://github.com/graphty-org/graphty-monorepo/issues/151), [#152](https://github.com/graphty-org/graphty-monorepo/issues/152), [#155](https://github.com/graphty-org/graphty-monorepo/issues/155))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.6
+- Updated graphty-element to 2.4.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.10 (2026-09-26)
 
 ### 🧱 Updated Dependencies

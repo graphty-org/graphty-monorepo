@@ -77,7 +77,14 @@ echo ""
 # while their `build` SCRIPT is a plain tsc that never writes the bundled dist/<pkg>.d.ts the strict-consumer
 # compiles resolve through. On a clean tree the script form left those missing and the gate failed at Lint.
 # It is also what CI runs (.github/workflows/ci.yml), which is the parity CLAUDE.md asks for.
-run_step "Build" "pnpm exec nx run-many -t build --projects=$PROJECT_LIST --parallel=3"
+# Knip and the published-dependency check resolve every package's imports through its dist/, so
+# an unaffected package with no dist yet (a fresh worktree) is built too. A package that has one
+# is left alone: nothing in this push changed it.
+BUILD_LIST="$PROJECT_LIST"
+for p in $(NX_DAEMON=false pnpm exec nx show projects --json 2>/dev/null | tr -d "[]\"" | tr "," " "); do
+    [ -d "${p#@graphty/}/dist" ] || affected "$p" || BUILD_LIST="$BUILD_LIST,$p"
+done
+run_step "Build" "pnpm exec nx run-many -t build --projects=$BUILD_LIST --parallel=3"
 
 # webgpu-graph-algorithms: its lint runs the strict-consumer compile against the d.ts shims that only
 # build:bundle writes (tsc emits none; the package has no root entry file), so bundle it before Lint

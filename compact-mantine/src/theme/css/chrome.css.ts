@@ -23,7 +23,7 @@ const css = `
     height: 40px;
     padding-inline: 16px 8px;
     color: var(--cm-text);
-    transition: color 100ms ease-out;
+    transition: color var(--cm-duration-sm) var(--cm-ease-out);
 }
 .cm-section[data-empty] .cm-section-header { color: var(--cm-text-secondary); }
 .cm-section[data-empty] .cm-section-header:hover { color: var(--cm-text); }
@@ -51,7 +51,7 @@ const css = `
     width: 16px;
     height: 16px;
     color: inherit;
-    transition: color 100ms ease-out;
+    transition: color var(--cm-duration-sm) var(--cm-ease-out);
 }
 .cm-section-title {
     display: block;
@@ -63,7 +63,7 @@ const css = `
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    transition: color 100ms ease-out;
+    transition: color var(--cm-duration-sm) var(--cm-ease-out);
 }
 .cm-section-technical { font-weight: 450; color: var(--cm-text-secondary); }
 .cm-section-dot {
@@ -74,7 +74,7 @@ const css = `
     background: var(--cm-bg-brand);
 }
 .cm-section-actions { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
-.cm-section .cm-section-add { transition: color 100ms ease-out; }
+.cm-section .cm-section-add { transition: color var(--cm-duration-sm) var(--cm-ease-out); }
 .cm-section[data-empty] .cm-section-add { color: var(--cm-icon-secondary); }
 .cm-section[data-empty] .cm-section-header:hover .cm-section-add { color: var(--cm-icon); }
 .cm-section-content { padding: 0 8px 12px 16px; }
@@ -113,7 +113,7 @@ const css = `
     background: transparent;
     color: var(--cm-text-secondary);
     ${cmFont("body")}
-    transition: color 100ms ease-out;
+    transition: color var(--cm-duration-sm) var(--cm-ease-out);
 }
 .cm-subgroup-control:hover { color: var(--cm-text); }
 .cm-subgroup-chevron {
@@ -132,7 +132,32 @@ const css = `
     color: var(--cm-text-secondary);
 }
 .cm-row-reading[data-disabled] { color: var(--cm-text-disabled); }
-.cm-row-actions { transition: opacity 100ms ease-out; }
+
+/* A row, or a row's reading, that is itself the button (ActionRow with onClick, MetricRow with
+   onClick). Figma draws a pressable row as a 24px pill that starts 8px before the text and keeps
+   8px after it (the page row: pill at x 8, text at x 16), and rings that pill 1px at offset 0.
+   The pill reaches 8px out into the section's 16px start padding, so the text stays where a
+   plain reading's does; the ring sits on the pill, not on the text's own edge. The pressable
+   area stays the full 32px row. */
+.cm-row-target {
+    position: relative;
+    box-sizing: border-box;
+    margin-inline-start: -8px;
+    padding-inline: 8px;
+    outline: none;
+}
+.cm-row-target::before {
+    content: "";
+    position: absolute;
+    inset-block: 4px;
+    inset-inline: 0;
+    border-radius: 5px;
+    outline: 1px solid transparent;
+    outline-offset: 0;
+    pointer-events: none;
+}
+.cm-row-target:focus-visible::before { outline-color: var(--cm-border-selected); }
+.cm-row-actions { transition: opacity var(--cm-duration-sm) var(--cm-ease-out); }
 
 /* The compound readout: one filled field, 1px panel-colored seams between segments. */
 .cm-compound {

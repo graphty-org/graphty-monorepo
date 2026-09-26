@@ -448,7 +448,7 @@ export function ActionRow(props: ActionRowProps): React.JSX.Element {
                         data-testid="action-row-state"
                         title={tooltip}
                         {...announcement}
-                        className="cm-row-reading cm-focus-inside"
+                        className="cm-row-reading cm-row-target"
                         data-disabled={disabled || undefined}
                         onClick={handleActivate}
                         style={activationStyle}

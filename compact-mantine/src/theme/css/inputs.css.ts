@@ -37,6 +37,9 @@ const css = `
     border: 0;
     background-color: transparent;
     color: var(--input-color);
+    /* A value or placeholder longer than the field (a translated "Mixed") ends in an ellipsis
+       instead of being cut mid-letter against the unit or the field's end. */
+    text-overflow: ellipsis;
     font-weight: 450;
     letter-spacing: 0.055px;
     border-radius: inherit;

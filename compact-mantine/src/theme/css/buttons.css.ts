@@ -59,9 +59,11 @@ const css = `
     justify-content: center;
     margin-inline: -4px 0;
 }
-/* A shortcut: 4px after the label, in the variant's secondary ink. */
+/* A shortcut: 4px after the label, in the variant's secondary ink, and the label's own inset
+   after it. Figma's specimen ends the shortcut flush with the button's edge, its last letter
+   touching the fill (bc/btn-primary-md-shortcut); the end keeps the size's inset instead. */
 .cm-button-section[data-position="right"] {
-    margin-inline: 0;
+    margin-inline: 0 var(--button-padding-x);
     padding-inline-start: 4px;
     color: var(--cm-btn-shortcut, inherit);
 }

@@ -32,6 +32,7 @@ declare module "@vitest/browser/context" {
         mouseAway: () => Promise<void>;
         mouseDown: () => Promise<void>;
         mouseUp: () => Promise<void>;
+        emulateReducedMotion: (reduce: boolean) => Promise<void>;
     }
 }
 

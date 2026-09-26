@@ -1,5 +1,5 @@
 import { Box, type ComboboxData, Select, TextInput } from "@mantine/core";
-import { useMediaQuery, useUncontrolled } from "@mantine/hooks";
+import { useElementSize, useMediaQuery, useUncontrolled } from "@mantine/hooks";
 import React, { forwardRef } from "react";
 
 import { PANEL_GRID, PANEL_INK } from "../../constants/panel";
@@ -388,6 +388,8 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(function
     // Read with a hook rather than a media query in the stylesheet because it
     // decides whether the scrub handlers are attached at all.
     const coarsePointer = useMediaQuery("(pointer: coarse)");
+    // The unit's drawn width, so the value stops INLINE_GAP before it whatever the suffix is.
+    const { ref: unitRef, width: unitWidth } = useElementSize<HTMLSpanElement>();
 
     const [currentValue, setValue] = useUncontrolled<string | number>({
         value: value === null ? "" : value,
@@ -633,7 +635,9 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(function
                             paddingInlineEnd: showsChevron ? 0 : VALUE_END_PAD,
                         }}
                     >
-                        {unit}
+                        <span ref={unitRef} style={{ display: "inline-block" }}>
+                            {unit}
+                        </span>
                     </Box>
                 )}
                 {showsChevron && (
@@ -656,14 +660,17 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(function
 
     // The width of the trailing section is also the value's inline-end padding,
     // so it has to allow for everything drawn there plus the gap before it. The
-    // unit is measured in `ch`, the width of a digit at the field's own font
-    // size, which is the only unit that follows a translated suffix without
-    // measuring the page.
+    // unit is measured once it is drawn. Until then (and on the server) it is
+    // estimated in `ch`, the width of a digit at the field's own font size --
+    // an estimate only: "%" is wider than a digit, so a long value such as a
+    // translated "Mixed" ran into the unit with no gap at all.
     let trailingFixed = hasUnit ? INLINE_GAP : 0;
     trailingFixed += showsChevron ? PANEL_GRID.GLYPH_SLOT : VALUE_END_PAD;
 
     let rightSectionWidth: string | number | undefined;
-    if (hasUnit) {
+    if (hasUnit && unitWidth > 0) {
+        rightSectionWidth = Math.ceil(unitWidth) + trailingFixed;
+    } else if (hasUnit) {
         rightSectionWidth = `calc(${String(unit.length)}ch + ${String(trailingFixed)}px)`;
     } else if (showsChevron) {
         rightSectionWidth = trailingFixed;

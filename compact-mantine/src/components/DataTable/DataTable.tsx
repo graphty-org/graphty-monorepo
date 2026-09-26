@@ -74,7 +74,7 @@ interface GlobalSearch {
 }
 
 // How tall the scrolling area is when the caller says nothing: the header and
-// about seven 40px rows, which is enough to read as a list rather than as a
+// about nine 32px rows, which is enough to read as a list rather than as a
 // peephole.
 const DEFAULT_HEIGHT = 320;
 
@@ -83,9 +83,11 @@ const DEFAULT_HEIGHT = 320;
 // not reach the edge of what is drawn.
 const DEFAULT_OVERSCAN = 8;
 
-// The Variables spreadsheet's row and header height (design/figma-spec.md 10.6). Rows and cells
-// are separated by a 1px gap that each cell's 1px outline grid line sits over.
-const TABLE_ROW_HEIGHT = 40;
+// Row and header height: Figma's 32px list pitch (layer rows, page rows, property rows, DataRow),
+// not the 40px of its Variables spreadsheet, whose cells hold editable fields. A table of readings
+// in a panel or a drawer reads with the rows around it. Rows and cells are separated by a 1px gap
+// that each cell's 1px outline grid line sits over (design/figma-spec.md 10.6).
+const TABLE_ROW_HEIGHT = PANEL_GRID.ROW_PITCH;
 const GRID_GAP = 1;
 
 // An empty array that keeps its identity between renders, so that a table given

@@ -139,6 +139,8 @@ const css = `
     display: inline-flex;
     align-items: center;
     gap: 8px;
+    /* Content-sized, as Figma's floating bar is: a column flex parent would stretch it. */
+    width: max-content;
     height: 48px;
     padding: 8px;
     background-color: var(--cm-bg);
@@ -245,6 +247,8 @@ const css = `
     display: inline-flex;
     align-items: center;
     gap: 8px;
+    /* Content-sized, as Figma's floating bar is: a column flex parent would stretch it. */
+    width: max-content;
     height: 40px;
     padding: 8px;
     background-color: var(--cm-bg);

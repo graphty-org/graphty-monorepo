@@ -59,6 +59,17 @@ const css = `
 
 ${highContrastBlock(':root[data-cm-contrast="high"]')}
 
+/* Reduced motion: the few things that move (spec 2.8: a checkbox tick, a switch knob, a hover
+   color, the help button's ring, the loading fade) change in one frame. Every such transition
+   reads its duration from these two tokens. */
+@media (prefers-reduced-motion: reduce) {
+    :root,
+    :host {
+        --cm-duration-sm: 0ms;
+        --cm-duration-md: 0ms;
+    }
+}
+
 body {
     font-family: var(--cm-font-family);
     ${cmFont("body")}

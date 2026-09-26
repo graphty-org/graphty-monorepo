@@ -463,7 +463,8 @@ Geometry for every text variant (C7, bc/btn-primary-md-enabled--default #63, #66
 - "Button" label measures 52.3 x 24 (sm) and 60.3 x 32 (md) (bc/btn-primary-lg-enabled--default #25).
 - Left section (icon): a 24 x 24 slot with `margin-inline-start: -4px`, so the visible start
   inset is 4px; the label follows directly ("Create" 73.3 x 24, bc/btn-primary-md-icon--default
-  #25, #28 at x-4). Right section shortcut: `padding-inline-start: 4px`, color the variant's
+  #25, #28 at x-4). Right section shortcut: `padding-inline-start: 4px` and the size's label inset after it (8 at
+  sm, 12 at md; Figma's specimen ends it flush, its last letter on the edge), color the variant's
   secondary text (`#ffffffcc` on primary: bc/btn-primary-md-shortcut--default #29).
 - Loading: width unchanged, `cursor: progress`, label fades out 200ms, a 16 x 16 spinner centered
   (bc/btn-primary-md-loading--default #28).
@@ -1407,10 +1408,11 @@ column labels, sort caret 5 x 3. RankChip: section 9.8.
 
 - Grid lines: every cell draws `outline: 1px solid var(--cm-border)` (lines overlap instead of
   doubling); no outer `PANEL_INK.BORDER` border.
-- Header row 40, text 11/16 600 `--cm-text`; data rows 40; cell padding 0 16 (name column) /
-  0 8; cell text 11/16 450.
+- Header row 32, text 11/16 600 `--cm-text`; data rows 32 (Figma's list pitch, the pitch of
+  layer, page and property rows; the Variables spreadsheet itself is 40, its cells hold editable
+  fields); cell padding 0 16 (name column) / 0 8; cell text 11/16 450.
 - Row hover: no tint. Selected row: every cell `--cm-bg-selected`. Active (keyboard) cell: a 1px
-  `--cm-border-selected` box drawn inset by `::before` (278 x 38 in a 280 x 40 cell); the cell's
+  `--cm-border-selected` box drawn inset by `::before` (278 x 30 in a 280 x 32 cell); the cell's
   own input shows no outline.
 - Sort indicator: 5 x 3 caret after the header label. Keyboard model unchanged (the existing
   grid navigation in `navigation.ts` / `selection.ts` stays).

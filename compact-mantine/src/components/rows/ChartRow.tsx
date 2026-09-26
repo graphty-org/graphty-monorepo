@@ -926,6 +926,7 @@ export function MetricRow({
             data-testid="metric-row"
             role={interactive ? "button" : undefined}
             tabIndex={interactive ? 0 : undefined}
+            className={interactive ? "cm-row-target" : undefined}
             // The whole row is the live region: the reading, its bar and its
             // rank all change together when a run finishes, and announcing them
             // together keeps the name in front of the number.

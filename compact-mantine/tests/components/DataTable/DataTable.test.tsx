@@ -168,9 +168,9 @@ describe("DataTable structure", () => {
         expect(within(headerFor("Name")).queryByRole("button")).toBeNull();
     });
 
-    it("draws rows at the 40px Variables-table pitch, and at whatever height it is given", () => {
+    it("draws rows at the 32px list pitch, and at whatever height it is given", () => {
         const { rerender } = renderTable(<DataTable columns={COLUMNS} data={CATS} />);
-        expect(rowNamed("Whiskers")).toHaveStyle({ height: "40px" });
+        expect(rowNamed("Whiskers")).toHaveStyle({ height: "32px" });
 
         rerender(
             <MantineProvider theme={compactTheme}>

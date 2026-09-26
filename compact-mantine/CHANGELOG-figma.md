@@ -22,6 +22,10 @@ props" below.
   is Figma's one outlined field. Field labels are 9/14 weight-500 captions above the field.
 - **Focus ring.** Figma's 1px #0d99ff ring replaces Mantine's 2px ring: inside fields and joined
   segments, outside buttons, keyboard focus only (number and text fields ring on any focus).
+  A page row rings its 24px pill; a row that is itself a button (`ActionRow` or `MetricRow` with
+  `onClick`) draws Figma's 24px pill 8px before and after its text and rings that.
+- **Motion.** The few things that move (a checkbox tick, a switch knob, a hover color) take
+  100ms, and change in one frame when the reader asks the system for reduced motion.
 - **Radii and shadows.** Radius 5 almost everywhere (2 small, 13 large). Shadows are Figma's
   five elevations; in dark they carry Figma's 0.5px inner white hairlines.
 - **Overlays.** Menus, list boxes and tooltips are dark in both schemes. Overlays open and close
@@ -147,7 +151,8 @@ the license text ships as `dist/fonts/LICENSE-Inter.txt`, and the package's lice
    (selected ground, brand glyph). The AA option does not bring the border back.
 9. Button `md` is 32 tall (was 30); `lg` / `xl` text is 13 / 15 (was 15 / 17). ActionIcon `md` is 32. CloseButton's default is `sm`, a 24px box with a 10px X (was 16 / 12); its `sm` / `md` /
    `lg` / `xl` are 24 / 32 / 36 / 44.
-10. Button reports `padding: 0`; the inset is a margin on the label. Button type is 11/16 weight
+10. Button reports `padding: 0`; the inset is a margin on the label. A shortcut in the right
+    section keeps the size's inset after it (8 at `sm`, 12 at `md`). Button type is 11/16 weight
     450, letter-spacing 0.055px.
 11. With no `color`, or with the primary color, Button and ActionIcon draw Figma's token colors
     instead of Mantine's derived ones.
@@ -242,23 +247,26 @@ the license text ships as `dist/fonts/LICENSE-Inter.txt`, and the package's lice
 45. Chart rows and `ProseBlock`: all text 11/16; bars and lines use the secondary icon color;
     histogram axis row 16 (was 13); sparkline stroke 1px (was 1.5); `RampRow` minimum drawing
     width 96 (was 120).
-46. `DataRow` is 32 tall with an 11px name; hover and selected are a 24px pill instead of a
+46. A `PanelField` unit keeps a 4px gap after the value whatever its width, and a value too long
+    for the field ends in an ellipsis.
+47. `Toolbar` and `SecondaryToolbar` are as wide as their content in any container.
+48. `DataRow` is 32 tall with an 11px name; hover and selected are a 24px pill instead of a
     full-row tint; its layout moved from inline styles to `cm-*` classes. `DataRowHeader` is 32
     tall (was 20) at 11/16 weight 550 with the 5 x 3 caret as its sort glyph.
-47. `RankChip` is no longer a Mantine Badge: it is a span with Figma's outlined badge look (no
+49. `RankChip` is no longer a Mantine Badge: it is a span with Figma's outlined badge look (no
     `--badge-*` variables, no `mantine-Badge-root` class).
-48. `DataTable`: default `rowHeight` and `headerHeight` 40 (were 28 and 24); a 1px cell grid (rows
-    41px apart); no outer border and no row-hover tint; a selected row uses the selected ground;
+50. `DataTable`: default `rowHeight` and `headerHeight` 32 (were 28 and 24); a 1px cell grid (rows
+    33px apart); no outer border and no row-hover tint; a selected row uses the selected ground;
     keyboard focus draws an inside box; body text 11/16; header labels padded 16, value cells 12
     at the start and 8 at the end.
-49. `Tree`: a top-level item with an empty `children` array is bold, like one with children.
+51. `Tree`: a top-level item with an empty `children` array is bold, like one with children.
 
 ### Display components
 
-50. `Badge` defaults to the outlined 16px look, `Pill` is 20 tall, `Indicator` is a 9px dot with a
+52. `Badge` defaults to the outlined 16px look, `Pill` is 20 tall, `Indicator` is a 9px dot with a
     ring (`withBorder` on), `Kbd` is a dark key cap in both schemes, and `Avatar` defaults to
     `variant="filled"`.
-51. `Card` defaults to padding 8, radius 5, `withBorder` (a transparent edge) and no fill (was
+53. `Card` defaults to padding 8, radius 5, `withBorder` (a transparent edge) and no fill (was
     Mantine's md padding on the body color).
 
 ## Known differences from Figma

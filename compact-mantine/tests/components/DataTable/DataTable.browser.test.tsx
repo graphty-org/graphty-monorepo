@@ -33,8 +33,8 @@ const COLUMNS: DataTableColumn<Node>[] = [
     { id: "degree", header: "Links", value: (node) => node.degree, align: "end", width: 80 },
 ];
 
-/** Figma's Variables-table row (design/figma-spec.md 10.6), and its pitch: a 1px grid gap between rows. */
-const ROW = 40;
+/** The default row (Figma's 32px list pitch, design/figma-spec.md 10.6), and its pitch: a 1px grid gap between rows. */
+const ROW = 32;
 const PITCH = ROW + 1;
 
 /** The height of the scrolling area these tests measure against. */

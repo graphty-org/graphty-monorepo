@@ -190,12 +190,13 @@ const css = `
     height: 32px;
     padding: 4px 8px;
     border-radius: 5px;
-    outline: 1px solid transparent;
-    outline-offset: 0;
+    outline: none;
     cursor: default;
 }
-.cm-page-cell:focus-visible,
-.cm-page-cell[data-state="focus"] { outline: 1px solid var(--cm-border-selected); outline-offset: 0; }
+/* Figma rings the 24px page pill (outline 1px at offset 0), not the 32px cell around it: a ring
+   on the cell ran into the rows above and below and the list's own edge. */
+.cm-page-cell:focus-visible .cm-page-button,
+.cm-page-cell[data-state="focus"] .cm-page-button { outline-color: var(--cm-border-selected); }
 .cm-page-button {
     box-sizing: border-box;
     display: flex;
@@ -205,6 +206,8 @@ const css = `
     padding: 0 8px;
     border: 0;
     border-radius: 5px;
+    outline: 1px solid transparent;
+    outline-offset: 0;
     background: var(--cm-bg);
     color: var(--cm-text);
     font-size: 11px;

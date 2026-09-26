@@ -146,13 +146,11 @@ describe.skipIf(!(await figmaAvailable()))("buttons against Figma", () => {
             const button = part(container, "button");
             const section = part(button, '.cm-button-section[data-position="right"]');
             // "Ctrl+Enter" sets 1px narrower in Inter 4 (see TEXT WIDTHS): compare the geometry
-            // around it -- where it starts, its 4px lead, and that it ends at the button's edge.
+            // around it -- where it starts and its 4px lead. Figma's specimen ends it flush with
+            // the button's edge, its last letter touching the fill; it keeps the label's 8px inset.
             expectMeasured(button, figmaSpec(figma, ["height"]));
             expectMeasured(section, { ...figmaSpec(shortcut, ["color", "paddingLeft", ...TYPE]), x: shortcut.box[0] - figma.box[0] }, { origin: button });
-            expect(button.getBoundingClientRect().right - section.getBoundingClientRect().right).toBeCloseTo(
-                figma.box[0] + figma.box[2] - (shortcut.box[0] + shortcut.box[2]),
-                1,
-            );
+            expect(button.getBoundingClientRect().right - section.getBoundingClientRect().right).toBeCloseTo(8, 1);
         });
 
         it.each(["secondary", "ghost", "destructiveSecondary", "inverse"])("the %s shortcut ink", async (figmaName) => {

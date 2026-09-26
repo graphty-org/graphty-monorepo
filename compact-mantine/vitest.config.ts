@@ -73,6 +73,15 @@ const mouseAway: BrowserCommand<[]> = async (ctx) => {
     await ctx.page.mouse.move(size.width - 1, size.height - 1);
 };
 
+/**
+ * Emulate the reader's reduced-motion preference, or clear it.
+ * @param ctx - the browser command context
+ * @param reduce - true for `prefers-reduced-motion: reduce`, false for no preference
+ */
+const emulateReducedMotion: BrowserCommand<[reduce: boolean]> = async (ctx, reduce) => {
+    await ctx.page.emulateMedia({ reducedMotion: reduce ? "reduce" : "no-preference" });
+};
+
 /** Release the primary mouse button. */
 const mouseUp: BrowserCommand<[]> = async (ctx) => {
     await ctx.page.mouse.up();
@@ -118,7 +127,7 @@ export default defineConfig({
                         // Disable file parallelism to prevent race conditions
                         fileParallelism: false,
                         // Node-side helpers for the measurement harness (tests/harness).
-                        commands: { figmaAvailable, readFigmaCapture, mouseAway, mouseDown, mouseUp },
+                        commands: { figmaAvailable, readFigmaCapture, mouseAway, mouseDown, mouseUp, emulateReducedMotion },
                     },
                 },
             },

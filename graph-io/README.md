@@ -300,3 +300,5 @@ CSR helper (`childrenCsr`) inverts a `parent` / `parents` containment column for
 ## License
 
 MIT
+
+<!-- CI affected-only probe; this pull request is closed without merging -->

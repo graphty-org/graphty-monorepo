@@ -18,6 +18,19 @@ import {
 } from "../../src/link-prediction/common-neighbors.js";
 
 describe("Link Prediction Algorithms", () => {
+    it("scores a node whose id is 0 like any other", () => {
+        // The path 0-1-2-3: 0 and 2 share 1, so the pair 0-2 must be listed.
+        const graph = new Graph();
+        graph.addEdge(0, 1);
+        graph.addEdge(1, 2);
+        graph.addEdge(2, 3);
+
+        for (const predict of [commonNeighborsPrediction, adamicAdarPrediction]) {
+            const pairs = predict(graph).map((p) => [p.source, p.target].join("-"));
+            expect(pairs).toContain("0-2");
+        }
+    });
+
     describe("Common Neighbors", () => {
         describe("commonNeighborsScore", () => {
             it("should calculate common neighbors score correctly", () => {

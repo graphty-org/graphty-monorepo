@@ -1,5 +1,6 @@
 /**
- * G4, the `grid-centroid` kernel body (spec 7.7; P4-T9): thread per finest cell, the pseudo-cell included; the
+ * G4, the `grid-centroid` kernel body (spec 7.7; P4-T9): thread per finest cell, the 2^dim outside pseudo-cells
+ * included (issue #90); the
  * mass-weighted position sum of a cell's sorted range in index order (no atomics: deterministic), the largest
  * occupancy into hubCounters[1], and cells above GRID_HUB_CELL entries appended to hubList for G4b (PD-13). Body
  * only; normative text.
@@ -10,7 +11,7 @@ fn grid_cells() -> u32 { return P.gridMax * P.gridMax * select(1u, P.gridMax, P.
 @compute @workgroup_size(WG)
 fn grid_centroid(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>) {
     let c = linear_id(wid, lid.x);
-    if (c > grid_cells()) { return; }                              // cells [0, cells]: the pseudo-cell is index cells; no barrier follows
+    if (c >= grid_cells() + select(4u, 8u, P.dim == 3u)) { return; }   // cells [0, cells + 2^dim): the pseudo-cells follow the real ones; no barrier follows
     let start = cellStart[c];
     let count = cellStart[c + 1u] - start;
     atomicMax(&hubCounters[1], count);                             // maxCellOccupancy, read by K1 next iteration

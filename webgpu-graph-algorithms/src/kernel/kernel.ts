@@ -245,7 +245,7 @@ export class Kernel {
     }
 
     /**
-     * setPipeline + setBindGroup for every group (dynamic offsets in dynamicGroups order) + dispatchWorkgroups(plan.x, plan.y, 1); a plan with x === 0 records nothing (spec 5.6).
+     * setPipeline + setBindGroup for every group (dynamic offsets in dynamicGroups order) + dispatchWorkgroups(plan.x, plan.y, plan.z); a plan with x === 0 records nothing (spec 5.6).
      * PLAN DECISION: one dynamic offset per dynamic GROUP, replicated over every uniform binding of that group (every
      * P1-P3 kernel has exactly one params uniform per group); absent offsets mean 0; a BoundKernel of another kernel
      * or an offset list of the wrong length is E_INVALID_ARGUMENT.
@@ -268,7 +268,7 @@ export class Kernel {
             return;
         }
         this.setUp(pass, bound, dynamicOffsets);
-        pass.dispatchWorkgroups(plan.x, plan.y, 1);
+        pass.dispatchWorkgroups(plan.x, plan.y, plan.z);
     }
 
     /**

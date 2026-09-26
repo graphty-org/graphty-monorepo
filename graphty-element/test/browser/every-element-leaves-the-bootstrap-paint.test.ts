@@ -95,21 +95,29 @@ async function mount(): Promise<Graphty> {
 }
 
 /**
- * Every mesh in the scene that is drawn from the element's own bootstrap paint.
- *
- * READ OFF THE MESH NAMES, which is the only reading of an edge's appearance there is: the
- * element publishes no way to enumerate edges and no handle on an edge object, and a mesh is
- * named after the paint it was built from. A node's instance is `node-style-<key>-3d` and an
- * edge's is `edge-style-<key>`, so one reading covers both halves.
- * @param element - The element on screen.
- * @returns How many meshes carry each name.
+ * The key each mesh is drawn under, read off the mesh itself: the `styleId` a node writes into
+ * its mesh's metadata, the `meshKey` the edge behind a line carries, and the mesh's name for
+ * anything else. THE NAME ALONE NO LONGER SAYS. A node whose first pass resolves the same style
+ * it was built from keeps its placeholder mesh (rebuilding an identical one cost the size of the
+ * scene per node, issue #388) and the instance's name still spells the bootstrap key; the hand-over
+ * writes the session's key into the metadata, so an element the hand-over never reached is the one
+ * whose metadata still says bootstrap.
  */
 function drawnFromBootstrap(element: Graphty): Record<string, number> {
     const keys = [bootstrapNodePaint().meshKey, bootstrapEdgePaint().meshKey];
     const tally: Record<string, number> = {};
 
     for (const mesh of element.graph.scene.meshes) {
-        if (keys.some((key) => mesh.name.includes(key))) {
+        const metadata = mesh.metadata as { styleId?: unknown; parentEdge?: { meshKey?: unknown } } | undefined;
+        let drawnUnder = mesh.name;
+
+        if (typeof metadata?.styleId === "string") {
+            drawnUnder = metadata.styleId;
+        } else if (typeof metadata?.parentEdge?.meshKey === "string") {
+            drawnUnder = metadata.parentEdge.meshKey;
+        }
+
+        if (keys.some((key) => drawnUnder.includes(key))) {
             tally[mesh.name] = (tally[mesh.name] ?? 0) + 1;
         }
     }

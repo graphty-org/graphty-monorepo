@@ -185,7 +185,9 @@ describe("optionsFromZod", () => {
             const options = optionsFromZod(GraphStyle);
 
             assert.deepInclude(byName(options, "addDefaultStyle"), { type: "boolean", default: true });
-            assert.deepInclude(byName(options, "startingCameraDistance"), { type: "number", default: 30 });
+            assert.strictEqual(byName(options, "startingCameraDistance").type, "number");
+            // No default: unset means "frame the graph to fit", which a number cannot say.
+            assert.isUndefined(byName(options, "startingCameraDistance").default);
             assert.strictEqual(byName(options, "layout").type, "string");
             assert.strictEqual(byName(options, "viewMode").type, "enum");
             assert.deepEqual(

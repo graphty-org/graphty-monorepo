@@ -108,6 +108,18 @@ export class OrbitCameraController {
     }
 
     /**
+     * The distance rule every programmatic writer of `cameraDistance` follows: floored at
+     * `minZoomDistance`, never capped. The ceiling is a zoom-out limit for a reader, not a
+     * framing limit -- a saved state for a large graph can sit beyond it, and `zoom` accepts that
+     * -- while a distance under the floor would make the next zoom IN jump the camera outwards.
+     * @param distance - The distance asked for.
+     * @returns The distance to use.
+     */
+    public clampDistance(distance: number): number {
+        return Math.max(distance, this.config.minZoomDistance);
+    }
+
+    /**
      * Update camera position relative to the pivot.
      * Parents camera to pivot and positions at negative Z distance.
      */
@@ -216,7 +228,7 @@ export class OrbitCameraController {
 
         // Only the floor applies: a fit that the configured ceiling cut short would put the
         // camera inside the graph. The ceiling stays a zoom-out limit, not a framing limit.
-        this.cameraDistance = Math.max(targetDistance, this.config.minZoomDistance);
+        this.cameraDistance = this.clampDistance(targetDistance);
 
         // Apply the new camera position immediately
         this.updateCameraPosition();

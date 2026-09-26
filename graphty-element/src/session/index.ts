@@ -18,13 +18,22 @@ export { DEFAULT_LIMITS } from "./limits";
 export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./planning";
 export { isAlgorithmRunCommand } from "./planning";
 export type {
+    CommandOutcome,
+    CommandOutcomeMap,
     ComponentStatistics,
     CreateGraphSessionOptions,
     EdgeRecord,
     ElementSession,
     GraphSession,
     GraphStatistics,
+    HistoryCause,
+    HistoryOutcome,
+    HistoryStep,
+    HistoryStepId,
     NodeRecord,
+    PendingId,
+    PendingStep,
+    ProjectSlice,
     SessionAttributes,
     SessionCatalogApi,
     SessionConfig,
@@ -32,9 +41,12 @@ export type {
     SessionDataConfig,
     SessionEventMap,
     SessionGraphStore,
+    SessionHistory,
     SessionRecordSource,
     SessionRunsOptions,
     SessionStatus,
     StyleProblem,
+    TransactionOptions,
+    TransactionScope,
 } from "./types";
 export { COMPONENT_SIZE_CAP } from "./types";

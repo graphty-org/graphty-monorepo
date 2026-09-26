@@ -33,7 +33,7 @@ import type { ElementPositions } from "../data/positions";
 import type { ImportReport } from "../data/report";
 import type { GraphtyError } from "../errors/GraphtyError";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
-import type { Plan, SessionCommand } from "./planning";
+import type { AlgorithmRunCommand, Plan, SessionCommand } from "./planning";
 import type { ResultsApi } from "./results";
 import type { Caveats, EngineVersions, Run, RunChange, RunExecutor, RunOptions, RunQueue, RunsApi } from "./runs";
 import type { ScopeApi } from "./scope/index";
@@ -440,7 +440,150 @@ export interface SessionEventMap {
     "style:problem": StyleProblem;
     /** Every acceleration transition; the document is the one `capabilities` returns. */
     "capabilities:changed": { readonly capabilities: AccelerationCapabilities };
+    /**
+     * The history changed: a step was recorded, merged, undone, redone, restored, evicted or
+     * cleared, or the pending work (and so what the next undo will do) changed. Fires
+     * synchronously after `project:changed`. Read `session.history` for the new state; its
+     * `version` has moved.
+     */
+    "history:changed": {
+        readonly reason: "record" | "merge" | "undo" | "redo" | "restore" | "evict" | "clear" | "pending" | "size";
+    };
+    /**
+     * Project state changed: the slices written and what wrote them. Fires synchronously, as
+     * soon as the state has changed and before the picture has caught up; the per-domain events
+     * (`style:changed` and the rest) follow once it has.
+     */
+    "project:changed": { readonly slices: readonly ProjectSlice[]; readonly cause: HistoryCause };
 }
+
+/**
+ * The parts of a project. Everything a project file saves lives in one of these, and a change
+ * to any of them is undoable; nothing outside them (camera, hover, the selection, a run still
+ * computing) is.
+ */
+export type ProjectSlice =
+    | "graph"
+    | "config"
+    | "layout"
+    | "pins"
+    | "arrangement"
+    | "runs"
+    | "styles"
+    | "visibility"
+    | "scopes"
+    | "views";
+
+/** What moved project state: a command, a history move, or a failed command being reverted. */
+export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
+
+/** The id of one step in `session.history.steps`. */
+export type HistoryStepId = string & { readonly __brand: "HistoryStepId" };
+
+/** The id of one item in `session.history.pending`. */
+export type PendingId = string & { readonly __brand: "PendingId" };
+
+/** One undoable step: everything one command, gesture or transaction changed. Frozen. */
+export interface HistoryStep {
+    /** Stable for the life of the step. */
+    readonly id: HistoryStepId;
+    /** What a history list shows, such as "Changed colour of Hubs". */
+    readonly label: string;
+    /** ISO 8601 of the last commit or merge into the step. */
+    readonly at: string;
+    /** The ops of the commands in the step, in the order they ran. Payloads are not kept for display. */
+    readonly ops: readonly SessionCommand["op"][];
+    /** The slices the step changed. */
+    readonly slices: readonly ProjectSlice[];
+    /** What the step retains on the side of the cursor it is on. */
+    readonly bytes: number;
+    /** Where the step came from, such as `{ via: "assistant" }`. */
+    readonly provenance: Readonly<Record<string, string>>;
+}
+
+/** Undoable work dispatched and not yet recorded: queued, waiting, or an open transaction. Frozen. */
+export interface PendingStep {
+    /** Pass it to `history.cancel`. */
+    readonly id: PendingId;
+    /** The label the step will have. */
+    readonly label: string;
+    /** ISO 8601 of the dispatch. */
+    readonly since: string;
+    /** The runs this work is waiting on. */
+    readonly runIds: readonly RunId[];
+}
+
+/** What an undo, a redo or a restore did. */
+export type HistoryOutcome =
+    | { readonly kind: "undone" | "redone" | "restored"; readonly steps: readonly HistoryStep[] }
+    | { readonly kind: "cancelled"; readonly pending: readonly PendingStep[] }
+    | { readonly kind: "nothing" };
+
+/**
+ * The session's undo history. `steps`, `pending` and `nextUndo` are frozen values, the identical
+ * objects between changes; `version` moves on every `history:changed`, so a React host can
+ * subscribe with `useSyncExternalStore(subscribe, () => session.history.version)`.
+ */
+export interface SessionHistory {
+    /** Bumped on every `history:changed`. */
+    readonly version: number;
+    /** Oldest first; `steps[position..]` have been undone and can be redone. */
+    readonly steps: readonly HistoryStep[];
+    /** How many steps are applied. */
+    readonly position: number;
+    /** Undoable work dispatched and not yet recorded, oldest first. */
+    readonly pending: readonly PendingStep[];
+    /** What the next `undo()` will do: cancel pending work, undo a step, or nothing (null). */
+    readonly nextUndo:
+        | { readonly kind: "cancel"; readonly pending: readonly PendingStep[] }
+        | { readonly kind: "undo"; readonly step: HistoryStep }
+        | null;
+    /** What every step retains, in bytes. */
+    readonly bytes: number;
+    /** The byte budget; the oldest steps are dropped past it. Default 256 MiB. */
+    limitBytes: number;
+    /** The step budget. Default 1000. */
+    limitSteps: number;
+    /**
+     * Move to the state just after a step, or to the baseline with `null`, as the equivalent run
+     * of undos or redos. Resolves once the picture matches the state.
+     * @param step - The step, or null for the state before every step.
+     * @returns What was done.
+     */
+    restoreTo(step: HistoryStepId | null): Promise<HistoryOutcome>;
+    /**
+     * Cancel a pending item, and every later-dispatched item that depends on what it writes.
+     * @param pending - The item.
+     * @returns Every item cancelled; empty when the id is not pending.
+     */
+    cancel(pending: PendingId): readonly PendingStep[];
+    /** Drop every step, cancelling pending work: the current state becomes the baseline. */
+    clear(): void;
+}
+
+/** Stamped on the step a transaction records. */
+export interface TransactionOptions {
+    /** Where the step came from, such as `{ via: "assistant" }`. Shown in `HistoryStep.provenance`. */
+    readonly provenance?: Readonly<Record<string, string>>;
+}
+
+/**
+ * The session a transaction's callback works through: every verb of the session, and what it
+ * dispatches joins the transaction's step. It cannot undo, redo, read the history or dispose.
+ */
+export type TransactionScope = Omit<GraphSession, "undo" | "redo" | "history" | "dispose">;
+
+/**
+ * What `execute` returns, per op. No entry is wrapped in a promise, because a promise resolved
+ * with a `Run` would adopt it and yield the result instead of the handle.
+ */
+export interface CommandOutcomeMap {
+    /** The run's handle; awaiting it yields the result. */
+    "algo.run": Run;
+}
+
+/** What `execute` returns for one command. */
+export type CommandOutcome<C extends SessionCommand> = CommandOutcomeMap[C["op"]];
 
 /**
  * A painting the element started for itself, and why it did not land.
@@ -568,7 +711,48 @@ export interface GraphSession {
      * @param options - The signal, the progress handler and how the call joins the queue.
      * @returns The run, awaitable and watchable straight away.
      */
-    run(command: SessionCommand, options?: RunOptions): Run;
+    run(command: AlgorithmRunCommand, options?: RunOptions): Run;
+    /**
+     * Do any command in the vocabulary (`COMMANDS` in `@graphty/graphty-element/commands`).
+     *
+     * Returns the op's outcome directly, not wrapped in a promise; every outcome is itself
+     * awaitable (a `Run` for `algo.run`), so `await session.execute(...)` waits for the command,
+     * and a caller that wants the run handle keeps the returned value without awaiting it.
+     * @param command - The command.
+     * @returns Its outcome.
+     */
+    execute<C extends SessionCommand>(command: C): CommandOutcome<C>;
+    /**
+     * Undo the last step, or cancel pending undoable work dispatched after it instead. Never
+     * waits for pending work. Resolves once the picture matches the state.
+     * @returns What was done; `{ kind: "nothing" }` when there was nothing to undo.
+     */
+    undo(): Promise<HistoryOutcome>;
+    /**
+     * Redo the last undone step. Resolves once the picture matches the state.
+     * @returns What was done; `{ kind: "nothing" }` when there was nothing to redo.
+     */
+    redo(): Promise<HistoryOutcome>;
+    /** Whether `undo()` would do something: undo a step or cancel pending work. */
+    readonly canUndo: boolean;
+    /** Whether `redo()` would do something. */
+    readonly canRedo: boolean;
+    /** The steps, the cursor, the pending work and the budget. */
+    readonly history: SessionHistory;
+    /**
+     * Run `fn`, and record everything it dispatches through `tx` as one step. Throw, or abort
+     * the transaction, to roll all of it back. A transaction that changed nothing records
+     * nothing.
+     * @param label - The step's label.
+     * @param fn - The body; `signal` fires when the transaction is aborted.
+     * @param options - Provenance stamped on the step.
+     * @returns What `fn` returned, once the step is recorded and the picture has caught up.
+     */
+    transaction<T>(
+        label: string,
+        fn: (tx: TransactionScope, signal: AbortSignal) => T | Promise<T>,
+        options?: TransactionOptions,
+    ): Promise<T>;
     /**
      * What one command would cost, answered synchronously.
      *

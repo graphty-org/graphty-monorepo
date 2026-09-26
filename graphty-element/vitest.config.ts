@@ -358,6 +358,12 @@ export default defineConfig({
                         // line of the stock shader that src/meshes/InstanceColorShading.ts
                         // rewrites -- the rewrite then matches nothing, silently.
                         "test/browser/lit-node-is-shaded-not-flooded.test.ts",
+                        // The two history twins every undo phase grows: each door of the element,
+                        // Graph and managers called with a spy on the dispatcher, and every
+                        // renderer round-trip fixture checked against a scene digest. They lay
+                        // out in one pass, so they stay inside this lane's budget.
+                        "test/browser/doors.test.ts",
+                        "test/browser/history-round-trip.test.ts",
                     ],
                     exclude: [
                         // Exclude experimental/temporary folders ending with ~

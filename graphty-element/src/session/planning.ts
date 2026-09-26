@@ -63,7 +63,11 @@ export interface AlgorithmRunCommand {
     readonly as?: RunId;
 }
 
-/** Everything a session can be asked to do, as data. */
+/**
+ * Everything a session can be asked to do, as data: the union of every op in the vocabulary
+ * (`COMMANDS` in `@graphty/graphty-element/commands`). It widens as ops are added, so a `switch`
+ * over `op` should keep a default branch.
+ */
 export type SessionCommand = AlgorithmRunCommand;
 
 /**
@@ -258,6 +262,16 @@ function costInput(
 }
 
 /**
+ * Why a command other than an algorithm run has no estimate: only runs are costed.
+ * @param command - The command.
+ * @param command.op - Its op.
+ * @returns The reason.
+ */
+function notEstimated(command: { readonly op: string }): string {
+    return `"${command.op}" is not costed: only an algorithm run has an estimate.`;
+}
+
+/**
  * The estimate a command gets when its scope cannot be narrowed.
  *
  * Unavailable rather than computed over the whole graph: a number produced for a scope the run
@@ -286,6 +300,10 @@ function unavailableEstimate(descriptor: AlgorithmDescriptor | undefined, reason
  * @returns The estimate.
  */
 export function estimateCommand(context: PlanningContext, command: SessionCommand): CostEstimate {
+    if (command.op !== "algo.run") {
+        return unavailableEstimate(undefined, notEstimated(command));
+    }
+
     const descriptor = context.algorithms().find((candidate) => candidate.key === command.algorithm);
     const built = costInput(context, command, descriptor);
 
@@ -311,6 +329,15 @@ export function estimateCommand(context: PlanningContext, command: SessionComman
  * @returns The plan.
  */
 export function planCommand(context: PlanningContext, command: SessionCommand): Plan {
+    if (command.op !== "algo.run") {
+        return Object.freeze({
+            ok: true,
+            cost: unavailableEstimate(undefined, notEstimated(command)),
+            effect: Object.freeze({ kind: "none" as const }),
+            caveats: context.defaultCaveats,
+        });
+    }
+
     const descriptor = context.algorithms().find((candidate) => candidate.key === command.algorithm);
     const built = costInput(context, command, descriptor);
 

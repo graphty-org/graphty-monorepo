@@ -24,7 +24,7 @@ graphty-element/
 |-- format.ts                 # Entry point: "./format"
 |-- logging.ts                # Entry point: "./logging"
 |-- session.ts                # Entry point: "./session"
-|-- commands.ts               # Entry point: "./commands" (reserved, exports nothing yet)
+|-- commands.ts               # Entry point: "./commands" (the command vocabulary, COMMANDS)
 |-- react.ts                  # Entry point: "./react" (reserved, exports nothing yet)
 |-- webgpu.ts                 # Entry point: "./webgpu" (side-effect: registers the accelerator)
 |-- ai.ts                     # Entry point: "./ai"
@@ -90,7 +90,7 @@ source file of the same name at the package root:
 | `./format` | `format.ts` | The graph-format decode vocabulary (read-only half; no brand, no version) | Yes |
 | `./session` | `session.ts` | Types only so far -- identities, scopes, result shapes, `Capabilities`, the error model | Yes |
 | `./logging` | `logging.ts` | `GraphtyLogger`, `LogLevel`, `LogRecord`, `Sink`, the console and remote destinations, `formatLogRecord`, the stored configuration, `parseLoggingURLParams` and `lazy` | Yes |
-| `./commands` | `commands.ts` | Nothing yet; the name is reserved for the serialisable command union | Yes (empty) |
+| `./commands` | `commands.ts` | `COMMANDS` (every op, undoable or exempt with a reason), `CommandMeta`, `isSessionCommand`, `SessionCommand` | Yes |
 | `./react` | `react.ts` | Nothing yet; the name is reserved for typed React wrappers | Yes (empty) |
 | `./webgpu` | `webgpu.ts` | Side-effect import that registers the WebGPU accelerator; the only file that imports the optional peer | No |
 | `./ai` | `ai.ts` | The natural-language layer and its LLM SDKs; needs a DOM | No |
@@ -102,7 +102,7 @@ run-time import graph.** `test/packaging/node-safe-entries.test.ts` enforces it 
 `logging.ts`: it transpiles each one and everything it reaches (so `import type` is correctly
 erased), fails if `@babylonjs/*`, `lit`, `@lit/*` or `@mlc-ai/*` appears, checks that `index.ts`
 does reach Babylon and Lit so a walker that resolved nothing cannot pass, and then imports
-`session`, `schema`, `catalog`, `extend`, `format` and `logging` in plain Node.
+`session`, `schema`, `catalog`, `commands`, `extend`, `format` and `logging` in plain Node.
 `test/packaging/exports-map.test.ts` checks the exports map, the `sideEffects` list and the peer
 dependency declarations against the build.
 
@@ -299,10 +299,10 @@ launches with no flags and sees no WebGPU at all, which is what the five CI shar
 
 ## Common Pitfalls
 
-**Entry point contamination**: Six published entry points carry exports that must resolve in
-Node with no renderer (two more are checked but still empty). Importing a value from a module
-that reaches Babylon.js, Lit or the DOM into anything `schema.ts`, `catalog.ts`, `extend.ts`,
-`format.ts`, `logging.ts` or `session.ts` reaches fails
+**Entry point contamination**: Seven published entry points carry exports that must resolve in
+Node with no renderer (one more, `react.ts`, is checked but still empty). Importing a value from
+a module that reaches Babylon.js, Lit or the DOM into anything `schema.ts`, `catalog.ts`,
+`commands.ts`, `extend.ts`, `format.ts`, `logging.ts` or `session.ts` reaches fails
 `test/packaging/node-safe-entries.test.ts`, not the file you edited. Use `import type` when you
 only need the type -- it is erased and costs nothing. See "Entry Points" above.
 

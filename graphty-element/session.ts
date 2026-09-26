@@ -60,12 +60,21 @@
 // ---------------------------------------------------------------------------------------------
 
 export type {
+    CommandOutcome,
+    CommandOutcomeMap,
     ComponentStatistics,
     CreateGraphSessionOptions,
     EdgeRecord,
     GraphSession,
     GraphStatistics,
+    HistoryCause,
+    HistoryOutcome,
+    HistoryStep,
+    HistoryStepId,
     NodeRecord,
+    PendingId,
+    PendingStep,
+    ProjectSlice,
     SessionAttributes,
     SessionCatalogApi,
     SessionConfig,
@@ -73,10 +82,13 @@ export type {
     SessionDataConfig,
     SessionEventMap,
     SessionGraphStore,
+    SessionHistory,
     SessionRecordSource,
     SessionRunsOptions,
     SessionStatus,
     StyleProblem,
+    TransactionOptions,
+    TransactionScope,
 } from "./src/session";
 export { createGraphSession } from "./src/session";
 
@@ -178,7 +190,13 @@ export type {
     SummaryGroup,
     TopRanking,
 } from "./src/session/results";
-export { defaultReading, RESULT_FIELD_NAMES, RESULT_ROOT, RESULT_SHAPE_CONTRACTS, resultPath } from "./src/session/results";
+export {
+    defaultReading,
+    RESULT_FIELD_NAMES,
+    RESULT_ROOT,
+    RESULT_SHAPE_CONTRACTS,
+    resultPath,
+} from "./src/session/results";
 
 // ---------------------------------------------------------------------------------------------
 // Which elements a piece of work is allowed to look at
@@ -223,13 +241,7 @@ export type {
 // Asking what something would do and cost, before doing it
 // ---------------------------------------------------------------------------------------------
 
-export type {
-    AlgorithmRunCommand,
-    Plan,
-    PlanBlock,
-    PlanEffect,
-    SessionCommand,
-} from "./src/session";
+export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./src/session";
 export { isAlgorithmRunCommand } from "./src/session";
 export type {
     CostConfidence,
@@ -319,11 +331,7 @@ export type {
     WorkerCapability,
     XrCapability,
 } from "./src/acceleration";
-export {
-    ACCELERATION_POLICIES,
-    ACCELERATION_POLICY_DEFAULT,
-    isAccelerationPolicy,
-} from "./src/acceleration";
+export { ACCELERATION_POLICIES, ACCELERATION_POLICY_DEFAULT, isAccelerationPolicy } from "./src/acceleration";
 export type { DefaultableLimits } from "./src/session";
 export { DEFAULT_LIMITS } from "./src/session";
 
@@ -339,4 +347,10 @@ export type {
     GraphtyErrorSource,
     GraphtyErrorTarget,
 } from "./src/errors";
-export { ACCELERATION_ERROR_CODES, GRAPHTY_ERROR_CODES, GraphtyError, isGraphtyError, isGraphtyErrorCode } from "./src/errors";
+export {
+    ACCELERATION_ERROR_CODES,
+    GRAPHTY_ERROR_CODES,
+    GraphtyError,
+    isGraphtyError,
+    isGraphtyErrorCode,
+} from "./src/errors";

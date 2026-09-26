@@ -92,6 +92,13 @@ interface DefinitionBase<C extends CommandLike> {
     /** The keys it will write, known before it runs. */
     keys(command: C, state: ProjectState): readonly SliceKey[];
     readonly lane: Lane<C>;
+    /** Changes what is drawn, so its round trip is checked on a renderer as well. */
+    readonly draws?: boolean;
+    /**
+     * The values of its argument's discriminant (each `style.patch` action, each `data.apply`
+     * kind), each of which needs its own round-trip fixture. Absent when it has none.
+     */
+    readonly variants?: readonly string[];
 }
 
 /** A command that changes project state: one step, labelled. */
@@ -117,7 +124,7 @@ export interface ExemptDefinition<C extends CommandLike> extends DefinitionBase<
  * How one op behaves under undo, and what it does. Write a definition against
  * `UndoableDefinition` or `ExemptDefinition`, so `execute` gets the context of its kind.
  */
-type CommandDefinition<C extends CommandLike> = UndoableDefinition<C> | ExemptDefinition<C>;
+export type CommandDefinition<C extends CommandLike> = UndoableDefinition<C> | ExemptDefinition<C>;
 
 /**
  * A command, or a function from state to one, called at dispatch. The late form is for doors
@@ -159,6 +166,8 @@ interface DispatcherEvents {
     history?: (reason: HistoryReason) => void;
     /** After the derivation pass: the per-domain events. One per step an undo or restore passes. */
     derived?: (change: ProjectChange) => void;
+    /** Every command dispatched, as it arrives, before it runs; the doors test spies here. */
+    dispatched?: (command: CommandLike) => void;
 }
 
 /** One slot a queued command holds on the queue. */
@@ -551,7 +560,10 @@ export class Dispatcher {
                 value =
                     "step" in plan
                         ? Object.freeze({ kind: "undo", step: plan.step })
-                        : Object.freeze({ kind: "cancel", pending: Object.freeze(plan.cancel.map((g) => this.view(g))) });
+                        : Object.freeze({
+                              kind: "cancel",
+                              pending: Object.freeze(plan.cancel.map((g) => this.view(g))),
+                          });
             }
 
             this.nextCache = { key, value };
@@ -788,7 +800,9 @@ export class Dispatcher {
         }
 
         if (target === position) {
-            return cancelled.length > 0 ? { kind: "cancelled", pending: Object.freeze(cancelled) } : { kind: "nothing" };
+            return cancelled.length > 0
+                ? { kind: "cancelled", pending: Object.freeze(cancelled) }
+                : { kind: "nothing" };
         }
 
         this.lane.restore();
@@ -927,6 +941,7 @@ export class Dispatcher {
     private submit(command: Dispatchable, tx: Group | null): unknown {
         const { state } = this.store;
         const concrete = deepFreezeArgs(typeof command === "function" ? command(state) : command);
+        this.events.dispatched?.(concrete);
         const definition = this.definitions.get(concrete.op);
         if (definition === undefined) {
             throw new GraphtyError({

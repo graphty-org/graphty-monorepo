@@ -66,8 +66,8 @@ function emit(file: string): string {
 function resolveRelative(specifier: string, importer: string): string | null {
     const base = resolve(dirname(importer), specifier);
     const candidates = [
-        `${base  }.ts`,
-        `${base  }.tsx`,
+        `${base}.ts`,
+        `${base}.tsx`,
         join(base, "index.ts"),
         base.replace(/\.js$/, ".ts"),
         join(base.replace(/\.js$/, ""), "index.ts"),
@@ -103,7 +103,9 @@ function importGraph(entry: string): Reached[] {
             break;
         }
 
-        for (const specifier of ts.preProcessFile(emit(file), true, true).importedFiles.map((found) => found.fileName)) {
+        for (const specifier of ts
+            .preProcessFile(emit(file), true, true)
+            .importedFiles.map((found) => found.fileName)) {
             if (specifier.startsWith(".")) {
                 const next = resolveRelative(specifier, file);
                 if (next !== null && !parent.has(next)) {
@@ -144,9 +146,14 @@ function importGraph(entry: string): Reached[] {
 
 describe("the Node-safe entry points", () => {
     it.each(NODE_SAFE_ENTRIES)("%s reaches no renderer, no component framework and no LLM runtime", (entry) => {
-        const offenders = importGraph(entry).filter((found) => FORBIDDEN.some((pattern) => pattern.test(found.specifier)));
+        const offenders = importGraph(entry).filter((found) =>
+            FORBIDDEN.some((pattern) => pattern.test(found.specifier)),
+        );
 
-        assert.deepEqual(offenders.map((found) => `${found.specifier} via ${found.chain.join(" -> ")}`), []);
+        assert.deepEqual(
+            offenders.map((found) => `${found.specifier} via ${found.chain.join(" -> ")}`),
+            [],
+        );
     });
 
     it("sees what is really there: the root entry point does reach Babylon.js and Lit", () => {
@@ -162,6 +169,7 @@ describe("the Node-safe entry points", () => {
             import("../../session"),
             import("../../schema"),
             import("../../catalog"),
+            import("../../commands"),
             import("../../extend"),
             import("../../format"),
             import("../../logging"),

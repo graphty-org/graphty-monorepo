@@ -28,9 +28,18 @@ import { GraphStore } from "../data/GraphStore";
 import type { ElementPositions } from "../data/positions";
 import { GraphtyError, isGraphtyError } from "../errors";
 import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
+import { DEFINITIONS } from "./commands";
 import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { SessionData } from "./data";
-import { estimateCommand, type Plan, planCommand, type PlanningContext, type SessionCommand } from "./planning";
+import {
+    type AlgorithmRunCommand,
+    estimateCommand,
+    type Plan,
+    planCommand,
+    type PlanningContext,
+    type SessionCommand,
+} from "./planning";
+import { Dispatcher, type TransactionScope as DispatchScope } from "./project/Dispatcher";
 import { createQueryEngine, type QueryEngine } from "./query";
 import { createResultsApi, type ResultsApi, type ResultsRunEntry, type RunRef } from "./results";
 import {
@@ -71,18 +80,24 @@ import { createScaleRegistry } from "./styles/scales";
 import { createSelectorSource, edgeEndpointOf, type SessionSelectorSource } from "./styles/sources";
 import type {
     AccelerationControllerLike,
+    CommandOutcome,
     CreateGraphSessionOptions,
     ElementSession,
     GraphSession,
+    HistoryOutcome,
+    ProjectSlice,
     SessionCatalogApi,
     SessionConfig,
     SessionDataApi,
     SessionDataConfig,
     SessionEventMap,
     SessionGraphStore,
+    SessionHistory,
     SessionRecordSource,
     SessionRunsOptions,
     SessionStatus,
+    TransactionOptions,
+    TransactionScope,
 } from "./types";
 import { createVisibilityApi, type FilterValueSource, type SessionVisibilityApi } from "./visibility";
 
@@ -214,6 +229,7 @@ function refuseToExecute(context: RunExecutionContext): Promise<RunOutcome> {
  * acts on.
  */
 class Session implements ElementSession {
+    readonly history: SessionHistory;
     readonly data: SessionDataApi;
     readonly catalog: SessionCatalogApi;
     readonly runs: RunsApi;
@@ -237,6 +253,8 @@ class Session implements ElementSession {
     private readonly ownedAcceleration: AccelerationController | null;
     /** Stops the controller subscription `capabilities:changed` is published from. */
     private readonly unwatchController: () => void;
+    /** The one path every change to project state takes, and the history it records. */
+    private readonly dispatcher: Dispatcher;
     private disposed = false;
 
     /**
@@ -269,6 +287,121 @@ class Session implements ElementSession {
         this.unwatchController = this.controller.onChange(() => {
             publish(this.watchers, "capabilities:changed", { capabilities: this.controller.capabilities });
         });
+        let version = 0;
+        this.dispatcher = new Dispatcher({
+            definitions: DEFINITIONS,
+            events: {
+                project: (change) => {
+                    publish(this.watchers, "project:changed", {
+                        slices: change.slices as readonly ProjectSlice[],
+                        cause: change.cause,
+                    });
+                },
+                history: (reason) => {
+                    version++;
+                    publish(this.watchers, "history:changed", { reason });
+                },
+            },
+        });
+        DISPATCHERS.set(this, this.dispatcher);
+        this.history = historyOf(this.dispatcher, () => version);
+    }
+
+    /**
+     * Whether `undo()` would do something.
+     * @returns True when it would undo a step or cancel pending work.
+     */
+    get canUndo(): boolean {
+        return this.dispatcher.nextUndo !== null;
+    }
+
+    /**
+     * Whether `redo()` would do something.
+     * @returns True when a step has been undone and not recorded over.
+     */
+    get canRedo(): boolean {
+        return this.dispatcher.history.position < this.dispatcher.history.steps.length;
+    }
+
+    /**
+     * Undo the last step, or cancel pending work dispatched after it.
+     * @returns What was done, once the picture has caught up.
+     */
+    undo(): Promise<HistoryOutcome> {
+        return this.dispatcher.undo() as Promise<HistoryOutcome>;
+    }
+
+    /**
+     * Redo the last undone step.
+     * @returns What was done, once the picture has caught up.
+     */
+    redo(): Promise<HistoryOutcome> {
+        return this.dispatcher.redo() as Promise<HistoryOutcome>;
+    }
+
+    /**
+     * Record everything `fn` dispatches through `tx` as one step.
+     * @param label - The step's label.
+     * @param fn - The body.
+     * @param options - Provenance stamped on the step.
+     * @returns What `fn` returned.
+     */
+    transaction<T>(
+        label: string,
+        fn: (tx: TransactionScope, signal: AbortSignal) => T | Promise<T>,
+        options: TransactionOptions = {},
+    ): Promise<T> {
+        return this.dispatcher.transaction(label, (scope, signal) => fn(this.scopeOf(scope), signal), options);
+    }
+
+    /**
+     * Do one command in the vocabulary.
+     * @param command - The command.
+     * @returns Its outcome.
+     */
+    execute<C extends SessionCommand>(command: C): CommandOutcome<C> {
+        return this.executeThrough(command, (each) => this.dispatcher.dispatch(each));
+    }
+
+    /**
+     * Do one command, through `dispatch` unless it is a door not yet ported to the dispatcher.
+     * @param command - The command.
+     * @param dispatch - The session's dispatch, or a transaction's.
+     * @returns Its outcome.
+     */
+    private executeThrough<C extends SessionCommand>(
+        command: C,
+        dispatch: (command: SessionCommand) => Promise<unknown>,
+    ): CommandOutcome<C> {
+        // Runs are not project state until they are ported, so a run starts the way it always has.
+        if (command.op === "algo.run") {
+            return this.run(command) as CommandOutcome<C>;
+        }
+
+        return dispatch(command) as unknown as CommandOutcome<C>;
+    }
+
+    /**
+     * The session a transaction's callback works through: this session, with every command it
+     * executes joining the transaction.
+     * @param scope - The dispatcher's scope for the transaction.
+     * @returns The scope.
+     */
+    private scopeOf(scope: DispatchScope): TransactionScope {
+        const tx: TransactionScope = Object.create(this, {
+            execute: {
+                value: <C extends SessionCommand>(command: C) =>
+                    this.executeThrough(command, (each) => scope.dispatch(each)),
+            },
+            transaction: {
+                value: <T>(
+                    label: string,
+                    fn: (inner: TransactionScope, signal: AbortSignal) => T | Promise<T>,
+                    options?: TransactionOptions,
+                ) => scope.transaction(label, (_same, signal) => fn(tx, signal), options),
+            },
+        }) as TransactionScope;
+        return tx;
     }
 
     /**
@@ -418,7 +551,7 @@ class Session implements ElementSession {
      * @param options - The signal, the progress handler and how the call joins the queue.
      * @returns The run.
      */
-    run(command: SessionCommand, options: RunOptions = {}): Run {
+    run(command: AlgorithmRunCommand, options: RunOptions = {}): Run {
         return this.runs.start(command.algorithm, command.params, {
             ...options,
             ...(command.scope === undefined ? {} : { scope: command.scope }),
@@ -487,6 +620,7 @@ class Session implements ElementSession {
         }
 
         this.disposed = true;
+        this.dispatcher.clear();
         this.unwatchController();
         // Runs first: a run still in flight holds a reference to the data it is reading, and
         // disposing the store under it would have it finish against a graph that no longer exists.
@@ -496,6 +630,74 @@ class Session implements ElementSession {
         this.ownedAcceleration?.dispose();
         this.ownedStore?.dispose();
     }
+}
+
+/** Each session's dispatcher, for the element's own tests; see {@link dispatcherOf}. */
+const DISPATCHERS = new WeakMap<GraphSession, Dispatcher>();
+
+/**
+ * The dispatcher behind a session. Not published: the element's own tests spy on it and read the
+ * project state it holds.
+ * @param session - A session this module built.
+ * @returns Its dispatcher.
+ */
+export function dispatcherOf(session: GraphSession): Dispatcher {
+    const dispatcher = DISPATCHERS.get(session);
+    if (dispatcher === undefined) {
+        throw new GraphtyError({ code: "E_INTERNAL", message: "That session was not built here.", source: "history" });
+    }
+
+    return dispatcher;
+}
+
+/**
+ * The published face of a dispatcher's history.
+ * @param dispatcher - The dispatcher.
+ * @param version - Counts `history:changed` events.
+ * @returns The history.
+ */
+function historyOf(dispatcher: Dispatcher, version: () => number): SessionHistory {
+    const { history } = dispatcher;
+    // The dispatcher's steps and pending items are the published ones, with plain string ids
+    // and slice names where the published types brand them.
+    type Published = SessionHistory;
+    return Object.freeze({
+        get version() {
+            return version();
+        },
+        get steps() {
+            return history.steps as Published["steps"];
+        },
+        get position() {
+            return history.position;
+        },
+        get pending() {
+            return dispatcher.pending as Published["pending"];
+        },
+        get nextUndo() {
+            return dispatcher.nextUndo as Published["nextUndo"];
+        },
+        get bytes() {
+            return history.bytes;
+        },
+        get limitBytes() {
+            return history.limitBytes;
+        },
+        set limitBytes(value: number) {
+            history.limitBytes = value;
+        },
+        get limitSteps() {
+            return history.limitSteps;
+        },
+        set limitSteps(value: number) {
+            history.limitSteps = value;
+        },
+        restoreTo: (step: string | null) => dispatcher.restoreTo(step) as Promise<HistoryOutcome>,
+        cancel: (pending: string) => dispatcher.cancel(pending) as Published["pending"],
+        clear: () => {
+            dispatcher.clear();
+        },
+    });
 }
 
 /**
@@ -810,8 +1012,7 @@ function answerablePaths(data: SessionDataApi, runs: RunsApi, target: "node" | "
  */
 function pathDirectoryOf(data: SessionDataApi, runs: RunsApi): PathDirectory {
     return {
-        answers: (path: Path, target: "node" | "edge"): boolean =>
-            answerablePaths(data, runs, target).includes(path),
+        answers: (path: Path, target: "node" | "edge"): boolean => answerablePaths(data, runs, target).includes(path),
         candidates: (_path: Path, target: "node" | "edge"): readonly Path[] => answerablePaths(data, runs, target),
     };
 }
@@ -823,7 +1024,10 @@ function pathDirectoryOf(data: SessionDataApi, runs: RunsApi): PathDirectory {
  * @param runs - The runs this session holds.
  * @returns A reader for the words, answering undefined for a path nothing in the session names.
  */
-function fieldWordsOf(data: SessionDataApi, runs: RunsApi): (path: Path, target: "node" | "edge") => FieldWords | undefined {
+function fieldWordsOf(
+    data: SessionDataApi,
+    runs: RunsApi,
+): (path: Path, target: "node" | "edge") => FieldWords | undefined {
     return (path: Path, target: "node" | "edge"): FieldWords | undefined => {
         for (const attribute of data.attributes()) {
             if (attribute.path === path && attribute.kind === target) {
@@ -1217,7 +1421,11 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         snapshot,
         elements,
         answers: (path, target) => paths.answers(path, target),
-        searchPaths: () => data.attributes().filter((attribute) => attribute.kind === "node").map((attribute) => attribute.path),
+        searchPaths: () =>
+            data
+                .attributes()
+                .filter((attribute) => attribute.kind === "node")
+                .map((attribute) => attribute.path),
     });
     const engine = query;
 
@@ -1366,11 +1574,7 @@ function requireQuery(held: QueryEngine | null): QueryEngine {
  * @param event - Which event.
  * @param detail - What to tell them.
  */
-function publish<K extends keyof SessionEventMap>(
-    watchers: Watchers,
-    event: K,
-    detail: SessionEventMap[K],
-): void {
+function publish<K extends keyof SessionEventMap>(watchers: Watchers, event: K, detail: SessionEventMap[K]): void {
     const subscribers = watchers.get(event);
 
     if (subscribers === undefined) {

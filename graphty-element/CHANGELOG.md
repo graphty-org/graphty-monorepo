@@ -1,3 +1,19 @@
+## 2.2.5 (2026-09-26)
+
+### 🩹 Fixes
+
+- **graphty-element:** refuse a load past the ceiling before touching the graph ([24c37792](https://github.com/graphty-org/graphty-monorepo/commit/24c37792))
+- **graphty-element:** decline a load past the render ceiling instead of freezing ([#405](https://github.com/graphty-org/graphty-monorepo/issues/405), [#394](https://github.com/graphty-org/graphty-monorepo/issues/394))
+- **graphty-element:** hold the frames while an accelerated run is on the device ([#389](https://github.com/graphty-org/graphty-monorepo/issues/389), [#390](https://github.com/graphty-org/graphty-monorepo/issues/390))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.5
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.2.4 (2026-09-26)
 
 ### 🩹 Fixes

@@ -1,3 +1,13 @@
+## 0.6.5 (2026-09-26)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** drop the selector's indirect slot record and args buffer ([#387](https://github.com/graphty-org/graphty-monorepo/issues/387))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.6.4 (2026-09-26)
 
 ### 🚀 Features

@@ -1,3 +1,10 @@
+## 0.8.8 (2026-09-26)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.5
+- Updated graphty-element to 2.2.5
+
 ## 0.8.7 (2026-09-26)
 
 ### 🧱 Updated Dependencies

@@ -337,6 +337,9 @@ export class Graph implements GraphContext {
         this.acceleration = new AccelerationController({
             policy: ACCELERATION_POLICY_DEFAULT,
             minNodes: ACCELERATION_MIN_NODES_DEFAULT,
+            // No frame is drawn while a call-shaped run is on the device: a draw of this scene
+            // is what the run's readback would otherwise wait behind (issue #390).
+            whileRunning: () => this.renderManager.holdFrames(),
         });
 
         // The headless model, over the store the data manager already owns for the life of the

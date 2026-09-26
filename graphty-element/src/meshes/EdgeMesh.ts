@@ -564,7 +564,16 @@ void main() {
                 points: this.UNIT_VECTOR_POINTS,
             },
             {
-                width: options.width,
+                // IN SCENE UNITS, WHICH IS NOT THE UNIT THE STYLE'S WIDTH IS IN. A greased line
+                // takes its width in world space, and the element's `edge.width` is a screen-space
+                // pixel width -- `CustomLineRenderer` multiplies it by 20 and expands the line by
+                // that many pixels in the vertex shader. Handing the pixel number straight over
+                // drew the element's own width of 8 as a ribbon eight scene units thick, which on
+                // a graph ten units across is a band taller than the graph. `/ 40` is the
+                // conversion the other two world-space renderers already use for exactly this --
+                // see `Simple2DLineRenderer` and `PatternedLineRenderer`, both of which call it
+                // "convert back from scaled width to match 3D line thickness".
+                width: options.width / 40,
                 colorMode: GreasedLineMeshColorMode.COLOR_MODE_MULTIPLY,
             },
             scene,
@@ -607,20 +616,45 @@ void main() {
         return texture;
     }
 
+    /**
+     * Run the moving texture along a line, at the speed the style asked for.
+     *
+     * `animationSpeed` IS A MULTIPLE OF THE ELEMENT'S OWN PACE, not a distance and not a
+     * frequency: 1 is the pace `EDGE_CONSTANTS.MOVING_TEXTURE_ANIMATION_SPEED` sets, 2 is twice
+     * that, 0.5 is half. Scaling `scene.getAnimationRatio()` rather than counting frames is what
+     * keeps the pace the same on a 144 Hz screen as on a 60 Hz one.
+     * @param mesh - The line the texture runs along.
+     * @param texture - The moving texture, which this takes ownership of.
+     * @param scene - The scene whose frames drive it.
+     * @param animationSpeed - The multiple of the element's own pace, defaulting to it exactly.
+     */
     private static applyAnimatedTexture(
         mesh: GreasedLineBaseMesh,
         texture: RawTexture,
         scene: Scene,
-         
-        _animationSpeed?: number,
+        animationSpeed = 1,
     ): void {
         const material = mesh.material as StandardMaterial;
         material.emissiveTexture = texture;
         material.disableLighting = true;
         texture.uScale = EDGE_CONSTANTS.MOVING_TEXTURE_U_SCALE;
 
+        const perFrame = EDGE_CONSTANTS.MOVING_TEXTURE_ANIMATION_SPEED * animationSpeed;
+
         const observer = scene.onBeforeRenderObservable.add(() => {
-            texture.uOffset -= EDGE_CONSTANTS.MOVING_TEXTURE_ANIMATION_SPEED * scene.getAnimationRatio();
+            // PARKED AT THE START OF THE GRADIENT WHEN THE SCENE SAYS NOT TO ANIMATE, rather than
+            // left wherever the last frame put it. `scene.animationsEnabled` is Babylon's own
+            // switch for "do not animate", and honouring it is what lets a visual baseline of an
+            // animated edge exist at all: the line is still built and drawn by this renderer, so
+            // a defect in it still shows up in the picture, but the picture is the same one every
+            // time. Stopping without resetting would have made every snapshot differ by however
+            // far the gradient had crept before the shot, which is the whole problem.
+            if (!scene.animationsEnabled) {
+                texture.uOffset = 0;
+                return;
+            }
+
+            texture.uOffset -= perFrame * scene.getAnimationRatio();
         });
 
         // The texture and the per-frame callback belong to this mesh alone; without this every

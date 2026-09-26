@@ -373,6 +373,23 @@ export const NODE_OUTLINE_CAVEAT =
  * channel with no words beneath it -- says how a caption should look without asking for one,
  * which is the same rule `node.labelStyle` follows beside `node.label`.
  */
+/**
+ * What an edge animation speed can and cannot move.
+ *
+ * Only one of the element's line renderers carries a moving texture: the one that draws a
+ * straight solid line in 3D. A two-dimensional line, a bezier and all eight patterned line types
+ * are built by renderers that have nothing to run along them, so a speed set on one of those is
+ * accepted and the line stays still.
+ *
+ * The number is a MULTIPLE of the element's own pace rather than a distance or a frequency. One
+ * is that pace, two is twice it, a half is half, and zero is the value that switches the
+ * animation off and draws a flat line.
+ */
+const EDGE_ANIMATION_CAVEAT =
+    "An edge animates only where it is a straight solid line in 3D; a 2D line, a bezier and a " +
+    "patterned line have no moving texture to run. The value is a multiple of the element's own " +
+    "pace -- 1 is that pace, 2 is twice it -- and 0 draws a flat line.";
+
 const ARROW_CAPTION_CAVEAT =
     "A caption hangs from the cap at that end of the edge, so an end drawn with no arrow carries " +
     "none: a tail caption needs `edge.arrowTail` set to something other than \"none\". The words " +
@@ -711,6 +728,7 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         min: 0,
         stylePath: "line.animationSpeed",
         renderable: true,
+        caveat: EDGE_ANIMATION_CAVEAT,
     },
     "edge.label": {
         channel: "edge.label",

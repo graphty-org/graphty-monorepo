@@ -81,6 +81,26 @@ describe("Edge 2D Arrows Integration", () => {
         const euler = turn.toEulerAngles();
         assert.closeTo(euler.x, Math.PI / 2, 1e-6, "Arrow head should be rotated to XY plane");
 
+        // AND THE TURN THE GRAPHICS CARD ACTUALLY USES, which is the slot's matrix multiplied by
+        // the batch mesh's own. Reading the slot alone is not enough: the batch mesh is shared by
+        // every cap of this appearance, so a turn left on it is applied to all of them a second
+        // time. One was -- `MaterialHelper.apply2DMaterial` stands the geometry up in the XY
+        // plane by turning the mesh it is handed, which was that cap when a cap was a mesh and is
+        // the shared carrier now. The two quarter turns summed to a half turn, which laid all
+        // thirteen 2D cap shapes back down edge-on to the camera: placed, enabled, drawn, and
+        // covering almost no pixels. Composed, the turn must still be the quarter turn above.
+        const { batchMesh } = edge.arrowMesh;
+        assert(batchMesh, "A 2D cap is drawn by a batch mesh");
+        const drawn = edge.arrowMesh.transform.multiply(batchMesh.computeWorldMatrix(true));
+        const drawnTurn = new Quaternion();
+        drawn.decompose(undefined, drawnTurn, undefined);
+        assert.closeTo(
+            drawnTurn.toEulerAngles().x,
+            Math.PI / 2,
+            1e-6,
+            "The cap as drawn should stand in the XY plane, not be turned again by its batch",
+        );
+
         // Cleanup
         graph.dispose();
     });

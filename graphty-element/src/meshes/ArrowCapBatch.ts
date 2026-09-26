@@ -145,6 +145,22 @@ export class ArrowCapBatch {
         mesh.isVisible = true;
         mesh.isPickable = false;
 
+        // THE CARRIER HOLDS NO TRANSFORM OF ITS OWN, which is what this constructor promises when
+        // it asks for the shape "normalized at the origin": every slot's matrix is multiplied by
+        // the carrier's world matrix, so anything left on the carrier is applied to every cap in
+        // the batch at once. A 2D cap arrives with one: `MaterialHelper.apply2DMaterial` turns
+        // the mesh it is given a quarter turn about X to stand it up in the XY plane, which was
+        // right when that mesh WAS the cap and is wrong now that it is the carrier -- it tipped
+        // all thirteen 2D cap shapes edge-on to the camera, so the caps were placed, enabled and
+        // drawn and covered almost no pixels. Clearing it here rather than at that one call site
+        // holds the contract for every caller, 2D and 3D alike, where a 3D shape is built at the
+        // origin already and this is a no-op. The graph's own transform still reaches the caps:
+        // it comes from the `graph-root` parent set below, not from the carrier's local matrix.
+        mesh.position.setAll(0);
+        mesh.rotation.setAll(0);
+        mesh.rotationQuaternion = null;
+        mesh.scaling.setAll(1);
+
         // The bounding box of a batch is the whole graph, and recomputing it walks every matrix,
         // which would put O(edges) work back on every buffer change. A billboarded cap's box was
         // wrong anyway: the shader builds the cap's geometry from the camera, not from the box.

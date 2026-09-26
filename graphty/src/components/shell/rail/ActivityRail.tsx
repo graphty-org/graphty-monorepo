@@ -20,9 +20,10 @@
  * - **Close-on-active-click** (spec 02 section 1.4) lives in the shell store's
  *   `selectActivity`. The rail reports every click, including a click on the already
  *   active item, and draws whatever `activeActivity` it is handed back.
- * - **The Help menu** is a separate surface ({@link HelpMenu}) anchored to the rail
- *   lane, not a child of the rail: the rail clips its own overflow. Clicking Help
- *   reports "help" and the shell opens the menu.
+ * - **The Help menu's state.** Given `helpMenu`, the rail makes its Help item the
+ *   opener of a {@link HelpMenu}; the menu's dropdown is portalled, so the rail
+ *   clipping its own overflow does not clip it. Clicking Help reports "help" and asks
+ *   the shell, through `helpMenu.onOpenChange`, to toggle the menu.
  *
  * One fact, one region: the Data mark is an UNNUMBERED dot -- the validation issue
  * COUNT belongs to the status bar issues chip and is never repeated here.
@@ -41,6 +42,7 @@ import {
 } from "../constants";
 import type { ActivityId, ActivityRailProps } from "../types";
 import { ActivityRailItem } from "./ActivityRailItem";
+import { HelpMenu } from "./HelpMenu";
 
 /**
  * The rail's 1 px right border: the 48 px column less the 47 px item box
@@ -128,12 +130,12 @@ export function ActivityRail(props: ActivityRailProps): React.JSX.Element {
         dataHasWarnings = false,
         presentBadge = null,
         onActivityClick,
+        helpMenu,
     } = props;
 
     const renderItem = (activity: ActivityId): React.JSX.Element => {
         const disabled = disabledActivities.includes(activity);
-
-        return (
+        const railItem = (
             <ActivityRailItem
                 key={activity}
                 activity={activity}
@@ -146,6 +148,16 @@ export function ActivityRail(props: ActivityRailProps): React.JSX.Element {
                 onClick={onActivityClick}
             />
         );
+
+        if (activity === "help" && helpMenu !== undefined) {
+            return (
+                <HelpMenu key={activity} {...helpMenu}>
+                    {railItem}
+                </HelpMenu>
+            );
+        }
+
+        return railItem;
     };
 
     return (

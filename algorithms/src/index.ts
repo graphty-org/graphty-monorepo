@@ -38,7 +38,7 @@ export type {
 } from "./types/index.js";
 
 // Error exports
-export { ConvergenceError } from "./errors.js";
+export { ConvergenceError, PathWalkError } from "./errors.js";
 
 // Algorithm exports
 export * from "./algorithms/index.js";

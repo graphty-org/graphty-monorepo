@@ -16,7 +16,8 @@
  * edges per node, 2^20 x 10), undirected; the BFS snapshots carry NO weight column, so the upload the row includes
  * is the adjacency alone, and the SSSP snapshots carry the weights the row needs. Beside every BFS row the group
  * prints the counters block's per-level choices of an untimed run of the same call
- * (`[bfs] <row> levels=<L> switches=<S> fused=<F> twoPhase=<T> bottomUp=<B> overflow=<O>`), and beside the grid row
+ * (`[bfs] <row> levels=<L> switches=<S> fused=<F> twoPhase=<T> bottomUp=<B> overflow=<O> arcsScanned=<A>`, the last
+ * the bottom-up sweeps' arc reads, issue #391), and beside the grid row
  * the `mapAsync` count of one traversal (`[bfs] grid<s> levels=<L> mapAsync=<k>`; PD-7 bounds it by
  * ceil(L / 32) + 1, and `test/limits/bfs-large.test.ts` asserts it -- the benchmark only prints it). The count is
  * measured through `LeakCounter` on a SECOND device adopted by `GpuContext.create({ device })`: the counter sees
@@ -148,7 +149,8 @@ async function printChoices(
     console.log(
         `[bfs] ${row} levels=${result.levels} switches=${result.switches} visited=${result.visitedCount} ` +
             `fused=${word(block, "fusedLevels")} twoPhase=${word(block, "twoPhaseLevels")} ` +
-            `bottomUp=${word(block, "bottomUpLevels")} overflow=${word(block, "overflowLevels")}`,
+            `bottomUp=${word(block, "bottomUpLevels")} overflow=${word(block, "overflowLevels")} ` +
+            `arcsScanned=${word(block, "arcsScanned")}`,
     );
 }
 

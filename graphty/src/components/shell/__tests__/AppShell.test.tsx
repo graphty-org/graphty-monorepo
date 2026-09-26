@@ -14,13 +14,21 @@ import { ACTIVITY_RAIL_WIDTH, NARROW_BREAKPOINT, STATUS_BAR_HEIGHT, TOP_BAR_HEIG
  * too-small message rather than a dialog floating over it.
  */
 const MANTINE_MODAL_Z_INDEX = 200;
-import type { AccelerationStatus, GraphStatistics, Histogram, Layer, LayerSpec, RunId, RunResult } from "@graphty/graphty-element/session";
+import {
+    type AccelerationStatus,
+    type GraphStatistics,
+    GraphtyError,
+    type Histogram,
+    type Layer,
+    type LayerSpec,
+    type RunId,
+    type RunResult,
+} from "@graphty/graphty-element/session";
 
 import { createFakeSession, type FakeSession } from "../../../test/fakeSession";
 import { ACCELERATION_SETTINGS_STORAGE_KEY } from "../defaults/accelerationSettings";
 import { METRIC_VALUE_FIELD, SHELL_DEFAULTS_TEMPLATE_ID } from "../defaults/styleDescriptors";
 import { SHELL_LAYOUT_STORAGE_KEY } from "../ShellContext";
-import { STATUS_BAR_GEOMETRY } from "../statusbar/statusBarGeometry";
 
 /**
  * Renders the shell with the store pinned, so a board decides its own breakpoint and
@@ -29,7 +37,12 @@ import { STATUS_BAR_GEOMETRY } from "../statusbar/statusBarGeometry";
  * @returns the render result.
  */
 function renderShell(shellWidth = 1440) {
-    return render(<AppShell initialShellWidth={shellWidth} measureViewport={false} persist={false} />);
+    const result = render(<AppShell initialShellWidth={shellWidth} measureViewport={false} persist={false} />);
+
+    // The element's load methods answer only when a board says how the load ended.
+    captureLoads(result.container);
+
+    return result;
 }
 
 /**
@@ -185,7 +198,9 @@ async function reportLoadComplete(container: HTMLElement): Promise<void> {
     expect(element).not.toBeNull();
 
     await act(async () => {
+        // The real element emits `data-loaded` and THEN resolves the load's promise.
         element?.dispatchEvent(new CustomEvent("data-loaded", { bubbles: true, composed: true }));
+        settleLoads(container);
 
         for (let turn = 0; turn < FLUSH_TURNS; turn += 1) {
             await Promise.resolve();
@@ -195,39 +210,17 @@ async function reportLoadComplete(container: HTMLElement): Promise<void> {
 }
 
 /**
- * Reports the load FAILED, as graphty-element does when a parse or a fetch throws.
- *
- * This is the only route by which a malformed file EVER reaches the shell.
- * `GraphtyHandle.loadFromFile` ends in a property assignment
- * (`element.dataSourceConfig = {data}`) and the element's setter discards the parse with
- * `void this.#graph.addDataFromSource(...)`, so the shell's own promise chain RESOLVES
- * over a file that never parsed and reports a successful load. What actually says so is
- * `DataManager.addDataFromSource`, which wraps its whole chunk loop in a try and emits
- * exactly one `data-loading-error` from the catch (DataManager.ts:545-566) -- forwarded
- * like every other graph event as a bubbling, composed CustomEvent.
+ * Reports the load FAILED, as graphty-element does when a parse or a fetch throws: the
+ * load's own promise rejects with the element's error.
  * @param container - the render result's container.
- * @param message - what the element's `Error` says, or undefined for an error that says
- * nothing at all.
+ * @param message - what the element's `Error` says, the element's own error, or undefined for
+ * a rejection that says nothing at all.
  */
-async function reportLoadingError(container: HTMLElement, message?: string): Promise<void> {
-    const element = container.querySelector("graphty-element");
-
-    expect(element).not.toBeNull();
-
+async function reportLoadingError(container: HTMLElement, message?: string | Error): Promise<void> {
     await act(async () => {
-        element?.dispatchEvent(
-            new CustomEvent("data-loading-error", {
-                bubbles: true,
-                composed: true,
-                detail: {
-                    type: "data-loading-error",
-                    error: message === undefined ? undefined : new Error(message),
-                    context: "parsing",
-                    format: "json",
-                    canContinue: false,
-                },
-            }),
-        );
+        settleLoads(container, {
+            reason: message === undefined || message instanceof Error ? message : new Error(message),
+        });
 
         for (let turn = 0; turn < FLUSH_TURNS; turn += 1) {
             await Promise.resolve();
@@ -327,50 +320,105 @@ function statusToast(container: HTMLElement): HTMLElement | null {
     return container.querySelector<HTMLElement>("[data-status-float]");
 }
 
-/** One `handle.loadData` or `handle.loadFromUrl` call, as the element received it. */
+/** One load the shell asked the element for, as the element received it. */
 interface RecordedLoad {
-    /** The data source type the shell named, e.g. "json" or "gml". */
+    /** The format the shell named, e.g. "json" or "gml"; undefined to have the element detect it. */
     readonly dataSource: string | undefined;
-    /** Its config: `{data}` for an inline load, `{url}` for a served one. */
+    /** What was loaded: `{data}` for an inline load, `{url}` for a served one, `{file}` for a file. */
     readonly config: unknown;
+    /** Whether the shell asked the element to replace the graph. */
+    readonly replace: boolean | undefined;
 }
 
+/** The loads an element stand-in has been asked for, and the ones still waiting for an answer. */
+interface LoadStub {
+    readonly loads: RecordedLoad[];
+    readonly waiting: {
+        readonly replace: boolean;
+        readonly resolve: (value: { loadId: number }) => void;
+        readonly reject: (error: unknown) => void;
+    }[];
+    /** What the stand-in does when a REPLACING load arrives: the element swaps the dataset then. */
+    onReplaced: () => void;
+}
+
+const loadStubs = new WeakMap<Element, LoadStub>();
+
 /**
- * Records what reaches the element's data source, WITHOUT letting the real element load.
+ * Stands in for the element's three awaited load methods, WITHOUT letting the real element load.
  *
- * `GraphtyHandle.loadData` and `loadFromUrl` both end by setting `dataSource` and then
- * `dataSourceConfig` on the element, and the element's own setter kicks off a real load
- * on its own internal graph the moment both are set. Shadowing the two accessors with own
- * properties keeps the shell's route intact -- this IS the ordinary load path, observed at
- * its last step -- while leaving the element itself alone, which is what a shell board
- * should be testing.
+ * The shell loads through `loadFromUrl`, `loadFromFile` and `addDataFromSource`, each of which
+ * resolves once the element has the data and rejects when it does not. Each call is recorded and
+ * left pending until the board says how it ended: {@link reportLoadComplete} resolves every
+ * waiting load, {@link reportLoadingError} rejects them -- the two answers the real element gives.
+ * Idempotent, so a board may call it and {@link installNovicePathGraph} may call it too.
  * @param container - the render result's container.
  * @returns the loads, in the order the shell issued them.
  */
-function captureLoads(container: HTMLElement): readonly RecordedLoad[] {
+function captureLoads(container: HTMLElement): RecordedLoad[] {
     const element = container.querySelector("graphty-element");
 
     expect(element).not.toBeNull();
 
-    const loads: RecordedLoad[] = [];
-    let dataSource: string | undefined;
+    const existing = element === null ? undefined : loadStubs.get(element);
 
-    Object.defineProperty(element, "dataSource", {
+    if (existing !== undefined) {
+        return existing.loads;
+    }
+
+    const stub: LoadStub = { loads: [], waiting: [], onReplaced: () => undefined };
+
+    const record = (load: RecordedLoad): Promise<{ loadId: number }> => {
+        stub.loads.push(load);
+
+        return new Promise((resolve, reject) => {
+            stub.waiting.push({ replace: load.replace === true, resolve, reject });
+        });
+    };
+
+    Object.defineProperty(element, "addDataFromSource", {
         configurable: true,
-        get: () => dataSource,
-        set: (value: string | undefined) => {
-            dataSource = value;
-        },
+        value: (type: string, config: unknown, options?: { replace?: boolean }) =>
+            record({ dataSource: type, config, replace: options?.replace }),
     });
-    Object.defineProperty(element, "dataSourceConfig", {
+    Object.defineProperty(element, "loadFromUrl", {
         configurable: true,
-        get: () => undefined,
-        set: (value: unknown) => {
-            loads.push({ dataSource, config: value });
-        },
+        value: (url: string, options?: { format?: string; replace?: boolean }) =>
+            record({ dataSource: options?.format, config: { url }, replace: options?.replace }),
+    });
+    Object.defineProperty(element, "loadFromFile", {
+        configurable: true,
+        value: (file: File, options?: { format?: string; replace?: boolean }) =>
+            record({ dataSource: options?.format, config: { file }, replace: options?.replace }),
     });
 
-    return loads;
+    if (element !== null) {
+        loadStubs.set(element, stub);
+    }
+
+    return stub.loads;
+}
+
+/**
+ * Answers every load the element stand-in is still holding.
+ * @param container - the render result's container.
+ * @param error - the rejection, or undefined to resolve them.
+ */
+function settleLoads(container: HTMLElement, error?: { readonly reason: unknown }): void {
+    const element = container.querySelector("graphty-element");
+    const stub = element === null ? undefined : loadStubs.get(element);
+
+    for (const waiting of stub?.waiting.splice(0) ?? []) {
+        if (error === undefined) {
+            if (waiting.replace) {
+                stub?.onReplaced();
+            }
+
+            waiting.resolve({ loadId: 1 });
+        } else {
+            waiting.reject(error.reason);
+        }
+    }
 }
 
 /**
@@ -917,6 +965,9 @@ function installNovicePathGraph(container: HTMLElement, options: NovicePathOptio
 
     expect(element).not.toBeNull();
 
+    // The fixture IS the loaded data, so the real element is never asked to load anything.
+    captureLoads(container);
+
     const sized =
         options.synthetic === undefined
             ? CAT_SOCIAL_NETWORK
@@ -1149,23 +1200,27 @@ function installNovicePathGraph(container: HTMLElement, options: NovicePathOptio
 
     Object.defineProperty(element, "graph", { configurable: true, value: graph });
 
-    /* The ELEMENT's `clearData`, which is what `GraphtyHandle.clearData` calls: clearing
-       the data has to reset the element's per-load data-source guard, and only the element
-       can reach that, so the handle stopped reaching past it to `graph.dataManager.clear`.
-       The stand-in clears the same records the real one does, so a board sees the graph
-       actually empty rather than only the call recorded.
+    /* The ELEMENT's `clearData`, which is what `GraphtyHandle.clearData` calls, and the swap
+       a REPLACING load makes once its data has arrived. The stand-in clears the same records
+       the real one does, so a board sees the graph actually empty rather than only the call
+       recorded.
 
        THE RUNS GO WITH THE DATA. A result describes the graph it measured, so a run held over
        a dataset boundary would let the next load be served numbers taken from a file nobody is
        looking at any more. The fixture's own records stay standing, because these boards want
        a graph to load into rather than the element's data lifecycle. */
-    Object.defineProperty(element, "clearData", {
-        configurable: true,
-        value: () => {
-            dataManager.clear();
-            styles.forgetRuns();
-        },
-    });
+    const clearData = (): void => {
+        dataManager.clear();
+        styles.forgetRuns();
+    };
+
+    Object.defineProperty(element, "clearData", { configurable: true, value: clearData });
+
+    const loadStub = element === null ? undefined : loadStubs.get(element);
+
+    if (loadStub !== undefined) {
+        loadStub.onReplaced = clearData;
+    }
 
     const addNode = (id: string): void => {
         nodes.set(id, { id, data: { id } });
@@ -1309,7 +1364,7 @@ describe("AppShell", () => {
             expect(columns.split(" ")[0]).toBe(`${ACTIVITY_RAIL_WIDTH}px`);
         });
 
-        it("leaves the main row unclipped, so the Help menu may stand outside the rail", () => {
+        it("leaves the main row unclipped", () => {
             renderShell();
 
             expect(getComputedStyle(screen.getByTestId("shell-main-row")).overflow).toBe("visible");
@@ -1384,16 +1439,44 @@ describe("AppShell", () => {
             expect(screen.getByRole("tabpanel", { name: "AI providers" })).toBeInTheDocument();
         });
 
-        it("opens the Help menu as a sibling of the rail, not as one of its children", () => {
+        it("opens the Help menu from the Help button, drawn outside the clipping rail", async () => {
+            renderShell();
+
+            const help = screen.getByRole("button", { name: "Help and keyboard shortcuts" });
+
+            fireEvent.click(help);
+
+            const menu = await screen.findByRole("menu", { name: "Help and keyboard shortcuts" });
+            const rail = screen.getByRole("navigation", { name: "Activity rail" });
+
+            expect(help).toHaveAttribute("aria-expanded", "true");
+            expect(rail).not.toContainElement(menu);
+        });
+
+        it("closes the Help menu when the Help button is clicked again", async () => {
+            renderShell();
+
+            const help = screen.getByRole("button", { name: "Help and keyboard shortcuts" });
+
+            fireEvent.click(help);
+            await screen.findByRole("menu");
+            fireEvent.click(help);
+
+            await waitFor(() => {
+                expect(screen.queryByRole("menu")).toBeNull();
+            });
+        });
+
+        it("closes the Help menu on a click outside it", async () => {
             renderShell();
 
             fireEvent.click(screen.getByRole("button", { name: "Help and keyboard shortcuts" }));
+            await screen.findByRole("menu");
+            fireEvent.mouseDown(screen.getByTestId("shell-body-row"));
 
-            const menu = screen.getByRole("menu");
-            const rail = screen.getByRole("navigation", { name: "Activity rail" });
-
-            expect(rail).not.toContainElement(menu);
-            expect(screen.getByTestId("shell-main-row")).toContainElement(menu);
+            await waitFor(() => {
+                expect(screen.queryByRole("menu")).toBeNull();
+            });
         });
 
         it("leaves Help hovered rather than active while its menu is open", () => {
@@ -1409,11 +1492,11 @@ describe("AppShell", () => {
     });
 
     describe("the Help menu's destinations", () => {
-        it("opens the keyboard shortcuts surface from its first row", () => {
+        it("opens the keyboard shortcuts surface from its first row", async () => {
             renderShell();
 
             fireEvent.click(screen.getByRole("button", { name: "Help and keyboard shortcuts" }));
-            fireEvent.click(screen.getByRole("menuitem", { name: /Keyboard shortcuts/ }));
+            fireEvent.click(await screen.findByRole("menuitem", { name: /Keyboard shortcuts/ }));
 
             expect(screen.getByTestId("keyboard-shortcuts")).toBeInTheDocument();
         });
@@ -1422,27 +1505,30 @@ describe("AppShell", () => {
             renderShell();
 
             fireEvent.click(screen.getByRole("button", { name: "Help and keyboard shortcuts" }));
-            fireEvent.click(screen.getByRole("menuitem", { name: "Send feedback" }));
+            fireEvent.click(await screen.findByRole("menuitem", { name: "Send feedback" }));
 
             expect(await screen.findByRole("dialog")).toBeInTheDocument();
         });
     });
 
     describe("the Escape ladder", () => {
-        it("closes the Help menu on rung 2", () => {
+        it("closes the Help menu on rung 2", async () => {
             renderShell();
 
             fireEvent.click(screen.getByRole("button", { name: "Help and keyboard shortcuts" }));
+            await screen.findByRole("menu");
             fireEvent.keyDown(window, { key: "Escape" });
 
-            expect(screen.queryByRole("menu")).toBeNull();
+            await waitFor(() => {
+                expect(screen.queryByRole("menu")).toBeNull();
+            });
         });
 
-        it("closes the keyboard shortcuts surface on the same rung", () => {
+        it("closes the keyboard shortcuts surface on the same rung", async () => {
             renderShell();
 
             fireEvent.click(screen.getByRole("button", { name: "Help and keyboard shortcuts" }));
-            fireEvent.click(screen.getByRole("menuitem", { name: /Keyboard shortcuts/ }));
+            fireEvent.click(await screen.findByRole("menuitem", { name: /Keyboard shortcuts/ }));
             fireEvent.keyDown(window, { key: "Escape" });
 
             expect(screen.queryByTestId("keyboard-shortcuts")).toBeNull();
@@ -1498,7 +1584,7 @@ describe("AppShell", () => {
             renderShell();
 
             fireEvent.click(screen.getByRole("button", { name: "Help and keyboard shortcuts" }));
-            fireEvent.click(screen.getByRole("menuitem", { name: /Keyboard shortcuts/ }));
+            fireEvent.click(await screen.findByRole("menuitem", { name: /Keyboard shortcuts/ }));
             expect(screen.getByTestId("keyboard-shortcuts")).toBeInTheDocument();
 
             act(() => {
@@ -2504,8 +2590,7 @@ describe("AppShell", () => {
         it("crosses the dataset boundary on a sample load, so a second sample replaces the first", async () => {
             const { container } = await renderMeasuredShell();
 
-            captureLoads(container);
-
+            const loads = captureLoads(container);
             const graph = installNovicePathGraph(container);
 
             fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
@@ -2525,10 +2610,12 @@ describe("AppShell", () => {
                go with them. Before this the shell renamed the dataset in the top bar
                while the old graph stayed on the canvas -- asserting a dataset that was
                never loaded -- and stacked a second set of 7.2 layers on the first. */
-            /* Twice, not once: the load from Welcome took the same route, over a graph
-               that held nothing -- one rule for every replacing load (6.12), and a clear
-               of an empty graph costs nothing. */
-            expect(graph.dataManager.clear).toHaveBeenCalledTimes(2);
+            /* The layers go at once; the RECORDS go when the new sample has arrived, because
+               the element keeps the old graph until the new one has parsed. The load from
+               Welcome swapped too, over a graph that held nothing -- one rule for every
+               replacing load (6.12). */
+            expect(loads.map((load) => load.replace)).toEqual([true, true]);
+            expect(graph.dataManager.clear).toHaveBeenCalledTimes(1);
             expect(graph.styles.layers()).toHaveLength(ELEMENT_OWN_LAYER_COUNT + 0);
             expect(screen.getByText("football.gml")).toBeInTheDocument();
 
@@ -2547,6 +2634,7 @@ describe("AppShell", () => {
             // boundary, so a second load is not a load with no defaults at all.
             expect(graph.runAlgorithm.mock.calls.map((call) => call[1])).toEqual([DEGREE_TYPE, DEGREE_TYPE]);
             expect(graph.styles.layers()).toHaveLength(ELEMENT_OWN_LAYER_COUNT + 1);
+            expect(graph.dataManager.clear).toHaveBeenCalledTimes(2);
         });
 
         it("replaces the community layers on a re-run rather than stacking a second set", async () => {
@@ -3641,18 +3729,16 @@ describe("AppShell", () => {
             window.localStorage.clear();
         });
 
-        it("falls back to Empty when a replacing load's data never parses", async () => {
+        it("keeps the drawn dataset when a replacing load's data never parses", async () => {
             const { container } = await renderMeasuredShell();
 
-            captureLoads(container);
-            installNovicePathGraph(container);
+            const graph = installNovicePathGraph(container);
             await loadCatSample(container);
 
             expect(screen.getByText(CAT_SOCIAL_NETWORK_NAME)).toBeInTheDocument();
 
-            /* A second sample, from the Data panel: a REPLACING load, which clears the
-               graph before it starts. The shell claims it at once, because nothing on the
-               load path can reject. */
+            /* A second sample, from the Data panel: a REPLACING load. The shell names it at
+               once, while it arrives. */
             fireEvent.click(screen.getByRole("button", { name: "Data" }));
             fireEvent.click(within(screen.getByRole("region", { name: "Data" })).getByText("College football"));
             await flushMicrotasks();
@@ -3661,14 +3747,46 @@ describe("AppShell", () => {
 
             await reportLoadingError(container, "Unexpected token 'g' on line 1");
 
-            /* Spec 4105: a failed load is a sub-state of EMPTY. Welcome comes back, which
-               is the reader's route in; the top bar names neither the dataset that failed
-               nor the one the replacing load already threw away; and the status bar stops
-               counting a dataset that is no longer on the canvas. */
-            expect(container.querySelector("[data-canvas-welcome='true']")).not.toBeNull();
+            /* The element keeps the graph it would have replaced until the new data has
+               parsed, so the cat sample is still on the canvas -- and the shell says so: its
+               name is back, the counts are still drawn, and the failure is in the toast. */
+            expect(graph.dataManager.clear).toHaveBeenCalledTimes(1);
+            expect(container.querySelector("[data-canvas-welcome='true']")).toBeNull();
             expect(screen.queryByText("football.gml")).toBeNull();
-            expect(screen.queryByText(CAT_SOCIAL_NETWORK_NAME)).toBeNull();
-            expect(container.querySelectorAll("[data-status-slot]")).toHaveLength(0);
+            expect(screen.getByText(CAT_SOCIAL_NETWORK_NAME)).toBeInTheDocument();
+            expect(container.querySelectorAll("[data-status-slot]").length).toBeGreaterThan(0);
+            expect(statusToast(container)?.textContent).toContain(
+                "Could not load football.gml. Unexpected token 'g' on line 1.",
+            );
+        });
+
+        it("does not let an overtaken load's rejection unwind the load that overtook it", async () => {
+            const { container } = await renderMeasuredShell();
+
+            installNovicePathGraph(container);
+            await loadCatSample(container);
+
+            fireEvent.click(screen.getByRole("button", { name: "Data" }));
+            fireEvent.click(within(screen.getByRole("region", { name: "Data" })).getByText("Karate Club"));
+            await flushMicrotasks();
+            fireEvent.click(within(screen.getByRole("region", { name: "Data" })).getByText("College football"));
+            await flushMicrotasks();
+
+            expect(screen.getByText("football.gml")).toBeInTheDocument();
+
+            /* The element rejects the older load once the newer replacing load has started
+               (E_SUPERSEDED); only the karate load is answered here. */
+            const element = container.querySelector("graphty-element");
+            const stub = element === null ? undefined : loadStubs.get(element);
+
+            await act(async () => {
+                stub?.waiting.splice(0, 1)[0]?.reject(new Error("overtaken"));
+                await Promise.resolve();
+            });
+            await flushMicrotasks();
+
+            expect(screen.getByText("football.gml")).toBeInTheDocument();
+            expect(statusToast(container)?.textContent ?? "").not.toContain("karate.gml");
         });
 
         it("names the file the reader chose first, and keeps the reason the element gave", async () => {
@@ -3799,14 +3917,10 @@ describe("AppShell", () => {
             expect(screen.queryByRole("dialog")).toBeNull();
         });
 
-        /* The additive route, which the element cannot perform and used to report a SUCCESS
-           for: the app's load path ends in a property assignment on the element's
-           dataSource pair, whose initialisation guard is per LOAD and is reset only by
-           clearData(), so a second load that did not replace started nothing, parsed
-           nothing, emitted nothing -- and `finishLoad` renamed the dataset in the top bar
-           over a canvas that had not changed by one node. It is refused before the element
-           is touched, with a sentence naming the route that does work. */
-        it("refuses an additive load rather than claiming one the element cannot perform", async () => {
+        /* A file dropped on a loaded graph REPLACES it, after the reader confirms. The
+           element keeps the current graph until the new file has parsed, so the replace is
+           safe to offer; the confirmation is for a good file dropped by mistake. */
+        it("replaces a loaded dataset with a dropped file once the reader confirms", async () => {
             const { container } = await renderMeasuredShell();
 
             const loads = captureLoads(container);
@@ -3816,89 +3930,73 @@ describe("AppShell", () => {
 
             const loadsAfterSample = loads.length;
 
-            /* Dropped on the Data panel's zone with a dataset already drawn, which is the
-               additive route (`replaceExisting: !loaded`). */
             fireEvent.click(screen.getByRole("button", { name: "Data" }));
             await dropFile(screen.getByTestId("data-drop-zone"), new File(["{}"], "extra.json"));
 
-            // Nothing reached the element, so nothing can have been silently swallowed.
+            // Nothing reaches the element until the reader says so.
             expect(loads).toHaveLength(loadsAfterSample);
 
-            /* Nothing was cleared but the cat sample's own replacing clear, the canvas
-               still holds its graph, and the top bar names the dataset that IS drawn
-               rather than the file that never arrived. */
-            expect(graph.dataManager.clear).toHaveBeenCalledTimes(1);
-            expect(container.querySelector("[data-canvas-welcome='true']")).toBeNull();
-            expect(screen.getByText(CAT_SOCIAL_NETWORK_NAME)).toBeInTheDocument();
-            expect(container.querySelectorAll("[data-status-slot]").length).toBeGreaterThan(0);
+            const confirm = await screen.findByRole("dialog", { name: "Replace the current graph?" });
 
-            /* And the Loaded data section still describes the dataset that IS drawn. The
-               surviving branch restores the summary as well as the name: `finishLoad`
-               overwrites both optimistically, so a branch that put back only the name left
-               the section describing a file that never arrived -- or, on this route, whose
-               format is "auto" and whose summary is therefore undefined, drew the whole
-               section in its empty form for a graph that is still on the canvas. */
-            const summary = container.querySelector('[data-testid="compound-segment-value"]');
+            fireEvent.click(within(confirm).getByRole("button", { name: "Replace" }));
+            await flushMicrotasks();
 
-            expect(summary?.textContent).toBe("json");
+            expect(loads).toHaveLength(loadsAfterSample + 1);
+            expect(loads.at(-1)?.replace).toBe(true);
 
-            /* Welcome is not on screen in the Loaded state, so the toast is the failure's
-               only surface here -- and it is the surface the additive route had none of. */
-            const toast = statusToast(container);
+            await reportLoadComplete(container);
 
-            expect(toast).not.toBeNull();
-            expect(toast).toHaveAttribute("role", "alert");
-            expect(toast?.textContent).toContain(
-                "Could not load extra.json. Adding a file to a dataset that is already loaded is not built yet.",
-            );
-            expect(screen.getByRole("button", { name: "Open Data" })).toBeInTheDocument();
-
-            /* And it does not erase itself. An error on a six second timer is the silent
-               failure again in a nicer font, so the completion is passed with no
-               `onDismiss` and the toast has no timer to fire. */
-            vi.useFakeTimers();
-
-            act(() => {
-                vi.advanceTimersByTime(STATUS_BAR_GEOMETRY.TOAST_DURATION_MS * 2);
-            });
-
-            expect(statusToast(container)).not.toBeNull();
+            expect(graph.dataManager.clear).toHaveBeenCalledTimes(2);
+            expect(screen.getByText("extra.json")).toBeInTheDocument();
+            expect(statusToast(container)).toBeNull();
         });
 
-        /* The retry the error sentence itself invites, on the zone it is drawn in. The
-           Welcome zone's drop is not a replacing load, so nothing on that route cleared the
-           element -- and graphty-element's data-source guard is per LOAD: the failed load
-           latched it and only `clearData()` resets it (its own regression board,
-           graphty-element/test/browser/element-clear-data.test.ts, states that contract).
-           So the corrected file reached the setters, started no load at all, and the shell
-           -- whose promise chain resolves on a property assignment -- reported a SUCCESS,
-           named the file in the top bar and left the canvas blank. */
-        it("clears the element after a failed load, so the retry the sentence invites can work", async () => {
+        /* Cancelling the confirmation leaves everything as it was: the dataset, its name,
+           its layers and its results. */
+        it("leaves the loaded dataset, its layers and its results alone when the reader cancels a drop", async () => {
             const { container } = await renderMeasuredShell();
 
-            captureLoads(container);
-
+            const loads = captureLoads(container);
             const graph = installNovicePathGraph(container);
+
+            await loadCatSample(container);
+
+            const layersBefore = graph.styles.layers().map((layer) => layer.id);
+            const loadsAfterSample = loads.length;
+
+            fireEvent.click(screen.getByRole("button", { name: "Data" }));
+            await dropFile(screen.getByTestId("data-drop-zone"), new File(["{}"], "extra.json"));
+
+            const confirm = await screen.findByRole("dialog", { name: "Replace the current graph?" });
+
+            fireEvent.click(within(confirm).getByRole("button", { name: "Cancel" }));
+            await flushMicrotasks();
+
+            expect(loads).toHaveLength(loadsAfterSample);
+            expect(graph.dataManager.clear).toHaveBeenCalledTimes(1);
+            expect(graph.styles.layers().map((layer) => layer.id)).toEqual(layersBefore);
+            expect(screen.getByText(CAT_SOCIAL_NETWORK_NAME)).toBeInTheDocument();
+        });
+
+        /* The retry the error sentence itself invites, on the zone it is drawn in. */
+        it("loads the retry the sentence invites after a failed load", async () => {
+            const { container } = await renderMeasuredShell();
+
+            installNovicePathGraph(container);
             const zone = container.querySelector("[data-dragging]") as HTMLElement;
 
             expect(zone).not.toBeNull();
 
             await dropFile(zone, new File(["{oops"], "friends.json"));
 
-            /* The optimistic success first, which is the order the application produces:
-               the shell's chain resolves on a property assignment and the parse throws
-               later. Waited for rather than assumed -- the file read is a real asynchronous
-               read, and a board that reported the failure before the load had claimed
-               anything would be testing an order the application cannot reach. */
+            /* The optimistic claim first, which is the order the application produces: the
+               shell names the file while it arrives and the parse fails later. */
             await waitFor(() => {
                 expect(screen.getByText("friends.json")).toBeInTheDocument();
             });
 
             await reportLoadingError(container, "Unexpected token o in JSON at position 1");
 
-            /* The element is cleared, which is what releases its per-load guard and drops
-               any records a mid-stream failure had already added. */
-            expect(graph.dataManager.clear).toHaveBeenCalledTimes(1);
             expect(container.querySelector("[data-canvas-welcome='true']")).not.toBeNull();
 
             /* And the reader is not left on an activity the rail has just disabled.
@@ -3939,17 +4037,25 @@ describe("AppShell", () => {
 
             fireEvent.click(screen.getByRole("button", { name: "Data" }));
 
-            /* This one never reaches the element: `loadFromFile` cannot name a format for
-               it and throws, so it is the `.catch` path -- the one branch that was already
-               reporting something, into the console. */
+            /* The ELEMENT detects the format, and refuses a file it cannot place with
+               E_UNKNOWN_FORMAT. Its message ends in the call a developer would type, so the
+               shell says what a reader can do instead. */
             await dropFile(
                 screen.getByTestId("data-drop-zone"),
                 new File(["nothing here that reads like a graph"], "notes.txt"),
             );
+            await reportLoadingError(
+                container,
+                new GraphtyError({
+                    code: "E_UNKNOWN_FORMAT",
+                    message: 'nothing recognised the format of "notes.txt".',
+                    source: "data",
+                }),
+            );
 
             expect(inlineLoadError(container)?.textContent).toBe(
-                "Could not load notes.txt. Could not detect file format from 'notes.txt'. " +
-                    "Supported formats: JSON, GraphML, GEXF, CSV, GML, DOT, Pajek.",
+                "Could not load notes.txt. Its format was not recognised. " +
+                    "Open it with Open file and pick the format from the list.",
             );
             expect(statusToast(container)?.textContent).toContain("Could not load notes.txt.");
 
@@ -4027,6 +4133,13 @@ describe("AppShell", () => {
             await reportLoadComplete(container);
             fireEvent.click(screen.getByRole("button", { name: "Data" }));
             await dropFile(screen.getByTestId("data-drop-zone"), new File(["{oops"], "extra.json"));
+            fireEvent.click(
+                within(await screen.findByRole("dialog", { name: "Replace the current graph?" })).getByRole(
+                    "button",
+                    { name: "Replace" },
+                ),
+            );
+            await flushMicrotasks();
             await reportLoadingError(container, "Unexpected token o in JSON at position 1");
 
             expect(statusToast(container)).not.toBeNull();
@@ -4542,6 +4655,7 @@ describe("AppShell", () => {
         it("lets a failed load win the toast", async () => {
             const { container } = await renderMeasuredShell();
 
+            await dropFile(container.querySelector("[data-dragging]") as HTMLElement, new File(["{oops"], "bad.json"));
             await reportLoadingError(container, "bad file");
             await reportAcceleration(container, {
                 policy: "auto",

@@ -1253,6 +1253,37 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             test: BFS_TEST,
         },
     ]),
+    // issue #391: every row is measured by bfsReport (rmat14's per-boundary direction, switches and
+    // unvisitedDegreeSum words against the host model at both cadences); every depth stays right under all three,
+    // because the direction is a cost choice, never a correctness one -- the counters are the only witness
+    "bfs-next-degree": Object.freeze([
+        {
+            // the sum never lands: m_f reads 0 at every boundary, so the default rule never enters bottom-up and
+            // unvisitedDegreeSum never falls between rebuilds (rmat14 at the production cadence switches twice)
+            name: "sum-dropped",
+            find: "if (lid.x == 0u) { atomicAdd(&counters[25], total); }",
+            replace: "if (lid.x == 0u) { atomicAdd(&counters[25], 0u); }",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // the entries are counted instead of their degrees summed: m_f is |F| and unvisitedDegreeSum falls by the
+            // frontier's SIZE at every boundary after the first of a submit
+            name: "entries-counted-not-degrees",
+            find: "sum = sum + outDegree[frontier[i]];",
+            replace: "sum = sum + 1u;",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // the path gate inverted: the sum runs only on a level past the end, whose queue is empty
+            name: "path-gate-inverted",
+            find: "atomicLoad(&counters[24]) != 0u);   // nextFrontierCount",
+            replace: "atomicLoad(&counters[24]) == 0u);   // nextFrontierCount",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+    ]),
     "sssp-relax": Object.freeze([
         {
             // the claim is an exchange, not a min: a later larger candidate overwrites a smaller distance (dist miss)
@@ -1898,7 +1929,7 @@ export const SABOTAGE_P4_LAW: Readonly<Partial<Record<KernelId, readonly Mutatio
     ]),
 });
 
-/** The phases whose kernels ALL have their rows: ["P1"] at P1-T5, + "P2" at P2-T2, + "P3" at P3-T5, + "P7" at M8b-T10, + "P4" at P4-T12 (PD-1: when the last P4 kernel has its rows), + "P8" at P8-T15 (the fifteen frontier-family kernels, 58 rows written by the tasks that wrote the kernels); test/sabotage/coverage.test.ts asserts every KERNELS entry whose `phase` is listed here has >= 3 rows, except SABOTAGE_EXEMPT. */
+/** The phases whose kernels ALL have their rows: ["P1"] at P1-T5, + "P2" at P2-T2, + "P3" at P3-T5, + "P7" at M8b-T10, + "P4" at P4-T12 (PD-1: when the last P4 kernel has its rows), + "P8" at P8-T15 (the frontier-family kernels, 58 rows written by the tasks that wrote the kernels over fifteen of them, plus `bfs-next-degree`'s 3 for issue #391: sixteen kernels, 61 rows); test/sabotage/coverage.test.ts asserts every KERNELS entry whose `phase` is listed here has >= 3 rows, except SABOTAGE_EXEMPT. */
 export const SABOTAGE_PHASES: readonly KernelEntry["phase"][] = Object.freeze(["P1", "P2", "P3", "P7", "P4", "P8"]);
 
 /**

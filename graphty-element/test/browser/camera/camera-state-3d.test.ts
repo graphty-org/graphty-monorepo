@@ -91,3 +91,34 @@ test("camera-state-changed event fires when state changes", async () => {
     // Clean up
     graph.eventManager.removeListener(listenerId);
 });
+
+// The orbit camera's configured zoom floor (RenderManager's minZoomDistance). A saved state or a
+// preset that asks for less used to be applied as given, and the first zoom in then snapped the
+// camera outwards to the floor.
+const MIN_ZOOM_DISTANCE = 2;
+
+test("setCameraState floors a distance below the zoom minimum, immediately and animated", async () => {
+    graph = await createTestGraph();
+
+    await graph.setCameraState({ target: { x: 0, y: 0, z: 0 }, cameraDistance: 0.1 });
+    assert.strictEqual(graph.getCameraState().cameraDistance, MIN_ZOOM_DISTANCE);
+
+    await graph.setCameraState({ target: { x: 0, y: 0, z: 0 }, cameraDistance: 50 });
+    await graph.setCameraState({ target: { x: 0, y: 0, z: 0 }, cameraDistance: 0.1 }, { animate: true, duration: 100 });
+    assert.strictEqual(graph.getCameraState().cameraDistance, MIN_ZOOM_DISTANCE);
+
+    // A position closer to the target than the floor is floored the same way.
+    await graph.setCameraState({ position: { x: 0, y: 0, z: 0.5 }, target: { x: 0, y: 0, z: 0 } });
+    assert.strictEqual(graph.getCameraState().cameraDistance, MIN_ZOOM_DISTANCE);
+});
+
+test("setCameraState keeps a distance beyond the zoom-out ceiling, immediately and animated", async () => {
+    graph = await createTestGraph();
+
+    await graph.setCameraState({ target: { x: 0, y: 0, z: 0 }, cameraDistance: 1e6 });
+    assert.strictEqual(graph.getCameraState().cameraDistance, 1e6);
+
+    await graph.setCameraState({ target: { x: 0, y: 0, z: 0 }, cameraDistance: 50 });
+    await graph.setCameraState({ target: { x: 0, y: 0, z: 0 }, cameraDistance: 1e6 }, { animate: true, duration: 100 });
+    assert.strictEqual(graph.getCameraState().cameraDistance, 1e6);
+});

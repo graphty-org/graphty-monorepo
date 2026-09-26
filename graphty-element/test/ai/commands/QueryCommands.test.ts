@@ -5,7 +5,7 @@
 
 import { assert, beforeEach, describe, it } from "vitest";
 
-import { queryGraph } from "../../../src/ai/commands/QueryCommands";
+import { findNodes, queryGraph } from "../../../src/ai/commands/QueryCommands";
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
 import { createMockContext, createTestGraph } from "../../helpers/test-graph";
@@ -71,6 +71,53 @@ describe("QueryCommands", () => {
         it("has examples", () => {
             assert.ok(Array.isArray(queryGraph.examples));
             assert.ok(queryGraph.examples.length > 0);
+        });
+    });
+
+    describe("findNodes", () => {
+        interface FindNodesData {
+            total: number;
+            returned: number;
+            count: number;
+            truncated: boolean;
+            nodeIds: string[];
+        }
+
+        it("caps an unlimited query at the default and reports the total", async () => {
+            const big = createTestGraph({ nodes: 1000, edges: 0 });
+            const result = await findNodes.execute(big, { selector: "" }, createMockContext(big));
+            assert.strictEqual(result.success, true);
+
+            const data = result.data as FindNodesData;
+            assert.strictEqual(data.nodeIds.length, 50);
+            assert.strictEqual(data.returned, 50);
+            assert.strictEqual(data.count, 50);
+            assert.strictEqual(data.total, 1000);
+            assert.strictEqual(data.truncated, true);
+            assert.strictEqual(result.affectedNodes?.length, 50);
+            assert.include(result.message, "1000");
+        });
+
+        it("reports the total when a limit is passed", async () => {
+            const big = createTestGraph({ nodes: 1000, edges: 0 });
+            const result = await findNodes.execute(big, { selector: "*", limit: 10 }, createMockContext(big));
+            const data = result.data as FindNodesData;
+            assert.strictEqual(data.returned, 10);
+            assert.strictEqual(data.total, 1000);
+            assert.strictEqual(data.truncated, true);
+        });
+
+        it("is not truncated when every match fits", async () => {
+            const small = createTestGraph({ nodes: 5, edges: 0 });
+            const result = await findNodes.execute(small, { selector: "" }, createMockContext(small));
+            const data = result.data as FindNodesData;
+            assert.strictEqual(data.total, 5);
+            assert.strictEqual(data.returned, 5);
+            assert.strictEqual(data.truncated, false);
+        });
+
+        it("tells the model the cap exists", () => {
+            assert.include(findNodes.description, "50");
         });
     });
 });

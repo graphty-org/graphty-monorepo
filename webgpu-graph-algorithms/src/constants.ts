@@ -214,3 +214,13 @@ export const GRID_EXTENT_FLOOR = 1e-6;
 export const GRID_BBOX_MARGIN = 1.01;
 /** The key width the grid always sorts with (P4 PD-5): three 8-bit passes cover the 19-bit 2D keys at G = 512 and the 22-bit 3D keys at G = 128, and an odd pass count leaves `sortedIdx` in the scratch pair. */
 export const GRID_SORT_BITS = 24;
+/** Design 8.4 (P8 PD-7): traversal levels recorded per submit -- one four-byte readback per 32 BFS levels, SSSP rounds or closeness levels. */
+export const MAX_LEVELS_PER_SUBMIT = 32;
+/** Design 8.4 and 6 row 8 (P8): a frontier at most this long runs the fused expand-contract kernel (Merrill's "fleeting iterations"); the default of the `fusedMax` uniform, which a test may set to 0 or `U32_MAX`. */
+export const FUSED_FRONTIER_MAX = 4096;
+/** Design 8.4 (P8 PD-21): Beamer's beta -- switch back to top-down when `frontierCount * BEAMER_BETA < unvisitedCount` and the frontier is shrinking; alpha is derived from the graph, so it has no constant. */
+export const BEAMER_BETA = 24;
+/** Design 8.4 (P8 PD-22): the near-far split `delta = SSSP_DELTA_FACTOR * avgWeight / avgDegree`, computed on the host from the weight vector the run uses. */
+export const SSSP_DELTA_FACTOR = 32;
+/** The bit pattern of +Infinity, the unreached sentinel of `dist` (P8 PD-9); interpolated into the prelude as `F32_INF_BITS` so no body types the literal. */
+export const F32_INF_BITS = 0x7f800000;

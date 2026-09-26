@@ -1,0 +1,81 @@
+import { Meta } from "@storybook/blocks";
+
+<Meta title="Components/Selection/Overview" />
+
+# Selection
+
+The controls in this group turn something on or off, or pick one place out of a fixed set.
+Every one is a real form control -- a native checkbox, switch or radio -- so Tab reaches it,
+Space or the arrow keys change it, and its state is announced rather than only drawn. Each works
+controlled (`checked` or `value` with `onChange`) or uncontrolled (`defaultChecked` or
+`defaultValue`), and `onChange` hands you the new value first and the browser event second.
+
+They sit on the same 32px panel row and 24px trailing slot as every other row in
+**Panels and rows**, so a column of toggles lines up with the field rows around it.
+
+## Reach for
+
+- **[ToggleRow](?path=/docs/components-selection-togglerow--docs)** -- a setting is a plain yes or
+  no that no value or picture could stand for: whether labels are drawn, whether transitions
+  animate. A checkbox for an option, `control="switch"` for a live mode.
+- **[ToggleRowGroup](?path=/docs/components-selection-togglerowgroup--docs)** -- you have two or
+  more of those. It stacks them at the row pitch and names the set for a screen reader.
+- **[ToggleWithContent](?path=/docs/components-selection-togglewithcontent--docs)** -- a feature is
+  a yes or no that brings its own settings with it (a glow with a colour and a radius). Its
+  settings appear only while it is on.
+- **[AlignmentMatrix](?path=/docs/components-selection-alignmentmatrix--docs)** -- one of nine
+  positions in two dimensions, top left to bottom right.
+
+The nearest alternatives outside this group:
+
+- **Two to six mutually exclusive options that can be drawn** (text alignment, a view mode) -- the
+  themed Mantine `SegmentedControl`. See
+  [Themed Mantine / Selection / SegmentedControl, PicturesInAPanelRow](?path=/story/themed-mantine-selection-segmentedcontrol--pictures-in-a-panel-row)
+  for the panel row recipe: pictures in the segments, the words in `VisuallyHidden`, a
+  `TrailingSlot` at the end.
+- **One of a long or undrawable list** -- a `Select` (Components / Inputs).
+- **A value with a unit** -- a `PanelField` (Components / Inputs).
+- **A lone boolean that qualifies another row** -- a Mantine `Checkbox` in that row's
+  [TrailingSlot](?path=/docs/components-panels-and-rows-trailingslot--docs), not a row of its own.
+
+## A lone boolean is not a row
+
+A single checkbox between other rows is a horizontal rule made of one word: it interrupts the
+rhythm of the panel to say one bit. So a lone boolean goes in the 24px trailing slot of the row it
+modifies. Two or more booleans that belong together earn rows of their own, inside a
+`ToggleRowGroup`, which warns on the console in a development build when it is given only one.
+
+## Delete the verb from a label
+
+The control already says the verb. `Show labels` is written `Labels`, `Animate transitions` is
+written `Transitions`, `Enable clustering` is written `Clustering`. A row has one word of space,
+and spending it on a word the checkbox has already said wastes the row.
+
+## Checkbox or switch
+
+A checkbox is for an option: something that will be true the next time the view is drawn. A
+switch is for a live mode: something on or off right now, such as a running layout simulation.
+A boolean that reads the same in the past tense is a checkbox.
+
+## Controlled, uncontrolled, and events
+
+```tsx
+import { ToggleRow, ToggleRowGroup } from "@graphty/compact-mantine";
+
+<ToggleRowGroup label="Render options">
+    {/* Driven from your own state */}
+    <ToggleRow label="Labels" checked={labels} onChange={(checked, event) => setLabels(checked)} />
+    {/* Keeps its own state */}
+    <ToggleRow label="Arrows" defaultChecked />
+</ToggleRowGroup>
+```
+
+The event is optional, so a change made in code is `onChange(next)` with nothing to fabricate,
+and a handler that wants a modifier key reads it from `event.nativeEvent`.
+
+## Disabled and bound
+
+Every control here takes `disabled`. `ToggleRow` and `ToggleWithContent` also take a
+`disabledReason`: one sentence saying what would turn the control back on, shown as the tooltip
+and read out as its description. They take `bound` too, which draws the filled attribute glyph
+`PanelField` uses to say "this value comes from data".

@@ -33,12 +33,18 @@ works in light and dark schemes, and works in right-to-left languages.
 - [Quick start](#quick-start)
 - [The compact theme](#the-compact-theme)
 - [The components](#the-components)
-  - [Building a panel](#building-a-panel)
-  - [Editing a value](#editing-a-value)
-  - [Showing data](#showing-data)
+  - [Panels and rows](#panels-and-rows)
+  - [Inputs](#inputs)
+  - [Selection](#selection)
+  - [Colour](#colour)
+  - [Actions](#actions)
   - [Floating panels](#floating-panels)
+  - [Other overlays](#other-overlays)
+  - [Lists and trees](#lists-and-trees)
+  - [Data display](#data-display)
   - [The editor shell](#the-editor-shell)
   - [Glyphs](#glyphs)
+  - [Themed Mantine components](#themed-mantine-components)
 - [A worked example](#a-worked-example)
 - [The panel grid](#the-panel-grid)
 - [Handling events](#handling-events)
@@ -276,63 +282,92 @@ to reuse the colours elsewhere.
 
 ## The components
 
-Grouped by what you are trying to do. Every component has a page in
-[Storybook](https://graphty.app/storybook/compact-mantine/) with runnable
-examples, and every prop is documented in your editor.
+Every component has one page in
+[Storybook](https://graphty.app/storybook/compact-mantine/): what it is for and when to use it
+instead of its nearest alternative, an example whose props you can edit, every state in light
+and dark side by side, the keyboard, and the key measurements. Every prop is also documented in
+your editor. The groups below match the Storybook sidebar, and each group has an overview page.
 
-### Building a panel
+### Panels and rows
 
-| Component | Reach for it when |
-|-----------|-------------------|
-| `ControlSection` | a run of controls needs a name, a rule above it and a chevron that folds it away. The workhorse container for a property panel. It can show a dot when something inside it is non-default, an empty state with a single "+", an explanation bubble, and buttons of its own in the header. |
-| `ControlGroup` | the same, but it must never fold, or its rule has to bleed out to the edges of a padded container such as a pop-out. |
-| `ControlSubGroup` | a handful of rarely-opened settings belong under a section you already have. Quieter than a section: no rule, a smaller chevron. |
-| `FieldRow` | one or two fields share a line. It owns the widths and the gaps, so a column of rows lines up. |
-| `TrailingSlot` | you are laying out a row by hand and need the fixed 24px slot every row ends with, so that rows with a trailing control end level with rows without one. |
-| `AdvancedButton` | a row or a section has settings most people never change. The gear opens them in a pop-out, and marks itself when something behind it is no longer default. |
-
-### Editing a value
+The containers a property panel is built from, and the row layout every other component agrees
+with. [Overview](https://graphty.app/storybook/compact-mantine/?path=/docs/components-panels-and-rows-overview--docs)
 
 | Component | Reach for it when |
 |-----------|-------------------|
-| `PanelField` | a value is typed, picked from a list or dragged. A real text box, number box or select, 24px tall, whose caption is a 16px drawing inside the box instead of a word above it. |
-| `CompoundRow` | two or three values are one thing seen several ways -- a colour and its opacity, a width and its unit -- and must read as one control. |
-| `IconGroupRow` | two to six mutually exclusive options whose difference can be drawn: node shapes, edge routing, scale curves. A `SegmentedControl` underneath, so arrow keys work. |
-| `ToggleRow` | a setting is a plain yes or no that no picture could stand for. |
-| `ToggleRowGroup` | you have two or more of those. It packs them at a 24px pitch and warns you in development if you give it only one. |
-| `RampRow` | a range is better drawn than described: a size wedge or a colour ramp with its two endpoints. |
-| `CompactColorInput` | a colour and its opacity, on one 24px line, with a picker in a pop-out. Needs a [`PopoutManager`](#floating-panels). |
-| `GradientEditor` | a multi-stop linear gradient: colours, positions, angle. Needs a `PopoutManager`. |
-| `StyleNumberInput` | a number that has a sensible default, and you want the panel to show at a glance whether the reader has overridden it. `undefined` means "not set" and shows the default in italics with no reset button. |
-| `StyleSelect` | the same idea for a dropdown. |
-| `ToggleWithContent` | a feature is a yes or no that brings its own settings with it. Turning it off takes its settings off the screen. |
+| [`ControlSection`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-panels-and-rows-controlsection--docs) | a run of controls needs a name, a rule and a chevron that folds it away. The workhorse container for a property panel. It can show a dot when something inside it is non-default, an empty state with a single "+", an explanation bubble, and buttons of its own in the header. |
+| [`ControlGroup`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-panels-and-rows-controlgroup--docs) | the same, but it must never fold, or it sits in a padded container such as a pop-out. |
+| [`ControlSubGroup`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-panels-and-rows-controlsubgroup--docs) | a handful of rarely-opened settings belong under a section you already have. Quieter than a section. |
+| [`FieldRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-panels-and-rows-fieldrow--docs) | one or two fields share a line. It owns the widths and the gaps, so a column of rows lines up. |
+| [`CompoundRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-panels-and-rows-compoundrow--docs) | two or three values are one thing seen several ways -- a colour and its opacity, a width and its unit -- and must read as one control. |
+| [`TrailingSlot`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-panels-and-rows-trailingslot--docs) | you are laying out a row by hand and need the fixed 24px slot every row ends with. |
+| [`ResizeHandle`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-panels-and-rows-resizehandle--docs) | a panel's edge can be dragged: pointer, arrow keys, or a double-click back to the default size. |
 
-### Showing data
+### Inputs
+
+Values the reader types or picks. [Overview](https://graphty.app/storybook/compact-mantine/?path=/docs/components-inputs-overview--docs)
 
 | Component | Reach for it when |
 |-----------|-------------------|
-| `DataRow` | the string is the reader's own -- an id, a node label, a filename -- with a number beside it. The one row here that keeps a text label, because data cannot be drawn. Selectable, double-clickable, and it can carry a trailing control. |
-| `DataRowHeader` | a run of data rows needs a caption, so the rows below can drop the unit word they would otherwise repeat. Give it `onSortChange` and it becomes a sort control. |
-| `RankChip` | a rank belongs beside a row: `#6`, rather than a sentence saying "rank 6 of 318". |
-| `MetricRow` | one reading has a percentile and a rank. Draws the name, a bar filled to the percentile, the number, and the chip. |
-| `HistogramRow` | a distribution would otherwise be spelled as the four numbers that summarise it. 64px tall. |
-| `SparklineRow` | a series is going somewhere and you want to see which way. 32px tall. |
-| `ProseBlock` | the panel has to say something in words: a plain-language reading, a caveat about how a result falls short, or a record of the last run. |
-| `ActionRow` | a row reports a state and offers verbs. The state is always visible; the verbs appear on hover, on focus, and always on a touch screen. |
-| `DataTable` | you have columns rather than rows: thousands of them, sortable, searchable, selectable, with only the visible rows in the document. |
+| [`PanelField`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-inputs-panelfield--docs) | a value is typed, picked from a list or dragged in a panel row. A 24px text box, number box or select whose caption is a 16px drawing inside the box instead of a word above it. |
+| [`Select` and `StyleSelect`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-inputs-select--docs) | one of a fixed list. Mantine's `Select` is themed as Figma's outlined trigger with a dark list; `StyleSelect` adds a reset, for a choice where `undefined` means "inherit the default". |
+| [`StyleNumberInput`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-inputs-stylenumberinput--docs) | a number with a sensible default, where the panel should show at a glance whether the reader has overridden it. |
+| [`SearchInput`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-inputs-searchinput--docs) | a filter or find box: a leading magnifier, a clear button and Escape to clear. |
+| [`ComboInput`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-inputs-comboinput--docs) | a value you can type, with a chevron that opens a list of presets over the field (font size, gap, export scale). |
+| [`VariablePill`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-inputs-variablepill--docs) | a value bound to a named variable, drawn as a pill inside a field, with a Detach button. |
+
+### Selection
+
+Yes or no, and one of a few. [Overview](https://graphty.app/storybook/compact-mantine/?path=/docs/components-selection-overview--docs)
+
+| Component | Reach for it when |
+|-----------|-------------------|
+| [`ToggleRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-selection-togglerow--docs) | a setting is a plain yes or no that no picture could stand for. |
+| [`ToggleRowGroup`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-selection-togglerowgroup--docs) | you have two or more of those. It packs them and warns in development if you give it only one. |
+| [`ToggleWithContent`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-selection-togglewithcontent--docs) | a yes or no brings its own settings with it; turning it off takes them off the screen. |
+| [`AlignmentMatrix`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-selection-alignmentmatrix--docs) | the 3 x 3 alignment grid: nine radios with two-dimensional arrow keys. |
+
+Two to six options whose difference can be drawn are a themed Mantine `SegmentedControl` with a
+glyph and a visually hidden word in each segment; its
+[Storybook page](https://graphty.app/storybook/compact-mantine/?path=/docs/themed-mantine-selection-segmentedcontrol--docs) shows the recipe in a panel
+row. (`IconGroupRow` did this until 0.9.)
+
+### Colour
+
+[Overview](https://graphty.app/storybook/compact-mantine/?path=/docs/components-colour-overview--docs)
+
+| Component | Reach for it when |
+|-----------|-------------------|
+| [`CompactColorInput`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-colour-compactcolorinput--docs) | a colour and its opacity, on one 24px line, with Figma's picker in a pop-out. Needs a [`PopoutManager`](#floating-panels). |
+| [`ColorPickerPanel`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-colour-colorpickerpanel--docs) | you want Figma's picker itself on a surface of your own: paint type, saturation field, hue and alpha, eyedropper, swatches. |
+| [`GradientEditor`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-colour-gradienteditor--docs) | a multi-stop linear gradient: a bar with stop handles, one picker for the selected stop, positions and angle. Alone, or in `ColorPickerPanel`'s `gradient` slot. |
+| [`RampRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-colour-ramprow--docs) | a range is better drawn than described: a size wedge or a colour ramp with its two endpoints. |
+
+### Actions
+
+[Overview](https://graphty.app/storybook/compact-mantine/?path=/docs/components-actions-overview--docs)
+
+| Component | Reach for it when |
+|-----------|-------------------|
+| [`ToggleIconButton`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-actions-toggleiconbutton--docs) | an icon button stays pressed (`aria-pressed`): a lock, a visibility eye. Drag across a column of them to set them all. |
+| [`SplitButton`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-actions-splitbutton--docs) | a main action and a chevron that opens a menu of related choices. |
+| [`AdvancedButton`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-actions-advancedbutton--docs) | a row or a section has settings most people never change. It marks itself when something behind it is no longer default. |
+
+Variants the theme adds to Mantine buttons (pass them as `variant`): `Button` `danger`,
+`danger-outline`, `inverse`, `success`; `ActionIcon` `joined` (inside a themed
+`ActionIcon.Group`).
 
 ### Floating panels
 
-A pop-out is a panel that opens beside a control, can be dragged, and can
-contain pop-outs of its own.
+A pop-out is a panel that opens beside a control, can be dragged, and can contain pop-outs of its
+own. [Overview](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-overview--docs)
 
-**Put one `PopoutManager` high in your tree, above anything that opens a
-pop-out.** It owns the shared floating layer: the stacking order, the portal the
-panels render into, and the dismissal rules they all obey. Without it, anything
-that opens a pop-out throws `usePopoutManagerContext must be used within a
-PopoutManager` on first render. `CompactColorInput` and `GradientEditor` use a
-pop-out internally, so they need one too. (`InfoCircle` is the exception: it
-supplies its own if there is none.)
+**Put one `PopoutManager` high in your tree, above anything that opens a pop-out.** It owns the
+shared floating layer: the stacking order, the portal the panels render into, and the dismissal
+rules they all obey. Without it, anything that opens a pop-out throws
+`usePopoutManagerContext must be used within a PopoutManager` on first render.
+`CompactColorInput` uses a pop-out internally, so it needs one too. (`InfoCircle` is the
+exception: it supplies its own if there is none.)
 
 ```tsx
 import { Popout, PopoutButton, PopoutManager, UiGlyph } from "@graphty/compact-mantine";
@@ -354,70 +389,68 @@ import { Popout, PopoutButton, PopoutManager, UiGlyph } from "@graphty/compact-m
 | Component | What it is |
 |-----------|------------|
 | `PopoutManager` | The shared floating layer. Required, once, near the root. |
-| `Popout` | One pop-out: its trigger and its panel. Also namespaces `Popout.Trigger`, `Popout.Panel`, `Popout.Content` and `Popout.Anchor`. |
-| `Popout.Trigger` | Wraps the single element that opens the panel. Give it a real button. |
-| `Popout.Panel` | The panel itself: a width, an optional header or tab strip, and its content. |
-| `Popout.Anchor` | Wraps a sidebar so every panel opened inside it lines up with that sidebar's edge instead of with its own button. |
-| `PopoutButton` | An icon button that stays lit while its panel is open. |
-| `InfoCircle` | A circled "i" that reveals an explanation on hover, focus or tap. |
+| [`Popout`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-popout--docs) | One pop-out: `Popout.Trigger` wraps the element that opens it, `Popout.Panel` is the panel (a width, an optional header or tab strip, its content), and `Popout.Anchor` wraps a sidebar so every panel opened inside it lines up with that sidebar's edge. |
+| [`PopoutButton`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-popoutbutton--docs) | An icon button that stays lit while its panel is open. |
+| [`InfoCircle`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-infocircle--docs) | A circled "i" that reveals an explanation on hover, focus or tap. |
+| `usePopoutManager` | A hook returning `closeAll()` and `hasOpenPopouts()`, for closing every pop-out from a route a click-outside does not cover: a keyboard shortcut, a command palette row, a full-page sheet. |
+| `PopoutRegion`, `usePopoutRegion` | `PopoutRegion id="..."` names a part of your shell (a panel, an inspector); `usePopoutRegion()` reads that name from anywhere inside it, including a pop-out opened there. It does not change which pop-outs may be open together. |
 
-The rules a `PopoutManager` enforces, so you do not have to: Escape closes the
-innermost panel; a click outside closes everything; opening a panel closes its
-siblings; closing a panel closes everything opened from it; focus returns to the
-trigger.
+The rules a `PopoutManager` enforces, so you do not have to: Escape closes the innermost panel; a
+click outside closes everything; only one root pop-out is open at a time; closing a panel closes
+everything opened from it; focus returns to the trigger. Where a panel opens is set by two
+props on `Popout.Panel`: `anchorX` decides which edge it lines up with (`"panel"`, `"trigger"`,
+`"parent"`, or a ref of your own) and `anchorY` how far down it opens.
 
-Where a panel opens is set by two independent props on `Popout.Panel`:
-`anchorX` decides which edge it lines up with (`"panel"`, `"trigger"`,
-`"parent"`, or a ref of your own) and `anchorY` how far down it opens. The
-defaults are the arrangement most sidebars want: flush with the panel's edge,
-level with the row that opened it.
-
-### More Figma components
+### Other overlays
 
 | Component | What it is |
 |-----------|------------|
-| `ToggleIconButton` | An icon button that stays pressed (`aria-pressed`), such as a lock or a visibility eye. |
-| `SplitButton` | Two icon buttons joined into one control: a main action and a chevron that opens a menu of related choices. |
-| `AlignmentMatrix` | The 3 x 3 alignment grid: nine radios with two-dimensional arrow-key movement. `ALIGNMENT_MATRIX_VALUES` lists its values. |
-| `SearchInput` | The filled search field with a leading magnifier and a clear button. |
-| `ComboInput` | A value you can type, with a chevron that opens a dark list of presets over the field (font size, gap, export scale). |
-| `VariablePill` | A value bound to a named variable, drawn as a pill inside a field, with a Detach button on hover. |
-| `ColorPickerPanel` | Figma's colour picker (the panel `CompactColorInput` opens), usable on its own. |
-| `ContextMenu` | A dark menu opened at the pointer by a right-click, or from the keyboard with Shift+F10 or the ContextMenu key. |
-| `MenuCheckItem` | A checkable row for a Mantine `Menu`, with the check column. |
-| `TooltipShortcut` | A tooltip label with its keyboard shortcut after it. |
-| `ModalFooter` | The footer row of a Mantine `Modal`: its action buttons, end-aligned. |
-| `Toast`, `ToastProvider`, `useToast` | Figma's dark toast: put one `ToastProvider` near the root and call `useToast()` to show one. |
-| `ResizeHandle` | A panel's resize edge: drag it, use the arrow keys, or double-click to return to the default size. |
-| `Tree`, `TreeItem` | The layer tree: a real ARIA tree with arrow keys, F2 to rename and drag to reorder. |
-| `PageList`, `PageRow` | The page list above the layer tree. |
-| `InlineRename` | The in-place rename field a tree or page row turns into. |
-| `ResultRow` | One row of find results. |
+| [`ContextMenu`, `MenuCheckItem`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-menu--docs) | A dark menu opened at the pointer by a right-click, or from the keyboard with Shift+F10 or the ContextMenu key; and a checkable row for any Mantine `Menu`. |
+| [`TooltipShortcut`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-tooltip--docs) | A tooltip label with its keyboard shortcut after it. |
+| [`ModalFooter`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-modal--docs) | The footer row of a Mantine `Modal`: its action buttons, end-aligned. |
+| [`Toast`, `ToastProvider`, `useToast`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-toast--docs) | Figma's dark toast: put one `ToastProvider` near the root and call `useToast()` to show one. |
 
-Variants the theme adds to Mantine components (pass them as `variant`): `Button`
-`danger`, `danger-outline`, `inverse`, `success`; `ActionIcon` `joined` (inside a
-themed `ActionIcon.Group`); `Checkbox` `neutral` (Figma's panel checkbox; the
-default is the blue dialog checkbox); `SegmentedControl` `toolbar` (the sliding
-mode switch) and `loose`; `Anchor` `secondary`; `Tabs` `default` (the underline
-tabs; pills are the default).
+### Lists and trees
+
+Objects the reader selects, renames or moves. [Overview](https://graphty.app/storybook/compact-mantine/?path=/docs/components-lists-and-trees-overview--docs)
+
+| Component | Reach for it when |
+|-----------|-------------------|
+| [`Tree`, `TreeItem`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-lists-and-trees-tree--docs) | a list of objects, nested or flat: a real ARIA tree with arrow keys, multiple selection, F2 to rename, drag to reorder, and Alt+ArrowUp / Alt+ArrowDown to move an item when you pass `onMove`. With no `children` on any item it is a flat reorderable list. The tree never edits your data: `moveTreeItem(items, move)` and `renameTreeItem(items, id, name)` apply what `onMove` and `onRename` report and return a new list. |
+| [`PageList`, `PageRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-lists-and-trees-pagelist--docs) | flat pages with dividers, above a layer tree. |
+| [`InlineRename`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-lists-and-trees-inlinerename--docs) | the in-place rename field a tree or page row turns into, for a row of your own. |
+| [`ResultRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-lists-and-trees-resultrow--docs) | one row of find results. |
+
+### Data display
+
+Readings: things the reader looks at rather than changes. [Overview](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-overview--docs)
+
+| Component | Reach for it when |
+|-----------|-------------------|
+| [`DataRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-datarow--docs) | a name and a reading on one line -- a statistic, a fact, a ranking. `selected` marks the current item of a ranking; `onClick` opens what the reading is about. For objects the reader selects, renames or moves, use `Tree` or `PageList`. |
+| [`DataRowHeader`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-datarowheader--docs) | a run of data rows needs a caption. Give it `onSortChange` and it becomes a sort control. |
+| [`RankChip`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-rankchip--docs) | a rank belongs beside a row: `#6`, rather than "rank 6 of 318". |
+| [`MetricRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-metricrow--docs) | one reading has a percentile and a rank: the name, a bar filled to the percentile, the number and the chip. |
+| [`HistogramRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-histogramrow--docs) | a distribution would otherwise be spelled as the numbers that summarise it. 64px tall. |
+| [`SparklineRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-sparklinerow--docs) | a series is going somewhere and you want to see which way. 32px tall. |
+| [`ProseBlock`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-proseblock--docs) | the panel has to say something in words: a reading, a caveat, a record of the last run. |
+| [`ActionRow`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-actionrow--docs) | a row reports a state and offers verbs beside it. |
+| [`DataTable`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-data-display-datatable--docs) | you have columns rather than rows: thousands of them, sortable, searchable, selectable, virtualized. |
 
 ### The editor shell
 
-The chrome around an editor's canvas, as Figma draws it. Each one is a real
-toolbar, dialog or tab list: one Tab stop, arrow keys inside, names for screen
-readers.
+The chrome around an editor's canvas, as Figma draws it. Each one is a real toolbar, dialog or
+tab list: one Tab stop, arrow keys inside, names for screen readers.
+[Overview](https://graphty.app/storybook/compact-mantine/?path=/docs/components-app-shell-overview--docs)
 
 | Component | What it is |
 |-----------|------------|
-| `Toolbar` | The floating bottom toolbar: 48 tall, 13px corners, one Tab stop with ArrowLeft / ArrowRight / Home / End inside. `floating` pins it to the bottom centre of the window. `Toolbar.Divider` is its full-height rule. |
-| `ToolButton` | A 32 x 32 tool: `label` (its name and tooltip), `icon`, `shortcut`, and `selected` for the current tool. |
-| `ToolGroup` | A tool with a flyout: the face shows the last tool picked, and the chevron beside it opens a dark menu of the group's tools above the toolbar. Give it `tools`, the toolbar's `activeTool` and `onToolChange`; `chevronProps` passes attributes to the chevron button. |
-| `SecondaryToolbar` | The contextual 40-tall bar that appears above the toolbar while a mode is active, with `SecondaryToolbar.Button` and `SecondaryToolbar.Divider`. Give a button `dropdown` when it opens a menu (Figma's "More"): it gets a trailing chevron, and inside `Menu.Target` it draws the open state. |
-| `NavRail` | The 56-wide navigation rail at the window's edge, one Tab stop with ArrowUp / ArrowDown inside; `footer` pins buttons to its foot, `NavRail.Separator` divides it. |
-| `RailButton` | A rail destination: a 32 x 32 pill over a 9px caption; `aria-expanded` (or `active`) lights it while its panel is open. |
-| `HelpButton` | The round floating help button; its children are the items of the dark menu it opens. |
-| `ShortcutSheet` | The keyboard shortcuts sheet docked at the window's foot: tabs of shortcut columns with dark key caps. Arrow keys switch tabs; Escape closes it. A tab with `variant: "essential"` draws Figma's first tab instead of the list: its `caption` above numbered columns, large key caps, and each entry's `description` under its label. |
-| `QuickActions` | The quick actions palette: a search field over sectioned rows. Typing filters, ArrowUp / ArrowDown move the highlight while focus stays in the field, Enter runs, Escape closes. |
+| [`Toolbar`, `ToolButton`, `ToolGroup`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-app-shell-toolbar--docs) | The floating bottom toolbar (48 tall, 13px corners, `floating` pins it bottom centre), its 32 x 32 tools (`label`, `icon`, `shortcut`, `selected`), and a tool with a flyout of related tools whose face shows the last one picked. |
+| [`SecondaryToolbar`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-app-shell-secondarytoolbar--docs) | The contextual 40-tall bar above the toolbar while a mode is active. |
+| [`NavRail`, `RailButton`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-app-shell-navrail--docs) | The 56-wide navigation rail at the window's edge, and its destinations: a 32 x 32 pill over a 9px caption. |
+| [`HelpButton`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-app-shell-helpbutton--docs) | The round floating help button; its children are the items of the menu it opens. |
+| [`ShortcutSheet`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-app-shell-shortcutsheet--docs) | The keyboard shortcuts sheet docked at the window's foot: tabs of shortcut columns with dark key caps. |
+| [`QuickActions`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-app-shell-quickactions--docs) | The quick actions palette: a search field over sectioned rows. Typing filters, arrows move, Enter runs, Escape closes. |
 
 ```tsx
 import { SegmentedControl } from "@mantine/core";
@@ -438,46 +471,59 @@ function EditorToolbar() {
 }
 ```
 
-The shell brings no glyphs of its own for your tools: pass your own icons,
-drawn to sit in a 24px box.
+The shell brings no glyphs of its own for your tools: pass your own icons, drawn to sit in a 24px
+box.
 
 ### Glyphs
 
-The premise of the row components is that a small drawing can replace a word,
-which only works if the drawings are a fixed, learnable set. Two components draw
-them:
+The premise of the row components is that a small drawing can replace a word, which only works
+if the drawings are a fixed, learnable set. Two components draw them:
 
-- `FieldGlyph` -- the eight glyphs allowed inside a field's 16px slot, each with
-  a hollow and a filled form. `FIELD_GLYPH_NAMES` lists them.
-- `UiGlyph` -- the shared marks the components draw elsewhere: chevrons and
-  carets, a gear, a close, a plus, a check, a warning, the alignment and
-  transform verbs, and the frame, rectangle, ellipse and text shapes, each drawn
-  with a 1px stroke at any size. `UI_GLYPH_NAMES` lists them.
+- `FieldGlyph` -- the eight glyphs allowed inside a field's slot, each with a hollow and a filled
+  form. `FIELD_GLYPH_NAMES` lists them.
+- `UiGlyph` -- the shared marks the components draw elsewhere: chevrons and carets, settings, close,
+  plus, check, warning, the alignment and transform verbs, and the layer shapes, each drawn with a
+  1px stroke at any size. `UI_GLYPH_NAMES` lists them.
 
-Both take a `name` and an optional `size`, draw in `currentColor`, and are
-hidden from screen readers, because the control around them carries the name.
-`FIELD_LETTERS` is the small set of capital letters a field may show in place of
-a drawing when a concept has no picture.
+Both take a `name` and an optional `size`, draw in `currentColor`, and are hidden from screen
+readers, because the control around them carries the name. `FIELD_LETTERS` is the small set of
+capital letters a field may show when a concept has no picture. See every drawing on the
+[Glyphs page](https://graphty.app/storybook/compact-mantine/?path=/docs/foundations-glyphs--docs).
 
-See every drawing at once in the **Glyphs** section of
-[Storybook](https://graphty.app/storybook/compact-mantine/).
+### Themed Mantine components
+
+The Mantine components the theme restyles but does not wrap have their own section in Storybook,
+[Themed Mantine](https://graphty.app/storybook/compact-mantine/?path=/docs/themed-mantine-actions-button--docs), grouped as actions, inputs,
+selection, navigation, feedback and surfaces. Their props are Mantine's. Looks the theme adds through
+`variant`: `Checkbox` `neutral` (Figma's grey panel checkbox; the default is the blue dialog one),
+`SegmentedControl` `toolbar` (the sliding mode switch) and `loose`, `Anchor` `secondary`, and
+`Tabs` `default` (the underline tabs; pills are the default).
 
 ## A worked example
 
-A complete section of a property panel, using one component from each group.
+A complete section of a property panel. The scale is a themed Mantine `SegmentedControl` whose
+segments are drawings with a visually hidden word, the recipe that replaced `IconGroupRow`.
 
 ```tsx
+import { SegmentedControl, VisuallyHidden } from "@mantine/core";
 import {
     AdvancedButton,
     ControlSection,
     FieldGlyph,
     FieldRow,
-    IconGroupRow,
+    PANEL_GRID,
     PanelField,
     RampRow,
     ToggleRow,
     ToggleRowGroup,
+    TrailingSlot,
 } from "@graphty/compact-mantine";
+
+const SCALES = [
+    {value: "sqrt", word: "Square root", glyph: "scaleSqrt"},
+    {value: "linear", word: "Linear", glyph: "scaleLinear"},
+    {value: "log", word: "Logarithmic", glyph: "scaleLog"},
+] as const;
 
 function NodeSizeSection({openAdvanced}: {openAdvanced: () => void}) {
     return (
@@ -496,17 +542,20 @@ function NodeSizeSection({openAdvanced}: {openAdvanced: () => void}) {
             {/* The mapping between them, drawn at row height. */}
             <RampRow label="Size range" min="1.0" max="4.0" variant="size" scale="sqrt" />
 
-            {/* Three options whose difference can be drawn. */}
-            <IconGroupRow
-                label="Scale"
-                hybrid
-                defaultValue="sqrt"
-                options={[
-                    {value: "sqrt", label: "Square root", icon: <FieldGlyph name="scaleSqrt" />},
-                    {value: "linear", label: "Linear", icon: <FieldGlyph name="scaleLinear" />},
-                    {value: "log", label: "Logarithmic", icon: <FieldGlyph name="scaleLog" />},
-                ]}
-            />
+            {/* Three options whose difference can be drawn: a segmented control of pictures. */}
+            <div style={{display: "flex", alignItems: "center", gap: PANEL_GRID.TRAIL_GAP, height: PANEL_GRID.ROW_PITCH}}>
+                <SegmentedControl
+                    fullWidth
+                    aria-label="Scale"
+                    defaultValue="sqrt"
+                    data={SCALES.map((s) => ({
+                        value: s.value,
+                        label: <><FieldGlyph name={s.glyph} /><VisuallyHidden>{s.word}</VisuallyHidden></>,
+                    }))}
+                    style={{flex: "1 1 auto", minWidth: 0}}
+                />
+                <TrailingSlot />
+            </div>
 
             {/* Booleans with no picture, packed tighter than the other rows. */}
             <ToggleRowGroup label="Node decorations">
@@ -597,10 +646,10 @@ so, rather than making you sniff the event:
 
 ```tsx
 <DataRow
-    label="Mr_Whiskers"
-    value={12}
+    name="Mr_Whiskers"
+    value="12"
     onClick={(event, meta) => {
-        select(id, {add: meta.source === "pointer" && event.shiftKey});
+        openNode(id, {inNewPanel: meta.source === "pointer" && event.shiftKey});
     }}
 />
 ```
@@ -795,27 +844,33 @@ unknown string to them), `DataTableColumn<TRow>` describes a table column, and
 
 ## Which one should I use?
 
-Some components overlap, and a few sit beside a Mantine component that looks
-as though it would do. This table names the one to reach for, and what it is
-being chosen over where that choice is not obvious.
+Some components overlap, and a few sit beside a Mantine component that looks as though it would
+do. This table names the one to reach for, and what it is being chosen over where that choice is
+not obvious. Storybook's
+[Choosing a component](https://graphty.app/storybook/compact-mantine/?path=/docs/introduction-choosing-a-component--docs)
+page has the full list, group by group.
 
 | If you have | Use | Instead of |
 |-------------|-----|------------|
-| A label and a reading on one line | `DataRow`, with the reading already formatted | -- it draws `value` verbatim and gives the pair no accessible name, so run a number through `useNumberFormatter().format(n)` yourself, and name the pair yourself where a reader has to hear the two together |
-| A gear that opens advanced settings | `AdvancedButton`, with `changed` | -- |
+| A name and a reading on one line | `DataRow`, with the reading already formatted by `useNumberFormatter()` | `Tree` or `PageList`, which are for objects the reader selects, renames or moves |
+| A list of objects to select, rename or reorder | `Tree` (nested, or flat when no item has `children`) or `PageList` | `DataRow`, which lost its listbox props in 0.9 |
 | A group of controls that folds away | `ControlSection` | -- |
-| A group of controls that must not fold, or whose rule has to bleed to the edges of a padded container | `ControlGroup` | -- |
-| A checkbox on its own line | `ToggleRow` inside a `ToggleRowGroup` | -- |
+| A group of controls that must not fold, or sits in a padded container | `ControlGroup` | -- |
+| Two or more checkboxes on their own lines | `ToggleRow`s inside a `ToggleRowGroup` | Mantine `Checkbox` with a label, which is sized for a form |
 | A checkbox that reveals the settings it turns on | `ToggleWithContent` | -- |
 | A dropdown in a panel row | `PanelField` with `kind="select"` | -- |
-| A dropdown with a default the reader can override | `StyleSelect` | -- |
-| Two to six drawable options in a panel row | `IconGroupRow` | a bare Mantine `SegmentedControl`, which `IconGroupRow` is built on and adds the panel grid, the glyphs and the `showLabels` preference to |
+| A dropdown with a default the reader can override | `StyleSelect` | a `Select` with a hand-made reset button |
+| A value typed freely, with presets | `ComboInput` | `Select` (fixed choices) or `Autocomplete` (suggestions, no chevron) |
+| Two to six drawable options in a panel row | Mantine `SegmentedControl` with a glyph and a `VisuallyHidden` word per segment, beside a `TrailingSlot` | `IconGroupRow`, removed in 0.9 |
+| An icon button that stays pressed | `ToggleIconButton` | `ActionIcon`, which is an action, not an on/off state |
 | An icon button that opens a pop-out | `PopoutButton`, inside `Popout.Trigger` | `AdvancedButton`, which is for a row's or a section's advanced settings and does not light up while a panel is open |
-| An explanation bubble | `InfoCircle` | a Mantine `Popover`, which does not share this library's dismissal rules |
+| A floating panel that can be dragged and nest | `Popout` | Mantine `Popover`: one-off, not draggable, no nesting |
+| An explanation bubble | `InfoCircle` | a `Tooltip`, which closes when the pointer leaves |
+| A colour with its opacity | `CompactColorInput` | Mantine `ColorInput`, which has no opacity field and no Figma picker |
 
-A lone boolean is not a row: put it in the trailing slot of the row it modifies,
-or make it one tile of an `IconGroupRow`. `ToggleRowGroup` warns in development
-when given only one child, for exactly this reason.
+A lone boolean is not a row: put it in the trailing slot of the row it modifies, or make it one
+segment of a `SegmentedControl`. `ToggleRowGroup` warns in development when given only one child,
+for exactly this reason.
 
 Every component puts its own name, in kebab case, on a root `data-testid` --
 `advanced-button`, `metric-row`, `popout-panel` -- so a test can find any of
@@ -823,61 +878,55 @@ them the same way.
 
 ## Breaking changes in the Figma release
 
-compact-mantine is 0.x, and this release changes how things look and measure.
-Every export keeps its name and its props; these are the changes a consumer can
-notice:
+compact-mantine is 0.x, and 0.9.0 redraws every component to match the Figma editor. The full
+list, with every changed value, is [CHANGELOG-figma.md](./CHANGELOG-figma.md); Storybook's
+[Upgrading to 0.9](https://graphty.app/storybook/compact-mantine/?path=/docs/introduction-upgrading-to-0-9--docs)
+page has the migrations.
 
-1. **Panel grid.** `PANEL_GRID.WIDTH` 280 -> 240, `FIELD` 108 -> 88, and
-   `CONTENT`, `BODY`, `TRIPLE`, `TRIPLE_GAP`, `TOGGLE_PITCH`, `DATA_PITCH`,
-   `SECTION_HEADER`, `SECTION_PAD_BOTTOM`, `GLYPH_SLOT`, `GLYPH`, `CHEVRON` and
-   `LABEL_COLUMN` change value. Code that hard-codes a 280px panel around these
-   rows must follow `PANEL_GRID.WIDTH`.
-2. **Ink.** `PANEL_INK.SELECTED` / `ON_SELECTED` now mean Figma's selected item
-   (a pale blue ground with a brand glyph), not an inverted solid patch; every
-   `PANEL_INK` value is now a `--cm-*` token.
-3. **Theme scales.** `spacing.sm` 6 -> 8; `radius.sm` / `md` 4 / 6 -> 5, `lg` /
-   `xl` 8 / 12 -> 13; `fontSizes.xs` 10 -> 9, `lg` 14 -> 15, `xl` 16 -> 24;
-   `lineHeights` are now px; `shadows` are Figma's elevations.
-4. **Colours.** `colors.dark` is a neutral ramp (no more blue-grey), and
-   `primaryColor` is the new `brand` palette. Components that passed
-   `color="blue"` expecting the primary colour now get Mantine's blue.
-5. **Focus.** `focusRing` is `"never"` and the ring is the theme's own 1px ring;
-   a consumer's own `focusRing` no longer controls compact-mantine components.
-6. **Motion and timing.** Overlays have no transitions, and a tooltip opens
-   after 1000ms (it was immediate). Wrap your app in `Tooltip.Group` for the
-   warm hand-off.
-7. **Select and Tabs.** `Select` defaults to the outlined trigger and its
-   dropdown is the dark list box opening over the trigger; `Tabs` defaults to
-   `variant="pills"`.
-8. **ActionIcon.** `variant="light"` no longer draws a 1px accent border; the
-   brand glyph on the selected ground carries the state.
-9. **Colour inputs.** `CompactColorInput`'s swatch becomes a 14px chit inside one
-   156px field; `GradientEditor` replaces its per-stop sliders with a gradient
-   bar and stop rows.
-10. **Sections and rows.** `ControlSection` draws its divider below and its
-    header is 40 tall; `ControlGroup`'s title is the legend style; `FieldRow`
-    puts captions above by default (`labelPosition="inline"` restores beside).
-11. **Data.** `DataRow` is 32 tall with 11px names (was 28 / 12px), and
-    `DataTable` draws a cell grid.
-12. **Pop-outs.** `POPOUT_GAP` 8 -> 0, `POPOUT_NESTED_GAP` 4 -> 0; opening a root
-    pop-out closes the open one.
-13. **Typeface.** The body font becomes Inter 11/16 at weight 450 wherever the
-    stylesheet is injected. `<Text size="sm">` and `size="xs"` render at weight
-    450 with Figma's letter-spacing (Mantine's Text was weight 400); `fw` still
-    overrides it.
-14. **IconGroupRow** loses its inverted selected tile (Figma's white face with an
-    inset edge).
-15. **Pop-out details.** `PopoutRegion` no longer lets one pop-out stay open per
-    region; `PopoutButton` defaults to size `sm` (24px) and shows its open state
-    as the ghost button's `aria-expanded` look instead of switching to
-    `variant="light"`; a pop-out's tab header is pill `Tabs` (role `tab`)
-    instead of a `SegmentedControl` (role `radio`).
-16. **Overlays.** A tooltip sits below its trigger by default; `Modal` has no
-    backdrop by default; `Loader` at `sm` is 16px (was 18).
-17. **Display components.** `Badge` defaults to the outlined 16px look
-    (`variant="outline"`), `Pill` is 20 tall, `Indicator` is a 9px dot with a
-    ring (`withBorder` on by default), `Kbd` is a dark key cap in both schemes,
-    and `Avatar` defaults to `variant="filled"`.
+**Removed exports and props (code that stops compiling):**
+
+1. **`IconGroupRow`**, `IconGroupRowProps` and `IconGroupOption` are removed. Use the themed
+   Mantine `SegmentedControl` directly: a glyph and a `VisuallyHidden` word per segment, the row's
+   trailing control in a `TrailingSlot` (see [the worked example](#a-worked-example)).
+2. **`DataRow`** keeps only `name`, `value`, `icon`, `selected`, `onClick`, `onFocus`, `onBlur`
+   and `trailing`. `role`, the `DataRowRole` type, `tabIndex`, `onDoubleClick` and
+   `onContextMenu` are removed; a selected row is always `aria-current`. A list the reader
+   selects, renames or reorders is a `Tree` or a `PageList`; a find result is a `ResultRow`.
+
+**Behaviour changes:**
+
+3. **`GradientEditor`** edits stop colours in one picker under the gradient bar, which follows the
+   selected stop; stop rows no longer open a pop-out, so it no longer needs a `PopoutManager`.
+4. **`Tree`**: with `onMove`, Alt+ArrowUp / Alt+ArrowDown move the focused item among its
+   siblings (additive).
+5. **Motion and timing.** Overlays have no transitions, and a tooltip opens after 1000ms (it was
+   immediate). Wrap your app in `Tooltip.Group` for the warm hand-off.
+6. **Pop-outs.** Only one root pop-out is open on the page at a time; `PopoutRegion` no longer
+   keeps one open per region. `POPOUT_GAP` 8 -> 0, `POPOUT_NESTED_GAP` 4 -> 0.
+7. **Select and Autocomplete** have `role="combobox"`; `Select` defaults to the outlined trigger
+   with a dark list opening over it. `Tabs` default to `variant="pills"`.
+8. **Escape in a colour field** reverts the typed value and stops at the field.
+
+**Values and looks:**
+
+9. **Panel grid.** `PANEL_GRID.WIDTH` 280 -> 240, `FIELD` 108 -> 88, and most other members
+   change value. Code that hard-codes a 280px panel must follow `PANEL_GRID.WIDTH`.
+10. **Theme scales.** `spacing.sm` 6 -> 8; `radius.sm` / `md` 4 / 6 -> 5, `lg` / `xl` 8 / 12 ->
+    13; `fontSizes.xs` 10 -> 9, `lg` 14 -> 15, `xl` 16 -> 24; `lineHeights` are px; `shadows` are
+    Figma's elevations.
+11. **Colours.** `colors.dark` is a neutral ramp, and `primaryColor` is the new `brand` palette
+    (`color="blue"` now gets Mantine's blue). `PANEL_INK.SELECTED` / `ON_SELECTED` are Figma's
+    pale selected ground and brand glyph; every `PANEL_INK` value is a `--cm-*` token.
+12. **Focus.** `focusRing` is `"never"` and the ring is the theme's own 1px ring.
+13. **Typeface.** The body font is the bundled Inter at 11/16 weight 450; `<Text size="sm">` and
+    `size="xs"` render at 450 with Figma's letter-spacing.
+14. **Rows and sections.** `ControlSection`'s header is 40 tall with its rule below; `DataRow` is
+    32 tall with an 11px name; `DataTable` rows and header are 40; `FieldRow` puts captions above
+    by default (`labelPosition="inline"` restores beside).
+15. **Display and overlays.** `Badge` defaults to the outlined look, `Kbd` is a dark key cap in
+    both schemes, `Modal` has no backdrop by default, `Loader` at `sm` is 16px, and
+    `PopoutButton` defaults to `sm` and shows its open state as the ghost button's
+    `aria-expanded` look.
 
 ## Contributing
 
@@ -895,8 +944,27 @@ npm run build-storybook      # what CI builds
 ```
 
 Storybook is the development environment: every component has a page, and a
-change to a component shows up there without a rebuild. New components need a
-story, a test and complete prop documentation -- the prop comments are compiled
+change to a component shows up there without a rebuild.
+
+Stories live under `stories/`, one folder per sidebar section: `introduction/` (MDX pages),
+`foundations/`, `components/<group>/` (`panels`, `inputs`, `selection`, `colour`, `actions`,
+`overlays`, `lists`, `data`, `shell`, each with an `Overview.mdx`), `patterns/`, and
+`mantine/<group>/` for the themed Mantine components. `stories/helpers/` holds the shared story
+helpers. A component has exactly one story file, titled `Components/<Group>/<Name>`, laid out
+like every other:
+
+- The JSDoc above `const meta` is the page's description: one sentence on what the component is
+  for, then "When to use it" (naming its nearest alternative), "Usage" (a code snippet),
+  "Keyboard and accessibility" and "Measurements" (taken from `design/figma-spec.md`, which the
+  published page does not cite).
+- `Default` is the first story and is driven by `args`, so the Controls table edits it.
+- `States` is the second, with `parameters: BOTH_SCHEMES` from `stories/helpers/schemes.ts`, so
+  the page shows every state in light and dark side by side. Chromatic still captures every story
+  once per scheme.
+- Feature stories follow, then `Keyboard`, `Translated` and `RightToLeft`. Every story has a
+  one-sentence JSDoc comment, and a story whose job is to test behaviour keeps a `play` function.
+
+New components need a story, a test and complete prop documentation -- the prop comments are compiled
 into both the published type declarations and Storybook's tables, so they are
 read by people who will never see this repository.
 

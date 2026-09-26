@@ -1,0 +1,113 @@
+import { Meta } from "@storybook/blocks";
+
+<Meta title="Components/Data display/Overview" />
+
+# Data display
+
+Everything the reader looks at rather than changes: readings, rankings, charts, prose about a
+result, the status line with its verbs, and a table for when there are thousands of rows. Most
+of it is filled in by a background computation, so every piece takes `busy` and is a polite
+live region.
+
+The rows sit on the same 240px panel grid as the settings rows (a 32px pitch, content from 16px
+to 232px, a 24px trailing slot), so a results section and a settings section stack without
+seams.
+
+## Reach for
+
+- **[`DataRow`](?path=/docs/components-data-display-datarow--docs)** for a reading: one of the
+  reader's own strings with the number that describes it. A statistic, a ranking with a current
+  row, a recent file that opens when clicked.
+- **[`DataRowHeader`](?path=/docs/components-data-display-datarowheader--docs)** when a run of
+  data rows needs a caption, the unit they share, or a sort control.
+- **[`RankChip`](?path=/docs/components-data-display-rankchip--docs)** when a rank belongs
+  beside a row: `#6`, not "Rank 6 of 318".
+- **[`MetricRow`](?path=/docs/components-data-display-metricrow--docs)** when one reading has a
+  percentile and a rank.
+- **[`HistogramRow`](?path=/docs/components-data-display-histogramrow--docs)** when a
+  distribution would otherwise be four summary numbers.
+- **[`SparklineRow`](?path=/docs/components-data-display-sparklinerow--docs)** when a series is
+  going somewhere and you want to see which way.
+- **[`ProseBlock`](?path=/docs/components-data-display-proseblock--docs)** when the panel has to
+  say something about a result in words.
+- **[`ActionRow`](?path=/docs/components-data-display-actionrow--docs)** when a row reports a
+  status and offers verbs: Run, Cancel, Copy.
+- **[`DataTable`](?path=/docs/components-data-display-datatable--docs)** when there are columns
+  rather than rows, or thousands of them.
+- **[`Tree`](?path=/docs/components-lists-and-trees-tree--docs)** or
+  **[`PageList`](?path=/docs/components-lists-and-trees-pagelist--docs)** (Lists and trees) when
+  the rows are objects the reader selects, renames or reorders. A DataRow is a reading, not an
+  object: it has no multi-selection, no rename and no drag.
+- **[`ResultRow`](?path=/docs/components-lists-and-trees-resultrow--docs)** (Lists and trees)
+  for a find result.
+
+## Data is the one thing that keeps its label
+
+Every other component in this library replaces a text label with a drawing. `DataRow` is the
+exception: an identifier, a node label, an attribute name or a filename is data, and data
+cannot be drawn. There is no picture of `Mr_Whiskers`. So the string stays at the leading edge,
+and the number that describes it rides at the trailing edge in a quieter colour.
+
+The number is bare. When three or more rows measure the same thing, put the unit in a
+`DataRowHeader` above them once -- "links" -- so each row prints `4` rather than `4 links`, and
+the column becomes something a reader compares down instead of re-reading each phrase.
+
+A data row does two things beyond showing: `onClick` opens what the reading is about (the node a
+ranking names, the file a recent-files row names), and `selected` marks the current row of a
+ranking, announced as `aria-current`.
+
+## A picture instead of four numbers
+
+`Links per node: min 2, median 3, max 4, standard deviation 0.62` is four numbers standing in
+for a shape. A chart draws the shape in the same space and answers what the four numbers cannot:
+is it bimodal, does it have a long tail, is this one hub and nineteen leaves.
+
+- `HistogramRow` is 64px tall and takes bins. Use it for a distribution.
+- `SparklineRow` is 32px tall and takes a series. Use it for a trend.
+- `MetricRow` is one 32px row: a name, a bar filled to a percentile, the number, and a rank chip.
+
+Never for two or three values -- those belong on data rows. The charts always draw the value at
+each end of their axis, because that is what lets the picture be read as the table it replaced.
+
+**Give every chart a `label`.** It becomes the accessible name of the drawing and the caption
+of a visually hidden table listing every underlying value, so a screen reader announces one
+named image and can then read the numbers. Without it the drawing is hidden from assistive
+technology and only the table remains.
+
+## Results that arrive late
+
+Charts and readings are usually filled in by a background computation. Every one of them takes
+`busy`:
+
+```tsx
+<MetricRow name="Bridges" percentile={98} value="0.31" busy={stillComputing} />
+```
+
+`busy` holds the announcement back while the computation runs, so a screen reader hears the
+result once instead of every intermediate frame. Pass it for the whole life of the row, not only
+while the job runs: a live region must be in the document before the change it announces.
+
+## When words are unavoidable
+
+`ProseBlock` is the one component allowed to be several sentences, in three fixed shapes:
+
+- `reading` -- what a result says, in plain language.
+- `departure` -- one line saying how the result falls short of exact: approximated, or run over
+  part of the data rather than all of it. Drawn only when that is true.
+- `runRecord` -- what was run and with which settings, with a chevron to the full record.
+
+## State on the left, verbs on the right
+
+`ActionRow` splits a row in two. The leading edge reports a state (`20 nodes`, `Running, 40%`);
+the trailing edge holds the controls. By default the controls are always drawn, as on Figma's
+property rows. With `reveal="hover"` they wait until the row is hovered or focused, as on a
+layer row -- and even then a control that reports a state (`residentActions`, such as the
+crossed-out eye of a hidden item) is always drawn, a touch screen shows everything, and Tab
+reveals exactly what hover reveals.
+
+## When a panel row is not enough
+
+`DataTable` is for columns: sortable headers with multi-column sort, a search across every
+visible column, column visibility and order, row selection with the usual modifier keys, and
+only the visible rows in the document, so fifty thousand rows cost the same as fifty. It follows
+the ARIA grid pattern and is keyboard-operable end to end.

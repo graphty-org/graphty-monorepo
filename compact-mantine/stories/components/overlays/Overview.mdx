@@ -1,0 +1,136 @@
+import { Meta } from "@storybook/blocks";
+
+<Meta title="Components/Overlays/Overview" />
+
+# Overlays
+
+Everything that floats above the panel: pop-out panels, the info bubble, menus, tooltips,
+dialogs and toasts. The pop-out family (`Popout`, `PopoutButton`, `InfoCircle`) is this
+package's own and shares one floating layer, `PopoutManager`, with one set of dismissal rules.
+Menus, tooltips and modals are Mantine's own components, restyled by the theme; the package adds
+the small pieces Mantine lacks (`ContextMenu`, `MenuCheckItem`, `TooltipShortcut`,
+`ModalFooter`) and a toast (`Toast`, `ToastProvider`, `useToast`).
+
+Two looks, as in Figma: the light popover (pop-outs, the info bubble, Mantine `Popover` and
+`HoverCard`) follows the page's light or dark scheme; menus, tooltips and toasts are dark in both
+schemes. Nothing animates: every overlay opens and closes in one frame.
+
+## Reach for
+
+- **[Popout](?path=/docs/components-overlays-popout--docs)** when settings that belong to
+  something on screen need more room than the 240px column: a non-modal panel beside its
+  trigger, draggable, and able to open another from inside it.
+- **[PopoutButton](?path=/docs/components-overlays-popoutbutton--docs)** as the trigger of a
+  pop-out: a 24px ghost icon button that stays lit while its panel is open.
+- **[InfoCircle](?path=/docs/components-overlays-infocircle--docs)** when a name needs an
+  explanation the reader can ask for: a circled "i" that opens a bubble on hover, focus or tap.
+- **[Menu](?path=/docs/components-overlays-menu--docs)** for commands: `ContextMenu` for a
+  right-click (or Shift+F10), Mantine `Menu` from a button, `MenuCheckItem` for an on/off row.
+- **[Tooltip](?path=/docs/components-overlays-tooltip--docs)** for the name (and, with
+  `TooltipShortcut`, the shortcut) of an icon-only control.
+- **[Modal](?path=/docs/components-overlays-modal--docs)** for a short task the reader must
+  finish or cancel first; end it with a `ModalFooter`.
+- **[Toast](?path=/docs/components-overlays-toast--docs)** to confirm something that just
+  happened, with at most one action.
+
+Outside this group: choosing a value from a list is a `Select`
+([Components/Inputs](?path=/docs/components-inputs-overview--docs)), and a button with a default
+action plus a menu of alternatives is a `SplitButton`
+([Components/Actions](?path=/docs/components-actions-overview--docs)).
+
+## Start with the providers
+
+**Put one `PopoutManager` high in your tree, above anything that opens a pop-out.** It owns the
+stacking order, the layer the panels render into, and the dismissal rules they all obey. Without
+one, anything that opens a pop-out throws
+`usePopoutManagerContext must be used within a PopoutManager` on its first render. That includes
+`CompactColorInput`, which opens its picker in a pop-out. `InfoCircle` is the one exception: it
+brings a manager of its own when there is none above it.
+
+Two more wrappers are optional and go around the whole app once: Mantine's `Tooltip.Group`, for
+Figma's warm hand-off between tooltips (the theme gives it the right delays; do not nest another
+inside), and `ToastProvider`, if you show toasts with `useToast`.
+
+```tsx
+import { Tooltip } from "@mantine/core";
+import { Popout, PopoutButton, PopoutManager, ToastProvider, UiGlyph } from "@graphty/compact-mantine";
+
+<PopoutManager>
+    <Tooltip.Group>
+        <ToastProvider>
+            <aside>
+                <Popout>
+                    <Popout.Trigger>
+                        <PopoutButton icon={<UiGlyph name="gear" />} aria-label="Display settings" />
+                    </Popout.Trigger>
+                    <Popout.Panel width={240} header={{ variant: "title", title: "Display settings" }}>
+                        <Popout.Content>Anything at all</Popout.Content>
+                    </Popout.Panel>
+                </Popout>
+            </aside>
+        </ToastProvider>
+    </Tooltip.Group>
+</PopoutManager>;
+```
+
+## What the manager decides for you
+
+- **Escape** closes the innermost open panel.
+- **A click outside** closes everything.
+- **One root pop-out at a time**, as in Figma: opening a panel closes its siblings, so a column
+  of buttons produces one panel rather than a pile. A panel opened from inside a panel is not a
+  sibling and stays open beside its parent.
+- **Closing a panel closes everything opened from it.**
+- **Focus returns to the trigger** when a panel closes.
+
+Two hooks reach the manager from your own code. `usePopoutManager()` returns `closeAll()` and
+`hasOpenPopouts()`, for the routes a click-outside does not cover: a keyboard shortcut, a command
+palette row, a full-page sheet that replaces the page. `PopoutRegion id="..."` names a part of
+your shell, and `usePopoutRegion()` reads that name from anywhere inside it, including from a
+pop-out opened there. See the Popout page's `RegionsAndCloseAll` story.
+
+## Where a panel opens
+
+Two independent props on `Popout.Panel` decide it, which is what lets a panel meet a sidebar's
+edge while still opening level with the row that was clicked.
+
+- `anchorX` -- which edge the panel lines up with: `"panel"` (the containing `Popout.Anchor`),
+  `"trigger"`, `"parent"` (the pop-out this one was opened from), or a ref of your own.
+- `anchorY` -- how far down it opens, from the same set of choices.
+
+The defaults are what most sidebars want: flush with the anchored panel's edge, level with the
+trigger's own row. A pop-out opened from inside another steps out from its parent, so a nested
+stack reads one level at a time. Panels follow what they are anchored to when it moves or is
+resized, or when the window is; a panel the reader has dragged stays where they put it.
+
+## Controlled panels
+
+Pass `opened` and `onOpenChange` to drive a pop-out (or an `InfoCircle`) from your own state --
+to restore it on load, open it from a menu elsewhere, or close every panel at once. Leave both
+out and it keeps its own state.
+
+```tsx
+<Popout opened={settingsOpen} onOpenChange={setSettingsOpen}>
+    ...
+</Popout>
+```
+
+## Pop-outs, not Mantine's Popover
+
+The theme draws Mantine's `Popover` and `HoverCard` with the same light shell, so they look
+right. But a Mantine `Popover` opened alongside the pop-outs has its own dismissal rules, which is
+how a page ends up with two overlays that disagree about what Escape does. Use `InfoCircle` for
+an explanation bubble and `Popout` for anything larger.
+
+Mantine's other floating components -- `Select`, `Menu`, `Tooltip` and the rest -- work normally
+*inside* a pop-out panel: their dropdowns render above it and do not dismiss it.
+
+## Accessibility notes
+
+- Give `Popout.Trigger` a real button. It attaches the click handler and the ARIA wiring but adds
+  no keyboard handling of its own, so a `div` would leave the panel unreachable from the keyboard.
+- Give every icon-only trigger (`PopoutButton`, an `ActionIcon` under a tooltip) an `aria-label`.
+  An icon on its own has no accessible name, and a tooltip is a description, not a name.
+- Give `Popout.Panel` a `label` when it has no visible title, so the panel is announced by name.
+- `ContextMenu` also opens from the keyboard (Shift+F10, the ContextMenu key), so nothing is
+  reachable only by a right-click.

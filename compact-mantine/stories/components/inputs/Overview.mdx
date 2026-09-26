@@ -1,0 +1,79 @@
+import { Meta } from "@storybook/blocks";
+
+<Meta title="Components/Inputs/Overview" />
+
+# Inputs
+
+The controls a reader types into or picks from: a number, a word, one of a list of choices, a
+search, a value bound to a variable. Each is 24px tall so it sits in a 32px panel row, and each
+works controlled (`value` with `onChange`) or uncontrolled (`defaultValue`).
+
+A change hands you the value first and the event second, and the event is optional, so a change
+made in code is `onChange(next)` with nothing to fabricate. Number fields report on commit
+(Enter, Tab or blur) and on each arrow step, never on each keystroke, so a half-typed "1" on the
+way to "12" never reaches your state.
+
+## Reach for
+
+- **[PanelField](?path=/docs/components-inputs-panelfield--docs)** -- a value in a dense panel
+  that is typed, picked from a list or dragged, with a glyph inside the box instead of a caption
+  above it. The control a property panel is mostly made of. To lay out one or two of them on the
+  panel grid with a trailing slot, wrap them in **FieldRow** (Panels and rows).
+- **[Select](?path=/docs/components-inputs-select--docs)** -- one of a fixed list of choices.
+  Mantine's `Select`, themed; or `StyleSelect` when the choice has a default the reader overrides.
+- **[StyleNumberInput](?path=/docs/components-inputs-stylenumberinput--docs)** -- a number with
+  a sensible default, where the panel should show whether the reader has overridden it.
+- **[SearchInput](?path=/docs/components-inputs-searchinput--docs)** -- a field that filters or
+  finds something: magnifier, clear button, Escape to clear. For any other free text, Mantine's
+  `TextInput`.
+- **[ComboInput](?path=/docs/components-inputs-comboinput--docs)** -- a value that is either typed
+  or picked from presets, such as a font size.
+- **[VariablePill](?path=/docs/components-inputs-variablepill--docs)** -- a value bound to a named
+  design variable, with a Detach button.
+
+Not here: a yes or no is a **ToggleRow** (Selection), two to six drawable choices are Mantine's
+**SegmentedControl** (Themed Mantine), and a colour is a **CompactColorInput** (Colour).
+
+## Which control for which value
+
+- **A number or a word in a panel row** -- `PanelField`, `kind="number"` or the default `kind="text"`.
+- **A number with a default the reader overrides** -- `StyleNumberInput`.
+- **One of a long or undrawable list** -- `PanelField kind="select"` in a panel row, `Select` elsewhere.
+- **One of a list, with a default the reader overrides** -- `StyleSelect`.
+- **Typed, or picked from presets** -- `ComboInput`.
+- **A search query** -- `SearchInput`.
+- **Bound to a design variable** -- `VariablePill`.
+
+## Two states worth knowing about
+
+`PanelField` has two states that are easy to miss and hard to live without.
+
+- **`mixed`** -- the current selection disagrees, so the field shows "Mixed" rather than picking
+  one item's value and pretending it is everyone's. It stays editable: typing sets every
+  selected item at once. The word itself is translatable.
+- **`bound`** -- the value comes from a data attribute rather than from a fixed number. The glyph
+  fills in to say so, and a screen reader is told as well.
+
+`StyleNumberInput` and `StyleSelect` add a third idea: `undefined` means "the reader has chosen
+nothing here". The control shows the default and offers no reset until something of the
+reader's own is set, so a panel built from them reads at a glance as a list of what has been
+customised.
+
+## One drag, one undo entry
+
+A number field scrubs when its glyph is dragged sideways. The drag reports its start, its
+changes and its end, so one gesture can be one undo entry:
+
+```tsx
+<PanelField
+    label="Radius"
+    glyph="width"
+    kind="number"
+    onScrubStart={() => beginUndo()}
+    onScrub={(delta) => setRadius((r) => r + delta)}
+    onScrubEnd={() => commitUndo()}
+/>
+```
+
+Dragging is a shortcut, not the only way in: the same value can always be typed, and the arrow
+keys step it.

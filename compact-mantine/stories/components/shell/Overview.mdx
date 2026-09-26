@@ -1,0 +1,107 @@
+import { Meta } from "@storybook/blocks";
+
+<Meta title="Components/App shell/Overview" />
+
+# App shell
+
+The App shell components are the frame of an editor around its canvas: the floating
+toolbar at the foot, the contextual bar that appears above it while a mode is on, the
+navigation rail down the start edge, the round help button in a corner, the quick actions
+palette and the keyboard shortcuts sheet. They are drawn after Figma's editor and work
+together: the same tooltips, the same dark menus, and the same keyboard model.
+
+None of them positions itself (except `Toolbar` with `floating`). You place them in your
+layout and decide when the palette and the sheet are open; they draw themselves and handle
+their own keys. Each one takes its accessible name from the package's labels ("Tools",
+"Navigation", "Help", "Quick actions", "Keyboard shortcuts"), which an `aria-label` prop or a
+`LabelsProvider` replaces.
+
+## Reach for
+
+- **[Toolbar](?path=/docs/components-app-shell-toolbar--docs)** (with `ToolButton`,
+  `ToolGroup` and `Toolbar.Divider`) when a canvas needs a set of tools the reader switches
+  between constantly. Tools that belong together share a `ToolGroup` with a flyout.
+- **[SecondaryToolbar](?path=/docs/components-app-shell-secondarytoolbar--docs)** for the
+  tools of one temporary mode, shown only while it is on (vector editing, cropping).
+- **[NavRail](?path=/docs/components-app-shell-navrail--docs)** (with `RailButton`) for the
+  app's top-level destinations, each opening a panel.
+- **[HelpButton](?path=/docs/components-app-shell-helpbutton--docs)** for the one
+  always-there way into help, docs and shortcuts.
+- **[QuickActions](?path=/docs/components-app-shell-quickactions--docs)** for a command
+  palette: many commands, found by typing their name.
+- **[ShortcutSheet](?path=/docs/components-app-shell-shortcutsheet--docs)** to show every
+  shortcut at once, by topic.
+
+Outside this group:
+
+- A few actions in a panel header are a Mantine `Group` of `ActionIcon`s, not a `Toolbar`.
+- A tool or action that is on or off by itself is a
+  [ToggleIconButton](?path=/docs/components-actions-toggleiconbutton--docs).
+- Switching views inside one panel is Mantine `Tabs`; a longer, text-first navigation list is
+  Mantine `NavLink`.
+- Explaining one control in place is an
+  [InfoCircle](?path=/docs/components-overlays-infocircle--docs); one control's shortcut in
+  its tooltip is `TooltipShortcut` on the
+  [Tooltip](?path=/docs/components-overlays-tooltip--docs) page.
+- Filtering a list that stays on screen is a
+  [SearchInput](?path=/docs/components-inputs-searchinput--docs).
+
+## Putting them together
+
+```tsx
+import { Menu, SegmentedControl, Tooltip } from "@mantine/core";
+import {
+    HelpButton,
+    NavRail,
+    QuickActions,
+    RailButton,
+    ShortcutSheet,
+    Toolbar,
+    ToolButton,
+    ToolGroup,
+} from "@graphty/compact-mantine";
+
+<Tooltip.Group>
+    <div style={{ display: "flex", height: "100vh" }}>
+        <NavRail>
+            <RailButton icon={<FileIcon />} label="File"
+                aria-expanded={panel === "file"} onClick={() => setPanel("file")} />
+            <RailButton icon={<GridIcon />} label="Assets"
+                aria-expanded={panel === "assets"} onClick={() => setPanel("assets")} />
+        </NavRail>
+        <main style={{ position: "relative", flex: 1 }}>
+            {/* the canvas */}
+            <Toolbar aria-label="Editor" floating>
+                <ToolGroup label="Shape tools" tools={shapeTools} activeTool={tool} onToolChange={setTool} />
+                <ToolButton label="Actions" icon={<SearchIcon />} shortcut="Ctrl+K" onClick={() => setPaletteOpen(true)} />
+                <Toolbar.Divider />
+                <SegmentedControl variant="toolbar" aria-label="Mode" data={modes} value={mode} onChange={setMode} />
+            </Toolbar>
+            <div style={{ position: "absolute", right: 12, bottom: 12 }}>
+                <HelpButton>
+                    <Menu.Item onClick={() => setSheetOpen(true)}>Keyboard shortcuts</Menu.Item>
+                </HelpButton>
+            </div>
+        </main>
+    </div>
+    {paletteOpen && <QuickActions actions={actions} onRun={run} onClose={() => setPaletteOpen(false)} />}
+    {sheetOpen && <ShortcutSheet tabs={shortcutTabs} onClose={() => setSheetOpen(false)} />}
+</Tooltip.Group>;
+```
+
+Wrap the app in one `Tooltip.Group` (the theme gives it the right delays). Moving the pointer
+from one tooltip to the next then shows the second at once, across the toolbar, the rail and
+the help button alike.
+
+## One keyboard model
+
+- **One Tab stop per bar.** `Toolbar`, `SecondaryToolbar` and `NavRail` are each a
+  `role="toolbar"`. Tab enters on the selected item (the current tool, the open destination)
+  or on the item that last had focus, and leaves in one step.
+- **Arrows move inside.** ArrowLeft / ArrowRight on the horizontal bars (swapped in
+  right-to-left text), ArrowUp / ArrowDown on the rail, Home and End on all three. The arrows
+  only move focus; Enter or Space acts.
+- **Overlays close with Escape.** Tool flyouts and the help menu return focus to their button.
+  `QuickActions` and `ShortcutSheet` call `onClose`; you unmount them.
+- **The palette keeps focus in its field.** Its highlight moves with the arrows and is
+  announced through `aria-activedescendant`, so typing never stops.

@@ -1,0 +1,74 @@
+import { Meta } from "@storybook/blocks";
+
+<Meta title="Introduction/Accessibility" />
+
+# Accessibility
+
+The library targets WCAG 2.2 AA, and the work is done inside the components rather than left as
+props you must remember.
+
+## What you get without asking
+
+- **Every control is a real control.** Fields are inputs, toggles are checkboxes or switches,
+  segmented options are radios, the tree is an ARIA tree, the advanced button is a button, so
+  keyboard behaviour, focus order and disabled semantics come from the platform.
+- **Keyboard focus is always visible, and pointer focus is not**, so a dense surface stays quiet
+  under the mouse without giving up the focus indicator. The ring is Figma's 1px blue ring: inside
+  a field, outside a button (see [Focus and motion](?path=/docs/foundations-focus-and-motion--docs)).
+- **Composite widgets have one Tab stop and arrow keys inside.** The toolbar, the navigation
+  rail, the shortcuts sheet's tabs, the tree, the page list, the segmented control and the
+  alignment matrix all move with the arrow keys, Home and End.
+- **State is announced, not only drawn.** Expanded, checked, pressed, selected, disabled, busy and
+  current are all exposed as ARIA in addition to colour.
+- **Colour is never the only signal.** An advanced button whose settings have changed says so in
+  its accessible name; a section with non-default values does the same.
+- **Charts are one named image with a hidden table behind them**, so a screen reader announces
+  the chart and can then read every value, rather than a run of anonymous bars. Give every chart
+  a `label`.
+- **Results that arrive late are announced.** Give a row `busy` and it becomes a polite live
+  region; while `busy` is true the announcement is held back, so the reader hears the finished
+  result once rather than every frame of it. A row never given `busy` stays silent, because most
+  rows hold a value the reader set themselves.
+- **Hover-revealed controls also appear on focus**, stay in the document and stay in the tab
+  order.
+
+## Where this goes beyond Figma
+
+Kept on purpose, where Figma's own editor does less: tooltips stay linked with
+`aria-describedby`; the layer tree, find results and quick actions are focusable and announced;
+the context menu also opens from the keyboard (Shift+F10 and the ContextMenu key); Escape closes
+the shortcuts sheet; the resize handle takes Shift+arrow, Home and End; and the quick actions
+palette is a named dialog with a combobox and a list box.
+
+## Contrast: exact Figma, or AA
+
+Figma's own contrast falls short of AA in a few places: secondary text, placeholder text, field
+and checkbox edges, the focus ring on white, and white text on the blue, red and green fills.
+The default theme is exact Figma. Create the theme with `highContrast` to raise exactly those:
+
+```tsx
+<MantineProvider theme={createCompactTheme({ highContrast: true })}>
+```
+
+It changes colour tokens only; nothing moves or resizes. Secondary text goes from 50% to 55%
+black (4.7:1 on white), checkbox, switch and field edges reach 3:1 (fields gain a 1px inside
+edge), the selected segment of a segmented control gets a 3:1 edge, and the placeholder, focus
+ring, links and filled buttons each move to the next darker colour in Figma's palette. Dividers
+stay as Figma draws them. The **Contrast** switch in the toolbar shows every story both ways.
+
+## What is still yours to do
+
+- **Name what has no visible label.** An icon-only button, a segmented control of pictures and a
+  chart each need a `label` or an `aria-label`; the components take it and put it in the right
+  place.
+- **Name pairs a reader must hear together.** `DataRow` draws `value` verbatim and gives the pair
+  no accessible name of its own.
+- **Keep one `Tooltip.Group`.** Nesting a second one breaks the warm hand-off between tooltips,
+  but not their accessibility.
+
+## Checking your own pages
+
+Storybook runs axe-core against every story in this Storybook; the **Accessibility** panel under
+a story lists any violation. Every component also carries a root `data-testid` holding its own
+name in kebab case (`advanced-button`, `metric-row`, `popout-panel`), and most are best found in
+tests by role and name, as a screen reader would.

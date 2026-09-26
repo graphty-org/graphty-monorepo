@@ -567,8 +567,8 @@ function binLabel(definition: NodeMetricDefinition, from: number, to: number, co
  *
  * One bar per distinct value while that fits under {@link METRIC_DISTRIBUTION_MAX_BINS},
  * bands once it does not -- so a graph whose degrees run to the thousands draws twenty
- * bars rather than thousands -- the same shape AppShell's degree histogram already
- * draws, generalised to a metric whose values are not counts.
+ * bars rather than thousands. The graph summary's degree histogram is the same bins,
+ * worded by {@link formatMetricDistribution}.
  *
  * The heavy-tail test is spec 2307's rule and nothing else: maximum over median above
  * {@link LOG_X_RATIO_THRESHOLD}, with a median above 0 so the ratio means something. It
@@ -587,8 +587,29 @@ function binLabel(definition: NodeMetricDefinition, from: number, to: number, co
  * @public
  */
 export function metricDistribution(ranking: NodeMetricRanking): MetricDistribution {
-    const definition = NODE_METRIC_DEFINITIONS[ranking.metric];
-    const { distribution } = ranking;
+    return formatMetricDistribution(
+        NODE_METRIC_DEFINITIONS[ranking.metric],
+        ranking.distribution,
+        ranking.minValue,
+        ranking.maxValue,
+    );
+}
+
+/**
+ * Words graphty-element's bins for one metric: a label per bar, the two axis ends and the
+ * caption. It bins nothing -- the bars are the element's, one for one.
+ * @param definition - the metric being drawn.
+ * @param distribution - what `RunResult.histogram()` returned for the metric's value field.
+ * @param minValue - the lowest value measured, for the axis's left end.
+ * @param maxValue - the highest value measured, for the axis's right end.
+ * @returns the bars, the two axis ends and the caption.
+ */
+export function formatMetricDistribution(
+    definition: NodeMetricDefinition,
+    distribution: Histogram,
+    minValue: number,
+    maxValue: number,
+): MetricDistribution {
     const logApplied = distribution.scale === "log";
     const caption = `${definition.plainName} per node${logApplied ? " (log scale)" : ""}`;
 
@@ -601,8 +622,8 @@ export function metricDistribution(ranking: NodeMetricRanking): MetricDistributi
             label: binLabel(definition, bin.from, bin.to, bin.count),
             count: bin.count,
         })),
-        axisMin: formatMetricValue(ranking.minValue, definition.integerValued),
-        axisMax: formatMetricValue(ranking.maxValue, definition.integerValued),
+        axisMin: formatMetricValue(minValue, definition.integerValued),
+        axisMax: formatMetricValue(maxValue, definition.integerValued),
         logX: logApplied,
         caption,
     };

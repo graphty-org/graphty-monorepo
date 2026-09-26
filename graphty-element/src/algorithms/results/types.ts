@@ -125,8 +125,24 @@ export interface AlgorithmRunContext {
     yieldNow(): Promise<void>;
 }
 
-/** How many elements one chunk of a per-element pass covers before it reports and yields. */
+/** How many elements one chunk of a per-element pass covers before it reports progress. */
 const PROGRESS_CHUNK = 1024;
+
+/**
+ * How long a per-element pass works before it hands the frame back.
+ *
+ * THE YIELD IS PRICED IN FRAMES, NOT IN ELEMENTS. Handing the frame back is a `setTimeout(0)`,
+ * and by the time the timer fires the host has drawn a frame -- which is the whole point of
+ * yielding, and also what it costs: on a scene of a thousand nodes and ten thousand edges a frame
+ * is about a hundred milliseconds on a discrete GPU and half a second on a software renderer.
+ * Yielding every 1,024 elements, as this used to, charged that frame for a chunk of work that
+ * took a few microseconds: a shortest-path run over 10,000 edges spent 0.5 ms searching and
+ * nine frames yielding, and came back after a second (issue #389). The frame is given back only
+ * once this much work has accumulated since the last one, so a pass that finishes inside a
+ * frame's budget never yields at all and a pass that takes seconds still yields several times a
+ * second.
+ */
+export const YIELD_BUDGET_MS = 16;
 
 /**
  * A context for work nobody is watching.
@@ -156,7 +172,8 @@ export function detachedRunContext(): AlgorithmRunContext {
 }
 
 /**
- * Walk a list in chunks, reporting progress and yielding between them.
+ * Walk a list in chunks, reporting progress between them and yielding once a frame's worth of
+ * work has built up (see `YIELD_BUDGET_MS`, a module constant; TypeDoc cannot link an unexported name).
  *
  * Every per-element pass in every algorithm goes through this, so "report progress and yield"
  * is one decision made once rather than a loop each author writes their own way.
@@ -174,12 +191,21 @@ export async function forEachChunked<T>(
 ): Promise<void> {
     const total = items.length;
     context.report({ phase, completed: 0, total });
+    let lastYield = performance.now();
 
     for (let index = 0; index < total; index++) {
         if (index > 0 && index % PROGRESS_CHUNK === 0) {
             context.signal.throwIfAborted();
             context.report({ phase, completed: index, total });
-            await context.yieldNow();
+
+            // The clock is read at chunk boundaries only, so a step that costs nothing does not
+            // pay for a clock read either.
+            const now = performance.now();
+
+            if (now - lastYield >= YIELD_BUDGET_MS) {
+                await context.yieldNow();
+                lastYield = performance.now();
+            }
         }
 
         step(items[index], index);

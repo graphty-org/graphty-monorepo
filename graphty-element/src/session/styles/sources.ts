@@ -140,6 +140,15 @@ export interface SessionSelectorSource extends SelectorSource {
      * @returns The indices, ascending, or undefined when the column cannot be enumerated.
      */
     readonly measured: (path: Path, target: SelectorTarget) => ArrayLike<number> | undefined;
+    /**
+     * The lowest value in the top `n` of a run's column, from `RunResult.top`, which keeps it.
+     * @param path - The column path, `results.<run>.<field>`.
+     * @param target - Whether the asking layer paints nodes or edges.
+     * @param n - The most elements the top may hold.
+     * @returns The cut, or undefined when nothing is taken or the path names no numeric field of
+     *     this kind of element.
+     */
+    readonly topCut: (path: Path, target: SelectorTarget, n: number) => number | undefined;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -695,6 +704,23 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
             cache.set(path, { result, indices });
 
             return indices;
+        },
+        topCut: (path: Path, target: SelectorTarget, n: number): number | undefined => {
+            const entry = entryFor(path);
+            const result = entry.kind === "result" ? readResult?.(entry.runId) : undefined;
+            const declared = result?.fields.find((candidate) => candidate.name === entry.field);
+
+            // Checked rather than caught: `top` refuses a field that is not a number published per
+            // element, and a refusal thrown here would come out of the paint loop.
+            if (
+                result === undefined ||
+                declared?.kind !== target ||
+                (declared.type !== "number" && declared.type !== "integer")
+            ) {
+                return undefined;
+            }
+
+            return result.top(entry.field, n).entries.at(-1)?.value;
         },
     };
 }

@@ -4,10 +4,10 @@
    constants test. The picker is DERIVED from this enum rather than restated, so the two
    can no longer disagree; what these tests pin is the derivation -- that every member
    arrives, exactly once, wearing a word. */
-import { NodeShapes } from "@graphty/graphty-element/schema";
+import { EdgeArrowTypes, EdgeLineTypes, NodeShapes } from "@graphty/graphty-element/schema";
 import { describe, expect, it } from "vitest";
 
-import { NODE_SHAPE_OPTIONS } from "../style-options";
+import { ARROW_TYPE_OPTIONS, LINE_TYPE_OPTIONS, NODE_SHAPE_OPTIONS } from "../style-options";
 
 describe("NODE_SHAPE_OPTIONS is the element's shape vocabulary", () => {
     it("offers exactly the shapes graphty-element can build, no more and no fewer", () => {
@@ -40,5 +40,20 @@ describe("NODE_SHAPE_OPTIONS is the element's shape vocabulary", () => {
         for (const option of NODE_SHAPE_OPTIONS) {
             expect(option.label.length).toBeGreaterThan(0);
         }
+    });
+});
+
+describe("the edge pickers are the element's line and arrow vocabularies", () => {
+    it("offers exactly the line patterns graphty-element can draw", () => {
+        expect(LINE_TYPE_OPTIONS.map((option) => option.value)).toEqual([...EdgeLineTypes.options]);
+    });
+
+    it("offers exactly the arrows graphty-element can draw", () => {
+        expect(ARROW_TYPE_OPTIONS.map((option) => option.value)).toEqual([...EdgeArrowTypes.options]);
+    });
+
+    it("labels hyphenated names in sentence case", () => {
+        expect(LINE_TYPE_OPTIONS.find((option) => option.value === "dash-dot")?.label).toBe("Dash dot");
+        expect(ARROW_TYPE_OPTIONS.find((option) => option.value === "open-diamond")?.label).toBe("Open diamond");
     });
 });

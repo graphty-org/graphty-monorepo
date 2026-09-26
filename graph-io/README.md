@@ -7,7 +7,8 @@
 
 Importers and exporters for the [@graphty/graph-format](https://www.npmjs.com/package/@graphty/graph-format)
 snapshot: GEXF, GraphML, GML, DOT (Graphviz), Pajek NET, CSV / TSV, JSON (NetworkX node-link, d3,
-JSON Graph Format, Cytoscape, graphology, vis.js) and Neo4j (`neo4j-admin import` CSV).
+JSON Graph Format, Cytoscape, graphology, vis.js; NetworkX adjacency_data and tree_data are read
+only) and Neo4j (`neo4j-admin import` CSV).
 
 Every importer streams its input into a `GraphSink` (a `GraphBuilder` or your own sink) one scalar at
 a time and reports what it could not represent instead of dropping it; every exporter says what it
@@ -223,7 +224,13 @@ losses and format rules, in addition to the table:
   dialect has no slot for. Edge ids exist in JGF, Cytoscape, graphology and vis only; positions in
   Cytoscape only. A repeated node id is merged with `W_DUPLICATE_NODE`, a repeated edge id skipped
   with `E_DUPLICATE_EDGE_ID`; an out-of-range d3 index link is `E_BAD_INDEX`. Non-finite numbers
-  are written as `null` and reported.
+  are written as `null` and reported. NetworkX `adjacency_data` (`nodes` plus an `adjacency` list
+  per node; an undirected file lists each edge from both ends and it is read once) and `tree_data`
+  (nested `id` / `children`, read as a directed tree) are read but not written: a re-export writes
+  node-link. The bare `NaN`, `Infinity` and `-Infinity` that Python's json module writes are read as
+  numbers (`W_JSON_NONSTANDARD_NUMBER`), and an integer literal beyond 2^53 keeps its exact digits as
+  a string (`W_JSON_BIG_INTEGER`), so two large ids never round to one; the exporter writes an
+  integral number that large in exponent form (`1e+20`) so it re-imports as a number.
 - **Neo4j**: `neo4j-admin import` headers (`:ID`, `:LABEL`, `:START_ID`, `:END_ID`, `:TYPE`, typed
   properties, id spaces, arrays); one file may hold several sections; a `weight` property becomes
   THE weight; a quoted empty `:ID` is the id `""`. Everything is directed (an undirected snapshot,

@@ -7,7 +7,9 @@
  * `expectPredChainReachesSource` and the seam's unbounded `walkPredArcs`. Every failure throws an `Error` naming the
  * node or arc; the whole-array comparison of `expectPredArcAttains` is vitest's `toEqual`. Imports nothing from
  * `src/` and nothing from the package under test; `arcSourceIn` is the binary search of
- * `algorithms/src/indexed/structures/arc-source.ts`, copied.
+ * `algorithms/src/indexed/structures/arc-source.ts`, copied. `levelStatsOf` and `expectedDirections` live here
+ * rather than in test/helpers/bfs.ts so the browser leg can replay Beamer's rule without that file's device
+ * imports; both take the run's thresholds as arguments, so neither reaches into `src/` either.
  */
 
 import { type GraphSnapshot, INVALID_INDEX, type NumericVector, type U32 } from "@graphty/graph-format";
@@ -406,15 +408,41 @@ interface DirectionBoundary {
 }
 
 /**
+ * The oracle's per-level frontier sizes and out-degree sums from a settled depth array (level 0 the source alone):
+ * what `frontier-finalize` sees at a boundary as `next` and, since issue #391, as `nextDegreeSum`.
+ * @param s - the snapshot
+ * @param depth - the settled depths
+ * @returns the sizes and the out-degree sums, indexed by level
+ */
+export function levelStatsOf(s: GraphSnapshot, depth: U32): { readonly sizes: number[]; readonly degreeSums: number[] } {
+    const sizes: number[] = [];
+    const degreeSums: number[] = [];
+    for (let v = 0; v < depth.length; v++) {
+        const d = depth[v];
+        if (d === INVALID_INDEX) {
+            continue;
+        }
+        while (sizes.length <= d) {
+            sizes.push(0);
+            degreeSums.push(0);
+        }
+        sizes[d] += 1;
+        degreeSums[d] += s.rowPtr[v + 1] - s.rowPtr[v];
+    }
+    return { sizes, degreeSums };
+}
+/**
  * Beamer's rule replayed on the host from the oracle's per-level frontier sizes and out-degree sums, exactly as
- * `frontier-finalize` evaluates it (P8-T8 Steps 2 and 5, PD-18, PD-21), boundary by boundary until the one that
- * sets `done` (the rule is evaluated there too, because the kernel's test sits before its `done` branch). The two
- * unvisited words are rebuilt EXACTLY from the oracle's complement at the top of every submit (everything claimed
- * through the frontier that submit rotates in first is outside the sums), the count is subtracted from the second
- * boundary of a submit on and the degree sum from the third on, and the degree sum a boundary holds is the one the
- * previous level's EXPANSION measured: the previous frontier's out-degree sum after a top-down level, 0 after a
- * bottom-up level (the sweep expands nothing), which is the one-level staleness the design accepts. `alpha` divides
- * as a `u32` (floored), `next * beta` is exact (no wrap below 178M vertices).
+ * `frontier-finalize` evaluates it (P8-T8 Steps 2 and 5, PD-18, PD-21, amended for issue #391), boundary by boundary
+ * until the one that sets `done` (the rule is evaluated there too, because the kernel's test sits before its `done`
+ * branch). The two unvisited words are rebuilt EXACTLY from the oracle's complement at the top of every submit
+ * (everything claimed through the frontier that submit rotates in first is outside the sums), and both are
+ * subtracted from the second boundary of a submit on: the count by the frontier the boundary rotates in, the degree
+ * sum by that frontier's out-degree sum, which `bfs-next-degree` measured when the previous level claimed it. That
+ * same sum is the m_f of the switch-into-bottom-up test -- the degree of the frontier the level is about to expand,
+ * whichever direction claimed it -- so neither word is ever stale (before the amendment m_f was the degree of the
+ * frontier the previous level had EXPANDED, one level behind and 0 after a bottom-up level). `alpha` divides as a
+ * `u32` (floored), `next * beta` is exact (no wrap below 178M vertices).
  * @param levelSizes - `|F_L|` per level, level 0 the source alone (a level past the end is 0)
  * @param levelDegreeSums - the out-degree sum of `F_L` per level
  * @param n - the node count
@@ -460,11 +488,12 @@ export function expectedDirections(
         }
         const finished = level === 0 ? 0 : sizeAt(level - 1);
         const next = sizeAt(level);
-        const degSum = level === 0 || direction === 1 ? 0 : degreeAt(level - 1);
+        // issue #391: m_f is the out-degree sum of F_level, the frontier this boundary rotates in and the level is
+        // about to expand (bfs-next-degree summed it when the previous level claimed it); 0 at the first boundary,
+        // whose source the seed rotates in with nothing summed
+        const degSum = level === 0 ? 0 : degreeAt(level);
         if (b >= 1) {
             unvisitedCount -= next;
-        }
-        if (b >= 2) {
             unvisitedDegreeSum -= degSum;
         }
         const done = next === 0 || level >= cap;

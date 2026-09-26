@@ -311,6 +311,8 @@ describe("the data entry points carry data, not objects", () => {
 
         assert.isAbove(schema.VIRIDIS_COLORS.length, 0);
         assert.isAbove(Object.keys(schema.NodeShapes).length, 0);
+        assert.include(schema.EdgeLineTypes.options, "dash-dot");
+        assert.include(schema.EdgeArrowTypes.options, "open-diamond");
         assert.typeOf(schema.defaultNodeStyle, "object");
         assert.match(schema.MISSING_DATA_COLOR, /^#[0-9a-f]{6}$/i);
     });

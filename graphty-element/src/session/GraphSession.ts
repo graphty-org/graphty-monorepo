@@ -975,6 +975,7 @@ function repaintAgainstCurrentData(
             meshCount: (target) => engine.meshCount(target),
             lastPainted: (target) => engine.lastPainted(target),
             onPainted: (listener) => engine.onPainted(listener),
+            painting: () => engine.painting(),
             problems: () => engine.problems(),
         },
         repaint: async (request, context) => {

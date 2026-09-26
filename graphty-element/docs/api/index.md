@@ -104,6 +104,7 @@ type Selector =
     | { match: "expression"; where: string }
     | { match: "has"; path: string }
     | { match: "ids"; nodes?: readonly string[]; edges?: readonly string[] }
+    | { match: "top"; path: string; n: number } // the top n by a run field; ties taken whole or not at all
     | { match: "everything" };
 ```
 

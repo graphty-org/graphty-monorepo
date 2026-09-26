@@ -79,7 +79,6 @@
 
 import {
     type DataTableColumn,
-    type HistogramBin,
     PANEL_INK,
     PopoutManager,
     PopoutRegion,
@@ -126,7 +125,13 @@ import {
     type NodeMetricId,
     runNodeMetric,
 } from "./analysis/nodeMetrics";
-import { COMMUNITY_METHOD_NAME, type DegreeResults, runCommunityDetection, runDegreePass } from "./analysis/runs";
+import {
+    COMMUNITY_METHOD_NAME,
+    type DegreeResults,
+    NO_DEGREE_DISTRIBUTION,
+    runCommunityDetection,
+    runDegreePass,
+} from "./analysis/runs";
 import { readPersistedCanvasLayout, resolveCanvasLayout, writePersistedCanvasLayout } from "./canvas/canvasMemory";
 import { CanvasRegion, type CanvasRegionOwnProps, useCanvasBottomStack } from "./canvas/CanvasRegion";
 import type { DataDrawerTab } from "./canvas/DataTableDrawer";
@@ -162,8 +167,8 @@ import {
     runColourBlock,
     topSwatchColour,
 } from "./defaults/encodingReport";
-import { labelDegreeThreshold, loadDefaults } from "./defaults/loadDefaults";
-import { SHELL_DEFAULTS_TEMPLATE_ID, topDegreeLabelLayer } from "./defaults/styleDescriptors";
+import { loadDefaults } from "./defaults/loadDefaults";
+import { METRIC_VALUE_FIELD, SHELL_DEFAULTS_TEMPLATE_ID, topDegreeLabelLayer } from "./defaults/styleDescriptors";
 import {
     graphDeselectNode,
     graphDisableBuiltInXrButtons,
@@ -942,69 +947,6 @@ function loadRequestName(request: LoadDataRequest): string | null {
     return null;
 }
 
-/** How many bars the degree histogram draws at most. Past that, degrees share a bar. */
-const DEGREE_HISTOGRAM_MAX_BINS = 20;
-
-/** A degree distribution, ready for `GraphSummary`'s histogram row. */
-interface DegreeHistogram {
-    /** One bar per degree, or per band of degrees once there are more than the cap. */
-    readonly bins: readonly HistogramBin[];
-    /** The lowest degree measured, as the axis's left end. */
-    readonly axisMin: string;
-    /** The highest degree measured, as the axis's right end. */
-    readonly axisMax: string;
-}
-
-/** An empty distribution: no bar, and an axis that claims no range. */
-const NO_DEGREE_HISTOGRAM: DegreeHistogram = { bins: [], axisMin: "0", axisMax: "0" };
-
-/**
- * The degree distribution the graph summary's "Links per node" histogram draws.
- *
- * It is measured from the degree pass the load already ran (7.2) and from nothing else:
- * one bar per distinct degree while that fits under {@link DEGREE_HISTOGRAM_MAX_BINS},
- * and equal-width bands of degrees once it does not, so a graph whose degrees run to the
- * thousands draws twenty bars rather than thousands. A band's label names the degrees it
- * holds, so no bar reports a number the reader cannot place.
- *
- * With no pass there is no distribution, and the empty one draws no bar. The section
- * that holds the histogram is not drawn at all in that state -- `GraphSummary` renders
- * it inside Most connected, which renders only when there is a ranked row -- so nothing
- * on screen claims a distribution the shell has not measured.
- * @param degreesDescending - every node's degree, highest first, from the degree pass.
- * @returns the bars and the axis ends.
- */
-function degreeHistogram(degreesDescending: readonly number[]): DegreeHistogram {
-    const highest = degreesDescending[0];
-    const lowest = degreesDescending[degreesDescending.length - 1];
-
-    if (highest === undefined || lowest === undefined) {
-        return NO_DEGREE_HISTOGRAM;
-    }
-
-    const span = highest - lowest + 1;
-    const width = Math.ceil(span / Math.min(span, DEGREE_HISTOGRAM_MAX_BINS));
-    const counts = new Array<number>(Math.ceil(span / width)).fill(0);
-
-    for (const degree of degreesDescending) {
-        const index = Math.min(Math.floor((degree - lowest) / width), counts.length - 1);
-
-        counts[index] += 1;
-    }
-
-    return {
-        bins: counts.map((count, index) => {
-            const from = lowest + index * width;
-            const to = Math.min(from + width - 1, highest);
-            const links = from === to ? formatCount(from) : `${formatCount(from)} to ${formatCount(to)}`;
-
-            return { label: `${links} links: ${formatCount(count)} nodes`, count };
-        }),
-        axisMin: formatCount(lowest),
-        axisMax: formatCount(highest),
-    };
-}
-
 /**
  * What the Counts "Type" row says about direction.
  *
@@ -1201,6 +1143,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
        user has since changed, and the graph's own data events fire more than once per
        load. `crossDatasetBoundary` clears it. */
     const loadDefaultsAppliedRef = useRef(false);
+    /** graphty-element's sentence for why this load got fewer degree labels than its budget. */
+    const [labelShortfall, setLabelShortfall] = useState<string | null>(null);
     /* The card a sample row's closing hint asked for, consumed once the defaults have
        landed, so the suggested run happens on a graph that already has its neutral base
        and its degrees (7.1 item 2: one interaction, in the right order). */
@@ -2186,6 +2130,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         pendingSuggestedRef.current = null;
         setLoadCompletions(0);
         setDegreePass(null);
+        setLabelShortfall(null);
         setActiveResult(null);
         setColourChannel([]);
         /* A metric run describes the graph that has gone exactly as a community run does:
@@ -3380,20 +3325,25 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                normalisation first, against the observed degree RANGE rather than the
                maximum alone. Labels stay: they add a channel rather than overriding a
                tuned value. */
-            const degreeThreshold = labelDegreeThreshold(degrees.degreesDescending, defaults.labelCount);
             const degreeRunId = degrees.runId;
+            const { labelCount } = defaults;
 
-            /* The layer names the RUN that measured the degrees, so a node the pass never
-               reached carries no value, reads absent and is not labelled -- rather than being
-               compared against the cut and labelled because `null >= 0` is true, which the
-               expression this replaces had to guard against by hand. No run, no layer: a cut
-               with nothing to read it off would be a selector matching nothing. */
-            if (degreeThreshold !== undefined && degreeRunId !== undefined) {
-                await session.styles.add(topDegreeLabelLayer({ degreeRunId, degreeThreshold })).then(
+            /* The layer asks graphty-element for the top `labelCount` nodes of the RUN that
+               measured the degrees; the element decides where the cut falls and what a tie
+               across the budget does. A budget of zero is the reader's switch turned off, and
+               no run means nothing for the layer to read. */
+            if (labelCount > 0 && degreeRunId !== undefined) {
+                await session.styles.add(topDegreeLabelLayer({ degreeRunId, labelCount })).then(
                     () => undefined,
                     (error: unknown) => {
                         console.error("[shell] the element refused the top-degree label layer:", error);
                     },
+                );
+
+                /* The layer and this sentence read the same cut, so when a tie across the budget
+                   leaves labels out, Settings > Performance says why in the element's words. */
+                setLabelShortfall(
+                    session.runs.get(degreeRunId)?.result?.top(METRIC_VALUE_FIELD, labelCount).reason ?? null,
                 );
             }
 
@@ -4179,7 +4129,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     /* The distribution the histogram draws, from the same degree pass Most connected
        reads. Both are absent together: with no pass there are no ranked rows, and
        `GraphSummary` draws the histogram inside the Most connected section. */
-    const degreeDistribution = useMemo(() => degreeHistogram(degreeResults?.degreesDescending ?? []), [degreeResults]);
+    const degreeDistribution = degreeResults?.distribution ?? NO_DEGREE_DISTRIBUTION;
 
     const mostConnected = useMemo(
         () =>
@@ -4356,6 +4306,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     degreeBins: degreeDistribution.bins,
                     degreeAxisMin: degreeDistribution.axisMin,
                     degreeAxisMax: degreeDistribution.axisMax,
+                    degreeLogScale: degreeDistribution.logX,
                     schema: { ready: false, summary: "measuring...", nodeTypes: [], edgeTypes: [] },
                     attributes: { nodes: [], edges: [] },
                     caseNoteCount: 0,
@@ -5326,6 +5277,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                             aiProviders={aiProviderSettings}
                             accelerationPolicy={accelerationPolicy}
                             onAccelerationPolicyChange={changeAccelerationPolicy}
+                            labelShortfall={labelShortfall}
                             onClose={() => {
                                 setSettingsOpen(false);
                             }}

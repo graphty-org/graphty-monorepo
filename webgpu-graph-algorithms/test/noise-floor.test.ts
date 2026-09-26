@@ -78,6 +78,17 @@
  * error carries through K5's direction into the displacement, positions and scene) feed the SAME rows, so every
  * derived FR / spring tolerance covers the configurations its suite asserts.
  *
+ * P8 members (P8-T15 Step 6; every one bitwise, so no tolerance is derived): bfs-contract / rmat14-depth (the
+ * `depth` buffer of `breadthFirstSearch` on rmatEdges(14, 10, 7) from 0, u32, the cross-adapter row bfs.depth.cross
+ * -- PD-14: every traversal array is a function of the graph alone), sssp-relax / grid30-integer-dist (the `dist`
+ * buffer of `sssp` on the integer 30 x 30 grid from 0, f32 bit patterns, the row sssp-relax.dist.cross -- PD-9:
+ * atomicMin over bit patterns makes the settled distance order-independent), advance-expand / karate-reversed-queue
+ * (the SORTED edge queue of karate's reversed vertex set, u32, the twin row advance-expand.twin -- the subgroup form
+ * of wg_scan_u32 changes the queue's lane order, never its contents -- and the cross row advance-expand.cross).
+ * Writers: test/algorithms/bfs.test.ts, test/algorithms/sssp.test.ts, test/primitives/advance.test.ts (adapter and
+ * -no-subgroups). The sssp-relax.f32-vs-f64 row (the basis of the derived sssp tolerance) is recorded by the sssp
+ * suite's own oracle case, never here.
+ *
  * P4 members (P4-T11 Step 3; the caps come from test/helpers/grid-parity.ts): the u32 primitive members, bitwise
  * across adapters (PD-10) and against their oracle where the writer records one -- indirect-finalize / counts9,
  * scan-block / random1m, scan-add / random20k-cellStart, histogram / random1m-4096 and random20k-cellHist,
@@ -157,6 +168,7 @@ import {
     writeNoiseFixture,
 } from "./helpers/noise-floor.js";
 import { SE_KARATE_FIXTURES, SE_NOISE_FIXTURES, SE_TOLERANCE_CAPS } from "./helpers/se-parity.js";
+import { SSSP_TOLERANCE_CAPS } from "./helpers/sssp.js";
 import { componentsOracle } from "./oracle/components.js";
 import { acquire, requireGpu } from "./setup/gpu.js";
 
@@ -917,7 +929,51 @@ const P4_NOISE_SET: readonly NoiseMember[] = [
     ),
 ];
 
-/** The P1 noise set (contract 5.6, G1: degree, reduce and the FA2 skeleton from every adapter) followed by the P3, P5 and P4 sets. */
+/**
+ * The P8 noise set (P8-T15 Step 6): a bitwise member per traversal array whose cross-adapter (and, for the scan
+ * caller, twin) agreement the phase claims; the recorded rows are the zeros, so a later non-zero is a finding.
+ * @param kernel - the kernel id the fixture is filed under
+ * @param fixture - the fixture name
+ * @param dtype - how the fixture was written (u32 depths / queues, f32 distances)
+ * @param rows - the row ids each comparison feeds (null: checked bitwise, not recorded)
+ * @param writer - who writes the fixtures
+ * @returns the member
+ */
+function p8Member(
+    kernel: string,
+    fixture: string,
+    dtype: "u32" | "f32",
+    rows: Readonly<Record<Comparison, string | null>>,
+    writer: string,
+): NoiseMember {
+    return { kernel, fixture, dtype, metric: "bitwise", rows, tolerances: NO_ROWS, writer };
+}
+
+const P8_NOISE_SET: readonly NoiseMember[] = [
+    p8Member(
+        "bfs-contract",
+        "rmat14-depth",
+        "u32",
+        { "cross-adapter": "bfs.depth.cross", twin: null, "oracle-f64": null },
+        "test/algorithms/bfs.test.ts (the noise-floor fixture case)",
+    ),
+    p8Member(
+        "sssp-relax",
+        "grid30-integer-dist",
+        "f32",
+        { "cross-adapter": "sssp-relax.dist.cross", twin: null, "oracle-f64": null },
+        "test/algorithms/sssp.test.ts (the noise-floor fixture case)",
+    ),
+    p8Member(
+        "advance-expand",
+        "karate-reversed-queue",
+        "u32",
+        { "cross-adapter": "advance-expand.cross", twin: "advance-expand.twin", "oracle-f64": null },
+        "test/primitives/advance.test.ts (the noise-floor fixture case: adapter and -no-subgroups)",
+    ),
+];
+
+/** The P1 noise set (contract 5.6, G1: degree, reduce and the FA2 skeleton from every adapter) followed by the P3, P5, P4 and P8 sets. */
 const NOISE_SET: readonly NoiseMember[] = [
     {
         kernel: "degree",
@@ -984,6 +1040,7 @@ const NOISE_SET: readonly NoiseMember[] = [
     ...P3_NOISE_SET,
     ...P5_NOISE_SET,
     ...P4_NOISE_SET,
+    ...P8_NOISE_SET,
 ];
 
 /** Every tolerance the file carries: the spec cap it is derived under and the row it is derived from (the P1 entries, then the P3 caps of test/helpers/fa2-parity.ts, the P5 caps of fr-parity.ts / se-parity.ts and the P4 caps of grid-parity.ts, one table, never retyped). */
@@ -998,6 +1055,7 @@ const TOLERANCE_CAPS: Readonly<Record<string, { readonly cap: number; readonly b
     ...P5_TOLERANCE_CAPS,
     ...SE_TOLERANCE_CAPS,
     ...P4_TOLERANCE_CAPS,
+    ...SSSP_TOLERANCE_CAPS,
 };
 
 interface NoiseAdapter {

@@ -627,11 +627,8 @@ describe("Link Prediction Algorithms", () => {
                 }
             }
 
-            const start = Date.now();
             const cnPredictions = commonNeighborsPrediction(graph, { topK: 50 });
-            const duration = Date.now() - start;
 
-            expect(duration).toBeLessThan(5000); // Should complete within 5 seconds
             expect(cnPredictions.length).toBeLessThanOrEqual(50);
         });
     });

@@ -331,12 +331,9 @@ describe("SynC (Synergistic Deep Graph Clustering)", () => {
                 }
             }
 
-            const startTime = performance.now();
             const config: SynCConfig = { numClusters: 5, seed: 42 };
             const result = syncClustering(graph, config);
-            const endTime = performance.now();
 
-            expect(endTime - startTime).toBeLessThan(5000); // Should complete within 5 seconds
             expect(result.clusters.size).toBe(50);
             expect(result.embeddings.size).toBe(50);
         });

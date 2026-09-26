@@ -20,30 +20,40 @@
  * two Babylon meshes plus, on the default arrow-headed style, a ShaderMaterial of its own: about
  * 20 KB per edge.
  *
- * AN EDGE NOW COSTS ABOUT A TENTH OF THAT, and these numbers moved with it. Its line and its two
- * caps are thin instances of shared meshes, so an edge adds no scene object and no material at
- * all (`EdgeLineBatch`, `ArrowCapBatch`, issue #419). Re-measured 2026-09-26 in headless Chromium
- * on an RTX 4070 SUPER, the same way as before -- `layout="random"`, ten edges per node, the
- * default style, on a machine under a load average of 25 to 50, so the load times below are
- * upper bounds:
+ * AN EDGE NOW COSTS ABOUT A SIXTEENTH OF THAT, and these numbers moved with it. Its line and its
+ * two caps are thin instances of shared meshes, so an edge adds no scene object and no material
+ * at all (`EdgeLineBatch`, `ArrowCapBatch`, issue #419). Re-measured 2026-09-26 in headless
+ * Chromium on an RTX 4070 SUPER against the source of this branch AND of master, the same way as
+ * before -- `layout="random"`, ten edges per node, the default style -- medians of three runs. The
+ * heap cap in that Chromium is 4,096 MB, and the RSS column is the RENDERER process, which is what
+ * actually gets killed:
  *
- * | nodes | edges | heap | scene meshes | load |
- * | --- | --- | --- | --- | --- |
- * | 10,000 | 100,000 | 268 MB | 10,003 | 5.2 s |
- * | 20,000 | 200,000 | 468 MB | 20,003 | 8.4 s |
- * | 30,000 | 300,000 | 697 MB | 30,003 | 14.0 s |
- * | 50,000 | 500,000 | 1,030 MB | 50,003 | 23.4 s |
- * | 80,000 | 800,000 | 1,660 MB | 80,003 | 44.8 s |
+ * | nodes | edges | heap | % of cap | renderer RSS | scene meshes | load | frame |
+ * | --- | --- | --- | --- | --- | --- | --- | --- |
+ * | 10,000 | 100,000 | 312 MB | 8 % | 553 MB | 10,003 | 3.3 s | 54 ms |
+ * | 20,000 | 200,000 | 555 MB | 14 % | 2,118 MB | 20,003 | 6.1 s | 162 ms |
+ * | 50,000 | 500,000 | 1,031 MB | 25 % | 2,319 MB | 50,003 | 13.0 s | 488 ms |
+ * | 100,000 | 1,000,000 | 1,994 MB | 49 % | 3,318 MB | 100,003 | 27.5 s | 1,120 ms |
+ * | 150,000 | 1,500,000 | 3,090 MB | 75 % | 4,086 MB | 150,003 | 37.2 s | 1,524 ms |
  *
- * The same 10,000 / 100,000 graph was 2,272 MB and 210,002 meshes before any of this work, and
- * 1,564 MB and 110,002 meshes with only the lines batched. The mesh count is now the node count:
- * the edges have left the scene.
+ * On master the same 10,000 / 100,000 graph is 1,773 MB and 210,003 meshes, 20,000 / 200,000
+ * reaches 85 % of the cap, and 30,000 / 300,000 is DEAD in every run -- no result in 180 seconds,
+ * the renderer at 4,336 MB, and the main thread never answering again. The mesh count here is the
+ * node count instead of twenty-one times it: the edges have left the scene.
  *
- * The ceilings below keep the worst case they allow together, 50,000 nodes AND 500,000 edges, at
- * 1.03 GB of heap -- 29 % of the limit, where the same pair of ceilings used to sit at 74 % with
- * a fifth of the edges. The node ceiling is unchanged because nothing here made a node cheaper: a
- * node is still an `InstancedMesh` of its own. `DataManager` refuses a load past either with
- * `E_TOO_LARGE`; see `refuseAboveCeiling` there for why a refusal and not a degraded draw.
+ * THE CEILINGS BELOW ARE THE LARGEST PAIR MEASURED THAT STILL HAS ROOM. Together they allow
+ * 100,000 nodes AND 1,000,000 edges, which is the 49 % row -- a quarter of the heap still free for
+ * a layout and a run to allocate. The row under it survives too, but 150,000 / 1,500,000 leaves
+ * nothing: 75 % of the heap, and a renderer within 250 MB of the size at which master's is killed.
+ * `DataManager` refuses a load past either with `E_TOO_LARGE`; see `refuseAboveCeiling` there for
+ * why a refusal and not a degraded draw.
+ *
+ * WHAT A CEILING DOES NOT PROMISE. It is the size at which the renderer dies, not the size at
+ * which it is pleasant: at 1,000,000 edges the element draws about one frame a second. That was
+ * always true of these numbers -- the previous 100,000-edge ceiling already drew at 328 ms a frame
+ * -- but the constraint a reader feels has moved from the heap to the frame. Measured on a quiet
+ * box, 60 fps holds to 40,000 edges and 30 fps to 80,000, which is the range `largeGraphThreshold`
+ * exists to describe; it is 10,000 NODES today and nothing measured it. That is the next number.
  *
  * WHAT THESE NUMBERS DO NOT COVER, and it is the same exclusion as before: a patterned line style
  * gives every dot and dash a mesh and a ShaderMaterial of its own (`PatternedLineRenderer`), and
@@ -91,14 +101,14 @@ export const DEFAULT_LIMITS: Readonly<DefaultableLimits> = Object.freeze({
      * The most nodes the element will hold. Enforced: a load past it fails with `E_TOO_LARGE`.
      * Measured (see the file comment), on one machine; not this machine's figure.
      */
-    renderCeiling: 50_000,
+    renderCeiling: 100_000,
     /** The most elements one selection will hold before it refuses to grow. A shipped default, not measured. */
     selectionCap: DEFAULT_SELECTION_CAP,
     /**
      * The most edges the element will hold. Enforced: a load past it fails with `E_TOO_LARGE`.
      * Measured (see the file comment), on one machine; not this machine's figure.
      */
-    edgesDrawn: 500_000,
+    edgesDrawn: 1_000_000,
     /**
      * Above this NODE COUNT an approximable algorithm is approximated rather than computed
      * exactly. A shipped default, not measured. Not to be confused with the cost gate's

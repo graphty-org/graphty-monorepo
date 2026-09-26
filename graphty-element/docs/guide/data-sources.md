@@ -395,16 +395,21 @@ Left unset -- the default -- a repeat is decided by the ordered endpoint pair al
 
 ## Large Dataset Tips
 
-The element holds at most `DEFAULT_LIMITS.renderCeiling` nodes (50,000) and
-`DEFAULT_LIMITS.edgesDrawn` edges (500,000), exported from `@graphty/graphty-element/session`. A
+The element holds at most `DEFAULT_LIMITS.renderCeiling` nodes (100,000) and
+`DEFAULT_LIMITS.edgesDrawn` edges (1,000,000), exported from `@graphty/graphty-element/session`. A
 load that would cross either fails with `E_TOO_LARGE`; `details` carry the limit, the count the
 load would have reached and the counts the graph holds. The refusal is decided before the graph
 is touched: nothing from the refused batch is held, and assigning `edgeData` past the ceiling
-leaves the edges the graph had. Past those figures the renderer runs out of memory rather than
-slowing down, so the error is the element declining what it cannot draw. The figures were measured
-with the default edge style; a patterned line style (dots, dashes) costs more memory per edge, so
-under one the renderer can run out before the ceiling, and an animated line style is not covered
-by these figures at all. Load a subset, or explore a large graph a neighbourhood at a time (see
+leaves the edges the graph had. Past those figures the renderer runs out of memory and the tab
+stops answering, so the error is the element declining what it cannot draw.
+
+A ceiling is the point where the renderer dies, not the point where it is comfortable, and the
+two are far apart. The graph stays interactive at 60 frames a second up to about 40,000 edges and
+30 up to about 80,000; at the ceiling itself it draws roughly one frame a second, which is a still
+picture you can still pan. Both sets of figures were measured with the default edge style; a
+patterned line style (dots, dashes) costs more memory per edge, so under one the renderer can run
+out before the ceiling, and an animated line style is not covered by these figures at all. Load a
+subset, or explore a large graph a neighbourhood at a time (see
 [Incremental Loading](#incremental-loading)).
 
 1. **Batch loading**: Load nodes before edges

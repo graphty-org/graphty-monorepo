@@ -1014,6 +1014,23 @@ describe("the P7 views (spec 4.3 lines 1180-1190)", () => {
         });
     });
 
+    it("an edgeless snapshot's directed reverse view and edgeList view bind no empty array, packed or not (spec 5.6)", async (t) => {
+        requireGpu(t);
+        await withContext(undefined, async (ctx) => {
+            const s = snapshotOf([], { nodeCount: 3, directed: true, label: "edgeless-directed" });
+            for (const packViews of [false, true]) {
+                const reverse = ctx.residency.view(s, "reverse", { packViews });
+                expect(Object.keys(reverse.bindings), `reverse, packViews ${packViews}`).toEqual(["rowPtr"]);
+                expect(reverse.bindings.rowPtr.size).toBe(4 * 4);
+                const edgeList = ctx.residency.view(s, "edgeList", { packViews });
+                expect(Object.keys(edgeList.bindings), `edgeList, packViews ${packViews}`).toEqual([]);
+                expect(edgeList.scalars.edgeCount).toEqual([0]);
+            }
+            ctx.release(s);
+            await ctx.allocator.check();
+        });
+    });
+
     it("coo and mate are still E_UNSUPPORTED (P11)", async (t) => {
         requireGpu(t);
         await withContext(undefined, async (ctx) => {

@@ -270,16 +270,18 @@ export const ForceAtlas2Fake: Story = {
     /*
      * `preSteps` IS FORCEATLAS2'S OWN `maxIter`, which this story leaves at its default of 100, so
      * under Chromatic the iterations run before the first frame. Everywhere else the layout
-     * animates at `stepMultiplier` iterations per RENDERED frame, and 150 sphere nodes draw at
-     * about four frames a second in the Storybook test browser's software renderer: one iteration
-     * a frame measured 23 seconds, past the 15 the wait for a final frame allows. Four a frame is
-     * 25 frames. The arrangement is the same one: the simulation stops at `maxIter` whichever
-     * clock ran it.
+     * animates at `stepMultiplier` iterations per RENDERED frame, and this scene renders slowly in
+     * the Storybook test browser's software renderer: a frame of 150 spheres takes about 200 ms
+     * to draw on a fast desktop, plus 45 to 65 ms while the layout moves, most of it the 250
+     * edges intersecting their rays with the sphere meshes. The CI runner is slower still: at four
+     * iterations a frame, 25 frames, both ForceAtlas2 stories were still moving when the 15 second
+     * wait for a final frame gave up. Twenty a frame is 5 frames. The arrangement is the same one:
+     * the simulation stops at `maxIter` whichever clock ran it.
      */
     args: {
         layout: "forceatlas2",
         layoutConfig: { seed: 42 },
-        setup: storySetup({ ...STORY_STYLES, preSteps: 100, stepMultiplier: 4 }),
+        setup: storySetup({ ...STORY_STYLES, preSteps: 100, stepMultiplier: 20 }),
     },
     decorators: [acceleratedStory(attachFake)],
     play: async ({ canvasElement }): Promise<void> => {
@@ -307,11 +309,12 @@ export const ForceAtlas2Fake: Story = {
 export const SpringFake: Story = {
     name: "Spring (fake accelerator)",
     // `preSteps` is Spring's own `iterations`, which this story leaves at its default of 50, and
-    // `stepMultiplier` keeps the animation outside Chromatic short. See ForceAtlas2Fake above.
+    // `stepMultiplier` keeps the animation outside Chromatic to 5 frames. See ForceAtlas2Fake
+    // above.
     args: {
         layout: "spring",
         layoutConfig: { seed: 42 },
-        setup: storySetup({ ...STORY_STYLES, preSteps: 50, stepMultiplier: 4 }),
+        setup: storySetup({ ...STORY_STYLES, preSteps: 50, stepMultiplier: 10 }),
     },
     decorators: [acceleratedStory(attachFake)],
     play: async ({ canvasElement }): Promise<void> => {
@@ -343,11 +346,11 @@ export const SpringFake: Story = {
 export const ForceAtlas2WebGpu: Story = {
     name: "ForceAtlas2 (WebGPU)",
     // `preSteps` is ForceAtlas2's own `maxIter`, left at its default of 100, and `stepMultiplier`
-    // keeps the animation outside Chromatic short. See ForceAtlas2Fake above.
+    // keeps the animation outside Chromatic to 5 frames. See ForceAtlas2Fake above.
     args: {
         layout: "forceatlas2",
         layoutConfig: { seed: 42 },
-        setup: storySetup({ ...STORY_STYLES, preSteps: 100, stepMultiplier: 4 }),
+        setup: storySetup({ ...STORY_STYLES, preSteps: 100, stepMultiplier: 20 }),
     },
     decorators: [acceleratedStory(askForWebGpu)],
     parameters: {

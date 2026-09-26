@@ -407,14 +407,16 @@ interface DirectionBoundary {
 
 /**
  * Beamer's rule replayed on the host from the oracle's per-level frontier sizes and out-degree sums, exactly as
- * `frontier-finalize` evaluates it (P8-T8 Steps 2 and 5, PD-18, PD-21), boundary by boundary until the one that
- * sets `done` (the rule is evaluated there too, because the kernel's test sits before its `done` branch). The two
- * unvisited words are rebuilt EXACTLY from the oracle's complement at the top of every submit (everything claimed
- * through the frontier that submit rotates in first is outside the sums), the count is subtracted from the second
- * boundary of a submit on and the degree sum from the third on, and the degree sum a boundary holds is the one the
- * previous level's EXPANSION measured: the previous frontier's out-degree sum after a top-down level, 0 after a
- * bottom-up level (the sweep expands nothing), which is the one-level staleness the design accepts. `alpha` divides
- * as a `u32` (floored), `next * beta` is exact (no wrap below 178M vertices).
+ * `frontier-finalize` evaluates it (P8-T8 Steps 2 and 5, PD-18, PD-21, amended for issue #391), boundary by boundary
+ * until the one that sets `done` (the rule is evaluated there too, because the kernel's test sits before its `done`
+ * branch). The two unvisited words are rebuilt EXACTLY from the oracle's complement at the top of every submit
+ * (everything claimed through the frontier that submit rotates in first is outside the sums), and both are
+ * subtracted from the second boundary of a submit on: the count by the frontier the boundary rotates in, the degree
+ * sum by that frontier's out-degree sum, which `bfs-next-degree` measured when the previous level claimed it. That
+ * same sum is the m_f of the switch-into-bottom-up test -- the degree of the frontier the level is about to expand,
+ * whichever direction claimed it -- so neither word is ever stale (before the amendment m_f was the degree of the
+ * frontier the previous level had EXPANDED, one level behind and 0 after a bottom-up level). `alpha` divides as a
+ * `u32` (floored), `next * beta` is exact (no wrap below 178M vertices).
  * @param levelSizes - `|F_L|` per level, level 0 the source alone (a level past the end is 0)
  * @param levelDegreeSums - the out-degree sum of `F_L` per level
  * @param n - the node count
@@ -460,11 +462,12 @@ export function expectedDirections(
         }
         const finished = level === 0 ? 0 : sizeAt(level - 1);
         const next = sizeAt(level);
-        const degSum = level === 0 || direction === 1 ? 0 : degreeAt(level - 1);
+        // issue #391: m_f is the out-degree sum of F_level, the frontier this boundary rotates in and the level is
+        // about to expand (bfs-next-degree summed it when the previous level claimed it); 0 at the first boundary,
+        // whose source the seed rotates in with nothing summed
+        const degSum = level === 0 ? 0 : degreeAt(level);
         if (b >= 1) {
             unvisitedCount -= next;
-        }
-        if (b >= 2) {
             unvisitedDegreeSum -= degSum;
         }
         const done = next === 0 || level >= cap;

@@ -58,6 +58,7 @@ const STORAGE_COUNTS: Readonly<Record<string, number | undefined>> = {
     "bfs-bottom-up": 8,
     "bfs-bitset-build": 3,
     "bfs-unvisited-flags": 5,
+    "bfs-next-degree": 3,
     "sssp-relax": 8,
     "bf-relax": 6,
     "closeness-sweep": 8,

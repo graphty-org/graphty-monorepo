@@ -28,6 +28,7 @@ import { bfsBitsetBuildWgsl } from "./wgsl/bfs-bitset-build.wgsl.js";
 import { bfsBottomUpWgsl } from "./wgsl/bfs-bottom-up.wgsl.js";
 import { bfsContractWgsl } from "./wgsl/bfs-contract.wgsl.js";
 import { bfsFusedWgsl } from "./wgsl/bfs-fused.wgsl.js";
+import { bfsNextDegreeWgsl } from "./wgsl/bfs-next-degree.wgsl.js";
 import { bfsUnvisitedFlagsWgsl } from "./wgsl/bfs-unvisited-flags.wgsl.js";
 import { closenessReduceWgsl } from "./wgsl/closeness-reduce.wgsl.js";
 import { closenessSweepWgsl } from "./wgsl/closeness-sweep.wgsl.js";
@@ -111,6 +112,7 @@ export type KernelId =
     | "bfs-bottom-up"
     | "bfs-bitset-build"
     | "bfs-unvisited-flags"
+    | "bfs-next-degree"
     | "sssp-relax"
     | "bf-relax"
     | "closeness-sweep"
@@ -386,8 +388,11 @@ export const COMPACT_PARAMS: UniformBlock = UniformBlock.define("CompactParams",
  * submit), `arcsScanned` @64, `fusedLevels` @68, `twoPhaseLevels` @72, `bottomUpLevels` @76, `farCount` @80,
  * `nextFarCount` @84, `thresholdBits` @88, `deltaBits` @92 (P8-T9), `path` @96 (what the level's kernels run, written
  * by the selector: 0 nothing, 1 two-phase, 2 fused, 3 bottom-up, 4 the fused retry, 5 a near SSSP round, 6 a far
- * one; every level kernel is a direct dispatch that reads it first -- G8-F5). The words nothing writes before
- * P8-T8 / P8-T9 are declared now because the byte layout is what the single result copy decodes.
+ * one; every level kernel is a direct dispatch that reads it first -- G8-F5), `nextDegreeSum` @100 (issue #391: the
+ * out-degree sum of the vertices the level claimed, accumulated by `bfs-next-degree` at the end of every level and
+ * read, subtracted and zeroed by the next boundary -- Beamer's m_f measured on the frontier the boundary decides
+ * for, not on the one it has just expanded). The words nothing writes before P8-T8 / P8-T9 are declared now because
+ * the byte layout is what the single result copy decodes.
  */
 export const FRONTIER_COUNTERS: UniformBlock = UniformBlock.define(
     "FrontierCounters",
@@ -417,6 +422,7 @@ export const FRONTIER_COUNTERS: UniformBlock = UniformBlock.define(
         ["thresholdBits", "u32"],
         ["deltaBits", "u32"],
         ["path", "u32"],
+        ["nextDegreeSum", "u32"],
     ],
     { layout: "storage" },
 );
@@ -1264,6 +1270,24 @@ const BFS_UNVISITED_FLAGS: KernelEntry = {
     phase: "P8",
 };
 
+/** `bfs-next-degree` (design 8.4; issue #391): Beamer's m_f measured exactly -- once per level, after the claim kernels, grid-striding over the output vertex queue and summing the `outDegree` view over the vertices the level claimed into word 25, one `atomicAdd` per workgroup; 3 storage bindings (`frontier` read-only, the `outDegree` VIEW, the counters block); `needs: ["subgroups"]` for the `wg_reduce_u32` call (a twin kernel). */
+const BFS_NEXT_DEGREE: KernelEntry = {
+    id: "bfs-next-degree",
+    body: bfsNextDegreeWgsl,
+    entryPoint: "bfs_next_degree",
+    bindings: [
+        decl(1, 0, "frontier", "storage-ro", "array<u32>"),
+        decl(1, 1, "outDegree", "storage-ro", "array<u32>"),
+        decl(1, 2, "counters", "storage", "array<atomic<u32>>"),
+        decl(2, 0, "P", "uniform", "FrontierParams"),
+    ],
+    overrideDecls: [],
+    uniforms: [FRONTIER_PARAMS],
+    needs: ["subgroups"],
+    snippetSlots: [],
+    phase: "P8",
+};
+
 /** `sssp-relax` (design 8.4 "Davidson's near-far", 8.10 "SSSP near-far relax"; P8-T9, PD-9 / PD-20 / DEP-P8-E): one round of the near-far loop -- role 0 relaxes the deduped near pile's whole rows with `atomicMin` on the f32 bit patterns of `dist` and appends each improved vertex to the raw near or far half of `queueOut` (the two halves of ONE buffer at word 0 and word `P.edgeCapacity`), role 1 re-buckets the deduped far pile; 8 storage bindings (the four graph slots with the run's weights bound in the weights slot, `dist` and the counters block as `array<atomic<u32>>`, `queueIn` read-only, `queueOut`) -- exactly at the budget, which is why no `pred` lives here (PD-11) and why the piles' counts, the threshold and the delta are words of the block. */
 const SSSP_RELAX: KernelEntry = {
     id: "sssp-relax",
@@ -1395,6 +1419,7 @@ const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze
     "bfs-bottom-up": BFS_BOTTOM_UP,
     "bfs-bitset-build": BFS_BITSET_BUILD,
     "bfs-unvisited-flags": BFS_UNVISITED_FLAGS,
+    "bfs-next-degree": BFS_NEXT_DEGREE,
     "sssp-relax": SSSP_RELAX,
     "bf-relax": BF_RELAX,
     "closeness-sweep": CLOSENESS_SWEEP,

@@ -75,11 +75,11 @@ describe("Frontier, the counters block and frontier-finalize (design 5.4, 6 row 
         return ctx;
     }
 
-    it("FRONTIER_COUNTERS is a 112-byte storage block of 25 u32 words (the path word last, rounded to 16 bytes) indexed by W at 4 x word; FRONTIER_PARAMS an 80-byte uniform of twenty u32 fields", () => {
+    it("FRONTIER_COUNTERS is a 112-byte storage block of 26 u32 words (the nextDegreeSum word last, rounded to 16 bytes) indexed by W at 4 x word; FRONTIER_PARAMS an 80-byte uniform of twenty u32 fields", () => {
         expect(FRONTIER_COUNTERS.name).toBe("FrontierCounters");
         expect(FRONTIER_COUNTERS.layout).toBe("storage");
         expect(FRONTIER_COUNTERS.byteLength).toBe(112);
-        expect(WORDS).toHaveLength(25);
+        expect(WORDS).toHaveLength(26);
         expect(FRONTIER_COUNTERS.fields.map((f) => f[0])).toEqual(WORDS);
         for (const name of WORDS) {
             expect(FRONTIER_COUNTERS.offsetOf(name), name).toBe(4 * W[name]);
@@ -164,19 +164,22 @@ describe("Frontier, the counters block and frontier-finalize (design 5.4, 6 row 
         expect(slotOf(run.args, 0, SLOT.fusedRetry)).toEqual([POISON, POISON, POISON, POISON]);
     });
 
-    it("the boundary-index rule: firstOfSubmit 0 subtracts nothing, 1 subtracts the count, 2 the count and the degree sum; maxDepth 0 sets done and zeroes every slot", async (t) => {
+    it("the boundary-index rule: firstOfSubmit 0 subtracts nothing, 1 (and any larger index) subtracts the count and the next frontier's degree sum together (issue #391: both words exact from the second boundary on); nextDegreeSum is zeroed for the next level; maxDepth 0 sets done and zeroes every slot", async (t) => {
         const ctx = await context(t);
+        // frontierDegreeSum is the EXPANDED sum (rotated into prevDegreeSum, never subtracted); nextDegreeSum is the
+        // degree of the frontier rotated in, which is what the boundary subtracts and tests against
         const seed = {
             unvisitedCount: 5,
             unvisitedDegreeSum: 9,
             nextFrontierCount: 1,
             frontierDegreeSum: 4,
+            nextDegreeSum: 3,
             level: U32_MAX,
         };
         const expected: readonly (readonly [number, number, number])[] = [
             [0, 5, 9],
-            [1, 4, 9],
-            [2, 4, 5],
+            [1, 4, 6],
+            [2, 4, 6],
         ];
         for (const [firstOfSubmit, unvisitedCount, unvisitedDegreeSum] of expected) {
             const run = await runBoundary(ctx, [{ role: 0, fields: { firstOfSubmit } }], { seed });
@@ -185,6 +188,7 @@ describe("Frontier, the counters block and frontier-finalize (design 5.4, 6 row 
                 unvisitedDegreeSum,
                 prevDegreeSum: 4,
                 frontierDegreeSum: 0,
+                nextDegreeSum: 0,
                 frontierCount: 1,
                 level: 0,
                 done: 0,

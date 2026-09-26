@@ -27,25 +27,26 @@
  * relax over nearIn) from word 0 and restarts the raw near half (word 1 to 0); mode 1 sizes slot 5 (the pass-through
  * over farIn) from word 20 and restarts the raw far half (word 21 to 0).
  *
- * Beamer's test (P8-T8, PD-21), evaluated at every boundary BEFORE the `done` branch (so a switch can be counted at
- * the done boundary too, which the host model of the tests mirrors): top-down switches to bottom-up when
- * `frontierDegreeSum > unvisitedDegreeSum / alpha` (u32 division; alpha the host's `max(1, floor(arcCount / n))`
- * unless tuned) and the frontier is growing (`next > frontierCount`); bottom-up switches back when
- * `next * beta < unvisitedCount` (a u32 product, wrapping only above 178M vertices, which no admitted device
- * reaches) and the frontier is shrinking; `P.mode == 1` (the driver's `"top-down"`) pins the direction at 0. Every
- * change is counted in `switches`, the previous direction is word 14. The two unvisited words the test reads are
- * rebuilt exactly once per submit by `bfs-unvisited-flags` (PD-18) and maintained here by subtraction: the count is
- * subtracted from the SECOND boundary of a submit on and the degree sum from the THIRD on, because a boundary may
- * only subtract what the submit's rebuild counted, and the frontier whose degree sum the second boundary holds was
- * claimed before the rebuild ran (the rebuild counts the vertices unclaimed when it runs; the frontier rotated in at
- * boundary 0 was claimed by the previous submit's last contract, so it was never in the sum; boundary b subtracts
- * `next = |F_b|`, inside the sum iff b >= 1, and `degSum = deg(F_{b-1})`, inside it iff b >= 2). The degree sum is
- * the "unvisited degree estimate" of the design rather than an exact count for two reasons: it is one level stale
- * (a frontier's degree sum is only known once it has been expanded), and a bottom-up level expands nothing, so the
- * word stops falling while bottom-up runs and overstates the set afterwards. The bias is one-directional -- an
- * overstated m_u makes the switch INTO bottom-up harder, never easier -- and the next submit's rebuild makes it
- * exact again. Body only (spec 3.5, D9); the text is normative: the sabotage rows of test/helpers/sabotage.ts are
- * textual edits of it.
+ * Beamer's test (P8-T8, PD-21; amended for issue #391), evaluated at every boundary BEFORE the `done` branch (so a
+ * switch can be counted at the done boundary too, which the host model of the tests mirrors): top-down switches to
+ * bottom-up when `nextDegreeSum > unvisitedDegreeSum / alpha` (u32 division; alpha the host's
+ * `max(1, floor(arcCount / n))` unless tuned) and the frontier is growing (`next > frontierCount`); bottom-up
+ * switches back when `next * beta < unvisitedCount` (a u32 product, wrapping only above 178M vertices, which no
+ * admitted device reaches) and the frontier is shrinking; `P.mode == 1` (the driver's `"top-down"`) pins the
+ * direction at 0. Every change is counted in `switches`, the previous direction is word 14. `nextDegreeSum` (word
+ * 25) is Beamer's m_f measured EXACTLY: `bfs-next-degree` sums the out-degrees of the vertices a level claims at
+ * the end of that level, so the boundary that rotates them in as `next` compares the degree of the frontier it is
+ * about to expand -- not, as before the amendment, `frontierDegreeSum` (word 2), the degree of the frontier the
+ * previous level EXPANDED, one level stale and 0 after a bottom-up level, which on the 1M / 10M R-MAT missed the
+ * switch at the level holding 13.6M of the 21M arcs. Word 2 is still accumulated by the expansion and rotated into
+ * word 4 for the inspect seam. The two unvisited words are rebuilt exactly once per submit by `bfs-unvisited-flags`
+ * (PD-18) and maintained here by subtraction from the SECOND boundary of a submit on, because a boundary may only
+ * subtract what the submit's rebuild counted: the rebuild counts the vertices unclaimed when it runs, the frontier
+ * rotated in at boundary 0 was claimed by the previous submit's last level, so it was never in the sums, and
+ * boundary b subtracts `next = |F_b|` and `nextDegreeSum = deg(F_b)`, both inside the sums iff b >= 1. Both words
+ * are therefore exact at every boundary, bottom-up levels included (the sweep's claims are summed like any other).
+ * Body only (spec 3.5, D9); the text is normative: the sabotage rows of test/helpers/sabotage.ts are textual edits
+ * of it.
  *
  * Since 2026-09-25 nothing dispatches FROM the slots (G8-F5: Dawn's validation of an indirect dispatch cost about
  * 0.4 ms of device time each, whether or not it dispatched anything, and the seven slots of thirty-two recorded
@@ -86,19 +87,19 @@ fn frontier_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
         let finished = atomicLoad(&counters[0]);
         let next = atomicLoad(&counters[1]);
         let degSum = atomicLoad(&counters[2]);
+        let nextDeg = atomicLoad(&counters[25]);                       // deg(F_b), summed by bfs-next-degree when F_b was claimed (issue #391)
         atomicStore(&counters[3], finished);                           // prevFrontierCount
         atomicStore(&counters[4], degSum);                             // prevDegreeSum
         atomicStore(&counters[0], next);                               // the rotation
         atomicStore(&counters[1], 0u);
         atomicStore(&counters[2], 0u);
+        atomicStore(&counters[25], 0u);                                // the next level's claims sum from 0
         atomicStore(&counters[8], 0u);                                 // edgeCount
         atomicStore(&counters[9], 0u);                                 // edgeCountUnclamped
         atomicStore(&counters[12], atomicLoad(&counters[12]) + next);  // visitedCount
-        if (P.firstOfSubmit >= 1u) {                                   // b = the boundary's index inside its submit, clamped to 2 (P8-T8, PD-18)
-            atomicStore(&counters[5], atomicLoad(&counters[5]) - next);    // unvisitedCount (exact): F_b was inside the submit's rebuilt sum iff b >= 1
-        }
-        if (P.firstOfSubmit >= 2u) {
-            atomicStore(&counters[6], atomicLoad(&counters[6]) - degSum);  // unvisitedDegreeSum (one level stale): F_{b-1} was inside it iff b >= 2
+        if (P.firstOfSubmit >= 1u) {                                   // b = the boundary's index inside its submit, clamped (P8-T8, PD-18): F_b was inside the submit's rebuilt sums iff b >= 1
+            atomicStore(&counters[5], atomicLoad(&counters[5]) - next);       // unvisitedCount, exact
+            atomicStore(&counters[6], atomicLoad(&counters[6]) - nextDeg);    // unvisitedDegreeSum, exact (issue #391: no longer one level stale)
         }
         let level = atomicLoad(&counters[11]) + 1u;                    // the seed is U32_MAX, so the first boundary lands on 0
         atomicStore(&counters[11], level);
@@ -108,7 +109,7 @@ fn frontier_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
         if (P.mode == 1u) {
             direction = 0u;                                                 // top-down only (the test seam)
         } else if (direction == 0u) {
-            if (degSum > atomicLoad(&counters[6]) / P.alpha && next > finished) { direction = 1u; }   // m_f > m_u / alpha and growing
+            if (nextDeg > atomicLoad(&counters[6]) / P.alpha && next > finished) { direction = 1u; }   // m_f > m_u / alpha and growing, m_f the degree of the frontier about to be expanded
         } else {
             if (next * P.beta < atomicLoad(&counters[5]) && next < finished) { direction = 0u; }      // next * beta < unvisited and shrinking
         }

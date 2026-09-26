@@ -733,6 +733,21 @@ const TABLE: Readonly<Record<KernelId, ExpectedEntry>> = {
         phase: "P8",
         storageCount: 5,
     },
+    "bfs-next-degree": {
+        entryPoint: "bfs_next_degree",
+        bindings: [
+            [1, 0, "frontier", "storage-ro", "array<u32>"],
+            [1, 1, "outDegree", "storage-ro", "array<u32>"],
+            [1, 2, "counters", "storage", "array<atomic<u32>>"],
+            [2, 0, "P", "uniform", "FrontierParams"],
+        ],
+        overrideDecls: [],
+        uniforms: [FRONTIER_PARAMS],
+        needs: ["subgroups"],
+        snippetSlots: [],
+        phase: "P8",
+        storageCount: 3,
+    },
     "sssp-relax": {
         entryPoint: "sssp_relax",
         bindings: withGraph([

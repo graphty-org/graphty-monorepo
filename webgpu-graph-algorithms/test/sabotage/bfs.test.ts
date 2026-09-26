@@ -1,7 +1,8 @@
 /**
  * Spec 11.9 item 1 for the `bfs-contract` and `sssp-pred` kernels (P8-T6), the `bfs-fused` kernel (P8-T7) and the
- * `bfs-bottom-up`, `bfs-bitset-build` and `bfs-unvisited-flags` kernels (P8-T8), plus the selector rows the
- * traversal rests on: every SABOTAGE row is spliced into the normative body and compiled on a FRESH context, and the
+ * `bfs-bottom-up`, `bfs-bitset-build` and `bfs-unvisited-flags` kernels (P8-T8) and the `bfs-next-degree` kernel
+ * (issue #391: Beamer's m_f measured on the frontier about to be expanded), plus the selector rows the traversal
+ * rests on: every SABOTAGE row is spliced into the normative body and compiled on a FRESH context, and the
  * SAME check that passes on the real kernels -- bfsReport: `depth`, `parent`, `order`, `visitedCount` and `levels`
  * of the 30 x 30 grid from its corner and the 500-node path from its last index against the oracle and the host
  * rules under the two-phase path forced and under the fused path forced (top-down only), the choice counters of
@@ -44,6 +45,7 @@ const BFS_KERNELS = [
     "bfs-bottom-up",
     "bfs-bitset-build",
     "bfs-unvisited-flags",
+    "bfs-next-degree",
 ] as const;
 
 /** The rows this suite measures: the six BFS kernels' own that name the BFS test (sssp-pred's f32-mode rows name the SSSP test), and the selector rows by name. */
@@ -90,6 +92,11 @@ describe("sabotage: bfs-contract, sssp-pred, bfs-fused, bfs-bottom-up, bfs-bitse
             "everyone-listed",
             "in-degree-test-inverted",
             "in-degree-summed",
+        ]);
+        expect((SABOTAGE["bfs-next-degree"] ?? []).map((m) => m.name)).toEqual([
+            "sum-dropped",
+            "entries-counted-not-degrees",
+            "path-gate-inverted",
         ]);
         const selector = MEASURED[MEASURED.length - 1];
         expect(selector.rows.map((m) => m.name)).toEqual(SELECTOR_ROWS);

@@ -1268,6 +1268,37 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             test: BFS_TEST,
         },
     ]),
+    // issue #391: every row is measured by bfsReport (rmat14's per-boundary direction, switches and
+    // unvisitedDegreeSum words against the host model at both cadences); every depth stays right under all three,
+    // because the direction is a cost choice, never a correctness one -- the counters are the only witness
+    "bfs-next-degree": Object.freeze([
+        {
+            // the sum never lands: m_f reads 0 at every boundary, so the default rule never enters bottom-up and
+            // unvisitedDegreeSum never falls between rebuilds (rmat14 at the production cadence switches twice)
+            name: "sum-dropped",
+            find: "if (lid.x == 0u) { atomicAdd(&counters[25], total); }",
+            replace: "if (lid.x == 0u) { atomicAdd(&counters[25], 0u); }",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // the entries are counted instead of their degrees summed: m_f is |F| and unvisitedDegreeSum falls by the
+            // frontier's SIZE at every boundary after the first of a submit
+            name: "entries-counted-not-degrees",
+            find: "sum = sum + outDegree[frontier[i]];",
+            replace: "sum = sum + 1u;",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // the path gate inverted: the sum runs only on a level past the end, whose queue is empty
+            name: "path-gate-inverted",
+            find: "atomicLoad(&counters[24]) != 0u);   // nextFrontierCount",
+            replace: "atomicLoad(&counters[24]) == 0u);   // nextFrontierCount",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+    ]),
     "sssp-relax": Object.freeze([
         {
             // the claim is an exchange, not a min: a later larger candidate overwrites a smaller distance (dist miss)

@@ -105,12 +105,23 @@ describe("walkInChunks", () => {
     });
 
     it("does not give the frame back when there is nothing left to do", async () => {
-        const recording = recordingContext();
-        const items = Array.from({ length: METRIC_CHUNK_SIZE }, (unused, index) => index);
+        vi.useFakeTimers({ toFake: ["performance"] });
+        try {
+            const recording = recordingContext();
+            const items = Array.from({ length: METRIC_CHUNK_SIZE }, (unused, index) => index);
 
-        await walkInChunks(items, recording.context, "counting", () => undefined);
+            // The one chunk costs a whole budget, so the only thing keeping the frame is that the
+            // chunk boundary is the end of the list.
+            await walkInChunks(items, recording.context, "counting", (unused, index) => {
+                if (index + 1 === METRIC_CHUNK_SIZE) {
+                    vi.advanceTimersByTime(YIELD_BUDGET_MS);
+                }
+            });
 
-        assert.strictEqual(recording.yields, 0);
+            assert.strictEqual(recording.yields, 0);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it("stops when the run is cancelled", async () => {

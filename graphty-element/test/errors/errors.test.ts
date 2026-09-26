@@ -62,6 +62,7 @@ const CODES_FROM_THE_DESIGN = [
     "E_READONLY",
     "E_DISPOSED",
     "E_TRANSACTION_CLOSED",
+    "E_HELD_BY_TRANSACTION",
     "E_INTERNAL",
 ];
 
@@ -100,6 +101,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_READONLY":
         case "E_DISPOSED":
         case "E_TRANSACTION_CLOSED":
+        case "E_HELD_BY_TRANSACTION":
             return "identity";
         case "E_FETCH_FAILED":
         case "E_PARSE_FAILED":

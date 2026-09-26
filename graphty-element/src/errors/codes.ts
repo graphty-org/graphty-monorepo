@@ -296,6 +296,14 @@ export type GraphtyErrorCode =
      */
     | "E_TRANSACTION_CLOSED"
     /**
+     * A command needs a node or edge id (or a whole graph or pin slice) that an open transaction
+     * has written and holds until it is recorded. It fails at once rather than waiting, because
+     * the transaction's callback may itself be waiting on this command. `details.transaction`
+     * names the transaction and `details.key` the held key. The caller dispatches the command
+     * through that transaction's `tx`, or dispatches it again once the transaction has settled.
+     */
+    | "E_HELD_BY_TRANSACTION"
+    /**
      * An invariant inside the element broke. This is a bug in graphty-element, not in the call.
      * `details` and `cause` carry whatever is safe to report. The caller files an issue with the
      * message; nothing it can change will avoid it.
@@ -353,6 +361,7 @@ const CODE_TABLE = {
     E_READONLY: "E_READONLY",
     E_DISPOSED: "E_DISPOSED",
     E_TRANSACTION_CLOSED: "E_TRANSACTION_CLOSED",
+    E_HELD_BY_TRANSACTION: "E_HELD_BY_TRANSACTION",
     E_INTERNAL: "E_INTERNAL",
 } as const satisfies Record<GraphtyErrorCode, GraphtyErrorCode>;
 

@@ -178,8 +178,9 @@ export class History<P> {
      * Record a patch that has already been applied: merge it into the top step when it coalesces
      * with it, otherwise discard the redo tail and push a new step.
      * @param input - The patch and what describes it.
+     * @returns The id of the step the patch is now in.
      */
-    record(input: RecordInput<P>): void {
+    record(input: RecordInput<P>): string {
         const time = this.now();
         const at = new Date().toISOString();
         const key = input.key ?? null;
@@ -194,28 +195,17 @@ export class History<P> {
             this.cursor === this.entries.length &&
             time - top.lastMerge < this.coalesceMs
         ) {
-            top.patch = this.options.merge(top.patch, input.patch);
-            top.at = at;
-            top.lastMerge = time;
-            top.ops = [...top.ops, ...(input.ops ?? [])];
-            top.slices = [...new Set([...top.slices, ...(input.slices ?? [])])];
-            // ponytail: a merge sums both patches' sizes, an overestimate; re-estimate the merged
-            // patch when real sizes arrive with the dispatcher.
-            top.doneBytes += done;
-            top.undoneBytes += undone;
-            top.view = undefined;
-            this.total += done;
-            this.changed("merge");
-            this.evictIfOver();
-            return;
+            this.mergeInto(top, input, time, at);
+            return top.id;
         }
 
         for (const step of this.entries.splice(this.cursor)) {
             this.total -= this.size(step, false);
         }
 
+        const id = `step-${this.nextId++}`;
         this.entries.push({
-            id: `step-${this.nextId++}`,
+            id,
             label: input.label,
             key,
             patch: input.patch,
@@ -236,6 +226,24 @@ export class History<P> {
         this.mergeable = true;
         this.changed("record");
         this.evictIfOver();
+        return id;
+    }
+
+    /**
+     * Merge a patch into the top step whatever its key and however long ago it was recorded: how
+     * work that finishes after its step was recorded (a transaction's deferred member) joins it.
+     * @param id - The step the patch belongs to.
+     * @param input - The patch and what describes it; its label is ignored.
+     * @returns False, merging nothing, when that step is not the top step or is undone.
+     */
+    amend(id: string, input: RecordInput<P>): boolean {
+        const top = this.entries.at(-1);
+        if (top?.id !== id || this.cursor !== this.entries.length) {
+            return false;
+        }
+
+        this.mergeInto(top, input, this.now(), new Date().toISOString());
+        return true;
     }
 
     /**
@@ -307,6 +315,31 @@ export class History<P> {
         this.total = 0;
         this.mergeable = false;
         this.changed("clear");
+    }
+
+    /**
+     * Merge a patch into a done top step: the first prior, the last written value.
+     * @param top - The top step.
+     * @param input - The patch and what describes it.
+     * @param time - `now()` of the merge.
+     * @param at - ISO 8601 of the merge.
+     */
+    private mergeInto(top: Step<P>, input: RecordInput<P>, time: number, at: string): void {
+        const done = input.bytes?.done ?? 0;
+        const undone = input.bytes?.undone ?? 0;
+        top.patch = this.options.merge(top.patch, input.patch);
+        top.at = at;
+        top.lastMerge = time;
+        top.ops = [...top.ops, ...(input.ops ?? [])];
+        top.slices = [...new Set([...top.slices, ...(input.slices ?? [])])];
+        // ponytail: a merge sums both patches' sizes, an overestimate; re-estimate the merged
+        // patch when real sizes arrive with the dispatcher.
+        top.doneBytes += done;
+        top.undoneBytes += undone;
+        top.view = undefined;
+        this.total += done;
+        this.changed("merge");
+        this.evictIfOver();
     }
 
     /**

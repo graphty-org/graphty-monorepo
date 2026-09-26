@@ -5,14 +5,23 @@
  * plain dispatch is a group of its own, and a dispatch through a transaction's `tx` joins that
  * transaction's group. An undoable command writes through the group's draft; an exempt command
  * gets no draft at all. When a group seals, its patch becomes one step in the history. When it
- * fails, its writes are reverted through the same `applyBackward` that undo uses, and nothing is
- * recorded. See design/undo/undo-design.md sections 4.1, 4.2, 4.4, 4.8 and 5.1.
+ * fails or is cancelled, its writes are reverted through the same `applyBackward` that undo uses,
+ * and nothing is recorded. See design/undo/undo-design.md sections 4 to 6.1.
  *
- * Only the immediate lane exists so far: every command executes synchronously inside `dispatch`,
- * so a write is visible to a getter as soon as `dispatch` returns.
+ * Two lanes. An immediate command executes synchronously inside `dispatch`, so a write is visible
+ * to a getter as soon as `dispatch` returns. A queued command takes a slot on the session's queue
+ * (through a {@link Scheduler}) and executes when its turn comes; until it has committed it is
+ * pending work, listed in `pending` and cancellable.
+ *
+ * Op-log keys (node and edge ids, or a whole `graph` or `pins` slice) cannot be handed from one
+ * open group to another the way value keys are, so a group holds the op-log keys it touched until
+ * it seals. A command needing a key an open transaction holds fails at once with
+ * `E_HELD_BY_TRANSACTION`; one needing a key any other open group holds waits for it, and runs
+ * when that group commits or is dropped when it rolls back.
  */
 
 import { GraphtyError } from "../../errors/GraphtyError";
+import type { OperationCategory } from "../../managers/OperationQueueManager";
 import {
     createProjectStore,
     deepFreezeArgs,
@@ -24,25 +33,49 @@ import {
 } from "./draft";
 import { History } from "./History";
 import { createProjectState, type ProjectState } from "./state";
+import { checkSoleHolder, strictStateEnabled } from "./strict";
 
 /** The part of a command the dispatcher reads: its op. */
 interface CommandLike {
     readonly op: string;
 }
 
-/** A key a command writes: a whole slice (`styles`) or one key of one (`config/background`). */
+/** A key a command writes: a whole slice (`styles`, `graph`) or one key of one (`graph/n1`). */
 type SliceKey = string;
+
+/** The slices written as op-logs, whose keys are held rather than handed over. */
+const OP_LOG_SLICES: ReadonlySet<string> = new Set(["graph", "pins"]);
+
+/** Above this many ids in one slice, a command holds the whole slice instead of each id. */
+const MAX_HELD_IDS = 1024;
+
+/** The queue category of a run, whose work may outlive its transaction as a deferred member. */
+const RUN_CATEGORY: OperationCategory = "algorithm-run";
 
 /** What an undoable command executes with: the state to read, and the draft that writes it. */
 interface UndoableContext {
     readonly state: ProjectState;
+    /** The group's draft. Read it when writing, after any await: it can change underneath. */
     readonly draft: Draft;
+    /** Fires when the command is cancelled or made obsolete; a queued command stops on it. */
+    readonly signal: AbortSignal;
 }
 
 /** What an exempt command executes with. No draft, so it cannot write project state. */
 interface ExemptContext {
     readonly state: ProjectState;
 }
+
+/** Which lane a command runs on. */
+type Lane<C extends CommandLike> =
+    | { readonly kind: "immediate" }
+    | {
+          readonly kind: "queued";
+          /** The queue category, which decides the queue's obsolescence rules for it. */
+          readonly category: OperationCategory;
+          /** Two commands with one key collapse into one slot while the first has not started. */
+          coalesce?(command: C): string | null;
+      };
 
 /** What every definition declares, whether or not it is undoable. */
 interface DefinitionBase<C extends CommandLike> {
@@ -51,8 +84,7 @@ interface DefinitionBase<C extends CommandLike> {
     readonly moves: boolean;
     /** The keys it will write, known before it runs. */
     keys(command: C, state: ProjectState): readonly SliceKey[];
-    /** Executes synchronously at dispatch. */
-    readonly lane: { readonly kind: "immediate" };
+    readonly lane: Lane<C>;
 }
 
 /** A command that changes project state: one step, labelled. */
@@ -81,8 +113,8 @@ export interface ExemptDefinition<C extends CommandLike> extends DefinitionBase<
 type CommandDefinition<C extends CommandLike> = UndoableDefinition<C> | ExemptDefinition<C>;
 
 /**
- * A command, or a function from state to one, called when the command executes. The late form is
- * for doors whose meaning depends on state at that moment; history records the concrete command.
+ * A command, or a function from state to one, called at dispatch. The late form is for doors
+ * whose meaning depends on state at that moment; history records the concrete command.
  */
 type Dispatchable<C extends CommandLike = CommandLike> = C | ((state: ProjectState) => C);
 
@@ -106,6 +138,96 @@ interface ProjectChange {
     readonly cause: "command" | "rollback";
 }
 
+/** One slot a queued command holds on the queue. */
+interface ScheduledSlot {
+    /** Fires when the queue drops or stops the slot, including when `cancel` is called. */
+    readonly signal: AbortSignal;
+    /** Give the slot up: removed when it has not started, aborted when it has. */
+    cancel(): void;
+}
+
+/** The queue queued commands take their turn on. */
+export interface Scheduler {
+    /**
+     * Take a slot. The slot is held from the start of `onTurn` until the promise it returns
+     * settles. `onTurn` is never called from inside `enqueue`.
+     * @param category - The queue category, for the queue's ordering and obsolescence rules.
+     * @param onTurn - Called when the slot comes up.
+     * @returns The slot.
+     */
+    enqueue(category: OperationCategory, onTurn: () => Promise<void>): ScheduledSlot;
+}
+
+/** The part of the element's `OperationQueueManager` a scheduler needs. */
+interface OperationQueue {
+    queueOperation(category: OperationCategory, execute: () => Promise<void>): string;
+    getOperationController(operationId: string): AbortController | undefined;
+    cancelOperation(operationId: string): boolean;
+}
+
+/**
+ * The scheduler over the session's `OperationQueueManager`: a queued command takes its turn
+ * among the loads, layouts and runs already on it, and the queue's obsolescence rules reach it
+ * as a cancellation with reason "obsolete".
+ * @param queue - The queue.
+ * @returns The scheduler.
+ */
+export function queueScheduler(queue: OperationQueue): Scheduler {
+    return {
+        enqueue(category, onTurn) {
+            const id = queue.queueOperation(category, onTurn);
+            const controller = queue.getOperationController(id) ?? new AbortController();
+
+            return {
+                signal: controller.signal,
+                cancel: () => {
+                    queue.cancelOperation(id);
+                },
+            };
+        },
+    };
+}
+
+/**
+ * The scheduler of a dispatcher handed none: every queued command fails, naming what is missing.
+ */
+const NO_SCHEDULER: Scheduler = {
+    enqueue() {
+        throw new GraphtyError({
+            code: "E_INTERNAL",
+            message: "This dispatcher was created without a queue, so it cannot run a queued command.",
+            source: "history",
+        });
+    },
+};
+
+/** Pending undoable work, as the history lists it. Frozen. */
+interface PendingStep {
+    readonly id: string;
+    readonly label: string;
+    /** ISO 8601 of the dispatch. */
+    readonly since: string;
+    readonly runIds: readonly string[];
+}
+
+/** What the next undo will do. */
+type NextUndo =
+    | { readonly kind: "cancel"; readonly pending: readonly PendingStep[] }
+    | { readonly kind: "undo"; readonly step: HistoryStepView }
+    | null;
+
+/** A recorded step as the history publishes it. */
+type HistoryStepView = History<Patch>["steps"][number];
+
+/** What an undo or a redo did. */
+type HistoryOutcome =
+    | { readonly kind: "undone" | "redone"; readonly steps: readonly HistoryStepView[] }
+    | { readonly kind: "cancelled"; readonly pending: readonly PendingStep[] }
+    | { readonly kind: "nothing" };
+
+/** Why pending work stopped without committing. */
+type CancelReason = "undo" | "redo" | "cancel" | "obsolete" | "rollback";
+
 interface DispatcherOptions {
     // Each definition's `execute` is checked against its own command type where it is written
     // (method parameters are bivariant), and the dispatcher only hands a definition its own op.
@@ -116,22 +238,126 @@ interface DispatcherOptions {
     readonly now?: () => number;
     /** Told after a group's writes are recorded, or after live writes are reverted. */
     readonly publish?: (change: ProjectChange) => void;
+    /** The queue of queued commands: the session's, through {@link queueScheduler}. */
+    readonly scheduler?: Scheduler;
+}
+
+/** One execution of one undoable command. */
+interface Job {
+    /** Dispatch order. */
+    readonly seq: number;
+    /** Replaced by a later command coalescing into the slot while it is queued. */
+    command: CommandLike;
+    keys: readonly SliceKey[];
+    readonly definition: UndoableDefinition<CommandLike>;
+    /** The group it writes into; a run outliving its transaction moves to a group of its own. */
+    group: Group;
+    status: "new" | "queued" | "waiting" | "running" | "done" | "cancelled";
+    readonly queuedKey: string | null;
+    /** A run, which a transaction does not wait for. */
+    readonly run: boolean;
+    readonly controller: AbortController;
+    slot: ScheduledSlot | null;
+    /** The group whose hold it is waiting on. */
+    blockedBy: Group | null;
+    /** A transaction member's revert of its own writes. */
+    revert: (() => readonly ValueSlice[]) | null;
+    readonly promise: Promise<unknown>;
+    resolve(value: unknown): void;
+    reject(error: unknown): void;
 }
 
 /** Commands that become one step. */
 interface Group {
-    readonly label: string;
-    readonly key: string | null;
+    /** Dispatch order. */
+    readonly seq: number;
+    /** Its id in `pending`. */
+    readonly id: string;
+    readonly since: string;
+    label: string;
+    key: string | null;
     readonly provenance: Readonly<Record<string, string>>;
     readonly draft: Draft;
     readonly ops: string[];
+    /** Every key its members declared, for the cancellation cascade. */
+    readonly keys: Set<SliceKey>;
+    /** The op-log keys it holds, each with the tick it was acquired at. */
+    readonly holds: Map<SliceKey, number>;
+    /** Members queued, waiting on a key, or running. */
+    readonly jobs: Set<Job>;
+    /** A deferred member's transaction step, which it merges into when that step is still on top. */
+    readonly after: string | null;
+    /** Set on a transaction's group. Open until `fn` settles; aborted when it rolled back. */
+    readonly tx: { status: "open" | "closed" | "aborted"; readonly controller: AbortController } | null;
+    /** Sealed or rolled back. */
+    done: boolean;
+    view: PendingStep | undefined;
 }
 
-/** A transaction's group. */
-interface TransactionGroup extends Group {
-    /** Open until `fn` settles; aborted when it rolled back. */
-    status: "open" | "closed" | "aborted";
-    readonly controller: AbortController;
+/** When a step was recorded and undone, and the op-log keys its group held. */
+interface StepMeta {
+    recorded: number;
+    undone: number;
+    oplog: SliceKey[];
+}
+
+/**
+ * The slice of a key: `graph` for `graph/n1`.
+ * @param key - The key.
+ * @returns The slice.
+ */
+function sliceOf(key: SliceKey): string {
+    const slash = key.indexOf("/");
+    return slash === -1 ? key : key.slice(0, slash);
+}
+
+/**
+ * Whether two keys can touch the same thing. Conservative for op-logs: any two keys of one
+ * op-log slice do, because a later graph writer may depend on an earlier one's rows.
+ * @param a - A key.
+ * @param b - Another.
+ * @returns True when they may conflict.
+ */
+function conflicts(a: SliceKey, b: SliceKey): boolean {
+    const slice = sliceOf(a);
+    if (slice !== sliceOf(b)) {
+        return false;
+    }
+
+    return OP_LOG_SLICES.has(slice) || a === b || a === slice || b === slice;
+}
+
+/**
+ * Whether two op-log keys name the same id, or one is the whole slice holding the other.
+ * @param a - A held key.
+ * @param b - Another.
+ * @returns True when they overlap.
+ */
+function overlaps(a: SliceKey, b: SliceKey): boolean {
+    const slice = sliceOf(a);
+    return slice === sliceOf(b) && (a === b || a === slice || b === slice);
+}
+
+/**
+ * The op-log keys among a command's keys, with more than {@link MAX_HELD_IDS} ids of one slice
+ * coarsened to the whole slice.
+ * @param keys - The declared keys.
+ * @returns The keys to hold.
+ */
+function opLogKeys(keys: readonly SliceKey[]): SliceKey[] {
+    const bySlice = new Map<string, SliceKey[]>();
+    for (const key of keys) {
+        const slice = sliceOf(key);
+        if (OP_LOG_SLICES.has(slice)) {
+            const list = bySlice.get(slice) ?? [];
+            list.push(key);
+            bySlice.set(slice, list);
+        }
+    }
+
+    return [...bySlice].flatMap(([slice, list]) =>
+        list.length > MAX_HELD_IDS || list.includes(slice) ? [slice] : list,
+    );
 }
 
 /**
@@ -153,6 +379,34 @@ function abortError(label: string): DOMException {
 }
 
 /**
+ * What pending work that stopped without committing settles with.
+ * @param label - The work.
+ * @param reason - Why it stopped.
+ * @returns An `AbortError` naming the reason.
+ */
+function cancelledError(label: string, reason: CancelReason): DOMException {
+    return new DOMException(`"${label}" was cancelled (${reason}).`, "AbortError");
+}
+
+/**
+ * The error of a command needing a key an open transaction holds.
+ * @param op - The command's op.
+ * @param key - The held key.
+ * @param holder - The transaction.
+ * @returns The error.
+ */
+function heldError(op: string, key: SliceKey, holder: Group): GraphtyError {
+    return new GraphtyError({
+        code: "E_HELD_BY_TRANSACTION",
+        message:
+            `"${op}" needs ${key}, which the open transaction "${holder.label}" holds until it is recorded. ` +
+            "Dispatch it through that transaction's tx, or again once the transaction has settled.",
+        source: "history",
+        details: { transaction: holder.label, key },
+    });
+}
+
+/**
  * Run `work` now and hand back a promise of its result, rejected when it throws.
  * @param work - The synchronous work.
  * @returns Its result, or its throw as a rejection.
@@ -163,17 +417,45 @@ function settle<T>(work: () => T): Promise<Awaited<T>> {
     });
 }
 
-/** The one mutation path: groups, drafts, rollback and transactions over one project state. */
+/**
+ * Whether a value is a promise or another thenable.
+ * @param value - The value.
+ * @returns True when it has a `then` method.
+ */
+function isThenable(value: unknown): value is PromiseLike<unknown> {
+    return typeof (value as { then?: unknown } | null)?.then === "function";
+}
+
+/** The one mutation path: groups, drafts, rollback, transactions and pending work. */
 export class Dispatcher {
     readonly history: History<Patch>;
     private readonly store: ProjectStore;
     private readonly definitions = new Map<string, CommandDefinition<CommandLike>>();
     private readonly publish: (change: ProjectChange) => void;
-    private readonly groups = new WeakMap<TransactionScope, TransactionGroup>();
+    private readonly scheduler: Scheduler;
+    private readonly strict = strictStateEnabled();
+    private readonly scopes = new WeakMap<TransactionScope, Group>();
+    /** Pending groups: queued, waiting, running, open transactions and deferred members. */
+    private readonly open = new Set<Group>();
+    /** Which group holds each op-log key. */
+    private readonly holders = new Map<SliceKey, Group>();
+    /** The groups holding any key of each op-log slice. */
+    private readonly bySlice = new Map<string, Set<Group>>();
+    /** Jobs waiting on a key another group holds. */
+    private readonly waiters = new Set<Job>();
+    private readonly steps = new Map<string, StepMeta>();
+    /** Orders dispatches, records, undos and hold acquisitions against each other. */
+    private tick = 0;
+    /** Moves whenever the pending list changes. */
+    private changes = 0;
+    /** Moves whenever a hold is taken, which can change what the next undo does. */
+    private holdChanges = 0;
+    private pendingCache: { key: number; value: readonly PendingStep[] } | undefined;
+    private nextCache: { key: string; value: NextUndo } | undefined;
 
     /**
      * Create a dispatcher over a state it alone will write.
-     * @param options - The definitions, the baseline, the clock and the change listener.
+     * @param options - The definitions, the baseline, the clock, the change listener and the queue.
      */
     constructor(options: DispatcherOptions) {
         for (const definition of options.definitions) {
@@ -182,6 +464,7 @@ export class Dispatcher {
 
         this.store = createProjectStore(options.state ?? createProjectState());
         this.publish = options.publish ?? (() => undefined);
+        this.scheduler = options.scheduler ?? NO_SCHEDULER;
         this.history = new History<Patch>({
             forward: (patch) => {
                 this.store.applyForward(patch);
@@ -203,52 +486,98 @@ export class Dispatcher {
     }
 
     /**
-     * Dispatch one command as its own step. It executes before this returns.
-     * @param command - The command, or a function from state to one.
-     * @returns What `execute` returned; rejects with what it threw, after reverting its writes.
+     * Undoable work dispatched and not yet committed, oldest first: queued commands, commands
+     * waiting on a key, open transactions and deferred members. The identical array between
+     * changes.
+     * @returns The frozen list.
      */
-    dispatch<C extends CommandLike>(command: Dispatchable<C>): Promise<unknown> {
-        return settle(() => this.execute(command, null));
+    get pending(): readonly PendingStep[] {
+        if (this.pendingCache?.key !== this.changes) {
+            this.pendingCache = {
+                key: this.changes,
+                value: Object.freeze(this.ordered().map((group) => this.view(group))),
+            };
+        }
+
+        return this.pendingCache.value;
     }
 
     /**
-     * Run `fn`, and record every command it dispatches through `tx` as one step once it settles.
+     * What the next {@link Dispatcher.undo} will do: cancel pending work, undo a step, or nothing.
+     * @returns The frozen answer, identical between changes.
+     */
+    get nextUndo(): NextUndo {
+        const key = `${this.history.version}/${this.changes}/${this.holdChanges}`;
+        if (this.nextCache?.key !== key) {
+            const plan = this.plan("undo");
+            let value: NextUndo = null;
+            if (plan !== null) {
+                value =
+                    "step" in plan
+                        ? Object.freeze({ kind: "undo", step: plan.step })
+                        : Object.freeze({ kind: "cancel", pending: Object.freeze(plan.cancel.map((g) => this.view(g))) });
+            }
+
+            this.nextCache = { key, value };
+        }
+
+        return this.nextCache.value;
+    }
+
+    /**
+     * Dispatch one command as its own step. An immediate command executes before this returns; a
+     * queued one when its turn comes.
+     * @param command - The command, or a function from state to one.
+     * @returns What `execute` returned; rejects with what it threw, after reverting its writes,
+     * or with an `AbortError` when it was cancelled.
+     */
+    dispatch<C extends CommandLike>(command: Dispatchable<C>): Promise<unknown> {
+        return settle(() => this.submit(command, null));
+    }
+
+    /**
+     * Run `fn`, and record every command it dispatches through `tx` as one step once it settles
+     * and every non-run command it dispatched has executed. Runs still going then are deferred
+     * members: each merges into the step when it commits while the step is on top, and records
+     * as its own step otherwise.
      *
      * Membership is by origin: a dispatch made any other way while `fn` runs is its own step. If
-     * such a dispatch writes a key the transaction wrote, it takes the key over, so the
-     * transaction's rollback leaves it alone. If `fn` throws, or the transaction is aborted,
-     * everything it wrote is reverted, nothing is recorded, and the error is rethrown; until `fn`
-     * settles, and after, `tx` dispatches reject with an `AbortError`. After a clean settle they
-     * reject with `E_TRANSACTION_CLOSED`. A transaction that wrote nothing records nothing.
+     * such a dispatch writes a value key the transaction wrote, it takes the key over, so the
+     * transaction's rollback leaves it alone; if it needs an op-log key the transaction holds, it
+     * fails at once with `E_HELD_BY_TRANSACTION`. If `fn` throws, or the transaction is aborted,
+     * everything it wrote is reverted, its pending members are cancelled, nothing is recorded,
+     * and the error is rethrown; until `fn` settles, and after, `tx` dispatches reject with an
+     * `AbortError`. After a clean settle they reject with `E_TRANSACTION_CLOSED`. A transaction
+     * that wrote nothing records nothing.
      * @param label - The step's label.
      * @param fn - The body. `signal` fires when the transaction is aborted.
      * @param options - The provenance stamped on the step.
      * @returns What `fn` returned.
      */
     transaction<T>(label: string, fn: TransactionBody<T>, options: TransactionOptions = {}): Promise<T> {
-        const group: TransactionGroup = {
-            label,
-            key: null,
-            provenance: Object.freeze({ ...options.provenance }),
-            draft: this.store.open(),
-            ops: [],
+        const controller = new AbortController();
+        const group = this.group(label, null, options.provenance ?? {}, null, this.tick++, {
             status: "open",
-            controller: new AbortController(),
-        };
+            controller,
+        });
+        this.enter(group);
         const tx = this.scope(group);
-        const { signal } = group.controller;
+        const { signal } = controller;
 
         const settled = settle(() => fn(tx, signal)).then(
-            (value) => {
-                if (group.status === "open") {
-                    group.status = "closed";
-                    this.seal(group);
+            async (value) => {
+                if (group.tx?.status === "open") {
+                    group.tx.status = "closed";
+                    await this.drain(group);
+                    if (!group.done) {
+                        this.sealTransaction(group);
+                    }
                 }
 
                 return value;
             },
             (error: unknown) => {
-                this.abortGroup(group, error);
+                this.cancelGroup(group, error);
                 throw error;
             },
         );
@@ -266,15 +595,73 @@ export class Dispatcher {
     }
 
     /**
-     * Abort an open transaction: revert what it wrote now, fire its signal, and reject it. Its
-     * `fn` keeps running until it notices, and every `tx` dispatch meanwhile rejects.
+     * Abort an open transaction: revert what it wrote now, cancel its pending members, fire its
+     * signal, and reject it. Its `fn` keeps running until it notices, and every `tx` dispatch
+     * meanwhile rejects.
      * @param tx - The transaction's scope.
      */
     abort(tx: TransactionScope): void {
-        const group = this.groups.get(tx);
+        const group = this.scopes.get(tx);
         if (group !== undefined) {
-            this.abortGroup(group, abortError(group.label));
+            this.cancelGroup(group, abortError(group.label));
         }
+    }
+
+    /**
+     * Undo, acting on the first of these that applies (design section 6.1):
+     * 0. an open group holding an op-log key the top step touched, or holding graph keys taken
+     *    since the top step was recorded, is aborted, with its dependents;
+     * 1. otherwise the newest pending work dispatched after the top step, or deferred from it, is
+     *    cancelled, with every later-dispatched pending item that shares a key with it;
+     * 2. otherwise the top step is undone. Pending work dispatched before it keeps running.
+     * @returns What was done.
+     */
+    undo(): HistoryOutcome {
+        const plan = this.plan("undo");
+        if (plan === null) {
+            return { kind: "nothing" };
+        }
+
+        if ("cancel" in plan) {
+            return { kind: "cancelled", pending: this.cancelAll(plan.cancel, "undo") };
+        }
+
+        const step = this.history.undo();
+        const meta = step === null ? undefined : this.steps.get(step.id);
+        if (meta !== undefined) {
+            meta.undone = this.tick++;
+        }
+
+        return step === null ? { kind: "nothing" } : { kind: "undone", steps: Object.freeze([step]) };
+    }
+
+    /**
+     * Redo, by the rules of {@link Dispatcher.undo} checked against the step being redone: only
+     * pending work dispatched after that step was undone is cancelled first.
+     * @returns What was done.
+     */
+    redo(): HistoryOutcome {
+        const plan = this.plan("redo");
+        if (plan === null) {
+            return { kind: "nothing" };
+        }
+
+        if ("cancel" in plan) {
+            return { kind: "cancelled", pending: this.cancelAll(plan.cancel, "redo") };
+        }
+
+        const step = this.history.redo();
+        return step === null ? { kind: "nothing" } : { kind: "redone", steps: Object.freeze([step]) };
+    }
+
+    /**
+     * Cancel one pending item, and every later-dispatched pending item that shares a key with it.
+     * @param id - The item's id in `pending`.
+     * @returns Every item cancelled; empty when the id is not pending.
+     */
+    cancel(id: string): readonly PendingStep[] {
+        const group = [...this.open].find((open) => open.id === id);
+        return group === undefined ? Object.freeze([]) : this.cancelAll(this.cascade([group]), "cancel");
     }
 
     /**
@@ -282,13 +669,13 @@ export class Dispatcher {
      * @param group - The transaction's group.
      * @returns The scope.
      */
-    private scope(group: TransactionGroup): TransactionScope {
+    private scope(group: Group): TransactionScope {
         const refused = (): void => {
-            if (group.status === "aborted") {
+            if (group.tx?.status === "aborted") {
                 throw abortError(group.label);
             }
 
-            if (group.status === "closed") {
+            if (group.tx?.status === "closed") {
                 throw new GraphtyError({
                     code: "E_TRANSACTION_CLOSED",
                     message:
@@ -304,25 +691,25 @@ export class Dispatcher {
             dispatch: (command) =>
                 settle(() => {
                     refused();
-                    return this.execute(command, group);
+                    return this.submit(command, group);
                 }),
             transaction: <T>(_label: string, fn: TransactionBody<T>) =>
                 settle(() => {
                     refused();
-                    return fn(tx, group.controller.signal);
+                    return fn(tx, group.tx?.controller.signal ?? new AbortController().signal);
                 }),
         };
-        this.groups.set(tx, group);
+        this.scopes.set(tx, group);
         return tx;
     }
 
     /**
-     * Resolve, freeze and execute one command, in its own group or in `group`.
+     * Resolve and freeze one command and send it down its lane, in its own group or in `tx`'s.
      * @param command - The command, or a function from state to one.
-     * @param group - The transaction it joins, or null for a group of its own.
-     * @returns What `execute` returned.
+     * @param tx - The transaction it joins, or null for a group of its own.
+     * @returns What an exempt command returned, or the undoable command's promise.
      */
-    private execute(command: Dispatchable, group: TransactionGroup | null): unknown {
+    private submit(command: Dispatchable, tx: Group | null): unknown {
         const { state } = this.store;
         const concrete = deepFreezeArgs(typeof command === "function" ? command(state) : command);
         const definition = this.definitions.get(concrete.op);
@@ -340,64 +727,340 @@ export class Dispatcher {
         }
 
         const undoable = definition as UndoableDefinition<CommandLike>;
-        if (group !== null) {
-            // A failing member reverts only its own writes; the transaction goes on.
-            const revert = group.draft.checkpoint();
-            let result: unknown;
-            try {
-                result = undoable.execute(concrete, { state, draft: group.draft });
-            } catch (error) {
-                const slices = revert();
-                if (slices.length > 0) {
-                    this.publish({ slices, cause: "rollback" });
+        const keys = undoable.keys(concrete, state);
+        const { lane } = undoable;
+        const queuedKey = lane.kind === "queued" ? (lane.coalesce?.(concrete) ?? null) : null;
+
+        if (queuedKey !== null) {
+            const slot = this.queuedWith(queuedKey, tx);
+            if (slot !== undefined) {
+                // Coalesce while queued: the new arguments take over the slot not yet started.
+                slot.command = concrete;
+                slot.keys = keys;
+                for (const key of keys) {
+                    slot.group.keys.add(key);
                 }
 
-                throw error;
+                this.changed();
+                return slot.promise;
             }
-
-            group.ops.push(concrete.op);
-            return result;
         }
 
-        const own: Group = {
-            label: undoable.undo.label(concrete, state),
-            key: undoable.undo.coalesce?.(concrete) ?? null,
-            provenance: Object.freeze({}),
-            draft: this.store.open(),
-            ops: [concrete.op],
-        };
-        let result: unknown;
-        try {
-            result = undoable.execute(concrete, { state, draft: own.draft });
-        } catch (error) {
-            this.rollback(own);
-            throw error;
+        if (lane.kind === "immediate") {
+            // A key held by a transaction fails before anything is opened.
+            const blocker = this.blocker(opLogKeys(keys), tx);
+            if (blocker !== null && blocker.group.tx !== null) {
+                throw heldError(concrete.op, blocker.key, blocker.group);
+            }
         }
 
-        this.seal(own);
-        return result;
+        const group =
+            tx ??
+            this.group(
+                undoable.undo.label(concrete, state),
+                undoable.undo.coalesce?.(concrete) ?? null,
+                {},
+                null,
+                this.tick,
+                null,
+            );
+        const job = this.job(concrete, keys, undoable, group, queuedKey);
+        for (const key of keys) {
+            group.keys.add(key);
+        }
+
+        if (lane.kind === "queued") {
+            job.slot = this.scheduler.enqueue(lane.category, () => this.turn(job));
+            job.status = "queued";
+            group.jobs.add(job);
+            this.enter(group);
+            job.slot.signal.addEventListener(
+                "abort",
+                () => {
+                    this.obsolete(job);
+                },
+                { once: true },
+            );
+        } else {
+            this.admit(job);
+        }
+
+        return job.promise;
     }
 
     /**
-     * Record a group's patch as one step, or nothing when it wrote nothing.
-     * @param group - The group.
+     * A queued job whose slot is not yet started and whose queued coalesce key is `key`.
+     * @param key - The queued coalesce key.
+     * @param tx - The transaction dispatching, or null.
+     * @returns The job, or undefined.
      */
-    private seal(group: Group): void {
-        const patch = group.draft.seal();
-        if (patch.entries.length === 0) {
+    private queuedWith(key: string, tx: Group | null): Job | undefined {
+        for (const group of this.open) {
+            for (const job of group.jobs) {
+                if (job.status === "queued" && job.queuedKey === key && (job.group === tx || job.group.tx === null)) {
+                    return job;
+                }
+            }
+        }
+
+        return undefined;
+    }
+
+    /**
+     * A queued job's turn has come: start it, or put it on the wait list off the queue.
+     * @param job - The job.
+     * @returns Settles when the slot can be given up.
+     */
+    private turn(job: Job): Promise<void> {
+        if (job.status !== "queued") {
+            return Promise.resolve();
+        }
+
+        // Waiting on a key, the job gives the slot up; it runs off the queue when the key frees.
+        return this.admit(job) === "waiting"
+            ? Promise.resolve()
+            : job.promise.then(
+                  () => undefined,
+                  () => undefined,
+              );
+    }
+
+    /**
+     * Start a job whose keys are free; make it wait when another group holds one; fail it when a
+     * transaction holds one.
+     * @param job - The job.
+     * @returns Whether it started, failed or waits.
+     */
+    private admit(job: Job): "started" | "failed" | "waiting" {
+        const blocker = this.blocker(opLogKeys(job.keys), job.group);
+        if (blocker === null) {
+            this.start(job);
+            return "started";
+        }
+
+        if (blocker.group.tx !== null) {
+            this.fail(job, heldError(job.command.op, blocker.key, blocker.group));
+            return "failed";
+        }
+
+        job.status = "waiting";
+        job.blockedBy = blocker.group;
+        job.group.jobs.add(job);
+        this.waiters.add(job);
+        this.enter(job.group);
+        return "waiting";
+    }
+
+    /**
+     * Execute a job with its keys held. Its result settles through `finish` or `fail`.
+     * @param job - The job.
+     */
+    private start(job: Job): void {
+        const { state } = this.store;
+        const { command, definition } = job;
+        const { group } = job;
+        job.status = "running";
+        job.blockedBy = null;
+        this.acquire(group, opLogKeys(job.keys));
+        if (group.tx === null && group.after === null) {
+            group.label = definition.undo.label(command, state);
+            group.key = definition.undo.coalesce?.(command) ?? null;
+            if (this.open.has(group)) {
+                group.view = undefined;
+                this.changed();
+            }
+        } else if (group.tx !== null) {
+            // A failing member reverts only its own writes; the transaction goes on.
+            job.revert = group.draft.checkpoint();
+        }
+
+        const ctx: UndoableContext = {
+            state,
+            signal: job.controller.signal,
+            get draft() {
+                if (job.status !== "running") {
+                    throw cancelledError(job.group.label, "cancel");
+                }
+
+                return job.group.draft;
+            },
+        };
+        let out: unknown;
+        try {
+            out = definition.execute(command, ctx);
+        } catch (error) {
+            this.fail(job, error);
             return;
         }
 
-        const slices = slicesOf(patch);
-        this.history.record({
-            label: group.label,
-            patch,
-            key: group.key,
-            ops: group.ops,
-            slices,
-            provenance: group.provenance,
-        });
-        this.publish({ slices, cause: "command" });
+        if (isThenable(out)) {
+            out.then(
+                (value) => {
+                    this.finish(job, value);
+                },
+                (error: unknown) => {
+                    this.fail(job, error);
+                },
+            );
+        } else {
+            this.finish(job, out);
+        }
+    }
+
+    /**
+     * A job has executed. A transaction member stays in the transaction's draft; any other group
+     * seals. A job cancelled meanwhile is ignored: its late value is discarded.
+     * @param job - The job.
+     * @param value - What `execute` returned.
+     */
+    private finish(job: Job, value: unknown): void {
+        if (job.status !== "running") {
+            return;
+        }
+
+        job.status = "done";
+        const { group } = job;
+        group.jobs.delete(job);
+        group.ops.push(job.command.op);
+        if (group.tx === null) {
+            this.seal(group);
+        }
+
+        job.resolve(value);
+    }
+
+    /**
+     * A job threw, or could not start. A transaction member reverts its own writes; any other
+     * group rolls back.
+     * @param job - The job.
+     * @param error - Why.
+     */
+    private fail(job: Job, error: unknown): void {
+        if (job.status === "done" || job.status === "cancelled") {
+            return;
+        }
+
+        job.status = "done";
+        const { group } = job;
+        group.jobs.delete(job);
+        this.waiters.delete(job);
+        if (group.tx === null) {
+            this.rollback(group);
+        } else {
+            const slices = job.revert?.() ?? [];
+            if (slices.length > 0) {
+                this.publish({ slices, cause: "rollback" });
+            }
+        }
+
+        job.reject(error);
+    }
+
+    /**
+     * The queue dropped or stopped a job's slot: a cancellation with reason "obsolete". The job's
+     * group rolls back, or for a transaction member only the member's own writes.
+     * @param job - The job.
+     */
+    private obsolete(job: Job): void {
+        if (job.status !== "queued" && job.status !== "running") {
+            return;
+        }
+
+        const error = cancelledError(job.group.label, "obsolete");
+        if (job.group.tx === null) {
+            this.cancelGroup(job.group, error);
+            return;
+        }
+
+        const slices = job.status === "running" ? (job.revert?.() ?? []) : [];
+        if (slices.length > 0) {
+            this.publish({ slices, cause: "rollback" });
+        }
+
+        this.stop(job, error);
+    }
+
+    /**
+     * Wait for every non-run member of a closed transaction, including ones dispatched while
+     * waiting.
+     * @param group - The transaction's group.
+     */
+    private async drain(group: Group): Promise<void> {
+        for (;;) {
+            const members = [...group.jobs].filter((job) => !job.run);
+            if (members.length === 0 || group.done) {
+                return;
+            }
+
+            await Promise.allSettled(members.map((job) => job.promise));
+        }
+    }
+
+    /**
+     * Record a transaction, and give each run still going a group of its own: a deferred member
+     * of the transaction's step.
+     * @param group - The transaction's group.
+     */
+    private sealTransaction(group: Group): void {
+        const runs = [...group.jobs];
+        group.jobs.clear();
+        const stepId = this.seal(group);
+        for (const job of runs) {
+            const deferred = this.group(
+                job.definition.undo.label(job.command, this.store.state),
+                null,
+                {},
+                stepId,
+                job.seq,
+                null,
+            );
+            job.group = deferred;
+            deferred.jobs.add(job);
+            for (const key of job.keys) {
+                deferred.keys.add(key);
+            }
+
+            this.enter(deferred);
+        }
+    }
+
+    /**
+     * Record a group's patch as one step, or nothing when it wrote nothing, then release its
+     * holds. A deferred member merges into its transaction's step while that step is on top.
+     * @param group - The group.
+     * @returns The step the patch is in, or null.
+     */
+    private seal(group: Group): string | null {
+        this.leave(group);
+        const patch = group.draft.seal();
+        const oplog = [...group.holds.keys()];
+        let id: string | null = null;
+        if (patch.entries.length > 0) {
+            const slices = slicesOf(patch);
+            const input = { label: group.label, patch, key: group.key, ops: group.ops, slices };
+            if (group.after !== null && this.history.amend(group.after, input)) {
+                id = group.after;
+            } else {
+                const provenance =
+                    group.after === null ? group.provenance : { ...group.provenance, after: group.after };
+                id = this.history.record({ ...input, provenance });
+            }
+
+            const meta = this.steps.get(id);
+            const recorded = this.tick++;
+            if (meta === undefined) {
+                this.steps.set(id, { recorded, undone: -1, oplog });
+            } else {
+                meta.recorded = recorded;
+                meta.oplog.push(...oplog);
+            }
+
+            this.prune();
+            this.publish({ slices, cause: "command" });
+        }
+
+        this.release(group, true);
+        return id;
     }
 
     /**
@@ -405,24 +1068,376 @@ export class Dispatcher {
      * @param group - The group.
      */
     private rollback(group: Group): void {
+        this.leave(group);
         const patch = group.draft.rollback();
         if (patch.entries.length > 0) {
             this.publish({ slices: slicesOf(patch), cause: "rollback" });
         }
+
+        this.release(group, false);
     }
 
     /**
-     * Abort an open transaction's group: roll it back, mark it aborted and fire its signal.
+     * Cancel a group: stop its members, roll it back, and for a transaction, mark it aborted and
+     * fire its signal.
      * @param group - The group.
-     * @param reason - What the signal and the transaction reject with.
+     * @param reason - What the group's caller rejects with: a plain group's job, or the transaction.
+     * @param why - Why a transaction's members were stopped, for their own rejections.
      */
-    private abortGroup(group: TransactionGroup, reason: unknown): void {
-        if (group.status !== "open") {
+    private cancelGroup(group: Group, reason: unknown, why: CancelReason = "rollback"): void {
+        if (group.done) {
             return;
         }
 
-        group.status = "aborted";
+        if (group.tx !== null) {
+            group.tx.status = "aborted";
+        }
+
+        for (const job of [...group.jobs]) {
+            this.stop(job, group.tx === null ? reason : cancelledError(job.command.op, why));
+        }
+
         this.rollback(group);
-        group.controller.abort(reason);
+        group.tx?.controller.abort(reason);
+    }
+
+    /**
+     * Stop one job: off the queue, off the wait list, its signal fired, its caller rejected. Its
+     * writes are its group's to revert.
+     * @param job - The job.
+     * @param reason - What its caller's promise rejects with.
+     */
+    private stop(job: Job, reason: unknown): void {
+        if (job.status === "done" || job.status === "cancelled") {
+            return;
+        }
+
+        job.status = "cancelled";
+        job.group.jobs.delete(job);
+        this.waiters.delete(job);
+        job.controller.abort(reason);
+        job.slot?.cancel();
+        job.reject(reason);
+    }
+
+    /**
+     * Cancel groups, newest first.
+     * @param groups - The groups, in dispatch order.
+     * @param reason - Why.
+     * @returns Their pending views, in dispatch order.
+     */
+    private cancelAll(groups: readonly Group[], reason: CancelReason): readonly PendingStep[] {
+        const views = Object.freeze(groups.map((group) => this.view(group)));
+        for (const group of [...groups].reverse()) {
+            this.cancelGroup(
+                group,
+                group.tx === null ? cancelledError(group.label, reason) : abortError(group.label),
+                reason,
+            );
+        }
+
+        return views;
+    }
+
+    /**
+     * What an undo or a redo will act on (design section 6.1).
+     * @param direction - Which.
+     * @returns The groups to cancel, the step to move over, or null for nothing.
+     */
+    private plan(direction: "undo" | "redo"): { cancel: readonly Group[] } | { step: HistoryStepView } | null {
+        const { steps, position } = this.history;
+        const step = direction === "undo" ? steps.at(position - 1) : steps.at(position);
+        if (direction === "redo" && (step === undefined || position === steps.length)) {
+            return null;
+        }
+
+        const target = direction === "undo" && position === 0 ? undefined : step;
+        const meta = target === undefined ? undefined : this.steps.get(target.id);
+        const since = (direction === "undo" ? meta?.recorded : meta?.undone) ?? -1;
+        const open = this.ordered();
+
+        // Rule 0: an open group in the way of the step.
+        if (meta !== undefined && meta.oplog.length > 0) {
+            const touchesGraph = meta.oplog.some((key) => sliceOf(key) === "graph");
+            const inWay = open.filter((group) =>
+                [...group.holds].some(
+                    ([key, at]) =>
+                        meta.oplog.some((touched) => overlaps(key, touched)) ||
+                        (touchesGraph && sliceOf(key) === "graph" && at > since),
+                ),
+            );
+            if (inWay.length > 0) {
+                return { cancel: this.cascade(inWay) };
+            }
+        }
+
+        // Rule 1: pending work newer than the step.
+        const newer = open.filter(
+            (group) => group.seq > since || (direction === "undo" && target !== undefined && group.after === target.id),
+        );
+        const newest = newer.at(-1);
+        if (newest !== undefined) {
+            return { cancel: this.cascade([newest]) };
+        }
+
+        // Rule 2.
+        return target === undefined ? null : { step: target };
+    }
+
+    /**
+     * The groups to cancel with `roots`: every later-dispatched pending group sharing a key with
+     * one of them, transitively.
+     * @param roots - The groups being cancelled.
+     * @returns Them and their dependents, in dispatch order.
+     */
+    private cascade(roots: readonly Group[]): readonly Group[] {
+        const out = new Set(roots);
+        const keysOf = (group: Group): SliceKey[] => [...group.keys, ...group.holds.keys()];
+        for (const group of this.ordered()) {
+            if (out.has(group)) {
+                continue;
+            }
+
+            const mine = keysOf(group);
+            for (const earlier of out) {
+                if (earlier.seq < group.seq && keysOf(earlier).some((a) => mine.some((b) => conflicts(a, b)))) {
+                    out.add(group);
+                    break;
+                }
+            }
+        }
+
+        return [...out].sort((a, b) => a.seq - b.seq);
+    }
+
+    /**
+     * The group holding one of `keys`, other than `self`.
+     * @param keys - Op-log keys.
+     * @param self - The group asking, whose own holds do not block it.
+     * @returns The holder and the key, or null when every key is free.
+     */
+    private blocker(keys: readonly SliceKey[], self: Group | null): { group: Group; key: SliceKey } | null {
+        for (const key of keys) {
+            const slice = sliceOf(key);
+            if (key === slice) {
+                for (const group of this.bySlice.get(slice) ?? []) {
+                    if (group !== self) {
+                        return { group, key };
+                    }
+                }
+            } else {
+                const group = this.holders.get(key) ?? this.holders.get(slice);
+                if (group !== undefined && group !== self) {
+                    return { group, key };
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Hold op-log keys for a group until it seals or rolls back.
+     * @param group - The group.
+     * @param keys - The keys.
+     */
+    private acquire(group: Group, keys: readonly SliceKey[]): void {
+        for (const key of keys) {
+            if (group.holds.has(key)) {
+                continue;
+            }
+
+            if (this.strict) {
+                checkSoleHolder(key, this.blocker([key], group)?.group.label ?? null);
+            }
+
+            group.holds.set(key, this.tick++);
+            this.holders.set(key, group);
+            const slice = sliceOf(key);
+            const holding = this.bySlice.get(slice) ?? new Set();
+            holding.add(group);
+            this.bySlice.set(slice, holding);
+        }
+
+        if (keys.length > 0) {
+            this.holdChanges++;
+        }
+    }
+
+    /**
+     * Release a group's holds, and wake what waited on them: on commit it runs, on rollback it is
+     * dropped.
+     * @param group - The group.
+     * @param committed - Whether the group sealed rather than rolled back.
+     */
+    private release(group: Group, committed: boolean): void {
+        for (const key of group.holds.keys()) {
+            if (this.holders.get(key) === group) {
+                this.holders.delete(key);
+            }
+
+            this.bySlice.get(sliceOf(key))?.delete(group);
+        }
+
+        group.holds.clear();
+        for (const job of [...this.waiters]) {
+            if (job.blockedBy !== group) {
+                continue;
+            }
+
+            this.waiters.delete(job);
+            if (committed) {
+                this.admit(job);
+            } else if (job.group.tx === null) {
+                this.cancelGroup(job.group, cancelledError(job.group.label, "rollback"));
+            } else {
+                this.stop(job, cancelledError(job.command.op, "rollback"));
+            }
+        }
+    }
+
+    /**
+     * A new group, with its draft open.
+     * @param label - Its label.
+     * @param key - Its history coalesce key.
+     * @param provenance - Stamped on its step.
+     * @param after - The step it is a deferred member of, or null.
+     * @param seq - Its dispatch order.
+     * @param tx - Its transaction state, for a transaction's group.
+     * @returns The group.
+     */
+    private group(
+        label: string,
+        key: string | null,
+        provenance: Readonly<Record<string, string>>,
+        after: string | null,
+        seq: number,
+        tx: Group["tx"],
+    ): Group {
+        return {
+            seq,
+            id: `pending-${seq}`,
+            since: new Date().toISOString(),
+            label,
+            key,
+            provenance: Object.freeze({ ...provenance }),
+            draft: this.store.open(),
+            ops: [],
+            keys: new Set(),
+            holds: new Map(),
+            jobs: new Set(),
+            after,
+            tx,
+            done: false,
+            view: undefined,
+        };
+    }
+
+    /**
+     * A new job, not yet on any lane.
+     * @param command - The concrete command.
+     * @param keys - Its declared keys.
+     * @param definition - Its definition.
+     * @param group - The group it writes into.
+     * @param queuedKey - Its queued coalesce key.
+     * @returns The job.
+     */
+    private job(
+        command: CommandLike,
+        keys: readonly SliceKey[],
+        definition: UndoableDefinition<CommandLike>,
+        group: Group,
+        queuedKey: string | null,
+    ): Job {
+        let resolve: (value: unknown) => void = () => undefined;
+        let reject: (error: unknown) => void = () => undefined;
+        const promise = new Promise<unknown>((yes, no) => {
+            resolve = yes;
+            reject = no;
+        });
+        // A cancelled job nobody awaited must not surface as an unhandled rejection.
+        promise.catch(() => undefined);
+
+        return {
+            seq: this.tick++,
+            command,
+            keys,
+            definition,
+            group,
+            status: "new",
+            queuedKey,
+            run: definition.lane.kind === "queued" && definition.lane.category === RUN_CATEGORY,
+            controller: new AbortController(),
+            slot: null,
+            blockedBy: null,
+            revert: null,
+            promise,
+            resolve,
+            reject,
+        };
+    }
+
+    /**
+     * List a group as pending.
+     * @param group - The group.
+     */
+    private enter(group: Group): void {
+        if (!this.open.has(group)) {
+            this.open.add(group);
+            this.changed();
+        }
+    }
+
+    /**
+     * Stop listing a group as pending, and mark it done.
+     * @param group - The group.
+     */
+    private leave(group: Group): void {
+        group.done = true;
+        if (this.open.delete(group)) {
+            this.changed();
+        }
+    }
+
+    /**
+     * The pending groups in dispatch order.
+     * @returns The groups.
+     */
+    private ordered(): Group[] {
+        return [...this.open].sort((a, b) => a.seq - b.seq);
+    }
+
+    /**
+     * A group as `pending` lists it.
+     * @param group - The group.
+     * @returns The frozen view.
+     */
+    private view(group: Group): PendingStep {
+        group.view ??= Object.freeze({
+            id: group.id,
+            label: group.label,
+            since: group.since,
+            runIds: Object.freeze([]),
+        });
+        return group.view;
+    }
+
+    /** Pending work or a hold changed. */
+    private changed(): void {
+        this.changes++;
+    }
+
+    /** Forget the record times of steps the history no longer has. */
+    private prune(): void {
+        if (this.steps.size <= this.history.steps.length * 2) {
+            return;
+        }
+
+        const kept = new Set(this.history.steps.map((step) => step.id));
+        for (const id of this.steps.keys()) {
+            if (!kept.has(id)) {
+                this.steps.delete(id);
+            }
+        }
     }
 }

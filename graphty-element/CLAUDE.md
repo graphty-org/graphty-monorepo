@@ -49,7 +49,7 @@ graphty-element/
 |   |-- config/               # Configuration types and palettes
 |   |-- constants/            # Mesh constants, obsolescence rules
 |   |-- data/                 # Data source implementations
-|   |-- errors/               # GraphtyError, GraphtyErrorCode (45 codes), isGraphtyError
+|   |-- errors/               # GraphtyError, GraphtyErrorCode (46 codes), isGraphtyError
 |   |-- input/                # Input handling (keyboard, mouse, touch)
 |   |-- layout/               # Layout engine wrappers
 |   |-- logging/              # Logging infrastructure

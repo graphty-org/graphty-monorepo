@@ -36,3 +36,15 @@ export function strictViolation(what: string): GraphtyError {
         source: "history",
     });
 }
+
+/**
+ * Strict: an op-log key (a node or edge id, or a whole `graph` or `pins` slice) being acquired by
+ * one open group must not already be held by another, because an op-log cannot hand a key over.
+ * @param key - The key being acquired.
+ * @param holder - The label of the other open group holding it, or null when none does.
+ */
+export function checkSoleHolder(key: string, holder: string | null): void {
+    if (holder !== null) {
+        throw strictViolation(`${key} is being acquired while the open group "${holder}" holds it`);
+    }
+}

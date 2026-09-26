@@ -99,7 +99,7 @@ type Story = StoryObj<typeof meta>;
 /** A working accelerator at rest: the chip names the vendor and the device family. */
 export const On: Story = {
     args: {
-        status: { state: "idle", backend: "webgpu", vendor: "nvidia", architecture: "ampere" },
+        status: { policy: "auto", state: "idle", backend: "webgpu", vendor: "nvidia", architecture: "ampere" },
         counts: COUNTS_SLOT,
     },
 };
@@ -107,6 +107,6 @@ export const On: Story = {
 /** The device went away mid-session: the chip reads off and the toast carries the element's reason. */
 export const DeviceLost: Story = {
     args: {
-        status: { state: "error", code: "E_DEVICE_LOST", reason: "the accelerator's device was lost: reset" },
+        status: { policy: "auto", state: "error", code: "E_DEVICE_LOST", reason: "the accelerator's device was lost: reset" },
     },
 };

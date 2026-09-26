@@ -241,9 +241,10 @@ export function isPajekLabel(text: string): boolean {
 }
 
 /**
- * Write a Pajek label: bare when it is a single run of non-space, non-quote characters, otherwise
- * double-quoted. E_UNSUPPORTED (reason "pajek label") for a text isPajekLabel() rejects; the
- * exporter's check() counts those.
+ * Write a Pajek label: bare when it is a single run of non-space, non-quote characters that does
+ * not start with `[` (a bare `[` opens a time set, which the reader groups up to its `]`),
+ * otherwise double-quoted. E_UNSUPPORTED (reason "pajek label") for a text isPajekLabel() rejects;
+ * the exporter's check() counts those.
  * @param text - the label text
  * @returns the label as written
  */
@@ -254,7 +255,7 @@ export function quotePajekLabel(text: string): string {
             value: text,
         });
     }
-    if (text.length > 0 && !/[\s"]/.test(text)) {
+    if (text.length > 0 && !/[\s"]/.test(text) && !text.startsWith("[")) {
         return text;
     }
     return `"${text}"`;

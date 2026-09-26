@@ -18,7 +18,7 @@ import type { GraphSelectionStyleInput } from "../src/config";
 // load-bearing even though only the type is named.
 import { type Graphty } from "../src/graphty-element";
 import { assertGraphLoaded, type Drawn, drawn, holds } from "./assertions";
-import { eventWaitingDecorator, waitForGraphSettled } from "./helpers";
+import { eventWaitingDecorator, setLayoutPreSteps, waitForGraphSettled } from "./helpers";
 
 /** Five nodes, far enough apart that a halo around one is a halo around one. */
 const NODES = [{ id: "alpha" }, { id: "beta" }, { id: "gamma" }, { id: "delta" }, { id: "epsilon" }];
@@ -54,9 +54,8 @@ interface HighlightArgs {
 function render(args: HighlightArgs): Element {
     const element = document.createElement("graphty-element") as Graphty;
 
-    element.startingCameraDistance = 20;
-    // Stepped before the first frame, so the snapshot is the same picture twice.
-    element.layoutBehavior = { layout: { preSteps: 2000 } };
+    // Stepped before the first frame under Chromatic, so the snapshot is the same picture twice.
+    setLayoutPreSteps(element, 2000);
 
     if (args.selectionStyle) {
         element.selectionStyle = args.selectionStyle;

@@ -68,7 +68,7 @@ needs no import map.
 | Import | What it carries | Runs in Node |
 | --- | --- | --- |
 | `@graphty/graphty-element` | The custom element. Importing it defines the tag and registers the built-in layouts, data sources and algorithms. Pulls in Babylon.js and Lit. | No |
-| `@graphty/graphty-element/schema` | Palettes, `NodeShapes`, `defaultNodeStyle`, `defaultEdgeStyle`, `defaultRichTextLabelStyle`, the style config types and the colour helpers (`interpolatePalette`, `hexToRgb`, the colour-vision simulators). | Yes |
+| `@graphty/graphty-element/schema` | Palettes, `NodeShapes`, `EdgeLineTypes`, `EdgeArrowTypes`, `defaultNodeStyle`, `defaultEdgeStyle`, `defaultRichTextLabelStyle`, the style config types and the colour helpers (`interpolatePalette`, `hexToRgb`, the colour-vision simulators). | Yes |
 | `@graphty/graphty-element/catalog` | Plain-JSON descriptors for every algorithm, layout, file format, palette and scale, with the options each accepts. Build an options form from these instead of hard-coding a list. | Yes |
 | `@graphty/graphty-element/extend` | The registration surface: `Algorithm`, `LayoutEngine`, `DataSource`, `registerAccelerator`, `registerLogSink`, `GraphtyError`. | Yes |
 | `@graphty/graphty-element/format` | The read-only half of the graph-format vocabulary: `isGraphSnapshot`, the mask helpers, `expandEdges`, `foldArcs`, the gather/scatter/remap helpers. | Yes |
@@ -117,8 +117,9 @@ silently do nothing:
   rather than resolved, so "how many nodes would this selector pick" has no answer.
 - **A time role.** Nothing infers that an attribute is a timestamp, so there is no way to ask
   whether a graph can be played over time.
-- **The command union and the journal.** `@graphty/graphty-element/commands` currently exports
-  nothing; the name is reserved.
+- **The command union and the journal.** `@graphty/graphty-element/commands` exports nothing
+  and is deprecated: it is removed at the next major release unless the command union lands
+  there first. Do not import it; read `@graphty/graphty-element/catalog` for the vocabulary.
 - **The React wrappers.** `@graphty/graphty-element/react` currently exports nothing. In React 19
   use the tag directly, which assigns matching props as properties.
 

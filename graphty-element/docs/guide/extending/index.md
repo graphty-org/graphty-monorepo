@@ -45,6 +45,12 @@ and nothing else does.
 All three resolve in Node with no Babylon.js, no Lit and no DOM in their import graph, so a plugin
 can be written, type-checked and published without a browser anywhere in the loop.
 
+A page that loads the self-contained `@graphty/graphty-element/bundle` with no build step can
+import `registerPalette`, `registerCameraView`, `registerLogSink`, `Algorithm`, `LayoutEngine` and
+`DataSource` from the bundle itself. Registrations are kept once per page rather than once per
+copy of the package, so a plugin registered through `./extend` also reaches an element that the
+bundle, or any other copy of graphty-element on the same page, defined.
+
 ## Two registration shapes, and one question decides which
 
 > Does the element construct the thing?

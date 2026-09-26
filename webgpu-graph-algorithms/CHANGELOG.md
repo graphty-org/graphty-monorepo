@@ -1,3 +1,71 @@
+## 0.6.6 (2026-09-26)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** scale the spring settle floor with node count ([#97](https://github.com/graphty-org/graphty-monorepo/issues/97))
+- **webgpu-graph-algorithms:** measure Beamer's m_f on the frontier about to be expanded ([#391](https://github.com/graphty-org/graphty-monorepo/issues/391))
+- **webgpu-graph-algorithms:** converged at the iteration cap, and edgeless graphs ([#88](https://github.com/graphty-org/graphty-monorepo/issues/88), [#93](https://github.com/graphty-org/graphty-monorepo/issues/93))
+- **webgpu-graph-algorithms:** accurate repulsion on lavapipe and grids, and a settle floor ([#87](https://github.com/graphty-org/graphty-monorepo/issues/87), [#89](https://github.com/graphty-org/graphty-monorepo/issues/89), [#90](https://github.com/graphty-org/graphty-monorepo/issues/90), [#97](https://github.com/graphty-org/graphty-monorepo/issues/97))
+
+### 🔥 Performance
+
+- **webgpu-graph-algorithms:** cap the bfs-next-degree grid ([fa3dc4fe](https://github.com/graphty-org/graphty-monorepo/commit/fa3dc4fe))
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 2.0.4
+- Updated layout to 1.10.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.6.5 (2026-09-26)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** drop the selector's indirect slot record and args buffer ([#387](https://github.com/graphty-org/graphty-monorepo/issues/387))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.6.4 (2026-09-26)
+
+### 🚀 Features
+
+- **webgpu-graph-algorithms:** the traversal accelerator members and the barrel ([e76f266a](https://github.com/graphty-org/graphty-monorepo/commit/e76f266a))
+- **webgpu-graph-algorithms:** window-aware advance ([3446303f](https://github.com/graphty-org/graphty-monorepo/commit/3446303f))
+- **webgpu-graph-algorithms:** closeness centrality over the bit-parallel multi-source sweep ([26c939fb](https://github.com/graphty-org/graphty-monorepo/commit/26c939fb))
+- **webgpu-graph-algorithms:** Bellman-Ford with negative-cycle detection ([80dc5576](https://github.com/graphty-org/graphty-monorepo/commit/80dc5576))
+- **webgpu-graph-algorithms:** near-far single-source shortest paths ([be6f2768](https://github.com/graphty-org/graphty-monorepo/commit/be6f2768))
+- **webgpu-graph-algorithms:** direction-optimizing BFS with a device-side switch ([9f19d5d2](https://github.com/graphty-org/graphty-monorepo/commit/9f19d5d2))
+- **webgpu-graph-algorithms:** the fused BFS level and the device-side per-level choice ([a7330db2](https://github.com/graphty-org/graphty-monorepo/commit/a7330db2))
+- **webgpu-graph-algorithms:** breadth-first search on the GPU frontier ([abc6c275](https://github.com/graphty-org/graphty-monorepo/commit/abc6c275))
+- **webgpu-graph-algorithms:** the block-mapped advance primitive and its edge queue ([d72f11c2](https://github.com/graphty-org/graphty-monorepo/commit/d72f11c2))
+- **webgpu-graph-algorithms:** the frontier queue and the device-side dispatch selector ([21cbe357](https://github.com/graphty-org/graphty-monorepo/commit/21cbe357))
+- **webgpu-graph-algorithms:** the compact and dedupe primitive ([76ae5b8b](https://github.com/graphty-org/graphty-monorepo/commit/76ae5b8b))
+- **webgpu-graph-algorithms:** the frontier family's result types, constants and the workgroup scan helper ([a4e5d7d8](https://github.com/graphty-org/graphty-monorepo/commit/a4e5d7d8))
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** keep the per-lane-reservation mutant compilable under FXC ([435b14a6](https://github.com/graphty-org/graphty-monorepo/commit/435b14a6))
+
+### 🔥 Performance
+
+- **webgpu-graph-algorithms:** dispatch the frontier kernels directly, gated by a path word ([#387](https://github.com/graphty-org/graphty-monorepo/issues/387), [#391](https://github.com/graphty-org/graphty-monorepo/issues/391), [#386](https://github.com/graphty-org/graphty-monorepo/issues/386))
+- **webgpu-graph-algorithms:** the BFS and SSSP benchmarks, the append-session script and the T-10 baselines ([c811ee2e](https://github.com/graphty-org/graphty-monorepo/commit/c811ee2e))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.0.5
+- Updated algorithms to 2.0.3
+- Updated layout to 1.9.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.6.3 (2026-09-24)
 
 ### 🧱 Updated Dependencies

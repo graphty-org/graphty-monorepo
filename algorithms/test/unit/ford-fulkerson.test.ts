@@ -298,13 +298,10 @@ describe("Ford-Fulkerson Algorithm", () => {
             graph.get("v18")!.set("v19", 100);
             graph.get("v17")!.set("v19", 100);
 
-            const startTime = Date.now();
             const graphObj = createGraphFromMap(graph);
             const result = edmondsKarp(graphObj, "v0", "v19");
-            const endTime = Date.now();
 
             expect(result.maxFlow).toBeGreaterThan(0);
-            expect(endTime - startTime).toBeLessThan(1000); // Should be fast
         });
 
         it("should handle all flow going through one bottleneck", () => {

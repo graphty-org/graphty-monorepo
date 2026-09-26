@@ -12,7 +12,7 @@ import {
 
 import { GraphtyLogger, type Logger } from "../logging";
 import type { NodeDragHandler } from "../NodeBehavior";
-import { applyDeadzone } from "./InputUtils";
+import { isPinching, pinchStrength, thumbstickDeltas, twoHandGestureDelta } from "./InputUtils";
 import type { PivotController } from "./PivotController";
 
 const logger: Logger = GraphtyLogger.getLogger(["graphty", "camera", "xr", "input"]);
@@ -81,16 +81,7 @@ export class XRInputHandler {
     // Hand tracking feature reference
     private handTrackingFeature: unknown = null;
 
-    // Sensitivity settings (matching demo)
-    private readonly DEADZONE = 0.15;
-    private readonly YAW_SPEED = 0.04;
-    private readonly PITCH_SPEED = 0.03;
-    private readonly PAN_SPEED = 0.08;
-    private readonly ZOOM_SPEED = 0.02;
-    private readonly GESTURE_ZOOM_SENSITIVITY = 2.0;
-    // Pinch gesture thresholds - kept for potential future use
-    private readonly _PINCH_START = 0.7;
-    private readonly _PINCH_END = 0.5;
+    // Sensitivities and pinch distances live in InputUtils, next to the maths that uses them.
 
     // Input switch delay tracking
     private lastControllerRemovedTime = 0;
@@ -475,44 +466,18 @@ export class XRInputHandler {
      * Right stick: X = pan, Y = zoom
      */
     private processThumbsticks(): void {
-        // Get raw stick values
-        const rawLeftX = this.leftStick.x;
-        const rawLeftY = this.leftStick.y;
-        const rawRightX = this.rightStick.x;
-        const rawRightY = this.rightStick.y;
+        const { yaw, pitch, zoom, pan } = thumbstickDeltas(this.leftStick, this.rightStick);
 
-        // Apply deadzone with curve
-        const leftX = applyDeadzone(rawLeftX, this.DEADZONE);
-        const leftY = applyDeadzone(rawLeftY, this.DEADZONE);
-        const rightX = applyDeadzone(rawRightX, this.DEADZONE);
-        const rightY = applyDeadzone(rawRightY, this.DEADZONE);
-
-        const hasInput = leftX !== 0 || leftY !== 0 || rightX !== 0 || rightY !== 0;
-        if (!hasInput) {
-            return;
+        if (yaw !== 0 || pitch !== 0) {
+            this.pivotController.rotate(yaw, pitch);
         }
 
-        // LEFT STICK: Rotation (matching demo behavior)
-        // X = yaw (push right = positive yaw = scene rotates right around you)
-        // Y = pitch (push forward = graph moves up, consistent with mouse/touch)
-        const yawDelta = leftX * this.YAW_SPEED;
-        const pitchDelta = leftY * this.PITCH_SPEED;
-
-        if (Math.abs(yawDelta) > 0.0001 || Math.abs(pitchDelta) > 0.0001) {
-            this.pivotController.rotate(yawDelta, pitchDelta);
+        if (zoom !== 1) {
+            this.pivotController.zoom(zoom);
         }
 
-        // RIGHT STICK: Zoom and Pan
-        // Y = zoom (push forward = zoom in = scale up)
-        if (Math.abs(rightY) > 0.0001) {
-            const zoomFactor = 1.0 + rightY * this.ZOOM_SPEED;
-            this.pivotController.zoom(zoomFactor);
-        }
-
-        // X = pan (push right = move focal point right)
-        if (Math.abs(rightX) > 0.0001) {
-            const panAmount = rightX * this.PAN_SPEED;
-            this.pivotController.panViewRelative(panAmount, 0);
+        if (pan !== 0) {
+            this.pivotController.panViewRelative(pan, 0);
         }
     }
 
@@ -539,21 +504,16 @@ export class XRInputHandler {
             return;
         }
 
-        // Zoom from distance change
-        const distanceDelta = currentDistance - this.previousDistance;
-        const zoomFactor = 1.0 + distanceDelta * this.GESTURE_ZOOM_SENSITIVITY;
-        // Invert: hands apart (positive delta) = zoom out = scale down
-        this.pivotController.zoom(2.0 - Math.max(0.9, Math.min(1.1, zoomFactor)));
+        const { zoom, axis, angle } = twoHandGestureDelta(
+            this.previousDistance,
+            this.previousDirection,
+            currentDistance,
+            currentDirection,
+        );
 
-        // Rotation from direction change
-        const rotationAxis = Vector3.Cross(this.previousDirection, currentDirection);
-        const axisLength = rotationAxis.length();
-        if (axisLength > 0.0001) {
-            const dot = Vector3.Dot(this.previousDirection, currentDirection);
-            const angle = Math.acos(Math.max(-1, Math.min(1, dot)));
-            rotationAxis.scaleInPlace(1 / axisLength);
-            // Negate for world-mode rotation
-            this.pivotController.rotateAroundAxis(rotationAxis, -angle);
+        this.pivotController.zoom(zoom);
+        if (axis) {
+            this.pivotController.rotateAroundAxis(axis, angle);
         }
 
         this.previousDistance = currentDistance;
@@ -654,14 +614,8 @@ export class XRInputHandler {
                         }
 
                         const pinchDist = Vector3.Distance(thumbTip.position, indexTip.position);
-                        const PINCH_THRESHOLD = 0.04; // 4cm
-                        const PINCH_RELEASE_THRESHOLD = 0.06; // 6cm (looser for release)
-
-                        // Hysteresis: different thresholds for start vs stop
                         const wasP = this.wasPinching[handedness];
-                        const isP = wasP
-                            ? pinchDist < PINCH_RELEASE_THRESHOLD // Already pinching - use looser threshold
-                            : pinchDist < PINCH_THRESHOLD; // Not pinching - use tighter threshold
+                        const isP = isPinching(pinchDist, wasP);
 
                         if (isP !== wasP) {
                             logger.debug(isP ? "Pinch start" : "Pinch end", { handedness, distance: pinchDist });
@@ -677,7 +631,7 @@ export class XRInputHandler {
                                 position: wrist.position.clone(),
                                 rotation: wrist.rotationQuaternion?.clone() ?? Quaternion.Identity(),
                                 isPinching: true,
-                                pinchStrength: Math.max(0, 1 - pinchDist / PINCH_THRESHOLD),
+                                pinchStrength: pinchStrength(pinchDist),
                             };
                         }
                     }

@@ -1,3 +1,131 @@
+## 2.4.0 (2026-09-26)
+
+### 🚀 Features
+
+- **layout:** grid and radial layouts, available in graphty-element ([#58](https://github.com/graphty-org/graphty-monorepo/issues/58))
+- **graphty-element:** k-core and link prediction, and deprecate unimplemented catalog entries ([#54](https://github.com/graphty-org/graphty-monorepo/issues/54), [#56](https://github.com/graphty-org/graphty-monorepo/issues/56), [#59](https://github.com/graphty-org/graphty-monorepo/issues/59))
+- **graphty-element:** export the edge line and arrow types for pickers ([#46](https://github.com/graphty-org/graphty-monorepo/issues/46))
+
+### 🩹 Fixes
+
+- **graphty-element:** keep the batch material when an edge drops its caps ([bcde7d92](https://github.com/graphty-org/graphty-monorepo/commit/bcde7d92))
+- **graphty-element:** sort the floor-table imports and narrow its partial reads ([75406966](https://github.com/graphty-org/graphty-monorepo/commit/75406966))
+- **graphty-element:** type the per-capability floors against the seam's member names ([0bb5f5fb](https://github.com/graphty-org/graphty-monorepo/commit/0bb5f5fb))
+- **graphty-element:** seeded ngraph starts where ngraph itself would ([8e6016e8](https://github.com/graphty-org/graphty-monorepo/commit/8e6016e8))
+- **graphty-element:** decline the accelerator for an algorithm below a measured floor ([#386](https://github.com/graphty-org/graphty-monorepo/issues/386))
+- **graphty-element:** import the rich text parser without a .ts extension ([df3be69c](https://github.com/graphty-org/graphty-monorepo/commit/df3be69c))
+- **graphty-element:** load ids, replace only after a load succeeds, and nodeData replaces ([#49](https://github.com/graphty-org/graphty-monorepo/issues/49), [#50](https://github.com/graphty-org/graphty-monorepo/issues/50), [#110](https://github.com/graphty-org/graphty-monorepo/issues/110), [#198](https://github.com/graphty-org/graphty-monorepo/issues/198))
+- **graphty-element:** seeded ngraph and random layouts are reproducible ([#114](https://github.com/graphty-org/graphty-monorepo/issues/114), [#115](https://github.com/graphty-org/graphty-monorepo/issues/115))
+- **graphty-element:** size label panels from font metrics ([#128](https://github.com/graphty-org/graphty-monorepo/issues/128))
+- **graphty-element:** acceleration policy changes detach, reach status and stop at dispose ([#150](https://github.com/graphty-org/graphty-monorepo/issues/150), [#151](https://github.com/graphty-org/graphty-monorepo/issues/151), [#152](https://github.com/graphty-org/graphty-monorepo/issues/152), [#155](https://github.com/graphty-org/graphty-monorepo/issues/155))
+- **graphty-element:** share plugin registries, stop retrying 4xx, cost in work units ([#134](https://github.com/graphty-org/graphty-monorepo/issues/134), [#108](https://github.com/graphty-org/graphty-monorepo/issues/108), [#238](https://github.com/graphty-org/graphty-monorepo/issues/238))
+- **graphty-element:** gexf import keeps start, end, spells and timed values ([#109](https://github.com/graphty-org/graphty-monorepo/issues/109))
+- **graphty-element:** a paused layout stays paused, and setLayout accepts catalogue ids ([#119](https://github.com/graphty-org/graphty-monorepo/issues/119), [#120](https://github.com/graphty-org/graphty-monorepo/issues/120), [#153](https://github.com/graphty-org/graphty-monorepo/issues/153), [#80](https://github.com/graphty-org/graphty-monorepo/issues/80))
+- **algorithms:** pagerank convergence, eigenvector direction, parallel edges, path walks ([#48](https://github.com/graphty-org/graphty-monorepo/issues/48), [#60](https://github.com/graphty-org/graphty-monorepo/issues/60), [#69](https://github.com/graphty-org/graphty-monorepo/issues/69), [#70](https://github.com/graphty-org/graphty-monorepo/issues/70))
+- **graphty-element:** release unused style meshes and merge stacked label styles ([#2](https://github.com/graphty-org/graphty-monorepo/issues/2), [#71](https://github.com/graphty-org/graphty-monorepo/issues/71))
+- **graphty-element:** dispose the glow layer when no node glows ([#29](https://github.com/graphty-org/graphty-monorepo/issues/29))
+- **graphty-element:** batch repaints on load, and await suggested styles and teardown ([#27](https://github.com/graphty-org/graphty-monorepo/issues/27), [#72](https://github.com/graphty-org/graphty-monorepo/issues/72), [#73](https://github.com/graphty-org/graphty-monorepo/issues/73))
+
+### 🔥 Performance
+
+- **graphty-element:** draw arrowheads as instances and keep shader uniforms per scene ([#25](https://github.com/graphty-org/graphty-monorepo/issues/25), [#45](https://github.com/graphty-org/graphty-monorepo/issues/45))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.6
+- Updated algorithms to 2.0.4
+- Updated layout to 1.10.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 2.3.1 (2026-09-26)
+
+### 🩹 Fixes
+
+- **graphty-element:** rasterise label textures on the cpu so every load draws the same pixels ([8c3f6b61](https://github.com/graphty-org/graphty-monorepo/commit/8c3f6b61))
+- **graphty-element:** frame the camera after a style pass on its way, not before it ([11bae759](https://github.com/graphty-org/graphty-monorepo/commit/11bae759))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 2.3.0 (2026-09-26)
+
+### 🚀 Features
+
+- **graphty-element:** a top-n style selector, used by the app with the element's histogram ([#166](https://github.com/graphty-org/graphty-monorepo/issues/166), [#165](https://github.com/graphty-org/graphty-monorepo/issues/165))
+
+### 🩹 Fixes
+
+- **graphty-element:** yield to the host by time, not every 1,024 elements ([#389](https://github.com/graphty-org/graphty-monorepo/issues/389))
+- **graphty-element:** honour startingCameraDistance, camera modes, presets and a floor ([#52](https://github.com/graphty-org/graphty-monorepo/issues/52), [#130](https://github.com/graphty-org/graphty-monorepo/issues/130), [#131](https://github.com/graphty-org/graphty-monorepo/issues/131), [#132](https://github.com/graphty-org/graphty-monorepo/issues/132))
+- **graphty-element:** ai runAlgorithm takes options and findNodes has a default limit ([#83](https://github.com/graphty-org/graphty-monorepo/issues/83), [#84](https://github.com/graphty-org/graphty-monorepo/issues/84))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 2.2.5 (2026-09-26)
+
+### 🩹 Fixes
+
+- **graphty-element:** refuse a load past the ceiling before touching the graph ([24c37792](https://github.com/graphty-org/graphty-monorepo/commit/24c37792))
+- **graphty-element:** decline a load past the render ceiling instead of freezing ([#405](https://github.com/graphty-org/graphty-monorepo/issues/405), [#394](https://github.com/graphty-org/graphty-monorepo/issues/394))
+- **graphty-element:** hold the frames while an accelerated run is on the device ([#389](https://github.com/graphty-org/graphty-monorepo/issues/389), [#390](https://github.com/graphty-org/graphty-monorepo/issues/390))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.5
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 2.2.4 (2026-09-26)
+
+### 🩹 Fixes
+
+- **graphty-element:** keep the framing box type internal ([c815f158](https://github.com/graphty-org/graphty-monorepo/commit/c815f158))
+- **graphty-element:** frame labels again on zoom-to-fit, never on a label edit ([#76](https://github.com/graphty-org/graphty-monorepo/issues/76))
+- **graphty-element:** frame nodes by their size without an extra margin ([#76](https://github.com/graphty-org/graphty-monorepo/issues/76))
+- **graphty-element:** keep the voice adapter's callback types internal ([82fb9dd5](https://github.com/graphty-org/graphty-monorepo/commit/82fb9dd5))
+- **graphty-element:** repaint after node removal, frame nodes only, deliver AI events ([#74](https://github.com/graphty-org/graphty-monorepo/issues/74), [#76](https://github.com/graphty-org/graphty-monorepo/issues/76), [#81](https://github.com/graphty-org/graphty-monorepo/issues/81))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 2.2.3 (2026-09-26)
+
+### 🩹 Fixes
+
+- **graphty-element:** load large graphs in linear time instead of quadratic ([#388](https://github.com/graphty-org/graphty-monorepo/issues/388))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 2.2.2 (2026-09-26)
+
+### 🩹 Fixes
+
+- **graphty-element:** default to a 2:1 block that honours a height, with no minimum ([#127](https://github.com/graphty-org/graphty-monorepo/issues/127))
+- **graphty-element:** a default host size, and a warning for rich props set too early ([#127](https://github.com/graphty-org/graphty-monorepo/issues/127), [#79](https://github.com/graphty-org/graphty-monorepo/issues/79))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.4
+- Updated @graphty/remote-logger to 1.3.7
+- Updated graph-format to 1.0.5
+- Updated algorithms to 2.0.3
+- Updated layout to 1.9.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.2.1 (2026-09-25)
 
 ### 🩹 Fixes

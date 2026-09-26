@@ -39,17 +39,17 @@ The Web Component exposes these properties for declarative configuration:
 | ------------------------ | -------------------------- | ------------------------------ | -------------------------------- |
 | `viewMode`               | `view-mode`                | `'2d' \| '3d' \| 'vr' \| 'ar'` | Rendering mode                   |
 | `background`             | `background`               | `GraphBackgroundConfig`        | A flat colour, or a skybox image |
-| `startingCameraDistance` | `starting-camera-distance` | `number`                       | How far the camera starts out    |
+| `startingCameraDistance` | `starting-camera-distance` | `number`                       | How far the camera starts out. Unset (the default) frames the graph to fit; set, it places the camera and turns automatic framing off |
 
 What nodes and edges look like is not a property: it is the layer stack on `element.session.styles`.
 See the [styling guide](../guide/styling).
 
 ### Acceleration Properties
 
-| Property               | Attribute                | Type                            | Description                                                                    |
-| ---------------------- | ------------------------ | ------------------------------- | ------------------------------------------------------------------------------ |
-| `acceleration`         | `acceleration`           | `'auto' \| 'off' \| 'required'` | Whether to use a hardware accelerator; `required` refuses the CPU path          |
-| `accelerationMinNodes` | `acceleration-min-nodes` | `number`                        | Node count at or above which accelerated work uses the accelerator (default 0) |
+| Property               | Attribute                | Type                            | Description                                                                                                                           |
+| ---------------------- | ------------------------ | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `acceleration`         | `acceleration`           | `'auto' \| 'off' \| 'required'` | Whether to use a hardware accelerator; `required` refuses the CPU path                                                                |
+| `accelerationMinNodes` | `acceleration-min-nodes` | `number`                        | Node count at or above which accelerated work uses the accelerator; unset, layouts use it from 0 and traversals from a measured floor |
 
 Where the work actually ran is `element.session.capabilities.acceleration`, and every transition
 of it is mirrored as a `graphty-capabilities-change` DOM event. See the

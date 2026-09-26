@@ -422,6 +422,12 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * when no span is open. See `#syncWork`.
      */
     #endWork: (() => void) | null = null;
+
+    /** Batches submitted and not yet landed or rejected. See `#syncWork`. */
+    #inFlight = 0;
+
+    /** Set by `LayoutManager` while it is not stepping this layout. See {@link paused}. */
+    #paused = false;
     #iterations = 1;
     #iterationsDone = 0;
 
@@ -707,12 +713,15 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#syncWork();
         if (batch !== undefined && !this.#caught.has(batch)) {
             this.#caught.add(batch);
+            this.#inFlight += 1;
             void batch.then(
                 () => {
                     // The batch has landed, so the simulation knows by now whether it settled.
+                    this.#inFlight -= 1;
                     this.#syncWork();
                 },
                 (error: unknown) => {
+                    this.#inFlight -= 1;
                     // The simulation this batch was SUBMITTED on, not whichever one is current
                     // when it lands: a swap does not cancel a readback already in flight.
                     this.#onError(error, simulation);
@@ -736,6 +745,29 @@ export class SimulationLayoutEngine extends LayoutEngine {
         try {
             await this.#simulation.step(iterations);
         } finally {
+            this.#syncWork();
+        }
+    }
+
+    /**
+     * Whether the manager has stopped stepping this layout -- a consumer's pause, or any other
+     * stop. A paused layout's work span closes once its in-flight batches land, because nothing
+     * is being submitted after them.
+     * @returns True while the layout is not being stepped.
+     */
+    get paused(): boolean {
+        return this.#paused;
+    }
+
+    /**
+     * Tells the bridge whether the manager is stepping it.
+     * @param value - True when the manager has stopped stepping this layout.
+     */
+    set paused(value: boolean) {
+        this.#paused = value;
+        // Only a pause can close the span here. A resume opens it at the next submitted batch,
+        // like any other start, so a layout nobody has stepped yet still reads "idle".
+        if (value) {
             this.#syncWork();
         }
     }
@@ -1039,11 +1071,16 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * transition twice a frame, to every `onChange` listener and out to the DOM. It opens when an
      * accelerated batch is submitted and closes when one lands on a settled simulation, when the
      * simulation is replaced or disposed, and when a batch fails. A layout PAUSED mid-settle
-     * keeps its span until it resumes and settles: the bridge is not told about a pause, and the
-     * batches it had in flight are still landing when one begins.
+     * keeps its span only until the batches it had in flight have landed: after them nothing is
+     * submitted, so the device is idle until the layout resumes.
      */
     #syncWork(): void {
-        const working = this.#accelerated && this.#simulation !== null && !this.#failed && !this.isSettled;
+        const working =
+            this.#accelerated &&
+            this.#simulation !== null &&
+            !this.#failed &&
+            !this.isSettled &&
+            !(this.#paused && this.#inFlight === 0);
 
         if (working === (this.#endWork !== null)) {
             return;

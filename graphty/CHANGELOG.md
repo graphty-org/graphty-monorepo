@@ -1,3 +1,82 @@
+## 0.8.11 (2026-09-26)
+
+### 🚀 Features
+
+- **graphty-element:** export the edge line and arrow types for pickers ([#46](https://github.com/graphty-org/graphty-monorepo/issues/46))
+
+### 🩹 Fixes
+
+- **graphty-element:** load ids, replace only after a load succeeds, and nodeData replaces ([#49](https://github.com/graphty-org/graphty-monorepo/issues/49), [#50](https://github.com/graphty-org/graphty-monorepo/issues/50), [#110](https://github.com/graphty-org/graphty-monorepo/issues/110), [#198](https://github.com/graphty-org/graphty-monorepo/issues/198))
+- **graphty:** the legend's other row shows the colours it rolls up ([#201](https://github.com/graphty-org/graphty-monorepo/issues/201))
+- **graphty-element:** seeded ngraph and random layouts are reproducible ([#114](https://github.com/graphty-org/graphty-monorepo/issues/114), [#115](https://github.com/graphty-org/graphty-monorepo/issues/115))
+- **graphty:** the help menu is a mantine menu anchored to its button ([#199](https://github.com/graphty-org/graphty-monorepo/issues/199))
+- **graphty-element:** acceleration policy changes detach, reach status and stop at dispose ([#150](https://github.com/graphty-org/graphty-monorepo/issues/150), [#151](https://github.com/graphty-org/graphty-monorepo/issues/151), [#152](https://github.com/graphty-org/graphty-monorepo/issues/152), [#155](https://github.com/graphty-org/graphty-monorepo/issues/155))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.6
+- Updated graphty-element to 2.4.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.10 (2026-09-26)
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 2.3.1
+
+## 0.8.9 (2026-09-26)
+
+### 🚀 Features
+
+- **graphty-element:** a top-n style selector, used by the app with the element's histogram ([#166](https://github.com/graphty-org/graphty-monorepo/issues/166), [#165](https://github.com/graphty-org/graphty-monorepo/issues/165))
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 2.3.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.8 (2026-09-26)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.5
+- Updated graphty-element to 2.2.5
+
+## 0.8.7 (2026-09-26)
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 2.2.4
+
+## 0.8.6 (2026-09-26)
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 2.2.3
+
+## 0.8.5 (2026-09-26)
+
+### 🩹 Fixes
+
+- **graphty-element:** default to a 2:1 block that honours a height, with no minimum ([#127](https://github.com/graphty-org/graphty-monorepo/issues/127))
+- **graphty-element:** a default host size, and a warning for rich props set too early ([#127](https://github.com/graphty-org/graphty-monorepo/issues/127), [#79](https://github.com/graphty-org/graphty-monorepo/issues/79))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.4
+- Updated compact-mantine to 0.8.7
+- Updated graphty-element to 2.2.2
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.4 (2026-09-25)
 
 ### 🔥 Performance

@@ -74,8 +74,12 @@ class HopReach extends DeclaredAlgorithm<HopReachOptions> {
     /** Optional: recorded on every run, so a saved result says what produced its numbers. */
     static version = "1.0.0";
 
-    /** Optional: seconds over a graph of n nodes and m edges, for the pre-click estimate. */
-    static cost = (n: number, m: number): number => (n * (n + m)) / 2_000_000;
+    /**
+     * Optional: the work over a graph of n nodes and m edges, for the pre-click estimate, in the
+     * units of the declared costClass ("instant": elements visited). The element divides it by the
+     * rate it measured on this device, so the estimate follows the machine it runs on.
+     */
+    static costUnits = (n: number, m: number): number => n * (n + m);
 
     override async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
         // Options arrive already checked and with the declared default filled in, so the running
@@ -162,6 +166,13 @@ the summary and a plain-language reading; `session.estimate()` answers what it w
 anybody clicks; `session.catalog.metrics()` lists it beside the element's own with that cost; and
 the element derives a style layer from the result's shape, scoped to the elements your result
 actually carries a row for.
+
+The estimate comes from `static costUnits` when you declare it, and from your `costClass` alone
+when you do not. The units are those of the class: elements for `instant` and `iterative` (count
+every iteration), source-edge pairs for `heavy`, operations for `cubic`. Once the device has been
+calibrated the estimate reports `"calibrated"`, like a built-in's. The older
+`static cost = (n, m) => seconds` still works, but those seconds cannot be scaled to the device,
+so its estimate always reports `"modelled"`; `costUnits` wins when a class declares both.
 
 ## Chunking, for free
 

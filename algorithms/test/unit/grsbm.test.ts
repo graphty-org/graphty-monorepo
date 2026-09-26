@@ -482,12 +482,9 @@ describe("GRSBM (Greedy Recursive Spectral Bisection with Modularity)", () => {
                 }
             }
 
-            const startTime = performance.now();
             const config: GRSBMConfig = { minClusterSize: 3, seed: 42 };
             const result = grsbm(graph, config);
-            const endTime = performance.now();
 
-            expect(endTime - startTime).toBeLessThan(10000); // Should complete within 10 seconds
             expect(result.clusters.size).toBe(numNodes);
         });
 

@@ -1,6 +1,7 @@
-import { assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it } from "vitest";
 
 import { algorithmByKey } from "../../../src/catalog/algorithms";
+import { clearRegisteredAlgorithmsForTesting, publishAlgorithmDescriptor } from "../../../src/catalog/registry";
 import type { AlgorithmDescriptor } from "../../../src/catalog/types";
 import {
     ASSUMED_ITERATION_BOUND,
@@ -291,6 +292,96 @@ describe("estimateCost: the confidence ladder", () => {
         assert.equal(estimate.confidence, "modelled");
         assert.closeTo(estimate.seconds, 5, 1e-12);
         assert.include(estimate.basis, "declared cost model");
+    });
+});
+
+describe("estimateCost: a plugin's cost in work units", () => {
+    afterEach(() => {
+        clearRegisteredAlgorithmsForTesting();
+    });
+
+    /**
+     * Register a plugin descriptor with the cost hooks given.
+     * @param hooks - The registry-side cost hooks
+     * @param costClass - The class the descriptor declares
+     * @returns The descriptor registered
+     */
+    function registerPlugin(
+        hooks: { cost?: (n: number, m: number) => number; costUnits?: (n: number, m: number) => number },
+        costClass: AlgorithmDescriptor["costClass"] = "heavy",
+    ): AlgorithmDescriptor {
+        const d = descriptor({ key: "test", costClass });
+        publishAlgorithmDescriptor({ descriptor: d, namespace: "acme", type: "test", ...hooks });
+        return d;
+    }
+
+    it("is scaled by the calibration's rate and reports calibrated on a probed device", () => {
+        const d = registerPlugin({ costUnits: (n, m) => 3 * n * m });
+        const fast = estimateCost({
+            algorithm: "test",
+            descriptor: d,
+            statistics: statistics(),
+            calibration: calibration("probe"),
+        });
+        const slowRates = { ...DEFAULT_COST_RATES, heavyPairsPerSecond: DEFAULT_COST_RATES.heavyPairsPerSecond / 5 };
+        const slow = estimateCost({
+            algorithm: "test",
+            descriptor: d,
+            statistics: statistics(),
+            calibration: { rates: slowRates, at: "2026-09-19T00:00:00.000Z", machine: "phone", basis: "probe" },
+        });
+
+        assert.closeTo(fast.seconds, (3 * 1000 * 4000) / DEFAULT_COST_RATES.heavyPairsPerSecond, 1e-12);
+        assert.closeTo(slow.seconds, fast.seconds * 5, 1e-12, "a device 5x slower gets an estimate 5x longer");
+        assert.equal(fast.confidence, "calibrated");
+        assert.equal(slow.confidence, "calibrated");
+    });
+
+    it("gives back the measured seconds for a same-size run on this device", () => {
+        const d = registerPlugin({ costUnits: (n, m) => 10 * n * m });
+        const estimate = estimateCost({
+            algorithm: "test",
+            descriptor: d,
+            statistics: statistics(),
+            calibration: calibration("probe"),
+            measurements: logOf(measurement({ algorithm: "test", nodes: 1000, edges: 4000, seconds: 1 })),
+        });
+
+        assert.equal(estimate.confidence, "measured");
+        assert.closeTo(estimate.seconds, 1, 1e-12, "the run and the estimate are measured in the plugin's own units");
+    });
+
+    it("is calibrated for an iterative plugin, since costUnits counts the iterations itself", () => {
+        const d = registerPlugin({ costUnits: (n, m) => 50 * (n + m) }, "iterative");
+        const estimate = estimateCost({
+            algorithm: "test",
+            descriptor: d,
+            statistics: statistics(),
+            calibration: calibration("probe"),
+        });
+
+        assert.equal(estimate.confidence, "calibrated");
+        assert.notInclude(estimate.basis, "no iteration bound is declared");
+    });
+
+    it("wins over a seconds model declared beside it", () => {
+        const d = registerPlugin({ cost: () => 999, costUnits: (n, m) => 3 * n * m });
+        const estimate = estimateCost({ algorithm: "test", descriptor: d, statistics: statistics() });
+
+        assert.closeTo(estimate.seconds, (3 * 1000 * 4000) / DEFAULT_COST_RATES.heavyPairsPerSecond, 1e-12);
+    });
+
+    it("leaves the seconds-returning static cost working, and modelled", () => {
+        const d = registerPlugin({ cost: (n, m) => (n + m) / 1000 });
+        const estimate = estimateCost({
+            algorithm: "test",
+            descriptor: d,
+            statistics: statistics(),
+            calibration: calibration("probe"),
+        });
+
+        assert.closeTo(estimate.seconds, 5, 1e-12);
+        assert.equal(estimate.confidence, "modelled");
     });
 });
 

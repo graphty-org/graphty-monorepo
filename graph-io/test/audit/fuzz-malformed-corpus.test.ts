@@ -6,7 +6,7 @@
  * Under errorLimit 0 the first error aborts, so a genuinely malformed file must throw; the files
  * that are in fact well-formed for their format (Graphviz accepts `A B;` and a bare identifier,
  * a `;`-delimited CSV is sniffed, a header-only CSV or a vertices-only Pajek network is an empty
- * graph) are listed in ACCEPTED with the reason and asserted to import with no error. Two of them
+ * graph, a Pajek network lists fewer vertex lines than it declares) are listed in ACCEPTED with the reason and asserted to import with no error. Two of them
  * are corpus defects rather than importer defects and are pinned as such below.
  *
  * The report-versus-sink checks at the end pin an inconsistency: three importers count only the
@@ -39,6 +39,7 @@ const ACCEPTED: Readonly<Record<string, string>> = {
     "dot/missing-arrow.gv": "Graphviz reads `A B;` as two node statements",
     "graphml/invalid-edge-reference.graphml": "undeclared endpoints are created under addMissingNodes (the default)",
     "pajek/missing-edges-section.net": "a vertices-only network is legal (W_PAJEK_NO_LINES)",
+    "pajek/wrong-vertex-count.net": "fewer vertex lines than *Vertices declares is legal (W_PAJEK_VERTEX_COUNT)",
 };
 
 interface Attempt {

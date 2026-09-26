@@ -73,6 +73,10 @@ export type Query = string;
 /**
  * The built-in algorithms. The list is also available at runtime so a consumer can enumerate
  * the built-in set without a catalogue instance.
+ *
+ * Two of these names are deprecated: `all-paths` and `clustering-coefficient` are reserved but
+ * not implemented, and starting either fails with `E_UNSUPPORTED`. See
+ * {@link DEPRECATED_ALGORITHMS}.
  */
 export const KNOWN_ALGORITHMS = [
     "degree",
@@ -102,8 +106,25 @@ export const KNOWN_ALGORITHMS = [
     "link-prediction",
 ] as const;
 
-/** One of the built-in algorithms. */
+/**
+ * One of the built-in algorithms. `all-paths` and `clustering-coefficient` are deprecated and do
+ * not run; see {@link DEPRECATED_ALGORITHMS}.
+ */
 export type KnownAlgorithm = (typeof KNOWN_ALGORITHMS)[number];
+
+/**
+ * The built-in algorithm names the element reserves but does not run.
+ *
+ * Nothing implements these two yet. The names stay in {@link KNOWN_ALGORITHMS}, so no plugin can
+ * claim them and no code that names them stops compiling, but starting one fails with
+ * `E_UNSUPPORTED` rather than `E_UNKNOWN_ALGORITHM`. Each is removed at the next major release
+ * unless it is implemented first: `all-paths` is tracked by issue #329 and
+ * `clustering-coefficient` by issue #330.
+ */
+export const DEPRECATED_ALGORITHMS = ["all-paths", "clustering-coefficient"] as const satisfies readonly KnownAlgorithm[];
+
+/** A built-in algorithm name the element reserves but does not run, and will remove. */
+export type DeprecatedAlgorithm = (typeof DEPRECATED_ALGORITHMS)[number];
 
 /**
  * An algorithm key. The built-in names keep autocomplete alive; the string arm accepts a
@@ -462,6 +483,12 @@ export type Selector =
     | { match: "expression"; where: Query }
     | { match: "has"; path: Path }
     | { match: "ids"; nodes?: readonly NodeId[]; edges?: readonly EdgeId[] }
+    /**
+     * The top `n` elements by one run field (`results.<run>.<field>`), cut only between tie
+     * groups: a group of equal values is painted whole, and only when all of it fits inside `n`.
+     * See `TopRanking` for the policy.
+     */
+    | { match: "top"; path: Path; n: number }
     | { match: "everything" };
 
 /** Who put a layer in the stack. Every layer names its source. */
@@ -631,14 +658,24 @@ export interface ScaleDescriptor {
     options: readonly OptionDescriptor[];
 }
 
-/** One named style document, offered as a whole look. */
+/**
+ * One named style document, offered as a whole look.
+ *
+ * Nothing produces one yet: it is returned only by the deprecated `CatalogApi.themes()`, and goes
+ * with it at the next major release unless that is implemented first (issue #331).
+ */
 export interface ThemeDescriptor {
     name: string;
     plainName: string;
     document: StyleDocument;
 }
 
-/** One function the expression grammar accepts. */
+/**
+ * One function the expression grammar accepts.
+ *
+ * Nothing produces one yet: it is returned only by the deprecated `CatalogApi.functions()`, and
+ * goes with it at the next major release unless that is implemented first (issue #332).
+ */
 export interface FunctionDescriptor {
     name: string;
     /** The smallest and largest argument count accepted. */
@@ -716,7 +753,12 @@ export type Scope =
     | { where: Query }
     | { nodes: readonly NodeId[] };
 
-/** The catalogue: everything the element can offer, as data. */
+/**
+ * The catalogue: everything the element can offer, as data.
+ *
+ * `session.catalog` implements every method here except the six named in
+ * {@link DeprecatedCatalogMethod}, which nothing implements yet.
+ */
 export interface CatalogApi {
     algorithms(): readonly AlgorithmDescriptor[];
     layouts(): readonly LayoutDescriptor[];
@@ -725,16 +767,54 @@ export interface CatalogApi {
     cameras(): readonly CameraDescriptor[];
     logSinks(): readonly LogSinkDescriptor[];
     scales(): readonly ScaleDescriptor[];
+    /**
+     * @deprecated Not implemented. Removed at the next major release unless it is implemented
+     * first (issue #331).
+     */
     themes(): readonly ThemeDescriptor[];
+    /**
+     * @deprecated Not implemented. Removed at the next major release unless it is implemented
+     * first (issue #332).
+     */
     functions(): readonly FunctionDescriptor[];
+    /**
+     * @deprecated Not implemented. Removed at the next major release unless it is implemented
+     * first (issue #333).
+     */
     timeAttributes(): readonly AttributeDescriptor[];
     metrics(): readonly MetricAvailability[];
-    /** The metrics that can run on this graph. A runtime query, not a static list. */
+    /**
+     * The metrics that can run on this graph. A runtime query, not a static list.
+     * @deprecated Not implemented; `metrics()` carries `available` and `reason` for the same
+     * question. Removed at the next major release unless it is implemented first (issue #334).
+     */
     applicable(): readonly MetricAvailability[];
+    /**
+     * @deprecated Not implemented. Removed at the next major release unless it is implemented
+     * first (issue #335).
+     */
     validate(query: Query, o?: { kind?: "selector" | "filter" | "formula" }): QueryValidation;
-    /** The options for one algorithm or layout, with data-dependent bounds resolved. */
+    /**
+     * The options for one algorithm or layout, with data-dependent bounds resolved.
+     * @deprecated Not implemented; `algorithms()` and `layouts()` carry the static option
+     * descriptors. Removed at the next major release unless it is implemented first (issue #336).
+     */
     optionsFor(key: AlgorithmKey | LayoutId, scope?: Scope): Promise<readonly OptionDescriptor[]>;
 }
+
+/**
+ * The {@link CatalogApi} methods nothing implements yet, which `session.catalog` leaves out.
+ *
+ * Implementing one means deleting its name here: `SessionCatalogApi` is derived from this list,
+ * so the two cannot drift apart.
+ */
+export type DeprecatedCatalogMethod =
+    | "themes"
+    | "functions"
+    | "timeAttributes"
+    | "applicable"
+    | "validate"
+    | "optionsFor";
 
 // ---------------------------------------------------------------------------------------------
 // Guards
@@ -747,6 +827,15 @@ export interface CatalogApi {
  */
 export function isOptionType(value: unknown): value is OptionType {
     return typeof value === "string" && (OPTION_TYPES as readonly string[]).includes(value);
+}
+
+/**
+ * Tell whether an algorithm key names a built-in the element reserves but does not run.
+ * @param key - The algorithm key.
+ * @returns True when the key is a member of DEPRECATED_ALGORITHMS.
+ */
+export function isDeprecatedAlgorithm(key: string): key is DeprecatedAlgorithm {
+    return (DEPRECATED_ALGORITHMS as readonly string[]).includes(key);
 }
 
 /**

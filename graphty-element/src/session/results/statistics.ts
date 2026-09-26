@@ -27,7 +27,7 @@
 
 import type { NodeId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
-import type { Histogram, HistogramBin, HistogramOptions, Normalization, NumericColumnView, RankingEntry } from "./types";
+import type { Histogram, HistogramBin, HistogramOptions, Normalization, NumericColumnView, RankingEntry, TopRanking } from "./types";
 
 // ---------------------------------------------------------------------------------------------
 // The bounds
@@ -364,6 +364,43 @@ export function rankEntries(entries: readonly RankableEntry[]): readonly Ranking
     }
 
     return Object.freeze(result);
+}
+
+/**
+ * The top `n` of a ranking, cut only between tie groups. See {@link TopRanking} for the policy.
+ * @param ranking - The ranking, best first, with tied entries sharing a rank.
+ * @param n - The most entries the top may hold, a whole number.
+ * @returns The entries taken, and the group that did not fit when one did not.
+ */
+export function topOfRanking(ranking: readonly RankingEntry[], n: number): TopRanking {
+    let taken = Math.min(n, ranking.length);
+
+    // Walk the cut back while it falls inside a tie group: taking one of the group means taking
+    // all of it, and all of it is more than n.
+    while (taken > 0 && taken < ranking.length && ranking[taken].rank === ranking[taken - 1].rank) {
+        taken--;
+    }
+
+    if (taken === ranking.length || taken === n) {
+        return Object.freeze({ entries: ranking.slice(0, taken), leftOut: null, reason: null });
+    }
+
+    const { value } = ranking[taken];
+    let end = taken;
+    while (end < ranking.length && ranking[end].value === value) {
+        end++;
+    }
+
+    const count = end - taken;
+    const reason =
+        `${String(count)} tie at ${String(value)}, and taking them would make ${String(taken + count)}, ` +
+        `more than the ${String(n)} asked for, so ${taken === 0 ? "none are" : `only the top ${String(taken)} are`} taken.`;
+
+    return Object.freeze({
+        entries: ranking.slice(0, taken),
+        leftOut: Object.freeze({ value, count }),
+        reason,
+    });
 }
 
 // ---------------------------------------------------------------------------------------------

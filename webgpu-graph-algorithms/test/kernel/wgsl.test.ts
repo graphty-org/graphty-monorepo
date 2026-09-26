@@ -105,6 +105,8 @@ describe("the prelude", () => {
         expect(PRELUDE_WGSL).toContain(`const INVALID_INDEX: u32 = ${INVALID_INDEX}u;`);
         expect(PRELUDE_WGSL).toContain("const INVALID_INDEX: u32 = 4294967295u;");
         expect(PRELUDE_WGSL).toContain("const U32_MAX: u32 = 4294967295u;");
+        // the unreached sentinel of `dist` (P8 PD-9): +Infinity's bit pattern, interpolated so no body types it
+        expect(PRELUDE_WGSL).toContain("const F32_INF_BITS: u32 = 2139095040u;");
         expect(PRELUDE_WGSL).toContain("const MAX_WORKGROUPS_PER_DIM: u32 = 65535u;");
         expect(PRELUDE_WGSL).toContain("const FA2_DIST_FLOOR: f32 = 0.01;");
         expect(PRELUDE_WGSL).toContain("const FA2_DIST_FLOOR_SQ: f32 = 0.0001;");
@@ -144,7 +146,7 @@ describe("the prelude", () => {
     });
 
     it("both helper blocks define every REDUCE_HELPER_NAMES function; only the subgroup block sizes SG_SLOTS by SUBGROUP_MIN", () => {
-        expect(REDUCE_HELPER_NAMES).toEqual(["wg_reduce_f32", "wg_reduce_u32", "wg_reduce_vec4"]);
+        expect(REDUCE_HELPER_NAMES).toEqual(["wg_reduce_f32", "wg_reduce_u32", "wg_reduce_vec4", "wg_scan_u32"]);
         for (const name of REDUCE_HELPER_NAMES) {
             expect(REDUCE_HELPERS_WORKGROUP_WGSL).toContain(`fn ${name}(`);
             expect(REDUCE_HELPERS_SUBGROUP_WGSL).toContain(`fn ${name}(`);
@@ -211,7 +213,7 @@ describe("the prelude", () => {
         }
     });
 
-    it("no src/wgsl/** body and no prelude template types the literals 65535u, 256u or 0xFFFFFFFFu (spec 3.5)", () => {
+    it("no src/wgsl/** body and no prelude template types the literals 65535u, 256u, 0xFFFFFFFFu or 0x7F800000u (spec 3.5)", () => {
         const wgslDir = resolve(SRC, "wgsl");
         const files = existsSync(wgslDir)
             ? readdirSync(wgslDir)
@@ -221,7 +223,7 @@ describe("the prelude", () => {
         files.push(resolve(SRC, "kernel/prelude.ts"));
         for (const file of files) {
             const text = readFileSync(file, "utf8");
-            for (const literal of ["65535u", "256u", "0xFFFFFFFFu"]) {
+            for (const literal of ["65535u", "256u", "0xFFFFFFFFu", "0x7F800000u", "0x7f800000u", "2139095040u"]) {
                 expect(text.includes(literal), `${file} contains ${literal}`).toBe(false);
             }
         }

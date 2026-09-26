@@ -25,7 +25,7 @@ import {
 } from "@babylonjs/core";
 import type { GraphSnapshot } from "@graphty/graph-format";
 
-import { ACCELERATION_MIN_NODES_DEFAULT, ACCELERATION_POLICY_DEFAULT, AccelerationController } from "./acceleration";
+import { ACCELERATION_POLICY_DEFAULT, AccelerationController } from "./acceleration";
 import { VoiceInputAdapter } from "./ai/input/VoiceInputAdapter";
 import type { ApiKeyManager } from "./ai/keys";
 import { GraphtyLogger, type Logger } from "./logging";
@@ -45,9 +45,12 @@ const DEFAULT_BACKGROUND_COLOR = "#F5F5F5";
  */
 const DEFAULT_STABLE_FRAME_TIMEOUT_MS = 30000;
 import { measureBounds } from "./camera/bounds.js";
+import { orbitAnglesToPosition } from "./camera/builtins.js";
 import { type CameraViewContext, cameraViewIds, isCameraViewName, resolveCameraView } from "./camera/resolve.js";
 import type { CameraState, DrawingMode, GraphBounds } from "./camera/types.js";
-import { type CameraController, type CameraKey, CameraManager } from "./cameras/CameraManager";
+import { type CameraController, cameraForViewMode, type CameraKey, CameraManager } from "./cameras/CameraManager";
+import { OrbitCameraController } from "./cameras/OrbitCameraController";
+import { TwoDCameraController } from "./cameras/TwoDCameraController";
 import { algorithmByKey, algorithmByLegacyKey } from "./catalog/algorithms";
 import { undetectedFormat } from "./catalog/detect";
 import { registeredAlgorithmByKey } from "./catalog/registry";
@@ -86,6 +89,7 @@ import {
     LayoutManager,
     LifecycleManager,
     type Manager,
+    nodeFramingBox,
     OperationQueueManager,
     type RecordedInputEvent,
     RenderManager,
@@ -191,6 +195,8 @@ export class Graph implements GraphContext {
     runAlgorithmsOnLoad = false;
     enableDetailedProfiling?: boolean;
     private wasSettled = false; // Track previous settlement state
+    /** How many loads `addDataFromSource` has started; the last one's id. */
+    private loadCount = 0;
     private resizeHandler = (): void => {
         this.engine.resize();
         // If we've already zoomed to fit, re-zoom after resize to ensure content still fits
@@ -219,6 +225,21 @@ export class Graph implements GraphContext {
      * instead: the store's `stale` is true both before the first freeze and after a later edit.
      */
     #resident: GraphSnapshot | null = null;
+
+    /** Aborted by `shutdown()`, so no whole-graph repaint runs against a torn-down graph. */
+    readonly #teardown = new AbortController();
+
+    /** Aborted and replaced each time the data is cleared, so a repaint in flight stops. */
+    #dataGeneration = new AbortController();
+
+    /** Bumped by every finished `data-add`; the post-load repaint compares it to the next. */
+    #dataAdds = 0;
+
+    /** The value of `#dataAdds` the last post-load repaint painted. */
+    #dataAddsPainted = 0;
+
+    /** Settles once every `applySuggestedStyles` call has stacked its layers in order. */
+    #suggestionsStacked: Promise<void> = Promise.resolve();
 
     // Managers
     /** Event manager for adding/removing event listeners */
@@ -333,10 +354,14 @@ export class Graph implements GraphContext {
         this.dataManager = new DataManager(this.eventManager, this.styles);
 
         // ONE controller for the element, this graph and its session. Nothing is probed until
-        // `start()` is called, which the element does from `connectedCallback`.
+        // `start()` is called, which the element does from `connectedCallback`. No `minNodes`
+        // on purpose: passing the default would count as the consumer's own number and switch
+        // off the per-capability floors, which only apply while nobody has set the threshold.
         this.acceleration = new AccelerationController({
             policy: ACCELERATION_POLICY_DEFAULT,
-            minNodes: ACCELERATION_MIN_NODES_DEFAULT,
+            // No frame is drawn while a call-shaped run is on the device: a draw of this scene
+            // is what the run's readback would otherwise wait behind (issue #390).
+            whileRunning: () => this.renderManager.holdFrames(),
         });
 
         // The headless model, over the store the data manager already owns for the life of the
@@ -427,6 +452,9 @@ export class Graph implements GraphContext {
             if (event.type === "snapshot-dropped") {
                 this.releaseSnapshot(this.#resident);
                 this.#resident = null;
+                // A repaint in flight is painting rows that no longer exist; stop it.
+                this.#dataGeneration.abort(new DOMException("The graph's data was cleared.", "AbortError"));
+                this.#dataGeneration = new AbortController();
             }
         });
 
@@ -434,12 +462,44 @@ export class Graph implements GraphContext {
         // over a dense index space, so it cannot paint a node the store has not taken yet; this is
         // the first moment it can, and it is the "everything changed, because the graph did"
         // boundary that no layer edit describes.
-        this.operationQueue.registerTrigger("data-add", () => ({
+        //
+        // ONE REPAINT PER RUN OF LOADS, NOT ONE PER LOAD. Every finished add queues this, but only
+        // the first to run after an add paints: it covers every add before it, and the rest find
+        // nothing new and return. Otherwise `addEdge` in a loop -- or a load of N records queued
+        // one at a time -- ran N whole-graph passes, which is quadratic. The check is made when
+        // the repaint RUNS, and recorded only once it has painted, so a repaint that something
+        // obsoletes or cancels cannot leave the next load unpainted.
+        this.operationQueue.registerTrigger("data-add", () => {
+            this.#dataAdds++;
+
+            return {
+                category: "style-apply",
+                execute: async (context) => {
+                    const adds = this.#dataAdds;
+
+                    if (this.#dataAddsPainted === adds) {
+                        return;
+                    }
+
+                    if (await this.repaintFromSession(context.signal)) {
+                        this.#dataAddsPainted = adds;
+                    }
+                },
+                description: "Repaint from the session style stack after data add",
+            };
+        });
+
+        // The same boundary from the other side. Removing a node freezes a snapshot with a new
+        // dense index space, and both the record of what each layer painted and each element's
+        // paint are kept by index -- so until a full pass rebuilds them, a later layer or run
+        // removal has nothing to take back and every node after the removed one shows its
+        // predecessor's paint.
+        this.operationQueue.registerTrigger("data-remove", () => ({
             category: "style-apply",
             execute: async () => {
                 await this.repaintFromSession();
             },
-            description: "Repaint from the session style stack after data add",
+            description: "Repaint from the session style stack after data remove",
         }));
 
         // Bring the paint up to date once a run has finished and its measurements exist. A layer
@@ -611,7 +671,7 @@ export class Graph implements GraphContext {
                 }
 
                 if (event.shouldZoomToFit) {
-                    this.updateManager.enableZoomToFit();
+                    this.autoFrame();
                 }
 
                 // Run algorithms if runAlgorithmsOnLoad is true. Each is queued, not awaited.
@@ -630,7 +690,7 @@ export class Graph implements GraphContext {
         this.eventManager.addListener("layout-initialized", (event) => {
             if (event.type === "layout-initialized") {
                 if (event.shouldZoomToFit) {
-                    this.updateManager.enableZoomToFit();
+                    this.autoFrame();
                 }
             }
         });
@@ -657,6 +717,10 @@ export class Graph implements GraphContext {
      * Shuts down the graph, stopping animations and disposing all resources.
      */
     shutdown(): void {
+        // First, so a repaint queued behind a load or a run -- or one already painting -- stops
+        // rather than running against the store and session this is about to dispose.
+        this.#teardown.abort(new DOMException("The graph was disposed.", "AbortError"));
+
         // Stop any running camera animations
         try {
             const controller = this.camera.getActiveController();
@@ -835,6 +899,7 @@ export class Graph implements GraphContext {
             // The view the graph OPENS in reaches the scene here, before anything can be drawn in
             // the wrong one. See `applyOpeningViewMode` for why this line is where it is.
             this.applyOpeningViewMode();
+            this.applyStartingCameraDistance();
 
             // The default layout is built in the constructor, before a consumer can have asked
             // for 2D, so it was given a Z axis. An opening 2D is not a transition and never
@@ -874,7 +939,7 @@ export class Graph implements GraphContext {
 
             // For layouts that settle immediately, start animations after a short delay
             setTimeout(() => {
-                if (this.layoutManager.isSettled && !this.layoutManager.running) {
+                if (!this.layoutManager.running) {
                     for (const node of this.dataManager.nodes.values()) {
                         node.label?.startAnimation();
                     }
@@ -927,7 +992,7 @@ export class Graph implements GraphContext {
                         if (!this.initialCameraStateCaptured) {
                             this.initialCameraStateCaptured = true;
                             // Force a final zoom to fit after layout has truly settled
-                            this.updateManager.enableZoomToFit();
+                            this.autoFrame();
 
                             // Capture initial camera state after first settlement for resetCamera()
                             // Use setTimeout to allow zoom-to-fit to complete first
@@ -1079,13 +1144,57 @@ export class Graph implements GraphContext {
      *
      * A load that fails part-way still paints: the rows that did arrive are in the store and on
      * screen, so leaving them unpainted would be the same defect with a smaller blast radius.
+     *
+     * EVERY LOAD HAS AN ID. The promise resolves to it, and every event about this load --
+     * `data-loading-progress`, `data-loading-complete`, `data-loading-error`, `data-loaded` and
+     * the `error` beside a failure -- carries it as `loadId`, so a consumer that started two loads
+     * can tell whose report is whose.
      * @param type - Type/name of the registered data source
      * @param opts - Options to pass to the data source
-     * @returns Promise that resolves when data is loaded
+     * @param options - How to load
+     * @param options.replace - Replace the graph with what the source holds, but only once all of
+     *     it has parsed: a malformed or empty source rejects and leaves the graph as it was
+     * @returns Promise that resolves to the load's id when data is loaded
      */
-    async addDataFromSource(type: string, opts: object = {}): Promise<void> {
+    async addDataFromSource(
+        type: string,
+        opts: object = {},
+        options?: { replace?: boolean },
+    ): Promise<{ loadId: number }> {
+        return this.loadReserved(type, opts, this.reserveLoad(options?.replace));
+    }
+
+    /**
+     * Give a load its id and its place in line, synchronously, at the moment it was asked for.
+     *
+     * `loadFromFile` and `loadFromUrl` read before they load, so taking the place when the read
+     * finished would let an earlier, slower read overtake a later load. Ids rise in call order.
+     * @param replace - Whether the load replaces the graph
+     * @returns The reservation to hand to `loadReserved`
+     */
+    private reserveLoad(replace = false): { loadId: number; generation: number; replace: boolean } {
+        return { loadId: ++this.loadCount, generation: this.dataManager.beginLoad(replace), replace };
+    }
+
+    /**
+     * Run a load whose place `reserveLoad` already took, then repaint what it loaded.
+     * @param type - Type/name of the registered data source
+     * @param opts - Options to pass to the data source
+     * @param load - The reservation
+     * @param load.loadId - The load's id
+     * @param load.generation - The load's place in line
+     * @param load.replace - Whether the load replaces the graph
+     * @returns The load's id
+     */
+    private async loadReserved(
+        type: string,
+        opts: object,
+        load: { loadId: number; generation: number; replace: boolean },
+    ): Promise<{ loadId: number }> {
+        const { loadId } = load;
         try {
-            await this.dataManager.addDataFromSource(type, opts);
+            await this.dataManager.addDataFromSource(type, opts, load);
+            return { loadId };
         } finally {
             // The load's own failure is the one a caller is told about, so a repaint that throws
             // is reported on the error channel rather than replacing it.
@@ -1094,7 +1203,7 @@ export class Graph implements GraphContext {
                     this,
                     error instanceof Error ? error : new Error(String(error)),
                     "other",
-                    { component: "Graph.addDataFromSource", dataSourceType: type },
+                    { component: "Graph.addDataFromSource", dataSourceType: type, loadId },
                 );
             });
         }
@@ -1109,6 +1218,8 @@ export class Graph implements GraphContext {
      * @param options.edgeSource - Where the node an edge starts at is named in the record. Left
      *     unset, the element reads `source`, then `src`, then `from`
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
+     * @param options.replace - Replace the graph, once the file has parsed; see `addDataFromSource`
+     * @returns Promise that resolves to the load's id when data is loaded
      */
     async loadFromFile(
         file: File,
@@ -1117,8 +1228,10 @@ export class Graph implements GraphContext {
             nodeIdPath?: string;
             edgeSource?: string;
             edgeTarget?: string;
+            replace?: boolean;
         },
-    ): Promise<void> {
+    ): Promise<{ loadId: number }> {
+        const load = this.reserveLoad(options?.replace);
         const { detectFormat } = await import("./data/format-detection.js");
 
         // Detect format if not explicitly provided
@@ -1127,6 +1240,7 @@ export class Graph implements GraphContext {
         if (!format) {
             // Read first 2KB for format detection
             const sample = await file.slice(0, 2048).text();
+            this.dataManager.throwIfSuperseded(load.generation, file.name);
             const detected = detectFormat(file.name, sample);
 
             if (!detected) {
@@ -1140,12 +1254,17 @@ export class Graph implements GraphContext {
         const content = await file.text();
 
         // Load using appropriate DataSource
-        await this.addDataFromSource(format, {
-            data: content,
-            filename: file.name,
-            size: file.size,
-            ...options,
-        });
+        const { replace: _replace, ...sourceOptions } = options ?? {};
+        return this.loadReserved(
+            format,
+            {
+                data: content,
+                filename: file.name,
+                size: file.size,
+                ...sourceOptions,
+            },
+            load,
+        );
     }
 
     /**
@@ -1162,6 +1281,8 @@ export class Graph implements GraphContext {
      * @param options.edgeSource - Where the node an edge starts at is named in the record. Left
      *     unset, the element reads `source`, then `src`, then `from`
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
+     * @param options.replace - Replace the graph, once the data has parsed; see `addDataFromSource`
+     * @returns Promise that resolves to the load's id when data is loaded
      * @example
      * ```typescript
      * // Auto-detect format from extension
@@ -1181,8 +1302,10 @@ export class Graph implements GraphContext {
             nodeIdPath?: string;
             edgeSource?: string;
             edgeTarget?: string;
+            replace?: boolean;
         },
-    ): Promise<void> {
+    ): Promise<{ loadId: number }> {
+        const load = this.reserveLoad(options?.replace);
         const { detectFormat } = await import("./data/format-detection.js");
 
         let format = options?.format;
@@ -1202,6 +1325,7 @@ export class Graph implements GraphContext {
                 }
 
                 fetchedContent = await response.text();
+                this.dataManager.throwIfSuperseded(load.generation, url);
 
                 const sample = fetchedContent.slice(0, 2048);
                 const detectedFromContent = detectFormat(url, sample);
@@ -1230,16 +1354,10 @@ export class Graph implements GraphContext {
         // If we already fetched content for detection, pass it as data to avoid double-fetch
         // Otherwise pass URL and let DataSource handle the fetch
         if (fetchedContent !== undefined) {
-            await this.addDataFromSource(format, {
-                data: fetchedContent,
-                ...mergedOptions,
-            });
-        } else {
-            await this.addDataFromSource(format, {
-                url,
-                ...mergedOptions,
-            });
+            return this.loadReserved(format, { data: fetchedContent, ...mergedOptions }, load);
         }
+
+        return this.loadReserved(format, { url, ...mergedOptions }, load);
     }
 
     /**
@@ -1392,6 +1510,9 @@ export class Graph implements GraphContext {
      * present each time a host re-assigned the property -- and a host that re-renders on state
      * change re-assigns it constantly. The old drop guard was silently doing this job; deleting the
      * guard without this would have turned "assign the same edges twice" into "hold them twice".
+     *
+     * A set past the render ceiling is refused with `E_TOO_LARGE` before an edge is removed, so
+     * the graph keeps the edges it had.
      * @param edges - the edges the graph should hold afterwards
      * @param options - The endpoint expressions, the repeat policy, and queue ordering
      * @returns Promise that resolves once the graph holds exactly these edges
@@ -1401,11 +1522,7 @@ export class Graph implements GraphContext {
         options?: AddEdgesOptions & QueueableOptions,
     ): Promise<void> {
         const replace = (): void => {
-            for (const id of [...this.dataManager.edges.keys()]) {
-                this.dataManager.removeEdge(id);
-            }
-
-            this.dataManager.addEdges(edges, options);
+            this.dataManager.setEdges(edges, options);
         };
 
         if (options?.skipQueue) {
@@ -1424,6 +1541,54 @@ export class Graph implements GraphContext {
             },
             {
                 description: `Replacing the graph's edges with ${edges.length}`,
+                ...options,
+            },
+        );
+    }
+
+    /**
+     * Replace every node in the graph with a new set.
+     *
+     * What the `node-data` property does, and the node half of {@link setEdges}. A node whose id is
+     * not in the new set is removed the way {@link removeNodes} removes one, so the edges attached
+     * to it go too. A node whose id IS in the new set keeps its object and its position; its data
+     * is not rewritten. A set past the render ceiling is refused with `E_TOO_LARGE` before a node
+     * is removed, so the graph keeps the nodes it had.
+     * @param nodes - the nodes the graph should hold afterwards
+     * @param idPath - Key to use for node IDs (default: the configured node id path)
+     * @param options - Queue options for operation ordering
+     * @returns Promise that resolves once the graph holds exactly these nodes
+     * @since 2.3.0
+     */
+    async setNodes(
+        nodes: Record<string | number, unknown>[],
+        idPath?: string,
+        options?: QueueableOptions,
+    ): Promise<void> {
+        const replace = async (): Promise<void> => {
+            const keep = new Set(nodes.map((node) => this.dataManager.nodeIdOf(node, idPath)));
+            this.dataManager.refuseNodeSetAboveCeiling(keep.size);
+            const leaving = [...this.dataManager.nodes.keys()].filter((id) => !keep.has(id));
+            await this.removeNodes(leaving, { skipQueue: true });
+            this.dataManager.addNodes(nodes, idPath);
+        };
+
+        if (options?.skipQueue) {
+            await replace();
+            return;
+        }
+
+        await this.operationQueue.queueOperationAsync(
+            "data-add",
+            async (context) => {
+                if (context.signal.aborted) {
+                    throw new Error("Operation cancelled");
+                }
+
+                await replace();
+            },
+            {
+                description: `Replacing the graph's nodes with ${nodes.length}`,
                 ...options,
             },
         );
@@ -1736,6 +1901,10 @@ export class Graph implements GraphContext {
      * already-applied layer kept that layer's place, and the place it had was the order the RUNS
      * FINISHED in -- so `applySuggestedStyles(["pagerank", "louvain"])` painted a PageRank
      * picture whenever PageRank happened to finish last, and a Louvain one whenever it did not.
+     *
+     * It starts the style edits and returns at once. To wait for the picture, await
+     * {@link Graph.waitForStableFrame} after the call: it settles only once every suggested layer
+     * is added, stacked in the order named and painted.
      * @param algorithmKey - A catalogue key such as "degree", a 1.10 address such as
      *     "graphty:degree", or an array of either.
      * @returns True when at least one suggestion was applied, false when no finished run of that
@@ -1752,10 +1921,11 @@ export class Graph implements GraphContext {
                         ? this.session.styles.highlight(suggestion.spec)
                         : this.session.styles.encode(suggestion.spec).then((layer) => [layer]);
 
-                // Fire and forget with the refusal reported, for the reason the auto-apply policy
-                // gives: a style edit is a queued run, and a caller must not have to await the
-                // picture in order to have started the work. A refusal that reached nobody is what
-                // this whole system replaces, so it is announced rather than swallowed.
+                // Not returned, with the refusal reported: a style edit is a queued run, and a
+                // caller must not have to await the picture in order to have started the work.
+                // `waitForStableFrame()` is how a caller waits for it. A refusal that reached
+                // nobody is what this whole system replaces, so it is announced rather than
+                // swallowed.
                 applied.push(
                     edit.then(
                         (layers) => layers,
@@ -1775,7 +1945,18 @@ export class Graph implements GraphContext {
         }
 
         if (applied.length > 0) {
-            void this.#stackSuggestionsInOrder(applied);
+            // Kept, not dropped: the reordering moves are queued only after every edit above has
+            // landed, so `waitForStableFrame()` and `waitForSettled()` await this before the queue.
+            // Chained, so a second call does not replace the first one's promise.
+            const stacking = this.#stackSuggestionsInOrder(applied).catch((error: unknown) => {
+                this.eventManager.emitGraphError(
+                    this,
+                    error instanceof Error ? error : new Error(String(error)),
+                    "other",
+                    { component: "Graph.applySuggestedStyles" },
+                );
+            });
+            this.#suggestionsStacked = Promise.all([this.#suggestionsStacked, stacking]).then(() => undefined);
         }
 
         return applied.length > 0;
@@ -1914,6 +2095,8 @@ export class Graph implements GraphContext {
 
         if (options?.skipQueue) {
             removeAll();
+            // No queue, so no data-remove trigger: rebuild the index-keyed paint here instead.
+            await this.repaintFromSession();
             return;
         }
 
@@ -1983,11 +2166,33 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Set the active camera mode (e.g., "arcRotate", "universal").
-     * @param mode - Camera mode key to activate
+     * Activate the camera that belongs to the current view mode: `"2d"` in 2D, `"orbit"` in 3D.
+     *
+     * A camera belongs to one view mode, and switching between them is `setViewMode`'s job: it
+     * also rebuilds the meshes and the layout for the new mode. A camera from the other mode is
+     * refused rather than activated, because activating it would leave the scene drawing through
+     * one mode's camera while recording the other, and `setViewMode` would then take the scene
+     * for already being where it was asked to go.
+     * @param mode - Camera key to activate
      * @param options - Queue options for operation ordering
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` when the camera does not belong to the view
+     * mode the graph is in (or is going to, once queued view-mode changes run).
      */
     async setCameraMode(mode: CameraKey, options?: QueueableOptions): Promise<void> {
+        // The configured view mode, not the scene's: `setViewMode` writes it before queueing its
+        // switch, so it is the mode this call will land in once the queue reaches it.
+        const { viewMode } = this.styles.config.graph;
+        const belongs = cameraForViewMode(viewMode);
+        if (mode !== belongs) {
+            const whose = belongs === undefined ? "" : `, whose camera is "${belongs}"`;
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `the "${mode}" camera does not belong to the "${viewMode}" view mode${whose}. Call setViewMode to change view mode; it switches the camera with it`,
+                source: "view",
+                details: { mode, viewMode, ...(belongs === undefined ? {} : { expected: belongs }) },
+            });
+        }
+
         if (options?.skipQueue) {
             this.camera.activateCamera(mode);
             return;
@@ -2156,6 +2361,8 @@ export class Graph implements GraphContext {
      * ```
      */
     clearData(): void {
+        // A load still in flight would otherwise put its data back after the graph was closed.
+        this.dataManager.supersedeLoads();
         this.dataManager.clear();
     }
 
@@ -2227,20 +2434,42 @@ export class Graph implements GraphContext {
      *
      * It does nothing while no style pass is bound: a pass whose answer nothing draws is a pass
      * over the graph for no picture.
-     * @returns A promise that settles when the pass has finished.
+     *
+     * NOTHING AFTER TEARDOWN, AND NOTHING ACROSS A CLEAR. It is queued behind loads and runs, so
+     * it can come due after `dispose()` or while the data it started on is being cleared. Either
+     * one stops it, quietly: the graph it was painting is gone, and that is not an error.
+     * @param signal - The queue operation's own signal, when it runs as one.
+     * @returns True when the whole graph was painted, false when there was nothing to paint with
+     *     or the pass was stopped.
      */
-    private async repaintFromSession(): Promise<void> {
-        if (!this.stylePainter.owns) {
-            return;
+    private async repaintFromSession(signal?: AbortSignal): Promise<boolean> {
+        const stop = AbortSignal.any([
+            this.#teardown.signal,
+            this.#dataGeneration.signal,
+            ...(signal === undefined ? [] : [signal]),
+        ]);
+
+        if (stop.aborted || !this.stylePainter.owns) {
+            return false;
         }
 
-        // The elements this pass paints reach the renderer through the pass's own announcement,
-        // which `StylePainter.bind` subscribes to. Taking them here, after the await, is what
-        // handed the renderer somebody else's dirty set.
-        await this.session.paint.repaintAll(this.session.styles.compiled(), {
-            signal: new AbortController().signal,
-            report: () => undefined,
-        });
+        try {
+            // The elements this pass paints reach the renderer through the pass's own
+            // announcement, which `StylePainter.bind` subscribes to. Taking them here, after the
+            // await, is what handed the renderer somebody else's dirty set.
+            await this.session.paint.repaintAll(this.session.styles.compiled(), {
+                signal: stop,
+                report: () => undefined,
+            });
+        } catch (error: unknown) {
+            if (stop.aborted) {
+                return false;
+            }
+
+            throw error;
+        }
+
+        return true;
     }
 
     /**
@@ -2550,6 +2779,65 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Frame the graph on the element's own initiative -- after a data load, a new layout, or the
+     * first settlement -- unless the configuration placed the camera itself with
+     * `startingCameraDistance`. An explicit `zoomToFit()` is not affected.
+     */
+    private autoFrame(): void {
+        if (this.styles.config.graph.startingCameraDistance === undefined) {
+            this.updateManager.enableZoomToFit();
+        }
+    }
+
+    /**
+     * Set how far the camera stands from the graph, and stop the element framing the graph on its
+     * own. Undefined hands framing back to zoom-to-fit.
+     *
+     * The 3D orbit camera is moved to the distance (floored at its minimum zoom distance). The 2D
+     * camera's half-width becomes the half-extent the 3D camera's field of view covers at that
+     * distance, so switching view mode keeps a comparable framing.
+     * @param distance - The distance, in scene units, or undefined for automatic framing.
+     * @throws A `GraphtyError` with `E_OPTION_RANGE` when the distance is not a finite number.
+     */
+    setStartingCameraDistance(distance: number | undefined): void {
+        if (distance !== undefined && !Number.isFinite(distance)) {
+            throw new GraphtyError({
+                code: "E_OPTION_RANGE",
+                message: `startingCameraDistance must be a finite number, not ${String(distance)}`,
+                source: "view",
+                details: { name: "startingCameraDistance", value: distance },
+            });
+        }
+
+        this.styles.config.graph.startingCameraDistance = distance;
+        this.applyStartingCameraDistance();
+    }
+
+    /**
+     * Place both cameras from the configured `startingCameraDistance`, when there is one.
+     */
+    private applyStartingCameraDistance(): void {
+        const distance = this.styles.config.graph.startingCameraDistance;
+        if (distance === undefined) {
+            return;
+        }
+
+        const orbit = this.camera.getController("orbit");
+        if (orbit instanceof OrbitCameraController) {
+            orbit.cameraDistance = orbit.clampDistance(distance);
+            orbit.updateCameraPosition();
+
+            const twoD = this.camera.getController("2d");
+            if (twoD instanceof TwoDCameraController) {
+                // The 2D camera keeps its half-width across a resize, so that is the side matched:
+                // it is the half-extent the orbit camera's vertical fov gives at this distance.
+                twoD.config.initialOrthoSize = orbit.cameraDistance * Math.tan(orbit.camera.fov / 2);
+                twoD.updateOrtho(twoD.config.initialOrthoSize);
+            }
+        }
+    }
+
+    /**
      * Set the view mode.
      * This controls the camera type, input handling, and rendering approach.
      * @param mode - The view mode to set: "2d", "3d", "ar", or "vr"
@@ -2629,8 +2917,13 @@ export class Graph implements GraphContext {
         const sceneMode = this.scene.metadata?.viewMode as ViewMode | undefined;
         const sceneIsTwoD = this.scene.metadata?.twoD === true;
 
-        // Skip if the scene already draws what was asked for
-        if (sceneMode === mode) {
+        // Skip if the scene already draws what was asked for -- in that mode's own camera. A
+        // scene that records the mode while another mode's camera draws has drifted, and falls
+        // through so the camera is brought back.
+        const modeCamera = cameraForViewMode(mode);
+        const drawsThroughModeCamera =
+            modeCamera === undefined || this.camera.getActiveController() === this.camera.getController(modeCamera);
+        if (sceneMode === mode && drawsThroughModeCamera) {
             return;
         }
 
@@ -2773,29 +3066,11 @@ export class Graph implements GraphContext {
                 edge.update();
             }
 
-            // Calculate bounding box and zoom camera to fit the graph
-            // This ensures the graph is visible after the mode switch
-            const nodes = this.getNodes();
-            if (nodes.length > 0) {
-                let minX = Infinity,
-                    minY = Infinity,
-                    minZ = Infinity;
-                let maxX = -Infinity,
-                    maxY = -Infinity,
-                    maxZ = -Infinity;
-
-                for (const node of nodes) {
-                    const pos = node.mesh.position;
-                    const sz = node.size / 2;
-                    minX = Math.min(minX, pos.x - sz);
-                    minY = Math.min(minY, pos.y - sz);
-                    minZ = Math.min(minZ, pos.z - sz);
-                    maxX = Math.max(maxX, pos.x + sz);
-                    maxY = Math.max(maxY, pos.y + sz);
-                    maxZ = Math.max(maxZ, pos.z + sz);
-                }
-
-                this.camera.zoomToBoundingBox(new Vector3(minX, minY, minZ), new Vector3(maxX, maxY, maxZ));
+            // Zoom the camera to fit the nodes. Only the nodes, as the mode switch always has: the
+            // labels are framed by zoom-to-fit, on a data load or a layout change.
+            const box = nodeFramingBox(this.getNodes());
+            if (box) {
+                this.camera.zoomToBoundingBox(box.min, box.max);
             }
         }
     }
@@ -2832,11 +3107,13 @@ export class Graph implements GraphContext {
      * Set whether the layout engine should run.
      *
      * Resuming a simulation layout that had settled restarts it, so "play" moves nodes again;
-     * pausing stops the per-frame stepping and nothing else.
+     * pausing stops the per-frame stepping and nothing else. A pause holds until
+     * `setRunning(true)`: loading data, setting a layout, an accelerator attaching or a drag
+     * never resume it.
      * @param running - True to start the layout, false to stop it
      */
     setRunning(running: boolean): void {
-        this.layoutManager.running = running;
+        this.layoutManager.setPaused(!running);
     }
 
     /**
@@ -3048,6 +3325,8 @@ export class Graph implements GraphContext {
      * ```
      */
     async waitForSettled(): Promise<void> {
+        // Suggested styles first: their reordering moves reach the queue only once they are due.
+        await this.#suggestionsStacked;
         // Wait for operation queue to complete all operations
         await this.operationQueue.waitForCompletion();
     }
@@ -3142,7 +3421,9 @@ export class Graph implements GraphContext {
      */
     private async untilFrameIsStable(track: (id: symbol) => void): Promise<void> {
         // The queue first: a layout change or a data load that has not run yet is going to move
-        // the picture, so a frame that is final right now is final about the wrong graph.
+        // the picture, so a frame that is final right now is final about the wrong graph. Suggested
+        // styles before the queue, because they queue their reordering only once they are due.
+        await this.#suggestionsStacked;
         await this.operationQueue.waitForCompletion();
 
         if (this.updateManager.frameIsStable) {
@@ -3597,7 +3878,7 @@ export class Graph implements GraphContext {
         }
 
         // Resolve preset if needed
-        const resolvedState = "preset" in state ? this.resolveCameraPreset(state.preset) : state;
+        const resolvedState = orbitAnglesToPosition("preset" in state ? this.resolveCameraPreset(state.preset) : state);
 
         // For immediate (non-animated) updates or skipQueue, apply directly
         if (!options || !options.animate || options.skipQueue) {
@@ -3677,6 +3958,7 @@ export class Graph implements GraphContext {
                     computeWorldMatrix: (force: boolean) => void;
                 };
                 cameraDistance: number;
+                clampDistance: (distance: number) => number;
                 updateCameraPosition: () => void;
             };
 
@@ -3716,15 +3998,15 @@ export class Graph implements GraphContext {
                 orbitController.pivot.rotationQuaternion = quat;
             }
 
-            // Set camera distance if provided
+            // Set camera distance if provided, floored the way every orbit distance is
             if (state.cameraDistance !== undefined) {
-                orbitController.cameraDistance = state.cameraDistance;
+                orbitController.cameraDistance = orbitController.clampDistance(state.cameraDistance);
             } else if (state.position && state.target) {
                 // Calculate distance from position to target
                 const dx = state.position.x - state.target.x;
                 const dy = state.position.y - state.target.y;
                 const dz = state.position.z - state.target.z;
-                orbitController.cameraDistance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                orbitController.cameraDistance = orbitController.clampDistance(Math.sqrt(dx * dx + dy * dy + dz * dz));
             }
 
             // Update the pivot's world matrix and camera position
@@ -3812,8 +4094,9 @@ export class Graph implements GraphContext {
      * Required because cameraDistance is not a scene node property
      * @param orbitController - Orbit camera controller instance
      * @param orbitController.cameraDistance - Current camera distance from pivot
+     * @param orbitController.clampDistance - The controller's distance rule (the zoom floor)
      * @param orbitController.updateCameraPosition - Function to update camera position
-     * @param targetDistance - Target camera distance to animate to
+     * @param requestedDistance - Camera distance to animate to, before the zoom floor applies
      * @param frameCount - Number of frames for the animation
      * @param fps - Frames per second for the animation
      * @param easing - Optional easing function name
@@ -3821,13 +4104,17 @@ export class Graph implements GraphContext {
     private async animateCameraDistance(
         orbitController: {
             cameraDistance: number;
+            clampDistance: (distance: number) => number;
             updateCameraPosition: () => void;
         },
-        targetDistance: number,
+        requestedDistance: number,
         frameCount: number,
         fps: number,
         easing?: string,
     ): Promise<void> {
+        // The same floor the immediate path applies, so an animation never ends below it.
+        const targetDistance = orbitController.clampDistance(requestedDistance);
+
         // Create dummy object to animate
         const dummy = { value: orbitController.cameraDistance };
 
@@ -3896,6 +4183,7 @@ export class Graph implements GraphContext {
                 computeWorldMatrix: (force: boolean) => void;
             };
             cameraDistance: number;
+            clampDistance: (distance: number) => number;
             updateCameraPosition: () => void;
         };
 
@@ -4632,22 +4920,18 @@ export class Graph implements GraphContext {
      * Set graph data (delegates to data manager)
      * @param data - Graph data object
      * @param data.nodes - Array of node data objects
-     * @param data.edges - Array of edge data objects
+     * @param data.edges - Array of edge data objects. They load as one batch, so the endpoint
+     * spelling (source/target, src/dst or from/to) is decided once for all of them.
      */
     setData(data: { nodes: Record<string, unknown>[]; edges: Record<string, unknown>[] }): void {
-        // Add nodes
-        for (const nodeData of data.nodes) {
-            this.addNode(nodeData as AdHocData).catch((e: unknown) => {
-                console.error("Error adding node:", e);
-            });
-        }
-
-        // Add edges
-        for (const edgeData of data.edges) {
-            this.addEdge(edgeData as AdHocData).catch((e: unknown) => {
-                console.error("Error adding edge:", e);
-            });
-        }
+        // One batch of nodes and one of edges. One queued add per record put a layout update and
+        // a repaint behind each of them.
+        this.addNodes(data.nodes).catch((e: unknown) => {
+            console.error("Error adding nodes:", e);
+        });
+        this.addEdges(data.edges).catch((e: unknown) => {
+            console.error("Error adding edges:", e);
+        });
     }
 
     /**
@@ -4927,7 +5211,24 @@ export class Graph implements GraphContext {
      * ```
      */
     getVoiceAdapter(): VoiceInputAdapter {
-        this.voiceAdapter ??= new VoiceInputAdapter();
+        if (!this.voiceAdapter) {
+            const adapter = new VoiceInputAdapter();
+
+            // Registered once, with the adapter, so every voice session reaches `addListener`
+            // and the DOM however it was started.
+            adapter.onActiveChange((active, reason) => {
+                if (active) {
+                    this.eventManager.emitGraphEvent("ai-voice-start", {});
+                } else {
+                    this.eventManager.emitGraphEvent("ai-voice-end", { reason });
+                }
+            });
+            adapter.onInput((transcript, isFinal) => {
+                this.eventManager.emitGraphEvent("ai-voice-transcript", { transcript, isFinal });
+            });
+
+            this.voiceAdapter = adapter;
+        }
 
         return this.voiceAdapter;
     }

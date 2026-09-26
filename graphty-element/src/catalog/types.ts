@@ -483,6 +483,12 @@ export type Selector =
     | { match: "expression"; where: Query }
     | { match: "has"; path: Path }
     | { match: "ids"; nodes?: readonly NodeId[]; edges?: readonly EdgeId[] }
+    /**
+     * The top `n` elements by one run field (`results.<run>.<field>`), cut only between tie
+     * groups: a group of equal values is painted whole, and only when all of it fits inside `n`.
+     * See `TopRanking` for the policy.
+     */
+    | { match: "top"; path: Path; n: number }
     | { match: "everything" };
 
 /** Who put a layer in the stack. Every layer names its source. */

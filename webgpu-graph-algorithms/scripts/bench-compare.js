@@ -75,7 +75,9 @@
  * legitimately slower for good -- a deliberate trade, a new runner image, a driver change -- a person must DELETE
  * from benchmarks/results/<class>.json the sessions that hold the superseded faster numbers, in a reviewed commit
  * that says which change made the new cost correct. Deleting a session to quiet a red row is the failure this
- * rule exists to stop; re-measure on a quiet card first (append procedure: docs/decisions/G3.md appendix A). Some
+ * rule exists to stop; re-measure on a quiet card first (append procedure: `pnpm run bench:append <out file>
+ * <results file>`, scripts/bench-append-session.js, which refuses a software session, a session missing a group and
+ * a date already in the file; docs/decisions/G3.md and G4.md appendix A are the history of that script). Some
  * sessions of benchmarks/results/gpu-linux-t4.json are NOT free to delete: the Tesla T4 run of 2026-09-22 and the
  * ones before it are the fixture test/benchmarks.test.ts compares to prove this gate still catches the PageRank
  * regression, and it names them by date. Deleting them is deleting that proof.

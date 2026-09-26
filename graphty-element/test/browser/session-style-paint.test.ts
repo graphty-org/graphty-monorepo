@@ -98,10 +98,16 @@ describe("session style paint", () => {
 
         for (const node of graph.getNodes()) {
             assert.instanceOf(node.mesh, InstancedMesh);
-            // The instance is named after the cache key it came from, and that key is where the
-            // interner's number lands: `s3` rather than the reserved bootstrap key a node is
-            // built under before the first pass reaches it.
-            assert.match(node.mesh.name, /^node-style-s\d+/, "the source mesh is keyed by the session's interner");
+            // The key the node is drawn under is where the interner's number lands: `s3` rather
+            // than the reserved bootstrap key a node is built under before the first pass reaches
+            // it. It is read from the mesh's metadata, which the hand-over writes, and not from the
+            // mesh's name: a node whose first pass resolves the style it was built from keeps its
+            // placeholder mesh rather than rebuilding an identical one (issue #388), and that
+            // instance's name still spells the bootstrap key.
+            const drawnUnder = (node.mesh.metadata as { styleId?: unknown } | undefined)?.styleId;
+
+            assert.isString(drawnUnder, "the node's mesh records the key it is drawn under");
+            assert.match(String(drawnUnder), /^s\d+/, "and it is the session's interner's key");
         }
     });
 

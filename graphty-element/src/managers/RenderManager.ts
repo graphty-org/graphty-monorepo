@@ -44,6 +44,8 @@ export class RenderManager implements Manager {
 
     private renderLoopActive = false;
     private updateCallback?: () => void;
+    /** How many callers currently hold the frames back; see {@link holdFrames}. */
+    private frameHolds = 0;
     private resizeHandler: () => void;
 
     /**
@@ -180,6 +182,12 @@ export class RenderManager implements Manager {
         this.renderLoopActive = true;
 
         this.engine.runRenderLoop(() => {
+            // A held frame is skipped whole: no update, no draw. The loop itself keeps ticking so
+            // nothing has to be restarted, and a tick that does nothing costs nothing.
+            if (this.frameHolds > 0) {
+                return;
+            }
+
             try {
                 // Call update callback
                 if (this.updateCallback) {
@@ -217,6 +225,38 @@ export class RenderManager implements Manager {
         this.renderLoopActive = false;
         this.engine.stopRenderLoop();
         this.updateCallback = undefined;
+    }
+
+    /**
+     * Keeps the render loop from drawing until the returned function is called.
+     *
+     * A FRAME IS WHAT A GPU READBACK WAITS BEHIND. Drawing a scene of thousands of meshes keeps
+     * the main thread for tens to hundreds of milliseconds, and a promise the GPU resolves --
+     * the mapped buffer at the end of a traversal, the frontier count between its levels -- is
+     * delivered as a task, which cannot run until the frame that was drawing has finished. A
+     * breadth-first search that costs 7 ms on the device came back after 225 ms through the
+     * element at 1,000 nodes and after 8.6 s at 10,000, two frames per readback (issue #390).
+     * Measured apart, the CPU update of a frame is 2.5 ms and is not what the readback waits on;
+     * the draw is 48 ms at 1,000 nodes and is.
+     *
+     * So a call-shaped accelerated run holds the frames for as long as it is on the device, and
+     * the picture stands still for those milliseconds instead of the run stretching to seconds.
+     * Holds nest: the frames resume when the last holder releases, and releasing twice is a
+     * no-op, so a `finally` cannot over-release.
+     * @returns Releases this hold.
+     */
+    holdFrames(): () => void {
+        this.frameHolds++;
+        let released = false;
+
+        return (): void => {
+            if (released) {
+                return;
+            }
+
+            released = true;
+            this.frameHolds--;
+        };
     }
 
     /**

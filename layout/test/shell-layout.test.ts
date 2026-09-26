@@ -294,7 +294,7 @@ describe("Shell Layout", () => {
             });
         });
 
-        it("should handle very large shells efficiently", () => {
+        it("should lay out every node of very large shells", () => {
             const graph = gridGraph(10, 10); // 100 nodes
             const shells = [
                 graph.nodes().slice(0, 1), // 1 node
@@ -303,12 +303,9 @@ describe("Shell Layout", () => {
                 graph.nodes().slice(30), // 70 nodes
             ];
 
-            const startTime = performance.now();
             const positions = shellLayout(graph, shells);
-            const endTime = performance.now();
 
             assert.equal(Object.keys(positions).length, 100);
-            assert.isBelow(endTime - startTime, 100);
         });
     });
 

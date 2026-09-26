@@ -614,7 +614,6 @@ const TABLE: Readonly<Record<KernelId, ExpectedEntry>> = {
         entryPoint: "frontier_finalize",
         bindings: [
             [1, 0, "counters", "storage", "array<atomic<u32>>"],
-            [1, 1, "args", "storage", "array<u32>"],
             [2, 0, "P", "uniform", "FrontierParams"],
         ],
         overrideDecls: [],
@@ -622,7 +621,7 @@ const TABLE: Readonly<Record<KernelId, ExpectedEntry>> = {
         needs: [],
         snippetSlots: [],
         phase: "P8",
-        storageCount: 2,
+        storageCount: 1,
     },
     "advance-expand": {
         entryPoint: "advance_expand",
@@ -732,6 +731,21 @@ const TABLE: Readonly<Record<KernelId, ExpectedEntry>> = {
         snippetSlots: [],
         phase: "P8",
         storageCount: 5,
+    },
+    "bfs-next-degree": {
+        entryPoint: "bfs_next_degree",
+        bindings: [
+            [1, 0, "frontier", "storage-ro", "array<u32>"],
+            [1, 1, "outDegree", "storage-ro", "array<u32>"],
+            [1, 2, "counters", "storage", "array<atomic<u32>>"],
+            [2, 0, "P", "uniform", "FrontierParams"],
+        ],
+        overrideDecls: [],
+        uniforms: [FRONTIER_PARAMS],
+        needs: ["subgroups"],
+        snippetSlots: [],
+        phase: "P8",
+        storageCount: 3,
     },
     "sssp-relax": {
         entryPoint: "sssp_relax",
@@ -1118,7 +1132,7 @@ const BLOCKS: readonly BlockRow[] = [
         block: FA2_PARAMS,
         name: "Fa2Params",
         layout: "uniform",
-        byteLength: 128,
+        byteLength: 144,
         offsets: [
             ["n", 0],
             ["dim", 4],
@@ -1149,6 +1163,7 @@ const BLOCKS: readonly BlockRow[] = [
             ["dragCoefficient", 116],
             ["timeStep", 120],
             ["midEnd", 124],
+            ["settleFloor", 128],
         ],
     },
     {

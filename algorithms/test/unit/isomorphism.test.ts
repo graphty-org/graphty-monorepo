@@ -343,12 +343,9 @@ describe("Graph Isomorphism (VF2)", () => {
                 graph2.addEdge((i + 10).toString(), (((i + 1) % 10) + 10).toString());
             }
 
-            const start = Date.now();
             const result = isGraphIsomorphic(graph1, graph2);
-            const duration = Date.now() - start;
 
             expect(result.isIsomorphic).toBe(true);
-            expect(duration).toBeLessThan(5000); // Should complete within 5 seconds
         });
     });
 

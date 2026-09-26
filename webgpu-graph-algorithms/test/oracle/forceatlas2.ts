@@ -607,38 +607,15 @@ export class ForceAtlas2Oracle {
     }
 
     /**
-     * One iteration: K1 fold (from the previous stages), K2, K3 + epilogue, K4, K5; returns the trace record.
-     * @returns the trace record of this iteration
+     * K2 alone: the attraction of every node at the current positions, exactly as step() computes it (step() calls
+     * this). A check of the attraction stage calls it instead of step(), whose K3 is all-pairs: on hub10k that is
+     * 10^8 pair terms of synchronous work for a comparison that reads none of them (issue #413).
+     * @returns the attraction forces (stride 3)
      */
-    step(): OracleTraceRecord {
-        const { n } = this;
+    attraction(): Float64Array {
+        const { n, mass, positions: pos } = this;
         const r = this.round;
-        // ---- K1: fold the previous integrate's partials (skipped on the first iteration after load, FA2_FLAG_FIRST)
-        if (this.pending !== null) {
-            this.fold(this.pending);
-        }
-        this.iterationValue += 1;
-        const k1 = {
-            meanDisplacement: this.meanDisplacement,
-            settledCount: this.settledCountValue,
-            rmsRadius: this.rmsRadius,
-            layoutRadius: this.radius,
-            centroid: [this.centroid[0], this.centroid[1], this.centroid[2]] as const,
-        };
-        if (n === 0) {
-            // An empty graph runs no GPU work (spec 11.4 behaviour pins): the state is reported unchanged.
-            const empty: OracleTraceRecord = {
-                swing: this.swingValue,
-                traction: this.tractionValue,
-                speed: this.speedValue,
-                speedEfficiency: this.speedEfficiencyValue,
-                ...k1,
-            };
-            this.traceRecords.push(empty);
-            return empty;
-        }
-        const stages = emptyStages(n);
-        const { positions: pos, mass } = this;
+        const out = new Float64Array(3 * n);
         // ---- K2: attraction over the CSR row, in arc order (spec 7.5; 7.2 rows "Attraction", "Distributed action")
         if (this.arcCount > 0) {
             for (let i = 0; i < n; i++) {
@@ -671,11 +648,47 @@ export class ForceAtlas2Oracle {
                     fy = r(fy / mass[i]);
                     fz = r(fz / mass[i]);
                 }
-                stages.attraction[3 * i] = fx;
-                stages.attraction[3 * i + 1] = fy;
-                stages.attraction[3 * i + 2] = fz;
+                out[3 * i] = fx;
+                out[3 * i + 1] = fy;
+                out[3 * i + 2] = fz;
             }
         }
+        return out;
+    }
+
+    /**
+     * One iteration: K1 fold (from the previous stages), K2, K3 + epilogue, K4, K5; returns the trace record.
+     * @returns the trace record of this iteration
+     */
+    step(): OracleTraceRecord {
+        const { n } = this;
+        const r = this.round;
+        // ---- K1: fold the previous integrate's partials (skipped on the first iteration after load, FA2_FLAG_FIRST)
+        if (this.pending !== null) {
+            this.fold(this.pending);
+        }
+        this.iterationValue += 1;
+        const k1 = {
+            meanDisplacement: this.meanDisplacement,
+            settledCount: this.settledCountValue,
+            rmsRadius: this.rmsRadius,
+            layoutRadius: this.radius,
+            centroid: [this.centroid[0], this.centroid[1], this.centroid[2]] as const,
+        };
+        if (n === 0) {
+            // An empty graph runs no GPU work (spec 11.4 behaviour pins): the state is reported unchanged.
+            const empty: OracleTraceRecord = {
+                swing: this.swingValue,
+                traction: this.tractionValue,
+                speed: this.speedValue,
+                speedEfficiency: this.speedEfficiencyValue,
+                ...k1,
+            };
+            this.traceRecords.push(empty);
+            return empty;
+        }
+        const stages = { ...emptyStages(n), attraction: this.attraction() };
+        const { positions: pos, mass } = this;
         // ---- K3: all-pairs repulsion in tile order (j ascending), gravity, force +=, swing / traction per node
         const swing = new Float64Array(n);
         const traction = new Float64Array(n);

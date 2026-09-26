@@ -153,3 +153,7 @@ __pycache__/
 **/benchmarks/out/
 browser-results.json
 gpu-report.json
+
+# The Figma editor UI study (screenshots, HTML and measured styles, about 1.2 GB): kept
+# locally as design reference, never committed.
+design/ui/figma/

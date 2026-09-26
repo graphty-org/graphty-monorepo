@@ -86,6 +86,7 @@ describe("OVERRIDE_MATRIX (pure)", () => {
         expect(counts.get("bfs-bottom-up")).toBe(5);
         expect(counts.get("bfs-bitset-build")).toBe(1);
         expect(counts.get("bfs-unvisited-flags")).toBe(1);
+        expect(counts.get("bfs-next-degree")).toBe(1);
         expect(counts.get("sssp-relax")).toBe(5);
         expect(counts.get("bf-relax")).toBe(3);
         expect(counts.get("closeness-sweep")).toBe(5);

@@ -12,7 +12,7 @@
  * (which lists "P2"); P3-T5 adds K1 / K2 / K5 and lists "P3"; M8b-T10 adds the six non-exempt P7 kernels (spmv-pull,
  * pr-scale, pr-finalize and the three Afforest link / compress kernels) and lists "P7", measured by
  * test/sabotage/spmv.test.ts and test/sabotage/wcc.test.ts; P8-T3 adds the three compact / dedupe kernels, measured
- * by test/sabotage/compact.test.ts, P8-T4 the six frontier-finalize rows measured by test/sabotage/frontier.test.ts,
+ * by test/sabotage/compact.test.ts, P8-T4 the three frontier-finalize rows measured by test/sabotage/frontier.test.ts,
  * P8-T5 the five advance-expand rows measured by test/sabotage/advance.test.ts, P8-T6 the three bfs-contract and four
  * sssp-pred rows measured by test/sabotage/bfs.test.ts, P8-T7 the three bfs-fused rows and the seventh
  * frontier-finalize row (the inverted fused threshold), measured by test/sabotage/bfs.test.ts too, P8-T9 the four
@@ -251,7 +251,7 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
         {
             // the settle counter is never reset: with settleThreshold 0 the oracle keeps 0, the mutant counts every iteration (visible at the K1 fold of iteration 2)
             name: "settled-count-never-reset",
-            find: "S.settledCount = select(0u, S.settledCount + 1u, meanDisp <= P.settleThreshold * S.rmsRadius);",
+            find: "S.settledCount = select(0u, S.settledCount + 1u, meanDisp <= min(P.settleThreshold * S.rmsRadius, P.settleFloor));",
             replace: "S.settledCount = S.settledCount + 1u;",
             minFactor: 10,
             test: INSPECT_TEST,
@@ -691,10 +691,10 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
     ]),
     "grid-cell-key": Object.freeze([
         {
-            // the design's named mutation: an outside node lands in the last real cell instead of the pseudo-cell
+            // the design's named mutation: an outside node lands in a real cell instead of its orthant pseudo-cell
             name: "pseudo-cell-dropped",
-            find: "var key = cells;",
-            replace: "var key = cells - 1u;",
+            find: "var key = cells + select(0u, 1u, c.x >= g / 2)",
+            replace: "var key = cells - 1u + select(0u, 1u, c.x >= g / 2)",
             minFactor: 10,
             test: GRID_TEST,
         },
@@ -727,7 +727,7 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
         },
         {
             name: "pseudo-cell-skipped",
-            find: "if (c > grid_cells()) { return; }",
+            find: "if (c >= grid_cells() + select(4u, 8u, P.dim == 3u)) { return; }",
             replace: "if (c >= grid_cells()) { return; }",
             minFactor: 10,
             test: PYRAMID_TEST,
@@ -793,9 +793,9 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
     // the fixture each row's comment names (random20k in 2D unless said otherwise)
     "grid-far-field": Object.freeze([
         {
-            // the design's named mutation: measured on outside5, whose five far nodes ARE the pseudo-cell
+            // the design's named mutation: measured on outside5, whose five far nodes ARE the orthant pseudo-cells
             name: "pseudo-cell-term-dropped",
-            find: "f = f + cell_force(pi, pyramid[grid_cells()]);",
+            find: "f = f + cell_force(pi, pyramid[grid_cells() + o]);",
             replace: "f = f + vec3f(0.0);",
             minFactor: 10,
             test: GRID_INSPECT_TEST,
@@ -803,8 +803,8 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
         {
             // eps^2 dropped from every far-field denominator: the nearest cells of every level are over-weighted
             name: "softening-dropped",
-            find: "let d2 = dot(d, d) + S.eps * S.eps;",
-            replace: "let d2 = dot(d, d);",
+            find: "d2 = d2 + S.eps * S.eps;",
+            replace: "d2 = d2 + 0.0;",
             minFactor: 10,
             test: GRID_INSPECT_TEST,
         },
@@ -942,25 +942,10 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
         },
     ]),
     // P8-T4: every row is measured by frontierReport (test/helpers/frontier.ts) through the frontier test; the
-    // rotation and fused-slot rows are measured again by the BFS suites of P8-T6 / P8-T7 once those land
+    // rotation and fused-path rows are measured again by the BFS suites of P8-T6 / P8-T7. The two rows that once
+    // mutated the indirect-slot arithmetic (`ceil-wraps`, `second-row-floored`) went with the slots (2026-09-25):
+    // no dispatch consumed what they broke
     "frontier-finalize": Object.freeze([
-        {
-            // the ceil that wraps above 2^32 - wg: the largest u32 count yields 0 groups (caught by the ladder)
-            name: "ceil-wraps",
-            find: "count / P.wg + select(0u, 1u, count % P.wg != 0u)",
-            replace: "(count + P.wg - 1u) / P.wg",
-            minFactor: 10,
-            test: FRONTIER_TEST,
-        },
-        {
-            // the second row of the 2D split floored: a group count that is not a multiple of the per-dimension
-            // limit loses its last row (the ladder, and the 17M poison case)
-            name: "second-row-floored",
-            find: "(groups + MAX_WORKGROUPS_PER_DIM - 1u) / MAX_WORKGROUPS_PER_DIM",
-            replace: "groups / MAX_WORKGROUPS_PER_DIM",
-            minFactor: 10,
-            test: FRONTIER_TEST,
-        },
         {
             // the rotation writes 0: the first boundary rotates nothing in and every traversal is the source alone
             name: "rotation-dropped",
@@ -980,7 +965,7 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
         {
             // role 1 counts a two-phase level whether or not role 0 chose one
             name: "role-1-counts-every-level",
-            find: "if (args[4u * P.slotBase] == 0u) {                             // role 0 did not choose the two-phase path (done, fused or bottom-up): nothing to size, nothing to count",
+            find: "if (atomicLoad(&counters[24]) != 1u) {                         // role 0 did not choose the two-phase path (done, fused or bottom-up): nothing to clamp, nothing to count",
             replace: "if (false) {",
             minFactor: 10,
             test: FRONTIER_TEST,
@@ -1264,6 +1249,37 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             name: "in-degree-summed",
             find: "select(0u, outDegree[v], unv)",
             replace: "select(0u, inDegree[v], unv)",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+    ]),
+    // issue #391: every row is measured by bfsReport (rmat14's per-boundary direction, switches and
+    // unvisitedDegreeSum words against the host model at both cadences); every depth stays right under all three,
+    // because the direction is a cost choice, never a correctness one -- the counters are the only witness
+    "bfs-next-degree": Object.freeze([
+        {
+            // the sum never lands: m_f reads 0 at every boundary, so the default rule never enters bottom-up and
+            // unvisitedDegreeSum never falls between rebuilds (rmat14 at the production cadence switches twice)
+            name: "sum-dropped",
+            find: "if (lid.x == 0u) { atomicAdd(&counters[25], total); }",
+            replace: "if (lid.x == 0u) { atomicAdd(&counters[25], 0u); }",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // the entries are counted instead of their degrees summed: m_f is |F| and unvisitedDegreeSum falls by the
+            // frontier's SIZE at every boundary after the first of a submit
+            name: "entries-counted-not-degrees",
+            find: "sum = sum + outDegree[frontier[i]];",
+            replace: "sum = sum + 1u;",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // the path gate inverted: the sum runs only on a level past the end, whose queue is empty
+            name: "path-gate-inverted",
+            find: "atomicLoad(&counters[24]) != 0u);   // nextFrontierCount",
+            replace: "atomicLoad(&counters[24]) == 0u);   // nextFrontierCount",
             minFactor: 10,
             test: BFS_TEST,
         },
@@ -1913,7 +1929,7 @@ export const SABOTAGE_P4_LAW: Readonly<Partial<Record<KernelId, readonly Mutatio
     ]),
 });
 
-/** The phases whose kernels ALL have their rows: ["P1"] at P1-T5, + "P2" at P2-T2, + "P3" at P3-T5, + "P7" at M8b-T10, + "P4" at P4-T12 (PD-1: when the last P4 kernel has its rows), + "P8" at P8-T15 (the fifteen frontier-family kernels, 58 rows written by the tasks that wrote the kernels); test/sabotage/coverage.test.ts asserts every KERNELS entry whose `phase` is listed here has >= 3 rows, except SABOTAGE_EXEMPT. */
+/** The phases whose kernels ALL have their rows: ["P1"] at P1-T5, + "P2" at P2-T2, + "P3" at P3-T5, + "P7" at M8b-T10, + "P4" at P4-T12 (PD-1: when the last P4 kernel has its rows), + "P8" at P8-T15 (the frontier-family kernels, 58 rows written by the tasks that wrote the kernels over fifteen of them, plus `bfs-next-degree`'s 3 for issue #391: sixteen kernels, 61 rows); test/sabotage/coverage.test.ts asserts every KERNELS entry whose `phase` is listed here has >= 3 rows, except SABOTAGE_EXEMPT. */
 export const SABOTAGE_PHASES: readonly KernelEntry["phase"][] = Object.freeze(["P1", "P2", "P3", "P7", "P4", "P8"]);
 
 /**

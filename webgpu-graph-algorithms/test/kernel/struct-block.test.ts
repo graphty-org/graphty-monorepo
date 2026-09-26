@@ -157,10 +157,9 @@ const BF_FLAGS_FIELDS: readonly UniformField[] = [
     ["pad0", "u32"],
     ["pad1", "u32"],
 ];
-/** The twenty fields of the P8 params block (P8-T4 Step 3). */
+/** The twenty fields of the P8 params block (P8-T4 Step 3; `slotBase` went with the indirect slots, 2026-09-25, and `pad2` keeps the explicit 80 bytes). */
 const FRONTIER_PARAMS_FIELDS: readonly UniformField[] = [
     ["role", "u32"],
-    ["slotBase", "u32"],
     ["wg", "u32"],
     ["alpha", "u32"],
     ["beta", "u32"],
@@ -179,6 +178,7 @@ const FRONTIER_PARAMS_FIELDS: readonly UniformField[] = [
     ["firstOfSubmit", "u32"],
     ["iteration", "u32"],
     ["pad1", "u32"],
+    ["pad2", "u32"],
 ];
 
 describe("UniformBlock.define", () => {
@@ -550,7 +550,7 @@ describe("the generated blocks of 3.10.2", () => {
         FRONTIER_PARAMS_FIELDS.forEach(([name], index) => {
             expect(params.offsetOf(name), name).toBe(4 * index);
         });
-        expect(params.offsetOf("firstOfSubmit")).toBe(68);
+        expect(params.offsetOf("firstOfSubmit")).toBe(64);
         expect(params.wgsl).not.toContain("@size");
     });
 

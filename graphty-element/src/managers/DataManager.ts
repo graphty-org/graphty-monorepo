@@ -14,7 +14,14 @@ import { DataSource, type DeclaredDirection } from "../data/DataSource";
 import { edgeIdOf } from "../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints } from "../data/endpoints";
 import { GraphStore } from "../data/GraphStore";
-import { type DirectionOutcome, ingestDeclaredDirection, ingestEdge, ingestNode, resolveEdgeWeight } from "../data/ingest";
+import {
+    type DirectionOutcome,
+    ingestDeclaredDirection,
+    ingestEdge,
+    ingestNode,
+    isStorableId,
+    resolveEdgeWeight,
+} from "../data/ingest";
 import type { ElementPositions } from "../data/positions";
 import { type ImportReport, type ImportTally, newImportTally, sealImportReport } from "../data/report";
 import { Edge, EdgeMap } from "../Edge";
@@ -23,6 +30,7 @@ import type { LayoutEngine } from "../layout/LayoutEngine";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
 import { MeshCache } from "../meshes/MeshCache";
 import { Node, NodeIdType } from "../Node";
+import { DEFAULT_LIMITS } from "../session/limits";
 import type { DirectionProvenance } from "../session/types";
 import type { Styles } from "../Styles";
 import type { EventManager } from "./EventManager";
@@ -223,6 +231,13 @@ export class DataManager implements Manager {
 
     /** The tally the load in progress is counting into, or null outside a load. */
     private loadTally: ImportTally | null = null;
+
+    /**
+     * Bumped by every REPLACING load as it is asked for, and by `supersedeLoads`. A load that
+     * sees it move has been overtaken, and stops with `E_SUPERSEDED` rather than touching the
+     * graph: see `addDataFromSource`.
+     */
+    private replaceGeneration = 0;
 
     /**
      * Creates an instance of DataManager
@@ -573,6 +588,28 @@ export class DataManager implements Manager {
     }
 
     /**
+     * The id `addNodes` reads off a node record.
+     * @param node - the record
+     * @param idPath - JMESPath expression to extract the id; the configured node id path when unset
+     * @returns the node's id
+     */
+    nodeIdOf(node: Record<string | number, unknown>, idPath?: string): NodeIdType {
+        return jmespath.search(node, idPath ?? this.styles.config.data.knownFields.nodeIdPath) as NodeIdType;
+    }
+
+    /**
+     * Refuse a replacing node set the renderer cannot hold, before the replace removes anything.
+     *
+     * The node half of what {@link setEdges} decides first: the new set is counted against an
+     * emptied graph, so a refused replace keeps the nodes the graph had.
+     * @param count - how many distinct nodes the graph would hold afterwards
+     * @throws A `GraphtyError` with `E_TOO_LARGE` when `count` is past the ceiling
+     */
+    refuseNodeSetAboveCeiling(count: number): void {
+        this.refuseAboveCeiling("nodes", 0, count, DEFAULT_LIMITS.renderCeiling);
+    }
+
+    /**
      * Adds multiple nodes to the graph
      * @param nodes - Array of node data objects
      * @param idPath - JMESPath expression to extract node ID from data
@@ -587,12 +624,16 @@ export class DataManager implements Manager {
             this.loadTally.nodeRecords += nodes.length;
         }
 
-        // create path to node ids
-        const query = idPath ?? this.styles.config.data.knownFields.nodeIdPath;
+        // The ids first, so the ceiling is checked against the nodes this batch would ADD (a
+        // re-supplied node costs nothing) and checked before any of them is created: a batch
+        // the renderer cannot hold is refused whole, not half-applied.
+        const ids = nodes.map((node) => this.nodeIdOf(node, idPath));
+        const fresh = new Set(ids.filter((id) => !this.nodeCache.get(id)));
+        this.refuseAboveCeiling("nodes", this.nodes.size, fresh.size, DEFAULT_LIMITS.renderCeiling);
 
         // create nodes
-        for (const node of nodes) {
-            const nodeId = jmespath.search(node, query) as NodeIdType;
+        for (const [i, node] of nodes.entries()) {
+            const nodeId = ids[i];
 
             if (this.nodeCache.get(nodeId)) {
                 continue;
@@ -922,6 +963,15 @@ export class DataManager implements Manager {
         const tally = this.loadTally ?? newImportTally();
         let legacyWeights = 0;
 
+        // Decided before any record is stored: a batch the renderer cannot hold is refused whole,
+        // so a caller never finds the first part of it held and the rest missing.
+        this.refuseAboveCeiling(
+            "edges",
+            this.store.builder.edgeCount,
+            this.edgesAdded(edges, endpoints, policy, false),
+            DEFAULT_LIMITS.edgesDrawn,
+        );
+
         for (const edge of edges) {
             tally.edgeRecords++;
             const srcNodeId = readEndpoint(edge, endpoints.source) as NodeIdType;
@@ -1198,6 +1248,95 @@ export class DataManager implements Manager {
     }
 
     /**
+     * Replace every built edge with a new set, or leave the graph exactly as it was.
+     *
+     * The ceiling is decided BEFORE anything is removed. Removing first and letting `addEdges`
+     * refuse would leave a host that assigned too many edges with its old edges gone and none of
+     * the new ones held, which is neither the graph it had nor the one it asked for. The new
+     * batch is counted against an emptied graph, since the old edges are what it replaces; a
+     * pending edge, whose endpoints have not arrived, survives the replace as it always has.
+     * @param edges - the edges the graph should hold afterwards
+     * @param options - the endpoint expressions and the repeat policy for this call
+     * @throws A `GraphtyError` with `E_TOO_LARGE` when the new set is past the ceiling, and
+     *     whatever `addEdges` throws.
+     */
+    setEdges(edges: Record<string | number, unknown>[], options?: AddEdgesOptions): void {
+        const surviving = this.store.builder.edgeCount - this.edges.size;
+        const policy = options?.repeated ?? this.styles.config.data.knownFields.repeatedEdges;
+        this.refuseAboveCeiling(
+            "edges",
+            surviving,
+            this.edgesAdded(edges, this.endpointsFor(edges, options), policy, true),
+            DEFAULT_LIMITS.edgesDrawn,
+        );
+
+        for (const id of [...this.edges.keys()]) {
+            this.removeEdge(id);
+        }
+
+        this.addEdges(edges, options);
+    }
+
+    /**
+     * How many edges a batch would add, by the same tests the ingest loop applies.
+     *
+     * A record whose endpoint ids graph-format will not store adds nothing (the loop rejects it).
+     * Under the `keep` policy every other record is an edge. Under a folding policy a record that
+     * repeats an edge the graph holds, or a record earlier in the same batch, folds into it and
+     * adds nothing; a repeat is named the way `knownEdgeFor` names it, by record id when one is
+     * configured and stored, else by the ordered endpoint pair.
+     * @param edges - the batch
+     * @param endpoints - the batch's endpoint expressions
+     * @param policy - the repeat policy the batch is under
+     * @param replacing - true when every held edge is about to be removed, so none of them can be
+     *     repeated
+     * @returns the number of edges the batch would add
+     */
+    private edgesAdded(
+        edges: readonly Record<string | number, unknown>[],
+        endpoints: ResolvedEndpoints,
+        policy: DuplicatePolicy,
+        replacing: boolean,
+    ): number {
+        const recordIdPath = this.styles.config.data.knownFields.edgeIdPath;
+        const seenIds = new Set<string | number>();
+        const seenPairs = new Map<NodeIdType, Set<NodeIdType>>();
+        let adding = 0;
+
+        for (const edge of edges) {
+            const srcNodeId = readEndpoint(edge, endpoints.source);
+            const dstNodeId = readEndpoint(edge, endpoints.target);
+            if (!isStorableId(srcNodeId) || !isStorableId(dstNodeId)) {
+                continue;
+            }
+
+            if (policy !== "keep") {
+                const recordId = recordIdPath === null ? undefined : readEndpoint(edge, recordIdPath);
+                if (!replacing && this.knownEdgeFor(srcNodeId, dstNodeId, recordId) !== null) {
+                    continue;
+                }
+
+                const pairs = seenPairs.get(srcNodeId) ?? new Set<NodeIdType>();
+                seenPairs.set(srcNodeId, pairs);
+                const repeatsBatch = isStorableRecordId(recordId) ? seenIds.has(recordId) : pairs.has(dstNodeId);
+                if (repeatsBatch) {
+                    continue;
+                }
+
+                if (isStorableRecordId(recordId)) {
+                    seenIds.add(recordId);
+                }
+
+                pairs.add(dstNodeId);
+            }
+
+            adding++;
+        }
+
+        return adding;
+    }
+
+    /**
      * Removes an edge from the graph
      * @param edgeId - Edge identifier to remove
      * @returns True if the edge was removed, false if not found
@@ -1237,7 +1376,11 @@ export class DataManager implements Manager {
             return false;
         }
 
-        const outcome: DirectionOutcome = ingestDeclaredDirection(this.store, declaration.directed, declaration.statedBy);
+        const outcome: DirectionOutcome = ingestDeclaredDirection(
+            this.store,
+            declaration.directed,
+            declaration.statedBy,
+        );
         if (outcome === "config-wins") {
             this.logger.info("File declares a direction the configuration has already settled", {
                 type,
@@ -1272,12 +1415,83 @@ export class DataManager implements Manager {
     }
 
     /**
+     * Reserve a load's place in line, at the moment the caller asked for it.
+     *
+     * A caller that reads a file or sniffs a URL before it loads calls this FIRST, so a load that
+     * was asked for later still wins however long the earlier one spends reading. A replacing load
+     * supersedes every load reserved before it.
+     * @param replace - Whether the load will replace the graph
+     * @returns The generation to hand to `addDataFromSource` and `throwIfSuperseded`
+     */
+    beginLoad(replace: boolean): number {
+        if (replace) {
+            this.replaceGeneration++;
+        }
+
+        return this.replaceGeneration;
+    }
+
+    /**
+     * Abandon every load in flight: each rejects with `E_SUPERSEDED` and adds nothing more.
+     * The element's `clearData` calls this, so a load finishing after the graph was closed does
+     * not bring its data back.
+     */
+    supersedeLoads(): void {
+        this.replaceGeneration++;
+    }
+
+    /**
+     * Throw `E_SUPERSEDED` when a load reserved at `generation` has been overtaken.
+     * @param generation - What `beginLoad` returned for the load
+     * @param type - The load's format, for the message
+     */
+    throwIfSuperseded(generation: number, type: string): void {
+        if (this.replaceGeneration !== generation) {
+            throw new GraphtyError({
+                code: "E_SUPERSEDED",
+                source: "data",
+                message: `The ${type} load was overtaken by a newer replacing load, so the graph was left to it.`,
+                details: { format: type },
+            });
+        }
+    }
+
+    /**
      * Loads data from a registered data source
+     *
+     * A REPLACING load reads the whole source into memory before it touches the store, and only
+     * once the source has finished without an error does it clear the graph and add what it read.
+     * A malformed or empty file therefore leaves the graph it would have replaced exactly as it
+     * was. An additive load streams each chunk straight in, as it always has.
+     *
+     * A load that reads no node records and no edge records at all fails with `E_EMPTY_LOAD`
+     * rather than completing with zero counts. A file of edges alone is not empty: its endpoints
+     * become nodes.
+     *
+     * The load that STARTED last wins. Once a replacing load has started, every load started
+     * before it -- replacing or additive -- is superseded: it adds nothing more and rejects with
+     * `E_SUPERSEDED`, whichever order the sources finish in. A superseded load emits no
+     * `data-loading-error`, because nothing went wrong with its source.
      * @param type - Data source type identifier
      * @param opts - Options to pass to the data source
+     * @param load - Which load this is, for every event it emits, and whether it replaces the graph
+     * @param load.loadId - The id every event about this load carries
+     * @param load.replace - Swap the graph for what the source holds, once it has all parsed
+     * @param load.generation - The place `beginLoad` reserved for this load when the caller's call
+     *     was made; left unset, the load takes its place now
      */
-    async addDataFromSource(type: string, opts: object = {}): Promise<void> {
-        this.logger.info("Loading data source", { type, options: opts });
+    async addDataFromSource(
+        type: string,
+        opts: object = {},
+        load: { loadId?: number; replace?: boolean; generation?: number } = {},
+    ): Promise<void> {
+        const { loadId, replace = false } = load;
+        this.logger.info("Loading data source", { type, options: opts, loadId, replace });
+
+        const generation = load.generation ?? this.beginLoad(replace);
+        const throwIfSuperseded = (): void => {
+            this.throwIfSuperseded(generation, type);
+        };
 
         const startTime = Date.now();
         let nodeRecordsLoaded = 0;
@@ -1298,6 +1512,9 @@ export class DataManager implements Manager {
         };
 
         try {
+            // A caller that reserved its place before reading a file may have been overtaken
+            // while it read.
+            throwIfSuperseded();
             const source = DataSource.get(type, opts);
             if (!source) {
                 throw unknownFormat(type);
@@ -1310,21 +1527,32 @@ export class DataManager implements Manager {
                 // Whether the file's own direction has been dealt with, so the work and the log
                 // line happen once per import rather than once per chunk.
                 let directionSettled = false;
+                // What a replacing load has read and not yet added: see the method comment.
+                const heldNodes: Record<string | number, unknown>[] = [];
+                const heldEdges: Record<string | number, unknown>[] = [];
 
                 for await (const chunk of source.getData()) {
-                    // BEFORE this chunk's edges, every time: the builder accepts a direction only
-                    // while it holds none. Read per chunk rather than once before the loop because
-                    // a source parses nothing until its first chunk is pulled, so before the loop
-                    // every source declares null.
-                    if (!directionSettled) {
-                        directionSettled = this.applyDeclaredDirection(type, source.declaredDirection);
-                    }
+                    if (replace) {
+                        heldNodes.push(...chunk.nodes);
+                        heldEdges.push(...chunk.edges);
+                    } else {
+                        throwIfSuperseded();
 
-                    this.addNodes(chunk.nodes);
-                    // The endpoint names a caller passed to the SOURCE are honoured here rather
-                    // than inside each of the seven importers: whatever shape a source produces,
-                    // the consumer who named the columns named them for the records that come out.
-                    this.addEdges(chunk.edges, endpointOverrides);
+                        // BEFORE this chunk's edges, every time: the builder accepts a direction
+                        // only while it holds none. Read per chunk rather than once before the loop
+                        // because a source parses nothing until its first chunk is pulled, so
+                        // before the loop every source declares null.
+                        if (!directionSettled) {
+                            directionSettled = this.applyDeclaredDirection(type, source.declaredDirection);
+                        }
+
+                        this.addNodes(chunk.nodes);
+                        // The endpoint names a caller passed to the SOURCE are honoured here rather
+                        // than inside each of the seven importers: whatever shape a source
+                        // produces, the consumer who named the columns named them for the records
+                        // that come out.
+                        this.addEdges(chunk.edges, endpointOverrides);
+                    }
 
                     nodeRecordsLoaded += chunk.nodes.length;
                     edgeRecordsLoaded += chunk.edges.length;
@@ -1339,29 +1567,99 @@ export class DataManager implements Manager {
                             nodeRecordsLoaded,
                             edgeRecordsLoaded,
                             chunksProcessed,
+                            loadId,
                         );
                     }
                 }
 
-                // Emit error summary if there were errors
-                if (this.graphContext) {
-                    const errorAggregator = source.getErrorAggregator();
-                    if (errorAggregator.getErrorCount() > 0) {
-                        const summary = errorAggregator.getSummary();
-                        this.eventManager.emitDataLoadingErrorSummary(
-                            type,
-                            summary.totalErrors,
-                            summary.message,
-                            errorAggregator.getDetailedReport(),
-                            summary.primaryCategory,
-                            summary.suggestion,
+                throwIfSuperseded();
+
+                // Emitted BEFORE either refusal below, so a file whose every row failed
+                // validation still says why each row was rejected.
+                const errorAggregator = source.getErrorAggregator();
+                const rowErrors = errorAggregator.getErrorCount();
+                if (this.graphContext && rowErrors > 0) {
+                    const summary = errorAggregator.getSummary();
+                    this.eventManager.emitDataLoadingErrorSummary(
+                        type,
+                        summary.totalErrors,
+                        summary.message,
+                        errorAggregator.getDetailedReport(),
+                        summary.primaryCategory,
+                        summary.suggestion,
+                        loadId,
+                    );
+                }
+
+                if (nodeRecordsLoaded === 0 && edgeRecordsLoaded === 0) {
+                    throw new GraphtyError({
+                        code: "E_EMPTY_LOAD",
+                        source: "data",
+                        message:
+                            rowErrors > 0
+                                ? `Every row of the ${type} source was rejected (${rowErrors} errors: ` +
+                                  `${errorAggregator.getSummary().message}), so there was nothing to load.`
+                                : `The ${type} source held no nodes and no edges, so there was nothing to load. ` +
+                                  "Check the file, or the format it was read as.",
+                        details: { format: type, rowErrors },
+                    });
+                }
+
+                // The source stops quietly at its error limit, so what was read is only part of
+                // the file; swapping a good graph for it is not "finished without an error".
+                if (replace && errorAggregator.hasReachedLimit()) {
+                    throw new GraphtyError({
+                        code: "E_PARSE_FAILED",
+                        source: "data",
+                        message:
+                            `The ${type} source stopped after ${rowErrors} rejected rows, its error limit, ` +
+                            "so only part of it was read and the current graph was kept.",
+                        details: { format: type, rowErrors },
+                    });
+                }
+
+                if (replace) {
+                    // This load's own tally and endpoint answer, whatever a load that ran beside
+                    // it left in the shared fields.
+                    this.loadTally = tally;
+                    this.loadEndpoints = null;
+
+                    // Settled BEFORE the graph goes, because these checks can refuse the whole
+                    // file (E_EDGE_ENDPOINTS_UNRESOLVED, E_TOO_LARGE): refusing it after the
+                    // clear would leave an empty canvas where a good graph was.
+                    // ponytail: E_DUPLICATE_EDGE under the non-default "error" repeat policy can
+                    // still throw after the clear; checking it first needs a dry-run ingest.
+                    // The ceiling is counted against the emptied graph this load leaves.
+                    this.refuseAboveCeiling(
+                        "nodes",
+                        0,
+                        new Set(heldNodes.map((node) => this.nodeIdOf(node))).size,
+                        DEFAULT_LIMITS.renderCeiling,
+                    );
+                    if (heldEdges.length > 0) {
+                        this.refuseAboveCeiling(
+                            "edges",
+                            0,
+                            this.edgesAdded(
+                                heldEdges,
+                                this.endpointsFor(heldEdges, endpointOverrides),
+                                this.styles.config.data.knownFields.repeatedEdges,
+                                true,
+                            ),
+                            DEFAULT_LIMITS.edgesDrawn,
                         );
                     }
+
+                    // `clear` leaves the load's tally and its endpoint answer alone, so the
+                    // records below are counted and read exactly as a streamed load's would be.
+                    this.clear();
+                    this.applyDeclaredDirection(type, source.declaredDirection);
+                    this.addNodes(heldNodes);
+                    this.addEdges(heldEdges, endpointOverrides);
                 }
 
                 // Emit completion event
                 const duration = Date.now() - startTime;
-                const errorCount = source.getErrorAggregator().getErrorCount();
 
                 // The number a consumer is told is the number of edges the graph HOLDS, which is
                 // what `edgesLoaded` has always claimed to be and never was: it counted records
@@ -1379,7 +1677,7 @@ export class DataManager implements Manager {
                     endpointsResolvedFrom: report.endpoints.resolvedFrom,
                     duration,
                     chunks: chunksProcessed,
-                    errors: errorCount,
+                    errors: rowErrors,
                 });
 
                 if (this.graphContext) {
@@ -1388,18 +1686,26 @@ export class DataManager implements Manager {
                         nodesHeld,
                         edgesHeld,
                         duration,
-                        errorCount,
+                        rowErrors,
                         0, // warnings
                         true,
                         report,
+                        loadId,
                     );
                 }
 
                 // Keep existing data-loaded event for backward compatibility
                 if (this.graphContext) {
-                    this.eventManager.emitGraphDataLoaded(this.graphContext, chunksProcessed, type, report);
+                    this.eventManager.emitGraphDataLoaded(this.graphContext, chunksProcessed, type, report, loadId);
                 }
             } catch (error) {
+                // An overtaken load is abandoned, so whatever stopped it -- the check, or its own
+                // source failing after a newer load started -- is not reported as a failure.
+                if (this.replaceGeneration !== generation) {
+                    this.logger.info("Data source load superseded", { type, loadId });
+                    throwIfSuperseded();
+                }
+
                 // Log the error
                 this.logger.error(
                     "Data source loading failed",
@@ -1418,7 +1724,7 @@ export class DataManager implements Manager {
                         error instanceof Error ? error : new Error(String(error)),
                         "parsing",
                         type,
-                        { canContinue: false },
+                        { canContinue: false, ...(loadId === undefined ? {} : { loadId }) },
                     );
 
                     // Keep existing error event for backward compatibility
@@ -1426,7 +1732,7 @@ export class DataManager implements Manager {
                         this.graphContext,
                         error instanceof Error ? error : new Error(String(error)),
                         "data-loading",
-                        { chunksLoaded: chunksProcessed, dataSourceType: type },
+                        { chunksLoaded: chunksProcessed, dataSourceType: type, loadId },
                     );
                 }
 
@@ -1459,9 +1765,11 @@ export class DataManager implements Manager {
             );
         } finally {
             // Whatever happened, this load is over: the next one probes for itself and counts into
-            // its own tally.
-            this.loadTally = null;
-            this.loadEndpoints = null;
+            // its own tally. Unless another load has taken the fields over since.
+            if (this.loadTally === tally) {
+                this.loadTally = null;
+                this.loadEndpoints = null;
+            }
         }
     }
 
@@ -1503,6 +1811,43 @@ export class DataManager implements Manager {
      */
     private heldCounts(): { nodes: number; edges: number } {
         return { nodes: this.store.builder.nodeCount, edges: this.store.builder.edgeCount };
+    }
+
+    /**
+     * Refuse to grow past what the renderer can draw, instead of freezing the tab.
+     *
+     * WHY A REFUSAL AND NOT A DEGRADED DRAW. The design says that above the render ceiling the
+     * element draws a smaller render set, and above `edgesDrawn` it hides edges until the view
+     * narrows. Neither exists yet. What exists is a renderer that, past these counts, exhausts
+     * the renderer process and produces no further frame -- measured for issue #405 at 18,000
+     * nodes / 180,000 edges on an RTX 4070 SUPER, where the renderer process reached 4.7 GB and
+     * died while 17,000 / 170,000 loaded in 17 s. Until the degraded draw lands, the honest
+     * behaviour at the ceiling is a coded error the consumer can show, so `DEFAULT_LIMITS` is
+     * the number the element enforces rather than a number it merely publishes.
+     *
+     * `E_TOO_LARGE` is the code because the ceiling is a hard limit of this renderer, and the
+     * caller's remedy is the one that code names: load a subset.
+     * @param of - what is being counted
+     * @param held - how many the graph holds already
+     * @param adding - how many this call would add
+     * @param limit - the most the renderer can draw
+     * @throws A `GraphtyError` with `E_TOO_LARGE` when `held + adding` is past the limit
+     */
+    private refuseAboveCeiling(of: "nodes" | "edges", held: number, adding: number, limit: number): void {
+        if (held + adding <= limit) {
+            return;
+        }
+
+        const { nodes, edges } = this.heldCounts();
+        throw new GraphtyError({
+            code: "E_TOO_LARGE",
+            source: "data",
+            message:
+                `Loading ${adding.toLocaleString("en-US")} more ${of} would take the graph to ` +
+                `${(held + adding).toLocaleString("en-US")}, past the ${limit.toLocaleString("en-US")} ` +
+                `this renderer can draw. Load a subset of the graph.`,
+            details: { limit, count: held + adding, of, graph: { nodes, edges } },
+        });
     }
 
     // Utility methods

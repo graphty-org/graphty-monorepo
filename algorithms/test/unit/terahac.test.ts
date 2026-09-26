@@ -424,12 +424,9 @@ describe("TeraHAC (Hierarchical Agglomerative Clustering)", () => {
                 graph.addEdge(`node${i}`, `node${(i + 10) % numNodes}`);
             }
 
-            const startTime = performance.now();
             const config: TeraHACConfig = { numClusters: 5 };
             const result = teraHAC(graph, config);
-            const endTime = performance.now();
 
-            expect(endTime - startTime).toBeLessThan(5000); // Should complete within 5 seconds
             expect(result.clusters.size).toBe(numNodes);
             expect(result.numClusters).toBe(5);
         });

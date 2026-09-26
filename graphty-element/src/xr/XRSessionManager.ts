@@ -1,4 +1,4 @@
-import type { Camera, Scene, WebXRDefaultExperience } from "@babylonjs/core";
+import type { Camera, Scene, WebXRDefaultExperience, WebXRDefaultExperienceOptions } from "@babylonjs/core";
 
 import { GraphtyLogger, type Logger } from "../logging";
 
@@ -17,9 +17,34 @@ interface XRSessionConfig {
         referenceSpaceType: XRReferenceSpaceType;
         optionalFeatures?: string[];
     };
-    /** Whether XR sessions track hands (`xr.input.handTracking`). On, Babylon downloads hand meshes. Defaults to true. */
+    /** Whether XR sessions track hands (`xr.input.handTracking`). Defaults to true. */
     handTracking?: boolean;
 }
+
+/**
+ * Babylon XR helper options that keep an XR session off the network. Left at Babylon's defaults,
+ * entering XR downloads a controller profile list (immersive-web.github.io), rigged hand meshes
+ * and their shader (assets.babylonjs.com) and the near-interaction orb material
+ * (snippet.babylonjs.com), which breaks on an offline, intranet or CSP-restricted page.
+ *
+ * - Controllers use the motion controller classes built into Babylon instead of the online
+ *   profile repository.
+ * - Hands draw as Babylon's tracked joint spheres. The rigged hand meshes are glTF files, and
+ *   graphty-element ships no glTF loader, so they never loaded even online: the joint spheres are
+ *   what a headset showed before this change too.
+ * - The orb material ships with the element. It is Babylon's node material snippet 8RUNKL#3,
+ *   the one WebXRNearInteraction loads by default, saved as JSON.
+ */
+const OFFLINE_XR_OPTIONS = {
+    inputOptions: { disableOnlineControllerRepository: true },
+    handSupportOptions: {
+        jointMeshes: { enablePhysics: false },
+        handMeshes: { disableDefaultMeshes: true },
+    },
+    nearInteractionOptions: {
+        motionControllerTouchMaterialSnippetUrl: new URL("./assets/touch-orb-material.json", import.meta.url).href,
+    },
+} satisfies Partial<WebXRDefaultExperienceOptions>;
 
 /**
  * Manages WebXR session lifecycle for VR and AR modes.
@@ -126,33 +151,16 @@ export class XRSessionManager {
             logger.debug("Creating VR XR experience");
 
             // Import WebXR module dynamically
-            const { WebXRDefaultExperience, WebXRFeatureName } = await import("@babylonjs/core");
+            const { WebXRDefaultExperience } = await import("@babylonjs/core");
 
             this.xrHelper = await WebXRDefaultExperience.CreateAsync(this.scene, {
+                ...OFFLINE_XR_OPTIONS,
                 floorMeshes: [],
                 optionalFeatures: true,
                 disableTeleportation: true, // Match demo
                 // Babylon turns hand tracking on by default; the configuration decides instead.
                 disableHandTracking: this._config.handTracking === false,
             });
-
-            // Enable hand tracking with default rigged hand meshes (purple hands), unless the
-            // configuration turned it off. The feature fetches its meshes from the network.
-            if (this._config.handTracking !== false) {
-                try {
-                    this.xrHelper.baseExperience.featuresManager.enableFeature(
-                        WebXRFeatureName.HAND_TRACKING,
-                        "latest",
-                        {
-                            xrInput: this.xrHelper.input,
-                            jointMeshes: { enablePhysics: false },
-                        },
-                    );
-                    logger.debug("Hand tracking enabled");
-                } catch (handError) {
-                    logger.warn("Failed to enable hand tracking", { error: String(handError) });
-                }
-            }
 
             // Actually enter the VR session
             logger.debug("Entering VR session");
@@ -205,6 +213,7 @@ export class XRSessionManager {
             // This prevents dots/spheres from appearing in AR mode
             // Controller triggers still work for gestures without the hand tracking feature
             this.xrHelper = await WebXRDefaultExperience.CreateAsync(this.scene, {
+                ...OFFLINE_XR_OPTIONS,
                 floorMeshes: [],
                 // Don't request all optional features - this prevents hand-tracking from being enabled
                 optionalFeatures: false,

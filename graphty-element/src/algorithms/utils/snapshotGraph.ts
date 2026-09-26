@@ -55,9 +55,8 @@ export function toAlgorithmGraph(data: DataManager, mode: AlgorithmGraphMode): A
     // would count that pair twice, which is the doubling this conversion exists to end.
     const oriented = mode === "directed" ? declared : data.undirected(declared).snapshot;
     // THE ELEMENT SIMPLIFIES BEFORE IT CONVERTS, because `@graphty/algorithms` cannot represent a
-    // multigraph and does not say so: its `Graph.addEdge` stores into a Map keyed by target while
-    // incrementing `edgeCount` for every call, so a second parallel edge silently replaces the
-    // first, its weight is lost, and the graph handed to the algorithm is internally inconsistent.
+    // multigraph: its `Graph` holds one edge per pair, so a second parallel edge replaces the first
+    // and its weight is lost.
     // Summing rather than taking the first, because a repeated edge between two nodes is MORE
     // connection, not the same connection -- and it is the same reading a weighted layout gives
     // the same number.

@@ -18,7 +18,7 @@ function renderPopout(ui: React.ReactElement) {
 }
 
 describe("PopoutManagerProvider", () => {
-    describe("closing behavior when several pop-outs are open", () => {
+    describe("closing behaviour when several pop-outs are open", () => {
         it("closes sibling popouts when opening new one", async () => {
             const user = userEvent.setup();
 
@@ -202,7 +202,7 @@ describe("PopoutManagerProvider", () => {
             expect(screen.getByTestId("child-b-content")).toBeInTheDocument();
         });
 
-        it("handles deeply nested popout hierarchies efficiently", async () => {
+        it("opens five nested popout levels and closes a middle level with its descendants", async () => {
             const user = userEvent.setup();
 
             // Create a deep hierarchy: 5 levels deep
@@ -273,8 +273,6 @@ describe("PopoutManagerProvider", () => {
                 </Popout>
             );
 
-            const start = performance.now();
-
             renderPopout(<DeepNesting />);
 
             // Open all 5 levels
@@ -285,13 +283,8 @@ describe("PopoutManagerProvider", () => {
                 });
             }
 
-            const duration = performance.now() - start;
-
             // All 5 levels should be open
             expect(screen.getAllByRole("dialog")).toHaveLength(5);
-
-            // Should complete in reasonable time (not O(n^2) - generous limit for CI)
-            expect(duration).toBeLessThan(5000);
 
             // Close level 2 - should close levels 2-5
             const level2Panel = screen

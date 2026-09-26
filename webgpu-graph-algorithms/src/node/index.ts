@@ -32,11 +32,15 @@ export interface NodeGpuOptions extends Omit<GpuContextOptions, "gpu" | "adapter
     readonly loadModule?: (() => Promise<unknown>) | undefined;
 }
 
-/** The Dawn GPU handle (spec 2.3): dispose() drops the reference so the process can exit. */
+/**
+ * The Dawn GPU handle (spec 2.3). The Dawn instance behind `gpu` is shared by every handle created with the
+ * same flags and lives until the process exits (see `createNodeGpu`); it holds no event-loop handle, so it
+ * never keeps the process alive.
+ */
 export interface NodeGpuHandle {
     /** The GPU of `dawn.create(flags)`; reading it after dispose() throws E_DISPOSED. */
     readonly gpu: GPU;
-    /** Drops the GPU reference; idempotent. */
+    /** Drops this handle's GPU reference (the shared instance stays alive); idempotent. */
     dispose(): void;
 }
 
@@ -48,6 +52,18 @@ interface DawnModule {
     create(options: string[]): GPU;
     globals?: unknown;
 }
+
+/**
+ * Every GPU object `dawn.create()` returned, per module and flag list, kept for the life of the process.
+ * webgpu@0.4.0's adapters, devices and queues run their promises through an AsyncRunner that polls the Dawn
+ * instance by RAW pointer, and only the GPU object owns that instance: once the GPU object is collected, the
+ * next promise on any adapter or device it produced (a requestDevice on a probed adapter, a queue call or a
+ * late map / lost callback of a destroyed device) polls freed memory -- SIGSEGV in
+ * dawn::native::InstanceBase::ProcessEvents, on Metal and lavapipe alike (issue #30). dawn-node signals no
+ * point at which the instance has drained, so no GPU object is ever released; sharing one per flag list
+ * bounds what that keeps to one instance per configuration.
+ */
+const instances = new Map<DawnModule, Map<string, GPU>>();
 
 /**
  * Whether a loaded module is usable as Dawn.
@@ -125,9 +141,11 @@ export function dawnFlags(options: NodeGpuOptions | undefined): string[] {
 }
 
 /**
- * import("webgpu"), install dawn.globals unless installGlobals === false, dawn.create(flags) (spec 2.3).
+ * import("webgpu"), install dawn.globals unless installGlobals === false, dawn.create(flags) (spec 2.3). The GPU
+ * object is created once per flag list and reused by every later call with the same flags; it is never released,
+ * because Dawn keeps polling its instance for the adapters and devices it produced (issue #30).
  * @param options - adapter / backend / dawnFeatures / software / installGlobals (and the test seam)
- * @returns the handle; `dispose()` drops the GPU reference so the process can exit
+ * @returns the handle; `dispose()` drops the handle's reference, never the shared instance
  * @throws WebGpuGraphError E_NO_WEBGPU { reason, hint } when the module does not load (missing, or its glibc is too old), has no create(), or create(flags) throws
  */
 export async function createNodeGpu(options?: NodeGpuOptions): Promise<NodeGpuHandle> {
@@ -150,12 +168,22 @@ export async function createNodeGpu(options?: NodeGpuOptions): Promise<NodeGpuHa
     if (options?.installGlobals !== false && typeof loaded.globals === "object" && loaded.globals !== null) {
         Object.assign(globalThis, loaded.globals);
     }
-    let gpu: GPU;
-    try {
-        gpu = loaded.create(dawnFlags(options));
-    } catch (err) {
-        const reason = `dawn.create() threw: ${messageOf(err)}`;
-        throw new WebGpuGraphError("E_NO_WEBGPU", `${reason}; ${INSTALL_HINT}`, { reason, hint: INSTALL_HINT });
+    const flags = dawnFlags(options);
+    const key = flags.join("\n");
+    let byFlags = instances.get(loaded);
+    if (byFlags === undefined) {
+        byFlags = new Map();
+        instances.set(loaded, byFlags);
+    }
+    let gpu = byFlags.get(key);
+    if (gpu === undefined) {
+        try {
+            gpu = loaded.create(flags);
+        } catch (err) {
+            const reason = `dawn.create() threw: ${messageOf(err)}`;
+            throw new WebGpuGraphError("E_NO_WEBGPU", `${reason}; ${INSTALL_HINT}`, { reason, hint: INSTALL_HINT });
+        }
+        byFlags.set(key, gpu);
     }
     return new DawnHandle(gpu);
 }
@@ -181,10 +209,9 @@ function contextOptionsOf(options: NodeGpuOptions): Omit<GpuContextOptions, "gpu
 
 /**
  * createNodeGpu + GpuContext.create({ gpu, runtime: "node", ...options }); ctx.dispose() also disposes the
- * handle, and a create() failure disposes it before rethrowing. The handle is dropped once `ctx.lost` has
- * settled, never before: under webgpu@0.4.0 a GPU object collected while the device it created is still
- * tearing down (its lost / work-done callbacks in flight) crashes or deadlocks the process (PLAN DECISION,
- * P1-T1; measured with tmp/p1t1/gc-race2.mjs), and device.destroy() reports the loss right away.
+ * handle, and a create() failure disposes it before rethrowing. Disposing is safe at any moment: the Dawn
+ * instance itself stays alive for the process (createNodeGpu), so a callback of the destroyed device that
+ * arrives late, or a call on `ctx.device` after dispose(), never reaches a freed instance.
  * @param options - the Node options
  * @returns the context
  */
@@ -197,11 +224,8 @@ export async function createNodeGpuContext(options?: NodeGpuOptions): Promise<Gp
         handle.dispose();
         throw err;
     }
-    const { lost } = ctx;
     ctx.attachDisposer(() => {
-        void lost.then(() => {
-            handle.dispose();
-        });
+        handle.dispose();
     });
     return ctx;
 }

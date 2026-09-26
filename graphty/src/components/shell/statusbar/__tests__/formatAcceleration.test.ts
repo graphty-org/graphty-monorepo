@@ -5,11 +5,12 @@ import { ACCELERATION_CHIP_PREFIX, formatAcceleration } from "../formatAccelerat
 
 describe("formatAcceleration", () => {
     it("draws nothing while the element is still probing", () => {
-        expect(formatAcceleration({ state: "probing" })).toBeNull();
+        expect(formatAcceleration({ policy: "auto", state: "probing" })).toBeNull();
     });
 
     it("names the hardware when an accelerator is attached, at rest or at work", () => {
         const attached: AccelerationStatus = {
+            policy: "auto",
             state: "active",
             backend: "webgpu",
             vendor: "nvidia",
@@ -28,7 +29,7 @@ describe("formatAcceleration", () => {
     });
 
     it("omits the parenthesis when the backend reported no vendor and no architecture", () => {
-        expect(formatAcceleration({ state: "active", backend: "webgpu" })).toEqual({
+        expect(formatAcceleration({ policy: "auto", state: "active", backend: "webgpu" })).toEqual({
             label: `${ACCELERATION_CHIP_PREFIX}: on`,
             title: "webgpu. Layouts and algorithms with a GPU path run on it.",
             active: true,
@@ -43,7 +44,7 @@ describe("formatAcceleration", () => {
            element's, and the test that fails without it is the element's own
            `test/acceleration/AccelerationController.test.ts`; this pins what the chip then says. */
         expect(
-            formatAcceleration({ state: "idle", backend: "webgpu", vendor: "nvidia", architecture: "lovelace" }),
+            formatAcceleration({ policy: "auto", state: "idle", backend: "webgpu", vendor: "nvidia", architecture: "lovelace" }),
         ).toEqual({
             label: `${ACCELERATION_CHIP_PREFIX}: on (nvidia lovelace)`,
             title: "webgpu. Layouts and algorithms with a GPU path run on it.",
@@ -52,7 +53,7 @@ describe("formatAcceleration", () => {
     });
 
     it("says where the reader switched it off, and diagnoses nothing", () => {
-        expect(formatAcceleration({ state: "off" })).toEqual({
+        expect(formatAcceleration({ policy: "auto", state: "off" })).toEqual({
             label: `${ACCELERATION_CHIP_PREFIX}: off`,
             title: "Switched off in Settings > Performance.",
             active: false,
@@ -60,7 +61,7 @@ describe("formatAcceleration", () => {
     });
 
     it("carries the element's reason when no accelerator is available", () => {
-        expect(formatAcceleration({ state: "unavailable", code: "E_NO_WEBGPU", reason: "this browser has no WebGPU" })).toEqual({
+        expect(formatAcceleration({ policy: "auto", state: "unavailable", code: "E_NO_WEBGPU", reason: "this browser has no WebGPU" })).toEqual({
             label: `${ACCELERATION_CHIP_PREFIX}: off`,
             title: "this browser has no WebGPU",
             active: false,
@@ -69,7 +70,7 @@ describe("formatAcceleration", () => {
 
     it("carries the element's reason when an attached accelerator failed", () => {
         expect(
-            formatAcceleration({ state: "error", code: "E_DEVICE_LOST", reason: "the accelerator's device was lost: reset" }),
+            formatAcceleration({ policy: "auto", state: "error", code: "E_DEVICE_LOST", reason: "the accelerator's device was lost: reset" }),
         ).toEqual({
             label: `${ACCELERATION_CHIP_PREFIX}: off`,
             title: "the accelerator's device was lost: reset",
@@ -80,6 +81,7 @@ describe("formatAcceleration", () => {
     it("carries the element's reason when the GPU computes incorrectly, rather than a generic failure", () => {
         expect(
             formatAcceleration({
+                policy: "auto",
                 state: "unavailable",
                 code: "E_DEVICE_INCORRECT",
                 reason:
@@ -96,7 +98,7 @@ describe("formatAcceleration", () => {
     });
 
     it("falls back from reason to code to the fixed sentence", () => {
-        expect(formatAcceleration({ state: "unavailable", code: "E_NO_ADAPTER" })?.title).toBe("E_NO_ADAPTER");
-        expect(formatAcceleration({ state: "unavailable" })?.title).toBe("No accelerator is available.");
+        expect(formatAcceleration({ policy: "auto", state: "unavailable", code: "E_NO_ADAPTER" })?.title).toBe("E_NO_ADAPTER");
+        expect(formatAcceleration({ policy: "auto", state: "unavailable" })?.title).toBe("No accelerator is available.");
     });
 });

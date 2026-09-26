@@ -1,47 +1,31 @@
 /**
- * The Frontier, the counters block, the indirect args and `frontier-finalize` (design 5.4, 6 row 7; P8-T4), driven
- * with a synthetic counters block and no graph, every readback naming its buffer: the two blocks have the pinned
- * layouts and `W` indexes the counters block by 4 x word; the BFS seed `{ nextFrontierCount: 1, level: U32_MAX }` is
- * rotated in by the first boundary (word 0 from word 1, `visitedCount` 1, `level` 0, slot 0 `(1, 1, 1, 1)`); the
- * boundary-index rule gates the two unvisited subtractions; `maxDepth` sets `done` and zeroes every slot; `swap()`
- * flips the two vertex queues; role 0 writes plan1d's `(x, y, 1, count)` for the count in word 1 and zero slots for
- * the rest; the 2,000-count ladder agrees bitwise with P4's `indirect-finalize` and with `planIndirect` (DEP-P8-C),
- * twice; the fused slot is one WORKGROUP per entry; role 1 sizes the contract slot or, on an overflow, the fused-retry
- * slot (PD-23), and does nothing after a done or a fused boundary; a boundary that finds `done` set moves no word and
- * zeroes its seven slots; a 17M count dispatches `fill` over every word through the 2D split (design 13's gate item,
- * on lavapipe); and a bad argument is E_INVALID_ARGUMENT naming it before anything is recorded.
+ * The Frontier, the counters block and `frontier-finalize` (design 5.4, 6 row 7; P8-T4), driven with a synthetic
+ * counters block and no graph, every readback naming its buffer: the two blocks have the pinned layouts and `W`
+ * indexes the counters block by 4 x word; the BFS seed `{ nextFrontierCount: 1, level: U32_MAX }` is rotated in by
+ * the first boundary (word 0 from word 1, `visitedCount` 1, `level` 0, path 1); the boundary-index rule gates the
+ * two unvisited subtractions; `maxDepth` sets `done` and path 0; `swap()` flips the two vertex queues; role 0
+ * chooses the two-phase path for any count under `mode 1, fusedMax 0`; the fused path is chosen below `fusedMax`;
+ * role 1 keeps the two-phase path and counts it, or, on an overflow, switches to the fused retry (PD-23), and does
+ * nothing after a done or a fused boundary; a boundary that finds `done` set moves no word and zeroes a poisoned
+ * path word; and a bad argument is E_INVALID_ARGUMENT naming it before anything is recorded. The selector's
+ * decision is the block's `path` word alone (2026-09-25): the seven indirect slots it once wrote, their args
+ * buffer, the 2,000-count ladder against `indirect-finalize` and the 17M-count 2D-split case that dispatched from
+ * a slot are gone with them, and `indirect-finalize`'s own tests keep the split.
  */
 
 import { type TestContext } from "vitest";
 
 import { algorithmScope } from "../../src/algorithms/scope.js";
-import { FRONTIER_CANDIDATES, MAX_LEVELS_PER_SUBMIT, U32_MAX } from "../../src/constants.js";
+import { MAX_LEVELS_PER_SUBMIT, U32_MAX } from "../../src/constants.js";
 import { type GpuContext } from "../../src/context.js";
 import { isWebGpuGraphError } from "../../src/errors.js";
-import { CommandBatch } from "../../src/kernel/batch.js";
-import { planIndirect } from "../../src/kernel/dispatch.js";
-import { INDIRECT_ARGS_STRIDE } from "../../src/kernel/kernel.js";
-import { FILL_PARAMS, FRONTIER_COUNTERS, FRONTIER_PARAMS, kernelSpec } from "../../src/kernels.js";
-import { prepareFrontier, SLOT, W } from "../../src/primitives/frontier.js";
-import { bindingOf, readU32, uploadBuffer } from "../helpers/device.js";
-import {
-    type CounterWord,
-    expectedLadderArgs,
-    FRONTIER_LADDER,
-    frontierReport,
-    POISON,
-    runBoundary,
-    runFinalizeLadder,
-    runIndirectLadder,
-    slotOf,
-    ZERO_SLOT,
-} from "../helpers/frontier.js";
+import { FRONTIER_COUNTERS, FRONTIER_PARAMS } from "../../src/kernels.js";
+import { PATH, prepareFrontier, W } from "../../src/primitives/frontier.js";
+import { readU32 } from "../helpers/device.js";
+import { type CounterWord, frontierReport, POISON, runBoundary } from "../helpers/frontier.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { assertCheckPasses } from "../helpers/sabotage.js";
 import { acquire, requireGpu } from "../setup/gpu.js";
-
-/** The gate's synthetic frontier: 66,407 workgroups of 256, above the 65,535 per-dimension limit. */
-const BIG_COUNT = 17_000_000;
 
 /** The counters words in W order. */
 const WORDS = Object.keys(W) as CounterWord[];
@@ -59,12 +43,6 @@ function argumentOf(fn: () => unknown): string | null {
     }
 }
 
-/** `planIndirect`'s slot for a count. */
-function planSlot(ctx: GpuContext, count: number): number[] {
-    const plan = planIndirect(count, ctx.workgroupSize, ctx.caps);
-    return [plan.x, plan.y, 1, count];
-}
-
 describe("Frontier, the counters block and frontier-finalize (design 5.4, 6 row 7; P8-T4)", () => {
     let shared: GpuContext | null = null;
 
@@ -75,11 +53,11 @@ describe("Frontier, the counters block and frontier-finalize (design 5.4, 6 row 
         return ctx;
     }
 
-    it("FRONTIER_COUNTERS is a 112-byte storage block of 25 u32 words (the path word last, rounded to 16 bytes) indexed by W at 4 x word; FRONTIER_PARAMS an 80-byte uniform of twenty u32 fields", () => {
+    it("FRONTIER_COUNTERS is a 112-byte storage block of 26 u32 words (the nextDegreeSum word last, rounded to 16 bytes) indexed by W at 4 x word; FRONTIER_PARAMS an 80-byte uniform of twenty u32 fields; PATH names the path word's values", () => {
         expect(FRONTIER_COUNTERS.name).toBe("FrontierCounters");
         expect(FRONTIER_COUNTERS.layout).toBe("storage");
         expect(FRONTIER_COUNTERS.byteLength).toBe(112);
-        expect(WORDS).toHaveLength(25);
+        expect(WORDS).toHaveLength(26);
         expect(FRONTIER_COUNTERS.fields.map((f) => f[0])).toEqual(WORDS);
         for (const name of WORDS) {
             expect(FRONTIER_COUNTERS.offsetOf(name), name).toBe(4 * W[name]);
@@ -90,14 +68,12 @@ describe("Frontier, the counters block and frontier-finalize (design 5.4, 6 row 
         expect(W.done).toBe(15);
         expect(W.deltaBits).toBe(23);
         expect(W.path).toBe(24);
-        expect(SLOT).toEqual({ expand: 0, contract: 1, fused: 2, fillBits: 3, bitset: 4, bottomUp: 5, fusedRetry: 6 });
-        expect(Object.keys(SLOT)).toHaveLength(FRONTIER_CANDIDATES);
+        expect(PATH).toEqual({ none: 0, twoPhase: 1, fused: 2, bottomUp: 3, fusedRetry: 4, near: 5, far: 6 });
         expect(FRONTIER_PARAMS.name).toBe("FrontierParams");
         expect(FRONTIER_PARAMS.layout).toBe("uniform");
         expect(FRONTIER_PARAMS.byteLength).toBe(80);
         const params = [
             "role",
-            "slotBase",
             "wg",
             "alpha",
             "beta",
@@ -116,6 +92,7 @@ describe("Frontier, the counters block and frontier-finalize (design 5.4, 6 row 
             "firstOfSubmit",
             "iteration",
             "pad1",
+            "pad2",
         ];
         expect(FRONTIER_PARAMS.fields.map((f) => f[0])).toEqual(params);
         params.forEach((name, k) => {
@@ -123,7 +100,7 @@ describe("Frontier, the counters block and frontier-finalize (design 5.4, 6 row 
         });
     });
 
-    it("the BFS seed: reset writes vertices[0][0] and the block (zero but the seed); the first role 0 rotates word 1 into word 0, adds it to visitedCount, wraps level to 0, leaves done 0 and writes slot 0 = (1, 1, 1, 1)", async (t) => {
+    it("the BFS seed: reset writes vertices[0][0] and the block (zero but the seed); the first role 0 rotates word 1 into word 0, adds it to visitedCount, wraps level to 0, leaves done 0 and chooses the two-phase path", async (t) => {
         const ctx = await context(t);
         const scope = algorithmScope(ctx, "frontier-seed", 8);
         try {
@@ -131,8 +108,8 @@ describe("Frontier, the counters block and frontier-finalize (design 5.4, 6 row 
             frontier.reset(ctx.device.queue, 7, { nextFrontierCount: 1, level: U32_MAX });
             const queue = await readU32(ctx, frontier.vertices[0].buffer, 1, frontier.vertices[0].offset);
             expect(queue[0], "vertices[0][0]").toBe(7);
-            const block = await readU32(ctx, frontier.counters.buffer, 24, frontier.counters.offset);
-            const seeded = new Uint32Array(24);
+            const block = await readU32(ctx, frontier.counters.buffer, 26, frontier.counters.offset);
+            const seeded = new Uint32Array(26);
             seeded[W.nextFrontierCount] = 1;
             seeded[W.level] = U32_MAX;
             expectBitwiseEqual(block, seeded, "the counters block after reset");
@@ -154,29 +131,26 @@ describe("Frontier, the counters block and frontier-finalize (design 5.4, 6 row 
             direction: 0,
             fusedLevels: 0,
             twoPhaseLevels: 0,
+            path: PATH.twoPhase,
         });
-        expect(slotOf(run.args, 0, SLOT.expand)).toEqual([1, 1, 1, 1]);
-        for (const s of [SLOT.fused, SLOT.fillBits, SLOT.bitset, SLOT.bottomUp]) {
-            expect(slotOf(run.args, 0, s), `slot ${s}`).toEqual([...ZERO_SLOT]);
-        }
-        // slots 1 and 6 are role 1's: role 0 leaves them as they were
-        expect(slotOf(run.args, 0, SLOT.contract)).toEqual([POISON, POISON, POISON, POISON]);
-        expect(slotOf(run.args, 0, SLOT.fusedRetry)).toEqual([POISON, POISON, POISON, POISON]);
     });
 
-    it("the boundary-index rule: firstOfSubmit 0 subtracts nothing, 1 subtracts the count, 2 the count and the degree sum; maxDepth 0 sets done and zeroes every slot", async (t) => {
+    it("the boundary-index rule: firstOfSubmit 0 subtracts nothing, 1 (and any larger index) subtracts the count and the next frontier's degree sum together (issue #391: both words exact from the second boundary on); nextDegreeSum is zeroed for the next level; maxDepth 0 sets done and path 0", async (t) => {
         const ctx = await context(t);
+        // frontierDegreeSum is the EXPANDED sum (rotated into prevDegreeSum, never subtracted); nextDegreeSum is the
+        // degree of the frontier rotated in, which is what the boundary subtracts and tests against
         const seed = {
             unvisitedCount: 5,
             unvisitedDegreeSum: 9,
             nextFrontierCount: 1,
             frontierDegreeSum: 4,
+            nextDegreeSum: 3,
             level: U32_MAX,
         };
         const expected: readonly (readonly [number, number, number])[] = [
             [0, 5, 9],
-            [1, 4, 9],
-            [2, 4, 5],
+            [1, 4, 6],
+            [2, 4, 6],
         ];
         for (const [firstOfSubmit, unvisitedCount, unvisitedDegreeSum] of expected) {
             const run = await runBoundary(ctx, [{ role: 0, fields: { firstOfSubmit } }], { seed });
@@ -185,18 +159,15 @@ describe("Frontier, the counters block and frontier-finalize (design 5.4, 6 row 
                 unvisitedDegreeSum,
                 prevDegreeSum: 4,
                 frontierDegreeSum: 0,
+                nextDegreeSum: 0,
                 frontierCount: 1,
                 level: 0,
                 done: 0,
+                path: PATH.twoPhase,
             });
         }
         const capped = await runBoundary(ctx, [{ role: 0, fields: { maxDepth: 0 } }], { seed });
-        expect(capped.counters.done).toBe(1);
-        expect(capped.counters.level).toBe(0);
-        expect(capped.counters.frontierCount).toBe(1);
-        for (let s = 0; s < FRONTIER_CANDIDATES; s++) {
-            expect(slotOf(capped.args, 0, s), `slot ${s}`).toEqual([...ZERO_SLOT]);
-        }
+        expect(capped.counters).toMatchObject({ done: 1, level: 0, frontierCount: 1, path: PATH.none });
     });
 
     it("swap() flips input and output between the two vertex buffers and twice returns to the start; reset puts the source back on side 0", async (t) => {
@@ -222,26 +193,21 @@ describe("Frontier, the counters block and frontier-finalize (design 5.4, 6 row 
             expect(frontier.side).toBe(0);
             expect(frontier.input).toBe(a);
             expect(frontier.edgeCapacity).toBe(4);
-            expect(frontier.args.size).toBe(MAX_LEVELS_PER_SUBMIT * FRONTIER_CANDIDATES * INDIRECT_ARGS_STRIDE);
             expect(frontier.counters.size).toBe(112);
         } finally {
             scope.dispose();
         }
     });
 
-    it("role 0 with mode 1, fusedMax 0 writes planIndirect(count) into slot 0 for the count in word 1 and zero slots into 2-5; role 1 then writes planIndirect(edgeCount) into slot 1 and zeroes slot 6", async (t) => {
+    it("role 0 with mode 1, fusedMax 0 chooses the two-phase path for any count in word 1; role 1 then keeps it and counts one two-phase level with edgeCount 0", async (t) => {
         const ctx = await context(t);
         for (const count of [1, 255, 256, 257, 4097, 16_776_961]) {
             const run = await runBoundary(ctx, [{ role: 0 }, { role: 1 }], {
                 seed: { nextFrontierCount: count, level: U32_MAX },
             });
-            expect(slotOf(run.args, 0, SLOT.expand), `count ${count}: slot 0`).toEqual(planSlot(ctx, count));
-            expect(slotOf(run.args, 0, SLOT.contract), `count ${count}: slot 1`).toEqual(planSlot(ctx, 0));
-            for (const s of [SLOT.fused, SLOT.fillBits, SLOT.bitset, SLOT.bottomUp, SLOT.fusedRetry]) {
-                expect(slotOf(run.args, 0, s), `count ${count}: slot ${s}`).toEqual([...ZERO_SLOT]);
-            }
-            expect(run.counters).toMatchObject({
+            expect(run.counters, `count ${count}`).toMatchObject({
                 frontierCount: count,
+                path: PATH.twoPhase,
                 twoPhaseLevels: 1,
                 fusedLevels: 0,
                 edgeCount: 0,
@@ -249,41 +215,29 @@ describe("Frontier, the counters block and frontier-finalize (design 5.4, 6 row 
         }
     });
 
-    it("the 2,000-count ladder (0 and the largest u32 included): frontier-finalize, indirect-finalize and planIndirect write identical (x, y, 1, count) words, two runs bitwise equal", async (t) => {
-        const ctx = await context(t);
-        expect(FRONTIER_LADDER).toHaveLength(2000);
-        expect(FRONTIER_LADDER[0]).toBe(0);
-        expect(FRONTIER_LADDER[1999]).toBe(U32_MAX);
-        expect(new Set(FRONTIER_LADDER).size).toBe(2000);
-        const first = await runFinalizeLadder(ctx, FRONTIER_LADDER);
-        const second = await runFinalizeLadder(ctx, FRONTIER_LADDER);
-        expectBitwiseEqual(first, second, "the frontier ladder twice (args)");
-        const twin = await runIndirectLadder(ctx, FRONTIER_LADDER);
-        expectBitwiseEqual(first, twin, "frontier-finalize vs indirect-finalize (args)");
-        expectBitwiseEqual(first, expectedLadderArgs(ctx, FRONTIER_LADDER), "frontier-finalize vs planIndirect");
-        if (ctx.workgroupSize === 256) {
-            const top = 4 * 1999;
-            expect(Array.from(first.subarray(top, top + 4))).toEqual([65_535, 257, 1, U32_MAX]);
-        }
-    }, 120_000);
-
-    it("the fused slot is one WORKGROUP per entry: word 1 = 300 under fusedMax U32_MAX writes (300, 1, 1, 300) into slot 2, 70,000 writes (65535, 2, 1, 70000)", async (t) => {
+    it("the fused path: word 1 = 300 under fusedMax U32_MAX chooses path 2 and counts a fused level; so does 70,000 (bfs-fused sizes itself from frontierCount, there is no slot to split)", async (t) => {
         const ctx = await context(t);
         const small = await runBoundary(ctx, [{ role: 0, fields: { fusedMax: U32_MAX } }], {
             seed: { nextFrontierCount: 300, level: U32_MAX },
         });
-        expect(slotOf(small.args, 0, SLOT.fused)).toEqual([300, 1, 1, 300]);
-        expect(slotOf(small.args, 0, SLOT.expand)).toEqual([...ZERO_SLOT]);
-        expect(slotOf(small.args, 0, SLOT.contract)).toEqual([...ZERO_SLOT]);
-        expect(slotOf(small.args, 0, SLOT.fusedRetry)).toEqual([...ZERO_SLOT]);
-        expect(small.counters).toMatchObject({ fusedLevels: 1, twoPhaseLevels: 0, frontierCount: 300 });
+        expect(small.counters).toMatchObject({
+            path: PATH.fused,
+            fusedLevels: 1,
+            twoPhaseLevels: 0,
+            frontierCount: 300,
+        });
         const large = await runBoundary(ctx, [{ role: 0, fields: { fusedMax: U32_MAX } }], {
             seed: { nextFrontierCount: 70_000, level: U32_MAX },
         });
-        expect(slotOf(large.args, 0, SLOT.fused)).toEqual([65_535, 2, 1, 70_000]);
+        expect(large.counters).toMatchObject({ path: PATH.fused, fusedLevels: 1, frontierCount: 70_000 });
+        // at the threshold the count is NOT below fusedMax: the two-phase path
+        const at = await runBoundary(ctx, [{ role: 0, fields: { fusedMax: 300 } }], {
+            seed: { nextFrontierCount: 300, level: U32_MAX },
+        });
+        expect(at.counters).toMatchObject({ path: PATH.twoPhase, fusedLevels: 0 });
     });
 
-    it("role 1 after a two-phase role 0: an unclamped total above the capacity writes (0,0,1,0) into slot 1, the frontier into slot 6 and counts an overflow; a total within it sizes slot 1 from edgeCount and counts a two-phase level, also for zero edges", async (t) => {
+    it("role 1 after a two-phase role 0: an unclamped total above the capacity switches the path to the fused retry and counts an overflow; a total within it keeps the two-phase path and counts a two-phase level, also for zero edges", async (t) => {
         const ctx = await context(t);
         const seed = { nextFrontierCount: 300, level: U32_MAX };
         const overflow = await runBoundary(
@@ -291,10 +245,9 @@ describe("Frontier, the counters block and frontier-finalize (design 5.4, 6 row 
             [{ role: 0 }, { role: 1, writeBefore: { edgeCount: 4096, edgeCountUnclamped: 50_000 } }],
             { seed, edgeCapacity: 4096 },
         );
-        expect(slotOf(overflow.args, 0, SLOT.expand)).toEqual(planSlot(ctx, 300));
-        expect(slotOf(overflow.args, 0, SLOT.contract)).toEqual([...ZERO_SLOT]);
-        expect(slotOf(overflow.args, 0, SLOT.fusedRetry)).toEqual([300, 1, 1, 300]);
         expect(overflow.counters).toMatchObject({
+            path: PATH.fusedRetry,
+            frontierCount: 300,
             overflowLevels: 1,
             fusedLevels: 1,
             twoPhaseLevels: 0,
@@ -306,13 +259,21 @@ describe("Frontier, the counters block and frontier-finalize (design 5.4, 6 row 
             [{ role: 0 }, { role: 1, writeBefore: { edgeCount: 4096, edgeCountUnclamped: 4096 } }],
             { seed, edgeCapacity: 4096 },
         );
-        expect(slotOf(fits.args, 0, SLOT.contract)).toEqual(planSlot(ctx, 4096));
-        expect(slotOf(fits.args, 0, SLOT.fusedRetry)).toEqual([...ZERO_SLOT]);
-        expect(fits.counters).toMatchObject({ overflowLevels: 0, fusedLevels: 0, twoPhaseLevels: 1, edgeCount: 4096 });
+        expect(fits.counters).toMatchObject({
+            path: PATH.twoPhase,
+            overflowLevels: 0,
+            fusedLevels: 0,
+            twoPhaseLevels: 1,
+            edgeCount: 4096,
+        });
 
         const empty = await runBoundary(ctx, [{ role: 0 }, { role: 1 }], { seed, edgeCapacity: 4096 });
-        expect(slotOf(empty.args, 0, SLOT.contract)).toEqual(planSlot(ctx, 0));
-        expect(empty.counters).toMatchObject({ overflowLevels: 0, twoPhaseLevels: 1, edgeCount: 0 });
+        expect(empty.counters).toMatchObject({
+            path: PATH.twoPhase,
+            overflowLevels: 0,
+            twoPhaseLevels: 1,
+            edgeCount: 0,
+        });
 
         // a clamped word above the capacity is clamped, never dispatched past the queue
         const clamped = await runBoundary(
@@ -320,19 +281,22 @@ describe("Frontier, the counters block and frontier-finalize (design 5.4, 6 row 
             [{ role: 0 }, { role: 1, writeBefore: { edgeCount: 5000, edgeCountUnclamped: 4096 } }],
             { seed, edgeCapacity: 4096 },
         );
-        expect(slotOf(clamped.args, 0, SLOT.contract)).toEqual(planSlot(ctx, 4096));
-        expect(clamped.counters.edgeCount).toBe(4096);
+        expect(clamped.counters).toMatchObject({ path: PATH.twoPhase, edgeCount: 4096 });
     });
 
-    it("role 1 after a role 0 that set done, or that chose the fused slot, leaves twoPhaseLevels, overflowLevels and edgeCount unchanged and writes (0,0,1,0) into the poisoned slots 1 and 6", async (t) => {
+    it("role 1 after a role 0 that set done, or that chose the fused path, leaves the path, twoPhaseLevels, overflowLevels and edgeCount unchanged", async (t) => {
         const ctx = await context(t);
         const afterDone = await runBoundary(ctx, [{ role: 0 }, { role: 1, writeBefore: { edgeCount: 77 } }], {
             seed: { level: U32_MAX },
             edgeCapacity: 10,
         });
-        expect(afterDone.counters).toMatchObject({ done: 1, twoPhaseLevels: 0, overflowLevels: 0, edgeCount: 77 });
-        expect(slotOf(afterDone.args, 0, SLOT.contract)).toEqual([...ZERO_SLOT]);
-        expect(slotOf(afterDone.args, 0, SLOT.fusedRetry)).toEqual([...ZERO_SLOT]);
+        expect(afterDone.counters).toMatchObject({
+            done: 1,
+            path: PATH.none,
+            twoPhaseLevels: 0,
+            overflowLevels: 0,
+            edgeCount: 77,
+        });
 
         const afterFused = await runBoundary(
             ctx,
@@ -344,17 +308,15 @@ describe("Frontier, the counters block and frontier-finalize (design 5.4, 6 row 
         );
         expect(afterFused.counters).toMatchObject({
             done: 0,
+            path: PATH.fused,
             fusedLevels: 1,
             twoPhaseLevels: 0,
             overflowLevels: 0,
             edgeCount: 77,
         });
-        expect(slotOf(afterFused.args, 0, SLOT.fused)).toEqual([300, 1, 1, 300]);
-        expect(slotOf(afterFused.args, 0, SLOT.contract)).toEqual([...ZERO_SLOT]);
-        expect(slotOf(afterFused.args, 0, SLOT.fusedRetry)).toEqual([...ZERO_SLOT]);
     });
 
-    it("a role 0 that finds done already set changes no word of the block and writes (0,0,1,0) into all seven poisoned slots of its level; maxDepth 3 at level 2 sets done, at level 1 it does not", async (t) => {
+    it("a role 0 that finds done already set changes no word of the block but a poisoned path word, which it zeroes; maxDepth 3 at level 2 sets done, at level 1 it does not", async (t) => {
         const ctx = await context(t);
         const seed = {
             done: 1,
@@ -364,69 +326,25 @@ describe("Frontier, the counters block and frontier-finalize (design 5.4, 6 row 
             nextFrontierCount: 4,
             fusedLevels: 2,
             twoPhaseLevels: 3,
+            path: POISON,
         };
         const run = await runBoundary(ctx, [{ role: 0, level: 3 }], { seed });
         const want: Record<string, number> = {};
         for (const name of WORDS) {
             want[name] = 0;
         }
-        Object.assign(want, seed);
+        Object.assign(want, seed, { path: PATH.none });
         expect(run.counters).toEqual(want);
-        for (let s = 0; s < FRONTIER_CANDIDATES; s++) {
-            expect(slotOf(run.args, 3, s), `level 3 slot ${s}`).toEqual([...ZERO_SLOT]);
-        }
-        // the other levels' slots are untouched
-        expect(slotOf(run.args, 0, SLOT.expand)).toEqual([POISON, POISON, POISON, POISON]);
 
         const capped = await runBoundary(ctx, [{ role: 0, fields: { maxDepth: 3 } }], {
             seed: { nextFrontierCount: 1, level: 2 },
         });
-        expect(capped.counters).toMatchObject({ done: 1, level: 3, frontierCount: 1 });
+        expect(capped.counters).toMatchObject({ done: 1, level: 3, frontierCount: 1, path: PATH.none });
         const open = await runBoundary(ctx, [{ role: 0, fields: { maxDepth: 3 } }], {
             seed: { nextFrontierCount: 1, level: 1 },
         });
-        expect(open.counters).toMatchObject({ done: 0, level: 2, frontierCount: 1 });
-        expect(slotOf(open.args, 0, SLOT.expand)).toEqual([1, 1, 1, 1]);
+        expect(open.counters).toMatchObject({ done: 0, level: 2, frontierCount: 1, path: PATH.twoPhase });
     });
-
-    it("a 17M count writes x = 65535, y = 2 and, dispatched through fill (iota) over a poisoned 17M-word buffer in the same pass, leaves no poison word (design 13's gate item)", async (t) => {
-        const ctx = await context(t);
-        const scope = algorithmScope(ctx, "frontier-17m", 8);
-        const dst = uploadBuffer(ctx, new Uint32Array(BIG_COUNT).fill(POISON), "frontier/fill-dst");
-        try {
-            const planner = await prepareFrontier(scope, 16, 32);
-            const { frontier } = planner;
-            frontier.reset(ctx.device.queue, 0, { nextFrontierCount: BIG_COUNT, level: U32_MAX });
-            const fill = await ctx.pipelines.kernel(kernelSpec("fill"));
-            const params = scope.params(FILL_PARAMS, { count: BIG_COUNT, value: 0, mode: 1 });
-            const fillBound = fill.bind({ dst: bindingOf(dst), P: params.binding });
-            const batch = new CommandBatch(ctx, "frontier-17m");
-            const pass = batch.pass("finalize-then-fill");
-            planner.recordFinalize(pass, 0, 0, { mode: 1, fusedMax: 0, maxDepth: U32_MAX });
-            fill.dispatchIndirect(pass, fillBound, frontier.args, SLOT.expand, [params.offset]);
-            scope.flush();
-            const { dispatches } = batch;
-            await batch.submit().readback;
-            expect(dispatches).toBe(2);
-            const args = await readU32(ctx, frontier.args.buffer, 4, frontier.args.offset);
-            expect(Array.from(args)).toEqual(planSlot(ctx, BIG_COUNT));
-            if (ctx.workgroupSize === 256) {
-                expect(Array.from(args)).toEqual([65_535, 2, 1, BIG_COUNT]);
-            }
-            const words = await readU32(ctx, dst, BIG_COUNT);
-            let wrong = -1;
-            for (let i = 0; i < BIG_COUNT; i++) {
-                if (words[i] !== i) {
-                    wrong = i;
-                    break;
-                }
-            }
-            expect(wrong, `first wrong word of the fill destination (${wrong >= 0 ? words[wrong] : "-"})`).toBe(-1);
-        } finally {
-            dst.destroy();
-            scope.dispose();
-        }
-    }, 300_000);
 
     it("the sabotage check passes on the real kernel (factor 0)", async (t) => {
         const ctx = await context(t);

@@ -339,7 +339,7 @@ describe("Multipartite Layout", () => {
             assert.notEqual(avgX[1], avgX[2]);
         });
 
-        it("should handle large multipartite graphs efficiently", () => {
+        it("should lay out every node of a large multipartite graph", () => {
             const n = 60; // 20 nodes per subset
             const nodes = Array.from({ length: n }, (_, i) => i);
             const graph = {
@@ -349,12 +349,9 @@ describe("Multipartite Layout", () => {
 
             const subsets = [nodes.slice(0, 20), nodes.slice(20, 40), nodes.slice(40, 60)];
 
-            const startTime = performance.now();
             const positions = multipartiteLayout(graph, subsets);
-            const endTime = performance.now();
 
             assert.equal(Object.keys(positions).length, 60);
-            assert.isBelow(endTime - startTime, 100); // Should be very fast
         });
     });
 

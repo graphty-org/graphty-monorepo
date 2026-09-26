@@ -78,6 +78,8 @@ export {
     defaultEdgeStyle,
     defaultNodeStyle,
     defaultRichTextLabelStyle,
+    EdgeArrowTypes,
+    EdgeLineTypes,
     EdgeStyle,
     GraphBackground,
     GraphSelectionStyleOpts,

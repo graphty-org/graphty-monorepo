@@ -28,6 +28,7 @@ import { bfsBitsetBuildWgsl } from "./wgsl/bfs-bitset-build.wgsl.js";
 import { bfsBottomUpWgsl } from "./wgsl/bfs-bottom-up.wgsl.js";
 import { bfsContractWgsl } from "./wgsl/bfs-contract.wgsl.js";
 import { bfsFusedWgsl } from "./wgsl/bfs-fused.wgsl.js";
+import { bfsNextDegreeWgsl } from "./wgsl/bfs-next-degree.wgsl.js";
 import { bfsUnvisitedFlagsWgsl } from "./wgsl/bfs-unvisited-flags.wgsl.js";
 import { closenessReduceWgsl } from "./wgsl/closeness-reduce.wgsl.js";
 import { closenessSweepWgsl } from "./wgsl/closeness-sweep.wgsl.js";
@@ -111,6 +112,7 @@ export type KernelId =
     | "bfs-bottom-up"
     | "bfs-bitset-build"
     | "bfs-unvisited-flags"
+    | "bfs-next-degree"
     | "sssp-relax"
     | "bf-relax"
     | "closeness-sweep"
@@ -162,7 +164,7 @@ export const FILL_PARAMS: UniformBlock = UniformBlock.define("FillParams", [
     ["pad0", "u32"],
 ]);
 
-/** `Fa2Params` (uniform, 128 B; spec 7.3): the per-iteration ForceAtlas2 parameters -- `n` @0, `dim` @4, `flags` @8 (bit 0 = FA2_FLAG_FIRST), `tierStart` @12, `tierEnd` @16, `iterationIndex` @20, `seed` @24, `nearMax` @28, `scalingRatio` @32, `gravity` @36, `jitterTolerance` @40, `scale` @44, `center` @48 (xyz, w 0), `settleThreshold` @64, `extentFactor` @68, `gridMax` @72, `levels` @76, `arcBase` @80 / `arcEnd` @84 (the bound arc window of K2, 0 and arcCount in the layout), `accumulate` @88 (1 combines into `force`: the windowed pattern), `hiEnd` @92 / `midEnd` @124 (the degreeOrder tier boundaries, PD-7; both 0 without a permutation); the P5 model fields (PD-3): `frK` @96 (the FR optimal distance), `temperature` @100 (the FR temperature of this iteration), `springLength` @104, `springCoefficient` @108, `coulomb` @112 (ngraph's `gravity`, negative repels), `dragCoefficient` @116, `timeStep` @120; 128 B. */
+/** `Fa2Params` (uniform, 144 B; spec 7.3): the per-iteration ForceAtlas2 parameters -- `n` @0, `dim` @4, `flags` @8 (bit 0 = FA2_FLAG_FIRST), `tierStart` @12, `tierEnd` @16, `iterationIndex` @20, `seed` @24, `nearMax` @28, `scalingRatio` @32, `gravity` @36, `jitterTolerance` @40, `scale` @44, `center` @48 (xyz, w 0), `settleThreshold` @64, `extentFactor` @68, `gridMax` @72, `levels` @76, `arcBase` @80 / `arcEnd` @84 (the bound arc window of K2, 0 and arcCount in the layout), `accumulate` @88 (1 combines into `force`: the windowed pattern), `hiEnd` @92 / `midEnd` @124 (the degreeOrder tier boundaries, PD-7; both 0 without a permutation); the P5 model fields (PD-3): `frK` @96 (the FR optimal distance), `temperature` @100 (the FR temperature of this iteration), `springLength` @104, `springCoefficient` @108, `coulomb` @112 (ngraph's `gravity`, negative repels), `dragCoefficient` @116, `timeStep` @120; `settleFloor` @128 (the absolute bound on the mean displacement of a settled iteration, in layout units: issue #97); 144 B. */
 export const FA2_PARAMS: UniformBlock = UniformBlock.define("Fa2Params", [
     ["n", "u32"],
     ["dim", "u32"],
@@ -193,6 +195,7 @@ export const FA2_PARAMS: UniformBlock = UniformBlock.define("Fa2Params", [
     ["dragCoefficient", "f32"],
     ["timeStep", "f32"],
     ["midEnd", "u32"],
+    ["settleFloor", "f32"],
 ]);
 
 /** `Fa2State` (storage, padded to STATE_HEADER_BYTES = 256; spec 7.3): the device-resident controller state the finalize kernels write and the host reads back for stats -- `speed` @0, `speedEfficiency` @4, `swing` @8, `traction` @12, `centroid` @16, `rmsRadius` @32, `radius` @36, `meanDisplacement` @40, `iteration` @44, `min` @48, `max` @64, `gridMin` @80 (P4), `eps` @96 (P4), `settledCount` @100, `outsideGrid` @104 (P4), `maxCellOccupancy` @108 (P4), `temperature` @112 (FR, written by K1 under STATS_MODE 1), `kineticEnergy` @116 (the preset, K1 under STATS_MODE 2), `frEnergy` @120 / `frProgress` @124 (the FR adaptive cooling), `invCellSize` @128 (P4, PD-10: `1 / cellSize`, written by K1 beside `cellSize` in `gridMin.w`; G1 multiplies by it so every key is bitwise reproducible), `reserved0` @132 (f32), `reserved1` @136 (vec2f), `reserved2` .. `reserved8` @144 .. @240. */
@@ -386,8 +389,11 @@ export const COMPACT_PARAMS: UniformBlock = UniformBlock.define("CompactParams",
  * submit), `arcsScanned` @64, `fusedLevels` @68, `twoPhaseLevels` @72, `bottomUpLevels` @76, `farCount` @80,
  * `nextFarCount` @84, `thresholdBits` @88, `deltaBits` @92 (P8-T9), `path` @96 (what the level's kernels run, written
  * by the selector: 0 nothing, 1 two-phase, 2 fused, 3 bottom-up, 4 the fused retry, 5 a near SSSP round, 6 a far
- * one; every level kernel is a direct dispatch that reads it first -- G8-F5). The words nothing writes before
- * P8-T8 / P8-T9 are declared now because the byte layout is what the single result copy decodes.
+ * one; every level kernel is a direct dispatch that reads it first -- G8-F5), `nextDegreeSum` @100 (issue #391: the
+ * out-degree sum of the vertices the level claimed, accumulated by `bfs-next-degree` at the end of every level and
+ * read, subtracted and zeroed by the next boundary -- Beamer's m_f measured on the frontier the boundary decides
+ * for, not on the one it has just expanded). The words nothing writes before P8-T8 / P8-T9 are declared now because
+ * the byte layout is what the single result copy decodes.
  */
 export const FRONTIER_COUNTERS: UniformBlock = UniformBlock.define(
     "FrontierCounters",
@@ -417,23 +423,24 @@ export const FRONTIER_COUNTERS: UniformBlock = UniformBlock.define(
         ["thresholdBits", "u32"],
         ["deltaBits", "u32"],
         ["path", "u32"],
+        ["nextDegreeSum", "u32"],
     ],
     { layout: "storage" },
 );
 
 /**
  * `FrontierParams` (uniform, 80 B; P8-T4): the params block every P8 kernel except the three compact / dedupe
- * primitives and `bf-relax` binds -- `role` @0 (the finalize role), `slotBase` @4 (`level x FRONTIER_CANDIDATES`),
- * `wg` @8 (the consumers' workgroup size), `alpha` @12, `beta` @16 (Beamer's thresholds, P8-T8), `fusedMax` @20,
- * `edgeCapacity` @24, `maxDepth` @28, `n` @32, `mode` @36 (BFS: 0 auto, 1 top-down only; `sssp-pred`: the PD-27 key
- * rule), `cutoffBits` @40, `arcBase` @44, `arcEnd` @48 (the bound arc window), `predKind` @52 (0 arc, 1 node),
- * `bitsBase` @56, `source` @60, `stride` @64 (a grid-stride plan's stride), `firstOfSubmit` @68 (the boundary's index
- * inside its submit, clamped to 2: the unvisited-count subtraction runs at >= 1, the degree-sum one at >= 2),
- * `iteration` @72 (an `sssp-pred` hop pass, P8-T9), `pad1` @76.
+ * primitives and `bf-relax` binds -- `role` @0 (the finalize role), `wg` @4 (the consumers' workgroup size),
+ * `alpha` @8, `beta` @12 (Beamer's thresholds, P8-T8), `fusedMax` @16, `edgeCapacity` @20, `maxDepth` @24, `n` @28,
+ * `mode` @32 (BFS: 0 auto, 1 top-down only; `sssp-pred`: the PD-27 key rule), `cutoffBits` @36, `arcBase` @40,
+ * `arcEnd` @44 (the bound arc window), `predKind` @48 (0 arc, 1 node), `bitsBase` @52, `source` @56, `stride` @60
+ * (a grid-stride plan's stride), `firstOfSubmit` @64 (the boundary's index inside its submit, clamped to 1: both
+ * the unvisited-count and the unvisited-degree-sum subtraction run at >= 1, issue #391), `iteration` @68 (an
+ * `sssp-pred` hop pass, P8-T9), `pad1` @72, `pad2` @76. The `slotBase` field that once addressed the selector's indirect slots went with
+ * the slots (2026-09-25); `pad2` keeps the block an explicit 80 bytes, the way every block here is padded.
  */
 export const FRONTIER_PARAMS: UniformBlock = UniformBlock.define("FrontierParams", [
     ["role", "u32"],
-    ["slotBase", "u32"],
     ["wg", "u32"],
     ["alpha", "u32"],
     ["beta", "u32"],
@@ -452,6 +459,7 @@ export const FRONTIER_PARAMS: UniformBlock = UniformBlock.define("FrontierParams
     ["firstOfSubmit", "u32"],
     ["iteration", "u32"],
     ["pad1", "u32"],
+    ["pad2", "u32"],
 ]);
 
 /** `BfParams` (uniform, 16 B; P8-T10): `edgeCount` @0 (the logical edges of the `edgeList` view), `stride` @4 (the grid-stride plan's stride), `maxRetries` @8 (PD-12's compare-exchange bound), `cutoffBits` @12 (the f32 bit pattern of the CPU port's `cutoff`, `+Inf` when absent). */
@@ -938,7 +946,7 @@ const RADIX_SCATTER: KernelEntry = {
     phase: "P4",
 };
 
-/** `grid-cell-key` (G1, spec 7.7; P4-T8, PD-10): the finest cell key of every node, `floor((p - gridMin) * invCellSize)` linearised, or the outside pseudo-cell `G^dim`; `cellVal[i] = i`; 4 storage bindings (the state read-only: K1 writes it). */
+/** `grid-cell-key` (G1, spec 7.7; P4-T8, PD-10): the finest cell key of every node, `floor((p - gridMin) * invCellSize)` linearised, or the outside pseudo-cell of its orthant `G^dim + orthant` (issue #90); `cellVal[i] = i`; 4 storage bindings (the state read-only: K1 writes it). */
 const GRID_CELL_KEY: KernelEntry = {
     id: "grid-cell-key",
     body: gridCellKeyWgsl,
@@ -957,7 +965,7 @@ const GRID_CELL_KEY: KernelEntry = {
     phase: "P4",
 };
 
-/** `grid-centroid` (G4, spec 7.7; P4-T9, PD-13): thread per finest cell (the pseudo-cell included), the serial mass-weighted sum in sorted order into level 0, the occupancy max into `hubCounters[1]`, hub cells (> GRID_HUB_CELL) appended to `hubList`; 6 storage bindings. */
+/** `grid-centroid` (G4, spec 7.7; P4-T9, PD-13): thread per finest cell (the 2^dim orthant pseudo-cells included), the serial mass-weighted sum in sorted order into level 0, the occupancy max into `hubCounters[1]`, hub cells (> GRID_HUB_CELL) appended to `hubList`; 6 storage bindings. */
 const GRID_CENTROID: KernelEntry = {
     id: "grid-centroid",
     body: gridCentroidWgsl,
@@ -1012,7 +1020,7 @@ const GRID_DOWNSAMPLE: KernelEntry = {
     phase: "P4",
 };
 
-/** `grid-far-field` (G6, spec 7.7; P4-T10, PD-16, DEP-P4-G): per node in sorted order, the coarsest level minus its 3x3 (3x3x3) and, per finer level, the parent's 3x3 refined minus the level's own 3x3, plus the pseudo-cell; the loop bounds are `P.levels` / `P.gridMax`; LAW 0 FA2 / 1 FR / 2 coulomb per cell (P4-T13, PD-22); 5 storage bindings. */
+/** `grid-far-field` (G6, spec 7.7; P4-T10, PD-16, DEP-P4-G): per node in sorted order, the coarsest level minus its 3x3 (3x3x3) and, per finer level, the parent's 3x3 refined minus the level's own 3x3, plus the 2^dim orthant pseudo-cells; the FA2 term floored at 0.01 (issue #89); the loop bounds are `P.levels` / `P.gridMax`; LAW 0 FA2 / 1 FR / 2 coulomb per cell (P4-T13, PD-22); 5 storage bindings. */
 const GRID_FAR_FIELD: KernelEntry = {
     id: "grid-far-field",
     body: gridFarFieldWgsl,
@@ -1117,16 +1125,12 @@ const DEDUPE_FILTER: KernelEntry = {
     phase: "P8",
 };
 
-/** `frontier-finalize` (design 5.4, 8.10 "BFS finalizeArgs"; P8-T4, PD-3): the one-lane level-boundary selector that rotates the counters block and writes the level's seven indirect slots (role 0), then clamps the edge count and sizes the contract or the fused-retry slot (role 1); 2 storage bindings (the block as `array<atomic<u32>>`, the args). */
+/** `frontier-finalize` (design 5.4, 8.10 "BFS finalizeArgs"; P8-T4, PD-3): the one-lane level-boundary selector that rotates the counters block and writes the level's `path` word (role 0), then clamps the edge count or switches the path to the fused retry (role 1); 1 storage binding (the block as `array<atomic<u32>>`). Since 2026-09-25 it writes no indirect slots: every level kernel is a direct dispatch gated by the path word. */
 const FRONTIER_FINALIZE: KernelEntry = {
     id: "frontier-finalize",
     body: frontierFinalizeWgsl,
     entryPoint: "frontier_finalize",
-    bindings: [
-        decl(1, 0, "counters", "storage", "array<atomic<u32>>"),
-        decl(1, 1, "args", "storage", "array<u32>"),
-        decl(2, 0, "P", "uniform", "FrontierParams"),
-    ],
+    bindings: [decl(1, 0, "counters", "storage", "array<atomic<u32>>"), decl(2, 0, "P", "uniform", "FrontierParams")],
     overrideDecls: [],
     uniforms: [FRONTIER_PARAMS],
     needs: [],
@@ -1188,7 +1192,7 @@ const SSSP_PRED: KernelEntry = {
     phase: "P8",
 };
 
-/** `bfs-fused` (design 8.4 "the fused variant", 6 row 8 "the workgroup-per-row tier", 8.10 "BFS fused expand-contract"; P8-T7, PD-23): one level's expansion and contraction in one dispatch, one WORKGROUP per frontier entry, every lane stripping the entry's row with `bfs-contract`'s claim inline and no edge queue traffic; dispatched from `SLOT.fused` (a frontier below `P.fusedMax`) and from `SLOT.fusedRetry` (an overflowed level); 8 storage bindings (the four graph slots, `frontierIn`, the counters block as `array<atomic<u32>>`, `depth` as `array<atomic<u32>>`, `frontierOut`) -- exactly at the budget, which is why no `parent` lives here (PD-24). */
+/** `bfs-fused` (design 8.4 "the fused variant", 6 row 8 "the workgroup-per-row tier", 8.10 "BFS fused expand-contract"; P8-T7, PD-23): one level's expansion and contraction in one dispatch, one WORKGROUP per frontier entry, every lane stripping the entry's row with `bfs-contract`'s claim inline and no edge queue traffic; a direct grid-stride dispatch that runs when the path word is 2 (a frontier below `P.fusedMax`) or 4 (the overflow retry, role 1's), sized from `frontierCount`; 8 storage bindings (the four graph slots, `frontierIn`, the counters block as `array<atomic<u32>>`, `depth` as `array<atomic<u32>>`, `frontierOut`) -- exactly at the budget, which is why no `parent` lives here (PD-24). */
 const BFS_FUSED: KernelEntry = {
     id: "bfs-fused",
     body: bfsFusedWgsl,
@@ -1255,6 +1259,24 @@ const BFS_UNVISITED_FLAGS: KernelEntry = {
         decl(1, 2, "depth", "storage-ro", "array<u32>"),
         decl(1, 3, "flags", "storage", "array<u32>"),
         decl(1, 4, "counters", "storage", "array<atomic<u32>>"),
+        decl(2, 0, "P", "uniform", "FrontierParams"),
+    ],
+    overrideDecls: [],
+    uniforms: [FRONTIER_PARAMS],
+    needs: ["subgroups"],
+    snippetSlots: [],
+    phase: "P8",
+};
+
+/** `bfs-next-degree` (design 8.4; issue #391): Beamer's m_f measured exactly -- once per level, after the claim kernels, grid-striding over the output vertex queue and summing the `outDegree` view over the vertices the level claimed into word 25, one `atomicAdd` per workgroup; 3 storage bindings (`frontier` read-only, the `outDegree` VIEW, the counters block); `needs: ["subgroups"]` for the `wg_reduce_u32` call (a twin kernel). */
+const BFS_NEXT_DEGREE: KernelEntry = {
+    id: "bfs-next-degree",
+    body: bfsNextDegreeWgsl,
+    entryPoint: "bfs_next_degree",
+    bindings: [
+        decl(1, 0, "frontier", "storage-ro", "array<u32>"),
+        decl(1, 1, "outDegree", "storage-ro", "array<u32>"),
+        decl(1, 2, "counters", "storage", "array<atomic<u32>>"),
         decl(2, 0, "P", "uniform", "FrontierParams"),
     ],
     overrideDecls: [],
@@ -1395,6 +1417,7 @@ const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze
     "bfs-bottom-up": BFS_BOTTOM_UP,
     "bfs-bitset-build": BFS_BITSET_BUILD,
     "bfs-unvisited-flags": BFS_UNVISITED_FLAGS,
+    "bfs-next-degree": BFS_NEXT_DEGREE,
     "sssp-relax": SSSP_RELAX,
     "bf-relax": BF_RELAX,
     "closeness-sweep": CLOSENESS_SWEEP,

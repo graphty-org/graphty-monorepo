@@ -1,4 +1,4 @@
-import { Mesh, NullEngine, Scene } from "@babylonjs/core";
+import { InstancedMesh, NullEngine, Scene } from "@babylonjs/core";
 import { assert, beforeEach, describe, test } from "vitest";
 
 import { EdgeMesh } from "../src/meshes/EdgeMesh";
@@ -25,8 +25,8 @@ describe("Arrow Shape Generation", () => {
         assert.exists(arrowMesh);
         // The mesh should be named appropriately (filled arrows use FilledArrowRenderer)
         assert.isTrue(arrowMesh.name.includes("filled-triangle-arrow"));
-        // Should be a Mesh type
-        assert.instanceOf(arrowMesh, Mesh);
+        // An instance of the scene's shared mesh for this shape (issue #25)
+        assert.instanceOf(arrowMesh, InstancedMesh);
     });
 
     test("dot arrow creates circular shape", () => {
@@ -39,7 +39,7 @@ describe("Arrow Shape Generation", () => {
 
         assert.exists(arrowMesh);
         assert.isTrue(arrowMesh.name.includes("filled-circle-arrow"));
-        assert.instanceOf(arrowMesh, Mesh);
+        assert.instanceOf(arrowMesh, InstancedMesh);
         // Verify the mesh has geometry
         const positions = arrowMesh.getVerticesData("position");
         assert.exists(positions);
@@ -56,7 +56,7 @@ describe("Arrow Shape Generation", () => {
 
         assert.exists(arrowMesh);
         assert.isTrue(arrowMesh.name.includes("filled-diamond-arrow"));
-        assert.instanceOf(arrowMesh, Mesh);
+        assert.instanceOf(arrowMesh, InstancedMesh);
         // Verify diamond has vertices (should have 4 corner points)
         const positions = arrowMesh.getVerticesData("position");
         assert.exists(positions);
@@ -73,7 +73,7 @@ describe("Arrow Shape Generation", () => {
 
         assert.exists(arrowMesh);
         assert.isTrue(arrowMesh.name.includes("filled-box-arrow"));
-        assert.instanceOf(arrowMesh, Mesh);
+        assert.instanceOf(arrowMesh, InstancedMesh);
         // Verify box has vertices (should have 4 corners)
         const positions = arrowMesh.getVerticesData("position");
         assert.exists(positions);
@@ -90,7 +90,7 @@ describe("Arrow Shape Generation", () => {
 
         assert.exists(arrowMesh);
         assert.isTrue(arrowMesh.name.includes("filled-triangle-arrow"));
-        assert.instanceOf(arrowMesh, Mesh);
+        assert.instanceOf(arrowMesh, InstancedMesh);
     });
 
     test("unsupported arrow type throws error", () => {

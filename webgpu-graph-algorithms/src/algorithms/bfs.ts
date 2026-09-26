@@ -1,7 +1,7 @@
 /**
  * Breadth-first search on the device (design 8.4, 3.3 line 807, 9.7; P8-T6 / P8-T7 / P8-T8, the P8 plan's PD-5 /
  * PD-6 / PD-7 / PD-14 / PD-18 / PD-21 / PD-23 / PD-24 / PD-26 / DEP-P8-B): the direction-optimizing traversal over
- * the `Frontier` of P8-T4, every per-level choice made ON THE DEVICE. Every level is eight recorded dispatches, all
+ * the `Frontier` of P8-T4, every per-level choice made ON THE DEVICE. Every level is nine recorded dispatches, all
  * DIRECT (2026-09-25, docs/decisions/G8.md G8-F5: Dawn validates every `dispatchWorkgroupsIndirect` with an internal
  * clamp pass costing about 0.4 ms of device time whether or not it dispatches anything, in Node and in Chromium
  * alike, and that was 97 % of a traversal's wall time) -- `frontier-finalize` role 0 (the level boundary: rotates
@@ -13,14 +13,18 @@
  * per frontier entry with the same claim inline and no edge queue; the fused level and the retry alike), then the
  * bottom-up trio: a `fill` zeroing the frontier bitset, `bfs-bitset-build` setting the frontier's bits, and
  * `bfs-bottom-up` sweeping the unvisited list over the REVERSE core (each unvisited vertex reads its in-neighbours
- * until the first one in the bitset and claims itself). Every kernel is a grid-stride dispatch of a host-planned
- * grid (`planGridStride`) that loops to its count word and reads the path word first, so exactly one path does the
- * level's work and the others cost one uniform load per workgroup. The unvisited set Beamer's test is against (PD-18) is rebuilt exactly once per submit, before
- * the levels, by `bfs-unvisited-flags` plus `compact` over an iota queue, and maintained between rebuilds by
- * subtraction inside the selector (whose JSDoc states the boundary rule). The host records `MAX_LEVELS_PER_SUBMIT`
+ * until the first one in the bitset and claims itself), and last `bfs-next-degree` (the out-degree sum of whatever
+ * the level claimed, into the block's `nextDegreeSum` word: Beamer's m_f for the NEXT boundary, measured on the
+ * frontier that boundary decides for -- issue #391, which found the previous proxy, the degree of the frontier just
+ * expanded, one level stale and missing the switch at the level holding two thirds of the 1M / 10M R-MAT's arcs).
+ * Every kernel is a grid-stride dispatch of a host-planned grid (`planGridStride`) that loops to its count word and
+ * reads the path word first, so exactly one path does the level's work and the others cost one uniform load per
+ * workgroup. The unvisited set Beamer's test is against (PD-18) is rebuilt exactly once per submit, before the
+ * levels, by `bfs-unvisited-flags` plus `compact` over an iota queue, and maintained between rebuilds by subtraction
+ * inside the selector (whose JSDoc states the boundary rule; both words are exact at every boundary). The host records `MAX_LEVELS_PER_SUBMIT`
  * levels into ONE command buffer, submits, and reads four bytes, the `done` word (PD-7): a road network has
  * thousands of levels and a per-level `mapAsync` would be slower than the CPU. A level recorded past the end is a
- * no-op (its boundary finds `done` set, zeroes its slots and moves no counter), so the loop needs no diameter and
+ * no-op (its boundary finds `done` set, writes path 0 and moves no counter), so the loop needs no diameter and
  * ends on `done`; a traversal has at most `n` levels, so more submits than that is E_VALIDATION, never a hang. The
  * thresholds are uniform fields (`FUSED_FRONTIER_MAX`; alpha derived as `max(1, floor(arcCount / n))`, PD-21;
  * `BEAMER_BETA`; `mode 1` pinning top-down -- each unless the tuning says otherwise), so a test forces any path
@@ -79,6 +83,9 @@ import { type AlgorithmScope, algorithmScope } from "./scope.js";
 
 const ALGORITHM = "breadthFirstSearch";
 
+/** Workgroups of the `bfs-next-degree` grid (issue #391): enough to sum n out-degrees by grid stride, few enough that a high-diameter traversal does not pay a full-width reduction per level. */
+const NEXT_DEGREE_MAX_GROUPS = 128;
+
 /**
  * Params slots of the ring, COUNTED per run (P8-T12), because `UniformRing.reserve` wraps to slot 0 when a submit's
  * records outrun the ring and silently overwrites a record the submit still reads; the ring's `overruns` counts
@@ -87,8 +94,9 @@ const ALGORITHM = "breadthFirstSearch";
  * `bfs-contract`, the bits `fill`, `bfs-bitset-build`) and four re-issued once per arc window (`advance-expand`,
  * `bfs-fused`, the fused retry, `bfs-bottom-up`). The driver as built writes fewer -- the contract and the bitset
  * build share one window-free record, a window's two fused dispatches share one, the bits fill has one record per
- * submit, and a directed snapshot's reverse view is one window whatever the forward core's count -- so at most
- * `3 + 3 x windows` per level, and the bound holds with room. The 16 covers the per-submit rebuild
+ * submit, `bfs-next-degree` has one window-free record of its own (issue #391), and a directed snapshot's reverse
+ * view is one window whatever the forward core's count -- so at most `4 + 3 x windows` per level, and the bound
+ * holds with room. The 16 covers the per-submit rebuild
  * (`bfs-unvisited-flags` and `compact`, whose scan is at most 9 dispatches for any n below 2^32, so 10, plus the
  * bits fill). The result batch flushes in its own submit, so the ring must hold IT too, and its size grows with `n`,
  * not with the cadence: the iota `fill`, the radix sort's four passes of one record plus its scan's `2 x levels - 1`
@@ -339,6 +347,7 @@ export async function bfsWithTuning(
         const bitset = await ctx.pipelines.kernel(kernelSpec("bfs-bitset-build"));
         const bottomUp = await ctx.pipelines.kernel(kernelSpec("bfs-bottom-up", graphOverrides(reverse, null)));
         const unvisited = await ctx.pipelines.kernel(kernelSpec("bfs-unvisited-flags"));
+        const nextDegree = await ctx.pipelines.kernel(kernelSpec("bfs-next-degree"));
         const pred = await ctx.pipelines.kernel(kernelSpec("sssp-pred", { ...graphOverrides(core, null), MODE: 1 }));
         const fill = await ctx.pipelines.kernel(kernelSpec("fill"));
         const sort = await prepareRadixSort(scope);
@@ -352,6 +361,11 @@ export async function bfsWithTuning(
         // plan's GROUP count as its stride (planGridStride's cap applies to the groups)
         const levelPlan = planGridStride(Math.max(n, frontier.edgeCapacity), wg, ctx.caps);
         const sweepPlan = planGridStride(n, wg, ctx.caps);
+        // `bfs-next-degree` sums at most n words and is dispatched on EVERY level, so its fixed cost -- one
+        // workgroup reduction (six barriers) and one atomic per workgroup -- is paid 1,999 times on the
+        // 1000 x 1000 grid. A capped grid pays it 128 times a level instead of ceil(n / wg): on the card the
+        // grid row went from 436 to 356 ms and neither R-MAT row moved.
+        const degreePlan = planGridStride(n, wg, ctx.caps, NEXT_DEGREE_MAX_GROUPS);
         const fusedPlan = planGridStride(n * wg, wg, ctx.caps);
         const bitsPlan = plan1d(bitsWords, wg, ctx.caps);
         const recordFill = (pass: GPUComputePassEncoder, dst: Binding, value: number, mode: 0 | 1): void => {
@@ -415,7 +429,7 @@ export async function bfsWithTuning(
             const bitsParams = scope.params(FILL_PARAMS, { count: bitsWords, value: 0, mode: 0, pad0: 0 });
             const boundBitsFill = fill.bind({ dst: frontierBits, P: bitsParams.binding });
             for (let level = 0; level < levelsPerSubmit; level++) {
-                planner.recordFinalize(pass, 0, level, { ...fields, firstOfSubmit: Math.min(level, 2) });
+                planner.recordFinalize(pass, 0, level, { ...fields, firstOfSubmit: Math.min(level, 1) });
                 advance.record(pass, frontier);
                 planner.recordFinalize(pass, 1, level, fields);
                 // one window-free record serves the contract and the bitset build, which read no arc; the kernels that
@@ -489,6 +503,16 @@ export async function bfsWithTuning(
                     });
                     bottomUp.dispatch(pass, boundSweep, sweepPlan, [sweepParams.offset]);
                 }
+                // the next frontier's out-degree sum (issue #391): whichever path claimed, the vertices are in the output
+                // queue now, and the next boundary reads word 25 as Beamer's m_f for the frontier it is about to expand
+                const degreeParams = scope.params(FRONTIER_PARAMS, { wg, n, stride: degreePlan.stride ?? wg });
+                const boundDegree = nextDegree.bind({
+                    frontier: frontier.output,
+                    outDegree,
+                    counters,
+                    P: degreeParams.binding,
+                });
+                nextDegree.dispatch(pass, boundDegree, degreePlan, [degreeParams.offset]);
                 frontier.swap();
             }
             batch.endPass();

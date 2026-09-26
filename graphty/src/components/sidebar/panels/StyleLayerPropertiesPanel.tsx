@@ -80,10 +80,9 @@ const RESOLVE_LABEL = "Convert to a fixed value";
 /**
  * The expression a selector is edited as, or "" when the layer paints everything.
  *
- * Only `{match:"expression"}` has text a reader can type. A `has` selector and an `ids`
- * selector are written by the element -- `encode()` produces the first and `highlight()` the
- * second -- and neither has a text form a reader could edit without losing what it means, so
- * both are drawn read-only.
+ * Only `{match:"expression"}` has text a reader can type. A `has`, an `ids` and a `top`
+ * selector have no text form a reader could edit without losing what it means, so they are
+ * drawn read-only.
  * @param selector - the layer's selector.
  * @returns the expression, or "" when there is none.
  */
@@ -104,6 +103,8 @@ function selectorSummary(selector: Selector): string | undefined {
             return undefined;
         case "has":
             return `the elements carrying ${selector.path}`;
+        case "top":
+            return `the top ${String(selector.n)} by ${selector.path}, whole ties only`;
         default:
             return `${String((selector.nodes?.length ?? 0) + (selector.edges?.length ?? 0))} named elements`;
     }

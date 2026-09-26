@@ -69,7 +69,7 @@ export function resolvePlacement(
  * along one element while placing it against another.
  * @param anchorRect - The bounding rectangle of the element the panel is placed against
  * @param panelWidth - The width of the panel in pixels, as it actually renders
- * @param gap - The gap between anchor and panel (default: POPOUT_GAP = 8px)
+ * @param gap - The gap between anchor and panel (default: POPOUT_GAP, 0 -- docked flush)
  * @param options - Placement, alignment, panel height, cross-axis anchor and reading direction
  * @returns The calculated position { left, top }
  */

@@ -1,7 +1,7 @@
 #!/bin/sh
 # Pre-push hook.
 #
-# Runs tools/prepush.sh: build every package, lint, knip, then the fast tests --
+# Runs tools/prepush.sh for the packages this push affects: build, lint, knip, then the fast tests --
 # each package's node-only project, graphty-element's default, mesh and contract
 # projects, and graphty's full browser suite. graphty-element's browser,
 # interactions and storybook projects are CI-only; tools/prepush.sh says why, with

@@ -1,5 +1,5 @@
-import { NullEngine, Scene, ShaderMaterial, StandardMaterial } from "@babylonjs/core";
-import { assert, beforeEach, describe, test } from "vitest";
+import { Mesh, NullEngine, Scene, ShaderMaterial, StandardMaterial, SubMesh } from "@babylonjs/core";
+import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import { FilledArrowRenderer } from "../../src/meshes/FilledArrowRenderer";
 
@@ -508,5 +508,51 @@ describe("FilledArrowRenderer - 2D Arrows", () => {
         // Both should have vertices
         assert(smallMesh.getTotalVertices() > 0, "Small mesh should have vertices");
         assert(largeMesh.getTotalVertices() > 0, "Large mesh should have vertices");
+    });
+});
+
+describe("FilledArrowRenderer.applyShader and the size of the scene", () => {
+    let scene: Scene;
+
+    beforeEach(() => {
+        scene = new Scene(new NullEngine());
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    test("configuring a new arrow material does not walk every mesh already in the scene", () => {
+        // Babylon's material setters that can change shader defines (`backFaceCulling` is one)
+        // call `markAsDirty`, which visits every submesh of every mesh in the scene to find the ones
+        // drawn with that material. A brand-new material is drawn by nothing, so the walk finds
+        // nothing -- and one walk per arrow head over a scene that grows with the edges made a load
+        // cost the square of its edge count (issue #388: 94 % of the CPU profile of a 2,000-node
+        // load was this walk). The renderer blocks the material's dirty mechanism before the
+        // setter, and this pins that the walk is gone: with a scene full of meshes, applying the
+        // shader asks no existing submesh for its material.
+        const bystanders = 64;
+
+        for (let i = 0; i < bystanders; i++) {
+            const mesh = FilledArrowRenderer.createTriangle(false, scene);
+            mesh.material = new StandardMaterial(`bystander-${String(i)}`, scene);
+        }
+
+        const getMaterial = vi.spyOn(SubMesh.prototype, "getMaterial");
+        const mesh = FilledArrowRenderer.applyShader(
+            FilledArrowRenderer.createTriangle(false, scene),
+            { size: 12, color: "#ff0000", opacity: 1 },
+            scene,
+        );
+
+        assert.isBelow(getMaterial.mock.calls.length, bystanders, "no scene-wide walk of the existing submeshes");
+        assert.instanceOf(mesh.material, ShaderMaterial);
+        assert.strictEqual((mesh.material).backFaceCulling, false, "the setter still took effect");
+        assert.strictEqual(
+            (mesh.material).blockDirtyMechanism,
+            true,
+            "and stays blocked for the material's life",
+        );
+        assert.instanceOf(mesh, Mesh);
     });
 });

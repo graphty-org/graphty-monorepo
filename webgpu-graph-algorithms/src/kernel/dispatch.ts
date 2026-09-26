@@ -9,11 +9,11 @@ import { MAX_WORKGROUPS_PER_DIM } from "../constants.js";
 import { WebGpuGraphError } from "../errors.js";
 import { type PlanCaps } from "../types/context.js";
 
-/** A dispatch shape (spec 5.2). `stride` is the grid-stride step (null for plain 1D / 2D plans). */
+/** A dispatch shape (spec 5.2). `stride` is the grid-stride step (null for plain 1D / 2D plans). `z` is 1 from every planner; only K3's pass split sets it (issue #87). */
 export interface DispatchPlan {
     readonly x: number;
     readonly y: number;
-    readonly z: 1;
+    readonly z: number;
     readonly items: number;
     readonly stride: number | null;
 }

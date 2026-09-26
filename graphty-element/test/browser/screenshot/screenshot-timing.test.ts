@@ -214,22 +214,29 @@ test("can skip waiting with timing.waitForSettle: false", async () => {
 test("can skip waiting for operations with timing.waitForOperations: false", async () => {
     graph = await createTestGraphWithData();
 
-    // Queue a long operation (use style-apply to avoid triggering layout-update)
-    void graph.operationQueue.queueOperationAsync("style-apply", async () => {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+    // Queue an operation that stays pending until the test releases it (use style-apply to
+    // avoid triggering layout-update)
+    let release = (): void => undefined;
+    const gate = new Promise<void>((resolve) => {
+        release = resolve;
+    });
+    let operationDone = false;
+    const operation = graph.operationQueue.queueOperationAsync("style-apply", async () => {
+        await gate;
+        operationDone = true;
     });
 
-    // Should capture immediately without waiting for operations
-    const startTime = Date.now();
+    // Should capture without waiting for the pending operation
     const result = await graph.captureScreenshot({
         timing: {
             waitForSettle: false,
             waitForOperations: false,
         },
     });
-    const endTime = Date.now();
 
     assert.ok(result.blob instanceof Blob, "Should return a blob");
-    // Should complete much faster than 1000ms operation (allow 800ms for CI variability)
-    assert.ok(endTime - startTime < 800, "Should capture quickly without waiting");
+    assert.isFalse(operationDone, "Should capture while the operation is still pending");
+
+    release();
+    await operation;
 });

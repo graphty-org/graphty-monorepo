@@ -100,7 +100,15 @@
             "!{projectRoot}/eslint.config.js",
             "!{projectRoot}/**/*.md"
         ],
-        "sharedGlobals": ["{workspaceRoot}/tsconfig.base.json", "{workspaceRoot}/eslint.config.js"]
+        "sharedGlobals": [
+            "{workspaceRoot}/tsconfig.base.json",
+            "{workspaceRoot}/eslint.config.js",
+            "{workspaceRoot}/vite.shared.config.ts",
+            "{workspaceRoot}/vitest.shared.config.ts",
+            "{workspaceRoot}/pnpm-workspace.yaml",
+            "{workspaceRoot}/.npmrc",
+            "{workspaceRoot}/.github/workflows/**/*"
+        ]
     },
     "generators": {
         "@nx/js:library": {

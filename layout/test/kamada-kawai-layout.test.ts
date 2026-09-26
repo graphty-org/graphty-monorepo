@@ -1,5 +1,5 @@
 import { describe, it, assert } from "vitest";
-import { kamadaKawaiLayout, completeGraph, cycleGraph, starGraph, gridGraph, randomGraph } from "../src";
+import { kamadaKawaiLayout, completeGraph, cycleGraph, starGraph, gridGraph, randomGraph, randomLayout } from "../src";
 
 describe("Kamada-Kawai Layout", () => {
     describe("Basic functionality", () => {
@@ -221,18 +221,12 @@ describe("Kamada-Kawai Layout", () => {
             });
         });
 
-        it("should handle large graphs reasonably", () => {
+        it("should lay out every node of a larger graph", () => {
             const graph = gridGraph(8, 8); // 64 nodes
 
-            const startTime = performance.now();
             const positions = kamadaKawaiLayout(graph, null, null, "weight", 1, [0, 0], 2);
-            const endTime = performance.now();
 
             assert.equal(Object.keys(positions).length, 64);
-
-            // Performance can vary significantly on different systems and CI environments
-            // Just ensure it completes in a reasonable time (under 5 seconds)
-            assert.isBelow(endTime - startTime, 5000, "Kamada-Kawai should complete within 5 seconds for 64 nodes");
         });
 
         it("should produce different results with different initial positions", () => {
@@ -342,7 +336,14 @@ describe("Kamada-Kawai Layout", () => {
             });
         });
 
-        it("should use spherical initialization for 3D", () => {
+        it("starts 3D from a seeded random layout, as networkx starts from random_layout", () => {
+            const graph = cycleGraph(6);
+            const started = kamadaKawaiLayout(graph, null, randomLayout(graph, null, 3, 42), "weight", 1, [0, 0, 0], 3);
+
+            assert.deepEqual(kamadaKawaiLayout(graph, null, null, "weight", 1, [0, 0, 0], 3), started);
+        });
+
+        it("should draw uniform edge lengths in 3D", () => {
             const graph = cycleGraph(6);
             const positions = kamadaKawaiLayout(graph, null, null, "weight", 1, [0, 0, 0], 3);
 

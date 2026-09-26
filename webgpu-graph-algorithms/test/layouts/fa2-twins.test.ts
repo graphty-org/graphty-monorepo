@@ -276,6 +276,11 @@ describe("FA2 subgroup twins in-process (spec 11.3)", () => {
     it(
         "writes the workgroup twin's outputs of the UNSCALED random1k / karate as `<class>-no-subgroups` noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
         async (t) => {
+            if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
+                // a writer asserts nothing a recording run does not need, and its unscaled f64 oracle runs are
+                // tens of seconds of synchronous work under coverage (issue #413)
+                t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");
+            }
             requireGpu(t);
             const twinClass = `${adapterClass(withoutSubgroups.caps)}${TWIN_SUFFIX}`;
             // the stage members (paper, random1k)

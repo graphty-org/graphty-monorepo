@@ -154,6 +154,36 @@ describe("UpdateManager", () => {
             // Should have zoomed by now
             assert.isTrue(updateManager.zoomToFitCompleted);
         });
+
+        // A graph loaded with an algorithm that sizes its nodes asks for its final framing on the
+        // pass after the layout settles, while the run's size layer can still be painting. Answered
+        // then, the camera framed every node at its unstyled size and nothing re-framed when the
+        // sizes landed -- so a slow machine drew a tighter picture than a fast one.
+        it("waits for a style pass that is on its way before answering a framing request", () => {
+            graph.getLayoutManager().running = false;
+            updateManager.stepFrames(5);
+
+            let framings = 0;
+            graph.eventManager.addListener("zoom-to-fit-complete", () => {
+                framings++;
+            });
+
+            // A pass asked for and not yet announced. Stubbed, because a pass over three nodes
+            // finishes inside one slice and never spans a frame the way a slow machine makes it.
+            const painting = vi.spyOn(graph.getStylePainter(), "isPainting", "get").mockReturnValue(true);
+
+            updateManager.enableZoomToFit();
+            updateManager.stepFrames(3);
+
+            assert.strictEqual(framings, 0, "the camera was framed while a style pass was still painting");
+            assert.isFalse(updateManager.frameIsStable);
+            assert.include(updateManager.whyFrameIsNotStable(), "painting");
+
+            painting.mockReturnValue(false);
+            updateManager.update();
+
+            assert.strictEqual(framings, 1, "the request is answered on the first pass after the paint arrives");
+        });
     });
 
     describe("configuration", () => {

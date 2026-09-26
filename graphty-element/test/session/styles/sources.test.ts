@@ -93,6 +93,26 @@ function flows(entries: readonly (readonly [string, number])[]) {
 }
 
 /**
+ * An executor that measures a number for some of the nodes.
+ * @param values - The value each measured node carries, by node id.
+ * @returns The executor.
+ */
+function metric(values: readonly (readonly [NodeId, number])[]) {
+    return (context: RunExecutionContext): Promise<RunOutcome> =>
+        Promise.resolve({
+            result: createRunResult({
+                runId: context.runId,
+                shape: "node-metric",
+                fields: [field(context.runId, "value", "node", "integer")],
+                measured: { nodes: values.length, edges: 0 },
+                nodes: values.map(([id, value]) => ({ id, values: { value } })),
+                caveats: CAVEATS,
+                durationMs: 1,
+            }),
+        });
+}
+
+/**
  * The element's ids for two of the fixture's three edges.
  *
  * The fixture adds a->b, b->c and c->d in that order, and the element stamps its edge counter in
@@ -715,6 +735,67 @@ describe("wired to the selector engine it was written for", () => {
             assert.isFalse(selector.test?.(index), `node ${index}`);
         }
 
+        harness.session.dispose();
+    });
+});
+
+describe("a top selector over a run's column", () => {
+    /**
+     * Which of the fixture's four nodes a top selector paints.
+     * @param source - The source.
+     * @param n - How many the top may hold.
+     * @returns The node indices it accepts.
+     */
+    function topOf(source: SessionSelectorSource, n: number): number[] {
+        const selector = compileSelector({ match: "top", path: "results.degree.value", n }, "node", source);
+        const accepted: number[] = [];
+
+        for (let index = 0; index < 4; index++) {
+            if (selector.test?.(index) === true) {
+                accepted.push(index);
+            }
+        }
+
+        return accepted;
+    }
+
+    it("paints whole tie groups only, and never more than n", async () => {
+        const { harness, source } = fixture({
+            execute: metric([
+                ["a", 5],
+                ["b", 5],
+                ["c", 3],
+                ["d", 1],
+            ]),
+        });
+        await harness.session.runs.start("degree", undefined, { as: "degree" });
+
+        assert.deepStrictEqual(topOf(source, 1), [], "a and b tie at 5, and two do not fit in one");
+        assert.deepStrictEqual(topOf(source, 2), [0, 1]);
+        assert.deepStrictEqual(topOf(source, 3), [0, 1, 2]);
+        assert.deepStrictEqual(topOf(source, 9), [0, 1, 2, 3]);
+        harness.session.dispose();
+    });
+
+    it("paints nothing on a regular graph whose one tie group is larger than n", async () => {
+        const { harness, source } = fixture({
+            execute: metric([
+                ["a", 2],
+                ["b", 2],
+                ["c", 2],
+                ["d", 2],
+            ]),
+        });
+        await harness.session.runs.start("degree", undefined, { as: "degree" });
+
+        assert.deepStrictEqual(topOf(source, 3), []);
+        harness.session.dispose();
+    });
+
+    it("matches nothing, and refuses nothing, before the run has published", () => {
+        const { harness, source } = fixture();
+
+        assert.deepStrictEqual(topOf(source, 3), []);
         harness.session.dispose();
     });
 });

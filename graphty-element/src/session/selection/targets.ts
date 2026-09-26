@@ -122,7 +122,10 @@ export type SelectionTarget =
     | { readonly ids: readonly string[] }
     /** Everything a scope covers. */
     | { readonly scope: Scope }
-    /** The highest-ranked elements of a finished run. */
+    /**
+     * The highest-ranked elements of a finished run. A tie group is taken whole and only when it
+     * fits inside `n`, so this can select fewer than `n` elements, or none. See `TopRanking` in the results types.
+     */
     | { readonly top: { readonly run: RunRef; readonly field: string; readonly n: number } }
     /** Every element of a finished run above a threshold. */
     | { readonly above: { readonly run: RunRef; readonly field: string; readonly threshold: number } }
@@ -719,7 +722,7 @@ export function resolveTarget(target: SelectionTarget, context: TargetContext): 
     if ("top" in target) {
         const { run, field, n } = target.top;
 
-        return resolveRanked(context, run, field, (result) => result.ranking(field, n));
+        return resolveRanked(context, run, field, (result) => result.top(field, n).entries);
     }
 
     if ("above" in target) {

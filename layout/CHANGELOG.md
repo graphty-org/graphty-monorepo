@@ -1,3 +1,10 @@
+## 1.9.1 (2026-09-26)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.2
+- Updated graph-format to 1.0.5
+
 ## 1.9.0 (2026-09-24)
 
 ### 🚀 Features

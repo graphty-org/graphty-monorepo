@@ -12,7 +12,7 @@
  * (which lists "P2"); P3-T5 adds K1 / K2 / K5 and lists "P3"; M8b-T10 adds the six non-exempt P7 kernels (spmv-pull,
  * pr-scale, pr-finalize and the three Afforest link / compress kernels) and lists "P7", measured by
  * test/sabotage/spmv.test.ts and test/sabotage/wcc.test.ts; P8-T3 adds the three compact / dedupe kernels, measured
- * by test/sabotage/compact.test.ts, P8-T4 the six frontier-finalize rows measured by test/sabotage/frontier.test.ts,
+ * by test/sabotage/compact.test.ts, P8-T4 the three frontier-finalize rows measured by test/sabotage/frontier.test.ts,
  * P8-T5 the five advance-expand rows measured by test/sabotage/advance.test.ts, P8-T6 the three bfs-contract and four
  * sssp-pred rows measured by test/sabotage/bfs.test.ts, P8-T7 the three bfs-fused rows and the seventh
  * frontier-finalize row (the inverted fused threshold), measured by test/sabotage/bfs.test.ts too, P8-T9 the four
@@ -942,25 +942,10 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
         },
     ]),
     // P8-T4: every row is measured by frontierReport (test/helpers/frontier.ts) through the frontier test; the
-    // rotation and fused-slot rows are measured again by the BFS suites of P8-T6 / P8-T7 once those land
+    // rotation and fused-path rows are measured again by the BFS suites of P8-T6 / P8-T7. The two rows that once
+    // mutated the indirect-slot arithmetic (`ceil-wraps`, `second-row-floored`) went with the slots (2026-09-25):
+    // no dispatch consumed what they broke
     "frontier-finalize": Object.freeze([
-        {
-            // the ceil that wraps above 2^32 - wg: the largest u32 count yields 0 groups (caught by the ladder)
-            name: "ceil-wraps",
-            find: "count / P.wg + select(0u, 1u, count % P.wg != 0u)",
-            replace: "(count + P.wg - 1u) / P.wg",
-            minFactor: 10,
-            test: FRONTIER_TEST,
-        },
-        {
-            // the second row of the 2D split floored: a group count that is not a multiple of the per-dimension
-            // limit loses its last row (the ladder, and the 17M poison case)
-            name: "second-row-floored",
-            find: "(groups + MAX_WORKGROUPS_PER_DIM - 1u) / MAX_WORKGROUPS_PER_DIM",
-            replace: "groups / MAX_WORKGROUPS_PER_DIM",
-            minFactor: 10,
-            test: FRONTIER_TEST,
-        },
         {
             // the rotation writes 0: the first boundary rotates nothing in and every traversal is the source alone
             name: "rotation-dropped",
@@ -980,7 +965,7 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
         {
             // role 1 counts a two-phase level whether or not role 0 chose one
             name: "role-1-counts-every-level",
-            find: "if (args[4u * P.slotBase] == 0u) {                             // role 0 did not choose the two-phase path (done, fused or bottom-up): nothing to size, nothing to count",
+            find: "if (atomicLoad(&counters[24]) != 1u) {                         // role 0 did not choose the two-phase path (done, fused or bottom-up): nothing to clamp, nothing to count",
             replace: "if (false) {",
             minFactor: 10,
             test: FRONTIER_TEST,

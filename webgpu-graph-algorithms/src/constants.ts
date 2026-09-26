@@ -218,8 +218,6 @@ export const GRID_SORT_BITS = 24;
 export const MAX_LEVELS_PER_SUBMIT = 32;
 /** Design 8.4 and 6 row 8 (P8): a frontier at most this long runs the fused expand-contract kernel (Merrill's "fleeting iterations"); the default of the `fusedMax` uniform, which a test may set to 0 or `U32_MAX`. */
 export const FUSED_FRONTIER_MAX = 4096;
-/** P8-T4: the indirect dispatch slots `frontier-finalize` writes per level (expand, contract, fused, fill-bits, bitset-build, bottom-up, fused-retry); the args buffer is `MAX_LEVELS_PER_SUBMIT x FRONTIER_CANDIDATES x 16` bytes. */
-export const FRONTIER_CANDIDATES = 7;
 /** Design 8.4 (P8 PD-21): Beamer's beta -- switch back to top-down when `frontierCount * BEAMER_BETA < unvisitedCount` and the frontier is shrinking; alpha is derived from the graph, so it has no constant. */
 export const BEAMER_BETA = 24;
 /** Design 8.4 (P8 PD-22): the near-far split `delta = SSSP_DELTA_FACTOR * avgWeight / avgDegree`, computed on the host from the weight vector the run uses. */

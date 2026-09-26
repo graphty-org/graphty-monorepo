@@ -1,3 +1,33 @@
+## 2.2.5 (2026-09-26)
+
+### 🩹 Fixes
+
+- **graphty-element:** refuse a load past the ceiling before touching the graph ([24c37792](https://github.com/graphty-org/graphty-monorepo/commit/24c37792))
+- **graphty-element:** decline a load past the render ceiling instead of freezing ([#405](https://github.com/graphty-org/graphty-monorepo/issues/405), [#394](https://github.com/graphty-org/graphty-monorepo/issues/394))
+- **graphty-element:** hold the frames while an accelerated run is on the device ([#389](https://github.com/graphty-org/graphty-monorepo/issues/389), [#390](https://github.com/graphty-org/graphty-monorepo/issues/390))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.5
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 2.2.4 (2026-09-26)
+
+### 🩹 Fixes
+
+- **graphty-element:** keep the framing box type internal ([c815f158](https://github.com/graphty-org/graphty-monorepo/commit/c815f158))
+- **graphty-element:** frame labels again on zoom-to-fit, never on a label edit ([#76](https://github.com/graphty-org/graphty-monorepo/issues/76))
+- **graphty-element:** frame nodes by their size without an extra margin ([#76](https://github.com/graphty-org/graphty-monorepo/issues/76))
+- **graphty-element:** keep the voice adapter's callback types internal ([82fb9dd5](https://github.com/graphty-org/graphty-monorepo/commit/82fb9dd5))
+- **graphty-element:** repaint after node removal, frame nodes only, deliver AI events ([#74](https://github.com/graphty-org/graphty-monorepo/issues/74), [#76](https://github.com/graphty-org/graphty-monorepo/issues/76), [#81](https://github.com/graphty-org/graphty-monorepo/issues/81))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.2.3 (2026-09-26)
 
 ### 🩹 Fixes

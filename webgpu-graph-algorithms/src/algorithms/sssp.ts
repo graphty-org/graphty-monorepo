@@ -11,9 +11,10 @@
  * delta and dedupes the far half into `farIn` for a pass-through; both empty is `done`), `dedupe-claim` and
  * `dedupe-filter` over each half (direct grid-stride dispatches; role 2 writes the chosen half's raw count into that
  * dedupe's count word -- `edgeCount` for the near half, `edgeCountUnclamped` for the far one, two words SSSP borrows
- * -- and 0 into the other's, so the half not chosen is a no-op), role 3 (restarts the raw half), and `sssp-relax`
- * twice (role 0 over `nearIn`, role 1 over `farIn`; the block's `path` word, 5 a near round and 6 a far one, makes
- * the other role's dispatch a no-op). The far pile is re-bucketed by the
+ * -- and 0 into the other's, so the half not chosen is a no-op), role 3 (restarts the raw half the round consumed),
+ * and `sssp-relax` twice (role 0 over `nearIn` sized by `frontierCount`, role 1 over `farIn` sized by `farCount`;
+ * the block's `path` word, 5 a near round and 6 a far one, makes the other role's dispatch a no-op). Nothing in a
+ * round is an indirect dispatch (2026-09-25). The far pile is re-bucketed by the
  * relax kernel's pass-through, not by `compact` (PD-20): a far entry whose settled distance fell below the previous
  * threshold was relaxed in the near band already and is dropped, the rest go back to near or far against the raised
  * threshold. The near pile is ONE pile (no sub-partitions). The host records `MAX_LEVELS_PER_SUBMIT` rounds per

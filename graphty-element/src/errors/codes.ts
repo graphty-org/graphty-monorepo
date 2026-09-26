@@ -164,7 +164,8 @@ export type GraphtyErrorCode =
     /**
      * A source could not be fetched: a network failure, a non-2xx status, a CORS refusal or an
      * unreadable file. `details` carry the url and the status where there was one, and `cause`
-     * carries the original failure. Usually recoverable by retrying.
+     * carries the original failure. Recoverable by retrying, except a client error (a 4xx other
+     * than 408 and 429), which fails after one request with `recoverable: false`.
      */
     | "E_FETCH_FAILED"
     /**

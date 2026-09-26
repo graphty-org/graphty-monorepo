@@ -2,6 +2,7 @@ import { INVALID_INDEX } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
 import { publishLayoutDescriptor } from "../catalog/layoutRegistry";
+import { SharedImplementationMap } from "../catalog/pluginRegistry";
 import type { AuthoredLayoutDescriptor } from "../catalog/types";
 import type { OptionsSchema } from "../config";
 import { ElementPositions, isStorableCoordinate } from "../data/positions";
@@ -36,7 +37,9 @@ export interface EdgePosition {
 }
 
 type LayoutEngineClass = new (opts: object) => LayoutEngine;
-const layoutEngineRegistry = new Map<string, LayoutEngineClass>();
+// Shared with every other copy of graphty-element on the page, so a plugin registered through one
+// reaches them all.
+const layoutEngineRegistry = new SharedImplementationMap<LayoutEngineClass>("layout");
 
 /**
  * A class as {@link LayoutEngine.register} reads it: a constructor, and whatever statics it
@@ -651,7 +654,7 @@ export abstract class LayoutEngine {
                 });
             }
 
-            if (layoutEngineRegistry.has(type)) {
+            if (layoutEngineRegistry.hasOwn(type)) {
                 throw duplicateBuiltInEngine(type);
             }
 

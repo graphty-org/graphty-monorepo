@@ -19,7 +19,7 @@
  * `visitedCount`, and wraps `level` to 0, so the level-0 expansion claims the source's neighbours at `level + 1 == 1`.
  * `reset` is a queue write, ordered before the submit that follows, and it puts the source on side 0.
  *
- * Every buffer comes from the caller's ONE lease (`scope.scratch`, `scope.indirect`) so the algorithm's dispose()
+ * Every buffer comes from the caller's ONE lease (`scope.scratch`) so the algorithm's dispose()
  * releases them together (design 4.4). The two vertex queues are two BUFFERS, never two ranges of one: `Kernel.bind`
  * rejects one buffer bound read-only and read-write in one dispatch even for disjoint ranges. `src/primitives/**`
  * never imports `src/context.ts`.

@@ -1185,7 +1185,7 @@ const SSSP_PRED: KernelEntry = {
     phase: "P8",
 };
 
-/** `bfs-fused` (design 8.4 "the fused variant", 6 row 8 "the workgroup-per-row tier", 8.10 "BFS fused expand-contract"; P8-T7, PD-23): one level's expansion and contraction in one dispatch, one WORKGROUP per frontier entry, every lane stripping the entry's row with `bfs-contract`'s claim inline and no edge queue traffic; dispatched from `SLOT.fused` (a frontier below `P.fusedMax`) and from `SLOT.fusedRetry` (an overflowed level); 8 storage bindings (the four graph slots, `frontierIn`, the counters block as `array<atomic<u32>>`, `depth` as `array<atomic<u32>>`, `frontierOut`) -- exactly at the budget, which is why no `parent` lives here (PD-24). */
+/** `bfs-fused` (design 8.4 "the fused variant", 6 row 8 "the workgroup-per-row tier", 8.10 "BFS fused expand-contract"; P8-T7, PD-23): one level's expansion and contraction in one dispatch, one WORKGROUP per frontier entry, every lane stripping the entry's row with `bfs-contract`'s claim inline and no edge queue traffic; a direct grid-stride dispatch that runs when the path word is 2 (a frontier below `P.fusedMax`) or 4 (the overflow retry, role 1's), sized from `frontierCount`; 8 storage bindings (the four graph slots, `frontierIn`, the counters block as `array<atomic<u32>>`, `depth` as `array<atomic<u32>>`, `frontierOut`) -- exactly at the budget, which is why no `parent` lives here (PD-24). */
 const BFS_FUSED: KernelEntry = {
     id: "bfs-fused",
     body: bfsFusedWgsl,

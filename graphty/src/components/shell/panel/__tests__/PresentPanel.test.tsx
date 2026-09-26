@@ -111,8 +111,8 @@ describe("PresentPanel", () => {
             expect(screen.getByRole("button", { name: "Copy node ids" })).toBeDisabled();
             expect(screen.getByRole("button", { name: "Data options" })).toBeDisabled();
             expect(screen.getByRole("checkbox", { name: "Include notes" })).toBeDisabled();
-            expect(screen.getByRole("textbox", { name: "Data format" })).toBeDisabled();
-            expect(screen.getByRole("textbox", { name: "Scope" })).toBeDisabled();
+            expect(screen.getByRole("combobox", { name: "Data format" })).toBeDisabled();
+            expect(screen.getByRole("combobox", { name: "Scope" })).toBeDisabled();
         });
     });
 

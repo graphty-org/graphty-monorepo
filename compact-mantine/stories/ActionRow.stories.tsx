@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import React from "react";
 
 import { ActionRow, PANEL_GRID, PANEL_INK, UiGlyph } from "../src";
+import { StoryState, StoryStates } from "./figma/chrome/StoryPanel";
 
 // Imported from "../src", the package's published entry point, so the stories
 // exercise the exports a consumer installs.
@@ -57,11 +58,16 @@ const meta: Meta<typeof ActionRow> = {
         layout: "padded",
     },
     decorators: [
-        (Story) => (
-            <Box w={PANEL_GRID.WIDTH} p="md" bg="var(--mantine-color-body)">
+        // Every story sits in a 240px panel on the panel ground; States lays out
+        // several panels side by side, so it brings its own.
+        (Story, context): React.JSX.Element =>
+            context.name === "States" ? (
                 <Story />
-            </Box>
-        ),
+            ) : (
+                <Box w={PANEL_GRID.WIDTH} bg="var(--cm-bg)" style={{ paddingInline: "16px 8px" }}>
+                    <Story />
+                </Box>
+            ),
     ],
 };
 
@@ -323,4 +329,37 @@ export const RightToLeft: Story = {
             </Stack>
         </DirectionProvider>
     ),
+};
+
+/**
+ * Every state of the action row (design/figma-spec.md 9.6): actions always drawn (Figma's
+ * property rows, the default), the hover reveal at rest and held open, disabled, and selectable.
+ */
+export const States: Story = {
+    render: () => {
+        const actions = (
+            <ActionIcon aria-label="Copy reading">
+                <UiGlyph name="plus" />
+            </ActionIcon>
+        );
+        return (
+            <StoryStates>
+                <StoryState name="Always (default)" padded>
+                    <ActionRow state="20 nodes" actions={actions} />
+                </StoryState>
+                <StoryState name="Hover reveal, at rest" padded>
+                    <ActionRow state="20 nodes" reveal="hover" actions={actions} />
+                </StoryState>
+                <StoryState name="Hover reveal, held open" padded>
+                    <ActionRow state="20 nodes" reveal="hover" actionsVisible actions={actions} />
+                </StoryState>
+                <StoryState name="Disabled" padded>
+                    <ActionRow state="Not built yet" disabled actions={actions} />
+                </StoryState>
+                <StoryState name="Selectable" padded>
+                    <ActionRow state="Betweenness" onClick={() => undefined} actions={actions} />
+                </StoryState>
+            </StoryStates>
+        );
+    },
 };

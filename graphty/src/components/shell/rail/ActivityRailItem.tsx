@@ -4,7 +4,7 @@
  *
  * Every rail item is an icon-only control under 6.8, so every one of them carries the
  * four obligations of section 8.2: an `aria-label` equal to its tooltip with the key
- * chip removed, an `aria-hidden` glyph, a tooltip at `TOOLTIP_DELAY_MS`, and a hit
+ * chip removed, an `aria-hidden` glyph, a tooltip at the theme's tooltip timing, and a hit
  * area of at least 24 x 24 with 4 px of clear space -- which 47 x 44 exceeds in both
  * directions. The fourth obligation, a full-text twin, is met by the command palette,
  * which indexes every rail destination (spec 02 section 1; 5.5).
@@ -23,7 +23,6 @@ import {
     ACTIVITY_RAIL_ITEM_GAP,
     ACTIVITY_RAIL_ITEM_HEIGHT,
     ACTIVITY_RAIL_ITEM_WIDTH,
-    TOOLTIP_DELAY_MS,
 } from "../constants";
 import type { ActivityId, RailBadge } from "../types";
 import { RAIL_GLYPHS } from "./railGlyphs";
@@ -183,7 +182,7 @@ export function ActivityRailItem(props: ActivityRailItemProps): React.JSX.Elemen
     }, []);
 
     return (
-        <Tooltip label={title} position="right" openDelay={TOOLTIP_DELAY_MS}>
+        <Tooltip label={title} position="right">
             <UnstyledButton
                 type="button"
                 aria-label={ariaLabelFor(title)}

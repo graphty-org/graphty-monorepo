@@ -99,13 +99,13 @@ describe("ActivityRail", () => {
             expect(styles.paddingRight).toBe("0px");
         });
 
-        it("draws the 16 px glyph the register reserves for rail items", () => {
+        it("draws the glyph in the library's 24 px glyph slot, as Figma's rail does", () => {
             render(<ActivityRail activeActivity={null} onActivityClick={vi.fn()} />);
 
             const glyph = item("Data").querySelector("svg");
 
-            expect(glyph?.getAttribute("width")).toBe("16");
-            expect(glyph?.getAttribute("height")).toBe("16");
+            expect(glyph?.getAttribute("width")).toBe("24");
+            expect(glyph?.getAttribute("height")).toBe("24");
         });
 
         it("pushes Settings and Help to the bottom with a growing spacer", () => {

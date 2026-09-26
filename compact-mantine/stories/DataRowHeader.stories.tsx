@@ -42,7 +42,7 @@ const meta: Meta<typeof DataRowHeader> = {
     },
     decorators: [
         (Story): React.JSX.Element => (
-            <Box w={PANEL_GRID.WIDTH} p="md" bg="var(--mantine-color-body)">
+            <Box w={PANEL_GRID.WIDTH} py="md" bg="var(--cm-bg)">
                 <Story />
             </Box>
         ),
@@ -260,5 +260,21 @@ export const RightToLeft: Story = {
                 ))}
             </Box>
         </DirectionProvider>
+    ),
+};
+
+/**
+ * Every state side by side (design/figma-spec.md 10.5): a 32px caption at 11/16 550 in the
+ * secondary colour; the sorted column's name in the primary colour with a 5 x 3 caret.
+ */
+export const States: Story = {
+    render: () => (
+        <Stack gap={0}>
+            <DataRowHeader label="Plain caption" unit="links" />
+            <DataRowHeader label="Sortable, unsorted" unit="links" onSortChange={() => undefined} />
+            <DataRowHeader label="Descending" unit="links" sortDirection="descending" onSortChange={() => undefined} />
+            <DataRowHeader label="Ascending" unit="links" sortDirection="ascending" onSortChange={() => undefined} />
+            <DataRowHeader label="Second in the sort" unit="hops" sortDirection="descending" sortPriority={2} onSortChange={() => undefined} />
+        </Stack>
     ),
 };

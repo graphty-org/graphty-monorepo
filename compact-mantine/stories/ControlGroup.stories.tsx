@@ -1,7 +1,8 @@
 import { ActionIcon, Box, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
-import { ControlGroup, PANEL_GRID, StyleNumberInput, StyleSelect, ToggleRow, UiGlyph } from "../src";
+import { ControlGroup, FieldRow, PANEL_GRID, PanelField,StyleNumberInput, StyleSelect, ToggleRow, UiGlyph } from "../src";
+import { StoryState, StoryStates } from "./figma/chrome/StoryPanel";
 
 /**
  * A labelled group of controls with a rule above its name, which never folds
@@ -42,11 +43,16 @@ const meta: Meta<typeof ControlGroup> = {
         layout: "padded",
     },
     decorators: [
-        (Story) => (
-            <Box w={PANEL_GRID.WIDTH} p="md" bg="var(--mantine-color-body)">
+        // Every story sits in a 240px panel on the panel ground; States lays out
+        // several panels side by side, so it brings its own.
+        (Story, context): React.JSX.Element =>
+            context.name === "States" ? (
                 <Story />
-            </Box>
-        ),
+            ) : (
+                <Box w={PANEL_GRID.WIDTH} bg="var(--cm-bg)" style={{ paddingInline: "16px 8px" }}>
+                    <Story />
+                </Box>
+            ),
     ],
 };
 
@@ -164,5 +170,46 @@ export const Stacked: Story = {
                 <StyleSelect label="Shape" defaultValue="circle" options={SHAPES} />
             </ControlGroup>
         </>
+    ),
+};
+
+/**
+ * The legend in its states (design/figma-spec.md 9.3): a 16px band carrying the name as a 9/14
+ * weight-500 caption in the secondary ink, then the rows -- a field row under a legend comes out
+ * at Figma's 48px. With header actions, and with a name too long for the band.
+ */
+export const States: Story = {
+    render: () => (
+        <StoryStates>
+            <StoryState name="Legend and a field row" padded>
+                <ControlGroup label="Position">
+                    <FieldRow>
+                        <PanelField label="X" value="100" />
+                        <PanelField label="Y" value="40" />
+                    </FieldRow>
+                </ControlGroup>
+            </StoryState>
+            <StoryState name="With actions" padded>
+                <ControlGroup
+                    label="Alignment"
+                    actions={
+                        <ActionIcon aria-label="Reset alignment" size={16}>
+                            <UiGlyph name="close" size={10} />
+                        </ActionIcon>
+                    }
+                >
+                    <FieldRow>
+                        <PanelField label="Rotation" value="0" />
+                    </FieldRow>
+                </ControlGroup>
+            </StoryState>
+            <StoryState name="Long name" padded>
+                <ControlGroup label="Betweenness centrality thresholds for the size ramp">
+                    <FieldRow>
+                        <PanelField label="Smallest" value="0.1" />
+                    </FieldRow>
+                </ControlGroup>
+            </StoryState>
+        </StoryStates>
     ),
 };

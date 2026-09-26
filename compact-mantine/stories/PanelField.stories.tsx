@@ -1,5 +1,6 @@
 import { Box, DirectionProvider, Group, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
+import { expect, userEvent, waitFor, within } from "@storybook/test";
 import React from "react";
 
 import {
@@ -9,6 +10,7 @@ import {
     PanelField,
     PanelLabelsProvider,
 } from "../src";
+import { StateGrid } from "./figma/inputs/StateGrid";
 // Imported from "../src", the package's published entry point, so the stories
 // exercise exactly what a consumer gets from `@graphty/compact-mantine` rather
 // than reaching past it into the source tree.
@@ -17,7 +19,7 @@ import {
  * A compact field for one changeable value, with a glyph in place of a caption.
  *
  * **Purpose:** Replaces the caption-above-input stack. The word that used to sit
- * above the input becomes a 14px drawing in a 16px slot inside the box, which
+ * above the input becomes a 12px drawing in a 24px slot inside the box, which
  * halves the height of a property panel and starts the value at exactly 24px
  * from the field's leading edge in every row.
  *
@@ -28,18 +30,20 @@ import {
  *
  * **When to use:**
  * - For any value someone can change: a number, a name, a colour, a choice
- * - In pairs at 108px, alone at 224px, or filling a row
+ * - In pairs at 88px, alone at 184px, or filling a row
  * - Never for a yes-or-no (that is a toggle row) and never for the reader's own
  *   strings (that is a data row)
  *
  * **Key features:**
- * - The glyph slot doubles as a drag handle: `onScrubStart`, `onScrub` and
- *   `onScrubEnd` make one drag one undo entry
+ * - The glyph slot doubles as a drag handle: a number field scrubs its own value
+ *   at half a unit per pixel and commits once on release; `onScrubStart`,
+ *   `onScrub` and `onScrubEnd` make one drag one undo entry
+ * - A number field takes arithmetic (`40*2`) and commits on Enter, Tab or blur
  * - A filled glyph says the value follows a data attribute; a hollow one says it
  *   was typed in once
  * - A word for a disagreement across a multiple selection, which stays editable
- * - A chevron inside the box for a drop-down -- it never moves out to the slot
- *   at the end of the row
+ * - A drop-down is Figma's outlined select trigger, its caret inside the box --
+ *   it never moves out to the slot at the end of the row
  * - A small accent square in the slot's corner for a value that has not taken
  *   effect yet
  * - `PanelLabelsProvider` puts the word back beside the glyph
@@ -64,7 +68,7 @@ export default meta;
 type Story = StoryObj<typeof PanelField>;
 
 /**
- * One of a pair: a 108px field whose glyph stands in for the word "Smallest".
+ * One of a pair: an 88px field whose glyph stands in for the word "Smallest".
  * It has a value and no change handler, so it is read-only -- which is what a
  * field that only reports a number should be.
  */
@@ -77,7 +81,7 @@ export const Default: Story = {
 };
 
 /**
- * The pair, at 108 + 8 + 108. Two fields, one row, no captions spent.
+ * The pair, at 88 + 8 + 88. Two fields, one row, no captions spent.
  */
 export const Pair: Story = {
     render: (): React.JSX.Element => (
@@ -151,7 +155,7 @@ function NumberField(): React.JSX.Element {
 }
 
 /**
- * A body-span field at 224px, with a unit. The unit is a dimmed suffix at the
+ * A body-span field at 184px, with a unit. The unit is a dimmed suffix at the
  * end of the same box, and the value's own room is measured to leave space for
  * it however long the translated word turns out to be.
  */
@@ -404,3 +408,89 @@ export const WithLabels: Story = {
         </PanelLabelsProvider>
     ),
 };
+
+/**
+ * Every state side by side (design/figma-spec.md 6.1, 6.4): the filled number and text field at
+ * rest, hovered and focused (forced with data-state), disabled, Mixed, bound, pending, and the
+ * outlined select trigger. Switch light / dark and the contrast mode in the toolbar.
+ */
+export const States: Story = {
+    render: (): React.JSX.Element => (
+        <StateGrid
+            cells={[
+                { state: "number rest", node: <PanelField label="X" glyph="W" kind="number" defaultValue={40} /> },
+                {
+                    state: "hover",
+                    node: <PanelField label="X" glyph="W" kind="number" defaultValue={40} data-state="hover" />,
+                },
+                {
+                    state: "focus",
+                    node: <PanelField label="X" glyph="W" kind="number" defaultValue={40} data-state="focus" />,
+                },
+                { state: "disabled", node: <PanelField label="X" glyph="W" kind="number" value={40} disabled /> },
+                { state: "Mixed", node: <PanelField label="X" glyph="W" kind="number" value={40} mixed onChange={() => undefined} /> },
+                { state: "bound", node: <PanelField label="Size" glyph="attribute" value="Age" bound /> },
+                { state: "pending", node: <PanelField label="Largest" glyph="sizeLargest" value="4.0" pending /> },
+                { state: "unit", node: <PanelField label="Opacity" glyph="opacity" kind="number" defaultValue={100} unit="%" /> },
+                {
+                    state: "select",
+                    node: <PanelField label="Layout" kind="select" data={["Force", "Radial"]} defaultValue="Force" />,
+                },
+            ]}
+        />
+    ),
+};
+
+/**
+ * Figma's number field: a drag on the glyph moves the value half a unit per pixel and commits
+ * once on release; typing takes arithmetic and commits on Enter.
+ */
+export const ScrubAndType: Story = {
+    render: (): React.JSX.Element => <ScrubbedField />,
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const box = canvas.getByRole("spinbutton", { name: "X" });
+        const slot = canvas.getByTestId("panel-field-slot");
+        const { left, top } = slot.getBoundingClientRect();
+        // Real pointer events on the handle: press, move 20px along the text, release.
+        const at = (type: string, x: number): void => {
+            slot.dispatchEvent(
+                new PointerEvent(type, { bubbles: true, cancelable: true, button: 0, pointerId: 1, clientX: x, clientY: top + 12 }),
+            );
+        };
+        at("pointerdown", left + 12);
+        at("pointermove", left + 22);
+        at("pointermove", left + 32);
+        at("pointerup", left + 32);
+        await waitFor(() => expect(canvas.getByTestId("commits")).toHaveTextContent("50"));
+        await userEvent.click(box);
+        await userEvent.keyboard("{Control>}a{/Control}40*2{Enter}");
+        await waitFor(() => expect(canvas.getByTestId("commits")).toHaveTextContent("50, 80"));
+    },
+};
+
+/**
+ * A number field that lists every committed value.
+ * @returns the field and its commit log
+ */
+function ScrubbedField(): React.JSX.Element {
+    const [value, setValue] = React.useState<string | number>(40);
+    const [commits, setCommits] = React.useState<number[]>([]);
+    return (
+        <Stack gap="xs">
+            <PanelField
+                label="X"
+                glyph="W"
+                kind="number"
+                value={value}
+                onChange={(next) => {
+                    setValue(next);
+                    setCommits((list) => [...list, Number(next)]);
+                }}
+            />
+            <Text size="xs" c={PANEL_INK.CHROME} data-testid="commits">
+                {commits.join(", ")}
+            </Text>
+        </Stack>
+    );
+}

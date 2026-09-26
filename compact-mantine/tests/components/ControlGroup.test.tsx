@@ -4,7 +4,6 @@ import React from "react";
 import { describe, expect, it } from "vitest";
 
 import { compactTheme, ControlGroup } from "../../src";
-import { PANEL_INK } from "../../src/constants/panel";
 
 /**
  * Render inside the compact theme, the way the package is consumed.
@@ -37,16 +36,26 @@ describe("ControlGroup", () => {
             expect(screen.getByTestId("control-group-content")).toHaveTextContent("Content");
         });
 
-        it("draws the 1px rule above the header, in the theme-aware divider ink", () => {
+        it("draws no rule: groups inside a section are not divided in Figma", () => {
             renderGroup(
                 <ControlGroup label="Appearance">
                     <div>Content</div>
                 </ControlGroup>,
             );
 
-            const divider = screen.getByTestId("control-group-divider");
-            expect(divider).toHaveAttribute("role", "separator");
-            expect(divider.getAttribute("style")).toContain(PANEL_INK.DIVIDER);
+            expect(screen.queryByTestId("control-group-divider")).not.toBeInTheDocument();
+            expect(screen.queryByRole("separator")).not.toBeInTheDocument();
+        });
+
+        it("draws its name as the legend: a 16px band, the name in the caption style", () => {
+            renderGroup(
+                <ControlGroup label="Appearance">
+                    <div>Content</div>
+                </ControlGroup>,
+            );
+
+            expect(screen.getByTestId("control-group-header")).toHaveStyle({ minHeight: "16px" });
+            expect(screen.getByTestId("control-group-label")).toHaveClass("cm-legend-text");
         });
 
         it("draws the header buttons when it is given some", () => {
@@ -90,34 +99,19 @@ describe("ControlGroup", () => {
     });
 
     describe("the bleed", () => {
-        it("keeps the rule inside the group by default", () => {
-            renderGroup(
-                <ControlGroup label="Appearance">
-                    <div>Content</div>
-                </ControlGroup>,
-            );
-
-            expect(screen.getByTestId("control-group-divider").getAttribute("style")).not.toContain("margin-inline");
-        });
-
-        it("pulls the rule out through the container's padding when asked", () => {
+        it("still accepts bleed, which no longer has anything to bleed", () => {
             renderGroup(
                 <ControlGroup label="Appearance" bleed>
                     <div>Content</div>
                 </ControlGroup>,
             );
 
-            // An inline margin rather than a left and a right one, so a
-            // right-to-left panel bleeds to the same two edges.
-            const style = screen.getByTestId("control-group-divider").getAttribute("style") ?? "";
-            expect(style).toContain("margin-inline");
-            expect(style).not.toContain("margin-left");
-            expect(style).not.toContain("margin-right");
+            expect(screen.getByTestId("control-group-content")).toHaveTextContent("Content");
         });
     });
 
     describe("logical layout", () => {
-        it("pads the header on the inline axis rather than the physical one", () => {
+        it("writes no physical left or right padding: the legend starts at the content edge", () => {
             renderGroup(
                 <ControlGroup label="Appearance">
                     <div>Content</div>
@@ -125,7 +119,6 @@ describe("ControlGroup", () => {
             );
 
             const style = screen.getByTestId("control-group-header").getAttribute("style") ?? "";
-            expect(style).toContain("padding-inline: 8px");
             expect(style).not.toContain("padding-left");
             expect(style).not.toContain("padding-right");
         });

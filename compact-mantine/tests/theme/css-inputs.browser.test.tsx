@@ -1,16 +1,25 @@
 /**
  * Input Components - Comprehensive CSS Browser Tests
  *
- * Tests ALL CSS values set by compact-mantine input component extensions.
- * Covers: TextInput, NumberInput, Select, Textarea, PasswordInput, Autocomplete,
- * MultiSelect, TagsInput, PillsInput, FileInput, JsonInput, InputClearButton
+ * The computed values of every input the theme extends, at the compact default, on Figma's field
+ * (design/figma-spec.md 6): the wrapper is the field (24 tall, `--cm-bg-secondary`, radius 5, a
+ * transparent 1px outline slot at -1px), the input inside it is borderless and transparent with
+ * an 8px text inset, and the label is the field-row legend's text (a 9/14 500 0.27px caption in
+ * a 16px band, 4px above the field).
+ * Covers: TextInput, NumberInput, Select, NativeSelect, Textarea, PasswordInput, Autocomplete,
+ * MultiSelect, TagsInput, PillsInput, FileInput, JsonInput, ColorInput, InputClearButton.
+ *
+ * The Figma-capture comparisons, states and interactions are in tests/figma/inputs.browser.test.tsx.
  */
 import {
     Autocomplete,
+    ColorInput,
     FileInput,
+    Input,
     JsonInput,
     MantineProvider,
     MultiSelect,
+    NativeSelect,
     NumberInput,
     PasswordInput,
     PillsInput,
@@ -23,16 +32,26 @@ import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { compactTheme } from "../../src";
+import { hex } from "../harness/measure";
 
 /**
- * Helper to render a component with the compact theme.
+ * Render a component with the compact theme, light scheme.
+ * @param ui - the element
+ * @returns the render result
  */
-function renderWithTheme(ui: React.ReactElement) {
-    return render(<MantineProvider theme={compactTheme}>{ui}</MantineProvider>);
+function renderWithTheme(ui: React.ReactElement): ReturnType<typeof render> {
+    return render(
+        <MantineProvider theme={compactTheme} forceColorScheme="light">
+            {ui}
+        </MantineProvider>,
+    );
 }
 
 /**
- * Helper to get CSS variable value from an element
+ * A CSS variable's value on an element.
+ * @param element - the element
+ * @param varName - the variable
+ * @returns its trimmed value
  */
 function getCssVar(element: Element | null, varName: string): string {
     if (!element) {
@@ -41,664 +60,610 @@ function getCssVar(element: Element | null, varName: string): string {
     return getComputedStyle(element).getPropertyValue(varName).trim();
 }
 
+/**
+ * The computed style of the first element matching a selector.
+ * @param container - where to search
+ * @param selector - the selector
+ * @returns the computed style
+ */
+function styleOf(container: HTMLElement, selector: string): CSSStyleDeclaration {
+    const el = container.querySelector(selector);
+    expect(el, selector).not.toBeNull();
+    return getComputedStyle(el as Element);
+}
+
+/** The filled field's wrapper: 24 tall, #f5f5f5, radius 5, transparent outline slot at -1px. */
+function expectFilledField(style: CSSStyleDeclaration, height = "24px"): void {
+    expect(style.height).toBe(height);
+    expect(hex(style.backgroundColor)).toBe("#f5f5f5");
+    expect(style.borderTopLeftRadius).toBe("5px");
+    expect(style.borderTopWidth).toBe("0px");
+    expect(style.outlineStyle).toBe("solid");
+    expect(style.outlineWidth).toBe("1px");
+    expect(style.outlineOffset).toBe("-1px");
+    expect(hex(style.outlineColor)).toBe("#00000000");
+}
+
+/** The outlined field's wrapper: 24 tall, #fff, 1px #e6e6e6 border, radius 5. */
+function expectOutlinedField(style: CSSStyleDeclaration): void {
+    expect(style.height).toBe("24px");
+    expect(hex(style.backgroundColor)).toBe("#ffffff");
+    expect(style.borderTopWidth).toBe("1px");
+    expect(hex(style.borderTopColor)).toBe("#e6e6e6");
+    expect(style.borderTopLeftRadius).toBe("5px");
+}
+
+/** The input inside a field: borderless, transparent, 11/16 450 0.055px. */
+function expectBareInput(style: CSSStyleDeclaration): void {
+    expect(style.borderTopWidth).toBe("0px");
+    expect(hex(style.backgroundColor)).toBe("#00000000");
+    expect(style.fontSize).toBe("11px");
+    expect(style.lineHeight).toBe("16px");
+    expect(style.fontWeight).toBe("450");
+    expect(style.letterSpacing).toBe("0.055px");
+}
+
+/**
+ * The field-row legend label (ii/number-input-default #24/#25): the text a 9/14 500 caption with
+ * 0.27px tracking in the secondary ink, in a 16px band, 4px above the field.
+ */
+function expectLegendLabel(style: CSSStyleDeclaration): void {
+    expect(style.fontSize).toBe("9px");
+    expect(style.lineHeight).toBe("14px");
+    expect(style.fontWeight).toBe("500");
+    expect(style.letterSpacing).toBe("0.27px");
+    expect(hex(style.color)).toBe("#00000080");
+    expect(style.minHeight).toBe("16px");
+    expect(style.alignItems).toBe("center");
+    expect(style.marginBottom).toBe("4px");
+}
+
 // ============================================================================
-// TextInput - Comprehensive Tests
+// TextInput
 // ============================================================================
 describe("TextInput - All CSS Values (Browser)", () => {
     describe("wrapper CSS variables", () => {
         it("--input-height is 24px", () => {
             const { container } = renderWithTheme(<TextInput label="Test" />);
-            const wrapper = container.querySelector(".mantine-TextInput-wrapper");
-            expect(getCssVar(wrapper, "--input-height")).toBe("24px");
+            expect(getCssVar(container.querySelector(".mantine-TextInput-wrapper"), "--input-height")).toBe("24px");
         });
 
         it("--input-size is 24px", () => {
             const { container } = renderWithTheme(<TextInput label="Test" />);
-            const wrapper = container.querySelector(".mantine-TextInput-wrapper");
-            expect(getCssVar(wrapper, "--input-size")).toBe("24px");
+            expect(getCssVar(container.querySelector(".mantine-TextInput-wrapper"), "--input-size")).toBe("24px");
         });
 
         it("--input-fz is 11px", () => {
             const { container } = renderWithTheme(<TextInput label="Test" />);
-            const wrapper = container.querySelector(".mantine-TextInput-wrapper");
-            expect(getCssVar(wrapper, "--input-fz")).toBe("11px");
+            expect(getCssVar(container.querySelector(".mantine-TextInput-wrapper"), "--input-fz")).toBe("11px");
         });
 
-        it("--input-bg references mantine-color-default", () => {
+        it("the wrapper is the filled field", () => {
             const { container } = renderWithTheme(<TextInput label="Test" />);
-            const wrapper = container.querySelector(".mantine-TextInput-wrapper");
-            const bgVar = getCssVar(wrapper, "--input-bg");
-            // The value may be computed or may reference the variable
-            expect(bgVar).toBeTruthy();
-        });
-
-        it("--input-bd is transparent", () => {
-            const { container } = renderWithTheme(<TextInput label="Test" />);
-            const wrapper = container.querySelector(".mantine-TextInput-wrapper");
-            expect(getCssVar(wrapper, "--input-bd")).toBe("transparent");
+            expectFilledField(styleOf(container, ".mantine-TextInput-wrapper"));
         });
     });
 
     describe("input element computed styles", () => {
         it("height is 24px", () => {
             const { container } = renderWithTheme(<TextInput label="Test" />);
-            const input = container.querySelector(".mantine-TextInput-input");
-            const style = input ? getComputedStyle(input) : null;
-            expect(style?.height).toBe("24px");
+            expect(styleOf(container, ".mantine-TextInput-input").height).toBe("24px");
         });
 
-        it("fontSize is 11px", () => {
+        it("is borderless and transparent, 11/16 450", () => {
             const { container } = renderWithTheme(<TextInput label="Test" />);
-            const input = container.querySelector(".mantine-TextInput-input");
-            const style = input ? getComputedStyle(input) : null;
-            expect(style?.fontSize).toBe("11px");
+            expectBareInput(styleOf(container, ".mantine-TextInput-input"));
         });
 
         it("paddingLeft is 8px", () => {
             const { container } = renderWithTheme(<TextInput label="Test" />);
-            const input = container.querySelector(".mantine-TextInput-input");
-            const style = input ? getComputedStyle(input) : null;
-            expect(style?.paddingLeft).toBe("8px");
+            expect(styleOf(container, ".mantine-TextInput-input").paddingLeft).toBe("8px");
         });
 
         it("paddingRight is 8px", () => {
             const { container } = renderWithTheme(<TextInput label="Test" />);
-            const input = container.querySelector(".mantine-TextInput-input");
-            const style = input ? getComputedStyle(input) : null;
-            expect(style?.paddingRight).toBe("8px");
+            expect(styleOf(container, ".mantine-TextInput-input").paddingRight).toBe("8px");
         });
 
-        it("border is a transparent hairline, not none", () => {
+        it("text colour is --cm-text", () => {
             const { container } = renderWithTheme(<TextInput label="Test" />);
-            const input = container.querySelector(".mantine-TextInput-input");
-            const style = input ? getComputedStyle(input) : null;
-            // The field still reads as borderless, but the 1px box exists so
-            // that focus can recolour it.
-            expect(style?.borderStyle).toBe("solid");
-            expect(style?.borderTopColor).toBe("rgba(0, 0, 0, 0)");
-        });
-
-        it("borderRadius is 4px (from theme radius.sm)", () => {
-            const { container } = renderWithTheme(<TextInput label="Test" />);
-            const input = container.querySelector(".mantine-TextInput-input");
-            const style = input ? getComputedStyle(input) : null;
-            expect(style?.borderRadius).toBe("4px");
+            expect(hex(styleOf(container, ".mantine-TextInput-input").color)).toBe("#000000e5");
         });
     });
 
     describe("label element computed styles", () => {
-        it("fontSize is 11px", () => {
+        it("is the field-row legend", () => {
             const { container } = renderWithTheme(<TextInput label="Test" />);
-            const label = container.querySelector(".mantine-TextInput-label");
-            const style = label ? getComputedStyle(label) : null;
-            expect(style?.fontSize).toBe("11px");
+            expectLegendLabel(styleOf(container, ".mantine-TextInput-label"));
         });
+    });
 
-        it("marginBottom is 1px", () => {
-            const { container } = renderWithTheme(<TextInput label="Test" />);
-            const label = container.querySelector(".mantine-TextInput-label");
-            const style = label ? getComputedStyle(label) : null;
-            expect(style?.marginBottom).toBe("1px");
-        });
-
-        it("lineHeight is 1.2", () => {
-            const { container } = renderWithTheme(<TextInput label="Test" />);
-            const label = container.querySelector(".mantine-TextInput-label");
-            const style = label ? getComputedStyle(label) : null;
-            // lineHeight can be reported differently, check for approximate value
-            const lh = parseFloat(style?.lineHeight || "0");
-            expect(lh).toBeCloseTo(13.2, 0); // 11px * 1.2 = 13.2px
+    describe("outlined variant", () => {
+        it("is --cm-bg with a 1px --cm-border border, text 8 in", () => {
+            const { container } = renderWithTheme(<TextInput label="Test" variant="outlined" />);
+            expectOutlinedField(styleOf(container, ".mantine-TextInput-wrapper"));
+            const input = styleOf(container, ".mantine-TextInput-input");
+            expect(input.height).toBe("22px");
+            expect(input.paddingLeft).toBe("7px");
         });
     });
 });
 
 // ============================================================================
-// NumberInput - Comprehensive Tests
+// NumberInput
 // ============================================================================
 describe("NumberInput - All CSS Values (Browser)", () => {
     describe("wrapper CSS variables", () => {
         it("--input-height is 24px", () => {
             const { container } = renderWithTheme(<NumberInput label="Test" />);
-            const wrapper = container.querySelector(".mantine-NumberInput-wrapper");
-            expect(getCssVar(wrapper, "--input-height")).toBe("24px");
-        });
-
-        it("--input-right-section-width is 24px", () => {
-            const { container } = renderWithTheme(<NumberInput label="Test" />);
-            const wrapper = container.querySelector(".mantine-NumberInput-wrapper");
-            expect(getCssVar(wrapper, "--input-right-section-width")).toBe("24px");
+            expect(getCssVar(container.querySelector(".mantine-NumberInput-wrapper"), "--input-height")).toBe("24px");
         });
 
         it("--input-fz is 11px", () => {
             const { container } = renderWithTheme(<NumberInput label="Test" />);
-            const wrapper = container.querySelector(".mantine-NumberInput-wrapper");
-            expect(getCssVar(wrapper, "--input-fz")).toBe("11px");
+            expect(getCssVar(container.querySelector(".mantine-NumberInput-wrapper"), "--input-fz")).toBe("11px");
+        });
+
+        it("the wrapper is the filled field", () => {
+            const { container } = renderWithTheme(<NumberInput label="Test" />);
+            expectFilledField(styleOf(container, ".mantine-NumberInput-wrapper"));
         });
     });
 
-    describe("controls CSS variables", () => {
-        it("--ni-chevron-size is 10px", () => {
+    describe("controls", () => {
+        it("draws no stepper chevrons by default", () => {
             const { container } = renderWithTheme(<NumberInput label="Test" />);
-            const controls = container.querySelector(".mantine-NumberInput-controls");
-            expect(getCssVar(controls, "--ni-chevron-size")).toBe("10px");
+            expect(container.querySelector(".mantine-NumberInput-controls")).toBeNull();
+        });
+
+        it("still draws them for a caller who asks", () => {
+            const { container } = renderWithTheme(<NumberInput label="Test" hideControls={false} />);
+            expect(container.querySelector(".mantine-NumberInput-controls")).not.toBeNull();
         });
     });
 
     describe("input element computed styles", () => {
         it("height is 24px", () => {
             const { container } = renderWithTheme(<NumberInput label="Test" />);
-            const input = container.querySelector(".mantine-NumberInput-input");
-            const style = input ? getComputedStyle(input) : null;
-            expect(style?.height).toBe("24px");
+            expect(styleOf(container, ".mantine-NumberInput-input").height).toBe("24px");
         });
 
-        it("fontSize is 11px", () => {
+        it("is borderless and transparent, 11/16 450", () => {
             const { container } = renderWithTheme(<NumberInput label="Test" />);
-            const input = container.querySelector(".mantine-NumberInput-input");
-            const style = input ? getComputedStyle(input) : null;
-            expect(style?.fontSize).toBe("11px");
+            expectBareInput(styleOf(container, ".mantine-NumberInput-input"));
         });
 
         it("paddingLeft is 8px", () => {
             const { container } = renderWithTheme(<NumberInput label="Test" />);
-            const input = container.querySelector(".mantine-NumberInput-input");
-            const style = input ? getComputedStyle(input) : null;
-            expect(style?.paddingLeft).toBe("8px");
+            expect(styleOf(container, ".mantine-NumberInput-input").paddingLeft).toBe("8px");
         });
 
         it("paddingRight is 8px", () => {
             const { container } = renderWithTheme(<NumberInput label="Test" />);
-            const input = container.querySelector(".mantine-NumberInput-input");
-            const style = input ? getComputedStyle(input) : null;
-            expect(style?.paddingRight).toBe("8px");
-        });
-
-        it("borderRadius is 4px", () => {
-            const { container } = renderWithTheme(<NumberInput label="Test" />);
-            const input = container.querySelector(".mantine-NumberInput-input");
-            const style = input ? getComputedStyle(input) : null;
-            expect(style?.borderRadius).toBe("4px");
-        });
-    });
-
-    describe("control element computed styles", () => {
-        it("borderColor is transparent", () => {
-            const { container } = renderWithTheme(<NumberInput label="Test" />);
-            const control = container.querySelector(".mantine-NumberInput-control");
-            const style = control ? getComputedStyle(control) : null;
-            expect(style?.borderColor).toBe("rgba(0, 0, 0, 0)");
+            expect(styleOf(container, ".mantine-NumberInput-input").paddingRight).toBe("8px");
         });
     });
 
     describe("label element computed styles", () => {
-        it("fontSize is 11px", () => {
+        it("is the field-row legend", () => {
             const { container } = renderWithTheme(<NumberInput label="Test" />);
-            const label = container.querySelector(".mantine-NumberInput-label");
-            const style = label ? getComputedStyle(label) : null;
-            expect(style?.fontSize).toBe("11px");
-        });
-
-        it("marginBottom is 1px", () => {
-            const { container } = renderWithTheme(<NumberInput label="Test" />);
-            const label = container.querySelector(".mantine-NumberInput-label");
-            const style = label ? getComputedStyle(label) : null;
-            expect(style?.marginBottom).toBe("1px");
+            expectLegendLabel(styleOf(container, ".mantine-NumberInput-label"));
         });
     });
 });
 
 // ============================================================================
-// Select - Comprehensive Tests
+// Select
 // ============================================================================
 describe("Select - All CSS Values (Browser)", () => {
     describe("wrapper CSS variables", () => {
         it("--input-height is 24px", () => {
             const { container } = renderWithTheme(<Select label="Test" data={["A", "B"]} />);
-            const wrapper = container.querySelector(".mantine-Select-wrapper");
-            expect(getCssVar(wrapper, "--input-height")).toBe("24px");
+            expect(getCssVar(container.querySelector(".mantine-Select-wrapper"), "--input-height")).toBe("24px");
         });
 
         it("--input-fz is 11px", () => {
             const { container } = renderWithTheme(<Select label="Test" data={["A", "B"]} />);
-            const wrapper = container.querySelector(".mantine-Select-wrapper");
-            expect(getCssVar(wrapper, "--input-fz")).toBe("11px");
+            expect(getCssVar(container.querySelector(".mantine-Select-wrapper"), "--input-fz")).toBe("11px");
+        });
+
+        it("the wrapper is the outlined trigger", () => {
+            const { container } = renderWithTheme(<Select label="Test" data={["A", "B"]} />);
+            expectOutlinedField(styleOf(container, ".mantine-Select-wrapper"));
         });
     });
 
     describe("input element computed styles", () => {
-        it("height is 24px", () => {
+        it("height is 22px inside the 1px border", () => {
             const { container } = renderWithTheme(<Select label="Test" data={["A", "B"]} />);
-            const input = container.querySelector(".mantine-Select-input");
-            const style = input ? getComputedStyle(input) : null;
-            expect(style?.height).toBe("24px");
+            expect(styleOf(container, ".mantine-Select-input").height).toBe("22px");
         });
 
-        it("fontSize is 11px", () => {
+        it("is borderless and transparent, 11/16 450", () => {
             const { container } = renderWithTheme(<Select label="Test" data={["A", "B"]} />);
-            const input = container.querySelector(".mantine-Select-input");
-            const style = input ? getComputedStyle(input) : null;
-            expect(style?.fontSize).toBe("11px");
+            expectBareInput(styleOf(container, ".mantine-Select-input"));
         });
 
-        it("paddingLeft is 8px", () => {
+        it("paddingLeft is 8px (text 9 in with the border)", () => {
             const { container } = renderWithTheme(<Select label="Test" data={["A", "B"]} />);
-            const input = container.querySelector(".mantine-Select-input");
-            const style = input ? getComputedStyle(input) : null;
-            expect(style?.paddingLeft).toBe("8px");
+            expect(styleOf(container, ".mantine-Select-input").paddingLeft).toBe("8px");
+        });
+
+        it("reserves the 24px caret slot", () => {
+            const { container } = renderWithTheme(<Select label="Test" data={["A", "B"]} />);
+            expect(styleOf(container, ".mantine-Select-input").paddingRight).toBe("24px");
+            expect(styleOf(container, ".mantine-Select-section").width).toBe("24px");
+        });
+
+        it("the caret is 5 x 3 in --cm-icon (the Figma path fill)", () => {
+            const { container } = renderWithTheme(<Select label="Test" data={["A", "B"]} />);
+            const caret = container.querySelector(".cm-field-caret path") as SVGPathElement;
+            const box = caret.getBoundingClientRect();
+            expect(box.width).toBeCloseTo(5, 0);
+            expect(box.height).toBeCloseTo(3, 0);
+            expect(hex(styleOf(container, ".cm-field-caret").color)).toBe("#000000e5");
         });
     });
 
     describe("label element computed styles", () => {
-        it("fontSize is 11px", () => {
+        it("is the field-row legend", () => {
             const { container } = renderWithTheme(<Select label="Test" data={["A", "B"]} />);
-            const label = container.querySelector(".mantine-Select-label");
-            const style = label ? getComputedStyle(label) : null;
-            expect(style?.fontSize).toBe("11px");
+            expectLegendLabel(styleOf(container, ".mantine-Select-label"));
         });
     });
 
-    // Note: Dropdown styles would require opening the dropdown to test
-    // These are tested via CSS variable presence instead
+    describe("filled variant", () => {
+        it("is still available", () => {
+            const { container } = renderWithTheme(<Select label="Test" data={["A", "B"]} variant="filled" />);
+            expectFilledField(styleOf(container, ".mantine-Select-wrapper"));
+        });
+    });
 });
 
 // ============================================================================
-// Textarea - Comprehensive Tests
+// NativeSelect
+// ============================================================================
+describe("NativeSelect - All CSS Values (Browser)", () => {
+    it("the wrapper is the outlined trigger", () => {
+        const { container } = renderWithTheme(<NativeSelect label="Test" data={["A", "B"]} />);
+        expectOutlinedField(styleOf(container, ".mantine-NativeSelect-wrapper"));
+    });
+
+    it("the select is borderless, 11/16 450, text 8 in", () => {
+        const { container } = renderWithTheme(<NativeSelect label="Test" data={["A", "B"]} />);
+        const style = styleOf(container, ".mantine-NativeSelect-input");
+        expectBareInput(style);
+        expect(style.paddingLeft).toBe("8px");
+    });
+
+    it("draws the caret", () => {
+        const { container } = renderWithTheme(<NativeSelect label="Test" data={["A", "B"]} />);
+        expect(container.querySelector(".cm-field-caret")).not.toBeNull();
+    });
+
+    it("the label is the field-row legend", () => {
+        const { container } = renderWithTheme(<NativeSelect label="Test" data={["A", "B"]} />);
+        expectLegendLabel(styleOf(container, ".mantine-NativeSelect-label"));
+    });
+});
+
+// ============================================================================
+// Textarea
 // ============================================================================
 describe("Textarea - All CSS Values (Browser)", () => {
     describe("wrapper CSS variables", () => {
         it("--input-fz is 11px", () => {
             const { container } = renderWithTheme(<Textarea label="Test" />);
-            const wrapper = container.querySelector(".mantine-Textarea-wrapper");
-            expect(getCssVar(wrapper, "--input-fz")).toBe("11px");
+            expect(getCssVar(container.querySelector(".mantine-Textarea-wrapper"), "--input-fz")).toBe("11px");
         });
 
-        it("--input-bg references mantine-color-default", () => {
+        it("--input-height is the 56px minimum, not a fixed height (the field grows)", () => {
             const { container } = renderWithTheme(<Textarea label="Test" />);
             const wrapper = container.querySelector(".mantine-Textarea-wrapper");
-            const bgVar = getCssVar(wrapper, "--input-bg");
-            // The value may be computed or may reference the variable
-            expect(bgVar).toBeTruthy();
+            expect(getCssVar(wrapper, "--input-height")).toBe("56px");
+            expect(getCssVar(wrapper, "--input-size")).not.toBe("56px");
         });
 
-        it("--input-bd is transparent", () => {
+        it("the wrapper is the filled field, 56 tall", () => {
             const { container } = renderWithTheme(<Textarea label="Test" />);
-            const wrapper = container.querySelector(".mantine-Textarea-wrapper");
-            expect(getCssVar(wrapper, "--input-bd")).toBe("transparent");
-        });
-
-        it("does NOT have fixed --input-height (variable height)", () => {
-            const { container } = renderWithTheme(<Textarea label="Test" />);
-            const wrapper = container.querySelector(".mantine-Textarea-wrapper");
-            // Should not have a fixed height variable
-            const heightVar = getCssVar(wrapper, "--input-height");
-            expect(heightVar).not.toBe("24px");
+            expectFilledField(styleOf(container, ".mantine-Textarea-wrapper"), "56px");
         });
     });
 
     describe("input element computed styles", () => {
-        it("fontSize is 11px", () => {
+        it("is borderless and transparent, 11/16 450", () => {
             const { container } = renderWithTheme(<Textarea label="Test" />);
-            const input = container.querySelector(".mantine-Textarea-input");
-            const style = input ? getComputedStyle(input) : null;
-            expect(style?.fontSize).toBe("11px");
+            expectBareInput(styleOf(container, ".mantine-Textarea-input"));
         });
 
-        it("paddingLeft is 8px", () => {
+        it("padding is 4px 8px", () => {
             const { container } = renderWithTheme(<Textarea label="Test" />);
-            const input = container.querySelector(".mantine-Textarea-input");
-            const style = input ? getComputedStyle(input) : null;
-            expect(style?.paddingLeft).toBe("8px");
-        });
-
-        it("paddingRight is 8px", () => {
-            const { container } = renderWithTheme(<Textarea label="Test" />);
-            const input = container.querySelector(".mantine-Textarea-input");
-            const style = input ? getComputedStyle(input) : null;
-            expect(style?.paddingRight).toBe("8px");
+            const style = styleOf(container, ".mantine-Textarea-input");
+            expect(style.paddingTop).toBe("4px");
+            expect(style.paddingBottom).toBe("4px");
+            expect(style.paddingLeft).toBe("8px");
+            expect(style.paddingRight).toBe("8px");
         });
     });
 
     describe("label element computed styles", () => {
-        it("fontSize is 11px", () => {
+        it("is the field-row legend", () => {
             const { container } = renderWithTheme(<Textarea label="Test" />);
-            const label = container.querySelector(".mantine-Textarea-label");
-            const style = label ? getComputedStyle(label) : null;
-            expect(style?.fontSize).toBe("11px");
-        });
-
-        it("marginBottom is 1px", () => {
-            const { container } = renderWithTheme(<Textarea label="Test" />);
-            const label = container.querySelector(".mantine-Textarea-label");
-            const style = label ? getComputedStyle(label) : null;
-            expect(style?.marginBottom).toBe("1px");
+            expectLegendLabel(styleOf(container, ".mantine-Textarea-label"));
         });
     });
 });
 
 // ============================================================================
-// PasswordInput - Comprehensive Tests
+// PasswordInput
 // ============================================================================
 describe("PasswordInput - All CSS Values (Browser)", () => {
     describe("wrapper CSS variables", () => {
         it("--input-height is 24px", () => {
             const { container } = renderWithTheme(<PasswordInput label="Test" />);
-            const wrapper = container.querySelector(".mantine-PasswordInput-wrapper");
-            expect(getCssVar(wrapper, "--input-height")).toBe("24px");
+            expect(getCssVar(container.querySelector(".mantine-PasswordInput-wrapper"), "--input-height")).toBe("24px");
         });
 
         it("--input-fz is 11px", () => {
             const { container } = renderWithTheme(<PasswordInput label="Test" />);
-            const wrapper = container.querySelector(".mantine-PasswordInput-wrapper");
-            expect(getCssVar(wrapper, "--input-fz")).toBe("11px");
+            expect(getCssVar(container.querySelector(".mantine-PasswordInput-wrapper"), "--input-fz")).toBe("11px");
+        });
+
+        it("the wrapper is the filled field", () => {
+            const { container } = renderWithTheme(<PasswordInput label="Test" />);
+            expectFilledField(styleOf(container, ".mantine-PasswordInput-wrapper"));
         });
     });
 
     describe("input element computed styles", () => {
         it("height is 24px", () => {
             const { container } = renderWithTheme(<PasswordInput label="Test" />);
-            const input = container.querySelector(".mantine-PasswordInput-input");
-            const style = input ? getComputedStyle(input) : null;
-            expect(style?.height).toBe("24px");
+            expect(styleOf(container, ".mantine-PasswordInput-input").height).toBe("24px");
         });
     });
 
     describe("innerInput element computed styles", () => {
         it("paddingLeft is 8px", () => {
             const { container } = renderWithTheme(<PasswordInput label="Test" />);
-            const innerInput = container.querySelector(".mantine-PasswordInput-innerInput");
-            const style = innerInput ? getComputedStyle(innerInput) : null;
-            expect(style?.paddingLeft).toBe("8px");
+            expect(styleOf(container, ".mantine-PasswordInput-innerInput").paddingLeft).toBe("8px");
         });
 
-        it("paddingRight is 8px", () => {
+        it("paddingRight leaves the 24px toggle slot", () => {
             const { container } = renderWithTheme(<PasswordInput label="Test" />);
-            const innerInput = container.querySelector(".mantine-PasswordInput-innerInput");
-            const style = innerInput ? getComputedStyle(innerInput) : null;
-            expect(style?.paddingRight).toBe("8px");
+            expect(styleOf(container, ".mantine-PasswordInput-innerInput").paddingRight).toBe("24px");
+        });
+
+        it("text is 11px 450", () => {
+            const { container } = renderWithTheme(<PasswordInput label="Test" />);
+            const style = styleOf(container, ".mantine-PasswordInput-innerInput");
+            expect(style.fontSize).toBe("11px");
+            expect(style.fontWeight).toBe("450");
+        });
+    });
+
+    describe("visibility toggle", () => {
+        it("is a 24px button", () => {
+            const { container } = renderWithTheme(<PasswordInput label="Test" />);
+            const toggle = container.querySelector(".mantine-PasswordInput-visibilityToggle") as HTMLElement;
+            expect(toggle.getBoundingClientRect().width).toBe(24);
+            expect(toggle.getBoundingClientRect().height).toBe(24);
         });
     });
 
     describe("label element computed styles", () => {
-        it("fontSize is 11px", () => {
+        it("is the field-row legend", () => {
             const { container } = renderWithTheme(<PasswordInput label="Test" />);
-            const label = container.querySelector(".mantine-PasswordInput-label");
-            const style = label ? getComputedStyle(label) : null;
-            expect(style?.fontSize).toBe("11px");
+            expectLegendLabel(styleOf(container, ".mantine-PasswordInput-label"));
         });
     });
 });
 
 // ============================================================================
-// Autocomplete - Comprehensive Tests
+// Autocomplete
 // ============================================================================
 describe("Autocomplete - All CSS Values (Browser)", () => {
     describe("wrapper CSS variables", () => {
         it("--input-height is 24px", () => {
             const { container } = renderWithTheme(<Autocomplete label="Test" data={["A", "B"]} />);
-            const wrapper = container.querySelector(".mantine-Autocomplete-wrapper");
-            expect(getCssVar(wrapper, "--input-height")).toBe("24px");
+            expect(getCssVar(container.querySelector(".mantine-Autocomplete-wrapper"), "--input-height")).toBe("24px");
         });
 
         it("--input-fz is 11px", () => {
             const { container } = renderWithTheme(<Autocomplete label="Test" data={["A", "B"]} />);
-            const wrapper = container.querySelector(".mantine-Autocomplete-wrapper");
-            expect(getCssVar(wrapper, "--input-fz")).toBe("11px");
+            expect(getCssVar(container.querySelector(".mantine-Autocomplete-wrapper"), "--input-fz")).toBe("11px");
+        });
+
+        it("the wrapper is the filled field", () => {
+            const { container } = renderWithTheme(<Autocomplete label="Test" data={["A", "B"]} />);
+            expectFilledField(styleOf(container, ".mantine-Autocomplete-wrapper"));
         });
     });
 
     describe("input element computed styles", () => {
         it("height is 24px", () => {
             const { container } = renderWithTheme(<Autocomplete label="Test" data={["A", "B"]} />);
-            const input = container.querySelector(".mantine-Autocomplete-input");
-            const style = input ? getComputedStyle(input) : null;
-            expect(style?.height).toBe("24px");
+            expect(styleOf(container, ".mantine-Autocomplete-input").height).toBe("24px");
         });
 
-        it("fontSize is 11px", () => {
+        it("is borderless and transparent, 11/16 450", () => {
             const { container } = renderWithTheme(<Autocomplete label="Test" data={["A", "B"]} />);
-            const input = container.querySelector(".mantine-Autocomplete-input");
-            const style = input ? getComputedStyle(input) : null;
-            expect(style?.fontSize).toBe("11px");
+            expectBareInput(styleOf(container, ".mantine-Autocomplete-input"));
         });
 
         it("paddingLeft is 8px", () => {
             const { container } = renderWithTheme(<Autocomplete label="Test" data={["A", "B"]} />);
-            const input = container.querySelector(".mantine-Autocomplete-input");
-            const style = input ? getComputedStyle(input) : null;
-            expect(style?.paddingLeft).toBe("8px");
+            expect(styleOf(container, ".mantine-Autocomplete-input").paddingLeft).toBe("8px");
         });
     });
 
     describe("label element computed styles", () => {
-        it("fontSize is 11px", () => {
+        it("is the field-row legend", () => {
             const { container } = renderWithTheme(<Autocomplete label="Test" data={["A", "B"]} />);
-            const label = container.querySelector(".mantine-Autocomplete-label");
-            const style = label ? getComputedStyle(label) : null;
-            expect(style?.fontSize).toBe("11px");
+            expectLegendLabel(styleOf(container, ".mantine-Autocomplete-label"));
         });
     });
 });
 
 // ============================================================================
-// MultiSelect - Comprehensive Tests
+// MultiSelect
 // ============================================================================
 describe("MultiSelect - All CSS Values (Browser)", () => {
     describe("wrapper CSS variables", () => {
-        it("--input-height is 24px", () => {
+        it("--input-height is the 24px minimum", () => {
             const { container } = renderWithTheme(<MultiSelect label="Test" data={["A", "B"]} />);
-            const wrapper = container.querySelector(".mantine-MultiSelect-wrapper");
-            expect(getCssVar(wrapper, "--input-height")).toBe("24px");
+            expect(getCssVar(container.querySelector(".mantine-MultiSelect-wrapper"), "--input-height")).toBe("24px");
         });
 
-        it("--combobox-chevron-size is 12px", () => {
+        it("the wrapper is the filled field", () => {
             const { container } = renderWithTheme(<MultiSelect label="Test" data={["A", "B"]} />);
-            const wrapper = container.querySelector(".mantine-MultiSelect-wrapper");
-            expect(getCssVar(wrapper, "--combobox-chevron-size")).toBe("12px");
+            expectFilledField(styleOf(container, ".mantine-MultiSelect-wrapper"));
+        });
+
+        it("draws the caret", () => {
+            const { container } = renderWithTheme(<MultiSelect label="Test" data={["A", "B"]} />);
+            expect(container.querySelector(".cm-field-caret")).not.toBeNull();
         });
     });
 
     describe("input element computed styles", () => {
         it("minHeight is 24px", () => {
             const { container } = renderWithTheme(<MultiSelect label="Test" data={["A", "B"]} />);
-            const input = container.querySelector(".mantine-MultiSelect-input");
-            const style = input ? getComputedStyle(input) : null;
-            expect(style?.minHeight).toBe("24px");
+            expect(styleOf(container, ".mantine-MultiSelect-input").minHeight).toBe("24px");
         });
 
         it("display is flex", () => {
             const { container } = renderWithTheme(<MultiSelect label="Test" data={["A", "B"]} />);
-            const input = container.querySelector(".mantine-MultiSelect-input");
-            const style = input ? getComputedStyle(input) : null;
-            expect(style?.display).toBe("flex");
+            expect(styleOf(container, ".mantine-MultiSelect-input").display).toBe("flex");
         });
 
         it("alignItems is center", () => {
             const { container } = renderWithTheme(<MultiSelect label="Test" data={["A", "B"]} />);
-            const input = container.querySelector(".mantine-MultiSelect-input");
-            const style = input ? getComputedStyle(input) : null;
-            expect(style?.alignItems).toBe("center");
+            expect(styleOf(container, ".mantine-MultiSelect-input").alignItems).toBe("center");
         });
 
-        it("paddingTop is 4px", () => {
+        it("paddingTop is 2px (a 20px pill in the 24px field)", () => {
             const { container } = renderWithTheme(<MultiSelect label="Test" data={["A", "B"]} />);
-            const input = container.querySelector(".mantine-MultiSelect-input");
-            const style = input ? getComputedStyle(input) : null;
-            expect(style?.paddingTop).toBe("4px");
+            expect(styleOf(container, ".mantine-MultiSelect-input").paddingTop).toBe("2px");
         });
 
-        it("paddingBottom is 4px", () => {
+        it("paddingBottom is 2px", () => {
             const { container } = renderWithTheme(<MultiSelect label="Test" data={["A", "B"]} />);
-            const input = container.querySelector(".mantine-MultiSelect-input");
-            const style = input ? getComputedStyle(input) : null;
-            expect(style?.paddingBottom).toBe("4px");
-        });
-    });
-
-    describe("inputField element computed styles", () => {
-        it("minWidth is 60px", () => {
-            const { container } = renderWithTheme(<MultiSelect label="Test" data={["A", "B"]} />);
-            const inputField = container.querySelector(".mantine-MultiSelect-inputField");
-            const style = inputField ? getComputedStyle(inputField) : null;
-            expect(style?.minWidth).toBe("60px");
-        });
-
-        it("flexBasis is 60px", () => {
-            const { container } = renderWithTheme(<MultiSelect label="Test" data={["A", "B"]} />);
-            const inputField = container.querySelector(".mantine-MultiSelect-inputField");
-            const style = inputField ? getComputedStyle(inputField) : null;
-            expect(style?.flexBasis).toBe("60px");
+            expect(styleOf(container, ".mantine-MultiSelect-input").paddingBottom).toBe("2px");
         });
     });
 
     describe("pillsList element computed styles", () => {
         it("columnGap is 4px", () => {
-            const { container } = renderWithTheme(
-                <MultiSelect label="Test" data={["A", "B"]} value={["A"]} />
-            );
-            const pillsList = container.querySelector(".mantine-MultiSelect-pillsList");
-            const style = pillsList ? getComputedStyle(pillsList) : null;
-            expect(style?.columnGap).toBe("4px");
+            const { container } = renderWithTheme(<MultiSelect label="Test" data={["A", "B"]} value={["A"]} />);
+            expect(styleOf(container, ".mantine-MultiSelect-pillsList").columnGap).toBe("4px");
         });
 
         it("rowGap is 2px", () => {
-            const { container } = renderWithTheme(
-                <MultiSelect label="Test" data={["A", "B"]} value={["A"]} />
-            );
-            const pillsList = container.querySelector(".mantine-MultiSelect-pillsList");
-            const style = pillsList ? getComputedStyle(pillsList) : null;
-            expect(style?.rowGap).toBe("2px");
+            const { container } = renderWithTheme(<MultiSelect label="Test" data={["A", "B"]} value={["A"]} />);
+            expect(styleOf(container, ".mantine-MultiSelect-pillsList").rowGap).toBe("2px");
         });
     });
 
     /**
      * REGRESSION TEST: Pill text vertical centering
      *
-     * Pills inside MultiSelect must NOT have extra paddingTop/paddingBottom.
-     * Our Pill component extension sets --pill-height unconditionally,
-     * so pills handle their own sizing. Adding padding here would conflict
-     * with the pill's internal flexbox centering and cause text misalignment.
-     *
-     * Root cause: When paddingTop/paddingBottom was added to pills in MultiSelect,
-     * it reduced the available height for the pill label, causing text to be
-     * cut off at the bottom (e.g., letter 'g' from "burger" was clipped).
+     * Pills inside MultiSelect must NOT have extra paddingTop/paddingBottom: that reduced the
+     * height available to the pill label and clipped descenders (the 'g' of "burger"). The pill is
+     * now Figma's variable pill (20 tall, 1px --cm-border edge), so its label has 18px inside the
+     * edges and its line height fills them.
      */
     describe("pill element - text centering regression test", () => {
         it("pill has margin 0 (no extra margins)", () => {
-            const { container } = renderWithTheme(
-                <MultiSelect label="Test" data={["A", "B"]} value={["A"]} />
-            );
-            const pill = container.querySelector(".mantine-Pill-root");
-            const style = pill ? getComputedStyle(pill) : null;
-            expect(style?.margin).toBe("0px");
+            const { container } = renderWithTheme(<MultiSelect label="Test" data={["A", "B"]} value={["A"]} />);
+            expect(styleOf(container, ".mantine-Pill-root").margin).toBe("0px");
         });
 
         it("pill does NOT have extra paddingTop (would break text centering)", () => {
-            const { container } = renderWithTheme(
-                <MultiSelect label="Test" data={["A", "B"]} value={["A"]} />
-            );
-            const pill = container.querySelector(".mantine-Pill-root");
-            const style = pill ? getComputedStyle(pill) : null;
-            // Pill component sets its own padding via CSS vars; MultiSelect should not add more
-            expect(style?.paddingTop).toBe("0px");
+            const { container } = renderWithTheme(<MultiSelect label="Test" data={["A", "B"]} value={["A"]} />);
+            expect(styleOf(container, ".mantine-Pill-root").paddingTop).toBe("0px");
         });
 
         it("pill does NOT have extra paddingBottom (would break text centering)", () => {
-            const { container } = renderWithTheme(
-                <MultiSelect label="Test" data={["A", "B"]} value={["A"]} />
-            );
-            const pill = container.querySelector(".mantine-Pill-root");
-            const style = pill ? getComputedStyle(pill) : null;
-            // Pill component sets its own padding via CSS vars; MultiSelect should not add more
-            expect(style?.paddingBottom).toBe("0px");
+            const { container } = renderWithTheme(<MultiSelect label="Test" data={["A", "B"]} value={["A"]} />);
+            expect(styleOf(container, ".mantine-Pill-root").paddingBottom).toBe("0px");
         });
 
-        it("pill height equals --pill-height (16px) with no reduction from padding", () => {
-            const { container } = renderWithTheme(
-                <MultiSelect label="Test" data={["A", "B"]} value={["A"]} />
-            );
-            const pill = container.querySelector(".mantine-Pill-root");
-            const style = pill ? getComputedStyle(pill) : null;
-            expect(style?.height).toBe("16px");
+        it("pill is the 20px variable pill: --cm-bg, 1px --cm-border, radius 5, padding 0 4", () => {
+            const { container } = renderWithTheme(<MultiSelect label="Test" data={["A", "B"]} value={["A"]} />);
+            const style = styleOf(container, ".mantine-Pill-root");
+            expect(style.height).toBe("20px");
+            expect(hex(style.backgroundColor)).toBe("#ffffff");
+            expect(hex(style.borderTopColor)).toBe("#e6e6e6");
+            expect(style.borderTopLeftRadius).toBe("5px");
+            expect(style.paddingLeft).toBe("4px");
         });
 
-        it("pill label has full height available for text centering", () => {
-            const { container } = renderWithTheme(
-                <MultiSelect label="Test" data={["A", "B"]} value={["A"]} />
-            );
-            const pillLabel = container.querySelector(".mantine-Pill-label");
-            const style = pillLabel ? getComputedStyle(pillLabel) : null;
-            // Label height should match pill height for proper centering
-            expect(style?.height).toBe("16px");
+        it("pill label has the full 18px inside the edges", () => {
+            const { container } = renderWithTheme(<MultiSelect label="Test" data={["A", "B"]} value={["A"]} />);
+            expect(styleOf(container, ".mantine-Pill-label").height).toBe("18px");
         });
 
-        it("pill label lineHeight matches height for vertical centering", () => {
-            const { container } = renderWithTheme(
-                <MultiSelect label="Test" data={["A", "B"]} value={["A"]} />
-            );
-            const pillLabel = container.querySelector(".mantine-Pill-label");
-            const style = pillLabel ? getComputedStyle(pillLabel) : null;
-            // lineHeight should match height for single-line text centering
-            expect(style?.lineHeight).toBe("16px");
+        it("pill label lineHeight matches its height for vertical centering", () => {
+            const { container } = renderWithTheme(<MultiSelect label="Test" data={["A", "B"]} value={["A"]} />);
+            expect(styleOf(container, ".mantine-Pill-label").lineHeight).toBe("18px");
         });
     });
 
     describe("label element computed styles", () => {
-        it("fontSize is 11px", () => {
+        it("is the field-row legend", () => {
             const { container } = renderWithTheme(<MultiSelect label="Test" data={["A", "B"]} />);
-            const label = container.querySelector(".mantine-MultiSelect-label");
-            const style = label ? getComputedStyle(label) : null;
-            expect(style?.fontSize).toBe("11px");
+            expectLegendLabel(styleOf(container, ".mantine-MultiSelect-label"));
         });
     });
 });
 
 // ============================================================================
-// TagsInput - Comprehensive Tests
+// TagsInput
 // ============================================================================
 describe("TagsInput - All CSS Values (Browser)", () => {
     describe("wrapper CSS variables", () => {
         it("--input-fz is 11px", () => {
             const { container } = renderWithTheme(<TagsInput label="Test" />);
-            const wrapper = container.querySelector(".mantine-TagsInput-wrapper");
-            expect(getCssVar(wrapper, "--input-fz")).toBe("11px");
+            expect(getCssVar(container.querySelector(".mantine-TagsInput-wrapper"), "--input-fz")).toBe("11px");
         });
 
-        it("does NOT have fixed --input-height (variable height)", () => {
+        it("--input-height is the 24px minimum, not a fixed height", () => {
             const { container } = renderWithTheme(<TagsInput label="Test" />);
             const wrapper = container.querySelector(".mantine-TagsInput-wrapper");
-            const heightVar = getCssVar(wrapper, "--input-height");
-            expect(heightVar).not.toBe("24px");
+            expect(getCssVar(wrapper, "--input-height")).toBe("24px");
+            expect(getCssVar(wrapper, "--input-size")).not.toBe("24px");
+        });
+
+        it("the wrapper is the filled field", () => {
+            const { container } = renderWithTheme(<TagsInput label="Test" />);
+            expectFilledField(styleOf(container, ".mantine-TagsInput-wrapper"));
         });
     });
 
     describe("inputField element computed styles", () => {
-        it("minWidth is 30px", () => {
+        it("text is 11/16 450", () => {
             const { container } = renderWithTheme(<TagsInput label="Test" />);
-            const inputField = container.querySelector(".mantine-TagsInput-inputField");
-            const style = inputField ? getComputedStyle(inputField) : null;
-            expect(style?.minWidth).toBe("30px");
+            const style = styleOf(container, ".mantine-TagsInput-inputField");
+            expect(style.fontSize).toBe("11px");
+            expect(style.fontWeight).toBe("450");
         });
 
-        it("flexBasis is 30px", () => {
-            const { container } = renderWithTheme(<TagsInput label="Test" />);
-            const inputField = container.querySelector(".mantine-TagsInput-inputField");
-            const style = inputField ? getComputedStyle(inputField) : null;
-            expect(style?.flexBasis).toBe("30px");
+        it("pills are the 20px variable pill", () => {
+            const { container } = renderWithTheme(<TagsInput label="Test" defaultValue={["One"]} />);
+            expect(styleOf(container, ".mantine-TagsInput-pill").height).toBe("20px");
         });
     });
 
     describe("label element computed styles", () => {
-        it("fontSize is 11px", () => {
+        it("is the field-row legend", () => {
             const { container } = renderWithTheme(<TagsInput label="Test" />);
-            const label = container.querySelector(".mantine-TagsInput-label");
-            const style = label ? getComputedStyle(label) : null;
-            expect(style?.fontSize).toBe("11px");
+            expectLegendLabel(styleOf(container, ".mantine-TagsInput-label"));
         });
     });
 });
 
 // ============================================================================
-// PillsInput - Comprehensive Tests
+// PillsInput
 // ============================================================================
 describe("PillsInput - All CSS Values (Browser)", () => {
     describe("wrapper CSS variables", () => {
@@ -706,123 +671,161 @@ describe("PillsInput - All CSS Values (Browser)", () => {
             const { container } = renderWithTheme(
                 <PillsInput label="Test">
                     <PillsInput.Field />
-                </PillsInput>
+                </PillsInput>,
             );
-            const wrapper = container.querySelector(".mantine-PillsInput-wrapper");
-            expect(getCssVar(wrapper, "--input-fz")).toBe("11px");
+            expect(getCssVar(container.querySelector(".mantine-PillsInput-wrapper"), "--input-fz")).toBe("11px");
         });
 
-        it("does NOT have fixed --input-height (variable height)", () => {
+        it("--input-height is the 24px minimum, not a fixed height", () => {
             const { container } = renderWithTheme(
                 <PillsInput label="Test">
                     <PillsInput.Field />
-                </PillsInput>
+                </PillsInput>,
             );
             const wrapper = container.querySelector(".mantine-PillsInput-wrapper");
-            const heightVar = getCssVar(wrapper, "--input-height");
-            expect(heightVar).not.toBe("24px");
+            expect(getCssVar(wrapper, "--input-height")).toBe("24px");
+            expect(getCssVar(wrapper, "--input-size")).not.toBe("24px");
+        });
+
+        it("the wrapper is the filled field", () => {
+            const { container } = renderWithTheme(
+                <PillsInput label="Test">
+                    <PillsInput.Field />
+                </PillsInput>,
+            );
+            expectFilledField(styleOf(container, ".mantine-PillsInput-wrapper"));
         });
     });
 
     describe("label element computed styles", () => {
-        it("fontSize is 11px", () => {
+        it("is the field-row legend", () => {
             const { container } = renderWithTheme(
                 <PillsInput label="Test">
                     <PillsInput.Field />
-                </PillsInput>
+                </PillsInput>,
             );
-            const label = container.querySelector(".mantine-PillsInput-label");
-            const style = label ? getComputedStyle(label) : null;
-            expect(style?.fontSize).toBe("11px");
+            expectLegendLabel(styleOf(container, ".mantine-PillsInput-label"));
         });
     });
 });
 
 // ============================================================================
-// FileInput - Comprehensive Tests
+// FileInput
 // ============================================================================
 describe("FileInput - All CSS Values (Browser)", () => {
     describe("wrapper CSS variables", () => {
         it("--input-height is 24px", () => {
             const { container } = renderWithTheme(<FileInput label="Test" />);
-            const wrapper = container.querySelector(".mantine-FileInput-wrapper");
-            expect(getCssVar(wrapper, "--input-height")).toBe("24px");
+            expect(getCssVar(container.querySelector(".mantine-FileInput-wrapper"), "--input-height")).toBe("24px");
         });
 
         it("--input-fz is 11px", () => {
             const { container } = renderWithTheme(<FileInput label="Test" />);
-            const wrapper = container.querySelector(".mantine-FileInput-wrapper");
-            expect(getCssVar(wrapper, "--input-fz")).toBe("11px");
+            expect(getCssVar(container.querySelector(".mantine-FileInput-wrapper"), "--input-fz")).toBe("11px");
+        });
+
+        it("the wrapper is the filled field", () => {
+            const { container } = renderWithTheme(<FileInput label="Test" />);
+            expectFilledField(styleOf(container, ".mantine-FileInput-wrapper"));
         });
     });
 
     describe("input element computed styles", () => {
         it("height is 24px", () => {
             const { container } = renderWithTheme(<FileInput label="Test" />);
-            const input = container.querySelector(".mantine-FileInput-input");
-            const style = input ? getComputedStyle(input) : null;
-            expect(style?.height).toBe("24px");
+            expect(styleOf(container, ".mantine-FileInput-input").height).toBe("24px");
         });
 
-        it("fontSize is 11px", () => {
+        it("is borderless and transparent, 11/16 450", () => {
             const { container } = renderWithTheme(<FileInput label="Test" />);
-            const input = container.querySelector(".mantine-FileInput-input");
-            const style = input ? getComputedStyle(input) : null;
-            expect(style?.fontSize).toBe("11px");
+            expectBareInput(styleOf(container, ".mantine-FileInput-input"));
+        });
+
+        it("the placeholder is --cm-text-tertiary", () => {
+            const { container } = renderWithTheme(<FileInput label="Test" placeholder="Pick a file" />);
+            expect(hex(styleOf(container, ".mantine-FileInput-placeholder").color)).toBe("#0000004d");
         });
     });
 
     describe("label element computed styles", () => {
-        it("fontSize is 11px", () => {
+        it("is the field-row legend", () => {
             const { container } = renderWithTheme(<FileInput label="Test" />);
-            const label = container.querySelector(".mantine-FileInput-label");
-            const style = label ? getComputedStyle(label) : null;
-            expect(style?.fontSize).toBe("11px");
+            expectLegendLabel(styleOf(container, ".mantine-FileInput-label"));
         });
     });
 });
 
 // ============================================================================
-// JsonInput - Comprehensive Tests
+// JsonInput
 // ============================================================================
 describe("JsonInput - All CSS Values (Browser)", () => {
     describe("wrapper CSS variables", () => {
         it("--input-fz is 11px", () => {
             const { container } = renderWithTheme(<JsonInput label="Test" />);
-            const wrapper = container.querySelector(".mantine-JsonInput-wrapper");
-            expect(getCssVar(wrapper, "--input-fz")).toBe("11px");
+            expect(getCssVar(container.querySelector(".mantine-JsonInput-wrapper"), "--input-fz")).toBe("11px");
         });
 
-        it("does NOT have fixed --input-height (variable height)", () => {
+        it("--input-height is the 56px minimum, not a fixed height", () => {
             const { container } = renderWithTheme(<JsonInput label="Test" />);
             const wrapper = container.querySelector(".mantine-JsonInput-wrapper");
-            const heightVar = getCssVar(wrapper, "--input-height");
-            expect(heightVar).not.toBe("24px");
+            expect(getCssVar(wrapper, "--input-height")).toBe("56px");
+            expect(getCssVar(wrapper, "--input-size")).not.toBe("56px");
         });
     });
 
     describe("input element computed styles", () => {
-        it("has compact font size from --input-fz", () => {
+        it("is borderless and transparent", () => {
             const { container } = renderWithTheme(<JsonInput label="Test" />);
-            const wrapper = container.querySelector(".mantine-JsonInput-wrapper");
-            // JsonInput is a textarea-like component, verify the CSS var is set
-            expect(getCssVar(wrapper, "--input-fz")).toBe("11px");
+            const style = styleOf(container, ".mantine-JsonInput-input");
+            expect(style.borderTopWidth).toBe("0px");
+            expect(hex(style.backgroundColor)).toBe("#00000000");
         });
 
         it("paddingLeft is 8px", () => {
             const { container } = renderWithTheme(<JsonInput label="Test" />);
-            const input = container.querySelector(".mantine-JsonInput-input");
-            const style = input ? getComputedStyle(input) : null;
-            expect(style?.paddingLeft).toBe("8px");
+            expect(styleOf(container, ".mantine-JsonInput-input").paddingLeft).toBe("8px");
         });
     });
 
     describe("label element computed styles", () => {
-        it("fontSize is 11px", () => {
+        it("is the field-row legend", () => {
             const { container } = renderWithTheme(<JsonInput label="Test" />);
-            const label = container.querySelector(".mantine-JsonInput-label");
-            const style = label ? getComputedStyle(label) : null;
-            expect(style?.fontSize).toBe("11px");
+            expectLegendLabel(styleOf(container, ".mantine-JsonInput-label"));
         });
+    });
+});
+
+// ============================================================================
+// ColorInput
+// ============================================================================
+describe("ColorInput - All CSS Values (Browser)", () => {
+    it("the wrapper is the filled field", () => {
+        const { container } = renderWithTheme(<ColorInput label="Test" defaultValue="#1a1a1a" />);
+        expectFilledField(styleOf(container, ".mantine-ColorInput-wrapper"));
+    });
+
+    it("the chit is 14px, radius 2, in a 24px slot; the text starts at 24", () => {
+        const { container } = renderWithTheme(<ColorInput label="Test" defaultValue="#1a1a1a" />);
+        const chit = styleOf(container, ".mantine-ColorInput-colorPreview");
+        expect(chit.width).toBe("14px");
+        expect(chit.borderTopLeftRadius).toBe("2px");
+        expect(styleOf(container, ".mantine-ColorInput-input").paddingLeft).toBe("24px");
+    });
+
+    it("the label is the field-row legend", () => {
+        const { container } = renderWithTheme(<ColorInput label="Test" />);
+        expectLegendLabel(styleOf(container, ".mantine-ColorInput-label"));
+    });
+});
+
+// ============================================================================
+// InputClearButton
+// ============================================================================
+describe("InputClearButton - All CSS Values (Browser)", () => {
+    it("is 16px with a 10px cross", () => {
+        const { container } = renderWithTheme(<Input.ClearButton aria-label="Clear" />);
+        const button = container.querySelector("button") as HTMLElement;
+        expect(button.getBoundingClientRect().width).toBe(16);
+        expect(getCssVar(button, "--cb-icon-size")).toBe("10px");
     });
 });

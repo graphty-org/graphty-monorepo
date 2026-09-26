@@ -25,7 +25,7 @@
  * all (spec 04 section 5.2, "Zero, null and default rows are not drawn").
  */
 
-import { COMPACT_SIZING, PANEL_GRID, PANEL_INK, POPOUT_GAP, UiGlyph } from "@graphty/compact-mantine";
+import { COMPACT_SIZING, PANEL_GRID, PANEL_INK, UiGlyph } from "@graphty/compact-mantine";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { keyChipFor } from "../bindings";
@@ -55,7 +55,9 @@ const HELP_MENU = {
     /** The dropdown box: 200 px wide (VOCAB section 9; Main.dc.html [56,755 200x117]). */
     WIDTH: 200,
     /** The rail lane: the 48 px rail plus the 8 px shell-boundary gap = 56. */
-    LEFT: ACTIVITY_RAIL_WIDTH + POPOUT_GAP,
+    // The artboard's 8 px shell-boundary gap. It was compact-mantine's POPOUT_GAP until the
+    // library docked its pop-outs flush (POPOUT_GAP 0); the menu's own lane keeps the gap.
+    LEFT: ACTIVITY_RAIL_WIDTH + 8,
     /**
      * The shared bottom edge: the rail's own 4 px bottom padding puts the last rail
      * item's bottom exactly this far above the main row's floor.
@@ -68,9 +70,9 @@ const HELP_MENU = {
     /** The separator's breathing room above and below its rule (Main.dc.html `margin: 3px 0`). */
     SEPARATOR_INSET: 3,
     /** The caret: 8 px at the anchored edge for a surface narrower than 280 (VOCAB 14.2). */
-    CARET_WIDTH: PANEL_GRID.GLYPH_SLOT / 2,
-    /** The caret's clipping box is a full glyph slot tall, so a rotated square fits inside it. */
-    CARET_BOX_HEIGHT: PANEL_GRID.GLYPH_SLOT,
+    CARET_WIDTH: 8,
+    /** The caret's clipping box is 16 tall, so the rotated 10px square fits inside it. */
+    CARET_BOX_HEIGHT: 16,
     /** The rotated square that draws the caret (Main.dc.html). */
     CARET_SQUARE: 10,
     /** The rotated square's inset inside the clipping box (Main.dc.html). */

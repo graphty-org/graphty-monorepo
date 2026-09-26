@@ -4,6 +4,7 @@ import React, { useId } from "react";
 import { PANEL_GRID, PANEL_INK } from "../../constants/panel";
 import { useLabels } from "../../i18n";
 import { FieldGlyph } from "../../icons";
+import { useCompactStyles } from "../../theme/useCompactStyles";
 import type { ActivationHandler } from "../../types/events";
 import { liveRegionProps,type LiveSetting } from "../../utils/live-region";
 import { mirrorInline, useDirection } from "../../utils/rtl";
@@ -14,7 +15,7 @@ import { AdvancedButton, holdsSomething, TrailingSlot } from "./TrailingSlot";
  */
 // The trailing slot still sits at PANEL_GRID.TRAIL_GAP from the body: the slot
 // wrapper adds the remaining 4px back as an inline-start margin, so the row
-// still ends on the 16 + 108 + 8 + 108 + 8 + 24 + 8 = 280 grid.
+// still ends on the 16 + 88 + 8 + 88 + 8 + 24 + 8 = 240 grid.
 const INLINE_GAP = 4;
 
 /**
@@ -27,7 +28,7 @@ const INLINE_GAP = 4;
 const WEDGE_MIN_HEIGHT = 4;
 
 /**
- * The wedge, as a clip on the drawing: 4px tall at one end, 14px at the other,
+ * The wedge, as a clip on the drawing: 4px tall at one end, 12px at the other,
  * with the two ends joined along the baseline.
  */
 // Written left to right and mirrored as a whole under right-to-left text; see
@@ -39,10 +40,11 @@ const WEDGE_CLIP_PATH = `polygon(0 calc(100% - ${WEDGE_MIN_HEIGHT}px), 100% 0, 1
  * The narrowest the drawing may be squeezed before it stops reading as a ramp,
  * in pixels.
  *
- * In a 280px panel the two values and the trailing slot leave more than this,
- * so it only takes effect when a ramp is placed somewhere narrower.
+ * In a 240px panel the 184px body less two short values leaves more than this,
+ * so it only takes effect when a ramp is placed somewhere narrower or its
+ * values run long.
  */
-const RAMP_MIN_WIDTH = 120;
+const RAMP_MIN_WIDTH = 96;
 
 /**
  * The gradient the colour form draws when the caller supplies none.
@@ -93,12 +95,14 @@ const SCALE_CURVES: Record<RampScale, ScaleCurve> = {
 // row grows after that, rather than the values losing digits. This is why
 // neither endpoint needs the reachable-full-text treatment that an ellipsising
 // element does.
+// The type and ink (11/16 450, secondary) are the cm-chart-text class.
 const ENDPOINT_STYLE: React.CSSProperties = {
     flex: "0 0 auto",
-    lineHeight: 1,
-    color: PANEL_INK.CHROME,
     whiteSpace: "nowrap",
 };
+
+/** The ink of the wedge: bars and lines read in the secondary icon ink (design/figma-spec.md 9.8). */
+const WEDGE_INK = "var(--cm-icon-secondary)";
 
 /**
  * Props for the RampRow component.
@@ -326,6 +330,7 @@ export function RampRow({
     onScaleClick,
     trailing,
 }: RampRowProps): React.JSX.Element {
+    useCompactStyles();
     const labels = useLabels();
     const direction = useDirection();
     const baseId = useId();
@@ -421,7 +426,7 @@ export function RampRow({
                     </VisuallyHidden>
                 )}
 
-                <Text span size="sm" id={minId} data-testid="ramp-row-min" style={ENDPOINT_STYLE}>
+                <Text span id={minId} data-testid="ramp-row-min" className="cm-chart-text" style={ENDPOINT_STYLE}>
                     {min}
                 </Text>
 
@@ -438,7 +443,7 @@ export function RampRow({
 
                     minWidth and height stay physical. Their logical spellings
                     -- min-inline-size and block-size -- differ only in a
-                    vertical writing mode, which a 280px panel laid out on a
+                    vertical writing mode, which a 240px panel laid out on a
                     32px row pitch does not have, and every other row in this
                     library measures itself the same way. */}
                 <Box
@@ -450,7 +455,7 @@ export function RampRow({
                         minWidth: RAMP_MIN_WIDTH,
                         height: PANEL_GRID.GLYPH,
                         boxSizing: "border-box",
-                        background: isColour ? (gradient ?? DEFAULT_GRADIENT) : PANEL_INK.CHROME,
+                        background: isColour ? (gradient ?? DEFAULT_GRADIENT) : WEDGE_INK,
                         borderRadius: isColour ? "var(--mantine-radius-xs)" : undefined,
                         border: isColour ? `1px solid ${PANEL_INK.BORDER}` : undefined,
                         clipPath: isColour ? undefined : WEDGE_CLIP_PATH,
@@ -458,7 +463,7 @@ export function RampRow({
                     }}
                 />
 
-                <Text span size="sm" id={maxId} data-testid="ramp-row-max" style={ENDPOINT_STYLE}>
+                <Text span id={maxId} data-testid="ramp-row-max" className="cm-chart-text" style={ENDPOINT_STYLE}>
                     {max}
                 </Text>
 

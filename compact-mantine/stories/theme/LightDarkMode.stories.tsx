@@ -1,7 +1,8 @@
 import { Box, MantineProvider, SegmentedControl, Stack, Text, Title } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
-import { compactTheme, ControlGroup, ControlSection } from "../../src";
+import { compactTheme, ControlGroup, ControlSection, PANEL_GRID } from "../../src";
+import { CM_COLORS, CM_HIGH_CONTRAST } from "../../src/theme/tokens";
 
 /**
  * These stories demonstrate light/dark mode compatibility for components
@@ -32,7 +33,7 @@ export const SideBySide: Story = {
 
             <Box style={{ display: "flex", gap: 32 }}>
                 {/* Light mode panel */}
-                <Box className="light-theme-container" style={{ flex: 1 }}>
+                <Box className="light-theme-container" style={{ flex: 1, colorScheme: "light" }}>
                     <MantineProvider
                         theme={compactTheme}
                         forceColorScheme="light"
@@ -41,9 +42,10 @@ export const SideBySide: Story = {
                         <Box
                             p="md"
                             style={{
-                                backgroundColor: "var(--mantine-color-body)",
-                                border: "1px solid var(--mantine-color-default-border)",
-                                borderRadius: 8,
+                                backgroundColor: "var(--cm-bg)",
+                                color: "var(--cm-text)",
+                                border: "1px solid var(--cm-border)",
+                                borderRadius: 13,
                             }}
                         >
                             <Stack gap="md">
@@ -71,7 +73,7 @@ export const SideBySide: Story = {
                 </Box>
 
                 {/* Dark mode panel */}
-                <Box className="dark-theme-container" style={{ flex: 1 }}>
+                <Box className="dark-theme-container" style={{ flex: 1, colorScheme: "dark" }}>
                     <MantineProvider
                         theme={compactTheme}
                         forceColorScheme="dark"
@@ -80,9 +82,10 @@ export const SideBySide: Story = {
                         <Box
                             p="md"
                             style={{
-                                backgroundColor: "var(--mantine-color-body)",
-                                border: "1px solid var(--mantine-color-default-border)",
-                                borderRadius: 8,
+                                backgroundColor: "var(--cm-bg)",
+                                color: "var(--cm-text)",
+                                border: "1px solid var(--cm-border)",
+                                borderRadius: 13,
                             }}
                         >
                             <Stack gap="md">
@@ -149,7 +152,7 @@ export const SegmentedControlIndicator: Story = {
  */
 export const ControlGroupColors: Story = {
     render: () => (
-        <Box w={280}>
+        <Box w={PANEL_GRID.WIDTH}>
             <Stack gap="md">
                 <Title order={5}>ControlGroup</Title>
                 <Text size="sm" c="dimmed">
@@ -158,9 +161,9 @@ export const ControlGroupColors: Story = {
 
                 <Box
                     style={{
-                        backgroundColor: "var(--mantine-color-body)",
-                        border: "1px solid var(--mantine-color-default-border)",
-                        borderRadius: 8,
+                        backgroundColor: "var(--cm-bg)",
+                        border: "1px solid var(--cm-border)",
+                        borderRadius: 13,
                     }}
                 >
                     <ControlGroup label="Appearance">
@@ -191,7 +194,7 @@ export const ControlGroupColors: Story = {
  */
 export const ControlSectionColors: Story = {
     render: () => (
-        <Box w={280}>
+        <Box w={PANEL_GRID.WIDTH}>
             <Stack gap="md">
                 <Title order={5}>ControlSection</Title>
                 <Text size="sm" c="dimmed">
@@ -201,9 +204,9 @@ export const ControlSectionColors: Story = {
 
                 <Box
                     style={{
-                        backgroundColor: "var(--mantine-color-body)",
-                        border: "1px solid var(--mantine-color-default-border)",
-                        borderRadius: 8,
+                        backgroundColor: "var(--cm-bg)",
+                        border: "1px solid var(--cm-border)",
+                        borderRadius: 13,
                     }}
                 >
                     <ControlSection label="Node Settings" defaultOpened>
@@ -225,6 +228,56 @@ export const ControlSectionColors: Story = {
                     </ControlSection>
                 </Box>
             </Stack>
+        </Box>
+    ),
+};
+
+/**
+ * Every colour token, in the light and the dark scheme side by side. Each column sets
+ * `color-scheme` on a wrapper and every `--cm-*` inside it resolves for that scheme -- the same
+ * mechanism menus and tooltips use to render dark in the light app. Tokens the WCAG AA option
+ * changes are marked AA; switch the toolbar's Contrast control to see their AA values.
+ */
+export const Tokens: Story = {
+    render: () => (
+        <Box style={{ display: "grid", gridTemplateColumns: "auto 1fr 1fr", gap: "4px 16px", alignItems: "center" }}>
+            <Text size="sm" fw={550}>
+                Token
+            </Text>
+            <Text size="sm" fw={550}>
+                Light
+            </Text>
+            <Text size="sm" fw={550}>
+                Dark
+            </Text>
+            {Object.keys(CM_COLORS).map((name) => (
+                <Box key={name} style={{ display: "contents" }}>
+                    <Text size="sm" ff="monospace">
+                        --cm-{name}
+                        {name in CM_HIGH_CONTRAST ? " (AA)" : ""}
+                    </Text>
+                    {(["light", "dark"] as const).map((scheme) => (
+                        <Box
+                            key={scheme}
+                            style={{
+                                colorScheme: scheme,
+                                background: "var(--cm-bg)",
+                                padding: 4,
+                                borderRadius: 5,
+                            }}
+                        >
+                            <Box
+                                style={{
+                                    height: 16,
+                                    borderRadius: 2,
+                                    background: `var(--cm-${name})`,
+                                    boxShadow: "inset 0 0 0 1px var(--cm-border-translucent)",
+                                }}
+                            />
+                        </Box>
+                    ))}
+                </Box>
+            ))}
         </Box>
     ),
 };

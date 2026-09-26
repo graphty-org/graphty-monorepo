@@ -19,7 +19,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import { compactTheme } from "../../src";
-import { FLOATING_UI_Z_INDEX } from "../../src/constants/popout";
+import { FLOATING_UI_Z_INDEX, TOOLTIP_Z_INDEX } from "../../src/constants/popout";
 
 /**
  * Helper to render a component with the compact theme.
@@ -93,7 +93,8 @@ describe("Tooltip - All CSS Values (Browser)", () => {
             const tooltip = document.body.querySelector(".mantine-Tooltip-tooltip");
             const style = tooltip ? getComputedStyle(tooltip) : null;
 
-            expect(style?.zIndex).toBe(String(FLOATING_UI_Z_INDEX));
+            // above every popover and menu (spec 8.3)
+            expect(style?.zIndex).toBe(String(TOOLTIP_Z_INDEX));
         });
 
         it("tooltip appears on hover with correct zIndex", async () => {
@@ -109,20 +110,17 @@ describe("Tooltip - All CSS Values (Browser)", () => {
             const button = screen.getByRole("button", { name: "Hover me" });
             await user.hover(button);
 
-            // Wait for tooltip to appear
+            // Wait for tooltip to appear: Figma's 1000 ms cold delay (spec 8.3)
             await waitFor(
                 () => {
                     const tooltip = document.body.querySelector(".mantine-Tooltip-tooltip");
                     expect(tooltip).toBeTruthy();
                 },
-                { timeout: 1000 }
+                { timeout: 2000 }
             );
 
             const tooltip = document.body.querySelector(".mantine-Tooltip-tooltip");
-            if (tooltip) {
-                const style = getComputedStyle(tooltip);
-                expect(style.zIndex).toBe(String(FLOATING_UI_Z_INDEX));
-            }
+            expect(getComputedStyle(tooltip!).zIndex).toBe(String(TOOLTIP_Z_INDEX));
         });
     });
 });
@@ -179,16 +177,16 @@ describe("HoverCard - All CSS Values (Browser)", () => {
             expect(hoverCardConfig?.defaultProps?.zIndex).toBe(FLOATING_UI_Z_INDEX);
         });
 
-        it("uses same zIndex as other overlay components", () => {
-            // HoverCard shares zIndex configuration with Menu, Tooltip, and Popover
+        it("uses same zIndex as Menu and Popover, under the Tooltip", () => {
+            // HoverCard shares zIndex configuration with Menu and Popover; tooltips sit above all three
             const menuZIndex = compactTheme.components?.Menu?.defaultProps?.zIndex;
             const tooltipZIndex = compactTheme.components?.Tooltip?.defaultProps?.zIndex;
             const popoverZIndex = compactTheme.components?.Popover?.defaultProps?.zIndex;
             const hoverCardZIndex = compactTheme.components?.HoverCard?.defaultProps?.zIndex;
 
             expect(hoverCardZIndex).toBe(menuZIndex);
-            expect(hoverCardZIndex).toBe(tooltipZIndex);
             expect(hoverCardZIndex).toBe(popoverZIndex);
+            expect(tooltipZIndex).toBeGreaterThan(hoverCardZIndex);
         });
     });
 });

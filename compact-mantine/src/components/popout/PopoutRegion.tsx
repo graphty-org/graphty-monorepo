@@ -22,25 +22,15 @@ export interface PopoutRegionProps {
  * Which region the pop-outs beneath this point belong to.
  *
  * A shell is divided into regions -- a properties panel, an inspector, the
- * surface between them, a dialog, a dock -- and a reader may hold one pop-out
- * open in each, because two pop-outs describing two different objects are not
- * competing for the same answer. What they may not do is stack up inside ONE
- * region: opening a second there closes the first, because both describe the
- * same object and the second is the reader changing their mind.
+ * surface between them -- and each pop-out records the region its trigger sits
+ * in, readable through `usePopoutRegion`.
  *
- * Without a region, every pop-out opened straight from the page is a sibling of
- * every other, so an inspector pop-out closes a panel pop-out that has nothing
- * to do with it. That is the behaviour this component exists to divide up, and
- * it is why the default -- no region at all -- keeps the older whole-page rule:
- * an application that never mentions regions is unaffected.
- *
- * The region is the OPENER's, not the surface's screen position. Wrap the
- * region's own markup, and a pop-out that slides out over neighbouring space
- * still counts against the region whose control opened it.
- *
- * Nesting is unaffected either way. A pop-out opened from another pop-out is
- * grouped by its parent, as it always was, and inherits this region only for
- * the benefit of anything it opens in turn.
+ * The region no longer decides which pop-outs may be open together. Figma
+ * keeps ONE light popover open at a time: opening another replaces it, in any
+ * region (design/figma-spec.md 8.4). Before the Figma restyle a reader could
+ * hold one pop-out open per region; that rule is gone, and this component is
+ * kept so existing markup and `usePopoutRegion` keep working. A pop-out opened
+ * from inside an open one is its child and stays allowed.
  * @param props - Component props
  * @param props.id - What to call this region
  * @param props.children - The part of the tree whose pop-outs belong to it

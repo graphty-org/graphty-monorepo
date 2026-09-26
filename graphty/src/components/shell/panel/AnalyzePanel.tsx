@@ -20,7 +20,6 @@ import {
     COMING_TAG_PADDING_X,
     COMING_TAG_RADIUS,
 } from "../ComingTag";
-import { TOOLTIP_DELAY_MS } from "../constants";
 import { SWATCH_RADIUS } from "../inspector/inspectorConstants";
 import { PanelOutlineButton, PanelQuietButton } from "./panelButtons";
 import { usePanelHeaderSlot } from "./panelHeaderSlot";
@@ -340,7 +339,7 @@ function CardViewToggle(props: CardViewToggleProps): React.JSX.Element {
                 const chosen = mode.value === value;
 
                 return (
-                    <Tooltip key={mode.value} label={mode.label} openDelay={TOOLTIP_DELAY_MS} withinPortal>
+                    <Tooltip key={mode.value} label={mode.label} withinPortal>
                         <button
                             type="button"
                             role="radio"

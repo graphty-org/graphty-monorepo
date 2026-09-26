@@ -149,3 +149,22 @@ export const RightToLeft: Story = {
         </DirectionProvider>
     ),
 };
+
+/**
+ * The chip's look (design/figma-spec.md 9.8): Figma's "Beta" badge, 16 tall, radius 5, a 1px
+ * border-colour outline inside, transparent, 11/16 450. On the panel, on a selected row, and in a
+ * caption.
+ */
+export const States: Story = {
+    render: () => (
+        <Stack gap={8}>
+            <Group gap={8}>
+                <RankChip>#1</RankChip>
+                <RankChip>#6</RankChip>
+                <RankChip>#318</RankChip>
+            </Group>
+            <DataRow name="Selected row" value={<RankChip>#2</RankChip>} selected onClick={() => undefined} />
+            <DataRowHeader label="In a caption" sortDirection="descending" sortPriority={2} onSortChange={() => undefined} />
+        </Stack>
+    ),
+};

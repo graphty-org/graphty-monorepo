@@ -34,30 +34,29 @@ import { TrailingSlot } from "./TrailingSlot";
 // inline-axis side rather than a physical one, so the row mirrors under
 // dir="rtl" without a direction hook.
 
-// Mantine's own offset between a control and its label is
-// --mantine-spacing-sm, which is 6px in the compact theme; RT-5 is drawn at
-// 4px, so the label's inline padding is overridden rather than inherited.
+// Figma's checkbox row (design/figma-spec.md 5.10, 9.6): 32 tall, the neutral
+// (panel) checkbox -- grey when checked, the tick in the ink colour -- and the
+// word 8px after the box, 11/16 weight 450.
 
 /**
- * The gap between the control and the one word beside it.
+ * The gap between the control and the one word beside it (Figma: 8px).
  *
  * Set as an inline-start padding rather than a left one, so the word stays on
  * the far side of the control when text runs right to left.
  */
-const INLINE_GAP = 4;
+const INLINE_GAP = PANEL_GRID.GUTTER;
 
 // WCAG 2.2 target size (2.5.8): the word is drawn at 11px, but its clickable
-// box is stretched to the full 24px row, so the pointer target for the word is
-// 24px tall rather than the 13px a 1.2 line height would give it. The word is
+// box is stretched to the full 32px row, so the pointer target for the word is
+// 32px tall rather than the 16px its line height would give it. The word is
 // centred with the line box rather than with flex, because text-overflow does
 // not apply to the anonymous item a flex container makes of its text.
 //
 // A checkbox and its label are one target, because clicking either activates
-// the control, so the target here is the 16px box plus the word beside it: 24px
-// tall and at least 20px wider than the word is. Measured in a browser at 24 x
-// 56 for the word "Labels". That clears the 24x24 minimum outright, and the row
-// never has to fall back on the spacing exception a bare 16px control would
-// need.
+// the control, so the target here is the 16px box plus the word beside it: 32px
+// tall and 24px wider than the word is (the box and Figma's 8px gap). That
+// clears the 24x24 minimum outright, and the row never has to fall back on the
+// spacing exception a bare 16px control would need.
 
 /**
  * The line height that both centres the label word on the row and gives it a
@@ -204,12 +203,13 @@ export interface ToggleRowProps {
  * 1. **The label is the only word on the row, and the verb is deleted from
  *    it.** `Show labels` is `Labels`; `Animate transitions` is `Transitions`.
  *    The checkbox already says "show", so the word is spent on what is shown.
- * 2. **Toggles pack tighter than everything else**, at a 24px pitch rather than
- *    the 32px every other row uses, because a 16px control needs no air around
- *    it to stay legible.
+ * 2. **It is Figma's checkbox row**: 32px tall like every other property row,
+ *    the neutral (panel) checkbox that stays grey when checked, and the word
+ *    8px after the box (design/figma-spec.md 5.10).
  *
- * The control is a Mantine `Checkbox` at 16px, or a Mantine `Switch` at 28x16
- * when the boolean is a live mode rather than an option. Both are real inputs,
+ * The control is a Mantine `Checkbox` at 16px (`variant="neutral"`), or a
+ * Mantine `Switch` at 32x16 when the boolean is a live mode rather than an
+ * option. Both are real inputs,
  * so Tab reaches them, Space toggles them, and a screen reader reads the state
  * out; clicking the word works as well as clicking the box.
  *
@@ -220,7 +220,7 @@ export interface ToggleRowProps {
  * @param props.checked - Whether the toggle is on, when driven from your own state
  * @param props.defaultChecked - Whether the toggle starts on, when the row keeps its own state
  * @param props.onChange - Called with the new state first and the event that caused it second
- * @param props.control - Which control to draw: a 16px checkbox, or a 28x16 switch for a live mode
+ * @param props.control - Which control to draw: a 16px checkbox, or a 32x16 switch for a live mode
  * @param props.trailing - What to put in the fixed 24px slot at the end of the row
  * @param props.disabled - Whether the toggle can be changed
  * @param props.disabledReason - One sentence saying why the toggle is off, drawn only while it is off
@@ -282,6 +282,9 @@ export function ToggleRow({
             height: PANEL_GRID.TOGGLE_PITCH,
             // Logical, so the word sits after the control in both directions.
             paddingInlineStart: INLINE_GAP,
+            // The theme pads a label 4px above and below to make a 24 row; this
+            // one is already the full row tall.
+            paddingBlock: 0,
             fontSize: "var(--mantine-font-size-sm)",
             lineHeight: LABEL_LINE_HEIGHT,
             color: disabled ? PANEL_INK.DISABLED : PANEL_INK.VALUE,
@@ -369,6 +372,7 @@ export function ToggleRow({
                 />
             ) : (
                 <Checkbox
+                    variant="neutral"
                     data-testid="toggle-row-control"
                     label={label}
                     checked={isChecked}
@@ -428,8 +432,8 @@ export interface ToggleRowGroupProps {
  * That is a rule about the design rather than about the runtime, so the group
  * holds the line where the design is edited: it warns on the console in a
  * development build when it is given fewer than two children, and renders them
- * anyway. The pitch needs no gap -- each row is exactly 24px tall, so a plain
- * column is already the 24px pitch.
+ * anyway. The pitch needs no gap -- each row is exactly 32px tall, so a plain
+ * column is already the row pitch.
  *
  * The rows are wrapped in a group so a screen reader announces them as one set
  * rather than as loose checkboxes. Name it: point `labelledBy` at the heading

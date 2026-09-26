@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { compactTheme } from "../../../src";
 import { type IconGroupOption,IconGroupRow } from "../../../src/components/rows/IconGroupRow";
-import { PANEL_GRID, PANEL_INK } from "../../../src/constants/panel";
+import { PANEL_GRID } from "../../../src/constants/panel";
 import { PanelLabelsProvider } from "../../../src/context/PanelLabelsContext";
 import { FieldGlyph } from "../../../src/icons";
 
@@ -94,15 +94,6 @@ function tile(label: string): HTMLElement {
     return element;
 }
 
-/**
- * The sliding block that paints the selected segment.
- * @param container - The render container
- * @returns The indicator element, or null when nothing is selected
- */
-function indicator(container: HTMLElement): Element | null {
-    return container.querySelector(".mantine-SegmentedControl-indicator");
-}
-
 afterEach(() => {
     vi.restoreAllMocks();
 });
@@ -157,29 +148,35 @@ describe("IconGroupRow", () => {
             expect(screen.getByTestId("icon-group-row")).toHaveStyle({ height: `${PANEL_GRID.ROW_PITCH}px` });
         });
 
-        it("draws the track at the 24px control height, on the field surface", () => {
+        it("draws the track as the theme's panel segmented control, with no look of its own", () => {
             renderGroup(<IconGroupRow options={SHAPES} />);
 
+            // Figma's track (design/figma-spec.md 5.2): 24 tall, --cm-bg-secondary,
+            // no padding. The theme draws it; the browser test measures it.
             const track = screen.getByTestId("icon-group-track");
-            expect(track).toHaveStyle({
-                height: `${PANEL_GRID.CONTROL_HEIGHT}px`,
-                padding: "1px",
-                backgroundColor: PANEL_INK.SURFACE,
-            });
+            expect(track).toHaveClass("cm-sc");
+            expect(track.style.padding).toBe("");
+            expect(track.style.backgroundColor).toBe("");
         });
 
-        it("draws each segment at 22px inside the track's 1px padding", () => {
+        it("leaves each segment's face to the theme: no inline height, radius or ink", () => {
             renderGroup(<IconGroupRow options={SHAPES} />);
 
             for (const option of SHAPES) {
-                expect(tile(option.label)).toHaveStyle({ height: "22px", borderRadius: "3px" });
+                const face = tile(option.label);
+                expect(face).toHaveClass("cm-sc-label");
+                expect(face.style.height).toBe("");
+                expect(face.style.borderRadius).toBe("");
+                expect(segment(option.label).style.color).toBe("");
             }
         });
 
-        it("lets the track's own focus ring out, rather than cropping it", () => {
+        it("draws each picture in Figma's 24 x 24 icon box", () => {
             renderGroup(<IconGroupRow options={SHAPES} />);
 
-            expect(screen.getByTestId("icon-group-track")).toHaveStyle({ overflow: "visible" });
+            for (const box of screen.getAllByTestId("icon-group-icon")) {
+                expect(box).toHaveStyle({ width: `${PANEL_GRID.GLYPH_SLOT}px`, height: `${PANEL_GRID.GLYPH_SLOT}px` });
+            }
         });
 
         it("marks the track when it is drawing a word", () => {
@@ -190,13 +187,13 @@ describe("IconGroupRow", () => {
     });
 
     describe("the track width", () => {
-        it("takes 108 for up to three options", () => {
+        it("takes 88 (the field) for up to three options", () => {
             renderGroup(<IconGroupRow options={SHAPES} />);
 
             expect(screen.getByTestId("icon-group-track")).toHaveStyle({ width: `${PANEL_GRID.FIELD}px` });
         });
 
-        it("takes 224 for four to six options", () => {
+        it("takes 184 (the body) for four to six options", () => {
             renderGroup(<IconGroupRow options={SIX_SHAPES} />);
 
             expect(screen.getByTestId("icon-group-track")).toHaveStyle({ width: `${PANEL_GRID.BODY}px` });
@@ -238,26 +235,27 @@ describe("IconGroupRow", () => {
             expect(radios.map((radio) => (radio as HTMLInputElement).checked)).toEqual([false, true, false]);
         });
 
-        it("paints the selected segment with the selected ground", () => {
-            const { container } = renderGroup(<IconGroupRow options={SHAPES} defaultValue="sphere" />);
-
-            expect(indicator(container)).toHaveStyle({ backgroundColor: PANEL_INK.SELECTED });
-        });
-
-        it("draws the selected option in the ink that reads on that ground", () => {
+        it("marks the selected face for the theme to paint, not an inverted patch", () => {
             renderGroup(<IconGroupRow options={SHAPES} defaultValue="sphere" />);
 
-            const active = segment("Sphere");
-            expect(active).toHaveAttribute("data-active", "true");
-            expect(active.style.color).toBe(PANEL_INK.ON_SELECTED);
+            // The theme paints [data-active] as Figma's white face with an inset
+            // edge (measured in IconGroupRow.browser.test.tsx); the row adds no
+            // selected ground of its own.
+            expect(tile("Sphere")).toHaveAttribute("data-active");
+            expect(tile("Sphere").style.backgroundColor).toBe("");
+            expect(tile("Disc")).not.toHaveAttribute("data-active");
         });
 
-        it("leaves the others in the secondary text colour", () => {
+        it("names the selected option for a stylesheet", () => {
             renderGroup(<IconGroupRow options={SHAPES} defaultValue="sphere" />);
 
-            const inactive = segment("Disc");
-            expect(inactive).toHaveAttribute("data-active", "false");
-            expect(inactive.style.color).toBe(PANEL_INK.CHROME);
+            expect(segment("Sphere")).toHaveAttribute("data-active", "true");
+        });
+
+        it("names the others as not selected", () => {
+            renderGroup(<IconGroupRow options={SHAPES} defaultValue="sphere" />);
+
+            expect(segment("Disc")).toHaveAttribute("data-active", "false");
         });
 
         it("names each segment for a stylesheet as well as for a reader", () => {
@@ -363,7 +361,7 @@ describe("IconGroupRow", () => {
         it("pads a segment that carries a word, and only that one", () => {
             renderGroup(<IconGroupRow options={LAYOUTS} defaultValue="force" hybrid />);
 
-            expect(segment("Force directed")).toHaveStyle({ paddingInline: "6px" });
+            expect(segment("Force directed")).toHaveStyle({ paddingInline: "8px" });
             expect(segment("Radial").style.paddingInline).toBe("0");
         });
     });
@@ -481,7 +479,10 @@ describe("IconGroupRow", () => {
             const options = SHAPES.map((shape) => (shape.value === "disc" ? { ...shape, disabled: true } : shape));
             renderGroup(<IconGroupRow options={options} defaultValue="box" />);
 
-            expect(segment("Disc").style.color).toBe(PANEL_INK.DISABLED);
+            // The theme draws a disabled face in --cm-icon-disabled.
+            expect(segment("Disc")).toHaveAttribute("data-disabled", "true");
+            expect(tile("Disc")).toHaveAttribute("data-disabled");
+            expect(segment("Box")).not.toHaveAttribute("data-disabled");
         });
 
         it("refuses the whole group", async () => {

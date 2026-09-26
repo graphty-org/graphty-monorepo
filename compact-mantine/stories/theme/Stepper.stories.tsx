@@ -21,3 +21,17 @@ export const Default: Story = {
         </Stepper>
     ),
 };
+
+/**
+ * Stepper on the tokens (design/figma-spec.md 5.9): 24 icons, pending --cm-bg-secondary,
+ * active and completed brand, 11/16 labels.
+ */
+export const States: Story = {
+    render: () => (
+        <Stepper active={1}>
+            <Stepper.Step label="Done" description="Completed" />
+            <Stepper.Step label="Now" description="Active" />
+            <Stepper.Step label="Next" description="Pending" />
+        </Stepper>
+    ),
+};

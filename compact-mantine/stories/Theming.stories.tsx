@@ -24,6 +24,7 @@ import {
     compactTheme,
     ControlGroup,
     ControlSection,
+    PANEL_GRID,
     Popout,
     PopoutButton,
     PopoutManager,
@@ -399,7 +400,7 @@ export const SidebarPattern: Story = {
                                     </Stack>
                                 </ControlGroup>
                                 <Popout.Panel
-                                    width={280}
+                                    width={PANEL_GRID.WIDTH}
                                     header={{ variant: "title", title: "Label Settings" }}
                                     placement="left"
                                 >
@@ -589,7 +590,7 @@ export const PopoutPanelPattern: Story = {
 export const ControlGroupPatterns: Story = {
     render: () => (
         <Box
-            w={280}
+            w={PANEL_GRID.WIDTH}
             style={{
                 backgroundColor: "var(--mantine-color-body)",
                 border: "1px solid var(--mantine-color-default-border)",

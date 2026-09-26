@@ -290,7 +290,7 @@ describe("PopoutManagerProvider", () => {
             // All 5 levels should be open
             expect(screen.getAllByRole("dialog")).toHaveLength(5);
 
-            // Should complete in reasonable time (not O(n²) - generous limit for CI)
+            // Should complete in reasonable time (not O(n^2) - generous limit for CI)
             expect(duration).toBeLessThan(5000);
 
             // Close level 2 - should close levels 2-5

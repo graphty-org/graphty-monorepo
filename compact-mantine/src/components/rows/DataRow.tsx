@@ -1,10 +1,10 @@
-import { Badge, Box, UnstyledButton } from "@mantine/core";
-import { useHover, useUncontrolled } from "@mantine/hooks";
+import { useUncontrolled } from "@mantine/hooks";
 import React from "react";
 
-import { PANEL_GRID, PANEL_INK } from "../../constants/panel";
+import { PANEL_GRID } from "../../constants/panel";
 import { useNumberFormatter } from "../../i18n";
 import { UiGlyph } from "../../icons";
+import { useCompactStyles } from "../../theme/useCompactStyles";
 import {
     type ActivationEvent,
     type ActivationHandlerWithMeta,
@@ -12,43 +12,6 @@ import {
     getActivationMeta,
 } from "../../types/events";
 import { holdsSomething, TrailingSlot } from "./TrailingSlot";
-
-// The 8px inset VOCAB gives a list row -- section 3, "list row: 28px tall,
-// padding 0 8px, radius 4px". It is the same 8 the grid spends between a pair
-// of fields, so it is spelled from PANEL_GRID rather than typed as a literal.
-const ROW_PADDING_X = PANEL_GRID.GUTTER;
-
-// The 12px "body / list row text" role of VOCAB's type ramp. The compact
-// font-size scale does not name it -- xs is 10, sm is 11 and md is 13 --
-// because 12px is the reading size rather than a chrome size. A data row's name
-// is the user's own string, so it is read rather than skimmed, and it is the one
-// thing in a panel row drawn larger than the chrome around it.
-const NAME_FONT_SIZE = 12;
-
-// The line height VOCAB gives every 11px and 12px single-line label.
-const LINE_HEIGHT = 1.2;
-
-// The height of the column caption above a run of data rows. PANEL_GRID does
-// not name it because RT-6 is the only row type that draws one: it is a caption
-// rather than a row, and it is deliberately neither the 24px toggle pitch nor
-// the 28px data pitch so a reader never mistakes it for either.
-const HEADER_HEIGHT = 20;
-
-// A rank chip's weight. Mantine's Badge is a status tag, so it draws at 700 in
-// upper case with letter spacing; a rank is a number rather than a category, and
-// upper-casing a caller's "top" would be a visible change to a published
-// component. Everything else about the box -- 14px tall, 9px face, 4px padding,
-// fully round -- is the compact theme's own Badge, which is where those numbers
-// were already written.
-const CHIP_FONT_WEIGHT = 500;
-
-// The ground of a selected data row. VOCAB section 1 spells it #28364e and
-// describes it as "accent at 20% over #1f2428". PANEL_INK has no entry for it
-// because RT-6 is the only row type with a selected state, and Mantine's own
-// light primary variable *is* the accent at a low alpha over the body -- the one
-// spelling that stays correct when the scheme flips to light or the consumer
-// changes the primary colour.
-const SELECTED_GROUND = "var(--mantine-primary-color-light)";
 
 /**
  * How a row reports being selected to a screen reader.
@@ -169,7 +132,7 @@ export interface DataRowProps {
  * value, and the reason is worth stating because every other row type exists to
  * replace that label with a glyph. An identifier, a node label, an attribute
  * name or a filename is *data*, and data cannot be drawn: there is no picture of
- * `Mr_Whiskers`. So the string stays, at 12px in the primary text colour, and
+ * `Mr_Whiskers`. So the string stays, at 11px in the primary text colour, and
  * the number that describes it rides at the trailing edge in the smaller
  * secondary colour.
  *
@@ -225,10 +188,7 @@ export function DataRow({
     onBlur,
     trailing,
 }: DataRowProps): React.JSX.Element {
-    // Hover is read with a hook: this package ships no stylesheet to put a
-    // `:hover` rule in.
-    const { hovered, ref } = useHover<HTMLDivElement>();
-
+    useCompactStyles();
     const interactive = onClick !== undefined;
     const hasIcon = icon !== undefined && icon !== null;
     const hasValue = value !== undefined && value !== null;
@@ -252,31 +212,12 @@ export function DataRow({
         onClick?.(event, getActivationMeta(event));
     };
 
-    let ground = "transparent";
-    if (selected) {
-        ground = SELECTED_GROUND;
-    } else if (interactive && hovered) {
-        ground = PANEL_INK.SURFACE;
-    }
-
     const body = (
         <>
             {hasIcon && (
-                <Box
-                    component="span"
-                    data-testid="data-row-icon"
-                    style={{
-                        flex: "0 0 auto",
-                        width: PANEL_GRID.GLYPH_SLOT,
-                        height: PANEL_GRID.GLYPH_SLOT,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        color: PANEL_INK.CHROME,
-                    }}
-                >
+                <span className="cm-data-row-icon" data-testid="data-row-icon">
                     {icon}
-                </Box>
+                </span>
             )}
 
             {/* The reader's own string. It ellipsises when the row is too
@@ -284,56 +225,27 @@ export function DataRow({
                 Ellipsising is a drawing rather than a truncation: the full
                 string is still the element's text, so it is still the whole
                 accessible name of the row. */}
-            <Box
-                component="span"
-                data-testid="data-row-name"
-                title={name}
-                style={{
-                    flex: "1 1 auto",
-                    minWidth: 0,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                }}
-            >
+            <span className="cm-data-row-name" data-testid="data-row-name" title={name}>
                 {name}
-            </Box>
+            </span>
 
             {hasValue && (
-                <Box
-                    component="span"
-                    data-testid="data-row-value"
-                    style={{
-                        flex: "0 0 auto",
-                        fontSize: "var(--mantine-font-size-sm)",
-                        color: PANEL_INK.CHROME,
-                    }}
-                >
+                <span className="cm-data-row-value" data-testid="data-row-value">
                     {value}
-                </Box>
+                </span>
             )}
         </>
     );
 
-    const bodyStyle = {
-        display: "flex",
-        alignItems: "center",
-        gap: PANEL_GRID.GUTTER,
-        flex: "1 1 auto",
-        minWidth: 0,
-        height: "100%",
-        background: "transparent",
-        color: "inherit",
-        font: "inherit",
-        textAlign: "start",
-        cursor: interactive ? "pointer" : "default",
-    } as const;
-
+    // The fills (hover, selected) and the focus ring are the row's pseudo elements, a 24px pill
+    // inset 4 8 4 12 in the 32px row (design/figma-spec.md 10.5), drawn by tree.css.ts.
     return (
-        <Box
-            ref={ref}
+        <div
             data-testid="data-row"
+            className="cm-data-row"
             data-selected={selected ? "true" : undefined}
+            data-interactive={interactive ? "" : undefined}
+            data-trailing={hasTrailing ? "" : undefined}
             // Both sit on the whole row rather than on its body, so a right
             // click or a double click lands wherever the pointer is -- including
             // the trailing slot and the padding. The keyboard's context-menu key
@@ -342,24 +254,11 @@ export function DataRow({
             // can take focus: an interactive one, or one given a tabIndex.
             onDoubleClick={onDoubleClick}
             onContextMenu={onContextMenu}
-            style={{
-                display: "flex",
-                alignItems: "center",
-                gap: PANEL_GRID.TRAIL_GAP,
-                boxSizing: "border-box",
-                width: "100%",
-                height: PANEL_GRID.DATA_PITCH,
-                paddingInline: ROW_PADDING_X,
-                borderRadius: "var(--mantine-radius-sm)",
-                background: ground,
-                color: PANEL_INK.VALUE,
-                fontSize: NAME_FONT_SIZE,
-                lineHeight: LINE_HEIGHT,
-            }}
         >
             {interactive ? (
-                <UnstyledButton
+                <button
                     type="button"
+                    className="cm-data-row-body"
                     data-testid="data-row-button"
                     role={isOption ? "option" : undefined}
                     aria-current={ariaCurrent}
@@ -368,12 +267,12 @@ export function DataRow({
                     onClick={handleClick}
                     onFocus={onFocus}
                     onBlur={onBlur}
-                    style={bodyStyle}
                 >
                     {body}
-                </UnstyledButton>
+                </button>
             ) : (
-                <Box
+                <div
+                    className="cm-data-row-body"
                     data-testid="data-row-body"
                     role={isOption ? "option" : undefined}
                     aria-current={ariaCurrent}
@@ -381,23 +280,15 @@ export function DataRow({
                     tabIndex={tabIndex}
                     onFocus={onFocus}
                     onBlur={onBlur}
-                    style={bodyStyle}
                 >
                     {body}
-                </Box>
+                </div>
             )}
 
-            {/* Drawn only when it holds something: a data row is a list row,
-                not a field row on the 16 + 108 + 8 + 108 + 8 + 24 + 8 grid.
-
-                The slot therefore lands at x 240 of a 280px panel rather than
-                the x 248 every other row type puts it at, and that is
-                deliberate: a list row carries its own 8px padding so its
-                selected tint is inset from the panel edge, and the whole row --
-                name, value and slot -- moves in with it. Do not "fix" the 8px
-                difference; trailing-slot-grid.browser.test.tsx measures it. */}
+            {/* Drawn only when it holds something. The slot ends at x 232, the
+                end of the row's pill and the grid's trailing column. */}
             {hasTrailing && <TrailingSlot>{trailing}</TrailingSlot>}
-        </Box>
+        </div>
     );
 }
 
@@ -471,7 +362,7 @@ export interface DataRowHeaderProps {
 }
 
 /**
- * The 20px caption above a run of data rows, optionally sortable.
+ * The 32px caption above a run of data rows (11/16 at 550), optionally sortable.
  *
  * It exists to carry the one word the rows below must not repeat. Three or more
  * rows measuring the same thing put their unit here once -- "links" above the
@@ -511,6 +402,7 @@ export function DataRowHeader({
     onSortChange,
     sortPriority,
 }: DataRowHeaderProps): React.JSX.Element {
+    useCompactStyles();
     // Controlled and uncontrolled, the way every value-holding component in this
     // package works. The payload passed to the setter reaches onSortChange as
     // its second argument in both modes.
@@ -540,60 +432,31 @@ export function DataRowHeader({
         <>
             {/* The caption ellipsises when the column name is long, so it
                 carries the whole name as a title for a pointer. */}
-            <Box
-                component="span"
-                data-testid="data-row-header-label"
-                title={label}
-                style={{
-                    flex: "1 1 auto",
-                    minWidth: 0,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    color: sorted ? PANEL_INK.VALUE : undefined,
-                }}
-            >
+            <span className="cm-data-row-header-label" data-testid="data-row-header-label" title={label}>
                 {label}
-            </Box>
+            </span>
 
             {unit !== undefined && (
-                <Box
-                    component="span"
-                    data-testid="data-row-header-unit"
-                    style={{ flex: "0 0 auto", whiteSpace: "nowrap" }}
-                >
+                <span data-testid="data-row-header-unit" style={{ flex: "0 0 auto", whiteSpace: "nowrap" }}>
                     {unit}
-                </Box>
+                </span>
             )}
 
             {sortPriority !== undefined && sorted && (
                 // Redundant to a screen reader: the position of this column in a
                 // multi-column sort is drawn for the eye, and every column
                 // announces its own direction through aria-sort.
-                <Box component="span" aria-hidden="true" style={{ flex: "0 0 auto", display: "flex" }}>
+                <span aria-hidden="true" style={{ flex: "0 0 auto", display: "flex" }}>
                     <RankChip>{numberFormatter.format(sortPriority)}</RankChip>
-                </Box>
+                </span>
             )}
 
             {sorted && (
-                <Box
-                    component="span"
-                    data-testid="data-row-header-sort-glyph"
-                    data-direction={direction}
-                    style={{
-                        flex: "0 0 auto",
-                        display: "flex",
-                        alignItems: "center",
-                        color: PANEL_INK.VALUE,
-                        // The glyph register holds one chevron, and ascending is
-                        // the same drawing turned over. A vertical turn means the
-                        // same thing whichever way the text runs, so there is
-                        // nothing here to mirror for right-to-left.
-                        transform: direction === "ascending" ? "rotate(180deg)" : undefined,
-                    }}
-                >
-                    <UiGlyph name="chevronDown" size={PANEL_GRID.CHEVRON} />
-                </Box>
+                // The 5 x 3 caret; ascending is the same drawing turned over, which
+                // means the same thing whichever way the text runs.
+                <span className="cm-sort-caret" data-testid="data-row-header-sort-glyph" data-direction={direction}>
+                    <UiGlyph name="caretDown" size={PANEL_GRID.CHEVRON} />
+                </span>
             )}
         </>
     );
@@ -612,48 +475,26 @@ export function DataRowHeader({
     const describesSort = sortable || sorted;
 
     return (
-        <Box
+        <div
             data-testid="data-row-header"
+            className="cm-data-row-header"
+            data-sorted={sorted ? "" : undefined}
             role={describesSort ? "columnheader" : undefined}
             aria-sort={describesSort ? direction : undefined}
-            style={{
-                display: "flex",
-                alignItems: "center",
-                gap: PANEL_GRID.GUTTER,
-                boxSizing: "border-box",
-                width: "100%",
-                height: HEADER_HEIGHT,
-                paddingInline: ROW_PADDING_X,
-                fontSize: "var(--mantine-font-size-sm)",
-                lineHeight: LINE_HEIGHT,
-                color: PANEL_INK.CHROME,
-            }}
         >
             {sortable ? (
-                <UnstyledButton
+                <button
                     type="button"
+                    className="cm-data-row-header-sort"
                     data-testid="data-row-header-sort"
                     onClick={handleSort}
-                    style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: PANEL_GRID.GUTTER,
-                        flex: "1 1 auto",
-                        minWidth: 0,
-                        height: "100%",
-                        background: "transparent",
-                        color: "inherit",
-                        font: "inherit",
-                        textAlign: "start",
-                        cursor: "pointer",
-                    }}
                 >
                     {caption}
-                </UnstyledButton>
+                </button>
             ) : (
                 caption
             )}
-        </Box>
+        </div>
     );
 }
 
@@ -670,44 +511,23 @@ export interface RankChipProps {
  *
  * The denominator is not information the reader is missing -- the panel above it
  * already says how many nodes there are -- so the chip keeps the number that
- * changes and drops the words that do not. It is Mantine's `Badge` at the size
- * this library's theme gives it: 14px tall on a 9px face, fully round, on a
- * surface one step lighter than the panel. That is small enough to read as an
- * annotation of the row rather than as a second value competing with the row's
- * own.
+ * changes and drops the words that do not. It draws Figma's "Beta" badge look
+ * (design/figma-spec.md 9.8): 16 tall, radius 5, a 1px border-colour outline drawn
+ * inside, transparent, 11/16 in the primary text colour (bottom-toolbar/mode-metronome-full #296).
  * @param props - Component props
  * @param props.children - The rank, already spelled the short way
  * @returns The rank chip
  */
 export function RankChip({ children }: RankChipProps): React.JSX.Element {
+    useCompactStyles();
     // ARIA Authoring Practices: no pattern applies, and that is the point. A
     // rank chip is a short piece of text with a box drawn round it, so it needs
     // no role: it is read in its place in the row, and giving it a role or a
     // label of its own would take it out of that reading. It is drawn as a span
     // so that it is valid inside the row's own button and inside a caption.
-    //
-    // Mantine's Badge, so the 14px height, 9px face and 4px padding come from
-    // the compact theme instead of being retyped here. What the theme does not
-    // decide is overridden below: a badge is a status tag, drawn upper case at
-    // 700 on the accent, and a rank is neither a status nor a shout.
-    //
-    // The label is the primary text colour rather than the secondary one: on
-    // this raised surface the secondary colour measures 4.43:1, just under the
-    // 4.5:1 WCAG AA asks of text, while the primary colour measures 7.33:1.
     return (
-        <Badge
-            component="span"
-            data-testid="rank-chip"
-            style={{
-                flex: "0 0 auto",
-                background: PANEL_INK.RAISED,
-                color: PANEL_INK.VALUE,
-                fontWeight: CHIP_FONT_WEIGHT,
-                textTransform: "none",
-                letterSpacing: "normal",
-            }}
-        >
+        <span className="cm-rank-chip" data-testid="rank-chip">
             {children}
-        </Badge>
+        </span>
     );
 }

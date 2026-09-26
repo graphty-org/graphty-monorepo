@@ -2,15 +2,8 @@ import { Box, Checkbox, DirectionProvider, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 import React from "react";
 
-import {
-    AdvancedButton,
-    PANEL_GRID,
-    PANEL_INK,
-    PanelField,
-    ToggleRow,
-    TrailingSlot,
-    UiGlyph,
-} from "../src";
+import { AdvancedButton, FieldRow,PANEL_GRID, PANEL_INK, PanelField, ToggleRow, TrailingSlot, UiGlyph } from "../src";
+import { StoryState, StoryStates } from "./figma/chrome/StoryPanel";
 
 // Imported from "../src", the package's published entry point, so the stories
 // exercise exactly what a consumer gets from `@graphty/compact-mantine` rather
@@ -50,11 +43,16 @@ const meta: Meta<typeof TrailingSlot> = {
         layout: "padded",
     },
     decorators: [
-        (Story): React.JSX.Element => (
-            <Box w={PANEL_GRID.WIDTH} p="md" bg="var(--mantine-color-body)">
+        // Every story sits in a 240px panel on the panel ground; States lays out
+        // several panels side by side, so it brings its own.
+        (Story, context): React.JSX.Element =>
+            context.name === "States" ? (
                 <Story />
-            </Box>
-        ),
+            ) : (
+                <Box w={PANEL_GRID.WIDTH} bg="var(--cm-bg)" style={{ paddingInline: "16px 8px" }}>
+                    <Story />
+                </Box>
+            ),
     ],
 };
 
@@ -204,4 +202,34 @@ export const RightToLeft: Story = {
             </Box>
         </DirectionProvider>
     ),
+};
+
+/**
+ * The slot and the advanced settings button in every state (design/figma-spec.md 9.5): an
+ * empty slot holding the column, the button at rest, with its pop-out open (the theme's
+ * selected look, from aria-expanded), changed (the brand glyph), and disabled.
+ */
+export const States: Story = {
+    render: () => {
+        const field = <PanelField label="Size" value="4.0" />;
+        return (
+            <StoryStates>
+                <StoryState name="Empty slot" padded>
+                    <FieldRow>{field}</FieldRow>
+                </StoryState>
+                <StoryState name="Rest" padded>
+                    <FieldRow trailing={<AdvancedButton label="Range and scale" />}>{field}</FieldRow>
+                </StoryState>
+                <StoryState name="Open" padded>
+                    <FieldRow trailing={<AdvancedButton label="Range and scale" aria-expanded />}>{field}</FieldRow>
+                </StoryState>
+                <StoryState name="Changed" padded>
+                    <FieldRow trailing={<AdvancedButton label="Range and scale" changed />}>{field}</FieldRow>
+                </StoryState>
+                <StoryState name="Disabled" padded>
+                    <FieldRow trailing={<AdvancedButton label="Range and scale" disabled />}>{field}</FieldRow>
+                </StoryState>
+            </StoryStates>
+        );
+    },
 };

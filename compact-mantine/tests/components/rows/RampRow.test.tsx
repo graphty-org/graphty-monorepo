@@ -144,19 +144,17 @@ describe("RampRow", () => {
         it("draws the ramp at glyph height", () => {
             renderRow(<RampRow min="45" max="68" />);
 
-            expect(screen.getByTestId("ramp-row-ramp")).toHaveStyle({ height: "14px" });
+            expect(screen.getByTestId("ramp-row-ramp")).toHaveStyle({ height: "12px" });
         });
 
         it("draws the endpoints at the small size in the secondary ink", () => {
             renderRow(<RampRow min="45" max="68" />);
 
+            // 11/16 450 in the secondary ink, from the cm-chart-text class; the
+            // browser suite measures the resolved values.
             const low = screen.getByTestId("ramp-row-min");
-            expect(low.style.color).toBe(PANEL_INK.CHROME);
-            // Mantine's Text carries its size as a custom property rather than
-            // as a font-size declaration; the compact theme resolves sm to 11px.
-            expect(low).toHaveAttribute("data-size", "sm");
-            expect(low.style.getPropertyValue("--text-fz")).toBe("var(--mantine-font-size-sm)");
-            expect(compactTheme.fontSizes?.sm).toBe("11px");
+            expect(low).toHaveClass("cm-chart-text");
+            expect(low.style.color).toBe("");
         });
 
         it("never wraps or truncates an endpoint, however long the value", () => {
@@ -213,7 +211,7 @@ describe("RampRow", () => {
         it("paints the wedge in the secondary ink", () => {
             renderRow(<RampRow min="45" max="68" variant="size" />);
 
-            expect(screen.getByTestId("ramp-row-ramp").style.background).toBe(PANEL_INK.CHROME);
+            expect(screen.getByTestId("ramp-row-ramp").style.background).toBe("var(--cm-icon-secondary)");
         });
 
         it("wears neither a border nor a radius", () => {
@@ -247,7 +245,8 @@ describe("RampRow", () => {
 
             const { background } = screen.getByTestId("ramp-row-ramp").style;
             expect(background).toContain("linear-gradient");
-            expect(background).toContain("--mantine-primary-color-filled");
+            expect(background).toContain(PANEL_INK.SURFACE);
+            expect(background).toContain(PANEL_INK.ACCENT);
         });
 
         it("is a bar at 2px radius on a 1px border, not a wedge", () => {

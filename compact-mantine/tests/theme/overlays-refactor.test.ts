@@ -1,99 +1,112 @@
 import { describe, expect, it } from "vitest";
 
-import { FLOATING_UI_Z_INDEX } from "../../src/constants/popout";
+import { FLOATING_UI_Z_INDEX, TOOLTIP_Z_INDEX } from "../../src/constants/popout";
 import { overlayComponentExtensions } from "../../src/theme/components/overlays";
+import {
+    compactMenuClassNames,
+    compactPopoverClassNames,
+    compactTooltipClassNames,
+    TOOLTIP_CLOSE_DELAY,
+    TOOLTIP_OPEN_DELAY,
+} from "../../src/theme/styles/overlays";
 
 /**
- * Tests for the refactored overlay components.
- * These tests verify that overlay components maintain proper z-index defaults
- * and apply compact styling where appropriate.
+ * The overlay theme extensions: z-index layering, the Figma behaviour defaults (no transitions,
+ * tooltip timing, menu placement) and the classNames that point each part at the overlay CSS
+ * (design/figma-spec.md section 8). The computed look is measured in
+ * tests/figma/overlays.browser.test.tsx.
  */
-describe("Overlay Component Extensions (Refactored)", () => {
-    describe("defaultProps", () => {
-        it("Menu maintains zIndex default", () => {
-            const extension = overlayComponentExtensions.Menu;
-            expect(extension?.defaultProps?.zIndex).toBe(FLOATING_UI_Z_INDEX);
-        });
-
-        it("Tooltip maintains zIndex default", () => {
-            const extension = overlayComponentExtensions.Tooltip;
-            expect(extension?.defaultProps?.zIndex).toBe(FLOATING_UI_Z_INDEX);
-        });
-
-        it("Popover maintains zIndex default", () => {
-            const extension = overlayComponentExtensions.Popover;
-            expect(extension?.defaultProps?.zIndex).toBe(FLOATING_UI_Z_INDEX);
-        });
-
-        it("HoverCard maintains zIndex default", () => {
-            const extension = overlayComponentExtensions.HoverCard;
-            expect(extension?.defaultProps?.zIndex).toBe(FLOATING_UI_Z_INDEX);
-        });
-
-        it("all overlay components maintain proper zIndex", () => {
-            const overlayComponents = [
-                "Menu",
-                "Tooltip",
-                "Popover",
-                "HoverCard",
-            ] as const;
-
-            for (const name of overlayComponents) {
-                const ext = overlayComponentExtensions[name];
-                expect(
-                    ext?.defaultProps?.zIndex,
-                    `${name} should have zIndex ${FLOATING_UI_Z_INDEX}`,
-                ).toBe(FLOATING_UI_Z_INDEX);
+describe("Overlay Component Extensions", () => {
+    describe("z-index", () => {
+        it("Menu, Popover and HoverCard clear an open Popout", () => {
+            for (const name of ["Menu", "Popover", "HoverCard"] as const) {
+                expect(overlayComponentExtensions[name]?.defaultProps?.zIndex, name).toBe(FLOATING_UI_Z_INDEX);
             }
+        });
+
+        it("Tooltip sits above every popover and menu", () => {
+            expect(overlayComponentExtensions.Tooltip?.defaultProps?.zIndex).toBe(TOOLTIP_Z_INDEX);
+            expect(TOOLTIP_Z_INDEX).toBeGreaterThan(FLOATING_UI_Z_INDEX);
         });
     });
 
-    describe("CSS variables via vars", () => {
-        it("Menu has vars function for compact menu item styling", () => {
-            const extension = overlayComponentExtensions.Menu;
-            expect(extension?.vars).toBeDefined();
-            expect(typeof extension?.vars).toBe("function");
-            const vars = extension?.vars!();
+    describe("motion: every overlay opens and closes in one frame", () => {
+        it.each(["Menu", "MenuSub", "Tooltip", "Popover", "HoverCard", "Modal"])("%s has a zero transition", (name) => {
+            expect(overlayComponentExtensions[name]?.defaultProps?.transitionProps).toEqual({ duration: 0 });
+        });
+    });
+
+    describe("tooltip timing", () => {
+        it("Tooltip opens after 1000 ms and hides 300 ms after the pointer leaves", () => {
+            const props = overlayComponentExtensions.Tooltip?.defaultProps;
+            expect(props?.openDelay).toBe(1000);
+            expect(props?.closeDelay).toBe(300);
+            expect(TOOLTIP_OPEN_DELAY).toBe(1000);
+            expect(TOOLTIP_CLOSE_DELAY).toBe(300);
+        });
+
+        it("a bare Tooltip.Group gets the same timing, for the shell-wide warm hand-off", () => {
+            const props = overlayComponentExtensions.TooltipGroup?.defaultProps;
+            expect(props?.openDelay).toBe(1000);
+            expect(props?.closeDelay).toBe(300);
+        });
+
+        it("Tooltip shows below, with an arrow, on hover and on keyboard focus", () => {
+            const props = overlayComponentExtensions.Tooltip?.defaultProps;
+            expect(props?.position).toBe("bottom");
+            expect(props?.withArrow).toBe(true);
+            // 6px from the trigger: Mantine adds half the 8.5px arrow to the offset
+            expect(props?.offset).toBe(6 - 8.5 / 2);
+            expect(props?.events).toEqual({ hover: true, focus: true, touch: false });
+        });
+    });
+
+    describe("menu placement and submenus", () => {
+        it("Menu opens 4px below its trigger, start-aligned, looping", () => {
+            const props = overlayComponentExtensions.Menu?.defaultProps;
+            expect(props?.position).toBe("bottom-start");
+            expect(props?.offset).toBe(4);
+            expect(props?.loop).toBe(true);
+            expect(props?.trapFocus).toBe(true);
+        });
+
+        it("submenus open and close with no delay, 4px beside the parent", () => {
+            const props = overlayComponentExtensions.MenuSub?.defaultProps;
+            expect(props?.openDelay).toBe(0);
+            expect(props?.closeDelay).toBe(0);
+            expect(props?.offset).toEqual({ mainAxis: 4, alignmentAxis: -8 });
+        });
+
+        it("Menu has vars for the compact item size", () => {
+            const vars = overlayComponentExtensions.Menu?.vars!({} as never, {} as never);
             expect(vars.dropdown["--menu-item-fz"]).toBe("11px");
         });
     });
 
-    describe("styles", () => {
-        it("Tooltip uses static styles for compact styling", () => {
-            const extension = overlayComponentExtensions.Tooltip;
-            expect(extension?.styles).toBeDefined();
-            expect(typeof extension?.styles).toBe("object");
-            const styles = extension?.styles as Record<
-                string,
-                Record<string, unknown>
-            >;
-            expect(styles.tooltip).toBeDefined();
-            expect(styles.tooltip.fontSize).toBe(11);
-            expect(styles.tooltip.padding).toBe("4px 8px");
+    describe("classNames", () => {
+        it("Menu builds on the foundation's dark menu surface and rows", () => {
+            expect(overlayComponentExtensions.Menu?.classNames).toBe(compactMenuClassNames);
+            expect(compactMenuClassNames.dropdown).toContain("cm-menu-surface");
+            expect(compactMenuClassNames.item).toContain("cm-menu-row");
         });
 
-        it("Popover uses static styles for compact dropdown padding", () => {
-            const extension = overlayComponentExtensions.Popover;
-            expect(extension?.styles).toBeDefined();
-            expect(typeof extension?.styles).toBe("object");
-            const styles = extension?.styles as Record<
-                string,
-                Record<string, unknown>
-            >;
-            expect(styles.dropdown).toBeDefined();
-            expect(styles.dropdown.padding).toBe(8);
+        it("Tooltip, Popover and HoverCard point at their CSS", () => {
+            expect(overlayComponentExtensions.Tooltip?.classNames).toBe(compactTooltipClassNames);
+            expect(overlayComponentExtensions.Popover?.classNames).toBe(compactPopoverClassNames);
+            expect(overlayComponentExtensions.HoverCard?.classNames).toBe(compactPopoverClassNames);
+            expect(compactPopoverClassNames.dropdown).toContain("cm-popover-surface");
         });
 
-        it("HoverCard uses static styles for compact dropdown padding", () => {
-            const extension = overlayComponentExtensions.HoverCard;
-            expect(extension?.styles).toBeDefined();
-            expect(typeof extension?.styles).toBe("object");
-            const styles = extension?.styles as Record<
-                string,
-                Record<string, unknown>
-            >;
-            expect(styles.dropdown).toBeDefined();
-            expect(styles.dropdown.padding).toBe(8);
+        it("Modal, Notification and ScrollArea are themed", () => {
+            for (const name of ["Modal", "Notification", "ScrollArea"]) {
+                expect(overlayComponentExtensions[name]?.classNames, name).toBeDefined();
+            }
+            expect(overlayComponentExtensions.Modal?.defaultProps).toMatchObject({ centered: true, withOverlay: false });
+            expect(overlayComponentExtensions.ScrollArea?.defaultProps).toMatchObject({
+                type: "hover",
+                scrollHideDelay: 0,
+                scrollbarSize: 10,
+            });
         });
     });
 });

@@ -180,7 +180,8 @@ describe("ShellContext", () => {
                 result.current.setPanelWidth(900);
             });
 
-            expect(result.current.panelWidth).toBe(432);
+            // 1280 - 48 rail - 240 inspector - 520 canvas minimum
+            expect(result.current.panelWidth).toBe(472);
         });
 
         it("never exposes a panel narrower than the grid identity", () => {
@@ -190,7 +191,7 @@ describe("ShellContext", () => {
                 result.current.setPanelWidth(120);
             });
 
-            expect(result.current.panelWidth).toBe(280);
+            expect(result.current.panelWidth).toBe(240);
         });
 
         it("keeps the requested width so it returns on a wider viewport", () => {
@@ -200,7 +201,7 @@ describe("ShellContext", () => {
                 narrow.result.current.setPanelWidth(400);
             });
 
-            expect(narrow.result.current.panelWidth).toBe(280);
+            expect(narrow.result.current.panelWidth).toBe(240);
         });
 
         it("clamps the inspector on the same canvas minimum", () => {
@@ -210,7 +211,7 @@ describe("ShellContext", () => {
                 result.current.setInspectorWidth(900);
             });
 
-            expect(result.current.inspectorWidth).toBe(432);
+            expect(result.current.inspectorWidth).toBe(472);
         });
     });
 

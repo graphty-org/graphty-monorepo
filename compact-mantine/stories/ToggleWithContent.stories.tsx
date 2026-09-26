@@ -12,6 +12,7 @@ import {
     ToggleRowGroup,
     ToggleWithContent,
 } from "../src";
+import { focusMarked, StateGrid } from "./figma/selection/StateGrid";
 
 /**
  * A checkbox that turns a feature on and reveals the controls that configure
@@ -170,4 +171,30 @@ export const OrAToggleRow: Story = {
             </ToggleRowGroup>
         </Stack>
     ),
+};
+
+/**
+ * Off, on (the revealed controls follow at the same inset, in one frame, with no animation),
+ * focused and disabled (design/figma-spec.md 5.10). The play function focuses the marked row.
+ */
+export const States: Story = {
+    render: () => (
+        <Box style={{ width: PANEL_GRID.CONTENT }}>
+            <StateGrid
+                columns={PANEL_GRID.CONTENT}
+                cells={[
+                    ["off", <ToggleWithContent label="Glow"><StyleNumberInput label="Radius" defaultValue={4} /></ToggleWithContent>],
+                    ["on", <ToggleWithContent label="Glow" defaultChecked><StyleNumberInput label="Radius" defaultValue={4} /></ToggleWithContent>],
+                    [
+                        "focus",
+                        <div data-story-focus>
+                            <ToggleWithContent label="Glow"><StyleNumberInput label="Radius" defaultValue={4} /></ToggleWithContent>
+                        </div>,
+                    ],
+                    ["disabled", <ToggleWithContent label="Glow" disabled disabledReason="Needs a 3D layout"><span /></ToggleWithContent>],
+                ]}
+            />
+        </Box>
+    ),
+    play: focusMarked,
 };

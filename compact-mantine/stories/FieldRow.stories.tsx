@@ -10,6 +10,7 @@ import {
     PanelLabelsProvider,
     UiGlyph,
 } from "../src";
+import { StoryState, StoryStates } from "./figma/chrome/StoryPanel";
 // Imported from "../src", the package's published entry point, so the stories
 // exercise exactly what a consumer gets from `@graphty/compact-mantine` rather
 // than reaching past it into the source tree.
@@ -69,11 +70,16 @@ const meta: Meta<typeof FieldRow> = {
         trailing: { control: false },
     },
     decorators: [
-        (Story) => (
-            <Box w={PANEL_GRID.WIDTH} p="md" bg="var(--mantine-color-body)">
+        // Every story sits in a 240px panel on the panel ground; States lays out
+        // several panels side by side, so it brings its own.
+        (Story, context): React.JSX.Element =>
+            context.name === "States" ? (
                 <Story />
-            </Box>
-        ),
+            ) : (
+                <Box w={PANEL_GRID.WIDTH} bg="var(--cm-bg)" style={{ paddingInline: "16px 8px" }}>
+                    <Story />
+                </Box>
+            ),
     ],
 };
 
@@ -357,5 +363,49 @@ export const LabelsRightToLeft: Story = {
                 </PanelLabelsProvider>
             </div>
         </DirectionProvider>
+    ),
+};
+
+/**
+ * The row's arrangements on the 240 grid (design/figma-spec.md 9.1, 9.3): a pair
+ * (88 | 8 | 88 | 8 | 24), one field beside a trailing control (184), one field alone (192),
+ * Figma's labelled row with a caption above each column (50px), and the inline labels layout.
+ */
+export const States: Story = {
+    render: () => (
+        <StoryStates>
+            <StoryState name="Pair" padded>
+                <FieldRow>
+                    <PanelField label="X" value="100" />
+                    <PanelField label="Y" value="40" />
+                </FieldRow>
+            </StoryState>
+            <StoryState name="Body and trailing" padded>
+                <FieldRow trailing={<AdvancedButton label="Range and scale" />}>
+                    <PanelField label="Size by attribute" value="Betweenness" kind="select" />
+                </FieldRow>
+            </StoryState>
+            <StoryState name="Alone" padded>
+                <FieldRow>
+                    <PanelField label="Layout" value="Force directed" kind="select" />
+                </FieldRow>
+            </StoryState>
+            <StoryState name="Captions above" padded>
+                <PanelLabelsProvider showLabels>
+                    <FieldRow trailing={<AdvancedButton label="Individual corners" />}>
+                        <PanelField label="Opacity" glyph="opacity" value="100%" />
+                        <PanelField label="Corner radius" glyph="width" value="0" />
+                    </FieldRow>
+                </PanelLabelsProvider>
+            </StoryState>
+            <StoryState name="Inline labels" padded>
+                <PanelLabelsProvider showLabels>
+                    <FieldRow labelPosition="inline">
+                        <PanelField label="Smallest" glyph="sizeSmallest" value="1.0" />
+                        <PanelField label="Largest" glyph="sizeLargest" value="4.0" />
+                    </FieldRow>
+                </PanelLabelsProvider>
+            </StoryState>
+        </StoryStates>
     ),
 };

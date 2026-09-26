@@ -13,29 +13,17 @@ import { useControlAnnotation, VISUALLY_HIDDEN_STYLE } from "../utils/control-an
 // Contract sections 1, 2.1, 2.3, 3 and 7 were applied here: the event model,
 // the strings, the logical properties, the ARIA and the user-facing docs.
 //
-// Accessibility: the APG "Combobox" pattern, as far as Mantine implements it.
-// Verified against @mantine/core 8.3.10: Select renders a read-only text box
-// carrying aria-haspopup="listbox", aria-controls and aria-activedescendant,
-// but it neither sets role="combobox" nor emits aria-expanded --
-// ComboboxTarget defaults withExpandedAttribute to false and Select does not
-// override it, and the undefined it then clones over the input strips any
-// aria-expanded passed in from outside. Adding the role alone would leave a
-// combobox missing the state ARIA requires of it, so the control is left as
-// Mantine ships it and the gap is upstream.
+// Accessibility: the APG "Combobox" pattern. Mantine's Select renders a read-only
+// text box with aria-haspopup, aria-controls and aria-activedescendant; the theme
+// adds role="combobox" and aria-expanded (src/theme/components/inputs.ts) and
+// letter type-ahead in the open list (ensureListboxKeyboard).
 
 /**
- * The gap between the control and the reset button beside it.
- *
- * Narrower than the panel grid's own trailing gap: these three controls are
- * laid out as one unit rather than as a row with a trailing slot.
+ * The gap between the control and the reset button beside it: the panel
+ * grid's trailing gap, so the reset sits in the row's trailing slot
+ * (design/figma-spec.md 6.1, "reset button stays ... in the trailing slot").
  */
-const CONTROL_GAP = 4;
-
-/**
- * How far the reset button is lifted off the baseline so its glyph sits level
- * with the text in the control beside it, which carries a label above it.
- */
-const RESET_BASELINE_LIFT = 2;
+const CONTROL_GAP = PANEL_GRID.TRAIL_GAP;
 
 /**
  * One choice in a {@link StyleSelect}.
@@ -60,7 +48,7 @@ export interface StyleSelectProps {
      * chosen anything and the control is showing `defaultValue`.
      */
     value?: string | undefined;
-    /** What is shown, in italics, while the reader has chosen nothing of their own. */
+    /** What is shown while the reader has chosen nothing of their own. */
     defaultValue: string;
     /** The choices offered, in the order they should be listed. */
     options: StyleSelectOption[];
@@ -108,10 +96,13 @@ export interface StyleSelectProps {
 /**
  * A dropdown that says whether the reader chose its value or inherited it.
  *
+ * It is drawn as Figma's outlined select trigger (the theme's Select), and its
+ * list is the dark listbox, opening over the trigger with the current choice
+ * on top of it (design/figma-spec.md 6.4, 6.5).
+ *
  * It is a Mantine `Select` with one idea added: `undefined` means "nothing has
- * been chosen here", so the control shows `defaultValue` in italics and offers
- * no reset. As soon as the reader picks something the text turns upright and a
- * reset button appears beside it, and pressing that reset reports `undefined`
+ * been chosen here", so the control shows `defaultValue` and offers no reset.
+ * As soon as the reader picks something a reset button appears beside it, and pressing that reset reports `undefined`
  * again. A panel built from these reads at a glance as a list of what has been
  * customised and what has not.
  *
@@ -219,18 +210,10 @@ export function StyleSelect({
                 onFocus={onFocus}
                 onBlur={onBlur}
                 data={options}
-                rightSection={<UiGlyph name="chevronDown" size={PANEL_GRID.GLYPH} />}
-                rightSectionPointerEvents="none"
                 disabled={disabled}
                 data-is-default={isDefault ? "true" : "false"}
                 allowDeselect={false}
                 styles={{
-                    input: isDefault
-                        ? {
-                              fontStyle: "italic",
-                              color: PANEL_INK.CHROME,
-                          }
-                        : undefined,
                     // Present in the accessibility tree, absent from the
                     // layout: a visible description would push every row in a
                     // panel of these out of the 32px pitch the grid is built
@@ -241,8 +224,8 @@ export function StyleSelect({
             />
             {/* The reset is drawn only once there is something to undo, so a
                 panel of untouched controls stays quiet. Its 24px box is the
-                WCAG 2.2 (2.5.8) target-size minimum, which the 18px "xs"
-                ActionIcon it used to be did not meet. */}
+                WCAG 2.2 (2.5.8) target-size minimum, and the same height as
+                the field, so bottom alignment puts the two level. */}
             {!isDefault && (
                 <ActionIcon
                     variant="subtle"
@@ -252,7 +235,6 @@ export function StyleSelect({
                     disabled={disabled}
                     aria-label={labels.resetToDefault(label)}
                     onClick={handleReset}
-                    style={{ marginBlockEnd: RESET_BASELINE_LIFT }}
                 >
                     <UiGlyph name="reset" size={PANEL_GRID.CHEVRON} />
                 </ActionIcon>

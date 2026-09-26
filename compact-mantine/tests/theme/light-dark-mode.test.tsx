@@ -1,117 +1,46 @@
-import { MantineProvider, SegmentedControl } from "@mantine/core";
-import { render, screen } from "@testing-library/react";
+/**
+ * Light and dark are Mantine's own colour scheme; one theme object serves both
+ * (design/figma-spec.md 2 and 3.1). The tokens are `light-dark()` values that resolve from the
+ * `color-scheme` Mantine sets on :root, so what has to hold here is that Mantine keeps setting it,
+ * and that the dark-scoped surfaces exist. The resolved colours are measured in Chromium by
+ * tests/theme/css-tokens.browser.test.tsx.
+ */
+import { Button, MantineProvider, useMantineColorScheme } from "@mantine/core";
+import { act, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { compactTheme, ControlGroup, ControlSection } from "../../src";
+import { compactTheme } from "../../src";
+import { compactGlobalCss } from "../../src/theme/global-styles";
 
-describe("Light/Dark Mode Support", () => {
-    describe("SegmentedControl indicator", () => {
-        it("uses light-dark() CSS function for indicator background", () => {
-            // Verify the theme extension uses light-dark() function
-            const segmentedControlExtension = compactTheme.components?.SegmentedControl;
-            expect(segmentedControlExtension).toBeDefined();
+function SchemeToggle() {
+    const { setColorScheme } = useMantineColorScheme();
+    return <Button onClick={() => setColorScheme("dark")}>dark</Button>;
+}
 
-            // Access the styles function and verify it returns light-dark() values
-            // The styles prop is a function that returns style objects
-            if (typeof segmentedControlExtension?.styles === "function") {
-                const styles = segmentedControlExtension.styles({} as never);
-                expect(styles?.indicator?.backgroundColor).toContain("light-dark");
-            } else if (typeof segmentedControlExtension?.styles === "object") {
-                const {styles} = segmentedControlExtension;
-                expect(styles?.indicator?.backgroundColor).toContain("light-dark");
-            }
-        });
-
-        it("renders SegmentedControl in light mode", () => {
-            render(
-                <MantineProvider theme={compactTheme} defaultColorScheme="light">
-                    <SegmentedControl data={["Option 1", "Option 2"]} data-testid="segmented" />
-                </MantineProvider>,
-            );
-            expect(screen.getByTestId("segmented")).toBeInTheDocument();
-        });
-
-        it("renders SegmentedControl in dark mode", () => {
-            render(
-                <MantineProvider theme={compactTheme} defaultColorScheme="dark">
-                    <SegmentedControl data={["Option 1", "Option 2"]} data-testid="segmented" />
-                </MantineProvider>,
-            );
-            expect(screen.getByTestId("segmented")).toBeInTheDocument();
-        });
+describe("light / dark", () => {
+    it.each(["light", "dark"] as const)("forceColorScheme=%s marks :root, which the tokens resolve from", (scheme) => {
+        render(
+            <MantineProvider theme={compactTheme} forceColorScheme={scheme}>
+                <Button>x</Button>
+            </MantineProvider>,
+        );
+        expect(document.documentElement.getAttribute("data-mantine-color-scheme")).toBe(scheme);
     });
 
-    describe("ControlGroup", () => {
-        it("renders with accessible text color in light mode", () => {
-            render(
-                <MantineProvider theme={compactTheme} defaultColorScheme="light">
-                    <ControlGroup label="Test Group">
-                        <div>Content</div>
-                    </ControlGroup>
-                </MantineProvider>,
-            );
-            expect(screen.getByText("Test Group")).toBeInTheDocument();
-        });
-
-        it("renders with accessible text color in dark mode", () => {
-            render(
-                <MantineProvider theme={compactTheme} defaultColorScheme="dark">
-                    <ControlGroup label="Test Group">
-                        <div>Content</div>
-                    </ControlGroup>
-                </MantineProvider>,
-            );
-            expect(screen.getByText("Test Group")).toBeInTheDocument();
-        });
-
-        it("uses theme-aware border color for divider", () => {
-            const { container } = render(
-                <MantineProvider theme={compactTheme} defaultColorScheme="light">
-                    <ControlGroup label="Test Group">
-                        <div>Content</div>
-                    </ControlGroup>
-                </MantineProvider>,
-            );
-            // Divider should exist - the color should be theme-aware
-            const divider = container.querySelector(".mantine-Divider-root");
-            expect(divider).toBeInTheDocument();
-        });
+    it("switching the scheme at runtime needs no second theme object", () => {
+        render(
+            <MantineProvider theme={compactTheme} defaultColorScheme="light">
+                <SchemeToggle />
+            </MantineProvider>,
+        );
+        expect(document.documentElement.getAttribute("data-mantine-color-scheme")).toBe("light");
+        act(() => screen.getByRole("button").click());
+        expect(document.documentElement.getAttribute("data-mantine-color-scheme")).toBe("dark");
     });
 
-    describe("ControlSection", () => {
-        it("renders with accessible text color in light mode", () => {
-            render(
-                <MantineProvider theme={compactTheme} defaultColorScheme="light">
-                    <ControlSection label="Test Section">
-                        <div>Content</div>
-                    </ControlSection>
-                </MantineProvider>,
-            );
-            expect(screen.getByText("Test Section")).toBeInTheDocument();
-        });
-
-        it("renders with accessible text color in dark mode", () => {
-            render(
-                <MantineProvider theme={compactTheme} defaultColorScheme="dark">
-                    <ControlSection label="Test Section">
-                        <div>Content</div>
-                    </ControlSection>
-                </MantineProvider>,
-            );
-            expect(screen.getByText("Test Section")).toBeInTheDocument();
-        });
-
-        it("uses theme-aware border color for divider", () => {
-            const { container } = render(
-                <MantineProvider theme={compactTheme} defaultColorScheme="light">
-                    <ControlSection label="Test Section">
-                        <div>Content</div>
-                    </ControlSection>
-                </MantineProvider>,
-            );
-            // Divider should exist - the color should be theme-aware
-            const divider = container.querySelector(".mantine-Divider-root");
-            expect(divider).toBeInTheDocument();
-        });
+    it("ships the dark-scoped surfaces menus, tooltips and toasts render in", () => {
+        const css = compactGlobalCss();
+        expect(css).toContain(".cm-dark-surface { color-scheme: dark; }");
+        expect(css).toContain(".cm-menu-surface > * { color-scheme: dark; }");
     });
 });

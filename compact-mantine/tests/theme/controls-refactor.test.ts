@@ -68,7 +68,7 @@ describe("Control Component Extensions (Refactored)", () => {
             expect(typeof extension.vars).toBe("function");
             const vars = extension.vars!();
             expect(vars.root["--switch-height"]).toBe("16px");
-            expect(vars.root["--switch-width"]).toBe("28px");
+            expect(vars.root["--switch-width"]).toBe("32px");
         });
 
         it("Checkbox has vars function that returns checkbox variables", () => {
@@ -92,7 +92,7 @@ describe("Control Component Extensions (Refactored)", () => {
             expect(extension.vars).toBeDefined();
             expect(typeof extension.vars).toBe("function");
             const vars = extension.vars!();
-            expect(vars.root["--slider-size"]).toBe("4px");
+            expect(vars.root["--slider-size"]).toBe("8px");
             expect(vars.root["--slider-thumb-size"]).toBe("12px");
         });
 
@@ -101,7 +101,7 @@ describe("Control Component Extensions (Refactored)", () => {
             expect(extension.vars).toBeDefined();
             expect(typeof extension.vars).toBe("function");
             const vars = extension.vars!();
-            expect(vars.root["--slider-size"]).toBe("4px");
+            expect(vars.root["--slider-size"]).toBe("8px");
             expect(vars.root["--slider-thumb-size"]).toBe("12px");
         });
 
@@ -110,34 +110,21 @@ describe("Control Component Extensions (Refactored)", () => {
             expect(extension.vars).toBeDefined();
             expect(typeof extension.vars).toBe("function");
             const vars = extension.vars!();
-            expect(vars.root["--sc-font-size"]).toBe("10px");
+            expect(vars.root["--sc-font-size"]).toBe("11px");
         });
     });
 
-    describe("styles are static", () => {
-        it("Switch uses static styles (not function)", () => {
-            const extension = controlComponentExtensions.Switch;
-            expect(typeof extension.styles).toBe("object");
-        });
+    describe("look comes from static classNames, not styles", () => {
+        // The Figma look lives in the stylesheet (src/theme/css/selection.css.ts),
+        // keyed on the cm-* classes each extension hands Mantine; no extension
+        // computes inline styles.
+        const NAMES = ["Switch", "Checkbox", "Radio", "Slider", "RangeSlider", "SegmentedControl"] as const;
 
-        it("Checkbox uses static styles (not function)", () => {
-            const extension = controlComponentExtensions.Checkbox;
-            expect(typeof extension.styles).toBe("object");
-        });
-
-        it("Radio uses static styles (not function)", () => {
-            const extension = controlComponentExtensions.Radio;
-            expect(typeof extension.styles).toBe("object");
-        });
-
-        it("Slider uses static styles (not function)", () => {
-            const extension = controlComponentExtensions.Slider;
-            expect(typeof extension.styles).toBe("object");
-        });
-
-        it("RangeSlider uses static styles (not function)", () => {
-            const extension = controlComponentExtensions.RangeSlider;
-            expect(typeof extension.styles).toBe("object");
+        it.each(NAMES)("%s uses a static classNames object with its cm-* root class", (name) => {
+            const extension = controlComponentExtensions[name];
+            expect(typeof extension.classNames).toBe("object");
+            expect((extension.classNames as Record<string, string>).root).toMatch(/^cm-/);
+            expect(extension.styles).toBeUndefined();
         });
     });
 });

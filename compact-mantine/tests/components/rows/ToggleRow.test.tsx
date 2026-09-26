@@ -62,13 +62,24 @@ describe("ToggleRow", () => {
             expect(screen.getByTestId("toggle-row")).toHaveTextContent(/^Labels$/u);
         });
 
-        it("packs at the toggle pitch, not the row pitch", () => {
+        it("packs at the toggle pitch, Figma's 32px checkbox row", () => {
             renderRow(<ToggleRow label="Labels" />);
 
             expect(screen.getByTestId("toggle-row")).toHaveStyle({
                 height: `${String(PANEL_GRID.TOGGLE_PITCH)}px`,
             });
-            expect(PANEL_GRID.TOGGLE_PITCH).toBeLessThan(PANEL_GRID.ROW_PITCH);
+            // design/figma-spec.md 5.10 / 9.6: a checkbox row is as tall as any
+            // other property row.
+            expect(PANEL_GRID.TOGGLE_PITCH).toBe(32);
+        });
+
+        it("draws the neutral (panel) checkbox, grey when checked", () => {
+            renderRow(<ToggleRow label="Labels" defaultChecked />);
+
+            expect(screen.getByRole("checkbox", { name: "Labels" }).closest(".cm-checkbox")).toHaveAttribute(
+                "data-variant",
+                "neutral",
+            );
         });
 
         it("draws a checkbox by default", () => {

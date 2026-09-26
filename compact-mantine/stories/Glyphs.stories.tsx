@@ -29,13 +29,14 @@ import {
  * are a small, fixed, learnable set -- so there are two registers, and nothing
  * outside them is drawn.
  *
- * - **Field glyphs** are the eight drawings allowed inside a field's 16px slot,
+ * - **Field glyphs** are the eight drawings allowed inside a field's 24px slot,
  *   where they stand in for the field's label. `FIELD_GLYPH_NAMES` lists them.
- * - **UI glyphs** are the fifteen shared marks drawn everywhere else: chevrons,
- *   a gear, a close, a plus. `UI_GLYPH_NAMES` lists them.
+ * - **UI glyphs** are the shared marks drawn everywhere else: chevrons and
+ *   carets, a gear, a close, a plus, the alignment and layer marks.
+ *   `UI_GLYPH_NAMES` lists them.
  *
- * Both components take a `name` and an optional `size`, are drawn from 1.5px
- * strokes on a 16px canvas at 14px by default, and take their colour from
+ * Both components take a `name` and an optional `size`, are drawn at 12px by
+ * default from strokes that stay 1px at any size (Figma's weight), and take their colour from
  * whatever contains them -- so a glyph inside a disabled control dims with it,
  * and a glyph on a selected tile inverts with it. Both are hidden from assistive
  * technology, because the control around them already carries the name.
@@ -93,6 +94,35 @@ const UI_GLYPH_MEANINGS: Record<UiGlyphName, string> = {
     pin: "Keep this on screen.",
     info: "An explanation, revealed on hover, on focus or on tap.",
     reset: "Return this value to its default. The same drawing as close: the two differ by their accessible name, not by their shape.",
+    keepOpen: "Keep this panel open while working elsewhere.",
+    caretDown: "Opens a list or a menu below.",
+    caretRight: "Opens a submenu, or a collapsed tree row.",
+    dash: "Partly on: some of a group is checked.",
+    eyeClosed: "Hidden: not drawn.",
+    lock: "Locked: cannot be selected or moved.",
+    unlock: "Unlocked.",
+    search: "Find.",
+    settings: "Settings. The same drawing as gear.",
+    link: "Linked: the values move together.",
+    unlink: "Detach the link.",
+    eyedropper: "Pick a colour from the screen.",
+    rotate: "Rotation.",
+    flipHorizontal: "Mirror left to right.",
+    flipVertical: "Mirror top to bottom.",
+    alignLeft: "Align left edges.",
+    alignCenterH: "Align horizontal centres.",
+    alignRight: "Align right edges.",
+    alignTop: "Align top edges.",
+    alignCenterV: "Align vertical centres.",
+    alignBottom: "Align bottom edges.",
+    more: "More actions.",
+    help: "Help.",
+    frame: "A frame.",
+    rectangle: "A rectangle.",
+    ellipse: "An ellipse.",
+    text: "Text.",
+    component: "A component.",
+    group: "A group.",
 };
 
 /** The narrowest one entry in the gallery grid is allowed to be. */
@@ -282,7 +312,7 @@ export const UiGlyphs: Story = {
  * otherwise stack above itself.
  *
  * Every field here is 24px tall, and every value starts 24px from the field's
- * leading edge, because the 16px slot holding the drawing is what puts it there.
+ * leading edge, because the 24px slot holding the drawing is what puts it there.
  * That is the whole saving: four labelled values in the height two
  * caption-above-input pairs would have taken.
  *
@@ -313,8 +343,9 @@ export const InAField: Story = {
 };
 
 /**
- * Sizes. Both components draw at 14px by default, which is the size that fits a
- * field's 16px slot, and both take a `size` in pixels for anywhere else.
+ * Sizes. Both components draw at 12px by default, the nominal glyph in a field's
+ * 24px slot, and both take a `size` in pixels for anywhere else. The stroke stays
+ * 1px at every size.
  *
  * Colour is never set by the drawing: it is `currentColor`, inherited from
  * whatever contains it. Set the colour on the parent, and a glyph dims with a

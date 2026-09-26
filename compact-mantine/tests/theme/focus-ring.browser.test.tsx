@@ -1,168 +1,129 @@
 /**
- * Focus indicator browser tests (WCAG 2.4.7).
+ * Every themed focusable control shows the 1px ring on keyboard focus (design/figma-spec.md 2.7).
  *
- * Rendered in real Chromium, because `:focus-visible` is a browser heuristic
- * that JSDOM does not implement. Keyboard focus must paint something on every
- * control; a pointer click must not paint a ring.
+ * The theme sets `focusRing: "never"`, which switches Mantine's 2px ring off everywhere at once;
+ * the ring each control shows instead comes from a `cm-focus-*` class (or `cm-field`) its package
+ * adds through the theme's `classNames`. This suite is the gate that "never" cannot leave a
+ * control with no ring: a control fails here until its package gives it one.
+ *
+ * The ring may be drawn on the focused element, on its `::before` (cm-focus-pseudo), on the
+ * sibling Mantine paints a visually hidden input's state on (Checkbox, Switch, Radio), or on a
+ * field wrapper through `:focus-within` -- 1px, in the selected-border colour (#0d99ff, dark #0c8ce9),
+ * or the strong one (#007be5, dark #7cc4f8) for the switch and the primary button.
  */
-import { ActionIcon, Button, Checkbox, MantineProvider, Switch, TextInput } from "@mantine/core";
-import { render } from "@testing-library/react";
+import {
+    ActionIcon,
+    Anchor,
+    Burger,
+    Button,
+    Checkbox,
+    CloseButton,
+    NavLink,
+    NumberInput,
+    Pagination,
+    Radio,
+    SegmentedControl,
+    Select,
+    Slider,
+    Switch,
+    Tabs,
+    Textarea,
+    TextInput,
+} from "@mantine/core";
 import { userEvent } from "@vitest/browser/context";
-import { describe, expect, it } from "vitest";
+import type { ReactElement } from "react";
+import { afterEach, describe, expect, it } from "vitest";
 
-import { compactTheme } from "../../src";
+import { hex, renderThemed, resetHarness } from "../harness/measure";
 
-/**
- * Helper to render a component with the compact theme.
- */
-function renderWithTheme(ui: React.ReactElement) {
-    return render(<MantineProvider theme={compactTheme}>{ui}</MantineProvider>);
-}
+afterEach(resetHarness);
 
-/**
- * The outline width an element draws, in pixels, counting the sibling Mantine
- * paints the ring on for the controls whose real input is visually hidden
- * (Checkbox, Switch).
- */
-function ringWidth(element: Element): number {
-    const candidates = [element, element.nextElementSibling].filter((el): el is Element => el !== null);
-    return candidates.reduce((widest, el) => {
-        const style = getComputedStyle(el);
-        if (style.outlineStyle === "none") {
-            return widest;
-        }
-        return Math.max(widest, parseFloat(style.outlineWidth) || 0);
-    }, 0);
-}
+// border-selected and border-selected-strong, light then dark (tokens.ts).
+const RING_COLOURS = new Set(["#0d99ff", "#007be5", "#0c8ce9", "#7cc4f8"]);
 
-/**
- * The border colour of an element, which is how Mantine marks a focused input.
- *
- * Mantine transitions `border-color` over 100ms, so the painted value lags the
- * focus event and every assertion on it has to be polled.
- */
-function borderColor(element: Element): string {
-    return getComputedStyle(element).borderTopColor;
-}
-
-/**
- * Reads the single control rendered into a container, failing the test rather
- * than returning null so the assertions below need no null guard.
- */
-function control(container: HTMLElement, selector: string): HTMLElement {
-    const element = container.querySelector<HTMLElement>(selector);
-    if (!element) {
-        throw new Error(`no element matched ${selector}`);
+/** Describe the 1px ring drawn for the focused element, or null when there is none. */
+function ring(focused: Element): string | null {
+    const candidates: [Element, string | undefined][] = [
+        [focused, undefined],
+        [focused, "::before"],
+    ];
+    if (focused.nextElementSibling) {
+        candidates.push([focused.nextElementSibling, undefined]);
     }
-    return element;
+    for (let el = focused.parentElement, i = 0; el && i < 4; el = el.parentElement, i++) {
+        candidates.push([el, undefined]);
+    }
+    for (const [el, pseudo] of candidates) {
+        const cs = getComputedStyle(el, pseudo);
+        if (cs.outlineStyle !== "none" && cs.outlineWidth === "1px" && RING_COLOURS.has(hex(cs.outlineColor))) {
+            return `outline on ${el.tagName.toLowerCase()}${pseudo ?? ""}`;
+        }
+        if (/0px 0px 0px 2px/.test(cs.boxShadow) && [...RING_COLOURS].some((c) => cs.boxShadow.includes(c))) {
+            return `double ring on ${el.tagName.toLowerCase()}`;
+        }
+        const shadowRing = cs.boxShadow.match(/rgb\([^)]*\) 0px 0px 0px 1px/);
+        if (shadowRing && RING_COLOURS.has(hex(shadowRing[0].split(" 0px")[0]))) {
+            return `shadow ring on ${el.tagName.toLowerCase()}`;
+        }
+    }
+    return null;
 }
 
-const TRANSPARENT = "rgba(0, 0, 0, 0)";
+const CONTROLS: [string, ReactElement][] = [
+    ["TextInput", <TextInput key="c" aria-label="Name" />],
+    ["NumberInput", <NumberInput key="c" aria-label="Size" />],
+    ["Textarea", <Textarea key="c" aria-label="Notes" />],
+    ["Select", <Select key="c" aria-label="Kind" data={["One", "Two"]} />],
+    ["Button", <Button key="c">Run</Button>],
+    ["Button (default variant)", <Button key="c" variant="default">Run</Button>],
+    [
+        "ActionIcon",
+        <ActionIcon key="c" aria-label="Reset">
+            <span>x</span>
+        </ActionIcon>,
+    ],
+    ["CloseButton", <CloseButton key="c" aria-label="Close" />],
+    ["Checkbox", <Checkbox key="c" label="Visible" />],
+    ["Switch", <Switch key="c" label="Enabled" />],
+    ["Radio", <Radio key="c" label="One" />],
+    ["SegmentedControl", <SegmentedControl key="c" data={["One", "Two"]} />],
+    [
+        "Tabs",
+        <Tabs key="c" defaultValue="a">
+            <Tabs.List>
+                <Tabs.Tab value="a">A</Tabs.Tab>
+                <Tabs.Tab value="b">B</Tabs.Tab>
+            </Tabs.List>
+        </Tabs>,
+    ],
+    ["Slider", <Slider key="c" defaultValue={40} />],
+    [
+        "Anchor",
+        <Anchor key="c" href="#x">
+            Link
+        </Anchor>,
+    ],
+    ["NavLink", <NavLink key="c" href="#x" label="Page" />],
+    ["Pagination", <Pagination key="c" total={3} />],
+    ["Burger", <Burger key="c" aria-label="Menu" />],
+];
 
-describe("keyboard focus is visible (browser)", () => {
-    it("TextInput paints its border", async () => {
-        const { container } = renderWithTheme(<TextInput label="Name" />);
-        const input = control(container, "input");
-
-        expect(borderColor(input)).toBe(TRANSPARENT);
-
+describe.each(["light", "dark"] as const)("keyboard focus draws the 1px ring (%s)", (scheme) => {
+    it.each(CONTROLS)("%s", async (_name, ui) => {
+        await renderThemed(ui, { scheme });
         await userEvent.tab();
-
-        expect(document.activeElement).toBe(input);
-        await expect.poll(() => borderColor(input)).not.toBe(TRANSPARENT);
-    });
-
-    it("Button paints a ring", async () => {
-        const { container } = renderWithTheme(<Button>Run</Button>);
-        const button = control(container, "button");
-
-        await userEvent.tab();
-
-        expect(document.activeElement).toBe(button);
-        await expect.poll(() => ringWidth(button)).toBeGreaterThan(0);
-    });
-
-    it("ActionIcon paints a ring", async () => {
-        const { container } = renderWithTheme(
-            <ActionIcon aria-label="Reset">
-                <span>x</span>
-            </ActionIcon>,
-        );
-        const button = control(container, "button");
-
-        await userEvent.tab();
-
-        expect(document.activeElement).toBe(button);
-        await expect.poll(() => ringWidth(button)).toBeGreaterThan(0);
-    });
-
-    it("Checkbox paints a ring", async () => {
-        const { container } = renderWithTheme(<Checkbox label="Visible" />);
-        const input = control(container, "input");
-
-        await userEvent.tab();
-
-        expect(document.activeElement).toBe(input);
-        await expect.poll(() => ringWidth(input)).toBeGreaterThan(0);
-    });
-
-    it("Switch paints a ring", async () => {
-        const { container } = renderWithTheme(<Switch label="Enabled" />);
-        const input = control(container, "input");
-
-        await userEvent.tab();
-
-        expect(document.activeElement).toBe(input);
-        await expect.poll(() => ringWidth(input)).toBeGreaterThan(0);
+        const focused = document.activeElement;
+        expect(focused).not.toBe(document.body);
+        expect(ring(focused as Element), "no 1px ring found").not.toBeNull();
     });
 });
 
-describe("pointer focus draws no ring (browser)", () => {
-    it("Button", async () => {
-        const { container } = renderWithTheme(<Button>Run</Button>);
-        const button = control(container, "button");
-
-        await userEvent.click(button);
-
-        expect(document.activeElement).toBe(button);
-        expect(ringWidth(button)).toBe(0);
-    });
-
-    it("ActionIcon", async () => {
-        const { container } = renderWithTheme(
-            <ActionIcon aria-label="Reset">
-                <span>x</span>
-            </ActionIcon>,
-        );
-        const button = control(container, "button");
-
-        await userEvent.click(button);
-
-        expect(document.activeElement).toBe(button);
-        expect(ringWidth(button)).toBe(0);
-    });
-
-    it("Checkbox", async () => {
-        const { container } = renderWithTheme(<Checkbox label="Visible" />);
-        const input = control(container, "input");
-
-        await userEvent.click(input);
-
-        expect(document.activeElement).toBe(input);
-        expect(ringWidth(input)).toBe(0);
-    });
-
-    it("Switch", async () => {
-        // Controlled, so that the click under test changes focus without also
-        // changing state outside React's act() scope.
-        const { container } = renderWithTheme(<Switch label="Enabled" checked={false} onChange={() => undefined} />);
-        const input = control(container, "input");
-        // The Switch's input is visually hidden; the track is what a pointer hits.
-        const track = control(container, ".mantine-Switch-track");
-
-        await userEvent.click(track);
-
-        expect(document.activeElement).toBe(input);
-        expect(ringWidth(input)).toBe(0);
+describe("a pointer click on a button draws no ring (fields ring on any focus)", () => {
+    it.each(CONTROLS.filter(([n]) => /^(Button|ActionIcon|CloseButton)/.test(n)))("%s", async (_name, ui) => {
+        const { container } = await renderThemed(ui);
+        const button = container.querySelector("button");
+        expect(button).not.toBeNull();
+        await userEvent.click(button as HTMLElement);
+        expect(ring(button as Element)).toBeNull();
     });
 });

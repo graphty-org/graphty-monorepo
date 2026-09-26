@@ -9,6 +9,7 @@ import {
     PANEL_INK,
     SparklineRow,
 } from "../src";
+import { StoryState, StoryStates } from "./figma/chrome/StoryPanel";
 
 // Imported from "../src", the package's published entry point, so the stories
 // exercise exactly what a consumer gets from `@graphty/compact-mantine` rather
@@ -49,11 +50,16 @@ const meta: Meta<typeof SparklineRow> = {
         layout: "padded",
     },
     decorators: [
-        (Story): React.JSX.Element => (
-            <Box w={PANEL_GRID.WIDTH} p="md" bg="var(--mantine-color-body)">
+        // Every story sits in a 240px panel on the panel ground; States lays out
+        // several panels side by side, so it brings its own.
+        (Story, context): React.JSX.Element =>
+            context.name === "States" ? (
                 <Story />
-            </Box>
-        ),
+            ) : (
+                <Box w={PANEL_GRID.WIDTH} bg="var(--cm-bg)" style={{ paddingInline: "16px 8px" }}>
+                    <Story />
+                </Box>
+            ),
     ],
 };
 
@@ -205,5 +211,22 @@ export const RightToLeft: Story = {
                 <SparklineRow label="Layout settling" values={SETTLING} minLabel="Tick 1" maxLabel="Tick 20" />
             </Box>
         </DirectionProvider>
+    ),
+};
+
+/** The sparkline in its states (design/figma-spec.md 9.8): a line, a flat line, no values. */
+export const States: Story = {
+    render: () => (
+        <StoryStates>
+            <StoryState name="Line" padded>
+                <SparklineRow values={[1, 4, 2, 8, 6, 7]} minLabel="Tick 1" maxLabel="Tick 6" />
+            </StoryState>
+            <StoryState name="Settled" padded>
+                <SparklineRow values={[5, 5, 5, 5]} minLabel="Tick 1" maxLabel="Tick 4" />
+            </StoryState>
+            <StoryState name="Empty" padded>
+                <SparklineRow values={[]} minLabel="-" maxLabel="-" />
+            </StoryState>
+        </StoryStates>
     ),
 };

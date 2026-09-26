@@ -1,6 +1,8 @@
 import { Pill, PillsInput } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
+import { StateGrid } from "../figma/inputs/StateGrid";
+
 const meta: Meta<typeof PillsInput> = {
     title: "Compact Theme/Mantine Components/PillsInput",
     component: PillsInput,
@@ -70,4 +72,30 @@ export const MultiRow: Story = {
             </Pill.Group>
         </PillsInput>
     ),
+};
+
+/** Every state side by side (design/figma-spec.md 6.7), with variable-pill shaped pills. */
+export const States: Story = {
+    render: () => {
+        const field = (props: Record<string, unknown>): React.JSX.Element => (
+            <PillsInput aria-label="Tags" w={184} {...props}>
+                <Pill.Group>
+                    <Pill>Alpha</Pill>
+                    <Pill withRemoveButton>Beta</Pill>
+                    <PillsInput.Field placeholder="Add" />
+                </Pill.Group>
+            </PillsInput>
+        );
+        return (
+            <StateGrid
+                cells={[
+                    { state: "rest", node: field({}) },
+                    { state: "hover", node: field({ "data-state": "hover" }) },
+                    { state: "focus", node: field({ "data-state": "focus" }) },
+                    { state: "disabled", node: field({ disabled: true }) },
+                    { state: "invalid", node: field({ error: true }) },
+                ]}
+            />
+        );
+    },
 };

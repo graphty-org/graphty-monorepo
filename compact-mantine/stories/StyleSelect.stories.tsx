@@ -6,6 +6,7 @@ import {
     LabelsProvider,
     StyleSelect,
 } from "../src";
+import { StateGrid } from "./figma/inputs/StateGrid";
 // Imported from "../src", the package's published entry point, so the stories
 // exercise exactly what a consumer gets from `@graphty/compact-mantine` rather
 // than reaching past it into the source tree.
@@ -15,8 +16,8 @@ import {
  *
  * **The idea that makes it different.** `undefined` means "nothing has been
  * chosen here", not "empty". While nothing has been chosen the control shows
- * the default in italics and offers no reset; as soon as the reader picks
- * something the text turns upright and a reset button appears. Pressing that
+ * the default and offers no reset; as soon as the reader picks
+ * something a reset button appears. Pressing that
  * reset reports `undefined` again. A panel of these reads at a glance as a list
  * of what has been customised and what has not.
  *
@@ -31,7 +32,6 @@ import {
  * | | Mantine `Select` | `StyleSelect` |
  * |---|---|---|
  * | What `undefined` means | nothing selected | using the default value |
- * | Text style | always upright | italic while the default is showing |
  * | Reset | `clearable` empties it | a button that reports `undefined` |
  */
 const meta: Meta<typeof StyleSelect> = {
@@ -61,8 +61,8 @@ const moodOptions = [
 ];
 
 /**
- * Nothing has been chosen, so the default is drawn in italics and there is no
- * reset button. Pick something else and both change.
+ * Nothing has been chosen, so the default is showing and there is no reset
+ * button. Pick something else and the reset appears.
  */
 export const Default: Story = {
     args: {
@@ -73,8 +73,7 @@ export const Default: Story = {
 };
 
 /**
- * Something has been chosen, so the text is upright and the reset button is
- * offered.
+ * Something has been chosen, so the reset button is offered.
  */
 export const Overridden: Story = {
     args: {
@@ -155,6 +154,36 @@ export const RightToLeft: Story = {
                     />
                 </div>
             </DirectionProvider>
+        );
+    },
+};
+
+/**
+ * Every state side by side (design/figma-spec.md 6.4): the outlined trigger showing its default
+ * (drawn like any value: Figma has no default state), a choice of the reader's own with its reset, and disabled. The list opens over the
+ * trigger. Switch light / dark and the contrast mode in the toolbar.
+ */
+export const States: Story = {
+    args: { label: "Shape", defaultValue: "circle", options: [] },
+    render: () => {
+        const options = [
+            { value: "circle", label: "Circle" },
+            { value: "square", label: "Square" },
+        ];
+        return (
+            <StateGrid
+                cells={[
+                    { state: "default", node: <StyleSelect label="Shape" defaultValue="circle" options={options} /> },
+                    {
+                        state: "overridden",
+                        node: <StyleSelect label="Shape" defaultValue="circle" value="square" options={options} />,
+                    },
+                    {
+                        state: "disabled",
+                        node: <StyleSelect label="Shape" defaultValue="circle" options={options} disabled disabledReason="Load data first" />,
+                    },
+                ]}
+            />
         );
     },
 };

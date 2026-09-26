@@ -3,7 +3,7 @@
  * and its key chip.
  *
  * The button obeys spec 04 section 8.2: an `aria-label` equal to the tooltip with the
- * key chip removed, an `aria-hidden` glyph, a tooltip at `TOOLTIP_DELAY_MS`, and a
+ * key chip removed, an `aria-hidden` glyph, a tooltip at the theme's tooltip timing, and a
  * 24 x 24 hit area. A control that cannot act is drawn with `aria-disabled` rather
  * than the `disabled` attribute, so it keeps its tooltip and stays reachable: floor
  * item 4 requires the reason a disabled control is disabled to be readable, and a
@@ -18,7 +18,6 @@ import { PANEL_INK } from "@graphty/compact-mantine";
 import { ActionIcon, Tooltip } from "@mantine/core";
 import React, { forwardRef } from "react";
 
-import { TOOLTIP_DELAY_MS } from "../constants";
 import {
     KEY_CHIP_BORDER_WIDTH,
     KEY_CHIP_FONT_SIZE,
@@ -95,7 +94,7 @@ export const TopBarIconButton = forwardRef<HTMLButtonElement, TopBarIconButtonPr
         } = props;
 
         return (
-            <Tooltip label={title} openDelay={TOOLTIP_DELAY_MS} withinPortal>
+            <Tooltip label={title} withinPortal>
                 <ActionIcon
                     {...rest}
                     ref={ref}

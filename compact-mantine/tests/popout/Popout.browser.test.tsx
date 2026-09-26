@@ -1,7 +1,8 @@
 import { MantineProvider } from "@mantine/core";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { page } from "@vitest/browser/context";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import { Popout, PopoutAnchor, PopoutManager } from "../../src/components/popout";
 import { POPOUT_NESTED_GAP } from "../../src/constants/popout";
@@ -66,6 +67,35 @@ function Sidebar({ children }: { children: React.ReactNode }): React.JSX.Element
 }
 
 describe("Popout geometry (browser)", () => {
+    // A desktop window: a panel is kept on screen (spec 8.4), so on the default narrow test page a
+    // 280px panel beside a 240px sidebar would measure that clamp instead of the docking.
+    beforeAll(async () => {
+        await page.viewport(1280, 800);
+    });
+
+    it("is kept on screen: a panel with no room beside its anchor is moved inside the window", async () => {
+        await page.viewport(400, 800);
+        const user = userEvent.setup();
+        renderPopout(
+            <Sidebar>
+                <Popout>
+                    <Popout.Trigger>
+                        <button>Open narrow</button>
+                    </Popout.Trigger>
+                    <Popout.Panel width={280} header={{ variant: "title", title: "Settings" }}>
+                        <Popout.Content>content</Popout.Content>
+                    </Popout.Panel>
+                </Popout>
+            </Sidebar>,
+        );
+        await user.click(screen.getByRole("button", { name: "Open narrow" }));
+        const panel = await screen.findByRole("dialog");
+        await waitFor(() => {
+            expect(panel.getBoundingClientRect().left).toBe(0);
+        });
+        await page.viewport(1280, 800);
+    });
+
     it("meets the sidebar edge and opens level with the row that opened it", async () => {
         const user = userEvent.setup();
 

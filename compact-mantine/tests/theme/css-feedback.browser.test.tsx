@@ -36,26 +36,26 @@ function getCssVar(element: Element | null, varName: string): string {
 describe("Loader - All CSS Values (Browser)", () => {
     describe("default behavior (size='sm' via defaultProps)", () => {
         describe("root CSS variables", () => {
-            it("--loader-size is 18px", () => {
+            it("--loader-size is 16px (Figma spinner)", () => {
                 const { container } = renderWithTheme(<Loader />);
                 const root = container.querySelector(".mantine-Loader-root");
-                expect(getCssVar(root, "--loader-size")).toBe("18px");
+                expect(getCssVar(root, "--loader-size")).toBe("16px");
             });
         });
 
         describe("computed styles", () => {
-            it("width is 18px", () => {
+            it("width is 16px", () => {
                 const { container } = renderWithTheme(<Loader />);
                 const root = container.querySelector(".mantine-Loader-root");
                 const style = root ? getComputedStyle(root) : null;
-                expect(style?.width).toBe("18px");
+                expect(style?.width).toBe("16px");
             });
 
-            it("height is 18px", () => {
+            it("height is 16px", () => {
                 const { container } = renderWithTheme(<Loader />);
                 const root = container.querySelector(".mantine-Loader-root");
                 const style = root ? getComputedStyle(root) : null;
-                expect(style?.height).toBe("18px");
+                expect(style?.height).toBe("16px");
             });
         });
     });
@@ -91,11 +91,11 @@ describe("Progress - All CSS Values (Browser)", () => {
                 expect(style?.height).toBe("4px");
             });
 
-            it("borderRadius is 4px", () => {
+            it("borderRadius is full (Figma: radius full)", () => {
                 const { container } = renderWithTheme(<Progress value={50} />);
                 const root = container.querySelector(".mantine-Progress-root");
                 const style = root ? getComputedStyle(root) : null;
-                expect(style?.borderRadius).toBe("4px");
+                expect(style?.borderRadius).toBe("9999px");
             });
         });
 

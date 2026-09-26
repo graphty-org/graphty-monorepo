@@ -81,7 +81,7 @@
         "sidebar",
         "property-panel"
     ],
-    "license": "MIT",
+    "license": "MIT AND OFL-1.1",
     "repository": {
         "type": "git",
         "url": "git+https://github.com/graphty-org/graphty-monorepo.git",

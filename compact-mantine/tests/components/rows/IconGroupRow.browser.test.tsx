@@ -9,9 +9,10 @@
  * testing library's own approximation of it is direction-blind, so the only way
  * to know it holds is to press the key in a real browser.
  *
- * The second is the track itself. The row promises a 108px or 224px track of
- * 22px tiles that share the width by what they hold, and every one of those
- * numbers is a layout result rather than a style declaration.
+ * The second is the track itself. The row promises Figma's 88px or 184px track
+ * of 24px faces that share the width equally (design/figma-spec.md 5.2), and
+ * every one of those numbers is a layout result rather than a style
+ * declaration.
  */
 import { DirectionProvider, MantineProvider } from "@mantine/core";
 import { act, cleanup, render, screen } from "@testing-library/react";
@@ -139,7 +140,7 @@ afterEach(() => {
 });
 
 describe.each(DIRECTIONS)("an icon group under dir=%s", (dir) => {
-    it("draws a 108px track of 22px tiles for three options", () => {
+    it("draws an 88px track of 24px faces sharing it equally for three options", () => {
         renderInBand(<IconGroupRow options={SHAPES} label="Node shape" />, dir);
 
         const track = screen.getByTestId("icon-group-track").getBoundingClientRect();
@@ -148,10 +149,10 @@ describe.each(DIRECTIONS)("an icon group under dir=%s", (dir) => {
 
         for (const option of SHAPES) {
             const box = tile(option.label).getBoundingClientRect();
-            expect(Math.round(box.height)).toBe(PANEL_GRID.CONTROL_HEIGHT - 2);
-            // Every tile is inside the track's 1px padding, on both edges.
-            expect(box.top - track.top).toBeCloseTo(1, TOLERANCE);
-            expect(track.bottom - box.bottom).toBeCloseTo(1, TOLERANCE);
+            expect(Math.round(box.height)).toBe(PANEL_GRID.CONTROL_HEIGHT);
+            // The track has no padding: every face is flush with it (Figma 29.3 each).
+            expect(box.top - track.top).toBeCloseTo(0, TOLERANCE);
+            expect(box.width).toBeCloseTo(PANEL_GRID.FIELD / 3, TOLERANCE);
         }
     });
 
@@ -178,19 +179,13 @@ describe.each(DIRECTIONS)("an icon group under dir=%s", (dir) => {
         expect(Math.round(slot.width)).toBe(PANEL_GRID.TRAIL);
     });
 
-    it("paints the selected ground exactly over the selected tile", () => {
-        const { container } = renderInBand(<IconGroupRow options={SHAPES} defaultValue="sphere" />, dir);
+    it("paints the selected face itself, a white face with an inset edge, and no other", () => {
+        renderInBand(<IconGroupRow options={SHAPES} defaultValue="sphere" />, dir);
 
-        const indicator = container.querySelector(".mantine-SegmentedControl-indicator");
-        if (indicator === null) {
-            throw new Error("no indicator drawn");
-        }
-
-        const painted = indicator.getBoundingClientRect();
-        const selected = tile("Sphere").getBoundingClientRect();
-
-        expect(painted.left).toBeCloseTo(selected.left, TOLERANCE);
-        expect(painted.width).toBeCloseTo(selected.width, TOLERANCE);
+        const selected = window.getComputedStyle(tile("Sphere"));
+        expect(selected.backgroundColor).toBe("rgb(255, 255, 255)");
+        expect(selected.boxShadow).toBe("rgb(230, 230, 230) 0px 0px 0px 1px inset");
+        expect(window.getComputedStyle(tile("Box")).backgroundColor).toBe("rgba(0, 0, 0, 0)");
     });
 
     it("gives the named option more of the track than a drawing alone, in hybrid", () => {

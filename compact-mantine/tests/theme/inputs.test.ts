@@ -47,9 +47,19 @@ describe("inputComponentExtensions", () => {
         expect(inputComponentExtensions.JsonInput).toBeDefined();
     });
 
-    it("exports all 12 input components", () => {
+    it("exports NativeSelect extension (spec 6.7: the outlined trigger)", () => {
+        expect(inputComponentExtensions.NativeSelect).toBeDefined();
+    });
+
+    it("exports ColorInput extension (spec 6.7: a filled field with a chit)", () => {
+        expect(inputComponentExtensions.ColorInput).toBeDefined();
+    });
+
+    it("exports all 15 input components", () => {
         const components = Object.keys(inputComponentExtensions);
-        expect(components).toHaveLength(12);
+        expect(components).toHaveLength(15);
+        expect(components).toContain("NativeSelect");
+        expect(components).toContain("ColorInput");
         expect(components).toContain("TextInput");
         expect(components).toContain("NumberInput");
         expect(components).toContain("Select");
@@ -62,5 +72,26 @@ describe("inputComponentExtensions", () => {
         expect(components).toContain("FileInput");
         expect(components).toContain("JsonInput");
         expect(components).toContain("InputClearButton");
+        expect(components).toContain("ComboboxTarget");
+    });
+});
+
+describe("Textarea autosize floor", () => {
+    const vars = inputComponentExtensions.Textarea.vars as unknown as (
+        theme: unknown,
+        props: Record<string, unknown>,
+    ) => { wrapper: Record<string, string> };
+
+    it("keeps the fixed 56px floor without autosize", () => {
+        expect(vars({}, { size: "sm" }).wrapper["--input-height"]).toBe("56px");
+    });
+
+    it("floors an autosize field at its minRows lines", () => {
+        expect(vars({}, { size: "sm", autosize: true, minRows: 2 }).wrapper["--input-height"]).toBe(
+            "calc(2 * var(--input-line-height) + 2 * var(--input-padding-y))",
+        );
+        expect(vars({}, { autosize: true }).wrapper["--input-height"]).toContain("calc(1 *");
+        // What Mantine's Textarea actually hands the styles API while autosizing.
+        expect(vars({}, { maxRows: 4 }).wrapper["--input-height"]).toContain("calc(1 *");
     });
 });

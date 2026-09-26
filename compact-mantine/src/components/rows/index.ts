@@ -2,7 +2,7 @@
  * The ten row types a dense property panel is assembled from, plus the two
  * atoms they are built out of.
  *
- * The set is deliberately closed. Every row of a 280px panel is one of these
+ * The set is deliberately closed. Every row of a 240px panel is one of these
  * shapes, so that a reader learns ten layouts once and then recognises every
  * panel in the application; a row that fits none of them is either part of the
  * panel's own furniture -- a header, a footer, a search box -- or a shape that

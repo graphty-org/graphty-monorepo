@@ -8,6 +8,7 @@ import {
     PANEL_GRID,
     PANEL_INK,
 } from "../src";
+import { StoryState, StoryStates } from "./figma/chrome/StoryPanel";
 
 // Imported from "../src", the package's published entry point, so the stories
 // exercise exactly what a consumer gets from `@graphty/compact-mantine` rather
@@ -48,11 +49,16 @@ const meta: Meta<typeof MetricRow> = {
         layout: "padded",
     },
     decorators: [
-        (Story): React.JSX.Element => (
-            <Box w={PANEL_GRID.WIDTH} p="md" bg="var(--mantine-color-body)">
+        // Every story sits in a 240px panel on the panel ground; States lays out
+        // several panels side by side, so it brings its own.
+        (Story, context): React.JSX.Element =>
+            context.name === "States" ? (
                 <Story />
-            </Box>
-        ),
+            ) : (
+                <Box w={PANEL_GRID.WIDTH} bg="var(--cm-bg)" style={{ paddingInline: "16px 8px" }}>
+                    <Story />
+                </Box>
+            ),
     ],
 };
 
@@ -233,5 +239,22 @@ export const RightToLeft: Story = {
                 </Stack>
             </Box>
         </DirectionProvider>
+    ),
+};
+
+/** The metric row in its states (design/figma-spec.md 9.8): high, low, and with no rank. */
+export const States: Story = {
+    render: () => (
+        <StoryStates>
+            <StoryState name="High" padded>
+                <MetricRow name="Bridges" percentile={98} value="0.31" rank={1} />
+            </StoryState>
+            <StoryState name="Low" padded>
+                <MetricRow name="Leaf" percentile={3} value="0.01" rank={20} />
+            </StoryState>
+            <StoryState name="No rank" padded>
+                <MetricRow name="Hub" percentile={60} value="0.12" />
+            </StoryState>
+        </StoryStates>
     ),
 };

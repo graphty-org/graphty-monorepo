@@ -4,9 +4,11 @@ import { Meta } from "@storybook/blocks";
 
 # The compact theme
 
-`compactTheme` is a complete Mantine theme. It changes three global tokens and
-sets default props and styles on 41 Mantine components, so a component you
-already know renders small without being told to.
+`compactTheme` is a complete Mantine theme that draws Mantine's components the way Figma's
+editor draws its own: 24px controls on an 11px Inter face, neutral greys, a 240px panel,
+dark menus and tooltips in both colour schemes. It needs one line and no other setup -- the
+Inter font, the design tokens and the shared styles are injected by the first themed component
+to render.
 
 ```tsx
 import "@mantine/core/styles.css";
@@ -19,47 +21,63 @@ import { compactTheme } from "@graphty/compact-mantine";
 </MantineProvider>;
 ```
 
-The pages under **Mantine Components** show each restyled component at its new
-default beside `size="md"` and `size="lg"`, so you can see exactly what changes.
+## Light and dark
 
-## What it changes
+Light and dark are Mantine's own colour scheme: `defaultColorScheme`, `forceColorScheme` and
+`useMantineColorScheme` work as they always do, and one theme object serves both. Every colour
+is a CSS custom property (`--cm-bg`, `--cm-text-secondary`, `--cm-bg-brand`, ...) written with
+`light-dark()`, so it follows the `color-scheme` of whatever element uses it. Menus, listboxes,
+tooltips and the toast render dark in both schemes, as Figma's do.
 
-- **`fontSizes`** -- xs 10px, sm 11px, md 13px, lg 14px, xl 16px
-- **`spacing`** -- xs 4px, sm 6px, md 8px, lg 12px, xl 16px
-- **`radius`** -- xs 2px, sm 4px, md 6px, lg 8px, xl 12px
+## The WCAG AA option
 
-Components default to `size="sm"`, which in this theme means a 24px control on
-an 11px face. Inputs are drawn without a border at rest, so a column of them
-reads as a list of values rather than a grid of boxes. Keyboard focus still
-paints a visible ring; a mouse click does not, so the surface stays quiet under
-the pointer.
+The default is exact Figma, and a few of Figma's own colours fall short of WCAG 2.2 AA:
+secondary text on a field, placeholder text, the checkbox border, the focus ring on white, and
+white text on the blue, red and green fills. Pass `highContrast: true` to move exactly those
+tokens to the next darker colour in Figma's palette; nothing else changes, and dividers stay as
+Figma draws them.
 
-Pass `size="md"` or `size="lg"` anywhere and you get Mantine's usual sizes back.
+```tsx
+import { createCompactTheme } from "@graphty/compact-mantine";
 
-## The 41 components
+<MantineProvider theme={createCompactTheme({ highContrast: true })}>
+    <App />
+</MantineProvider>;
+```
 
-**Inputs (12)** TextInput, NumberInput, Select, Textarea, PasswordInput,
-Autocomplete, MultiSelect, TagsInput, PillsInput, FileInput, JsonInput,
-InputClearButton
+The toolbar's **Contrast** control switches every story between the two. The chosen option is
+published as `theme.other.compact.highContrast`. One page renders one contrast mode: two
+providers with different settings on the same page are not supported.
 
-**Buttons (3)** Button, ActionIcon, CloseButton
+## What it sets
 
-**Controls (6)** Switch, Checkbox, Radio, Slider, RangeSlider, SegmentedControl
+- **Type** -- Inter Variable, bundled (SIL Open Font License; the license ships in
+  `dist/fonts/`). Body text 11/16 at weight 450 with 0.055px tracking; emphasis is weight
+  (550, and 600 for top-level layer names), never size or colour.
+- **`fontSizes` / `lineHeights`** -- xs 9/14, sm 11/16, md 13/22, lg 15/25, xl 24/32
+- **`spacing`** -- xs 4px, sm 8px, md 8px, lg 12px, xl 16px (Figma's 4px grid)
+- **`radius`** -- xs 2px, sm and md 5px, lg and xl 13px (menus, popovers, modals)
+- **`shadows`** -- xs to xl are Figma's five elevations
+- **`primaryColor`** -- `brand`, Figma's blue: #0d99ff filled, #007be5 links, #0768cf pressed
+  (#0c8ce9 in dark)
+- **`colors.dark`** -- a neutral ramp: #2c2c2c panels, #383838 fields, #444 hover
+- **Focus** -- Figma's 1px #0d99ff ring on keyboard focus (inside fields, outside buttons).
+  Mantine's own ring is switched off (`focusRing: "never"`).
+- **Motion** -- menus, popovers, tooltips and modals open in one frame; only small state
+  changes (a checkbox tick, a switch knob, a hover colour) animate, for 100ms.
 
-**Display (7)** Badge, Text, Avatar, ThemeIcon, Indicator, Kbd, Pill
+Components default to `size="sm"`, a 24px control. Pass `size="md"` or `size="lg"` for larger.
 
-**Navigation (6)** Tabs, NavLink, Pagination, Stepper, Anchor, Burger
+## Server rendering and shadow roots
 
-**Feedback (3)** Loader, Progress, RingProgress
-
-**Overlays (4)** Menu, Tooltip, Popover, HoverCard
-
-Anything not on this list is untouched and renders at Mantine's own default.
+The stylesheet is injected into `document.head` on the first render. Without a DOM (server
+rendering), put `compactGlobalCss()` in a `<style>` in your document head instead; pass
+`{ highContrast: true }` to get the AA tokens without relying on the page attribute. The same
+string works inside a shadow root.
 
 ## Making it your own
 
-`compactTheme` is already merged with Mantine's default theme, so merge yours on
-top of it:
+`compactTheme` is already merged with Mantine's default theme, so merge yours on top of it:
 
 ```tsx
 import { createTheme, mergeMantineTheme } from "@mantine/core";
@@ -67,42 +85,35 @@ import { compactTheme } from "@graphty/compact-mantine";
 
 const theme = mergeMantineTheme(compactTheme, createTheme({
     primaryColor: "teal",
-    fontFamily: "Inter, sans-serif",
 }));
 ```
 
-If you build your theme from several overrides instead, take
-`compactThemeOverride`. It is the raw `createTheme()` result and goes straight
-into `mergeThemeOverrides()`.
+If you build your theme from several overrides instead, take `compactThemeOverride` (the same
+as `createCompactTheme()`). It goes straight into `mergeThemeOverrides()`.
 
 ## A compact region inside a normal-sized app
 
-`MantineProvider` nests, so an application can stay at its usual size and make
-one region dense -- which is what a sidebar or an inspector usually wants.
+`MantineProvider` nests, so an application can stay at its usual size and make one region
+dense -- which is what a sidebar or an inspector usually wants.
 
 ```tsx
 <MantineProvider>
     <TextInput label="Normal size" />
 
     <MantineProvider theme={compactTheme}>
-        <aside style={{width: 280}}>
+        <aside style={{width: 240}}>
             <TextInput label="Compact" />
         </aside>
     </MantineProvider>
 </MantineProvider>
 ```
 
-## Colour
+## Colour and geometry for your own rows
 
-The theme adds a palette, exported as `compactColors` with its dark scale as
-`compactDarkColors`.
-
-For your own dense rows, reach for `PANEL_INK` rather than a hex. It names one
-colour per role -- `VALUE` for primary text, `CHROME` for secondary,
-`SURFACE`, `RAISED`, `SELECTED`, `ON_SELECTED`, `BORDER`, `ACCENT`,
-`DISABLED`, and a few more -- and every entry is a Mantine CSS variable, so it
-follows the light scheme, the dark scheme and your own primary colour without
-further work.
+Reach for `PANEL_INK` rather than a hex. It names one colour per role -- `VALUE` for primary
+text, `CHROME` for secondary, `SURFACE` for a field, `SELECTED`, `HOVER`, `BORDER`, `ACCENT`,
+`FOCUS`, `MENU`, and more -- and every entry is a `--cm-*` token, so it follows the colour
+scheme and the contrast option without further work.
 
 ```tsx
 import { PANEL_GRID, PANEL_INK } from "@graphty/compact-mantine";
@@ -110,11 +121,5 @@ import { PANEL_GRID, PANEL_INK } from "@graphty/compact-mantine";
 <div style={{height: PANEL_GRID.ROW_PITCH, color: PANEL_INK.CHROME}}>Custom row</div>;
 ```
 
-The panel geometry is published on the theme too, as `theme.other.panelGrid`, so
-code that already has the theme does not need a second import.
-
-## Both schemes, every story
-
-Use the theme control in the toolbar above any story to switch between light and
-dark. Every component in this package is built for both, and both are checked
-for contrast.
+`PANEL_GRID` is the panel's pixel grid: `16 | 88 | 8 | 88 | 8 | 24 | 8` across a 240px panel,
+32px rows, 24px controls. It is also published on the theme as `theme.other.panelGrid`.

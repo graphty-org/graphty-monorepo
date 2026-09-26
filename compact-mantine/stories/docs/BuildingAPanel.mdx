@@ -16,23 +16,23 @@ decides where a control sits, not what the control does.
 
 ## The grid these components keep
 
-A panel is a 280px column, and it is spent like this:
+A panel is Figma's 240px column, and it is spent like this:
 
 ```
-16  +  108  +  8  +  108  +  8  +  24  +  8  =  280
-pad    field  gut   field   gap  trail  pad
+16  +  88  +  8  +  88  +  8  +  24  +  8  =  240
+pad   field  gut  field   gap  trail  pad
 ```
 
 `PANEL_GRID` names every number in it, so your own rows can match without
 retyping them. Three consequences are worth knowing:
 
-- **A field is 108px, or 224px if it is alone.** Those are the only two widths,
+- **A field is 88px, or 184px if it is alone.** Those are the only two widths,
   which is what makes a column of rows line up.
 - **The 24px trailing slot is always drawn**, even when it is empty. Dropping it
   when there is nothing to put in it is what makes one row end 32px short of the
   row above it.
-- **A row is 32px tall**, except toggle rows, which pack at 24px, and data rows,
-  which pack at 28px.
+- **A row is 32px tall**, and so are toggle rows and data rows: a 24px control
+  in a 32px row.
 
 ## Choosing between a section and a group
 

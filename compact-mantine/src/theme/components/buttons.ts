@@ -1,56 +1,59 @@
-import { ActionIcon, Button, CloseButton } from "@mantine/core";
+import { ActionIcon, ActionIconGroup, Button, CloseButton } from "@mantine/core";
+import { createElement } from "react";
 
+import { ButtonSpinner } from "../../components/buttons/ButtonSpinner";
+import { CloseGlyph } from "../../components/buttons/CloseGlyph";
 import {
     compactActionIconScale,
     compactActionIconVariantVars,
     compactButtonScale,
+    compactButtonVariantVars,
     compactCloseButtonScale,
 } from "../styles/buttons";
 import { compactVarsForSize } from "../styles/size-scale";
 
 /**
- * Theme extensions for button components with compact sizing by default.
+ * Theme extensions for the button family, drawn to Figma's measurements (design/figma-spec.md 4).
  *
- * Button and ActionIcon default to size="sm" and CloseButton to size="xs", the
- * tokens their scales in ../styles/buttons.ts mark as compact. Each `vars`
- * resolver reads `props.size` and looks that size up in the component's scale,
- * so an explicitly sized button differs from its neighbours instead of
- * collapsing onto the compact value. Before 2026-09-13 these resolvers took no
- * arguments and returned one frozen object, so xs through xl all rendered
- * identically -- see ../styles/size-scale.ts for the mechanism and the product
- * owner's report.
+ * Each `vars` resolver reads `props.size` (the per-size scale, see ../styles/size-scale.ts) and
+ * `props.variant` / `props.color` (the Figma look for that variant, see ../styles/buttons.ts). The
+ * look is written into Mantine's own colour variables, so Mantine's hover rule and every
+ * consumer's `vars` prop keep working; the states Mantine has no variable for are drawn by the
+ * `cm-*` classes these extensions add, in ../css/buttons.css.ts.
  *
- * `props?.size` is read with optional chaining on purpose: the theme regression
- * suites invoke `extension.vars!()` with no arguments at all, and
- * compactVarsForSize maps an absent size onto the compact entry.
+ * `props?.size` and `theme?.primaryColor` are read with optional chaining because the theme's own
+ * unit tests call `extension.vars!()` with no arguments.
  *
- * The compact values:
- * - Button (sm): --button-height: 24px, --button-fz: 11px
- * - ActionIcon (sm): --ai-size: 24px
- * - CloseButton (xs): --cb-size: 16px, --cb-icon-size: 12px
- *
- * ActionIcon's `variant: "subtle"` default is the compact chrome's resting
- * treatment -- an icon button in a dense panel carries no ground until it is
- * hovered. It changes what an OMITTED variant means (stock Mantine reads an
- * omitted variant as "filled"), so a call site that wants a filled icon has to
- * say `variant="filled"`; the theme leaves Mantine's --ai-bg / --ai-color /
- * --ai-hover derivation intact, so that renders filled in its colour at the
- * compact size.
- *
- * ActionIcon's resolver reads props.variant as well as props.size, because the
- * `light` variant -- the ACTIVE state of every dense toggle -- gets a one-pixel
- * accent border it does not get from Mantine: its tinted ground alone measures
- * 1.21:1 against the panel it sits on and WCAG 2.2 (1.4.11) asks 3:1 of a state
- * boundary. The figures, and why this lives in the shared theme instead of at a
- * call site, are on compactActionIconVariantVars in ../styles/buttons.ts.
+ * - Button: default size sm (24 tall, the label inset 8px, 11/16 weight 450); loading draws
+ *   Figma's 12px ring spinner. Variants: filled
+ *   (primary), default (secondary), subtle (ghost), light, outline (= secondary), and the new
+ *   danger, danger-outline, inverse, success; `color="red"` on filled is danger.
+ * - ActionIcon: default size sm (24) and variant subtle (the ghost). `aria-expanded="true"` or
+ *   `aria-pressed="true"` draws the open / on look, so PopoutButton, AdvancedButton inside a
+ *   Popout trigger, and ToggleIconButton light up without a prop of their own. `light` is Figma's
+ *   "highlighted" look; it no longer draws the 1px accent border older releases added.
+ * - ActionIcon.Group: the joined 88 x 24 bar (4.6); subtle and default icons inside it take the
+ *   joined look.
+ * - CloseButton: default size sm (24 box, 10px X), Figma's ghost colours.
  */
 export const buttonComponentExtensions = {
     Button: Button.extend({
         defaultProps: {
             size: "sm",
+            loaderProps: { size: 16, children: createElement(ButtonSpinner) },
         },
-        vars: (_theme, props) => ({
-            root: compactVarsForSize(compactButtonScale, props?.size),
+        classNames: {
+            root: "cm-button",
+            inner: "cm-button-inner",
+            label: "cm-button-label",
+            section: "cm-button-section",
+            loader: "cm-button-loader",
+        },
+        vars: (theme, props) => ({
+            root: {
+                ...compactVarsForSize(compactButtonScale, props?.size),
+                ...compactButtonVariantVars(props?.variant, props?.color, theme?.primaryColor),
+            },
         }),
     }),
 
@@ -59,18 +62,29 @@ export const buttonComponentExtensions = {
             size: "sm",
             variant: "subtle",
         },
-        vars: (_theme, props) => ({
+        classNames: {
+            root: "cm-action-icon",
+            icon: "cm-action-icon-icon",
+            loader: "cm-action-icon-loader",
+        },
+        vars: (theme, props) => ({
             root: {
                 ...compactVarsForSize(compactActionIconScale, props?.size),
-                ...compactActionIconVariantVars(props?.variant),
+                ...compactActionIconVariantVars(props?.variant, props?.color, theme?.primaryColor),
             },
         }),
     }),
 
+    ActionIconGroup: ActionIconGroup.extend({
+        classNames: { group: "cm-ai-group" },
+    }),
+
     CloseButton: CloseButton.extend({
         defaultProps: {
-            size: "xs",
+            size: "sm",
+            icon: createElement(CloseGlyph),
         },
+        classNames: { root: "cm-close-button" },
         vars: (_theme, props) => ({
             root: compactVarsForSize(compactCloseButtonScale, props?.size),
         }),

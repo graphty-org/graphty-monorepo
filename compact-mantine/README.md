@@ -6,17 +6,21 @@
 
 Compact components and a compact theme for [Mantine 8](https://mantine.dev), for
 interfaces where screen space is the scarce resource: property panels,
-inspectors, sidebars, editors and dashboards.
+inspectors, sidebars, editors and dashboards. The look is measured from the
+Figma editor's own interface, in its light and its dark theme: the same 24px
+controls, the same 11px Inter, the same colours, radii, shadows and timing.
 
 It gives you two things, and you can take either one on its own:
 
-1. **A theme.** Drop `compactTheme` into your `MantineProvider` and 41 Mantine
-   components render at a dense size -- 24px controls, 11px text, tighter
-   spacing -- with no `size` prop anywhere in your code.
-2. **A component library.** About thirty components built for a narrow column:
-   rows that put a value and its label on one 32px line, charts that fit in the
-   height of a line of text, a virtualized data table, and a floating-panel
-   system for the settings that do not fit.
+1. **A theme.** Drop `compactTheme` into your `MantineProvider` and the Mantine
+   components render dense and Figma-accurate -- 24px controls, 11px text,
+   tighter spacing -- with no `size` prop anywhere in your code. The theme ships
+   its own typeface (Inter) and stylesheet, so there is nothing else to set up.
+2. **A component library.** Components built for a narrow column and an editor
+   around it: rows that put a value and its label on one 32px line, charts that
+   fit in the height of a line of text, a virtualized data table, a
+   floating-panel system, and the editor shell -- a floating toolbar, a
+   navigation rail, a quick actions palette and a keyboard shortcuts sheet.
 
 Everything is typed, translatable, keyboard-operable, screen-reader-tested,
 works in light and dark schemes, and works in right-to-left languages.
@@ -33,6 +37,7 @@ works in light and dark schemes, and works in right-to-left languages.
   - [Editing a value](#editing-a-value)
   - [Showing data](#showing-data)
   - [Floating panels](#floating-panels)
+  - [The editor shell](#the-editor-shell)
   - [Glyphs](#glyphs)
 - [A worked example](#a-worked-example)
 - [The panel grid](#the-panel-grid)
@@ -43,6 +48,7 @@ works in light and dark schemes, and works in right-to-left languages.
 - [Accessibility](#accessibility)
 - [TypeScript](#typescript)
 - [Which one should I use?](#which-one-should-i-use)
+- [Breaking changes in the Figma release](#breaking-changes-in-the-figma-release)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -76,8 +82,8 @@ export function App() {
             <TextInput label="Project name" />
             <Button>Save</Button>
 
-            {/* This package's own components, for a 280px panel. */}
-            <div style={{width: 280}}>
+            {/* This package's own components, for a 240px panel. */}
+            <div style={{width: 240}}>
                 <ControlSection label="Node size">
                     <FieldRow>
                         <PanelField label="Smallest" glyph="sizeSmallest" defaultValue="1.0" />
@@ -91,47 +97,134 @@ export function App() {
 }
 ```
 
-That is the whole setup. Two further providers are optional and are introduced
-where they matter: [`PopoutManager`](#floating-panels) if you use pop-outs, and
-[`LabelsProvider`](#internationalization) if you translate the library's
+That is the whole setup: the theme puts its stylesheet (the Inter typeface, the
+colour tokens and the component rules) on the page the first time a themed
+component renders. Three further pieces are optional and are introduced where
+they matter: [`Tooltip.Group`](#tooltips-wrap-your-app-once) around your app for
+Figma's tooltip timing, [`PopoutManager`](#floating-panels) if you use pop-outs,
+and [`LabelsProvider`](#internationalization) if you translate the library's
 strings.
 
 ## The compact theme
 
-`compactTheme` is a complete Mantine theme. It changes three global tokens and
-sets default props and styles on 41 Mantine components, so that a component you
-already know renders small without being told to.
+`compactTheme` is a complete Mantine theme, already merged with Mantine's
+default, that draws every component the way the Figma editor draws its own.
+Light and dark are Mantine's own colour scheme (`defaultColorScheme`,
+`forceColorScheme`, `useMantineColorScheme`); one theme serves both, and the dark
+scheme uses Figma's neutral greys (#2c2c2c panels, #383838 fields).
 
 | Token | Values |
 |-------|--------|
-| `fontSizes` | xs 10px, sm 11px, md 13px, lg 14px, xl 16px |
-| `spacing` | xs 4px, sm 6px, md 8px, lg 12px, xl 16px |
-| `radius` | xs 2px, sm 4px, md 6px, lg 8px, xl 12px |
+| `fontSizes` / `lineHeights` | xs 9/14, sm 11/16, md 13/22, lg 15/25, xl 24/32 |
+| `spacing` | xs 4px, sm 8px, md 8px, lg 12px, xl 16px |
+| `radius` | xs 2px, sm 5px, md 5px, lg 13px, xl 13px |
+| `shadows` | xs to xl map onto Figma's five elevations |
+| `primaryColor` | `brand`: #0d99ff for filled surfaces, #007be5 for links |
 
-Inputs default to a 24px height and an 11px face, and are drawn without a
-border at rest so that a column of them reads as a list of values rather than a
-grid of boxes. Keyboard focus still paints a visible ring; a mouse click does
-not, so the surface stays quiet under the pointer.
+Every colour is a CSS custom property named `--cm-*` (for example `--cm-bg`,
+`--cm-text-secondary`, `--cm-bg-brand`), written with the CSS `light-dark()`
+function, so it resolves from the colour scheme of the element that uses it. A
+subtree that has to render dark inside a light app -- a menu, a tooltip, the
+shortcuts sheet -- sets `color-scheme: dark` and every token inside it follows.
+Read the tokens in your own CSS; `PANEL_INK` (see [the panel grid](#the-panel-grid))
+names the ones a panel row uses.
+
+Controls are 24px tall with an 11px face. Fields are drawn filled and without a
+border at rest, outlined on hover and ringed on focus. The focus ring is Figma's:
+1px, keyboard focus only (number and text fields ring on any focus), inside a
+field and outside a button. Menus, list boxes and tooltips are dark in both
+schemes. Overlays open and close in one frame, with no fade.
+
+### The bundled typeface
+
+The theme sets Inter (the variable font, latin subset) and ships it inside the
+package, inlined into the stylesheet, so Figma's 450, 550 and 600 weights render
+exactly with no font setup and no network request. Inter is licensed under the
+SIL Open Font License 1.1; the license text is in `dist/fonts/LICENSE-Inter.txt`.
+To use another face, set `fontFamily` in a theme merged over this one.
+
+### `createCompactTheme` and the WCAG AA option
+
+`compactTheme` is exact Figma. Figma's secondary text, field boundaries and
+checkbox edges fall short of WCAG 2.2 AA contrast, so the theme has an option
+that raises them:
+
+```tsx
+import { createCompactTheme } from "@graphty/compact-mantine";
+
+<MantineProvider theme={createCompactTheme({ highContrast: true })}>{children}</MantineProvider>;
+```
+
+`highContrast` changes colour tokens only -- nothing moves. It darkens secondary
+text and icons (50% to 55% black, 4.7:1), raises checkbox, switch and field
+boundaries to 3:1 (fields gain a 1px inside edge), gives the selected segment of
+a segmented control a 3:1 edge, and darkens placeholder text, the focus ring,
+links and the brand, danger and success fills to the next darker colour in
+Figma's own palette. Dividers stay as Figma draws them. `createCompactTheme()`
+with no options is `compactThemeOverride`, and the options it was built with are
+published on `theme.other.compact`.
+
+### Tooltips: wrap your app once
+
+Tooltips follow Figma's timing: the first one opens after 1000ms, and while one
+is showing, or for 300ms after it closes, the next one opens at once. That
+hand-off needs Mantine's `Tooltip.Group` around everything that has tooltips,
+and a theme cannot add a provider, so wrap your app once:
+
+```tsx
+import { MantineProvider, Tooltip } from "@mantine/core";
+
+<MantineProvider theme={compactTheme}>
+    <Tooltip.Group>
+        <App />
+    </Tooltip.Group>
+</MantineProvider>;
+```
+
+The theme gives `Tooltip.Group` the right delays, so it needs no props. Do not
+nest a second group inside: tooltips inside it would stop sharing the warmth.
+No component in this package nests one, so the warm hand-off crosses the whole
+shell: from a toolbar tooltip to a rail button, to the help button, and back.
+The price is that inside a group Mantine ignores a tooltip's own `openDelay`
+and `closeDelay`. Figma opens rail tooltips after 500ms and shows and hides the
+help button's at once; `RailButton` and `HelpButton` keep those timings when
+there is no group, and take the group's 1000ms / 300ms when cold inside one.
+Tooltips keep their `aria-describedby` link, so screen readers still hear them.
+
+### Stylesheet, SSR and shadow roots
+
+The stylesheet is injected into `document.head` when the theme is created
+(and again, if something removed it, when a themed component renders). For server rendering, put `compactGlobalCss()` (or
+`compactGlobalCss({ highContrast: true })`) in a `<style>` in your document head.
+For a shadow root, call `ensureCompactStyles()` or append `compactGlobalCss()` to
+the root yourself. Mantine's own `@mantine/core/styles.css` is still required,
+imported before this package's stylesheet as in the quick start.
 
 ### Components the theme restyles
 
 Pass no `size` prop and these render compact. Pass `size="md"` or `size="lg"`
-and you get Mantine's usual sizes back.
+and you get larger sizes back.
 
 | Group | Components |
 |-------|------------|
-| Inputs (12) | TextInput, NumberInput, Select, Textarea, PasswordInput, Autocomplete, MultiSelect, TagsInput, PillsInput, FileInput, JsonInput, InputClearButton |
-| Buttons (3) | Button, ActionIcon, CloseButton |
-| Controls (6) | Switch, Checkbox, Radio, Slider, RangeSlider, SegmentedControl |
-| Display (7) | Badge, Text, Avatar, ThemeIcon, Indicator, Kbd, Pill |
-| Navigation (6) | Tabs, NavLink, Pagination, Stepper, Anchor, Burger |
-| Feedback (3) | Loader, Progress, RingProgress |
-| Overlays (4) | Menu, Tooltip, Popover, HoverCard |
+| Inputs | TextInput, NumberInput, Select, NativeSelect, Textarea, PasswordInput, Autocomplete, MultiSelect, TagsInput, PillsInput, FileInput, JsonInput, ColorInput, InputClearButton |
+| Buttons | Button, ActionIcon, CloseButton |
+| Controls | Switch, Checkbox, Radio, Slider, RangeSlider, SegmentedControl |
+| Colour | ColorSwatch, ColorPicker, HueSlider, AlphaSlider |
+| Display | Badge, Text, Avatar, Avatar.Group, ThemeIcon, Indicator, Kbd, Pill |
+| Navigation | Tabs, NavLink, Pagination, Stepper, Anchor, Burger |
+| Feedback | Loader, Progress, RingProgress, Notification |
+| Overlays | Menu, Tooltip, Tooltip.Group, Popover, HoverCard, Modal, ScrollArea |
+
+A few defaults are worth knowing: `Badge` defaults to the outlined look
+(`variant="filled"` and `"light"` are the brand looks); `Kbd` is Figma's dark key
+cap in both schemes (`size="md"` for the large cap, `variant="inline"` for a
+light cap in running text, `mod={{ active: true }}` to light it); `Select`
+defaults to the outlined trigger; `Tabs` defaults to pills.
 
 ### Making it your own
 
-`compactTheme` is a full theme, already merged with Mantine's default. Merge
-your own on top of it:
+Merge your own theme on top of the compact one:
 
 ```tsx
 import { createTheme, MantineProvider, mergeMantineTheme } from "@mantine/core";
@@ -139,15 +232,14 @@ import { compactTheme } from "@graphty/compact-mantine";
 
 const theme = mergeMantineTheme(compactTheme, createTheme({
     primaryColor: "teal",
-    fontFamily: "Inter, sans-serif",
 }));
 
 <MantineProvider theme={theme}>{children}</MantineProvider>;
 ```
 
 If you already build your theme from several overrides, take
-`compactThemeOverride` instead. It is the raw `createTheme()` result, suitable
-for `mergeThemeOverrides()`:
+`compactThemeOverride` (or `createCompactTheme(options)`) instead. It is the raw
+`createTheme()` result, suitable for `mergeThemeOverrides()`:
 
 ```tsx
 import { createTheme, mergeThemeOverrides } from "@mantine/core";
@@ -155,6 +247,11 @@ import { compactThemeOverride } from "@graphty/compact-mantine";
 
 const override = mergeThemeOverrides(compactThemeOverride, createTheme({primaryColor: "teal"}));
 ```
+
+Merge component extensions with care: `mergeThemeOverrides` replaces a
+component's `vars` or `styles` function rather than composing it, so an override
+of a component this theme already extends discards the compact treatment. Adjust
+such a component through its props, `classNames` or the `--cm-*` tokens instead.
 
 ### A compact region inside a normal-sized app
 
@@ -166,16 +263,16 @@ make one region dense -- which is the common case for a sidebar or an inspector.
     <TextInput label="Normal size" />
 
     <MantineProvider theme={compactTheme}>
-        <aside style={{width: 280}}>
+        <aside style={{width: 240}}>
             <TextInput label="Compact" />
         </aside>
     </MantineProvider>
 </MantineProvider>
 ```
 
-Also exported: `compactColors` (the palette this theme adds) and
-`compactDarkColors` (its dark scale), if you want to reuse the colours
-elsewhere.
+Also exported: `compactColors` (the palettes this theme adds), `compactDarkColors`
+(its neutral dark scale) and `compactBrandColors` (the brand scale), if you want
+to reuse the colours elsewhere.
 
 ## The components
 
@@ -246,7 +343,7 @@ import { Popout, PopoutButton, PopoutManager, UiGlyph } from "@graphty/compact-m
             <Popout.Trigger>
                 <PopoutButton icon={<UiGlyph name="gear" />} aria-label="Display settings" />
             </Popout.Trigger>
-            <Popout.Panel width={280} header={{variant: "title", title: "Display settings"}}>
+            <Popout.Panel width={240} header={{variant: "title", title: "Display settings"}}>
                 <Popout.Content>{/* anything */}</Popout.Content>
             </Popout.Panel>
         </Popout>
@@ -275,6 +372,75 @@ Where a panel opens is set by two independent props on `Popout.Panel`:
 defaults are the arrangement most sidebars want: flush with the panel's edge,
 level with the row that opened it.
 
+### More Figma components
+
+| Component | What it is |
+|-----------|------------|
+| `ToggleIconButton` | An icon button that stays pressed (`aria-pressed`), such as a lock or a visibility eye. |
+| `SplitButton` | Two icon buttons joined into one control: a main action and a chevron that opens a menu of related choices. |
+| `AlignmentMatrix` | The 3 x 3 alignment grid: nine radios with two-dimensional arrow-key movement. `ALIGNMENT_MATRIX_VALUES` lists its values. |
+| `SearchInput` | The filled search field with a leading magnifier and a clear button. |
+| `ComboInput` | A value you can type, with a chevron that opens a dark list of presets over the field (font size, gap, export scale). |
+| `VariablePill` | A value bound to a named variable, drawn as a pill inside a field, with a Detach button on hover. |
+| `ColorPickerPanel` | Figma's colour picker (the panel `CompactColorInput` opens), usable on its own. |
+| `ContextMenu` | A dark menu opened at the pointer by a right-click, or from the keyboard with Shift+F10 or the ContextMenu key. |
+| `MenuCheckItem` | A checkable row for a Mantine `Menu`, with the check column. |
+| `TooltipShortcut` | A tooltip label with its keyboard shortcut after it. |
+| `ModalFooter` | The footer row of a Mantine `Modal`: its action buttons, end-aligned. |
+| `Toast`, `ToastProvider`, `useToast` | Figma's dark toast: put one `ToastProvider` near the root and call `useToast()` to show one. |
+| `ResizeHandle` | A panel's resize edge: drag it, use the arrow keys, or double-click to return to the default size. |
+| `Tree`, `TreeItem` | The layer tree: a real ARIA tree with arrow keys, F2 to rename and drag to reorder. |
+| `PageList`, `PageRow` | The page list above the layer tree. |
+| `InlineRename` | The in-place rename field a tree or page row turns into. |
+| `ResultRow` | One row of find results. |
+
+Variants the theme adds to Mantine components (pass them as `variant`): `Button`
+`danger`, `danger-outline`, `inverse`, `success`; `ActionIcon` `joined` (inside a
+themed `ActionIcon.Group`); `Checkbox` `neutral` (Figma's panel checkbox; the
+default is the blue dialog checkbox); `SegmentedControl` `toolbar` (the sliding
+mode switch) and `loose`; `Anchor` `secondary`; `Tabs` `default` (the underline
+tabs; pills are the default).
+
+### The editor shell
+
+The chrome around an editor's canvas, as Figma draws it. Each one is a real
+toolbar, dialog or tab list: one Tab stop, arrow keys inside, names for screen
+readers.
+
+| Component | What it is |
+|-----------|------------|
+| `Toolbar` | The floating bottom toolbar: 48 tall, 13px corners, one Tab stop with ArrowLeft / ArrowRight / Home / End inside. `floating` pins it to the bottom centre of the window. `Toolbar.Divider` is its full-height rule. |
+| `ToolButton` | A 32 x 32 tool: `label` (its name and tooltip), `icon`, `shortcut`, and `selected` for the current tool. |
+| `ToolGroup` | A tool with a flyout: the face shows the last tool picked, and the chevron beside it opens a dark menu of the group's tools above the toolbar. Give it `tools`, the toolbar's `activeTool` and `onToolChange`; `chevronProps` passes attributes to the chevron button. |
+| `SecondaryToolbar` | The contextual 40-tall bar that appears above the toolbar while a mode is active, with `SecondaryToolbar.Button` and `SecondaryToolbar.Divider`. Give a button `dropdown` when it opens a menu (Figma's "More"): it gets a trailing chevron, and inside `Menu.Target` it draws the open state. |
+| `NavRail` | The 56-wide navigation rail at the window's edge, one Tab stop with ArrowUp / ArrowDown inside; `footer` pins buttons to its foot, `NavRail.Separator` divides it. |
+| `RailButton` | A rail destination: a 32 x 32 pill over a 9px caption; `aria-expanded` (or `active`) lights it while its panel is open. |
+| `HelpButton` | The round floating help button; its children are the items of the dark menu it opens. |
+| `ShortcutSheet` | The keyboard shortcuts sheet docked at the window's foot: tabs of shortcut columns with dark key caps. Arrow keys switch tabs; Escape closes it. A tab with `variant: "essential"` draws Figma's first tab instead of the list: its `caption` above numbered columns, large key caps, and each entry's `description` under its label. |
+| `QuickActions` | The quick actions palette: a search field over sectioned rows. Typing filters, ArrowUp / ArrowDown move the highlight while focus stays in the field, Enter runs, Escape closes. |
+
+```tsx
+import { SegmentedControl } from "@mantine/core";
+import { useState } from "react";
+import { Toolbar, ToolButton, ToolGroup } from "@graphty/compact-mantine";
+
+function EditorToolbar() {
+    const [tool, setTool] = useState("move");
+    return (
+        <Toolbar aria-label="Editor" floating>
+            <ToolGroup label="Move tools" tools={moveTools} activeTool={tool} onToolChange={setTool} />
+            <ToolGroup label="Shape tools" tools={shapeTools} activeTool={tool} onToolChange={setTool} />
+            <ToolButton label="Actions" icon={<ActionsGlyph />} shortcut="Ctrl+K" />
+            <Toolbar.Divider />
+            <SegmentedControl variant="toolbar" data={modes} />
+        </Toolbar>
+    );
+}
+```
+
+The shell brings no glyphs of its own for your tools: pass your own icons,
+drawn to sit in a 24px box.
+
 ### Glyphs
 
 The premise of the row components is that a small drawing can replace a word,
@@ -283,8 +449,10 @@ them:
 
 - `FieldGlyph` -- the eight glyphs allowed inside a field's 16px slot, each with
   a hollow and a filled form. `FIELD_GLYPH_NAMES` lists them.
-- `UiGlyph` -- the fifteen shared marks the components draw elsewhere: chevrons,
-  a gear, a close, a plus, a check, a warning. `UI_GLYPH_NAMES` lists them.
+- `UiGlyph` -- the shared marks the components draw elsewhere: chevrons and
+  carets, a gear, a close, a plus, a check, a warning, the alignment and
+  transform verbs, and the frame, rectangle, ellipse and text shapes, each drawn
+  with a 1px stroke at any size. `UI_GLYPH_NAMES` lists them.
 
 Both take a `name` and an optional `size`, draw in `currentColor`, and are
 hidden from screen readers, because the control around them carries the name.
@@ -370,12 +538,12 @@ user setting is recommended; nothing in the library requires it.
 
 ## The panel grid
 
-The row components are laid out for a 280px column, and they all measure
-themselves from one exported object so that a column of them lines up:
+The row components are laid out for Figma's 240px panel column, and they all
+measure themselves from one exported object so that a column of them lines up:
 
 ```
-16  +  108  +  8  +  108  +  8  +  24  +  8  =  280
-pad    field  gut   field   gap  trail  pad
+16  +  88  +  8  +  88  +  8  +  24  +  8  =  240
+pad   field  gut  field   gap  trail  pad
 ```
 
 `PANEL_GRID` names every number in it -- `WIDTH`, `FIELD`, `BODY`,
@@ -384,10 +552,10 @@ match without retyping them. It is also published on the theme as
 `theme.other.panelGrid`.
 
 `PANEL_INK` is the matching colour map: one entry per role a row paints
-(`VALUE`, `CHROME`, `SURFACE`, `ACCENT`, `BORDER`, `SELECTED`, `DISABLED` and
-so on), each one a Mantine CSS variable rather than a fixed colour. Paint your
-own rows from it and they follow the light scheme, the dark scheme and your
-primary colour for free.
+(`VALUE`, `CHROME`, `SURFACE`, `ACCENT`, `BORDER`, `SELECTED`, `HOVER`,
+`FOCUS`, `DISABLED` and so on), each one a `--cm-*` token rather than a fixed
+colour. Paint your own rows from it and they follow the light scheme, the dark
+scheme and the AA option for free.
 
 ```tsx
 import { PANEL_GRID, PANEL_INK } from "@graphty/compact-mantine";
@@ -395,7 +563,7 @@ import { PANEL_GRID, PANEL_INK } from "@graphty/compact-mantine";
 <div style={{height: PANEL_GRID.ROW_PITCH, color: PANEL_INK.CHROME}}>Custom row</div>;
 ```
 
-You do not have to use a 280px column. Nothing enforces the width; the numbers
+You do not have to use a 240px column. Nothing enforces the width; the numbers
 are there so that the components agree with each other and with anything you
 write beside them.
 
@@ -574,6 +742,15 @@ as a set of props you must remember:
   keyboard behaviour, focus order and disabled semantics come from the platform.
 - **Keyboard focus is always visible**, and pointer focus is not, so a dense
   surface stays quiet under the mouse without giving up the focus indicator.
+- **Exact Figma by default, AA on request.** Figma's own contrast falls short
+  of AA in a few places (secondary text, field and checkbox edges); pass
+  `createCompactTheme({ highContrast: true })` to raise exactly those. See
+  [the WCAG AA option](#createcompacttheme-and-the-wcag-aa-option).
+- **Accessibility kept beyond Figma.** Tooltips stay linked with
+  `aria-describedby`; the toolbar, the rail and the shortcuts sheet are real
+  toolbars and tab lists with arrow-key movement; the quick actions palette is a
+  named dialog with a combobox and a list box; the shortcuts sheet closes with
+  Escape.
 - **State is announced, not only drawn.** Expanded, checked, selected, disabled,
   busy and current are all exposed as ARIA in addition to colour.
 - **Charts are one named image with a hidden table behind them**, so a screen
@@ -644,6 +821,64 @@ Every component puts its own name, in kebab case, on a root `data-testid` --
 `advanced-button`, `metric-row`, `popout-panel` -- so a test can find any of
 them the same way.
 
+## Breaking changes in the Figma release
+
+compact-mantine is 0.x, and this release changes how things look and measure.
+Every export keeps its name and its props; these are the changes a consumer can
+notice:
+
+1. **Panel grid.** `PANEL_GRID.WIDTH` 280 -> 240, `FIELD` 108 -> 88, and
+   `CONTENT`, `BODY`, `TRIPLE`, `TRIPLE_GAP`, `TOGGLE_PITCH`, `DATA_PITCH`,
+   `SECTION_HEADER`, `SECTION_PAD_BOTTOM`, `GLYPH_SLOT`, `GLYPH`, `CHEVRON` and
+   `LABEL_COLUMN` change value. Code that hard-codes a 280px panel around these
+   rows must follow `PANEL_GRID.WIDTH`.
+2. **Ink.** `PANEL_INK.SELECTED` / `ON_SELECTED` now mean Figma's selected item
+   (a pale blue ground with a brand glyph), not an inverted solid patch; every
+   `PANEL_INK` value is now a `--cm-*` token.
+3. **Theme scales.** `spacing.sm` 6 -> 8; `radius.sm` / `md` 4 / 6 -> 5, `lg` /
+   `xl` 8 / 12 -> 13; `fontSizes.xs` 10 -> 9, `lg` 14 -> 15, `xl` 16 -> 24;
+   `lineHeights` are now px; `shadows` are Figma's elevations.
+4. **Colours.** `colors.dark` is a neutral ramp (no more blue-grey), and
+   `primaryColor` is the new `brand` palette. Components that passed
+   `color="blue"` expecting the primary colour now get Mantine's blue.
+5. **Focus.** `focusRing` is `"never"` and the ring is the theme's own 1px ring;
+   a consumer's own `focusRing` no longer controls compact-mantine components.
+6. **Motion and timing.** Overlays have no transitions, and a tooltip opens
+   after 1000ms (it was immediate). Wrap your app in `Tooltip.Group` for the
+   warm hand-off.
+7. **Select and Tabs.** `Select` defaults to the outlined trigger and its
+   dropdown is the dark list box opening over the trigger; `Tabs` defaults to
+   `variant="pills"`.
+8. **ActionIcon.** `variant="light"` no longer draws a 1px accent border; the
+   brand glyph on the selected ground carries the state.
+9. **Colour inputs.** `CompactColorInput`'s swatch becomes a 14px chit inside one
+   156px field; `GradientEditor` replaces its per-stop sliders with a gradient
+   bar and stop rows.
+10. **Sections and rows.** `ControlSection` draws its divider below and its
+    header is 40 tall; `ControlGroup`'s title is the legend style; `FieldRow`
+    puts captions above by default (`labelPosition="inline"` restores beside).
+11. **Data.** `DataRow` is 32 tall with 11px names (was 28 / 12px), and
+    `DataTable` draws a cell grid.
+12. **Pop-outs.** `POPOUT_GAP` 8 -> 0, `POPOUT_NESTED_GAP` 4 -> 0; opening a root
+    pop-out closes the open one.
+13. **Typeface.** The body font becomes Inter 11/16 at weight 450 wherever the
+    stylesheet is injected. `<Text size="sm">` and `size="xs"` render at weight
+    450 with Figma's letter-spacing (Mantine's Text was weight 400); `fw` still
+    overrides it.
+14. **IconGroupRow** loses its inverted selected tile (Figma's white face with an
+    inset edge).
+15. **Pop-out details.** `PopoutRegion` no longer lets one pop-out stay open per
+    region; `PopoutButton` defaults to size `sm` (24px) and shows its open state
+    as the ghost button's `aria-expanded` look instead of switching to
+    `variant="light"`; a pop-out's tab header is pill `Tabs` (role `tab`)
+    instead of a `SegmentedControl` (role `radio`).
+16. **Overlays.** A tooltip sits below its trigger by default; `Modal` has no
+    backdrop by default; `Loader` at `sm` is 16px (was 18).
+17. **Display components.** `Badge` defaults to the outlined 16px look
+    (`variant="outline"`), `Pill` is 20 tall, `Indicator` is a 9px dot with a
+    ring (`withBorder` on by default), `Kbd` is a dark key cap in both schemes,
+    and `Avatar` defaults to `variant="filled"`.
+
 ## Contributing
 
 The package lives in the [graphty monorepo](https://github.com/graphty-org/graphty-monorepo)
@@ -694,4 +929,5 @@ Bugs and questions: <https://github.com/graphty-org/graphty-monorepo/issues>.
 
 ## License
 
-MIT
+MIT. The bundled Inter typeface is licensed under the SIL Open Font License 1.1
+(`dist/fonts/LICENSE-Inter.txt`).

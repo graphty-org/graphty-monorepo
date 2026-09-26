@@ -10,6 +10,7 @@ import {
     PANEL_GRID,
     SparklineRow,
 } from "../src";
+import { StoryState, StoryStates } from "./figma/chrome/StoryPanel";
 
 // Imported from "../src", the package's published entry point, so the stories
 // exercise exactly what a consumer gets from `@graphty/compact-mantine` rather
@@ -59,11 +60,16 @@ const meta: Meta<typeof HistogramRow> = {
         layout: "padded",
     },
     decorators: [
-        (Story) => (
-            <Box w={PANEL_GRID.WIDTH} p="md" bg="var(--mantine-color-body)">
+        // Every story sits in a 240px panel on the panel ground; States lays out
+        // several panels side by side, so it brings its own.
+        (Story, context): React.JSX.Element =>
+            context.name === "States" ? (
                 <Story />
-            </Box>
-        ),
+            ) : (
+                <Box w={PANEL_GRID.WIDTH} bg="var(--cm-bg)" style={{ paddingInline: "16px 8px" }}>
+                    <Story />
+                </Box>
+            ),
     ],
 };
 
@@ -254,5 +260,23 @@ export const WithTheOtherChartRows: Story = {
                 <MetricRow name="Betweenness" percentile={41} value="0.04" rank="#12" />
             </Stack>
         </Stack>
+    ),
+};
+
+/**
+ * The chart rows on tokens (design/figma-spec.md 9.8): bars in the secondary icon ink, the
+ * highlighted bin in the brand fill, the baseline in the divider ink, axis ends in the body role.
+ */
+export const States: Story = {
+    render: () => (
+        <StoryStates>
+            <StoryState name="Histogram" padded>
+                <HistogramRow bins={DEGREES} minLabel="2" maxLabel="6" />
+            </StoryState>
+            <StoryState name="Sparkline and metric" padded>
+                <SparklineRow values={[1, 4, 2, 8, 6, 7]} minLabel="Tick 1" maxLabel="Tick 6" />
+                <MetricRow name="Bridges" percentile={98} value="0.31" rank={1} />
+            </StoryState>
+        </StoryStates>
     ),
 };

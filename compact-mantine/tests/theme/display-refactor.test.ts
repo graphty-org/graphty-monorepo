@@ -73,15 +73,23 @@ describe("Display Component Extensions (Refactored)", () => {
             expect(extension.vars).toBeDefined();
             expect(typeof extension.vars).toBe("function");
             const vars = extension.vars!();
-            expect(vars.root["--badge-height"]).toBe("14px");
-            expect(vars.root["--badge-fz"]).toBe("9px");
+            // Figma's "Beta" badge: 16 tall, 11px, radius 5, the outline look by default.
+            expect(vars.root["--badge-height"]).toBe("16px");
+            expect(vars.root["--badge-fz"]).toBe("11px");
+            expect(vars.root["--badge-radius"]).toBe("5px");
+            expect(vars.root["--badge-bg"]).toBe("transparent");
+            expect(vars.root["--badge-color"]).toBe("var(--cm-text)");
         });
 
-        it("Text does NOT have vars (uses global fontSizes from theme)", () => {
-            const extension = displayComponentExtensions.Text;
-            // Text uses the theme's global fontSizes (compactFontSizes) instead of
-            // component-level vars. This allows size="xs", "sm", "md", etc. to work.
-            expect(extension.vars).toBeUndefined();
+        it("Text's vars set only the body / caption weight and spacing (sizes stay the theme's fontSizes)", () => {
+            const vars = displayComponentExtensions.Text.vars as unknown as (
+                theme: unknown,
+                props: { size?: string },
+            ) => { root: Record<string, string> };
+            expect(vars({}, { size: "sm" }).root).toEqual({ "--cm-text-fw": "450", "--cm-text-ls": "0.055px" });
+            expect(vars({}, { size: "xs" }).root).toEqual({ "--cm-text-fw": "450", "--cm-text-ls": "0.045px" });
+            expect(vars({}, { size: "md" }).root).toEqual({});
+            expect(vars({}, {}).root).toEqual({});
         });
 
         it("Avatar has vars function that returns avatar variables", () => {
@@ -105,7 +113,9 @@ describe("Display Component Extensions (Refactored)", () => {
             expect(extension.vars).toBeDefined();
             expect(typeof extension.vars).toBe("function");
             const vars = extension.vars!();
-            expect(vars.root["--indicator-size"]).toBe("8px");
+            // A 5px dot in a 2px ring: 9px.
+            expect(vars.root["--indicator-size"]).toBe("9px");
+            expect(vars.root["--indicator-color"]).toBe("var(--cm-bg-brand)");
         });
 
         it("Kbd has vars function that returns kbd variables", () => {
@@ -113,7 +123,8 @@ describe("Display Component Extensions (Refactored)", () => {
             expect(extension.vars).toBeDefined();
             expect(typeof extension.vars).toBe("function");
             const vars = extension.vars!();
-            expect(vars.root["--kbd-fz"]).toBe("10px");
+            expect(vars.root["--kbd-fz"]).toBe("11px");
+            expect(vars.root["--kbd-height"]).toBe("25px");
         });
 
         it("Pill has vars function that returns pill variables", () => {
@@ -121,8 +132,10 @@ describe("Display Component Extensions (Refactored)", () => {
             expect(extension.vars).toBeDefined();
             expect(typeof extension.vars).toBe("function");
             const vars = extension.vars!();
-            expect(vars.root["--pill-height"]).toBe("16px");
-            expect(vars.root["--pill-fz"]).toBe("10px");
+            // The variable-pill shape: 20 tall, 11px, radius 5.
+            expect(vars.root["--pill-height"]).toBe("20px");
+            expect(vars.root["--pill-fz"]).toBe("11px");
+            expect(vars.root["--pill-radius"]).toBe("5px");
         });
     });
 });

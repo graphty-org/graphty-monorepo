@@ -91,9 +91,10 @@ describe("HistogramRow", () => {
 
             const [two, three] = screen.getAllByTestId("histogram-bar");
             expect(three).toHaveAttribute("data-highlighted", "true");
-            expect(three.style.background).toContain("primary-color-filled");
+            expect(three.style.background).toBe(PANEL_INK.ACCENT);
             expect(two).toHaveAttribute("data-highlighted", "false");
-            expect(two.style.background).toBe(PANEL_INK.BORDER);
+            // Bars read in the secondary icon ink (spec 9.8); the divider ink is too faint.
+            expect(two.style.background).toBe("var(--cm-icon-secondary)");
         });
 
         it("keeps a non-zero count visible however small it is beside the tallest bin", () => {
@@ -169,9 +170,9 @@ describe("HistogramRow", () => {
             const max = screen.getByTestId("chart-axis-max");
             expect(min).toHaveTextContent("2");
             expect(max).toHaveTextContent("4");
-            expect(min.style.color).toBe(PANEL_INK.CHROME);
-            expect(max.style.color).toBe(PANEL_INK.CHROME);
-            expect(min.style.fontSize).toContain("font-size-sm");
+            // 11/16 450 secondary, from the cm-chart-text class.
+            expect(min).toHaveClass("cm-chart-text");
+            expect(max).toHaveClass("cm-chart-text");
         });
 
         it("stands on a 1px baseline", () => {
@@ -421,8 +422,8 @@ describe("SparklineRow", () => {
             const max = screen.getByTestId("chart-axis-max");
             expect(min).toHaveTextContent("Tick 1");
             expect(max).toHaveTextContent("Tick 20");
-            expect(min.style.color).toBe(PANEL_INK.CHROME);
-            expect(max.style.color).toBe(PANEL_INK.CHROME);
+            expect(min).toHaveClass("cm-chart-text");
+            expect(max).toHaveClass("cm-chart-text");
         });
 
         it("stands on the same 1px baseline the histogram does", () => {
@@ -631,7 +632,7 @@ describe("MetricRow", () => {
             const track = screen.getByTestId("metric-row-bar");
             const fill = screen.getByTestId("metric-row-fill");
             expect(track.style.background).toBe(PANEL_INK.SURFACE);
-            expect(fill.style.getPropertyValue("--progress-section-color")).toContain("primary-color-filled");
+            expect(fill.style.getPropertyValue("--progress-section-color")).toBe(PANEL_INK.ACCENT);
         });
 
         it("fills the track to the percentile", () => {

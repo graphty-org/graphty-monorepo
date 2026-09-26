@@ -51,31 +51,26 @@ describe("ControlSubGroup", () => {
             expect(screen.getByTestId("control-sub-group-content")).toHaveTextContent("Outline");
         });
 
-        it("indents its content from the leading edge, not the left one", () => {
+        it("lays its content on the section's own grid: no indent, no physical padding", () => {
             renderSubGroup(
                 <ControlSubGroup label="Text effects" defaultOpened>
                     <div>Outline</div>
                 </ControlSubGroup>,
             );
 
-            // The Mantine content element carries the indent; a physical
-            // padding-left here would put the indent on the wrong side of a
-            // right-to-left panel.
             const content = screen.getByTestId("control-sub-group-content").parentElement;
-            expect(content?.getAttribute("style")).toContain("padding-inline-start: 8px");
-            expect(content?.getAttribute("style")).not.toContain("padding-left");
+            expect(content?.getAttribute("style") ?? "").not.toContain("padding");
         });
 
-        it("gives the header a 24px pointer target", () => {
+        it("draws the header as Figma's 32px row", () => {
             renderSubGroup(
                 <ControlSubGroup label="Text effects">
                     <div>Outline</div>
                 </ControlSubGroup>,
             );
 
-            // WCAG 2.2 target size (2.5.8). The label is 10px type, so the
-            // header is stretched to the library's 24px toggle pitch.
-            expect(screen.getByTestId("control-sub-group-control")).toHaveStyle({ minHeight: "24px" });
+            // Also WCAG 2.2 target size (2.5.8): 32 clears the 24 minimum.
+            expect(screen.getByTestId("control-sub-group-control")).toHaveStyle({ height: "32px" });
         });
 
         it("draws the label shortened rather than wrapped, with the whole string reachable", () => {
@@ -134,10 +129,10 @@ describe("ControlSubGroup", () => {
             const glyph = (): Element | null =>
                 screen.getByTestId("control-sub-group-control").querySelector("[data-glyph]");
 
-            expect(glyph()).toHaveAttribute("data-glyph", "chevronRight");
+            expect(glyph()).toHaveAttribute("data-glyph", "caretRight");
             await user.click(screen.getByTestId("control-sub-group-control"));
             await waitFor(() => {
-                expect(glyph()).toHaveAttribute("data-glyph", "chevronDown");
+                expect(glyph()).toHaveAttribute("data-glyph", "caretDown");
             });
         });
 
@@ -148,10 +143,12 @@ describe("ControlSubGroup", () => {
                 </ControlSubGroup>,
             );
 
-            expect(screen.getByTestId("control-sub-group-control").querySelector("[data-glyph]")).toHaveAttribute(
-                "data-glyph",
-                "chevronLeft",
+            // The register has no left caret: the right one, mirrored.
+            const closed = screen.getByTestId("control-sub-group-control").querySelector<HTMLElement>(
+                '[data-caret="closed"]',
             );
+            expect(closed?.querySelector("[data-glyph]")).toHaveAttribute("data-glyph", "caretRight");
+            expect(closed?.style.transform).toBe("scaleX(-1)");
         });
     });
 

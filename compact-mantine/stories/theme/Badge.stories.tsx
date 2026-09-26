@@ -1,4 +1,4 @@
-import { Badge, Group } from "@mantine/core";
+import { Badge, Group, Menu, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof Badge> = {
@@ -64,5 +64,30 @@ export const LightColors: Story = {
             <Badge variant="light" color="orange">Orange</Badge>
             <Badge variant="light" color="grape">Grape</Badge>
         </Group>
+    ),
+};
+
+/**
+ * Every Figma badge look side by side: the default outline ("Beta"), filled, light, and the
+ * outline inside a dark menu (#383838 outline, secondary menu text).
+ */
+export const States: Story = {
+    render: () => (
+        <Stack gap={12}>
+            <Group gap={8}>
+                <Badge>Beta</Badge>
+                <Badge variant="filled">New</Badge>
+                <Badge variant="light">Pro</Badge>
+                <Text size="xs">outline (default) / filled / light</Text>
+            </Group>
+            <Menu opened withinPortal={false} position="bottom-start">
+                <Menu.Target>
+                    <span />
+                </Menu.Target>
+                <Menu.Dropdown>
+                    <Menu.Item rightSection={<Badge>Beta</Badge>}>Motion</Menu.Item>
+                </Menu.Dropdown>
+            </Menu>
+        </Stack>
     ),
 };

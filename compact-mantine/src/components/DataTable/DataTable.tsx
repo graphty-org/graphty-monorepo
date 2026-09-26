@@ -21,9 +21,10 @@ import {
 import { useVirtualizer } from "@tanstack/react-virtual";
 import React, { useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { PANEL_GRID, PANEL_INK } from "../../constants/panel";
+import { PANEL_GRID } from "../../constants/panel";
 import { useCollator, useLocale, useNumberFormatter } from "../../i18n";
 import { UiGlyph } from "../../icons";
+import { useCompactStyles } from "../../theme/useCompactStyles";
 import { type ActivationEvent, type ActivationMeta, getActivationMeta } from "../../types/events";
 import { isRtl, useDirection } from "../../utils/rtl";
 import { useDataTableLabels } from "./labels";
@@ -72,9 +73,9 @@ interface GlobalSearch {
     columnIds: readonly string[];
 }
 
-// How tall the scrolling area is when the caller says nothing. Ten rows of the
-// 28px data pitch plus the header, which is enough to read as a list rather
-// than as a peephole.
+// How tall the scrolling area is when the caller says nothing: the header and
+// about seven 40px rows, which is enough to read as a list rather than as a
+// peephole.
 const DEFAULT_HEIGHT = 320;
 
 // How many rows to draw beyond the ones on screen. Eight is roughly a third of
@@ -82,24 +83,10 @@ const DEFAULT_HEIGHT = 320;
 // not reach the edge of what is drawn.
 const DEFAULT_OVERSCAN = 8;
 
-// The 12px reading size a row of the reader's own strings is drawn at, the same
-// size the list row uses. A table holds data rather than chrome, so it is drawn
-// one step larger than the labels around it.
-const CELL_FONT_SIZE = 12;
-
-// The line height every single-line label in a panel is drawn at.
-const LINE_HEIGHT = 1.2;
-
-// The ground of a selected row: the accent at a low alpha over the panel. It is
-// the one spelling that stays correct when the scheme flips and when a consumer
-// changes the primary colour, and it is what the list row already uses.
-const SELECTED_GROUND = "var(--mantine-primary-color-light)";
-
-// Mantine's own class for a focus ring that appears only for a keyboard user.
-// The theme sets focusRing "auto", which styles Mantine's controls through this
-// class; a bare table cell is not a Mantine control, so it asks for the ring by
-// name.
-const FOCUS_RING_CLASS = "mantine-focus-auto";
+// The Variables spreadsheet's row and header height (design/figma-spec.md 10.6). Rows and cells
+// are separated by a 1px gap that each cell's 1px outline grid line sits over.
+const TABLE_ROW_HEIGHT = 40;
+const GRID_GAP = 1;
 
 // An empty array that keeps its identity between renders, so that a table given
 // no selection, no sort and no hidden columns does not look like it has been
@@ -145,6 +132,7 @@ function DataTableInner<TRow extends object>(
     props: DataTableProps<TRow>,
     ref: React.ForwardedRef<DataTableHandle>,
 ): React.JSX.Element {
+    useCompactStyles();
     const {
         data,
         columns,
@@ -153,8 +141,8 @@ function DataTableInner<TRow extends object>(
         labelledBy,
         labels: labelOverrides,
         height = DEFAULT_HEIGHT,
-        rowHeight = PANEL_GRID.DATA_PITCH,
-        headerHeight = PANEL_GRID.CONTROL_HEIGHT,
+        rowHeight = TABLE_ROW_HEIGHT,
+        headerHeight = TABLE_ROW_HEIGHT,
         overscan = DEFAULT_OVERSCAN,
         selectionMode = "multiple",
         selectedIds,
@@ -389,6 +377,7 @@ function DataTableInner<TRow extends object>(
         count: rowCount,
         getScrollElement: () => scrollRef.current,
         estimateSize: () => rowHeight,
+        gap: GRID_GAP,
         getItemKey: (index) => rowIds[index] ?? index,
         overscan,
     });
@@ -630,18 +619,7 @@ function DataTableInner<TRow extends object>(
 
         return {
             flex: index === columnCount - 1 ? `1 1 ${String(width)}px` : `0 0 ${String(width)}px`,
-            minWidth: 0,
-            boxSizing: "border-box",
-            display: "flex",
-            alignItems: "center",
             justifyContent: column?.align === "end" ? "flex-end" : "flex-start",
-            paddingInline: PANEL_GRID.GUTTER,
-            // Drawn inside the cell rather than around it, so the ring is never
-            // clipped by the edge of the scrolling area (WCAG 2.2, 2.4.11).
-            outlineOffset: -2,
-            overflow: "hidden",
-            whiteSpace: "nowrap",
-            textOverflow: "ellipsis",
         };
     };
 
@@ -673,13 +651,7 @@ function DataTableInner<TRow extends object>(
             dir={isRtl(direction) ? "rtl" : undefined}
             onFocus={onFocus}
             onBlur={onBlur}
-            style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: PANEL_GRID.TRAIL_GAP,
-                width: "100%",
-                color: PANEL_INK.VALUE,
-            }}
+            className="cm-dt"
         >
             {searchable && (
                 <Box style={{ display: "flex", alignItems: "center", gap: PANEL_GRID.GUTTER }}>
@@ -719,11 +691,7 @@ function DataTableInner<TRow extends object>(
                         data-testid="data-table-count"
                         aria-hidden="true"
                         dir="auto"
-                        style={{
-                            flex: "0 0 auto",
-                            fontSize: "var(--mantine-font-size-sm)",
-                            color: PANEL_INK.CHROME,
-                        }}
+                        className="cm-dt-count"
                     >
                         {shownText}
                     </Box>
@@ -741,14 +709,8 @@ function DataTableInner<TRow extends object>(
             <Box
                 ref={scrollRef}
                 data-testid="data-table-viewport"
-                style={{
-                    height,
-                    overflow: "auto",
-                    position: "relative",
-                    border: `1px solid ${PANEL_INK.BORDER}`,
-                    borderRadius: "var(--mantine-radius-sm)",
-                    background: PANEL_INK.PANEL,
-                }}
+                className="cm-dt-viewport"
+                style={{ height }}
             >
                 {/* ARIA Authoring Practices, Grid pattern. The table reports
                     how many rows and columns it has and numbers the ones it
@@ -769,30 +731,16 @@ function DataTableInner<TRow extends object>(
                     withRowBorders={false}
                     horizontalSpacing={0}
                     verticalSpacing={0}
-                    highlightOnHover={isSelectable}
-                    highlightOnHoverColor={PANEL_INK.SURFACE}
-                    style={{
-                        display: "grid",
-                        width: "100%",
-                        minWidth: totalWidth,
-                        fontSize: CELL_FONT_SIZE,
-                        lineHeight: LINE_HEIGHT,
-                    }}
+                    className="cm-dt-table"
+                    // The 1px padding and the 1px gaps between the columns.
+                    style={{ minWidth: totalWidth + GRID_GAP * (columnCount + 1) }}
                 >
-                    <Table.Thead
-                        style={{
-                            display: "grid",
-                            position: "sticky",
-                            insetBlockStart: 0,
-                            zIndex: 1,
-                            background: PANEL_INK.PANEL,
-                            borderBlockEnd: `1px solid ${PANEL_INK.DIVIDER}`,
-                        }}
-                    >
+                    <Table.Thead className="cm-dt-head">
                         <Table.Tr
                             role="row"
                             aria-rowindex={1}
-                            style={{ display: "flex", width: "100%", height: headerHeight }}
+                            className="cm-dt-row"
+                            style={{ height: headerHeight }}
                         >
                             {visibleColumns.map((column, index) => {
                                 const config = columnById.get(column.id);
@@ -823,32 +771,20 @@ function DataTableInner<TRow extends object>(
                                                 overflow: "hidden",
                                                 textOverflow: "ellipsis",
                                                 whiteSpace: "nowrap",
-                                                color: sorted === false ? undefined : PANEL_INK.VALUE,
                                             }}
                                         >
                                             {config?.header ?? column.id}
                                         </Box>
 
                                         {sorted !== false && (
-                                            <Box
-                                                component="span"
+                                            <span
+                                                className="cm-sort-caret"
                                                 data-testid="data-table-sort-glyph"
                                                 data-direction={ariaSortOf(sorted)}
                                                 aria-hidden="true"
-                                                style={{
-                                                    flex: "0 0 auto",
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                    color: PANEL_INK.VALUE,
-                                                    // A vertical turn means the
-                                                    // same thing whichever way
-                                                    // the text runs, so there is
-                                                    // nothing here to mirror.
-                                                    transform: sorted === "asc" ? "rotate(180deg)" : undefined,
-                                                }}
                                             >
-                                                <UiGlyph name="chevronDown" size={PANEL_GRID.CHEVRON} />
-                                            </Box>
+                                                <UiGlyph name="caretDown" size={PANEL_GRID.CHEVRON} />
+                                            </span>
                                         )}
 
                                         {sortingState.length > 1 && priority >= 0 && (
@@ -861,11 +797,7 @@ function DataTableInner<TRow extends object>(
                                                 component="span"
                                                 data-testid="data-table-sort-priority"
                                                 aria-hidden="true"
-                                                style={{
-                                                    flex: "0 0 auto",
-                                                    fontSize: "var(--mantine-font-size-xs)",
-                                                    color: PANEL_INK.CHROME,
-                                                }}
+                                                className="cm-dt-sort-priority"
                                             >
                                                 {numberFormatter.format(priority + 1)}
                                             </Box>
@@ -883,7 +815,7 @@ function DataTableInner<TRow extends object>(
                                         data-grid-row={sortable ? undefined : HEADER_ROW}
                                         data-grid-column={sortable ? undefined : index}
                                         tabIndex={sortable ? undefined : rovingTabIndex}
-                                        className={sortable ? undefined : FOCUS_RING_CLASS}
+                                        className="cm-dt-cell cm-dt-header"
                                         onFocus={
                                             sortable
                                                 ? undefined
@@ -895,15 +827,7 @@ function DataTableInner<TRow extends object>(
                                                       );
                                                   }
                                         }
-                                        style={{
-                                            ...cellBox(config, index),
-                                            gap: PANEL_GRID.GUTTER / 2,
-                                            height: headerHeight,
-                                            fontSize: "var(--mantine-font-size-sm)",
-                                            fontWeight: 500,
-                                            color: PANEL_INK.CHROME,
-                                            textAlign: "start",
-                                        }}
+                                        style={{ ...cellBox(config, index), gap: PANEL_GRID.GUTTER / 2 }}
                                     >
                                         {sortable ? (
                                             // A cell holding one control puts
@@ -928,22 +852,8 @@ function DataTableInner<TRow extends object>(
                                                             : { row: HEADER_ROW, column: index },
                                                     );
                                                 }}
-                                                style={{
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                    gap: PANEL_GRID.GUTTER / 2,
-                                                    justifyContent:
-                                                        config?.align === "end" ? "flex-end" : "flex-start",
-                                                    flex: "1 1 auto",
-                                                    minWidth: 0,
-                                                    height: "100%",
-                                                    background: "transparent",
-                                                    color: "inherit",
-                                                    font: "inherit",
-                                                    textAlign: "start",
-                                                    outlineOffset: -2,
-                                                    cursor: "pointer",
-                                                }}
+                                                className="cm-dt-sort"
+                                                data-align={config?.align === "end" ? "end" : undefined}
                                             >
                                                 {caption}
                                             </UnstyledButton>
@@ -956,13 +866,7 @@ function DataTableInner<TRow extends object>(
                         </Table.Tr>
                     </Table.Thead>
 
-                    <Table.Tbody
-                        style={{
-                            display: "grid",
-                            position: "relative",
-                            height: virtualizer.getTotalSize(),
-                        }}
-                    >
+                    <Table.Tbody style={{ display: "block", position: "relative", height: virtualizer.getTotalSize() }}>
                         {virtualizer.getVirtualItems().map((item) => {
                             const row = rows[item.index];
                             if (row === undefined) {
@@ -986,16 +890,14 @@ function DataTableInner<TRow extends object>(
                                     onContextMenu={(event) => {
                                         onRowContextMenu?.(row.original, event);
                                     }}
+                                    className="cm-dt-row"
                                     style={{
-                                        display: "flex",
                                         position: "absolute",
                                         insetBlockStart: 0,
                                         insetInlineStart: 0,
                                         width: "100%",
                                         height: rowHeight,
                                         transform: `translateY(${String(item.start)}px)`,
-                                        background: isSelected ? SELECTED_GROUND : undefined,
-                                        cursor: isSelectable ? "pointer" : undefined,
                                     }}
                                 >
                                     {visibleColumns.map((column, index) => {
@@ -1014,18 +916,9 @@ function DataTableInner<TRow extends object>(
                                         // itself is handed through untouched.
                                         const drawn =
                                             config?.cell === undefined ? (
-                                                <Box
-                                                    component="span"
-                                                    dir="auto"
-                                                    style={{
-                                                        minWidth: 0,
-                                                        overflow: "hidden",
-                                                        textOverflow: "ellipsis",
-                                                        whiteSpace: "nowrap",
-                                                    }}
-                                                >
+                                                <span className="cm-dt-text" dir="auto">
                                                     {text}
-                                                </Box>
+                                                </span>
                                             ) : (
                                                 config.cell(row.original)
                                             );
@@ -1039,7 +932,7 @@ function DataTableInner<TRow extends object>(
                                                 data-grid-row={item.index}
                                                 data-grid-column={index}
                                                 tabIndex={isFocused ? 0 : -1}
-                                                className={FOCUS_RING_CLASS}
+                                                className="cm-dt-cell"
                                                 // A cell ellipsises when the
                                                 // column is too narrow for its
                                                 // value, so it carries the whole
@@ -1085,14 +978,7 @@ function DataTableInner<TRow extends object>(
                 {rowCount === 0 && (
                     <Box
                         data-testid="data-table-empty"
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            padding: PANEL_GRID.PAD_LEFT,
-                            fontSize: "var(--mantine-font-size-sm)",
-                            color: PANEL_INK.CHROME,
-                        }}
+                        className="cm-dt-empty"
                     >
                         {emptyContent()}
                     </Box>

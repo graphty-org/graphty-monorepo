@@ -1,15 +1,10 @@
 import { Box, Stack } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
+import { expect, userEvent, within } from "@storybook/test";
 import { useState } from "react";
 
-import {
-    ControlSection,
-    ControlSubGroup,
-    PANEL_GRID,
-    StyleNumberInput,
-    StyleSelect,
-    ToggleRow,
-} from "../src";
+import { ControlSection, ControlSubGroup, FieldRow,PANEL_GRID, PanelField, StyleNumberInput, StyleSelect, ToggleRow } from "../src";
+import { StoryState, StoryStates } from "./figma/chrome/StoryPanel";
 
 /**
  * A collapsible sub-group of controls, lighter than a section.
@@ -43,11 +38,16 @@ const meta: Meta<typeof ControlSubGroup> = {
         layout: "padded",
     },
     decorators: [
-        (Story) => (
-            <Box w={PANEL_GRID.WIDTH} p="md" bg="var(--mantine-color-body)">
+        // Every story sits in a 240px panel on the panel ground; States lays out
+        // several panels side by side, so it brings its own.
+        (Story, context): React.JSX.Element =>
+            context.name === "States" ? (
                 <Story />
-            </Box>
-        ),
+            ) : (
+                <Box w={PANEL_GRID.WIDTH} bg="var(--cm-bg)" style={{ paddingInline: "16px 8px" }}>
+                    <Story />
+                </Box>
+            ),
     ],
 };
 
@@ -156,5 +156,44 @@ export const LongLabel: Story = {
     args: {
         label: "Text effects, outlines and drop shadows",
         children: <ToggleRow label="Outline" />,
+    },
+};
+
+/**
+ * Every state of the sub-group row (design/figma-spec.md 9.4): closed, open, under the pointer
+ * (the secondary label comes up to the primary ink over 100ms) and with keyboard focus. The
+ * chevron hangs in the 16px gutter; the play function opens the first one with a click.
+ */
+export const States: Story = {
+    render: () => {
+        const rows = (
+            <FieldRow>
+                <PanelField label="Duration" value="300" />
+            </FieldRow>
+        );
+        return (
+            <StoryStates>
+                <StoryState name="Closed" padded>
+                    <ControlSubGroup label="Advanced animation settings">{rows}</ControlSubGroup>
+                </StoryState>
+                <StoryState name="Open" padded>
+                    <ControlSubGroup label="Advanced animation settings" defaultOpened>
+                        {rows}
+                    </ControlSubGroup>
+                </StoryState>
+                <StoryState name="Hover" force="hover" padded>
+                    <ControlSubGroup label="Advanced animation settings">{rows}</ControlSubGroup>
+                </StoryState>
+                <StoryState name="Focus (keyboard)" force="focus" padded>
+                    <ControlSubGroup label="Advanced animation settings">{rows}</ControlSubGroup>
+                </StoryState>
+            </StoryStates>
+        );
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const [first] = canvas.getAllByRole("button", { name: "Expand Advanced animation settings" });
+        await userEvent.click(first);
+        await expect(first).toHaveAttribute("aria-expanded", "true");
     },
 };

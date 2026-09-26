@@ -25,7 +25,7 @@ describe("PopoutHeader", () => {
         expect(screen.getByText("Settings")).toBeInTheDocument();
     });
 
-    it("renders tabs variant with segmented control", () => {
+    it("renders tabs variant as pill tabs (a real tablist)", () => {
         const config: PopoutHeaderConfig = {
             variant: "tabs",
             tabs: [
@@ -39,8 +39,9 @@ describe("PopoutHeader", () => {
             <PopoutHeader config={config} onClose={onClose} activeTab="tab1" onTabChange={vi.fn()} />,
         );
 
-        expect(screen.getByRole("radio", { name: "Tab 1" })).toBeInTheDocument();
-        expect(screen.getByRole("radio", { name: "Tab 2" })).toBeInTheDocument();
+        expect(screen.getByRole("tablist")).toBeInTheDocument();
+        expect(screen.getByRole("tab", { name: "Tab 1" })).toBeInTheDocument();
+        expect(screen.getByRole("tab", { name: "Tab 2" })).toBeInTheDocument();
     });
 
     it("switches tab content on click", async () => {
@@ -61,11 +62,11 @@ describe("PopoutHeader", () => {
         );
 
         // First option should be selected (controlled by activeTab prop)
-        const option1 = screen.getByRole("radio", { name: "Tab 1" });
-        const option2 = screen.getByRole("radio", { name: "Tab 2" });
+        const option1 = screen.getByRole("tab", { name: "Tab 1" });
+        const option2 = screen.getByRole("tab", { name: "Tab 2" });
 
-        expect(option1).toBeChecked();
-        expect(option2).not.toBeChecked();
+        expect(option1).toHaveAttribute("aria-selected", "true");
+        expect(option2).toHaveAttribute("aria-selected", "false");
 
         // Click second option
         await user.click(option2);
@@ -150,7 +151,7 @@ describe("PopoutHeader", () => {
             <PopoutHeader config={config} onClose={onClose} activeTab="first" onTabChange={vi.fn()} />,
         );
 
-        const option1 = screen.getByRole("radio", { name: "First" });
-        expect(option1).toBeChecked();
+        const option1 = screen.getByRole("tab", { name: "First" });
+        expect(option1).toHaveAttribute("aria-selected", "true");
     });
 });

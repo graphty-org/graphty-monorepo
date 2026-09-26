@@ -1,9 +1,13 @@
 import { Loader, Progress, RingProgress } from "@mantine/core";
 
 import {
+    compactLoaderClassNames,
     compactLoaderScale,
+    compactProgressClassNames,
     compactProgressScale,
     compactProgressStyles,
+    compactRingProgressClassNames,
+    PROGRESS_RADIUS,
 } from "../styles/feedback";
 import { compactVarsForSize } from "../styles/size-scale";
 
@@ -23,10 +27,13 @@ import { compactVarsForSize } from "../styles/size-scale";
  * suites invoke `extension.vars!()` with no arguments at all, and
  * compactVarsForSize maps an absent size onto the compact entry.
  *
- * The compact (size="sm") values:
- * - Loader: --loader-size: 18px
- * - Progress: --progress-size: 4px
- * - RingProgress: uses a numeric size prop (recommended: size={48} for compact)
+ * The compact (size="sm") values, Figma's (design/figma-spec.md 8.8):
+ * - Loader: --loader-size: 16px, drawn in --cm-icon
+ * - Progress: --progress-size: 4px, radius full, track --cm-bg-secondary, fill --cm-bg-brand
+ * - RingProgress: uses a numeric size prop (recommended: size={48} for compact); track and
+ *   label read tokens
+ *
+ * Colours come from ../css/overlays.css.ts through the classNames; a `color` prop still wins.
  */
 export const feedbackComponentExtensions = {
     Loader: Loader.extend({
@@ -36,6 +43,7 @@ export const feedbackComponentExtensions = {
         vars: (_theme, props) => ({
             root: compactVarsForSize(compactLoaderScale, props?.size),
         }),
+        classNames: compactLoaderClassNames,
     }),
 
     Progress: Progress.extend({
@@ -43,9 +51,14 @@ export const feedbackComponentExtensions = {
             size: "sm",
         },
         vars: (_theme, props) => ({
-            root: compactVarsForSize(compactProgressScale, props?.size),
+            root: {
+                ...compactVarsForSize(compactProgressScale, props?.size),
+                // Round unless the caller asks for a radius of their own.
+                ...(props?.radius === undefined && { "--progress-radius": PROGRESS_RADIUS }),
+            },
         }),
         styles: compactProgressStyles,
+        classNames: compactProgressClassNames,
     }),
 
     // Note: RingProgress uses numeric size directly in SVG calculations,
@@ -54,5 +67,6 @@ export const feedbackComponentExtensions = {
     RingProgress: RingProgress.extend({
         // No defaultProps - RingProgress requires numeric size
         // Use size={48} in your components for compact sizing
+        classNames: compactRingProgressClassNames,
     }),
 };

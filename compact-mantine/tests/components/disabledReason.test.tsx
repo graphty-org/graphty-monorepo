@@ -109,14 +109,16 @@ const CASES: ReasonCase[] = [
                 {...props}
             />
         ),
-        described: () => screen.getByRole("textbox", { name: "Shape" }),
+        // The Select's input is a combobox (it opens a listbox).
+        described: () => screen.getByRole("combobox", { name: "Shape" }),
     },
     {
         name: "StyleNumberInput",
         label: "Size",
         reason: "Load data first",
         render: (props) => <StyleNumberInput label="Size" defaultValue={1} {...props} />,
-        described: () => screen.getByRole("textbox", { name: "Size" }),
+        // A scrubbable number field is a spinbutton (spec 6.1), not a plain textbox.
+        described: () => screen.getByRole("spinbutton", { name: "Size" }),
     },
     {
         name: "CompactColorInput",

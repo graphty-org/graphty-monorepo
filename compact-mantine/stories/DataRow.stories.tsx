@@ -66,7 +66,7 @@ const meta: Meta<typeof DataRow> = {
     },
     decorators: [
         (Story) => (
-            <Box w={PANEL_GRID.WIDTH} p="md" bg="var(--mantine-color-body)">
+            <Box w={PANEL_GRID.WIDTH} py="md" bg="var(--cm-bg)">
                 <Story />
             </Box>
         ),
@@ -601,5 +601,42 @@ export const RightToLeft: Story = {
                 </div>
             </LabelsProvider>
         </DirectionProvider>
+    ),
+};
+
+/** Sets `data-state` on the row inside it, for the forced hover and focus looks below. */
+function Forced({ state, children }: { state: "hover" | "focus"; children: React.ReactNode }): React.JSX.Element {
+    const ref = useRef<HTMLDivElement>(null);
+    React.useLayoutEffect(() => {
+        ref.current?.querySelector(".cm-data-row")?.setAttribute("data-state", state);
+    });
+    return <div ref={ref}>{children}</div>;
+}
+
+/**
+ * Every state side by side (design/figma-spec.md 10.5): a 32px row with a 24px pill inset
+ * 4 8 4 12. Rest, hover, selected, selected + hover, keyboard focus, inert, with an icon, a rank
+ * chip and a trailing button. Light and dark through the toolbar.
+ */
+export const States: Story = {
+    render: () => (
+        <Stack gap={0}>
+            <DataRowHeader label="Most connected" unit="links" sortDirection="descending" onSortChange={() => undefined} />
+            <DataRow name="Rest" value="4" onClick={() => undefined} />
+            <Forced state="hover">
+                <DataRow name="Hover" value="4" onClick={() => undefined} />
+            </Forced>
+            <DataRow name="Selected" value="3" selected onClick={() => undefined} />
+            <Forced state="hover">
+                <DataRow name="Selected + hover" value="3" selected onClick={() => undefined} />
+            </Forced>
+            <Forced state="focus">
+                <DataRow name="Keyboard focus" value="2" onClick={() => undefined} />
+            </Forced>
+            <DataRow name="Inert" value="2" />
+            <DataRow name="With an icon" icon={<FieldGlyph name="attribute" />} value="Number" onClick={() => undefined} />
+            <DataRow name="With a rank" value={<RankChip>#6</RankChip>} onClick={() => undefined} />
+            <DataRow name="With a trailing button" value="1" trailing={<AdvancedButton label="Settings" icon={<UiGlyph name="gear" />} />} onClick={() => undefined} />
+        </Stack>
     ),
 };

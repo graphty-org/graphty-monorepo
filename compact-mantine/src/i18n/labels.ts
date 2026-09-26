@@ -252,6 +252,25 @@ export interface CompactMantineLabels {
     /** Accessible name of a tabbed pop-out panel when its first tab has no label. */
     settings: string;
 
+    // Editor shell
+
+    /** Default accessible name of a `Toolbar` when the caller gives none. */
+    toolbar: string;
+    /** Default accessible name of a `NavRail`, the vertical navigation toolbar. */
+    navigation: string;
+    /** Accessible name and tooltip of the round `HelpButton`. */
+    help: string;
+    /** Accessible name of the `ShortcutSheet` and of its tab list. */
+    keyboardShortcuts: string;
+    /** Accessible name of the close button in the `ShortcutSheet`'s tab strip. */
+    close: string;
+    /** Accessible name of the `QuickActions` dialog. */
+    quickActions: string;
+    /** Placeholder and accessible name of the `QuickActions` search field. */
+    searchActions: string;
+    /** Shown in `QuickActions` when nothing matches the search. */
+    noResults: string;
+
     // Ordinals
 
     /**
@@ -329,6 +348,15 @@ export const defaultLabels: CompactMantineLabels = {
 
     closePanel: "Close panel",
     settings: "Settings",
+
+    toolbar: "Tools",
+    navigation: "Navigation",
+    help: "Help",
+    keyboardShortcuts: "Keyboard shortcuts",
+    close: "Close",
+    quickActions: "Quick actions",
+    searchActions: "Search actions",
+    noResults: "No results",
 
     // Intl.PluralRules already sorts out English's exceptions: 11, 12 and 13
     // come back as "other" and take "th", while 21, 22 and 23 come back as

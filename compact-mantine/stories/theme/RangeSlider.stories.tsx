@@ -1,6 +1,8 @@
 import { Box, RangeSlider } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
+import { focusMarked, StateGrid } from "../figma/selection/StateGrid";
+
 const meta: Meta<typeof RangeSlider> = {
     title: "Compact Theme/Mantine Components/RangeSlider",
     component: RangeSlider,
@@ -60,4 +62,22 @@ export const CustomStep: Story = {
             { value: 100, label: "100" },
         ],
     },
+};
+
+/**
+ * The plain range slider on the small slider's look (design/figma-spec.md 5.8). The play
+ * function focuses the marked thumb.
+ */
+export const States: Story = {
+    render: () => (
+        <StateGrid
+            columns={220}
+            cells={[
+                ["rest", <RangeSlider defaultValue={[20, 70]} />],
+                ["focus", <div data-story-focus><RangeSlider defaultValue={[30, 80]} /></div>],
+                ["disabled", <RangeSlider defaultValue={[20, 70]} disabled />],
+            ]}
+        />
+    ),
+    play: focusMarked,
 };

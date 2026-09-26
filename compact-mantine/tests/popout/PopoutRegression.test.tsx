@@ -694,7 +694,7 @@ describe("Popout Regression Tests", () => {
             // All corners should remain rounded - NO flattened corners
             // The nested popout uses gap={-1} for visual alignment but corners stay rounded
             const childInlineStyle = childPanel!.getAttribute("style") ?? "";
-            // Should NOT have any flattened corners (all corners stay at 8px via Mantine Paper)
+            // Should NOT have any flattened corners (all corners keep the 13px popover radius)
             expect(childInlineStyle).not.toContain("border-top-right-radius: 0");
             expect(childInlineStyle).not.toContain("border-bottom-right-radius: 0");
             expect(childInlineStyle).not.toContain("border-top-left-radius: 0");
@@ -750,14 +750,14 @@ describe("Popout Regression Tests", () => {
 
             // All corners should remain rounded - NO flattened corners regardless of placement
             const childInlineStyle = childPanel!.getAttribute("style") ?? "";
-            // Should NOT have any flattened corners (all corners stay at 8px via Mantine Paper)
+            // Should NOT have any flattened corners (all corners keep the 13px popover radius)
             expect(childInlineStyle).not.toContain("border-top-left-radius: 0");
             expect(childInlineStyle).not.toContain("border-bottom-left-radius: 0");
             expect(childInlineStyle).not.toContain("border-top-right-radius: 0");
             expect(childInlineStyle).not.toContain("border-bottom-right-radius: 0");
         });
 
-        it("root popout without an anchor or parentId uses Mantine Paper default radius", async () => {
+        it("root popout without an anchor or parentId uses the popover surface radius", async () => {
             const user = userEvent.setup();
 
             renderPopout(
@@ -826,7 +826,7 @@ describe("Popout Regression Tests", () => {
             const inlineStyle = panel.getAttribute("style") ?? "";
 
             // Root panel without an anchor or parentId should NOT have any border-radius overrides
-            // in inline style. The radius should come from Mantine Paper's radius={8} prop.
+            // in inline style. The radius comes from the shared cm-popover-surface class.
             // If the bug regresses, we'd see flattened corners (0) in the inline style.
             expect(inlineStyle).not.toContain("border-top-left-radius: 0");
             expect(inlineStyle).not.toContain("border-top-right-radius: 0");
@@ -883,7 +883,7 @@ describe("Popout Regression Tests", () => {
 
             // All corners should remain rounded - NO flattened corners regardless of placement
             const childInlineStyle = childPanel!.getAttribute("style") ?? "";
-            // Should NOT have any flattened corners (all corners stay at 8px via Mantine Paper)
+            // Should NOT have any flattened corners (all corners keep the 13px popover radius)
             expect(childInlineStyle).not.toContain("border-bottom-left-radius: 0");
             expect(childInlineStyle).not.toContain("border-bottom-right-radius: 0");
             expect(childInlineStyle).not.toContain("border-top-left-radius: 0");
@@ -939,7 +939,7 @@ describe("Popout Regression Tests", () => {
 
             // All corners should remain rounded - NO flattened corners regardless of placement
             const childInlineStyle = childPanel!.getAttribute("style") ?? "";
-            // Should NOT have any flattened corners (all corners stay at 8px via Mantine Paper)
+            // Should NOT have any flattened corners (all corners keep the 13px popover radius)
             expect(childInlineStyle).not.toContain("border-top-left-radius: 0");
             expect(childInlineStyle).not.toContain("border-top-right-radius: 0");
             expect(childInlineStyle).not.toContain("border-bottom-left-radius: 0");
@@ -1110,6 +1110,8 @@ describe("Popout Regression Tests", () => {
                 .getAllByRole("dialog")
                 .find((p) => p.querySelector('[data-testid="parent-content"]'));
             const dragTrigger = parentPanel!.querySelector("[data-drag-trigger]")!;
+            const startLeft = parseFloat(parentPanel!.style.left);
+            const startTop = parseFloat(parentPanel!.style.top);
 
             // Drag the parent's header, then let the browser's click follow the
             // release the way a real one does.
@@ -1121,8 +1123,8 @@ describe("Popout Regression Tests", () => {
             // The child is still open, and the parent has moved by the drag.
             expect(screen.getAllByRole("dialog")).toHaveLength(2);
             expect(screen.getByTestId("child-content")).toBeInTheDocument();
-            expect(parentPanel!.style.left).toBe("-140px");
-            expect(parentPanel!.style.top).toBe("30px");
+            expect(parseFloat(parentPanel!.style.left) - startLeft).toBe(60);
+            expect(parseFloat(parentPanel!.style.top) - startTop).toBe(30);
 
             // A click that is not the end of a drag still closes the child.
             fireEvent.click(dragTrigger);
@@ -1139,11 +1141,11 @@ describe("Popout Regression Tests", () => {
      * Issue: The hasAnchor logic was incorrectly flattening corners on popouts
      * when using Popout.Anchor or when nested. This caused square corners to appear.
      *
-     * Requirement: ALL popouts must have 8px rounded corners on all four corners.
-     * NO flush borders, NO flattened corners - ever.
+     * Requirement: ALL popouts must have rounded corners on all four corners (Figma's
+     * 13px, from the shared cm-popover-surface). NO flattened corners - ever.
      */
     describe("Issue: All popouts must have rounded corners (no flattened corners)", () => {
-        it("popout panel always has 8px radius on all corners", async () => {
+        it("popout panel always has the popover radius on all corners", async () => {
             const user = userEvent.setup();
 
             renderPopout(
@@ -1166,9 +1168,8 @@ describe("Popout Regression Tests", () => {
 
             const panel = screen.getByRole("dialog");
 
-            // Paper component should have radius={8}
-            // This ensures all corners are rounded, not flattened
-            expect(panel.className).toContain("mantine-Paper-root");
+            // The shared light popover shell draws the 13px radius on every corner
+            expect(panel.className).toContain("cm-popover-surface");
             // The panel should NOT have inline border-radius styles that flatten corners
             const inlineStyle = panel.getAttribute("style") ?? "";
             expect(inlineStyle).not.toContain("border-top-right-radius: 0");

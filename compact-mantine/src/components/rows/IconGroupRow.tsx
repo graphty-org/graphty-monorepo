@@ -2,7 +2,7 @@ import { Box, SegmentedControl, VisuallyHidden } from "@mantine/core";
 import { useUncontrolled } from "@mantine/hooks";
 import React, { useRef } from "react";
 
-import { PANEL_GRID, PANEL_INK } from "../../constants/panel";
+import { PANEL_GRID } from "../../constants/panel";
 import { usePanelLabels } from "../../context/PanelLabelsContext";
 import type { ChangeHandler } from "../../types/events";
 import { useControlAnnotation } from "../../utils/control-annotation";
@@ -35,72 +35,28 @@ const MIN_OPTIONS = 2;
 const MAX_OPTIONS = 6;
 
 /**
- * The inner padding of the track, which is what makes the selected segment read
- * as a raised tile inside a well rather than as a repainted third of the box.
- */
-const TRACK_PADDING = 1;
-
-/**
- * The drawn height of one segment: the 24px control less the track's padding on
- * both edges. Derived rather than typed, so the segment keeps sitting inside the
- * track if the control height ever moves.
- */
-const SEGMENT_HEIGHT = PANEL_GRID.CONTROL_HEIGHT - TRACK_PADDING * 2;
-
-/**
- * The gap between two segments of the track.
- */
-const SEGMENT_GAP = 2;
-
-/**
- * The corner radius of a segment: one step tighter than the track's own 4px, so
- * the two curves nest instead of fighting.
- */
-const SEGMENT_RADIUS = 3;
-
-/**
  * The gap between a drawing and the word beside it inside one segment.
  */
 const INLINE_GAP = 4;
 
 /**
- * The padding a segment grows along the inline axis when it carries a word as
- * well as a drawing.
+ * The inline padding of a segment that draws a word: Figma's text option
+ * padding, 0 8px. A segment holding only a picture has none, so it can shrink
+ * to its 24px picture box when a word needs the room.
  */
-const WORD_PADDING = 6;
-
-/**
- * The narrowest a segment may be squeezed: exactly the drawing it holds.
- *
- * Segments share the track by their content, so a segment carrying a word takes
- * the room its word needs and the rest divide what is left. This minimum is
- * what stops that division from cropping a drawing when the words are long and
- * the track is narrow.
- */
-const SEGMENT_MIN_WIDTH = PANEL_GRID.GLYPH;
+const WORD_PADDING = 8;
 
 /**
  * The largest option count that fits the narrow track.
  */
 const NARROW_TRACK_MAX = 3;
 
-/**
- * The ink a segment's drawing and word are painted in.
- *
- * The selected segment is a solid patch of one colour with its contents punched
- * out of it, so its ink is the panel's own ground rather than the text colour
- * every other segment uses.
- * @param active - Whether this option is the selected one
- * @param disabled - Whether this option cannot be chosen
- * @returns The colour to paint the segment's contents with
- */
-function segmentInk(active: boolean, disabled: boolean): string {
-    if (disabled) {
-        return PANEL_INK.DISABLED;
-    }
-
-    return active ? PANEL_INK.ON_SELECTED : PANEL_INK.CHROME;
-}
+// The look is the theme's panel segmented control (design/figma-spec.md 5.2),
+// which every SegmentedControl gets: a 24 tall --cm-bg-secondary track with no
+// padding, options sharing its width equally, the checked option a white face
+// with a 1px inset edge, the others secondary ink with no hover fill. This row
+// only lays it on the panel grid (88 or 184 wide, 32 tall, the trailing slot at
+// the end) and draws each option's picture in a 24 x 24 box.
 
 // Accessibility: the APG "Radio Group" pattern
 // (https://www.w3.org/WAI/ARIA/apg/patterns/radio/), built out of native
@@ -127,10 +83,10 @@ function segmentInk(active: boolean, disabled: boolean): string {
 // label -- name from content, rather than an aria-label that would replace a
 // drawn word with a second copy of itself.
 //
-// Target size (WCAG 2.2, 2.5.8): a segment is 22px tall, under the 24px
-// minimum, and passes on the spacing exception -- neighbouring segments are at
-// least 24px apart centre to centre, and the rows above and below are a 32px
-// row pitch away. The one arrangement that does not clear it is `hybrid` on the
+// Target size (WCAG 2.2, 2.5.8): a segment is the full 24px track tall, and
+// neighbouring segments are at least 24px apart centre to centre (three share
+// the 88px track, 29.3 each), with the rows above and below a 32px row pitch
+// away. The one arrangement that does not clear it is `hybrid` on the
 // narrow track, where the segments that hold only a drawing are squeezed to
 // 14px; `hybrid` asks for the wide track for that reason as well as for room to
 // read the word.
@@ -247,7 +203,7 @@ export interface IconGroupRowProps {
      * names, scale names, method names -- and drawing every word costs a row
      * the panel does not have. This names the current choice, leaves the
      * alternatives to be learned by trying them, and still fits one row. It
-     * wants the 224px track: on the 108px one the words squeeze the drawings
+     * wants the 184px track: on the 88px one the words squeeze the drawings
      * down to nothing.
      * @default false
      */
@@ -256,9 +212,10 @@ export interface IconGroupRowProps {
      * How wide the track is drawn, in pixels, or `"fill"` to take whatever the
      * row has left over.
      *
-     * Defaults to the width the option count asks for: 108px for up to three
-     * options and 224px for four to six. Use `"fill"` inside a container that
-     * is not the 280px panel this library measures for.
+     * Defaults to the width the option count asks for: 88px (the field) for up
+     * to three options and 184px (the body) for four to six. Use `"fill"`
+     * inside a container that is not the 240px panel this library measures
+     * for.
      */
     width?: number | "fill";
     /**
@@ -431,6 +388,7 @@ export function IconGroupRow(props: IconGroupRowProps): React.JSX.Element {
                     data-value={option.value}
                     data-active={active ? "true" : "false"}
                     title={option.label}
+                    data-disabled={optionDisabled ? "true" : undefined}
                     style={{
                         display: "inline-flex",
                         alignItems: "center",
@@ -440,12 +398,6 @@ export function IconGroupRow(props: IconGroupRowProps): React.JSX.Element {
                         paddingInline: showsWord ? WORD_PADDING : 0,
                         width: "100%",
                         minWidth: 0,
-                        // The selected segment is a solid patch of the selected
-                        // ground with its label punched out of it; everything
-                        // else is secondary text on the track. Written here,
-                        // per option, rather than in the styles below, which
-                        // would paint every segment the same.
-                        color: segmentInk(active, optionDisabled),
                     }}
                 >
                     <Box
@@ -456,6 +408,8 @@ export function IconGroupRow(props: IconGroupRowProps): React.JSX.Element {
                             display: "inline-flex",
                             alignItems: "center",
                             justifyContent: "center",
+                            width: PANEL_GRID.GLYPH_SLOT,
+                            height: PANEL_GRID.GLYPH_SLOT,
                         }}
                     >
                         {option.icon}
@@ -467,8 +421,6 @@ export function IconGroupRow(props: IconGroupRowProps): React.JSX.Element {
                                 data-testid="icon-group-word"
                                 style={{
                                     minWidth: 0,
-                                    fontWeight: 500,
-                                    lineHeight: 1,
                                     overflow: "hidden",
                                     textOverflow: "ellipsis",
                                     whiteSpace: "nowrap",
@@ -491,7 +443,7 @@ export function IconGroupRow(props: IconGroupRowProps): React.JSX.Element {
             style={{
                 display: "flex",
                 alignItems: "center",
-                // A 108px track does not reach the trail gap, so the free width
+                // An 88px track does not reach the trail gap, so the free width
                 // between the track and the slot is spent here rather than
                 // after the slot: the trailing slot belongs at the same place
                 // on every row type, whatever its body is worth.
@@ -516,67 +468,19 @@ export function IconGroupRow(props: IconGroupRowProps): React.JSX.Element {
                 onBlur={onBlur}
                 name={name}
                 disabled={disabled}
-                radius="sm"
                 aria-label={label}
                 aria-labelledby={labelledBy}
                 aria-describedby={annotation.describedBy}
                 data-testid="icon-group-track"
                 data-hybrid={hybrid ? "true" : undefined}
-                // --sc-color paints the selected segment for the one frame
-                // before Mantine measures the sliding indicator, and --sc-shadow
-                // would otherwise put a drop shadow under it in the light
-                // scheme, which no other tile in the panel has.
-                __vars={{
-                    "--sc-color": PANEL_INK.SELECTED,
-                    "--sc-shadow": "none",
-                }}
+                // Drawn words size their segments by content; pictures alone
+                // share the track equally, as Figma's do.
+                data-content-width={hybrid || showLabels ? "true" : undefined}
                 styles={{
                     root: {
-                        boxSizing: "border-box",
                         flex: fills ? "1 1 auto" : "0 0 auto",
                         width: fills ? "100%" : trackWidth,
                         minWidth: 0,
-                        height: PANEL_GRID.CONTROL_HEIGHT,
-                        padding: TRACK_PADDING,
-                        gap: SEGMENT_GAP,
-                        backgroundColor: PANEL_INK.SURFACE,
-                        // Mantine hides the track's overflow, which would crop
-                        // the focus ring of a segment against the edge of the
-                        // track. Nothing else draws outside it.
-                        overflow: "visible",
-                    },
-                    // Segments divide the track by what they hold, so a segment
-                    // carrying a word takes the room the word needs; the
-                    // minimum keeps that from cropping the drawings beside it.
-                    control: {
-                        flex: "1 1 auto",
-                        minWidth: SEGMENT_MIN_WIDTH,
-                    },
-                    label: {
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        height: SEGMENT_HEIGHT,
-                        // The padding moves onto the content, where it can
-                        // depend on whether that segment draws a word.
-                        padding: 0,
-                        borderRadius: SEGMENT_RADIUS,
-                        // The panel's own reading size, rather than the 10px
-                        // the compact theme gives a segmented control, so a
-                        // drawn word matches the value beside it in the panel.
-                        fontSize: "var(--mantine-font-size-sm)",
-                    },
-                    innerLabel: {
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        width: "100%",
-                        minWidth: 0,
-                    },
-                    indicator: {
-                        backgroundColor: PANEL_INK.SELECTED,
-                        borderRadius: SEGMENT_RADIUS,
-                        boxShadow: "none",
                     },
                 }}
             />

@@ -10,6 +10,7 @@ import {
     PANEL_INK,
     RampRow,
 } from "../src";
+import { StoryState, StoryStates } from "./figma/chrome/StoryPanel";
 // Imported from "../src", the package's published entry point, so the stories
 // exercise exactly what a consumer gets from `@graphty/compact-mantine` rather
 // than reaching past it into the source tree.
@@ -92,11 +93,16 @@ const meta: Meta<typeof RampRow> = {
         },
     },
     decorators: [
-        (Story) => (
-            <Box w={PANEL_GRID.WIDTH} p="md" bg="var(--mantine-color-body)">
+        // Every story sits in a 240px panel on the panel ground; States lays out
+        // several panels side by side, so it brings its own.
+        (Story, context): React.JSX.Element =>
+            context.name === "States" ? (
                 <Story />
-            </Box>
-        ),
+            ) : (
+                <Box w={PANEL_GRID.WIDTH} bg="var(--cm-bg)" style={{ paddingInline: "16px 8px" }}>
+                    <Story />
+                </Box>
+            ),
     ],
 };
 
@@ -378,5 +384,25 @@ export const InAPanel: Story = {
             />
             <RampRow label="Edge width by bridges" min="1" max="47" scale="log" onScaleClick={fn()} />
         </Stack>
+    ),
+};
+
+/**
+ * The ramp row re-skinned on tokens (design/figma-spec.md 9.8): the size wedge in the secondary
+ * icon ink, the colour bar, and the endpoints in the 11/16 body role, secondary ink.
+ */
+export const States: Story = {
+    render: () => (
+        <StoryStates>
+            <StoryState name="Size" padded>
+                <RampRow min="1" max="8" scale="sqrt" />
+            </StoryState>
+            <StoryState name="Colour" padded>
+                <RampRow min="0.00" max="0.42" variant="color" />
+            </StoryState>
+            <StoryState name="With a trailing control" padded>
+                <RampRow min="45" max="68" trailing={<AdvancedButton label="Scale" />} />
+            </StoryState>
+        </StoryStates>
     ),
 };

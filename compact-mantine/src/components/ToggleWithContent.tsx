@@ -223,7 +223,10 @@ export function ToggleWithContent({
             display: "block",
             height: PANEL_GRID.TOGGLE_PITCH,
             // Logical, so the word sits after the box in both directions.
-            paddingInlineStart: INLINE_GAP,
+            paddingInlineStart: PANEL_GRID.GUTTER,
+            // The theme pads a label 4px above and below to make a 24 row; this
+            // one is already the full row tall.
+            paddingBlock: 0,
             fontSize: "var(--mantine-font-size-sm)",
             lineHeight: LABEL_LINE_HEIGHT,
             color: disabled ? PANEL_INK.DISABLED : PANEL_INK.VALUE,
@@ -263,6 +266,7 @@ export function ToggleWithContent({
     // the document is worse than no reference at all.
     const checkbox = (
         <Checkbox
+            variant="neutral"
             data-testid="toggle-with-content-checkbox"
             label={label}
             checked={isChecked}

@@ -4025,13 +4025,13 @@ describe("AppShell", () => {
 
             fireEvent.click(screen.getByRole("button", { name: "Present" }));
 
-            const format = await screen.findByRole("textbox", { name: "Image format" });
+            const format = await screen.findByRole("combobox", { name: "Image format" });
 
             fireEvent.click(format);
             fireEvent.click(await screen.findByRole("option", { name: "JPEG" }));
 
             await waitFor(() => {
-                expect(screen.getByRole("textbox", { name: "Image format" })).toHaveValue("JPEG");
+                expect(screen.getByRole("combobox", { name: "Image format" })).toHaveValue("JPEG");
             });
 
             fireEvent.click(screen.getByRole("button", { name: "Export image" }));

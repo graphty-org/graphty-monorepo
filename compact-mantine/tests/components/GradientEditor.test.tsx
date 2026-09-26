@@ -81,18 +81,18 @@ describe("GradientEditor", () => {
         expect(screen.getByRole("button", { name: /add/i })).toBeDisabled();
     });
 
-    it("shows direction slider when showDirection is true", () => {
+    it("shows the direction field when showDirection is true", () => {
         renderGradientEditor(
             <GradientEditor stops={defaultStops} direction={90} showDirection={true} onChange={vi.fn()} />,
         );
         expect(screen.getByText("Direction")).toBeInTheDocument();
-        expect(screen.getByRole("slider", { name: "Gradient direction" })).toBeInTheDocument();
+        expect(screen.getByRole("spinbutton", { name: "Gradient direction" })).toBeInTheDocument();
     });
 
-    it("hides direction slider when showDirection is false", () => {
+    it("hides the direction field when showDirection is false", () => {
         renderGradientEditor(<GradientEditor stops={defaultStops} showDirection={false} onChange={vi.fn()} />);
         expect(screen.queryByText("Direction")).not.toBeInTheDocument();
-        expect(screen.queryByRole("slider", { name: "Gradient direction" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("spinbutton", { name: "Gradient direction" })).not.toBeInTheDocument();
     });
 
     it("calls onChange when remove button is clicked", async () => {
@@ -147,12 +147,12 @@ describe("GradientEditor", () => {
         expect(screen.getAllByRole("textbox", { name: /color hex/i }).length).toBeGreaterThanOrEqual(2);
     });
 
-    it("renders direction slider in controlled mode", () => {
+    it("renders the direction field in controlled mode", () => {
         renderGradientEditor(
             <GradientEditor stops={defaultStops} direction={90} showDirection={true} onChange={vi.fn()} />,
         );
 
-        const slider = screen.getByRole("slider", { name: "Gradient direction" });
+        const slider = screen.getByRole("spinbutton", { name: "Gradient direction" });
         expect(slider).toHaveAttribute("aria-valuenow", "90");
         expect(screen.getByText("Direction")).toBeInTheDocument();
     });
@@ -162,7 +162,7 @@ describe("GradientEditor", () => {
             <GradientEditor stops={defaultStops} defaultDirection={180} showDirection={true} onChange={vi.fn()} />,
         );
 
-        expect(screen.getByRole("slider", { name: "Gradient direction" })).toHaveAttribute("aria-valuenow", "180");
+        expect(screen.getByRole("spinbutton", { name: "Gradient direction" })).toHaveAttribute("aria-valuenow", "180");
     });
 
     it("does not add stop when already at maximum (5 stops)", async () => {
@@ -196,29 +196,10 @@ describe("GradientEditor", () => {
         expect(onChange).not.toHaveBeenCalled();
     });
 
-    it("resets color to default when reset button is clicked", async () => {
-        // Regression test: reset was not working because GradientEditor
-        // ignored undefined values from CompactColorInput's onColorChange.
-        const user = userEvent.setup();
-        const onChange = vi.fn();
-        const customStops = [createColorStop(0, "#FF0000"), createColorStop(1, "#0000FF")];
-        renderGradientEditor(<GradientEditor stops={customStops} onChange={onChange} />);
-
-        const colorInputs = screen.getAllByRole("textbox", { name: /color hex/i });
-        await user.clear(colorInputs[0]);
-        await user.type(colorInputs[0], "00FF00");
-        await user.tab();
-
-        const resetButtons = screen.getAllByRole("button", { name: /reset.*default/i });
-        expect(resetButtons.length).toBeGreaterThanOrEqual(1);
-
-        onChange.mockClear();
-
-        await user.click(resetButtons[0]);
-
-        expect(onChange).toHaveBeenCalled();
-        const [newStops] = onChange.mock.calls[0];
-        expect(newStops[0].color).toBe("#888888");
+    // Figma's stop rows have no reset (7.5): a stop always has a colour of its own.
+    it("offers no per-stop reset", () => {
+        renderGradientEditor(<GradientEditor stops={defaultStops} onChange={vi.fn()} />);
+        expect(screen.queryByRole("button", { name: /reset/i })).not.toBeInTheDocument();
     });
 
     describe("onChange callback count", () => {
@@ -243,7 +224,7 @@ describe("GradientEditor", () => {
             expect(onChange).toHaveBeenCalledTimes(1);
         });
 
-        it("calls onChange exactly once when direction slider changes", async () => {
+        it("calls onChange exactly once when the direction steps", async () => {
             const user = userEvent.setup();
             const onChange = vi.fn();
             renderGradientEditor(
@@ -255,9 +236,9 @@ describe("GradientEditor", () => {
                 />,
             );
 
-            const slider = screen.getByRole("slider", { name: "Gradient direction" });
+            const slider = screen.getByRole("spinbutton", { name: "Gradient direction" });
             slider.focus();
-            await user.keyboard("{ArrowRight}");
+            await user.keyboard("{ArrowUp}");
 
             expect(onChange).toHaveBeenCalledTimes(1);
         });
@@ -312,9 +293,9 @@ describe("GradientEditor", () => {
                 />,
             );
 
-            const slider = screen.getByRole("slider", { name: "Gradient direction" });
+            const slider = screen.getByRole("spinbutton", { name: "Gradient direction" });
             slider.focus();
-            await user.keyboard("{ArrowRight}");
+            await user.keyboard("{ArrowUp}");
 
             expect(order).toEqual(["start", "change", "end"]);
         });
@@ -332,9 +313,9 @@ describe("GradientEditor", () => {
                 />,
             );
 
-            const slider = screen.getByRole("slider", { name: "Gradient direction" });
+            const slider = screen.getByRole("spinbutton", { name: "Gradient direction" });
             slider.focus();
-            await user.keyboard("{ArrowRight}");
+            await user.keyboard("{ArrowUp}");
 
             expect(onChangeEnd).toHaveBeenCalledTimes(1);
             const [settledStops, settledDirection] = onChangeEnd.mock.calls[0];
@@ -360,9 +341,9 @@ describe("GradientEditor", () => {
                 />,
             );
 
-            const slider = screen.getByRole("slider", { name: "Gradient direction" });
+            const slider = screen.getByRole("spinbutton", { name: "Gradient direction" });
             slider.focus();
-            await user.keyboard("{ArrowRight>3}{/ArrowRight}");
+            await user.keyboard("{ArrowUp>3}{/ArrowUp}");
 
             expect(onChangeStart).toHaveBeenCalledTimes(3);
             expect(onChangeEnd).toHaveBeenCalledTimes(3);
@@ -380,9 +361,9 @@ describe("GradientEditor", () => {
                 />,
             );
 
-            const track = container.querySelectorAll(".mantine-Slider-root")[0];
-            fireEvent.pointerDown(track);
-            fireEvent.pointerMove(track, { clientX: 20 });
+            const handle = container.querySelectorAll<HTMLElement>("[data-testid='gradient-editor-handle']")[0];
+            fireEvent.pointerDown(handle);
+            fireEvent.pointerMove(handle, { clientX: 20 });
 
             expect(onChangeStart).toHaveBeenCalledTimes(1);
             expect(onChangeStart.mock.calls[0][0].type).toBe("pointerdown");
@@ -403,6 +384,102 @@ describe("GradientEditor", () => {
             expect(onChangeEnd).toHaveBeenCalledTimes(1);
             const [settledStops] = onChangeEnd.mock.calls[0];
             expect(settledStops[0].offset).toBeCloseTo(0.01);
+        });
+    });
+
+    // Figma's gradient gestures (design/figma-spec.md 7.5).
+    describe("handles, bar and direction buttons", () => {
+        it("removes the focused stop with Delete, down to minStops", async () => {
+            const user = userEvent.setup();
+            const onChange = vi.fn();
+            const threeStops = [...defaultStops, createColorStop(0.5, "#00FF00")];
+            renderGradientEditor(<GradientEditor defaultStops={threeStops} onChange={onChange} />);
+
+            screen.getByRole("slider", { name: "Stop 3 position" }).focus();
+            await user.keyboard("{Delete}");
+            expect(onChange.mock.calls[0][0]).toHaveLength(2);
+
+            screen.getByRole("slider", { name: "Stop 1 position" }).focus();
+            await user.keyboard("{Backspace}");
+            expect(onChange).toHaveBeenCalledTimes(1);
+        });
+
+        it("moves a handle 10% with Shift and to the ends with Home and End", async () => {
+            const user = userEvent.setup();
+            const onChange = vi.fn();
+            renderGradientEditor(<GradientEditor defaultStops={defaultStops} onChange={onChange} />);
+
+            const first = screen.getByRole("slider", { name: "Stop 1 position" });
+            first.focus();
+            await user.keyboard("{Shift>}{ArrowRight}{/Shift}");
+            expect(onChange.mock.calls.at(-1)?.[0][0].offset).toBeCloseTo(0.1);
+            await user.keyboard("{End}");
+            expect(onChange.mock.calls.at(-1)?.[0][0].offset).toBe(1);
+            await user.keyboard("{Home}");
+            expect(onChange.mock.calls.at(-1)?.[0][0].offset).toBe(0);
+        });
+
+        it("marks the stop whose handle has focus as selected, handle and row alike", () => {
+            renderGradientEditor(<GradientEditor defaultStops={defaultStops} />);
+
+            const second = screen.getByRole("slider", { name: "Stop 2 position" });
+            fireEvent.focus(second);
+
+            expect(second).toHaveAttribute("data-selected");
+            expect(screen.getAllByTestId("gradient-editor-stop")[1]).toHaveAttribute("data-selected");
+            expect(screen.getAllByTestId("gradient-editor-stop")[0]).not.toHaveAttribute("data-selected");
+        });
+
+        it("adds a stop where the bar is clicked, its colour mixed from its neighbours", () => {
+            const onChange = vi.fn();
+            renderGradientEditor(<GradientEditor defaultStops={defaultStops} onChange={onChange} />);
+
+            const bar = screen.getByTestId("gradient-editor-bar");
+            bar.getBoundingClientRect = () => ({ left: 0, width: 200, top: 0, height: 32 }) as DOMRect;
+            fireEvent.click(bar, { clientX: 50 });
+
+            const [nextStops] = onChange.mock.calls[0];
+            expect(nextStops).toHaveLength(3);
+            expect(nextStops[1].offset).toBe(0.25);
+            expect(nextStops[1].color).toBe("#BF0040");
+        });
+
+        it("commits a typed stop position as one complete gesture", async () => {
+            const user = userEvent.setup();
+            const order: string[] = [];
+            renderGradientEditor(
+                <GradientEditor
+                    defaultStops={defaultStops}
+                    onChangeStart={() => order.push("start")}
+                    onChange={() => order.push("change")}
+                    onChangeEnd={() => order.push("end")}
+                />,
+            );
+
+            const position = screen.getAllByRole("textbox", { name: "Stop 2 position" })[0];
+            await user.clear(position);
+            await user.type(position, "40{Enter}");
+
+            expect(order).toEqual(["start", "change", "end"]);
+            expect(screen.getByRole("slider", { name: "Stop 2 position" })).toHaveAttribute("aria-valuenow", "40");
+        });
+
+        it("flips the stops and rotates the angle a quarter turn", async () => {
+            const user = userEvent.setup();
+            const onChange = vi.fn();
+            renderGradientEditor(
+                <GradientEditor defaultStops={defaultStops} defaultDirection={300} onChange={onChange} />,
+            );
+
+            await user.click(screen.getByRole("button", { name: "Flip gradient" }));
+            const [flipped] = onChange.mock.calls[0];
+            expect(flipped.map((stop: { color: string; offset: number }) => [stop.color, stop.offset])).toEqual([
+                ["#0000FF", 0],
+                ["#FF0000", 1],
+            ]);
+
+            await user.click(screen.getByRole("button", { name: "Rotate gradient 90 degrees" }));
+            expect(onChange.mock.calls[1][1]).toBe(30);
         });
     });
 
@@ -446,14 +523,14 @@ describe("GradientEditor", () => {
     describe("accessibility and strings", () => {
         // The names used to sit on the wrapping div rather than on the element
         // carrying role="slider", where nothing looked for them.
-        it("names each slider on the element that carries the slider role", () => {
+        it("names each stop handle and the direction field on the element carrying the role", () => {
             renderGradientEditor(
                 <GradientEditor stops={defaultStops} direction={90} showDirection={true} onChange={vi.fn()} />,
             );
 
             expect(screen.getByRole("slider", { name: "Stop 1 position" })).toBeInTheDocument();
             expect(screen.getByRole("slider", { name: "Stop 2 position" })).toBeInTheDocument();
-            expect(screen.getByRole("slider", { name: "Gradient direction" })).toBeInTheDocument();
+            expect(screen.getByRole("spinbutton", { name: "Gradient direction" })).toBeInTheDocument();
         });
 
         it("groups the stops under their own heading", () => {
@@ -463,13 +540,13 @@ describe("GradientEditor", () => {
             expect(group).toContainElement(screen.getByRole("slider", { name: "Stop 1 position" }));
         });
 
-        it("groups the direction slider under its own heading", () => {
+        it("groups the direction field under its own heading", () => {
             renderGradientEditor(
                 <GradientEditor stops={defaultStops} direction={90} showDirection={true} onChange={vi.fn()} />,
             );
 
             const group = screen.getByRole("group", { name: "Direction" });
-            expect(group).toContainElement(screen.getByRole("slider", { name: "Gradient direction" }));
+            expect(group).toContainElement(screen.getByRole("spinbutton", { name: "Gradient direction" }));
         });
 
         it("takes every string from the labels", () => {
@@ -493,17 +570,17 @@ describe("GradientEditor", () => {
             expect(screen.getByRole("button", { name: "Ajouter une etape" })).toBeInTheDocument();
             expect(screen.getByRole("button", { name: "Supprimer l'etape 1" })).toBeInTheDocument();
             expect(screen.getByRole("slider", { name: "Position de l'etape 2" })).toBeInTheDocument();
-            expect(screen.getByRole("slider", { name: "Sens du degrade" })).toBeInTheDocument();
+            expect(screen.getByRole("spinbutton", { name: "Sens du degrade" })).toBeInTheDocument();
         });
 
-        it("writes the tick marks through the degree label and the locale's digits", () => {
+        it("writes the angle through the degree label", () => {
             renderGradientEditor(
                 <LabelsProvider labels={{ degrees: (angle) => `${angle} deg` }}>
                     <GradientEditor stops={defaultStops} direction={90} showDirection={true} onChange={vi.fn()} />
                 </LabelsProvider>,
             );
 
-            expect(screen.getByText("270 deg")).toBeInTheDocument();
+            expect(screen.getByRole("spinbutton", { name: "Gradient direction" })).toHaveValue("90 deg");
         });
 
         it("renders under a right-to-left direction provider", () => {
@@ -512,7 +589,7 @@ describe("GradientEditor", () => {
                 "rtl",
             );
 
-            expect(screen.getByRole("slider", { name: "Gradient direction" })).toBeInTheDocument();
+            expect(screen.getByRole("spinbutton", { name: "Gradient direction" })).toBeInTheDocument();
             expect(screen.getByRole("group", { name: "Color Stops" })).toBeInTheDocument();
         });
     });

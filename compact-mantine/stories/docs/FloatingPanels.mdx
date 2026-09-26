@@ -5,7 +5,7 @@ import { Meta } from "@storybook/blocks";
 # Floating panels
 
 A pop-out is a panel that opens beside a control, can be dragged, and can
-contain pop-outs of its own. It is where the settings go that a 280px column has
+contain pop-outs of its own. It is where the settings go that a 240px column has
 no room for.
 
 - **`PopoutManager`** -- The shared floating layer. Required, once, near the root.
@@ -38,7 +38,7 @@ import { Popout, PopoutButton, PopoutManager, UiGlyph } from "@graphty/compact-m
             <Popout.Trigger>
                 <PopoutButton icon={<UiGlyph name="gear" />} aria-label="Display settings" />
             </Popout.Trigger>
-            <Popout.Panel width={280} header={{variant: "title", title: "Display settings"}}>
+            <Popout.Panel width={240} header={{variant: "title", title: "Display settings"}}>
                 <Popout.Content>Anything at all</Popout.Content>
             </Popout.Panel>
         </Popout>
@@ -95,7 +95,12 @@ page ends up with two overlays that disagree about what Escape does. Reach for
 
 Mantine's own floating components -- `Select`, `Menu`, `Tooltip` and the rest --
 work normally *inside* a pop-out panel; their dropdowns render above it and do
-not dismiss it.
+not dismiss it. Root pop-outs are one at a time, as in Figma: opening one closes
+the one that was open.
+
+Tooltips open after 1000ms and hand off instantly while one is showing or has
+just closed. That warmth needs one Mantine `Tooltip.Group` around your whole app
+(the theme gives it the right delays); do not nest another inside.
 
 ## Accessibility notes
 

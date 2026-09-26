@@ -8,6 +8,7 @@ import {
     PANEL_GRID,
     ProseBlock,
 } from "../src";
+import { StoryState, StoryStates } from "./figma/chrome/StoryPanel";
 // Imported from "../src", the package's published entry point, so the stories
 // exercise exactly what a consumer gets from `@graphty/compact-mantine` rather
 // than reaching past it into the source tree.
@@ -76,11 +77,16 @@ const meta: Meta<typeof ProseBlock> = {
         },
     },
     decorators: [
-        (Story) => (
-            <Box w={PANEL_GRID.WIDTH} p="md" bg="var(--mantine-color-body)">
+        // Every story sits in a 240px panel on the panel ground; States lays out
+        // several panels side by side, so it brings its own.
+        (Story, context): React.JSX.Element =>
+            context.name === "States" ? (
                 <Story />
-            </Box>
-        ),
+            ) : (
+                <Box w={PANEL_GRID.WIDTH} bg="var(--cm-bg)" style={{ paddingInline: "16px 8px" }}>
+                    <Story />
+                </Box>
+            ),
     ],
 };
 
@@ -315,5 +321,27 @@ export const RightToLeft: Story = {
                 </Stack>
             </Box>
         </DirectionProvider>
+    ),
+};
+
+/**
+ * The three prose variants on the body role (design/figma-spec.md 9.8): the reading and the
+ * run record in the secondary ink, the departure line in the primary ink beside its warning.
+ */
+export const States: Story = {
+    render: () => (
+        <StoryStates>
+            <StoryState name="Reading" padded>
+                <ProseBlock variant="reading">How often a node sits on the shortest path between two others.</ProseBlock>
+            </StoryState>
+            <StoryState name="Departure" padded>
+                <ProseBlock variant="departure">Edge weights were ignored: the graph has none.</ProseBlock>
+            </StoryState>
+            <StoryState name="Run record" padded>
+                <ProseBlock variant="runRecord" onDetails={() => undefined}>
+                    Ran on 20 nodes in 4 ms, 2 minutes ago
+                </ProseBlock>
+            </StoryState>
+        </StoryStates>
     ),
 };

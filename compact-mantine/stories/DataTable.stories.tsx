@@ -599,3 +599,53 @@ export const Translated: Story = {
         </LabelsProvider>
     ),
 };
+
+/** One Figma Variables row: a name and a value per mode. */
+interface Variable {
+    id: string;
+    name: string;
+    light: string;
+    dark: string;
+}
+
+const VARIABLES: Variable[] = [
+    { id: "primary", name: "primary", light: "0D99FF", dark: "0C8CE9" },
+    { id: "secondary", name: "secondary", light: "8738E5", dark: "D1A8FF" },
+    { id: "tertiary", name: "tertiary", light: "14AE5C", dark: "198F51" },
+    { id: "warning", name: "warning", light: "FFCD29", dark: "F3C11B" },
+];
+
+const VARIABLE_COLUMNS: DataTableColumn<Variable>[] = [
+    { id: "name", header: "Name", value: (v) => v.name, width: 200 },
+    { id: "light", header: "Light", value: (v) => v.light, width: 280 },
+    { id: "dark", header: "Dark", value: (v) => v.dark, width: 280 },
+];
+
+/**
+ * Every state side by side (design/figma-spec.md 10.6), after Figma's Variables table: a 1px
+ * cell grid, a 40px header at 600, 40px rows, a selected row (every cell blue), a sorted column
+ * with its 5 x 3 caret, and the active cell's inside box (the first body cell has keyboard focus
+ * after the play function). Row hover adds no tint.
+ */
+export const States: Story = {
+    render: () => (
+        <Box w={845} bg="var(--cm-bg)">
+            <DataTable
+                columns={VARIABLE_COLUMNS}
+                data={VARIABLES}
+                getRowId={(v) => v.id}
+                label="Variables"
+                height={220}
+                defaultSelectedIds={["secondary"]}
+                defaultSorting={[{ id: "name", desc: false }]}
+            />
+        </Box>
+    ),
+    play: async ({ canvasElement }) => {
+        const grid = canvasElement.querySelector<HTMLElement>('[role="grid"]');
+        const first = canvasElement.querySelector<HTMLElement>('[role="gridcell"]');
+        grid?.focus();
+        first?.focus();
+        first?.setAttribute("data-state", "focus");
+    },
+};

@@ -110,6 +110,78 @@ export type {
 export type { DataRowRole, DataRowSortDirection } from "../components/rows/DataRow";
 export type { PanelFieldKind } from "../components/rows/PanelField";
 
+// Inputs.
+export type {
+    ComboInputItem,
+    ComboInputOption,
+    ComboInputProps,
+    ComboInputSeparator,
+    SearchInputProps,
+    VariablePillProps,
+} from "../components/inputs";
+
+// Overlays.
+export type {
+    ContextMenuProps,
+    MenuCheckItemProps,
+    ModalFooterProps,
+    ToastAction,
+    ToastApi,
+    ToastOptions,
+    ToastProps,
+    ToastProviderProps,
+    TooltipShortcutProps,
+} from "../components/overlays";
+
+// Selection: the alignment matrix.
+export type { AlignmentMatrixProps, AlignmentMatrixValue } from "../components/selection/AlignmentMatrix";
+
+// Buttons, chrome, colour, and the tree and lists.
+export type { SplitButtonProps, ToggleIconButtonProps } from "../components/buttons";
+export type { ResizeHandleBounds, ResizeHandleEdge, ResizeHandleProps } from "../components/chrome/ResizeHandle";
+export type {
+    ColorPickerFormat,
+    ColorPickerPaintType,
+    ColorPickerPanelLabels,
+    ColorPickerPanelProps,
+} from "../components/color/ColorPickerPanel";
+export type { GradientEditorLabels } from "../components/GradientEditor";
+export type {
+    FlatTreeRow,
+    InlineRenameProps,
+    PageListItem,
+    PageListProps,
+    PageRowProps,
+    ResultRowProps,
+    TreeItemProps,
+    TreeMove,
+    TreeNodeData,
+    TreeProps,
+    TreeRowTint,
+} from "../components/tree";
+
+// The editor shell.
+export type {
+    HelpButtonProps,
+    NavRailProps,
+    QuickAction,
+    QuickActionsProps,
+    RailButtonProps,
+    SecondaryToolbarButtonProps,
+    SecondaryToolbarProps,
+    ShortcutEntry,
+    ShortcutGroup,
+    ShortcutSheetProps,
+    ShortcutSheetTab,
+    ToolbarProps,
+    ToolButtonProps,
+    ToolGroupProps,
+    ToolItem,
+} from "../components/shell";
+
+// The theme's options.
+export type { CompactThemeOptions } from "../theme";
+
 // Providers, translation and text direction.
 export type { PanelLabelsProviderProps } from "../context/PanelLabelsContext";
 export type { CompactMantineLabels, LabelsProviderProps } from "../i18n";

@@ -11,6 +11,7 @@ import {
     ToggleRow,
     ToggleRowGroup,
 } from "../src";
+import { focusMarked } from "./figma/selection/StateGrid";
 
 // Imported from "../src", the package's published entry point, so the stories
 // exercise exactly what a consumer gets from `@graphty/compact-mantine` rather
@@ -21,10 +22,9 @@ import {
  *
  * The group does two things, one visual and one editorial.
  *
- * **It packs the rows tighter.** Toggles sit at a 24px pitch rather than the
- * 32px every other row uses. A checkbox and one word need less room than a field
- * does, and a run of them reads better as a list than as a column of widely
- * spaced statements.
+ * **It stacks the rows at the panel pitch.** Each toggle is Figma's 32px
+ * checkbox row, so a run of them lines up with the field rows around it and
+ * reads as one list.
  *
  * **It holds the line on the rule a single row cannot: a lone boolean is not a
  * row.** One checkbox between other rows is a horizontal rule made of a single
@@ -59,7 +59,7 @@ export default meta;
 type Story = StoryObj<typeof ToggleRowGroup>;
 
 /**
- * Four booleans that belong together, at a 24px pitch.
+ * Four booleans that belong together, at the 32px row pitch.
  *
  * Every label has had its verb deleted: `Show labels` is `Labels`, `Animate
  * transitions` is `Transitions`. The checkbox already says the verb, and the row
@@ -165,8 +165,7 @@ export const WithTrailingControls: Story = {
 };
 
 /**
- * In a panel, which is where the 24px pitch earns its keep: two fields at 32px,
- * then four booleans in the height three of them would have taken.
+ * In a panel: two fields at 32px, then four booleans on the same 32px pitch.
  */
 export const InThePanel: Story = {
     render: (): React.JSX.Element => (
@@ -206,4 +205,24 @@ export const RightToLeft: Story = {
             </Box>
         </DirectionProvider>
     ),
+};
+
+/**
+ * The group's rows in every state they take, on the 32px row pitch (design/figma-spec.md
+ * 5.10). The play function focuses the marked row.
+ */
+export const States: Story = {
+    render: (): React.JSX.Element => (
+        <Box style={{ width: PANEL_GRID.CONTENT }}>
+            <ToggleRowGroup label="Draw">
+                <ToggleRow label="Labels" defaultChecked />
+                <div data-story-focus>
+                    <ToggleRow label="Arrows" />
+                </div>
+                <ToggleRow label="Halos" disabled disabledReason="Needs a 3D layout" />
+                <ToggleRow label="Live layout" control="switch" defaultChecked />
+            </ToggleRowGroup>
+        </Box>
+    ),
+    play: focusMarked,
 };

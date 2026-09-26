@@ -7,7 +7,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { compactTheme } from "../../../src";
 import { CompoundRow } from "../../../src/components/rows/CompoundRow";
 import { AdvancedButton } from "../../../src/components/rows/TrailingSlot";
-import { PANEL_INK } from "../../../src/constants/panel";
 import { PanelLabelsProvider } from "../../../src/context/PanelLabelsContext";
 import { UiGlyph } from "../../../src/icons";
 
@@ -86,7 +85,7 @@ describe("CompoundRow", () => {
 
             const unit = screen.getByTestId("compound-segment-unit");
             expect(unit).toHaveTextContent("%");
-            expect(unit.style.color).toBe(PANEL_INK.CHROME);
+            expect(unit).toHaveClass("cm-compound-unit");
         });
 
         it("renders no unit when the segment has none", () => {
@@ -126,7 +125,8 @@ describe("CompoundRow", () => {
 
             const hairline = screen.getByTestId("compound-row-hairline");
             expect(hairline).toHaveStyle({ width: "1px", height: "24px" });
-            expect(hairline.getAttribute("style")).toContain("var(--mantine-color-body)");
+            // The panel's own ground, --cm-bg, through the cm-compound-seam class.
+            expect(hairline).toHaveClass("cm-compound-seam");
             // A gutter would separate them into two controls and undo the point.
             expect(screen.getByTestId("compound-row-box").style.gap).toBe("");
         });
@@ -136,8 +136,8 @@ describe("CompoundRow", () => {
 
             const box = screen.getByTestId("compound-row-box");
             expect(box).toHaveStyle({ height: "24px" });
-            expect(box.style.background).toBe(PANEL_INK.SURFACE);
-            expect(box.getAttribute("style")).toContain("overflow: hidden");
+            // --cm-bg-secondary and the 5px radius come from cm-compound.
+            expect(box).toHaveClass("cm-compound");
         });
 
         it("stands on the 32px row pitch", () => {
@@ -148,13 +148,13 @@ describe("CompoundRow", () => {
     });
 
     describe("width", () => {
-        it("spans the body at 224 by default", () => {
+        it("spans the body at 184 by default", () => {
             renderRow(<CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} />);
 
-            expect(screen.getByTestId("compound-row-box")).toHaveStyle({ width: "224px" });
+            expect(screen.getByTestId("compound-row-box")).toHaveStyle({ width: "184px" });
         });
 
-        it("narrows to 108 as one of a pair", () => {
+        it("narrows to 88 as one of a pair", () => {
             renderRow(
                 <CompoundRow
                     label="Label colour and opacity"
@@ -162,11 +162,11 @@ describe("CompoundRow", () => {
                         { value: "D5D7DA", grow: true },
                         { value: "70", unit: "%" },
                     ]}
-                    width={108}
+                    width={88}
                 />,
             );
 
-            expect(screen.getByTestId("compound-row-box")).toHaveStyle({ width: "108px" });
+            expect(screen.getByTestId("compound-row-box")).toHaveStyle({ width: "88px" });
         });
     });
 
@@ -245,14 +245,15 @@ describe("CompoundRow", () => {
                 />,
             );
 
-            // The 16px glyph slot plus 8px of inline padding is the 24px inset
-            // every other row in the panel starts its value at. The padding is
-            // asserted logically because that is how it is written; the physical
-            // `padding` shorthand this used to assert no longer exists.
-            const [leading] = screen.getAllByTestId("compound-segment");
-            expect(leading.style.paddingInline).toBe("8px");
+            // The 24px glyph slot is the 24px inset every other row in the panel
+            // starts its value at, so a segment with a glyph adds no leading
+            // padding (Figma's paint row: hex text at x+24).
+            const [leading, trailing] = screen.getAllByTestId("compound-segment");
+            expect(leading.style.paddingInlineStart).toBe("0");
             expect(leading.getAttribute("style")).toContain("padding-block: 0");
-            expect(screen.getByTestId("compound-segment-slot")).toHaveStyle({ width: "16px" });
+            expect(screen.getByTestId("compound-segment-slot")).toHaveStyle({ width: "24px" });
+            // A later segment without a glyph: 1px seam + 7px = text 8px in.
+            expect(trailing.style.paddingInlineStart).toBe("7px");
         });
     });
 
@@ -474,13 +475,13 @@ describe("CompoundRow", () => {
                 <CompoundRow
                     label="Label colour and opacity"
                     segments={colourAndOpacity()}
-                    width={108}
+                    width={88}
                     onClick={vi.fn()}
                 />,
             );
 
             const box = screen.getByTestId("compound-row-box");
-            expect(box).toHaveStyle({ width: "108px", height: "24px" });
+            expect(box).toHaveStyle({ width: "88px", height: "24px" });
         });
 
         it("hands the pointer event to the caller", async () => {
@@ -730,7 +731,7 @@ describe("CompoundRow", () => {
             expect(screen.queryByTestId("compound-row-label")).toBeNull();
         });
 
-        it("moves the row's one name into the 76px column when labels are on", () => {
+        it("moves the row's one name into the 72px column when labels are on", () => {
             renderRow(
                 <PanelLabelsProvider showLabels>
                     <CompoundRow label="Node colour" segments={colourAndOpacity()} />
@@ -739,8 +740,8 @@ describe("CompoundRow", () => {
 
             const word = screen.getByTestId("compound-row-label");
             expect(word).toHaveTextContent("Node colour");
-            expect(word.getAttribute("style")).toContain("76px");
-            expect(word.style.color).toBe(PANEL_INK.CHROME);
+            expect(word.getAttribute("style")).toContain("72px");
+            expect(word).toHaveClass("cm-row-reading");
         });
 
         it("lets the box fill the rest of the band in label mode", () => {
@@ -811,7 +812,7 @@ describe("CompoundRow", () => {
             );
 
             const [leading] = screen.getAllByTestId("compound-segment");
-            expect(leading.style.paddingInline).toBe("8px");
+            expect(leading.style.paddingInlineEnd).toBe("8px");
             expect(leading.style.paddingLeft).toBe("");
             expect(leading.style.paddingRight).toBe("");
         });

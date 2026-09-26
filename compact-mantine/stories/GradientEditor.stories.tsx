@@ -1,54 +1,40 @@
 import { Box, Code, DirectionProvider, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
+import { expect, userEvent, within } from "@storybook/test";
 import { useState } from "react";
 
-import {
-    type ColorStop,
-    createColorStop,
-    GradientEditor,
-    LabelsProvider,
-    PopoutManager,
-} from "../src";
+import { type ColorStop, createColorStop, GradientEditor, LabelsProvider, PopoutManager } from "../src";
 // Imported from "../src", the package's published entry point, so the stories
 // exercise exactly what a consumer gets from `@graphty/compact-mantine` rather
 // than reaching past it into the source tree.
+import { ForceState, StateCell } from "./figma/color/ForceState";
 
 /**
- * An editor for a multi-stop linear gradient.
+ * Figma's gradient editor: stop handles over a gradient bar, a "Stops" list, and a direction row.
  *
- * **What it is for.** Each stop is one row: a colour control, a slider for
- * where the stop sits along the gradient, and a button that removes it. A
- * button above the list adds a stop halfway between the last one and the end,
- * and an optional slider below sets the angle the gradient runs at.
+ * **What it is for.** Editing a multi-stop linear gradient. Each stop is a 24px square handle
+ * over the 32px bar (the selected one in the accent colour) and a 32px row below: its position,
+ * its colour (the paint field, opening the picker) and a remove button. "+" adds a stop halfway
+ * between the last one and the end; a click on the bar adds one right there, its colour mixed
+ * from its neighbours. The direction row holds the angle, flip and rotate.
  *
- * **The list is bounded at both ends.** It will not go below `minStops`,
- * because a gradient of one colour is a flat fill rather than a gradient, and
- * it will not go above `maxStops`, because the position sliders get too short
- * to aim at. At either bound the button that would cross it is disabled rather
- * than silently doing nothing. Both bounds are props, so a caller with more
- * room can raise them.
+ * **Keyboard.** A focused handle moves 1% per arrow (Shift for 10%), Home / End send it to an
+ * end, Delete or Backspace removes it. The position and angle fields step with ArrowUp /
+ * ArrowDown and commit typed values on Enter or blur.
  *
- * **Dragging reports three things.** `onChangeStart` once when a change
- * begins, `onChange` on every step, and `onChangeEnd` once when it settles.
- * Opening an undo transaction on the first and closing it on the last turns a
- * whole drag into one entry in your history instead of one per pixel moved.
+ * **The list is bounded at both ends** by `minStops` and `maxStops`; at either bound the button
+ * that would cross it is disabled.
  *
- * **Stops carry an id.** That is what keeps the right control attached to the
- * right stop as stops are added, removed and reordered. Build them with
- * `createColorStop` rather than writing the object by hand.
+ * **Dragging reports three things.** `onChangeStart` once when a drag begins, `onChange` on every
+ * step, and `onChangeEnd` once when it settles, so an undo transaction can wrap the whole drag.
  *
- * **What it needs.** A `PopoutManager` somewhere above it, because each stop's
- * colour control opens its picker into the floating layer that manager owns.
+ * **Stops carry an id.** Build them with `createColorStop`.
  *
- * **Accessibility.** The stops sit in a group named by the heading above them,
- * and every slider's name is set on the element that actually carries
- * `role="slider"`, so a screen reader can find "Stop 2 position" rather than an
- * unnamed control. Mantine's slider handles its own arrow keys, including
- * running them the other way when the interface does.
+ * **What it needs.** A `PopoutManager` above it, for the stop colours' pickers. It fills its
+ * container; at 240 wide (a panel or a popover) it lands on Figma's pixels.
  *
- * **Translation.** Every string it draws or speaks comes from
- * `LabelsProvider`, including the degree and percent suffixes, and numbers are
- * written in the reader's own locale.
+ * **Translation.** Every string except the flip and rotate names (English props via `labels`)
+ * comes from `LabelsProvider`, and numbers are written in the reader's own locale.
  */
 const meta: Meta<typeof GradientEditor> = {
     title: "Editing a Value/GradientEditor",
@@ -60,7 +46,7 @@ const meta: Meta<typeof GradientEditor> = {
     decorators: [
         (Story) => (
             <PopoutManager>
-                <Box w={320} p="md" bg="var(--mantine-color-body)">
+                <Box w={240} bg="var(--cm-bg)">
                     <Story />
                 </Box>
             </PopoutManager>
@@ -82,7 +68,7 @@ const fiveStops: ColorStop[] = [
 ];
 
 /**
- * Two stops and a direction slider: the smallest gradient there is.
+ * Two stops and the direction row: the smallest gradient there is.
  */
 export const Default: Story = {
     args: {
@@ -104,8 +90,7 @@ export const AtMaximumStops: Story = {
 };
 
 /**
- * Without the direction slider, for a gradient whose angle is decided
- * somewhere else.
+ * Without the direction row, for a gradient whose angle is decided somewhere else.
  */
 export const WithoutDirection: Story = {
     args: {
@@ -148,8 +133,9 @@ export const Controlled: Story = {
                 />
                 <Box
                     h={32}
+                    mx={16}
                     style={{
-                        borderRadius: 4,
+                        borderRadius: 5,
                         background: `linear-gradient(${angle}deg, ${stops
                             .map((stop) => `${stop.color} ${Math.round(stop.offset * 100)}%`)
                             .join(", ")})`,
@@ -163,8 +149,8 @@ export const Controlled: Story = {
 /**
  * One drag, one undo entry.
  *
- * The log below records what a consumer's history would see. Drag either
- * slider and the whole drag is bracketed by a single start and a single end,
+ * The log below records what a consumer's history would see. Drag a stop
+ * handle and the whole drag is bracketed by a single start and a single end,
  * however many steps it passes through, so an undo transaction opened on the
  * first and committed on the last collapses the drag into one entry.
  */
@@ -206,9 +192,8 @@ export const CoalescedIntoOneUndoEntry: Story = {
 };
 
 /**
- * Every string comes from `LabelsProvider`, including the degree suffix on the
- * direction slider's tick marks, and numbers are written in the locale it is
- * given.
+ * Every string comes from `LabelsProvider`, including the degree suffix on the angle, and
+ * numbers are written in the locale it is given.
  */
 export const Translated: Story = {
     render: function TranslatedStory() {
@@ -235,9 +220,8 @@ export const Translated: Story = {
 };
 
 /**
- * Laid out right to left. Mantine's slider reads the direction provider
- * itself, so the arrow keys run the way the text does and the track fills from
- * the reader's own starting edge.
+ * Laid out right to left. The rows mirror; the bar keeps Figma's left-to-right ramp, because it
+ * draws the gradient's own 0% to 100%, not the reading order.
  */
 export const RightToLeft: Story = {
     render: function RightToLeftStory() {
@@ -248,5 +232,55 @@ export const RightToLeft: Story = {
                 </div>
             </DirectionProvider>
         );
+    },
+};
+
+/**
+ * Every state side by side (design/figma-spec.md 7.5): the Figma layout with the first stop
+ * selected, a focused handle (forced), a selected middle stop, and the bounds (add disabled at
+ * the maximum, remove disabled at the minimum). Switch the toolbar's theme for dark.
+ */
+export const States: Story = {
+    render: function StatesStory() {
+        return (
+            <Stack gap={16}>
+                <StateCell label="Rest (first stop selected), direction row">
+                    <GradientEditor
+                        defaultStops={[createColorStop(0, "#FF4D4D"), createColorStop(1, "#4D4DFF")]}
+                        defaultDirection={90}
+                    />
+                </StateCell>
+                <StateCell label="Focused handle">
+                    <ForceState state="focus" selector=".cm-gradient-handle">
+                        <GradientEditor
+                            defaultStops={[createColorStop(0, "#FF4D4D"), createColorStop(1, "#4D4DFF")]}
+                            showDirection={false}
+                        />
+                    </ForceState>
+                </StateCell>
+                <StateCell label="Five stops: add disabled">
+                    <GradientEditor defaultStops={fiveStops} showDirection={false} />
+                </StateCell>
+            </Stack>
+        );
+    },
+};
+
+/**
+ * The keyboard on a handle: the play function focuses the first handle, moves it 10% with
+ * Shift+ArrowRight, and checks the position field followed.
+ */
+export const HandleKeyboard: Story = {
+    args: {
+        defaultStops: twoStops,
+        showDirection: false,
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const handle = canvas.getByRole("slider", { name: "Stop 1 position" });
+        handle.focus();
+        await userEvent.keyboard("{Shift>}{ArrowRight}{/Shift}");
+        await expect(handle).toHaveAttribute("aria-valuenow", "10");
+        await expect(canvas.getAllByRole("textbox", { name: "Stop 1 position" })[0]).toHaveValue("10%");
     },
 };

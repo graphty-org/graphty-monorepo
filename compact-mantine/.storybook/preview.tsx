@@ -2,9 +2,14 @@ import "@mantine/core/styles.css";
 
 import { DirectionProvider, MantineProvider } from "@mantine/core";
 import type { Preview, StoryContext } from "@storybook/react";
-import React from "react";
 
-import { compactTheme } from "../src";
+import { createCompactTheme } from "../src/theme";
+
+// One theme per contrast mode, built once: MantineProvider re-resolves when the object changes.
+const THEMES = {
+    figma: createCompactTheme(),
+    high: createCompactTheme({ highContrast: true }),
+};
 
 function getColorScheme(globals: Record<string, unknown>): "light" | "dark" {
     if (globals.theme === "light") {
@@ -18,6 +23,11 @@ function getColorScheme(globals: Record<string, unknown>): "light" | "dark" {
 // dedicated RTL story. Mantine's DirectionProvider is the same channel the
 // components read, so flipping it here is exactly what a consumer's own
 // DirectionProvider does.
+// The contrast toolbar: exact Figma (the default) or the WCAG 2.2 AA token set.
+function getContrast(globals: Record<string, unknown>): "figma" | "high" {
+    return globals.contrast === "high" ? "high" : "figma";
+}
+
 function getDirection(globals: Record<string, unknown>): "ltr" | "rtl" {
     return globals.direction === "rtl" ? "rtl" : "ltr";
 }
@@ -32,6 +42,18 @@ const preview: Preview = {
                 items: [
                     { value: "light", title: "Light", icon: "sun" },
                     { value: "dark", title: "Dark", icon: "moon" },
+                ],
+                dynamicTitle: true,
+            },
+        },
+        contrast: {
+            description: "Exact Figma, or the WCAG 2.2 AA token set (createCompactTheme({ highContrast: true }))",
+            toolbar: {
+                title: "Contrast",
+                icon: "contrast",
+                items: [
+                    { value: "figma", title: "Figma" },
+                    { value: "high", title: "WCAG AA" },
                 ],
                 dynamicTitle: true,
             },
@@ -51,19 +73,21 @@ const preview: Preview = {
     },
     initialGlobals: {
         theme: "dark",
+        contrast: "figma",
         direction: "ltr",
     },
     decorators: [
         (Story, context: StoryContext) => {
             const colorScheme = getColorScheme(context.globals);
             const direction = getDirection(context.globals);
+            const theme = THEMES[getContrast(context.globals)];
 
             // `dir` on the wrapper as well as the provider: the provider is what
             // the components read, and the attribute is what the CSS logical
             // properties and Mantine's own stylesheet read.
             return (
                 <DirectionProvider initialDirection={direction} detectDirection={false}>
-                    <MantineProvider theme={compactTheme} forceColorScheme={colorScheme}>
+                    <MantineProvider theme={theme} forceColorScheme={colorScheme}>
                         <div dir={direction}>
                             <Story />
                         </div>

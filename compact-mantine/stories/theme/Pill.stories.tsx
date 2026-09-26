@@ -40,3 +40,14 @@ export const TagsExample: Story = {
         </Group>
     ),
 };
+
+/** The variable-pill shape: 20 tall, 1px border, radius 5; with a remove button; disabled. */
+export const States: Story = {
+    render: () => (
+        <Group gap={8}>
+            <Pill>spacing-4</Pill>
+            <Pill withRemoveButton>brand/primary</Pill>
+            <Pill disabled>disabled</Pill>
+        </Group>
+    ),
+};

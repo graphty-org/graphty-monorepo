@@ -1,120 +1,91 @@
 /**
- * Static visual styles and per-size CSS variables for compact-sized display
- * components.
+ * Per-size CSS variables for the display components (design/figma-spec.md 11.6-11.10).
  *
- * These are applied via the `vars` and `styles` props on the component
- * extensions in ../components/display.ts.
+ * Each `*Scale` is a CompactSizeScale: one variable set per Mantine size token, with `compactSize`
+ * naming the entry the extension's `defaultProps` size resolves to. The compact (sm) entries are
+ * Figma's measurements; the other sizes keep a ramp around them so an explicitly sized component
+ * still differs from its neighbours (see ./size-scale.ts).
  *
- * Each `*Scale` is a CompactSizeScale: one variable set per Mantine size token,
- * with `compactSize` naming the entry that the extension's `defaultProps` size
- * resolves to. The sm entries hold the exact values this package shipped while
- * its resolvers ignored the size prop entirely, so the compact default is
- * unchanged and only the other tokens move. See ./size-scale.ts for why the
- * scale replaced a single frozen object (product owner, 2026-09-13: "sizes
- * aren't varying anymore").
- *
- * The compact (sm) baseline, unchanged:
- * - Badge: --badge-height: 14px, --badge-fz: 9px, --badge-padding-x: 4px
- * - Text: no vars at all -- it reads the theme's global compactFontSizes
- * - Avatar: --avatar-size: 24px
- * - ThemeIcon: --ti-size: 24px
- * - Indicator: --indicator-size: 8px
- * - Kbd: --kbd-fz: 10px, --kbd-padding: 2px 4px
- * - Pill: --pill-height: 16px, --pill-fz: 10px
+ * The compact (sm) values:
+ * - Badge: 16 tall, 11px, padding 0 4, radius 5 (bt/mode-metronome-full #296)
+ * - Avatar: 24 (hm/header-right-default #59)
+ * - ThemeIcon: 24, radius 5
+ * - Indicator: a 9px dot (5 + a 2px ring; ls/rail-default #56)
+ * - Kbd: 25 tall, min 26 wide, 11/16 (pm/keyboard-shortcuts-tab-tools #114); md is the 31-tall
+ *   14/24 cap of the "Essential" tab (ma/keyboard-shortcuts-essential #128)
+ * - Pill: 20 tall, 11px, radius 5 (the variable pill, spec 6.6)
  */
 
 import type { CompactSizeScale } from "./size-scale";
 
-/**
- * Per-size CSS variables for the compact Badge.
- */
+/** Per-size CSS variables for the Badge. */
 export const compactBadgeScale: CompactSizeScale = {
     compactSize: "sm",
     sizes: {
-        xs: { "--badge-height": "12px", "--badge-fz": "8px", "--badge-padding-x": "3px" },
-        sm: { "--badge-height": "14px", "--badge-fz": "9px", "--badge-padding-x": "4px" },
-        md: { "--badge-height": "18px", "--badge-fz": "11px", "--badge-padding-x": "6px" },
-        lg: { "--badge-height": "22px", "--badge-fz": "13px", "--badge-padding-x": "8px" },
-        xl: { "--badge-height": "26px", "--badge-fz": "15px", "--badge-padding-x": "10px" },
+        xs: { "--badge-height": "14px", "--badge-fz": "9px", "--badge-padding-x": "3px", "--badge-lh": "14px" },
+        sm: { "--badge-height": "16px", "--badge-fz": "11px", "--badge-padding-x": "4px", "--badge-lh": "16px" },
+        md: { "--badge-height": "20px", "--badge-fz": "11px", "--badge-padding-x": "6px", "--badge-lh": "20px" },
+        lg: { "--badge-height": "24px", "--badge-fz": "13px", "--badge-padding-x": "8px", "--badge-lh": "24px" },
+        xl: { "--badge-height": "28px", "--badge-fz": "15px", "--badge-padding-x": "10px", "--badge-lh": "28px" },
     },
 };
 
-// NOTE: compactTextVars was removed as it was unused.
-// Text component relies on global fontSizes from the theme (compactFontSizes)
-// rather than component-level vars overrides.
-
-/**
- * Per-size CSS variables for the compact Avatar.
- *
- * The same ramp as compactActionIconScale, so an avatar and an icon button asked
- * for the same size draw the same square.
- */
+/** Per-size CSS variables for the Avatar (the same ramp as the icon buttons). */
 export const compactAvatarScale: CompactSizeScale = {
     compactSize: "sm",
     sizes: {
-        xs: { "--avatar-size": "18px" },
+        xs: { "--avatar-size": "16px" },
         sm: { "--avatar-size": "24px" },
-        md: { "--avatar-size": "30px" },
-        lg: { "--avatar-size": "36px" },
-        xl: { "--avatar-size": "44px" },
+        md: { "--avatar-size": "32px" },
+        lg: { "--avatar-size": "40px" },
+        xl: { "--avatar-size": "48px" },
     },
 };
 
-/**
- * Per-size CSS variables for the compact ThemeIcon.
- *
- * The same ramp as compactActionIconScale and compactAvatarScale: all three are
- * square chrome that sits in the same rows.
- */
+/** Per-size CSS variables for the ThemeIcon. */
 export const compactThemeIconScale: CompactSizeScale = {
     compactSize: "sm",
     sizes: {
-        xs: { "--ti-size": "18px" },
+        xs: { "--ti-size": "16px" },
         sm: { "--ti-size": "24px" },
-        md: { "--ti-size": "30px" },
-        lg: { "--ti-size": "36px" },
-        xl: { "--ti-size": "44px" },
+        md: { "--ti-size": "32px" },
+        lg: { "--ti-size": "40px" },
+        xl: { "--ti-size": "48px" },
     },
 };
 
-/**
- * Per-size CSS variables for the compact Indicator.
- */
+/** Per-size CSS variables for the Indicator. The sm dot is 9px: 5px of colour in a 2px ring. */
 export const compactIndicatorScale: CompactSizeScale = {
     compactSize: "sm",
     sizes: {
-        xs: { "--indicator-size": "6px" },
-        sm: { "--indicator-size": "8px" },
-        md: { "--indicator-size": "10px" },
-        lg: { "--indicator-size": "12px" },
-        xl: { "--indicator-size": "14px" },
+        xs: { "--indicator-size": "7px" },
+        sm: { "--indicator-size": "9px" },
+        md: { "--indicator-size": "11px" },
+        lg: { "--indicator-size": "13px" },
+        xl: { "--indicator-size": "15px" },
     },
 };
 
-/**
- * Per-size CSS variables for the compact Kbd.
- */
+/** Per-size CSS variables for the Kbd key cap. */
 export const compactKbdScale: CompactSizeScale = {
     compactSize: "sm",
     sizes: {
-        xs: { "--kbd-fz": "9px", "--kbd-padding": "1px 3px" },
-        sm: { "--kbd-fz": "10px", "--kbd-padding": "2px 4px" },
-        md: { "--kbd-fz": "12px", "--kbd-padding": "3px 6px" },
-        lg: { "--kbd-fz": "14px", "--kbd-padding": "4px 8px" },
-        xl: { "--kbd-fz": "16px", "--kbd-padding": "5px 10px" },
+        xs: { "--kbd-fz": "9px", "--kbd-lh": "14px", "--kbd-height": "21px", "--kbd-min-width": "22px" },
+        sm: { "--kbd-fz": "11px", "--kbd-lh": "16px", "--kbd-height": "25px", "--kbd-min-width": "26px" },
+        md: { "--kbd-fz": "14px", "--kbd-lh": "24px", "--kbd-height": "31px", "--kbd-min-width": "32px" },
+        lg: { "--kbd-fz": "16px", "--kbd-lh": "26px", "--kbd-height": "35px", "--kbd-min-width": "36px" },
+        xl: { "--kbd-fz": "20px", "--kbd-lh": "30px", "--kbd-height": "41px", "--kbd-min-width": "42px" },
     },
 };
 
-/**
- * Per-size CSS variables for the compact Pill.
- */
+/** Per-size CSS variables for the Pill. */
 export const compactPillScale: CompactSizeScale = {
     compactSize: "sm",
     sizes: {
-        xs: { "--pill-height": "14px", "--pill-fz": "9px" },
-        sm: { "--pill-height": "16px", "--pill-fz": "10px" },
-        md: { "--pill-height": "20px", "--pill-fz": "12px" },
-        lg: { "--pill-height": "24px", "--pill-fz": "14px" },
-        xl: { "--pill-height": "28px", "--pill-fz": "16px" },
+        xs: { "--pill-height": "16px", "--pill-fz": "9px" },
+        sm: { "--pill-height": "20px", "--pill-fz": "11px" },
+        md: { "--pill-height": "24px", "--pill-fz": "13px" },
+        lg: { "--pill-height": "28px", "--pill-fz": "15px" },
+        xl: { "--pill-height": "32px", "--pill-fz": "16px" },
     },
 };

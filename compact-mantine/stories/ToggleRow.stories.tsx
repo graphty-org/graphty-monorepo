@@ -9,6 +9,7 @@ import {
     ToggleRow,
     ToggleRowGroup,
 } from "../src";
+import { focusMarked, StateGrid } from "./figma/selection/StateGrid";
 // Imported from "../src", the package's published entry point, so the stories
 // exercise exactly what a consumer gets from `@graphty/compact-mantine` rather
 // than reaching past it into the source tree.
@@ -19,9 +20,9 @@ import {
  *
  * **Purpose:** carries a setting that is a plain boolean -- whether labels are
  * drawn, whether transitions animate, whether isolated nodes are included --
- * where no value or glyph could stand in for it. It is the tightest row in a
- * panel: toggles sit on a 24px pitch rather than the 32px pitch every other row
- * uses, because a 16px control needs no air around it to stay legible.
+ * where no value or glyph could stand in for it. It is an ordinary property
+ * panel row: Figma's 32px checkbox row, with the neutral checkbox that stays grey
+ * when checked and the word 8px after the box.
  *
  * **When to use:**
  * - For two or more related booleans that belong together, wrapped in a
@@ -36,7 +37,7 @@ import {
  * - **The verb is deleted from the label.** `Show labels` is written `Labels`;
  *   `Animate transitions` is written `Transitions`. The checkbox already says
  *   "show", so the row's one word is spent on what is shown
- * - A 16px Mantine `Checkbox` by default, or a 28x16 `Switch` when the boolean
+ * - A 16px Mantine `Checkbox` by default, or a 32x16 `Switch` when the boolean
  *   is a live mode rather than an option
  * - Real inputs: Tab reaches them, Space toggles them, the word beside the
  *   control toggles it too, and the checked and disabled states are announced
@@ -89,7 +90,7 @@ export const Default: Story = {
 };
 
 /**
- * The shape it ships in: two or more booleans packed at a 24px pitch, with no
+ * The shape it ships in: two or more booleans on the 32px row pitch, with no
  * gap between them, because each row is already exactly 24px tall.
  *
  * These are the options for what the renderer draws beside each node.
@@ -125,7 +126,7 @@ export const VerbDeleted: Story = {
 };
 
 /**
- * The switch form, at 28x16.
+ * The switch form, at 32x16.
  *
  * A switch is for a boolean that is a **live mode** -- something that is on or
  * off right now, such as a layout simulation that is still running -- rather
@@ -404,4 +405,29 @@ export const TwoGroups: Story = {
             </ToggleRowGroup>
         </Box>
     ),
+};
+
+/**
+ * Every state of the row (design/figma-spec.md 5.10): Figma's 32px checkbox row with the
+ * neutral checkbox, and the switch form. The play function focuses the marked row.
+ */
+export const States: Story = {
+    render: (): React.JSX.Element => (
+        <Box style={{ width: PANEL_GRID.CONTENT }}>
+            <StateGrid
+                columns={PANEL_GRID.CONTENT}
+                cells={[
+                    ["checkbox, off", <ToggleRow label="Labels" />],
+                    ["checkbox, on", <ToggleRow label="Labels" defaultChecked />],
+                    ["checkbox, focus", <div data-story-focus><ToggleRow label="Labels" defaultChecked /></div>],
+                    ["checkbox, disabled", <ToggleRow label="Labels" disabled disabledReason="Load data first" />],
+                    ["checkbox, bound", <ToggleRow label="Labels" bound defaultChecked />],
+                    ["switch, off", <ToggleRow label="Live layout" control="switch" />],
+                    ["switch, on", <ToggleRow label="Live layout" control="switch" defaultChecked />],
+                    ["switch, disabled", <ToggleRow label="Live layout" control="switch" disabled defaultChecked />],
+                ]}
+            />
+        </Box>
+    ),
+    play: focusMarked,
 };

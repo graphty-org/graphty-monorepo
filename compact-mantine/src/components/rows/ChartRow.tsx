@@ -3,6 +3,7 @@ import React, { useId } from "react";
 
 import { PANEL_GRID, PANEL_INK } from "../../constants/panel";
 import { useLabels, useNumberFormatter, useOrdinalFormatter } from "../../i18n";
+import { useCompactStyles } from "../../theme/useCompactStyles";
 import { type ActivationHandlerWithMeta, getActivationMeta } from "../../types/events";
 import { liveRegionProps,type LiveSetting } from "../../utils/live-region";
 import { type Direction, inlineX, useDirection } from "../../utils/rtl";
@@ -50,12 +51,11 @@ const CHART_GAP = 2;
 const BASELINE_HEIGHT = 1;
 
 /**
- * The line the two axis-end labels are drawn on, under a histogram's baseline.
- *
- * 13px is an 11px face on a 1 line-height with room for a descender, which is
- * what keeps the plot, the baseline and the labels reading as one 64px block.
+ * The line the two axis-end labels are drawn on, under a histogram's baseline:
+ * one 11/16 body line, so the plot, the baseline and the labels read as one
+ * 64px block.
  */
-const AXIS_ROW_HEIGHT = 13;
+const AXIS_ROW_HEIGHT = 16;
 
 /**
  * The gap between two bars of a histogram.
@@ -109,24 +109,21 @@ const MICRO_BAR_RADIUS = MICRO_BAR_HEIGHT / 2;
 const INLINE_GAP = 4;
 
 /**
- * The 12px body face a row's own name is set in.
- *
- * The compact type scale jumps 11 to 13, so this one role has no token to point
- * at. The 11px roles on these rows -- the axis ends, the value -- use
- * `--mantine-font-size-sm` like everything else.
- */
-const NAME_FONT_SIZE = 12;
-
-/**
  * The square user space a sparkline is drawn in before it is stretched to the
  * width of the row.
  */
 const SPARKLINE_VIEWBOX = 100;
 
 /**
- * The sparkline's stroke, matching the 1.5px of the glyph set.
+ * The sparkline's stroke, matching the 1px of the glyph set.
  */
-const SPARKLINE_STROKE = 1.5;
+const SPARKLINE_STROKE = 1;
+
+/**
+ * The ink of bars and lines: the secondary icon ink reads on white and on the
+ * dark panel, where the divider ink would be too faint (design/figma-spec.md 9.8).
+ */
+const MARK_INK = "var(--cm-icon-secondary)";
 
 /**
  * The largest percentile a micro-bar can draw.
@@ -257,7 +254,7 @@ export interface SparklineRowProps {
  * Props for the MetricRow component.
  */
 export interface MetricRowProps {
-    /** The metric's own name. Shown at 12px, and shortened with an ellipsis when the row is too narrow for it. */
+    /** The metric's own name. Shown at 11px, and shortened with an ellipsis when the row is too narrow for it. */
     name: string;
     /** Where the value falls in its distribution, from 0 to 100. Values outside that range are clamped rather than drawn off the end of the bar. */
     percentile: number;
@@ -361,12 +358,10 @@ function AxisLabel({ children, end, id }: AxisLabelProps): React.JSX.Element {
             component="span"
             id={id}
             data-testid={`chart-axis-${end}`}
+            className="cm-chart-text"
             style={{
                 flex: "0 0 auto",
                 minWidth: 0,
-                fontSize: "var(--mantine-font-size-sm)",
-                lineHeight: 1,
-                color: PANEL_INK.CHROME,
                 whiteSpace: "nowrap",
             }}
         >
@@ -570,6 +565,7 @@ export function HistogramRow({
     live,
     trailing,
 }: HistogramRowProps): React.JSX.Element {
+    useCompactStyles();
     const formatNumber = useNumberFormatter();
     const axis = useAxisIds();
 
@@ -666,7 +662,7 @@ export function HistogramRow({
                                         minWidth: 0,
                                         height: `${String(share)}%`,
                                         minHeight: count > 0 ? MIN_BAR_HEIGHT : 0,
-                                        background: highlighted ? PANEL_INK.ACCENT : PANEL_INK.BORDER,
+                                        background: highlighted ? PANEL_INK.ACCENT : MARK_INK,
                                         borderRadius: BAR_RADIUS,
                                     }}
                                 />
@@ -744,6 +740,7 @@ export function SparklineRow({
     live,
     trailing,
 }: SparklineRowProps): React.JSX.Element {
+    useCompactStyles();
     const direction = useDirection();
     const formatNumber = useNumberFormatter();
     const axis = useAxisIds();
@@ -799,8 +796,8 @@ export function SparklineRow({
                         minWidth: 0,
                         display: "flex",
                         flexDirection: "column",
-                        // The line and the rule it stands on are one drawing.
-                        color: PANEL_INK.BORDER,
+                        // The line; the rule it stands on draws its own ink.
+                        color: MARK_INK,
                     }}
                 >
                     <Box
@@ -885,6 +882,7 @@ export function MetricRow({
     onFocus,
     onBlur,
 }: MetricRowProps): React.JSX.Element {
+    useCompactStyles();
     const labels = useLabels();
     const formatOrdinal = useOrdinalFormatter();
     const nameId = useId();
@@ -954,12 +952,10 @@ export function MetricRow({
                 // a screen reader always reads it in full. The title is for the
                 // sighted reader, who is the one the ellipsis hides it from.
                 title={name}
+                className="cm-chart-value"
                 style={{
                     flex: "1 1 auto",
                     minWidth: 0,
-                    fontSize: NAME_FONT_SIZE,
-                    lineHeight: 1.2,
-                    color: PANEL_INK.VALUE,
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
@@ -1016,12 +1012,8 @@ export function MetricRow({
             <Box
                 component="span"
                 data-testid="metric-row-value"
-                style={{
-                    flex: "0 0 auto",
-                    fontSize: "var(--mantine-font-size-sm)",
-                    lineHeight: 1,
-                    color: PANEL_INK.VALUE,
-                }}
+                className="cm-chart-value"
+                style={{ flex: "0 0 auto" }}
             >
                 {value}
             </Box>

@@ -1,6 +1,8 @@
 import { Group, Radio } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
+import { focusMarked, StateGrid } from "../figma/selection/StateGrid";
+
 const meta: Meta<typeof Radio> = {
     title: "Compact Theme/Mantine Components/Radio",
     component: Radio,
@@ -50,4 +52,26 @@ export const RadioGroup: Story = {
             </Group>
         </Radio.Group>
     ),
+};
+
+/**
+ * Every state of the Radio (design/figma-spec.md 5.6): Figma has no free-standing radio, so it
+ * wears the checkbox's colours with a 6px white dot when checked.
+ */
+export const States: Story = {
+    render: () => (
+        <StateGrid
+            cells={[
+                ["off", <Radio label="Solid" value="a" />],
+                ["off hover", <Radio label="Solid" value="a" data-cm-state="hover" />],
+                ["off pressed", <Radio label="Solid" value="a" data-cm-state="pressed" />],
+                ["on", <Radio label="Solid" value="a" defaultChecked />],
+                ["on pressed", <Radio label="Solid" value="a" defaultChecked data-cm-state="pressed" />],
+                ["focus", <Radio label="Solid" value="a" defaultChecked data-story-focus />],
+                ["disabled", <Radio label="Solid" value="a" disabled />],
+                ["disabled on", <Radio label="Solid" value="a" disabled defaultChecked />],
+            ]}
+        />
+    ),
+    play: focusMarked,
 };

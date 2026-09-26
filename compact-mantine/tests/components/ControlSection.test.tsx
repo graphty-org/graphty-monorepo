@@ -7,7 +7,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { compactTheme } from "../../src";
 import { ControlSection } from "../../src/components/ControlSection";
 import { AdvancedButton } from "../../src/components/rows/TrailingSlot";
-import { PANEL_INK } from "../../src/constants/panel";
 import { LabelsProvider } from "../../src/i18n";
 import { UiGlyph } from "../../src/icons";
 
@@ -55,27 +54,26 @@ describe("ControlSection", () => {
             expect(screen.getByTestId("control-section-name")).toHaveTextContent("Size");
         });
 
-        it("draws the 1px rule above the header, in the theme-aware divider ink", () => {
+        it("draws its rule BELOW the section (the cm-section class), and none above the header", () => {
             renderSection(
                 <ControlSection label="Size">
                     <div>Smallest node size</div>
                 </ControlSection>,
             );
 
-            const divider = screen.getByTestId("control-section-divider");
-            expect(divider).toHaveAttribute("role", "separator");
-            expect(divider.getAttribute("style")).toContain(PANEL_INK.DIVIDER);
-            expect(divider.getAttribute("style")).toContain("0.0625rem");
+            expect(screen.getByTestId("control-section")).toHaveClass("cm-section");
+            expect(screen.queryByTestId("control-section-divider")).not.toBeInTheDocument();
+            expect(screen.queryByRole("separator")).not.toBeInTheDocument();
         });
 
-        it("draws the header at the frozen 32px", () => {
+        it("draws the header at Figma's 40px", () => {
             renderSection(
                 <ControlSection label="Size">
                     <div>Smallest node size</div>
                 </ControlSection>,
             );
 
-            expect(screen.getByTestId("control-section-header")).toHaveStyle({ height: "32px" });
+            expect(screen.getByTestId("control-section-header")).toHaveStyle({ height: "40px" });
         });
 
         it("holds the chevron in a 16px slot", () => {
@@ -91,14 +89,14 @@ describe("ControlSection", () => {
             });
         });
 
-        it("pads 8px below the last content row", () => {
+        it("pads 12px below the last content row", () => {
             renderSection(
                 <ControlSection label="Size">
                     <div>Smallest node size</div>
                 </ControlSection>,
             );
 
-            expect(screen.getByTestId("control-section-content")).toHaveStyle({ paddingBottom: "8px" });
+            expect(screen.getByTestId("control-section-content")).toHaveStyle({ paddingBottom: "12px" });
         });
 
         it("draws the name in the primary text colour when the section holds something", () => {
@@ -108,13 +106,17 @@ describe("ControlSection", () => {
                 </ControlSection>,
             );
 
-            expect(screen.getByTestId("control-section-name").style.color).toContain("--mantine-color-text");
+            // The ink is inherited from the header (cm-section-header, --cm-text);
+            // the browser suite measures it.
+            expect(screen.getByTestId("control-section")).not.toHaveAttribute("data-empty");
+            expect(screen.getByTestId("control-section-name")).toHaveClass("cm-section-title");
         });
 
         it("draws the name in the secondary text colour when the section is empty", () => {
             renderSection(<ControlSection label="Edge properties" empty onAdd={vi.fn()} />);
 
-            expect(screen.getByTestId("control-section-name").style.color).toBe(PANEL_INK.CHROME);
+            // .cm-section[data-empty] dims the header to --cm-text-secondary.
+            expect(screen.getByTestId("control-section")).toHaveAttribute("data-empty", "true");
         });
     });
 
@@ -169,7 +171,8 @@ describe("ControlSection", () => {
                 </ControlSection>,
             );
 
-            expect(screen.getByTestId("control-section-toggle").style.getPropertyValue("text-align")).toBe("start");
+            // text-align: start lives on .cm-section-lead.
+            expect(screen.getByTestId("control-section-toggle")).toHaveClass("cm-section-lead");
         });
     });
 
@@ -181,8 +184,10 @@ describe("ControlSection", () => {
                 </ControlSection>,
             );
 
-            expect(container.querySelector('[data-glyph="chevronLeft"]')).toBeInTheDocument();
-            expect(container.querySelector('[data-glyph="chevronRight"]')).toBeNull();
+            // The register has no left caret: the right one, mirrored.
+            const closed = container.querySelector('[data-caret="closed"]') as HTMLElement;
+            expect(closed.querySelector('[data-glyph="caretRight"]')).toBeInTheDocument();
+            expect(closed.style.transform).toBe("scaleX(-1)");
         });
 
         it("still points an open section's chevron down", () => {
@@ -192,7 +197,7 @@ describe("ControlSection", () => {
                 </ControlSection>,
             );
 
-            expect(container.querySelector('[data-glyph="chevronDown"]')).toBeInTheDocument();
+            expect(container.querySelector('[data-glyph="caretDown"]')).toBeInTheDocument();
         });
 
         it("points the chevron to the right when nobody has set a direction", () => {
@@ -202,8 +207,9 @@ describe("ControlSection", () => {
                 </ControlSection>,
             );
 
-            expect(container.querySelector('[data-glyph="chevronRight"]')).toBeInTheDocument();
-            expect(container.querySelector('[data-glyph="chevronLeft"]')).toBeNull();
+            const closed = container.querySelector('[data-caret="closed"]') as HTMLElement;
+            expect(closed.querySelector('[data-glyph="caretRight"]')).toBeInTheDocument();
+            expect(closed.style.transform).toBe("");
         });
     });
 
@@ -215,7 +221,7 @@ describe("ControlSection", () => {
                 </ControlSection>,
             );
 
-            expect(container.querySelector('[data-glyph="chevronDown"]')).toBeInTheDocument();
+            expect(container.querySelector('[data-glyph="caretDown"]')).toBeInTheDocument();
         });
 
         it("turns the chevron to its sideways form when the section is closed", () => {
@@ -225,16 +231,37 @@ describe("ControlSection", () => {
                 </ControlSection>,
             );
 
-            expect(container.querySelector('[data-glyph="chevronRight"]')).toBeInTheDocument();
-            expect(container.querySelector('[data-glyph="chevronDown"]')).toBeNull();
+            expect(container.querySelector('[data-glyph="caretRight"]')).toBeInTheDocument();
+            expect(container.querySelector('[data-glyph="caretDown"]')).toBeNull();
         });
 
-        it("draws no chevron glyph at all on an empty section, and leaves the slot blank", () => {
+        it("draws no chevron at all on an empty section: the gutter stays blank", () => {
             const { container } = renderSection(<ControlSection label="Edge properties" empty onAdd={vi.fn()} />);
 
-            expect(container.querySelector('[data-glyph="chevronDown"]')).toBeNull();
-            expect(container.querySelector('[data-glyph="chevronRight"]')).toBeNull();
-            expect(screen.getByTestId("control-section-chevron-slot")).toBeEmptyDOMElement();
+            expect(container.querySelector('[data-glyph="caretDown"]')).toBeNull();
+            expect(container.querySelector('[data-glyph="caretRight"]')).toBeNull();
+            expect(screen.queryByTestId("control-section-chevron-slot")).not.toBeInTheDocument();
+        });
+
+        it("draws no chevron and no toggle when collapsible is false, and always shows the rows", () => {
+            renderSection(
+                <ControlSection label="Position" collapsible={false} opened={false}>
+                    <div>X</div>
+                </ControlSection>,
+            );
+
+            expect(screen.queryByTestId("control-section-chevron-slot")).not.toBeInTheDocument();
+            expect(screen.queryByTestId("control-section-toggle")).not.toBeInTheDocument();
+            expect(screen.getByText("X")).toBeVisible();
+        });
+
+        it("adds when an empty section's title is clicked, as Figma's does", async () => {
+            const onAdd = vi.fn();
+            renderSection(<ControlSection label="Edge properties" empty onAdd={onAdd} />);
+
+            await userEvent.click(screen.getByTestId("control-section-name"));
+
+            expect(onAdd).toHaveBeenCalledTimes(1);
         });
 
         it("offers no expand target on an empty section", () => {
@@ -693,7 +720,7 @@ describe("ControlSection", () => {
         it("says it in shape as well as in colour", () => {
             const { container } = renderSection(<ControlSection label="Edge properties" empty onAdd={vi.fn()} />);
 
-            expect(screen.getByTestId("control-section-chevron-slot")).toBeEmptyDOMElement();
+            expect(screen.queryByTestId("control-section-chevron-slot")).not.toBeInTheDocument();
             expect(container.querySelector('[data-glyph="plus"]')).toBeInTheDocument();
         });
 

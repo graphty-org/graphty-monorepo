@@ -74,3 +74,27 @@ export const Variants: Story = {
         </Group>
     ),
 };
+
+/**
+ * RingProgress on tokens (design/figma-spec.md 8.8): the track in --cm-bg-secondary, the label in
+ * --cm-text. Empty, part and full.
+ */
+export const States: Story = {
+    render: () => (
+        <Group gap={16}>
+            {[0, 40, 100].map((value) => (
+                <RingProgress
+                    key={value}
+                    size={48}
+                    thickness={4}
+                    sections={[{ value, color: "brand" }]}
+                    label={
+                        <Text size="xs" ta="center">
+                            {value}
+                        </Text>
+                    }
+                />
+            ))}
+        </Group>
+    ),
+};

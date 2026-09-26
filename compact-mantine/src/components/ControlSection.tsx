@@ -1,50 +1,23 @@
-import { ActionIcon, Box, Collapse, Divider, Stack, UnstyledButton } from "@mantine/core";
+import { ActionIcon, Box, UnstyledButton } from "@mantine/core";
 import { useUncontrolled } from "@mantine/hooks";
 import React, { useId } from "react";
 
-import { PANEL_GRID, PANEL_INK } from "../constants/panel";
+import { PANEL_GRID } from "../constants/panel";
 import { useLabels } from "../i18n";
 import { UiGlyph } from "../icons";
+import { useCompactStyles } from "../theme/useCompactStyles";
 import type { ActivationHandler, DisclosureProps } from "../types/events";
 import { useDevWarning } from "../utils/dev-warning";
 import { isRtl, useDirection } from "../utils/rtl";
+import { Caret } from "./chrome/Caret";
 import { InfoCircle } from "./InfoCircle";
 import { TrailingSlot } from "./rows/TrailingSlot";
 
-// RT-8. VOCAB section 2 sets the header type; DECISIONS-1.8 A6 is the
-// always-expands rule. Contract sections 1.4, 2.1, 2.3, 3 and 7 were applied to
-// this file: the disclosure event model, the strings, the logical properties,
-// the ARIA and the user-facing documentation.
-
-/**
- * The 4px gap between the parts of one header: between the chevron slot and the
- * name, between the name and its explanation button, and between two actions.
- */
-const INLINE_GAP = 4;
-
-/**
- * The height of the rule drawn above every section header.
- */
-const DIVIDER_HEIGHT = 1;
-
-/**
- * The side of the square dot that marks a section as holding settings the
- * reader changed from their defaults.
- */
-const CONFIGURED_DOT = 6;
-
-/**
- * The section name's type size, in pixels.
- *
- * 12px falls between the compact theme's `sm` (11px) and `md` (13px) tokens, so
- * it has no variable of its own.
- */
-const NAME_FONT_SIZE = 12;
-
-/**
- * The section name's line height, from the same row of the type ramp.
- */
-const NAME_LINE_HEIGHT = 1.2;
+// Figma's properties-panel section (design/figma-spec.md 9.2): a 40px header padded 0 8 0 16,
+// an 11px weight-550 title on a 32px line, a 16px chevron slot in the left gutter where the
+// section collapses, 24px actions 4 apart at the end, then the rows, 12px of bottom padding, and
+// a 1px rule BELOW the section. The states (the empty section's dim title and its 100ms hover to
+// the primary ink) live in src/theme/css/chrome.css.ts on the cm-section-* classes.
 
 /**
  * Props for the ControlSection component.
@@ -115,21 +88,31 @@ export interface ControlSectionProps extends DisclosureProps {
     actions?: React.ReactNode;
     /** The rows the section holds: the controls commonly adjusted for its subject. */
     children?: React.ReactNode;
+    /**
+     * Whether the section folds away behind a chevron in the left gutter.
+     *
+     * Figma collapses only a few sections (Export, Styles); most are shown or hidden as a whole
+     * by the app. Set it to false for a section that is always open: no chevron, no toggle
+     * button, and its rows are always on screen.
+     * @default true
+     */
+    collapsible?: boolean;
 }
 
 /**
  * A named, collapsible group of controls for a dense property panel.
  *
- * A section is drawn as a 1px rule, a 32px header carrying the section's name,
- * the rows it holds, and 8px of padding beneath them. Naming the group once in
+ * A section is drawn as a 40px header carrying the section's name, the rows it
+ * holds, 12px of padding beneath them, and a 1px rule below. Naming the group once in
  * the header is what lets the rows inside it spend their width on values rather
  * than on labels and buttons of their own.
  *
  * **A section always expands**, and three rules follow from that:
  *
  * 1. The chevron is drawn only when there is something to expand. An `empty`
- *    section has no chevron at all: its 16px slot is left blank and its
- *    trailing slot carries one "+".
+ *    section has no chevron at all and its trailing slot carries one "+".
+ *    Hovering its header brings the name, and the "+", up to the primary
+ *    ink; clicking the name adds, like the "+".
  * 2. In development it warns when it is given neither children nor `empty`,
  *    because a header that opens onto nothing is a dead end for the reader.
  * 3. There is no way to put the section's own content behind a pop-out. An
@@ -144,9 +127,10 @@ export interface ControlSectionProps extends DisclosureProps {
  * "+", so nothing about the state depends on telling two greys apart.
  *
  * The section draws the panel's own horizontal padding, 16px at the leading
- * edge and 8px at the trailing edge, so a section dropped straight into a 280px
+ * edge and 8px at the trailing edge, so a section dropped straight into a 240px
  * panel lands its header and its rows on the same grid the rows expect. The
- * padding follows the text direction, and so does the chevron -- a collapsed
+ * chevron sits in the 16px gutter before the name. The padding follows the
+ * text direction, and so does the chevron -- a collapsed
  * section points towards the left in a right-to-left interface -- so the
  * section is correct in either direction with nothing to configure.
  * @param props - Component props
@@ -161,6 +145,7 @@ export interface ControlSectionProps extends DisclosureProps {
  * @param props.info - An explanation, put behind a circled "i" and used as the section's accessible description
  * @param props.actions - The section's own buttons, drawn at the end of the header
  * @param props.children - The rows the section holds
+ * @param props.collapsible - Whether the section folds away behind a chevron, defaulting to true
  * @returns The section, its header and its rows
  * @example
  * ```tsx
@@ -183,6 +168,7 @@ export interface ControlSectionProps extends DisclosureProps {
  * ```
  */
 export function ControlSection(props: ControlSectionProps): React.JSX.Element {
+    useCompactStyles();
     const {
         label,
         technicalName,
@@ -195,6 +181,7 @@ export function ControlSection(props: ControlSectionProps): React.JSX.Element {
         info,
         actions,
         children,
+        collapsible = true,
     } = props;
 
     const labels = useLabels();
@@ -217,6 +204,8 @@ export function ControlSection(props: ControlSectionProps): React.JSX.Element {
     // it drops the nulls and the `false` arms a conditional row leaves behind.
     const hasContent = !empty && React.Children.toArray(children).length > 0;
     const hasInfo = info !== undefined && info !== null;
+    const toggles = hasContent && collapsible;
+    const shown = hasContent && (!collapsible || isOpen);
 
     // The defect this revision exists to remove: a chevron that reveals
     // nothing. A section with no rows is either empty -- and says so by dimming
@@ -240,43 +229,7 @@ export function ControlSection(props: ControlSectionProps): React.JSX.Element {
     const toggleName = isOpen ? labels.collapseSection(label) : labels.expandSection(label);
     const addName = labels.addToSection(label);
 
-    // A chevron is a drawing rather than a box, so no logical CSS property
-    // turns it round. A collapsed section points the way its text runs, which
-    // is towards the left in a right-to-left interface; an open one points down
-    // in both. Mantine's DirectionProvider is what says which, and says "ltr"
-    // when a consumer has set none.
-    const collapsedChevron = isRtl(direction) ? "chevronLeft" : "chevronRight";
-
-    /** The 16px slot the chevron lives in, drawn blank when there is nothing to expand. */
-    const slotStyle: React.CSSProperties = {
-        flex: "0 0 auto",
-        width: PANEL_GRID.GLYPH_SLOT,
-        height: PANEL_GRID.GLYPH_SLOT,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        color: PANEL_INK.CHROME,
-    };
-
-    /** The chevron slot and the name, which together are the expand target. */
-    const leadStyle: React.CSSProperties = {
-        display: "flex",
-        alignItems: "center",
-        gap: INLINE_GAP,
-        flex: "0 1 auto",
-        minWidth: 0,
-        height: "100%",
-        background: "transparent",
-        // "start" rather than "left", so a right-to-left section aligns its own
-        // name to the edge its reader starts from.
-        textAlign: "start",
-    };
-
-    // The name is the accessible name of the whole group, and `title` puts the
-    // full text within reach of a pointer when the column is too narrow for it.
-    // A screen reader is not relying on the title: CSS ellipsis does not
-    // truncate the text it reads, and the expand button repeats the whole name.
-    // The plain-then-technical pair of 6.3, as one label. `fullName` is what a pointer
+    // The plain-then-technical pair, as one label. `fullName` is what a pointer
     // and a screen reader get; the drawn halves differ only in weight and ink.
     const fullName = technicalName === undefined ? label : `${label} (${technicalName})`;
     const name = (
@@ -285,30 +238,11 @@ export function ControlSection(props: ControlSectionProps): React.JSX.Element {
             id={nameId}
             title={fullName}
             data-testid="control-section-name"
-            style={{
-                minWidth: 0,
-                fontSize: NAME_FONT_SIZE,
-                fontWeight: 500,
-                lineHeight: NAME_LINE_HEIGHT,
-                // WCAG 1.4.1 (Use of Colour): the dim name is a second signal,
-                // not the only one. An empty section is also the only shape
-                // with no chevron in its 16px slot and the only one carrying a
-                // "+", and both of those survive for a reader who cannot tell
-                // the two inks apart. The "+" is what carries the state into
-                // the accessibility tree, as the button named "Add <section>".
-                color: empty ? PANEL_INK.CHROME : PANEL_INK.VALUE,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-            }}
+            className="cm-section-title"
         >
             {label}
             {technicalName === undefined ? null : (
-                <Box
-                    component="span"
-                    data-testid="control-section-technical-name"
-                    style={{ fontWeight: 400, color: PANEL_INK.CHROME }}
-                >
+                <Box component="span" data-testid="control-section-technical-name" className="cm-section-technical">
                     {` (${technicalName})`}
                 </Box>
             )}
@@ -321,6 +255,11 @@ export function ControlSection(props: ControlSectionProps): React.JSX.Element {
     // once for the group and is never replaced by an aria-label that would hide
     // it. The expand button's own name keeps the verb in front of that text,
     // which is what makes a list of collapsed sections navigable by name.
+    //
+    // WCAG 1.4.1 (Use of Colour): an empty section's dim name is a second
+    // signal, never the only one. It also has no chevron and carries a "+",
+    // and the "+" is what carries the state into the accessibility tree, as
+    // the button named "Add <section>".
     return (
         <Box
             role="group"
@@ -328,55 +267,47 @@ export function ControlSection(props: ControlSectionProps): React.JSX.Element {
             aria-describedby={hasInfo ? infoId : undefined}
             data-testid="control-section"
             data-empty={empty ? "true" : undefined}
+            className="cm-section"
         >
-            {/* The 1px rule above the header, full bleed and unmargined: the
-                section rhythm is 1px divider / 32px header / 32n content /
-                8px pad, and a margin here would break it. */}
-            <Divider
-                data-testid="control-section-divider"
-                color={PANEL_INK.DIVIDER}
-                size={DIVIDER_HEIGHT}
-                my={0}
-                mx={0}
-            />
-
-            {/* 16 | 16px chevron | 4 | name | 4 | info circle | flex | actions
-                ending at x 272. PAD_LEFT and PAD_RIGHT are named for the
-                left-to-right case they were measured in; the 16 is the panel's
-                leading pad and the 8 its trailing one, so they are written here
-                as inline padding and follow the text direction. */}
+            {/* 16 | title | info | flex | actions ending at x 232. The padding
+                is inline (start 16, end 8), so it follows the text direction. */}
             <Box
                 data-testid="control-section-header"
+                className="cm-section-header"
                 style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: INLINE_GAP,
-                    boxSizing: "border-box",
                     height: PANEL_GRID.SECTION_HEADER,
                     paddingInlineStart: PANEL_GRID.PAD_LEFT,
                     paddingInlineEnd: PANEL_GRID.PAD_RIGHT,
                 }}
             >
-                {hasContent ? (
+                {toggles ? (
                     <UnstyledButton
                         type="button"
                         data-testid="control-section-toggle"
+                        data-collapsible="true"
+                        className="cm-section-lead cm-focus-inside"
                         aria-label={toggleName}
                         aria-expanded={isOpen}
                         aria-controls={contentId}
                         onClick={handleToggle}
-                        style={{ ...leadStyle, cursor: "pointer" }}
                     >
-                        <Box data-testid="control-section-chevron-slot" style={slotStyle}>
-                            <UiGlyph name={isOpen ? "chevronDown" : collapsedChevron} size={PANEL_GRID.CHEVRON} />
+                        {/* The 16px slot in the gutter at x 0..16. A closed
+                            section's caret points the way text runs. */}
+                        <Box data-testid="control-section-chevron-slot" className="cm-section-chevron">
+                            <Caret open={isOpen} rtl={isRtl(direction)} />
                         </Box>
                         {name}
                     </UnstyledButton>
                 ) : (
-                    <Box style={leadStyle}>
-                        {/* Nothing to expand, so the slot holds the grid and
-                            draws no glyph at all. */}
-                        <Box data-testid="control-section-chevron-slot" style={slotStyle} />
+                    // An empty section's title adds, as Figma's does. The
+                    // pointer route only: the "+" is the keyboard route and
+                    // the named control, so the title stays out of the tab
+                    // order rather than being a second button with one name.
+                    <Box
+                        className="cm-section-lead"
+                        data-testid="control-section-lead"
+                        onClick={empty && onAdd !== undefined ? onAdd : undefined}
+                    >
                         {name}
                     </Box>
                 )}
@@ -386,47 +317,25 @@ export function ControlSection(props: ControlSectionProps): React.JSX.Element {
                         role="img"
                         aria-label={labels.sectionHasConfiguredValues(label)}
                         data-testid="control-section-dot"
-                        style={{
-                            flex: "0 0 auto",
-                            width: CONFIGURED_DOT,
-                            height: CONFIGURED_DOT,
-                            borderRadius: "50%",
-                            background: PANEL_INK.ACCENT,
-                        }}
+                        className="cm-section-dot"
                     />
                 )}
 
                 {hasInfo && <InfoCircle label={label}>{info}</InfoCircle>}
 
-                {/* The flex that carries the actions to x 272. */}
-                <Box style={{ flex: "1 1 auto" }} />
-
                 {actions !== undefined && actions !== null && (
-                    <Box
-                        data-testid="control-section-actions"
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: INLINE_GAP,
-                            flex: "0 0 auto",
-                        }}
-                    >
+                    <Box data-testid="control-section-actions" className="cm-section-actions">
                         {actions}
                     </Box>
                 )}
 
                 {empty && onAdd !== undefined && (
                     <TrailingSlot>
-                        {/* An ActionIcon rather than a bare button, so the "+"
-                            picks up the theme's 24px hover, active and disabled
-                            states and the focus ring, instead of drawing
-                            nothing back when it is pressed. */}
                         <ActionIcon
                             type="button"
                             variant="subtle"
                             size={PANEL_GRID.CONTROL_HEIGHT}
-                            radius="sm"
-                            c={PANEL_INK.CHROME}
+                            className="cm-section-add"
                             title={addName}
                             aria-label={addName}
                             data-testid="control-section-add"
@@ -440,31 +349,31 @@ export function ControlSection(props: ControlSectionProps): React.JSX.Element {
 
             {/* The explanation, mirrored where nothing draws it, so that
                 aria-describedby on the group has something to point at whether
-                or not the bubble is open. A directly referenced element is read
-                by a screen reader even while it is hidden, and hiding it is
-                what keeps anything interactive inside the explanation from
-                being reachable twice. */}
+                or not the bubble is open. */}
             {hasInfo && (
                 <Box id={infoId} data-testid="control-section-description" hidden>
                     {info}
                 </Box>
             )}
 
-            {/* The content rows, then 8px of bottom padding. Resident, never
-                behind a pop-out. */}
+            {/* The content rows, then 12px of bottom padding. It opens and
+                closes in one frame (spec 2.8) and stays mounted while closed,
+                so aria-controls always points at something and a half-typed
+                field keeps its value. */}
             {hasContent && (
-                <Collapse id={contentId} in={isOpen}>
-                    <Box
-                        data-testid="control-section-content"
-                        style={{
-                            paddingInlineStart: PANEL_GRID.PAD_LEFT,
-                            paddingInlineEnd: PANEL_GRID.PAD_RIGHT,
-                            paddingBottom: PANEL_GRID.SECTION_PAD_BOTTOM,
-                        }}
-                    >
-                        <Stack gap={0}>{children}</Stack>
-                    </Box>
-                </Collapse>
+                <Box
+                    id={contentId}
+                    hidden={!shown}
+                    data-testid="control-section-content"
+                    className="cm-section-content"
+                    style={{
+                        paddingInlineStart: PANEL_GRID.PAD_LEFT,
+                        paddingInlineEnd: PANEL_GRID.PAD_RIGHT,
+                        paddingBottom: PANEL_GRID.SECTION_PAD_BOTTOM,
+                    }}
+                >
+                    {children}
+                </Box>
             )}
         </Box>
     );

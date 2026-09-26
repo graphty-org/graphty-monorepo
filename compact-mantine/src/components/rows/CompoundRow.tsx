@@ -4,6 +4,7 @@ import React from "react";
 import { PANEL_GRID, PANEL_INK } from "../../constants/panel";
 import { usePanelLabels } from "../../context/PanelLabelsContext";
 import { FieldGlyph, type FieldGlyphName, type FieldLetter, isFieldGlyphName, isFieldLetter } from "../../icons";
+import { useCompactStyles } from "../../theme/useCompactStyles";
 import type { ActivationHandler } from "../../types/events";
 import { useDevWarning } from "../../utils/dev-warning";
 import { liveRegionProps, type LiveSetting, resolveLive } from "../../utils/live-region";
@@ -25,7 +26,7 @@ import { TrailingSlot } from "./TrailingSlot";
 //     the values it is meant to announce (contract section 3, the defect that
 //     ships in PanelField today).
 //
-// The box is 224x24 or 108x24, so it clears the 24x24 minimum of WCAG 2.2
+// The box is 184x24 or 88x24, so it clears the 24x24 minimum of WCAG 2.2
 // 2.5.8 (target size) in its interactive form.
 //
 // Contract section 3 also asks for aria-live wherever content arrives
@@ -51,14 +52,13 @@ import { TrailingSlot } from "./TrailingSlot";
 // useDirection().
 
 /**
- * The padding on each inline edge of one segment.
- *
- * Derived rather than typed, exactly as `PanelField` derives it: the 16px glyph
- * slot plus this padding is `PANEL_GRID.VALUE_INSET`, so a compound row's
- * leading value starts on the same line as the value of every other row in the
- * panel.
+ * The inset of a segment's text from its leading edge when it has no glyph, and
+ * from its trailing edge always: Figma's paint row puts the opacity text 8px
+ * past the start of its segment (a 1px seam, then 7px of padding), and the text
+ * of a segment with a glyph starts at `PANEL_GRID.VALUE_INSET`, right after the
+ * 24px glyph slot (design/figma-spec.md 9.6, right-sidebar-selection/s-al-full-sec-fill #55-#64).
  */
-const SEGMENT_PADDING_X = PANEL_GRID.VALUE_INSET - PANEL_GRID.GLYPH_SLOT;
+const SEGMENT_PADDING_X = 8;
 
 /**
  * The gap between a value and its unit suffix inside one segment.
@@ -90,7 +90,7 @@ const MAX_SEGMENTS = 3;
 export interface CompoundSegment {
     /**
      * A glyph name, a single capital letter, or your own node -- a colour
-     * swatch, say -- drawn in this segment's leading 16px slot.
+     * swatch, say -- drawn in this segment's leading 24px slot.
      *
      * A plain string is deliberately not accepted: a loose word in the slot
      * would be a label smuggled into a space meant for a drawing. A segment
@@ -140,8 +140,8 @@ export interface CompoundRowProps {
     /**
      * The width of the box in pixels.
      *
-     * `PANEL_GRID.BODY` (224) fills the row and still leaves room for the
-     * trailing control; `PANEL_GRID.FIELD` (108) is half a row, for a box that
+     * `PANEL_GRID.BODY` (184) fills the row and still leaves room for the
+     * trailing control; `PANEL_GRID.FIELD` (88) is half a row, for a box that
      * sits beside another control. Ignored while the "show labels on controls"
      * preference is on, when the box fills whatever the label column leaves.
      */
@@ -262,14 +262,7 @@ function CompoundSegmentBox({ segment, grow, index }: CompoundSegmentBoxProps): 
         slotContent = <FieldGlyph name={glyph} />;
     } else if (isFieldLetter(glyph)) {
         slotContent = (
-            <Box
-                component="span"
-                data-letter={glyph}
-                style={{
-                    fontSize: "var(--mantine-font-size-sm)",
-                    lineHeight: 1,
-                }}
-            >
+            <Box component="span" data-letter={glyph}>
                 {glyph}
             </Box>
         );
@@ -298,7 +291,9 @@ function CompoundSegmentBox({ segment, grow, index }: CompoundSegmentBoxProps): 
                 minWidth: 0,
                 height: PANEL_GRID.CONTROL_HEIGHT,
                 paddingBlock: 0,
-                paddingInline: SEGMENT_PADDING_X,
+                // The seam before a later segment is its first pixel of inset.
+                paddingInlineStart: slotContent === null ? SEGMENT_PADDING_X - (index > 0 ? HAIRLINE : 0) : 0,
+                paddingInlineEnd: SEGMENT_PADDING_X,
             }}
         >
             {slotContent !== null && (
@@ -328,9 +323,6 @@ function CompoundSegmentBox({ segment, grow, index }: CompoundSegmentBoxProps): 
                     flex: grow ? "1 1 auto" : "0 0 auto",
                     minWidth: 0,
                     fontFamily: mono ? "var(--mantine-font-family-monospace)" : undefined,
-                    fontSize: "var(--mantine-font-size-sm)",
-                    lineHeight: 1,
-                    color: PANEL_INK.VALUE,
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
@@ -350,12 +342,10 @@ function CompoundSegmentBox({ segment, grow, index }: CompoundSegmentBoxProps): 
                 <Box
                     component="span"
                     data-testid="compound-segment-unit"
+                    className="cm-compound-unit"
                     style={{
                         flex: "0 0 auto",
                         marginInlineStart: UNIT_GAP,
-                        fontSize: "var(--mantine-font-size-sm)",
-                        lineHeight: 1,
-                        color: PANEL_INK.CHROME,
                     }}
                 >
                     {unit}
@@ -453,7 +443,7 @@ function growCountWarning(label: string, growCount: number): string | undefined 
  * @param props - Component props
  * @param props.label - Names the one thing the segments belong to; becomes the box's tooltip and part of its accessible name
  * @param props.segments - Two or three values that belong to one thing
- * @param props.width - The width of the box in pixels: 224 to fill the row, 108 for half of one
+ * @param props.width - The width of the box in pixels: 184 to fill the row, 88 for half of one
  * @param props.trailing - The 24px trailing control: an advanced settings button, a reset, or nothing
  * @param props.busy - Whether the row's values are still being worked out by something that finishes later
  * @param props.live - How urgently a screen reader announces the row when it changes on its own
@@ -484,6 +474,7 @@ export function CompoundRow({
     onFocus,
     onBlur,
 }: CompoundRowProps): React.JSX.Element {
+    useCompactStyles();
     const showLabels = usePanelLabels();
     const labelId = React.useId();
 
@@ -534,10 +525,10 @@ export function CompoundRow({
         width: showLabels ? undefined : width,
         minWidth: 0,
         height: PANEL_GRID.CONTROL_HEIGHT,
-        background: PANEL_INK.SURFACE,
-        borderRadius: "var(--mantine-radius-sm)",
-        // The hairline stops at the box's rounded corners.
-        overflow: "hidden",
+        // The fill, the 5px radius and the type are the cm-compound class; the
+        // interactive form adds cm-field for Figma's hover outline and 1px
+        // focus ring. The seams stop at the rounded corners because they are
+        // only as tall as the box and the box clips nothing it needs.
         // A button carries Mantine's own `text-align: left`, which is physical.
         textAlign: "start",
         cursor: interactive ? "pointer" : undefined,
@@ -558,11 +549,11 @@ export function CompoundRow({
                     {index > 0 && (
                         <Box
                             data-testid="compound-row-hairline"
+                            className="cm-compound-seam"
                             style={{
                                 flex: "0 0 auto",
                                 width: HAIRLINE,
                                 height: PANEL_GRID.CONTROL_HEIGHT,
-                                background: PANEL_INK.PANEL,
                             }}
                         />
                     )}
@@ -578,7 +569,7 @@ export function CompoundRow({
             style={{
                 display: "flex",
                 alignItems: "center",
-                // A 108px box does not reach the trailing gap, so the free
+                // An 88px box does not reach the trailing gap, so the free
                 // width between the box and the trailing slot is spent here
                 // rather than after the slot: the trailing control sits at the
                 // same place on every row type, whatever its body is worth.
@@ -597,11 +588,9 @@ export function CompoundRow({
                     data-testid="compound-row-label"
                     title={label}
                     aria-hidden={nameInsideBox ? true : undefined}
+                    className="cm-row-reading"
                     style={{
                         flex: `0 0 ${PANEL_GRID.LABEL_COLUMN}px`,
-                        fontSize: "var(--mantine-font-size-sm)",
-                        lineHeight: 1.2,
-                        color: PANEL_INK.CHROME,
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
@@ -617,6 +606,7 @@ export function CompoundRow({
                     title={label}
                     data-testid="compound-row-box"
                     data-interactive="true"
+                    className="cm-compound cm-field"
                     {...liveRegionProps(liveSetting, busy)}
                     onClick={onClick}
                     onFocus={onFocus}
@@ -633,6 +623,7 @@ export function CompoundRow({
                     title={label}
                     data-testid="compound-row-box"
                     data-interactive="false"
+                    className="cm-compound"
                     {...liveRegionProps(liveSetting, busy)}
                     onFocus={onFocus}
                     onBlur={onBlur}

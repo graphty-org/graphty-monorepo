@@ -96,20 +96,30 @@ describe("Navigation Component Extensions (Refactored)", () => {
         });
     });
 
-    describe("styles are static", () => {
-        it("Anchor uses static styles (not function)", () => {
-            const extension = navigationComponentExtensions.Anchor;
-            expect(typeof extension.styles).toBe("object");
+    describe("look comes from static classNames, not styles", () => {
+        const NAMES = ["Anchor", "Burger", "NavLink", "Pagination", "Stepper", "Tabs"] as const;
+
+        it.each(NAMES)("%s uses a static classNames object with its cm-* root class", (name) => {
+            const extension = navigationComponentExtensions[name];
+            expect(typeof extension.classNames).toBe("object");
+            expect((extension.classNames as Record<string, string>).root).toMatch(/^cm-/);
+            expect(extension.styles).toBeUndefined();
+        });
+    });
+
+    describe("pill tabs (design/figma-spec.md 5.1)", () => {
+        it("Tabs default to Figma's pills, with automatic activation and wrapping arrows", () => {
+            const { defaultProps } = navigationComponentExtensions.Tabs;
+            expect(defaultProps?.variant).toBe("pills");
+            expect(defaultProps?.activateTabWithKeyboard).toBe(true);
+            expect(defaultProps?.loop).toBe(true);
         });
 
-        it("NavLink uses static styles (not function)", () => {
-            const extension = navigationComponentExtensions.NavLink;
-            expect(typeof extension.styles).toBe("object");
-        });
-
-        it("Tabs uses static styles (not function)", () => {
-            const extension = navigationComponentExtensions.Tabs;
-            expect(typeof extension.styles).toBe("object");
+        it("Tabs.Tab activates on mouse-down and reserves its bold label width", () => {
+            const { defaultProps } = navigationComponentExtensions.TabsTab;
+            expect(typeof defaultProps?.onMouseDown).toBe("function");
+            expect(typeof defaultProps?.onClickCapture).toBe("function");
+            expect(typeof defaultProps?.renderRoot).toBe("function");
         });
     });
 });

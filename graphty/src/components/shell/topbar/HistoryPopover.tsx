@@ -21,7 +21,6 @@ import { InfoCircle, PANEL_INK, Popout, UiGlyph } from "@graphty/compact-mantine
 import { ActionIcon, Tooltip, VisuallyHidden } from "@mantine/core";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
-import { TOOLTIP_DELAY_MS } from "../constants";
 import {
     HISTORY_ACTIVITY_COLUMN,
     HISTORY_BADGE_FONT_SIZE,
@@ -200,7 +199,7 @@ function HistoryRowItem(props: HistoryRowItemProps): React.JSX.Element {
                                 {entry.title}
                             </span>
                         ) : (
-                            <Tooltip label={entry.destinationTitle} openDelay={TOOLTIP_DELAY_MS} withinPortal>
+                            <Tooltip label={entry.destinationTitle} withinPortal>
                                 <button
                                     type="button"
                                     aria-label={entry.destinationTitle}
@@ -449,7 +448,7 @@ export function HistoryPopover(props: HistoryPopoverProps): React.JSX.Element {
                         >
                             {historyStateLine(entryCount, undoneCount)}
                         </span>
-                        <Tooltip label={CLOSE_TITLE} openDelay={TOOLTIP_DELAY_MS} withinPortal>
+                        <Tooltip label={CLOSE_TITLE} withinPortal>
                             <ActionIcon
                                 type="button"
                                 variant="subtle"

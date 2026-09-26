@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import React from "react";
 
 import { AdvancedButton, CompoundRow, PANEL_GRID, PANEL_INK, PanelLabelsProvider, UiGlyph } from "../src";
+import { StoryState, StoryStates } from "./figma/chrome/StoryPanel";
 
 // Imported from "../src", the package's published entry point, so the stories
 // exercise exactly what a consumer gets from `@graphty/compact-mantine` rather
@@ -85,11 +86,16 @@ const meta: Meta<typeof CompoundRow> = {
         onBlur: { action: "blur" },
     },
     decorators: [
-        (Story) => (
-            <Box w={PANEL_GRID.WIDTH} p="md" bg="var(--mantine-color-body)">
+        // Every story sits in a 240px panel on the panel ground; States lays out
+        // several panels side by side, so it brings its own.
+        (Story, context): React.JSX.Element =>
+            context.name === "States" ? (
                 <Story />
-            </Box>
-        ),
+            ) : (
+                <Box w={PANEL_GRID.WIDTH} bg="var(--cm-bg)" style={{ paddingInline: "16px 8px" }}>
+                    <Story />
+                </Box>
+            ),
     ],
 };
 
@@ -462,4 +468,43 @@ export const RightToLeft: Story = {
             </Box>
         </DirectionProvider>
     ),
+};
+
+/**
+ * Every state of the compound readout (design/figma-spec.md 9.6): read-only, interactive at
+ * rest, under the pointer (the #e6e6e6 outline), with focus (the 1px ring inside), and 88 wide.
+ */
+export const States: Story = {
+    render: () => {
+        const segments = [
+            { glyph: <Swatch color="#3380ff" />, value: "3380FF", grow: true },
+            { value: "100", unit: "%" },
+        ];
+        return (
+            <StoryStates>
+                <StoryState name="Read-only" padded>
+                    <CompoundRow label="Fill" segments={segments} />
+                </StoryState>
+                <StoryState name="Interactive" padded>
+                    <CompoundRow label="Fill" segments={segments} onClick={() => undefined} />
+                </StoryState>
+                <StoryState name="Hover" force="hover" padded>
+                    <CompoundRow label="Fill" segments={segments} onClick={() => undefined} />
+                </StoryState>
+                <StoryState name="Focus" force="focus" padded>
+                    <CompoundRow label="Fill" segments={segments} onClick={() => undefined} />
+                </StoryState>
+                <StoryState name="Narrow (88)" padded>
+                    <CompoundRow
+                        label="Label colour"
+                        width={PANEL_GRID.FIELD}
+                        segments={[
+                            { value: "D5D7DA", grow: true },
+                            { value: "70", unit: "%" },
+                        ]}
+                    />
+                </StoryState>
+            </StoryStates>
+        );
+    },
 };

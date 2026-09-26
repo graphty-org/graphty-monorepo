@@ -1,425 +1,217 @@
 /**
- * Display Components - Comprehensive CSS Browser Tests
- *
- * Tests ALL CSS values set by compact-mantine display component extensions.
- * Covers: Text, Badge, Pill, Avatar, ThemeIcon, Indicator, Kbd
+ * Display components -- the CSS the compact theme sets on Text, Badge, Pill, Avatar, ThemeIcon,
+ * Indicator and Kbd, read back from a real browser at the default size (sm). The values are
+ * Figma's (design/figma-spec.md 11.6-11.10); tests/figma/shell.browser.test.tsx compares the same
+ * components against the Figma captures themselves.
  */
-import {
-    Avatar,
-    Badge,
-    Indicator,
-    Kbd,
-    MantineProvider,
-    Pill,
-    Text,
-    ThemeIcon,
-} from "@mantine/core";
+import { Avatar, Badge, Indicator, Kbd, MantineProvider, Pill, Text, ThemeIcon } from "@mantine/core";
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { compactTheme } from "../../src";
 
-// Simple icon placeholder for tests
-const IconPlaceholder = () => <span style={{ width: 14, height: 14 }}>★</span>;
+const IconPlaceholder = (): React.JSX.Element => <span style={{ width: 14, height: 14 }}>*</span>;
 
-/**
- * Helper to render a component with the compact theme.
- */
-function renderWithTheme(ui: React.ReactElement) {
+function renderWithTheme(ui: React.ReactElement): ReturnType<typeof render> {
     return render(<MantineProvider theme={compactTheme}>{ui}</MantineProvider>);
 }
 
-/**
- * Helper to get CSS variable value from an element
- */
-function getCssVar(element: Element | null, varName: string): string {
-    if (!element) {
-        return "";
+function root(ui: React.ReactElement, selector: string): Element {
+    const { container } = renderWithTheme(ui);
+    const el = container.querySelector(selector);
+    if (!el) {
+        throw new Error(`no ${selector}`);
     }
-    return getComputedStyle(element).getPropertyValue(varName).trim();
+    return el;
 }
 
-// ============================================================================
-// Text - Comprehensive Tests (uses global fontSizes from theme)
-// ============================================================================
+function cssVar(el: Element, name: string): string {
+    return getComputedStyle(el).getPropertyValue(name).trim();
+}
+
 describe("Text - All CSS Values (Browser)", () => {
-    describe("with size='sm' (the compact default)", () => {
-        describe("computed styles", () => {
-            it("fontSize is 11px when size='sm'", () => {
-                // Text uses global fontSizes from theme (compactFontSizes.sm = 11px)
-                const { container } = renderWithTheme(<Text size="sm">Hello</Text>);
-                const root = container.querySelector(".mantine-Text-root");
-                const style = root ? getComputedStyle(root) : null;
-                expect(style?.fontSize).toBe("11px");
-            });
-
-            it("uses Mantine's built-in font size CSS var (derived from global fontSizes)", () => {
-                const { container } = renderWithTheme(<Text size="sm">Hello</Text>);
-                const root = container.querySelector(".mantine-Text-root");
-                // Mantine sets --text-fz from the theme's fontSizes.sm value
-                // Our theme extension doesn't override this - it comes from global fontSizes
-                expect(getCssVar(root, "--text-fz")).toBe("11px");
-            });
-        });
+    it("sm is 11/16 through --text-fz", () => {
+        const el = root(<Text size="sm">Hello</Text>, ".mantine-Text-root");
+        expect(getComputedStyle(el).fontSize).toBe("11px");
+        expect(getComputedStyle(el).lineHeight).toBe("16px");
+        expect(cssVar(el, "--text-fz")).toBe("11px");
     });
 
-    describe("font size variations", () => {
-        it("xs size is 10px", () => {
-            const { container } = renderWithTheme(<Text size="xs">Hello</Text>);
-            const root = container.querySelector(".mantine-Text-root");
-            const style = root ? getComputedStyle(root) : null;
-            expect(style?.fontSize).toBe("10px");
-        });
+    it("sm is the body role: weight 450, letter-spacing 0.055px", () => {
+        const el = root(<Text size="sm">Hello</Text>, ".mantine-Text-root");
+        expect(getComputedStyle(el).fontWeight).toBe("450");
+        expect(getComputedStyle(el).letterSpacing).toBe("0.055px");
+    });
 
-        it("md size is 13px", () => {
-            const { container } = renderWithTheme(<Text size="md">Hello</Text>);
-            const root = container.querySelector(".mantine-Text-root");
-            const style = root ? getComputedStyle(root) : null;
-            expect(style?.fontSize).toBe("13px");
-        });
+    it("xs is the caption role: weight 450, letter-spacing 0.045px", () => {
+        const el = root(<Text size="xs">Hello</Text>, ".mantine-Text-root");
+        expect(getComputedStyle(el).fontWeight).toBe("450");
+        expect(getComputedStyle(el).letterSpacing).toBe("0.045px");
+    });
+
+    it("fw still wins, other sizes keep the normal weight, inherit keeps the parent's", () => {
+        expect(getComputedStyle(root(<Text size="sm" fw={600}>Hello</Text>, ".mantine-Text-root")).fontWeight).toBe("600");
+        expect(getComputedStyle(root(<Text size="md">Hello</Text>, ".mantine-Text-root")).fontWeight).toBe("400");
+        const inherited = root(
+            <div style={{ fontWeight: 700 }}>
+                <Text size="sm" inherit>
+                    Hello
+                </Text>
+            </div>,
+            ".mantine-Text-root",
+        );
+        expect(getComputedStyle(inherited).fontWeight).toBe("700");
+    });
+
+    it.each([
+        ["xs", "9px", "14px"],
+        ["md", "13px", "22px"],
+        ["lg", "15px", "25px"],
+        ["xl", "24px", "32px"],
+    ] as const)("%s is %s / %s", (size, fontSize, lineHeight) => {
+        const el = root(<Text size={size}>Hello</Text>, ".mantine-Text-root");
+        expect(getComputedStyle(el).fontSize).toBe(fontSize);
+        expect(getComputedStyle(el).lineHeight).toBe(lineHeight);
     });
 });
 
-// ============================================================================
-// Badge - Comprehensive Tests
-// ============================================================================
 describe("Badge - All CSS Values (Browser)", () => {
-    describe("with default size (sm)", () => {
-        describe("root CSS variables", () => {
-            it("--badge-height is 14px", () => {
-                const { container } = renderWithTheme(<Badge>Label</Badge>);
-                const root = container.querySelector(".mantine-Badge-root");
-                expect(getCssVar(root, "--badge-height")).toBe("14px");
-            });
+    const badge = (): Element => root(<Badge>Beta</Badge>, ".mantine-Badge-root");
 
-            it("--badge-fz is 9px", () => {
-                const { container } = renderWithTheme(<Badge>Label</Badge>);
-                const root = container.querySelector(".mantine-Badge-root");
-                expect(getCssVar(root, "--badge-fz")).toBe("9px");
-            });
+    it("sets the size variables", () => {
+        const el = badge();
+        expect(cssVar(el, "--badge-height")).toBe("16px");
+        expect(cssVar(el, "--badge-fz")).toBe("11px");
+        expect(cssVar(el, "--badge-padding-x")).toBe("4px");
+    });
 
-            it("--badge-padding-x is 4px", () => {
-                const { container } = renderWithTheme(<Badge>Label</Badge>);
-                const root = container.querySelector(".mantine-Badge-root");
-                expect(getCssVar(root, "--badge-padding-x")).toBe("4px");
-            });
-        });
+    it("is 16 tall, 11/16 450, padding 0 4, radius 5, never uppercase", () => {
+        const s = getComputedStyle(badge());
+        expect(s.height).toBe("16px");
+        expect(s.fontSize).toBe("11px");
+        expect(s.lineHeight).toBe("16px");
+        expect(s.fontWeight).toBe("450");
+        expect(s.paddingLeft).toBe("4px");
+        expect(s.paddingRight).toBe("4px");
+        expect(s.borderRadius).toBe("5px");
+        expect(s.textTransform).toBe("none");
+    });
 
-        describe("computed styles", () => {
-            it("height is 14px", () => {
-                const { container } = renderWithTheme(<Badge>Label</Badge>);
-                const root = container.querySelector(".mantine-Badge-root");
-                const style = root ? getComputedStyle(root) : null;
-                expect(style?.height).toBe("14px");
-            });
-
-            it("fontSize is 9px", () => {
-                const { container } = renderWithTheme(<Badge>Label</Badge>);
-                const root = container.querySelector(".mantine-Badge-root");
-                const style = root ? getComputedStyle(root) : null;
-                expect(style?.fontSize).toBe("9px");
-            });
-
-            it("paddingLeft is 4px", () => {
-                const { container } = renderWithTheme(<Badge>Label</Badge>);
-                const root = container.querySelector(".mantine-Badge-root");
-                const style = root ? getComputedStyle(root) : null;
-                expect(style?.paddingLeft).toBe("4px");
-            });
-
-            it("paddingRight is 4px", () => {
-                const { container } = renderWithTheme(<Badge>Label</Badge>);
-                const root = container.querySelector(".mantine-Badge-root");
-                const style = root ? getComputedStyle(root) : null;
-                expect(style?.paddingRight).toBe("4px");
-            });
-
-            it("borderRadius is pill-shaped (1000px default)", () => {
-                const { container } = renderWithTheme(<Badge>Label</Badge>);
-                const root = container.querySelector(".mantine-Badge-root");
-                const style = root ? getComputedStyle(root) : null;
-                // Badge uses pill-shaped border radius by default
-                expect(style?.borderRadius).toBe("1000px");
-            });
-        });
+    it("draws the default look as a 1px inside outline on a transparent ground", () => {
+        const s = getComputedStyle(badge());
+        expect(s.backgroundColor).toBe("rgba(0, 0, 0, 0)");
+        expect(s.outlineStyle).toBe("solid");
+        expect(s.outlineWidth).toBe("1px");
+        expect(s.outlineOffset).toBe("-1px");
     });
 });
 
-// ============================================================================
-// Pill - Comprehensive Tests
-// ============================================================================
 describe("Pill - All CSS Values (Browser)", () => {
-    describe("with default size (sm)", () => {
-        describe("root CSS variables", () => {
-            it("--pill-height is 16px", () => {
-                const { container } = renderWithTheme(<Pill>Tag</Pill>);
-                const root = container.querySelector(".mantine-Pill-root");
-                expect(getCssVar(root, "--pill-height")).toBe("16px");
-            });
+    const pill = (): Element => root(<Pill>Tag</Pill>, ".mantine-Pill-root");
 
-            it("--pill-fz is 10px", () => {
-                const { container } = renderWithTheme(<Pill>Tag</Pill>);
-                const root = container.querySelector(".mantine-Pill-root");
-                expect(getCssVar(root, "--pill-fz")).toBe("10px");
-            });
-        });
+    it("sets the size variables", () => {
+        expect(cssVar(pill(), "--pill-height")).toBe("20px");
+        expect(cssVar(pill(), "--pill-fz")).toBe("11px");
+    });
 
-        describe("computed styles", () => {
-            it("height is 16px", () => {
-                const { container } = renderWithTheme(<Pill>Tag</Pill>);
-                const root = container.querySelector(".mantine-Pill-root");
-                const style = root ? getComputedStyle(root) : null;
-                expect(style?.height).toBe("16px");
-            });
-
-            it("fontSize is 10px", () => {
-                const { container } = renderWithTheme(<Pill>Tag</Pill>);
-                const root = container.querySelector(".mantine-Pill-root");
-                const style = root ? getComputedStyle(root) : null;
-                expect(style?.fontSize).toBe("10px");
-            });
-        });
+    it("is the variable-pill shape: 20 tall, 11px, radius 5, a 1px border, padding 0 4", () => {
+        const s = getComputedStyle(pill());
+        expect(s.height).toBe("20px");
+        expect(s.fontSize).toBe("11px");
+        expect(s.borderRadius).toBe("5px");
+        expect(s.borderTopWidth).toBe("1px");
+        expect(s.paddingLeft).toBe("4px");
     });
 });
 
-// ============================================================================
-// Avatar - Comprehensive Tests
-// ============================================================================
 describe("Avatar - All CSS Values (Browser)", () => {
-    describe("with default size (sm)", () => {
-        describe("root CSS variables", () => {
-            it("--avatar-size is 24px", () => {
-                const { container } = renderWithTheme(<Avatar>AB</Avatar>);
-                const root = container.querySelector(".mantine-Avatar-root");
-                expect(getCssVar(root, "--avatar-size")).toBe("24px");
-            });
-        });
+    it("is 24 square", () => {
+        const el = root(<Avatar>AB</Avatar>, ".mantine-Avatar-root");
+        expect(cssVar(el, "--avatar-size")).toBe("24px");
+        const s = getComputedStyle(el);
+        expect(s.width).toBe("24px");
+        expect(s.height).toBe("24px");
+        expect(s.minWidth).toBe("24px");
+    });
 
-        describe("computed styles", () => {
-            it("width is 24px", () => {
-                const { container } = renderWithTheme(<Avatar>AB</Avatar>);
-                const root = container.querySelector(".mantine-Avatar-root");
-                const style = root ? getComputedStyle(root) : null;
-                expect(style?.width).toBe("24px");
-            });
-
-            it("height is 24px", () => {
-                const { container } = renderWithTheme(<Avatar>AB</Avatar>);
-                const root = container.querySelector(".mantine-Avatar-root");
-                const style = root ? getComputedStyle(root) : null;
-                expect(style?.height).toBe("24px");
-            });
-
-            it("minWidth is 24px", () => {
-                const { container } = renderWithTheme(<Avatar>AB</Avatar>);
-                const root = container.querySelector(".mantine-Avatar-root");
-                const style = root ? getComputedStyle(root) : null;
-                expect(style?.minWidth).toBe("24px");
-            });
-        });
+    it("draws the initial 12/24 400", () => {
+        const el = root(<Avatar>A</Avatar>, ".mantine-Avatar-placeholder");
+        const s = getComputedStyle(el);
+        expect(s.fontSize).toBe("12px");
+        expect(s.lineHeight).toBe("24px");
+        expect(s.fontWeight).toBe("400");
     });
 });
 
-// ============================================================================
-// ThemeIcon - Comprehensive Tests
-// ============================================================================
 describe("ThemeIcon - All CSS Values (Browser)", () => {
-    describe("with default size (sm)", () => {
-        describe("root CSS variables", () => {
-            it("--ti-size is 24px", () => {
-                const { container } = renderWithTheme(
-                    <ThemeIcon>
-                        <IconPlaceholder />
-                    </ThemeIcon>
-                );
-                const root = container.querySelector(".mantine-ThemeIcon-root");
-                expect(getCssVar(root, "--ti-size")).toBe("24px");
-            });
-        });
-
-        describe("computed styles", () => {
-            it("width is 24px", () => {
-                const { container } = renderWithTheme(
-                    <ThemeIcon>
-                        <IconPlaceholder />
-                    </ThemeIcon>
-                );
-                const root = container.querySelector(".mantine-ThemeIcon-root");
-                const style = root ? getComputedStyle(root) : null;
-                expect(style?.width).toBe("24px");
-            });
-
-            it("height is 24px", () => {
-                const { container } = renderWithTheme(
-                    <ThemeIcon>
-                        <IconPlaceholder />
-                    </ThemeIcon>
-                );
-                const root = container.querySelector(".mantine-ThemeIcon-root");
-                const style = root ? getComputedStyle(root) : null;
-                expect(style?.height).toBe("24px");
-            });
-
-            it("minWidth is 24px", () => {
-                const { container } = renderWithTheme(
-                    <ThemeIcon>
-                        <IconPlaceholder />
-                    </ThemeIcon>
-                );
-                const root = container.querySelector(".mantine-ThemeIcon-root");
-                const style = root ? getComputedStyle(root) : null;
-                expect(style?.minWidth).toBe("24px");
-            });
-
-            it("minHeight is 24px", () => {
-                const { container } = renderWithTheme(
-                    <ThemeIcon>
-                        <IconPlaceholder />
-                    </ThemeIcon>
-                );
-                const root = container.querySelector(".mantine-ThemeIcon-root");
-                const style = root ? getComputedStyle(root) : null;
-                expect(style?.minHeight).toBe("24px");
-            });
-
-            it("borderRadius is 4px", () => {
-                const { container } = renderWithTheme(
-                    <ThemeIcon>
-                        <IconPlaceholder />
-                    </ThemeIcon>
-                );
-                const root = container.querySelector(".mantine-ThemeIcon-root");
-                const style = root ? getComputedStyle(root) : null;
-                expect(style?.borderRadius).toBe("4px");
-            });
-        });
+    it("is a 24 box with radius 5", () => {
+        const el = root(
+            <ThemeIcon>
+                <IconPlaceholder />
+            </ThemeIcon>,
+            ".mantine-ThemeIcon-root",
+        );
+        expect(cssVar(el, "--ti-size")).toBe("24px");
+        const s = getComputedStyle(el);
+        expect(s.width).toBe("24px");
+        expect(s.height).toBe("24px");
+        expect(s.minWidth).toBe("24px");
+        expect(s.minHeight).toBe("24px");
+        expect(s.borderRadius).toBe("5px");
     });
 });
 
-// ============================================================================
-// Indicator - Comprehensive Tests
-// ============================================================================
 describe("Indicator - All CSS Values (Browser)", () => {
-    describe("with default size (sm)", () => {
-        describe("root CSS variables", () => {
-            it("--indicator-size is 8px", () => {
-                const { container } = renderWithTheme(
-                    <Indicator>
-                        <div>Content</div>
-                    </Indicator>
-                );
-                const root = container.querySelector(".mantine-Indicator-root");
-                expect(getCssVar(root, "--indicator-size")).toBe("8px");
-            });
-        });
+    const dot = (): Element =>
+        root(
+            <Indicator>
+                <span>x</span>
+            </Indicator>,
+            ".mantine-Indicator-indicator",
+        );
 
-        describe("indicator computed styles", () => {
-            it("width is 8px", () => {
-                const { container } = renderWithTheme(
-                    <Indicator>
-                        <div>Content</div>
-                    </Indicator>
-                );
-                const indicator = container.querySelector(".mantine-Indicator-indicator");
-                const style = indicator ? getComputedStyle(indicator) : null;
-                expect(style?.width).toBe("8px");
-            });
+    it("sets --indicator-size to 9px on the root", () => {
+        const el = root(
+            <Indicator>
+                <span>x</span>
+            </Indicator>,
+            ".mantine-Indicator-root",
+        );
+        expect(cssVar(el, "--indicator-size")).toBe("9px");
+    });
 
-            it("height is 8px", () => {
-                const { container } = renderWithTheme(
-                    <Indicator>
-                        <div>Content</div>
-                    </Indicator>
-                );
-                const indicator = container.querySelector(".mantine-Indicator-indicator");
-                const style = indicator ? getComputedStyle(indicator) : null;
-                expect(style?.height).toBe("8px");
-            });
-
-            it("minWidth is 8px", () => {
-                const { container } = renderWithTheme(
-                    <Indicator>
-                        <div>Content</div>
-                    </Indicator>
-                );
-                const indicator = container.querySelector(".mantine-Indicator-indicator");
-                const style = indicator ? getComputedStyle(indicator) : null;
-                expect(style?.minWidth).toBe("8px");
-            });
-
-            it("height matches --indicator-size", () => {
-                const { container } = renderWithTheme(
-                    <Indicator>
-                        <div>Content</div>
-                    </Indicator>
-                );
-                const indicator = container.querySelector(".mantine-Indicator-indicator");
-                const style = indicator ? getComputedStyle(indicator) : null;
-                // Height is set, minHeight may not be explicitly set
-                expect(style?.height).toBe("8px");
-            });
-        });
+    it("is a 9px dot: 5px of colour in a 2px ring, round", () => {
+        const s = getComputedStyle(dot());
+        expect(s.width).toBe("9px");
+        expect(s.height).toBe("9px");
+        expect(s.minWidth).toBe("9px");
+        expect(s.borderTopWidth).toBe("2px");
+        expect(s.borderTopStyle).toBe("solid");
     });
 });
 
-// ============================================================================
-// Kbd - Comprehensive Tests
-// ============================================================================
 describe("Kbd - All CSS Values (Browser)", () => {
-    describe("with default size (sm)", () => {
-        describe("root CSS variables", () => {
-            it("--kbd-fz is 10px", () => {
-                const { container } = renderWithTheme(<Kbd>Ctrl</Kbd>);
-                const root = container.querySelector(".mantine-Kbd-root");
-                expect(getCssVar(root, "--kbd-fz")).toBe("10px");
-            });
+    const cap = (): Element => root(<Kbd>Shift</Kbd>, ".mantine-Kbd-root");
 
-            it("--kbd-padding is 2px 4px", () => {
-                const { container } = renderWithTheme(<Kbd>Ctrl</Kbd>);
-                const root = container.querySelector(".mantine-Kbd-root");
-                expect(getCssVar(root, "--kbd-padding")).toBe("2px 4px");
-            });
-        });
+    it("sets --kbd-fz to 11px", () => {
+        expect(cssVar(cap(), "--kbd-fz")).toBe("11px");
+    });
 
-        describe("computed styles", () => {
-            it("fontSize is 10px", () => {
-                const { container } = renderWithTheme(<Kbd>Ctrl</Kbd>);
-                const root = container.querySelector(".mantine-Kbd-root");
-                const style = root ? getComputedStyle(root) : null;
-                expect(style?.fontSize).toBe("10px");
-            });
+    it("is the list key cap: 25 tall, 11/16 400, padding 1 4 0, radius 2, a 1px border", () => {
+        const s = getComputedStyle(cap());
+        expect(s.fontSize).toBe("11px");
+        expect(s.lineHeight).toBe("16px");
+        expect(s.fontWeight).toBe("400");
+        expect(s.height).toBe("25px");
+        expect(s.paddingTop).toBe("1px");
+        expect(s.paddingLeft).toBe("4px");
+        expect(s.paddingBottom).toBe("0px");
+        expect(s.borderRadius).toBe("2px");
+        expect(s.borderBottomWidth).toBe("1px");
+    });
 
-            it("--kbd-padding is set to 2px 4px", () => {
-                const { container } = renderWithTheme(<Kbd>Ctrl</Kbd>);
-                const root = container.querySelector(".mantine-Kbd-root");
-                // Check the CSS variable is set correctly
-                expect(getCssVar(root, "--kbd-padding")).toBe("2px 4px");
-            });
-
-            it("has compact vertical padding", () => {
-                const { container } = renderWithTheme(<Kbd>Ctrl</Kbd>);
-                const root = container.querySelector(".mantine-Kbd-root");
-                const style = root ? getComputedStyle(root) : null;
-                // Padding values may be computed slightly differently
-                const paddingTop = parseFloat(style?.paddingTop || "0");
-                expect(paddingTop).toBeLessThanOrEqual(2);
-            });
-
-            it("has compact horizontal padding", () => {
-                const { container } = renderWithTheme(<Kbd>Ctrl</Kbd>);
-                const root = container.querySelector(".mantine-Kbd-root");
-                const style = root ? getComputedStyle(root) : null;
-                // Padding values may be computed slightly differently
-                const paddingLeft = parseFloat(style?.paddingLeft || "0");
-                expect(paddingLeft).toBeLessThanOrEqual(5);
-            });
-
-            it("borderRadius is 4px", () => {
-                const { container } = renderWithTheme(<Kbd>Ctrl</Kbd>);
-                const root = container.querySelector(".mantine-Kbd-root");
-                const style = root ? getComputedStyle(root) : null;
-                expect(style?.borderRadius).toBe("4px");
-            });
-        });
+    it("is at least 26 wide for a single character", () => {
+        const el = root(<Kbd>V</Kbd>, ".mantine-Kbd-root");
+        expect(el.getBoundingClientRect().width).toBe(26);
     });
 });

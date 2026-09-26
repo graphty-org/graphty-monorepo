@@ -10,6 +10,7 @@ import {
     PANEL_INK,
     PanelLabelsProvider,
 } from "../src";
+import { focusMarked, StateGrid } from "./figma/selection/StateGrid";
 // Imported from "../src", the package's published entry point, so the stories
 // exercise exactly what a consumer gets from `@graphty/compact-mantine` rather
 // than reaching past it into the source tree.
@@ -224,8 +225,8 @@ function ControlledExample(): React.JSX.Element {
  * pair of pictures either. Outside two to six the row still renders and says so
  * once in the console during development.
  *
- * **How the width is spent.** The track takes 108px for up to three options and
- * 224px for four to six, chosen from the option count unless you pass `width`.
+ * **How the width is spent.** The track takes 88px for up to three options and
+ * 184px for four to six, chosen from the option count unless you pass `width`.
  * The segments then divide the track by what they hold, so a segment carrying a
  * word takes the room its word needs and the drawings share what is left. The
  * row's fixed 24px trailing slot is drawn whether or not it holds anything, so
@@ -273,7 +274,7 @@ export default meta;
 type Story = StoryObj<typeof IconGroupRow>;
 
 /**
- * Three drawable shapes in a 108px track. No words are spent: the drawings are
+ * Three drawable shapes in an 88px track. No words are spent: the drawings are
  * the labels, and each one's word is still its tooltip and the name a screen
  * reader announces.
  */
@@ -286,7 +287,7 @@ export const Default: Story = {
 };
 
 /**
- * `hybrid` at 224px. Layout names are exactly the names a panel cannot afford
+ * `hybrid` at 184px. Layout names are exactly the names a panel cannot afford
  * to hide, so the drawing is on every segment and the word is on the selected
  * one. One row, current choice named, alternatives learnable by trying them.
  */
@@ -326,7 +327,7 @@ export const TwoOptions: Story = {
 };
 
 /**
- * The ceiling. Six drawable options take the 224px track automatically. A
+ * The ceiling. Six drawable options take the 184px track automatically. A
  * seventh would stop reading as a set of drawings, so it belongs in a select --
  * the row says so in the console during development.
  */
@@ -366,7 +367,7 @@ export const WithTrailing: Story = {
 /**
  * `width: "fill"` lets the track take whatever the row has left, and still
  * leaves the trailing slot standing. Use it inside a container narrower or
- * wider than the 280px panel this library measures for.
+ * wider than the 240px panel this library measures for.
  */
 export const FillsTheRow: Story = {
     args: {
@@ -477,4 +478,48 @@ export const WithPanelLabels: Story = {
             </Stack>
         </PanelLabelsProvider>
     ),
+};
+
+/**
+ * Every state of the row, which is the panel segmented control laid on the 240 panel grid
+ * (design/figma-spec.md 5.2, 5.10): 88 wide for three options, 184 for four to six, the
+ * checked option a white face with an inset edge, no hover fill, a 24 trailing slot. The
+ * play function focuses the marked row.
+ */
+export const States: Story = {
+    render: (): React.JSX.Element => (
+        <Box style={{ width: PANEL_GRID.CONTENT }}>
+            <StateGrid
+                columns={PANEL_GRID.CONTENT}
+                cells={[
+                    ["three options, 88", <IconGroupRow label="Node shape" options={SHAPE_OPTIONS} />],
+                    ["six options, 184", <IconGroupRow label="Node shape" options={[...SHAPE_OPTIONS, ...EXTRA_SHAPE_OPTIONS]} />],
+                    ["hybrid", <IconGroupRow label="Layout" options={LAYOUT_OPTIONS} hybrid width={PANEL_GRID.BODY} />],
+                    [
+                        "focus",
+                        <div data-story-focus>
+                            <IconGroupRow label="Node shape" options={SHAPE_OPTIONS} defaultValue="sphere" />
+                        </div>,
+                    ],
+                    [
+                        "one option disabled",
+                        <IconGroupRow
+                            label="Node shape"
+                            options={SHAPE_OPTIONS.map((o) => (o.value === "disc" ? { ...o, disabled: true } : o))}
+                        />,
+                    ],
+                    ["whole row disabled", <IconGroupRow label="Node shape" options={SHAPE_OPTIONS} disabled disabledReason="Load data first" />],
+                    [
+                        "with a trailing button",
+                        <IconGroupRow
+                            label="Node shape"
+                            options={SHAPE_OPTIONS}
+                            trailing={<AdvancedButton label="Shape settings" onClick={(): void => undefined} />}
+                        />,
+                    ],
+                ]}
+            />
+        </Box>
+    ),
+    play: focusMarked,
 };

@@ -212,9 +212,8 @@ export interface PopoutPanelProps {
      * Gap between the panel and the anchor, in pixels. Negative values overlap
      * the two so their borders meet exactly.
      *
-     * Defaults to 0 for a panel opened from the page, and to 4 for a panel
-     * opened from inside another panel, so a stack of nested panels shows a
-     * consistent step.
+     * Defaults to 0: a panel docks flush against what it opened from, and a
+     * nested panel flush against its parent (POPOUT_GAP, POPOUT_NESTED_GAP).
      */
     gap?: number;
     /**
@@ -227,6 +226,10 @@ export interface PopoutPanelProps {
     /**
      * Whether opening the panel moves keyboard focus into it, and closing it
      * returns focus to the trigger.
+     *
+     * Focus lands on the panel itself, or on the first element inside it marked
+     * `data-autofocus` (Mantine's convention) when there is one -- mark the
+     * field a settings panel should start in.
      *
      * Turn this off for a panel that opens on hover, where taking focus away
      * from what the person is doing would be an interruption.
@@ -320,6 +323,11 @@ export interface PopoutHeaderProps {
      * `aria-labelledby` at.
      */
     titleId?: string;
+    /**
+     * The base id of the tab strip, from which Mantine's Tabs derives each tab's
+     * id and aria-controls. The panel gives its tab panel the matching id.
+     */
+    tabsId?: string;
 }
 
 /**
@@ -365,12 +373,17 @@ export interface PopoutContextValue {
     /**
      * The region this pop-out was opened in, or null when it sits in no region.
      *
-     * Root-level pop-outs compete for one open slot per region, so a pop-out
-     * opened in a panel and one opened in an inspector can both be open while
-     * two opened in the same panel cannot. It is the opener's region, not the
-     * panel's screen position.
+     * Recorded for consumers that read it. It no longer separates pop-outs:
+     * one root pop-out is open at a time across the whole page, as in Figma.
      */
     region: string | null;
+    /**
+     * Whether opening this pop-out closes the other open root pop-out (and is
+     * closed by the next one). False only for a hover bubble such as
+     * `InfoCircle`, which explains a control without replacing the panel the
+     * person is working in.
+     */
+    exclusive?: boolean;
 }
 
 /**
@@ -386,7 +399,13 @@ export interface PopoutManagerContextValue {
      * Adds a pop-out to the layer, with the callback that closes it, the pop-out
      * it was opened from, and the region it was opened in.
      */
-    register: (id: string, closeCallback: () => void, parentId?: string | null, region?: string | null) => void;
+    register: (
+        id: string,
+        closeCallback: () => void,
+        parentId?: string | null,
+        region?: string | null,
+        exclusive?: boolean,
+    ) => void;
     /** Takes a pop-out out of the layer, when it leaves the page. */
     unregister: (id: string) => void;
     /** The stacking order a pop-out currently draws at. */

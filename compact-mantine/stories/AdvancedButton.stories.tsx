@@ -49,7 +49,7 @@ const meta: Meta<typeof AdvancedButton> = {
     },
     decorators: [
         (Story) => (
-            <Box w={PANEL_GRID.WIDTH} p="md" bg="var(--mantine-color-body)">
+            <Box w={PANEL_GRID.WIDTH} p="md" bg="var(--cm-bg)">
                 <Story />
             </Box>
         ),
@@ -94,6 +94,37 @@ export const BothStates: Story = {
             <AdvancedButton label="Image export options" onClick={() => undefined} />
             <AdvancedButton label="Selection style" changed onClick={() => undefined} />
         </Group>
+    ),
+};
+
+/**
+ * Figma's ghost icon button states (design/figma-spec.md 4.3), forced with `data-state`: rest,
+ * hover, press, focus, then disabled, and open -- the look it takes inside a `Popout.Trigger`
+ * while its pop-out is up (`aria-expanded`), which it gets from the theme with no prop of its own.
+ */
+export const States: Story = {
+    render: (): React.JSX.Element => (
+        <Stack gap={8}>
+            {[false, true].map((changed) => (
+                <Group key={String(changed)} gap={8} wrap="nowrap">
+                    {(["rest", "hover", "press", "focus"] as const).map((state) => (
+                        <AdvancedButton
+                            key={state}
+                            label={`Image export options, ${state}`}
+                            changed={changed}
+                            data-state={state === "rest" ? undefined : state}
+                        />
+                    ))}
+                    <AdvancedButton label="Image export options, disabled" changed={changed} disabled />
+                    <AdvancedButton
+                        label="Image export options, open"
+                        changed={changed}
+                        aria-haspopup="dialog"
+                        aria-expanded
+                    />
+                </Group>
+            ))}
+        </Stack>
     ),
 };
 

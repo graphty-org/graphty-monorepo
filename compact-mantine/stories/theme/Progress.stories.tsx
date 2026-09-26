@@ -54,3 +54,28 @@ export const Sections: Story = {
         </Stack>
     ),
 };
+
+/**
+ * Figma's progress bar (design/figma-spec.md 8.8): a 4px track in --cm-bg-secondary, the fill in
+ * --cm-bg-brand, fully round. Empty, part and full, then a caller colour.
+ */
+export const States: Story = {
+    render: () => (
+        <Stack gap={12} w={240}>
+            {[0, 40, 100].map((value) => (
+                <Box key={value}>
+                    <Text size="xs" c="dimmed">
+                        {value}%
+                    </Text>
+                    <Progress value={value} aria-label={`${value} percent`} />
+                </Box>
+            ))}
+            <Box>
+                <Text size="xs" c="dimmed">
+                    color="red"
+                </Text>
+                <Progress value={60} color="red" aria-label="60 percent, red" />
+            </Box>
+        </Stack>
+    ),
+};

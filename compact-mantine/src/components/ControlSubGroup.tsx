@@ -1,52 +1,21 @@
-import { Accordion, Box } from "@mantine/core";
+import { Box, UnstyledButton } from "@mantine/core";
 import { useUncontrolled } from "@mantine/hooks";
-import React, { useCallback, useRef } from "react";
+import React, { useId } from "react";
 
-import { PANEL_GRID, PANEL_INK } from "../constants/panel";
+import { PANEL_GRID } from "../constants/panel";
 import { useLabels } from "../i18n";
-import { UiGlyph } from "../icons";
+import { useCompactStyles } from "../theme/useCompactStyles";
 import type { DisclosureProps } from "../types/events";
 import { isRtl, useDirection } from "../utils/rtl";
+import { Caret } from "./chrome/Caret";
 
-// Contract sections 1.4, 2.1, 2.3, 3, 4 and 7 were applied to this file: the
-// disclosure event model, the strings, the logical properties, the ARIA, the
-// Mantine rebase and the user-facing documentation.
-//
-// The rebase (contract 4) is the reason this file changed shape. The previous
-// revision drew the header as a `Group` carrying role="button" and tabIndex={0}
-// with an `ActionIcon` -- a real <button> -- inside it. A button inside a button
-// is invalid HTML: the inner control is unreachable, and what a screen reader
-// makes of the pair is undefined. Mantine's Accordion draws the header as one
-// UnstyledButton with a <span> chevron, which removes the nesting and brings
-// aria-controls, the region role and the id wiring with it.
-//
-// What survived the rebase: the label text, its 10px secondary-ink type, the
-// smaller-than-a-section chevron, the 8px content indent, the animated reveal,
-// and the "Expand X" / "Collapse X" accessible name the old revision hardcoded.
-
-// Mantine's Accordion is a set of items and addresses each by a string. This
-// component is one item, so the string is a constant; the ids built from it are
-// still unique per instance, because Accordion prefixes them with a useId.
-const ITEM_VALUE = "control-sub-group";
-
-/**
- * The gap between the chevron and the label.
- */
-const INLINE_GAP = 4;
-
-/**
- * The drawn size of the chevron.
- *
- * A sub-group sits under a section, so its chevron is drawn smaller than the
- * 12px chevron of a section header.
- */
-const SUB_GROUP_CHEVRON = 10;
-
-/**
- * The label's line height, from the same row of the type ramp as every other
- * single-line label in the library.
- */
-const LABEL_LINE_HEIGHT = 1.2;
+// Figma never folds settings away inside the panel; it opens a light popover from an
+// AdvancedButton. This component is kept for compatibility, restyled as Figma's row
+// (design/figma-spec.md 9.4): a 32px row, a 16px chevron in the left gutter, an 11/16 weight-450
+// label in the secondary ink that turns primary on hover over 100ms, and content that opens in
+// one frame. The header is one UnstyledButton with an inert caret inside it, so there is no
+// button nested in a button, and the content stays mounted (hidden) while closed so a
+// half-typed value survives a fold.
 
 /**
  * Props for the ControlSubGroup component.
@@ -67,18 +36,16 @@ export interface ControlSubGroupProps extends DisclosureProps {
 /**
  * A collapsible sub-group of controls, lighter than a section.
  *
- * Use it inside a `ControlSection` for the settings most readers never open:
- * text effects under a label section, easing under an animation section. It is
- * deliberately quieter than a section -- no rule above it, a smaller chevron,
- * and its name drawn small in the secondary text colour -- so that a panel
- * still reads as a list of sections with a few foldaways inside them rather
- * than as two competing levels of heading.
+ * Prefer an `AdvancedButton` that opens a pop-out: that is how Figma keeps rare
+ * settings off the panel. Where a fold inside the section is still wanted, this
+ * draws it the Figma way: a 32px row whose chevron hangs in the 16px gutter to
+ * the left of the section's content edge, and a label in the secondary text
+ * colour that comes up to the primary one under the pointer. The content opens
+ * in one frame, on the same grid as the rows around it.
  *
  * The header is one button carrying the open state, and the controls it reveals
- * are a labelled region that the button points at, so a screen reader announces
- * the group and can jump straight into it. The content stays in the document
- * while it is closed and animates open, and nothing inside a closed sub-group
- * can be reached by Tab.
+ * are a labelled region that the button points at. Nothing inside a closed
+ * sub-group can be reached by Tab.
  *
  * Drive it from your own state with `opened` and `onOpenChange`, or leave both
  * out and let it remember its own with `defaultOpened`.
@@ -101,18 +68,13 @@ export interface ControlSubGroupProps extends DisclosureProps {
  * ```
  */
 export function ControlSubGroup(props: ControlSubGroupProps): React.JSX.Element {
+    useCompactStyles();
     const { label, opened, defaultOpened, onOpenChange, children } = props;
 
     const labels = useLabels();
     const direction = useDirection();
-
-    // Mantine's Accordion reports a change as a value alone, with no event.
-    // The contract's disclosure handler hands the consumer the event that
-    // caused the change (section 1.4), so the header's own click is caught on
-    // the way past and read back here. Accordion.Control calls its onClick
-    // immediately before it reports the change, synchronously, so the event
-    // parked here is always the one that opened or closed this sub-group.
-    const activationRef = useRef<React.SyntheticEvent | undefined>(undefined);
+    const controlId = useId();
+    const panelId = useId();
 
     const [isOpen, setOpen] = useUncontrolled<boolean>({
         value: opened,
@@ -121,134 +83,67 @@ export function ControlSubGroup(props: ControlSubGroupProps): React.JSX.Element 
         onChange: onOpenChange,
     });
 
-    /**
-     * Parks the activating event so the change reported next can carry it.
-     * @param event - The click, including the one a browser synthesises from Enter or Space
-     */
-    const handleControlClick = useCallback((event: React.MouseEvent<HTMLButtonElement>): void => {
-        activationRef.current = event;
-    }, []);
-
-    /**
-     * Reports the new open state, with the event that caused it.
-     * @param value - The item Accordion now considers open, or null when none is
-     */
-    const handleAccordionChange = useCallback(
-        (value: string | null): void => {
-            const event = activationRef.current;
-            activationRef.current = undefined;
-            setOpen(value === ITEM_VALUE, event);
-        },
-        [setOpen],
-    );
-
     // The verb stays in front of the name, which is what makes a column of
     // collapsed sub-groups navigable by name in a screen reader's element list.
-    // Nothing is hidden by it: the accessible name still contains the whole
-    // visible label, so it satisfies WCAG 2.5.3 (Label in Name), and the state
-    // is also exposed properly as aria-expanded rather than only in words.
+    // The accessible name still contains the whole visible label, so it
+    // satisfies WCAG 2.5.3 (Label in Name), and the state is also exposed as
+    // aria-expanded rather than only in words.
     const toggleName = isOpen ? labels.collapseSection(label) : labels.expandSection(label);
 
-    // A closed chevron points the way the content will open, which is the way
-    // text runs; an open one points down in both directions.
-    let chevronName: "chevronDown" | "chevronLeft" | "chevronRight" = "chevronDown";
-    if (!isOpen) {
-        chevronName = isRtl(direction) ? "chevronLeft" : "chevronRight";
-    }
-
-    // Accordion's own layout is already written in logical properties -- the
-    // control is a flex row with padding-inline, and the chevron takes
-    // margin-inline-start and -end -- so the overrides here are logical too and
-    // the sub-group mirrors correctly with no further work.
-    const styles: Partial<Record<"item" | "control" | "label" | "chevron" | "content", React.CSSProperties>> = {
-        // A section draws the only rule in a panel. A sub-group is quieter than
-        // a section, so the item's own bottom border is taken off.
-        item: {
-            border: "none",
-            background: "transparent",
-        },
-        control: {
-            paddingInline: 0,
-            paddingBlock: 0,
-            // WCAG 2.2 target size (2.5.8): a 10px label on a 1.2 line height
-            // gives a 12px pointer target, so the header is stretched to the
-            // 24px pitch the library's toggle rows use.
-            minHeight: PANEL_GRID.TOGGLE_PITCH,
-            color: PANEL_INK.CHROME,
-        },
-        label: {
-            paddingBlock: 0,
-            fontSize: "var(--mantine-font-size-xs)",
-            lineHeight: LABEL_LINE_HEIGHT,
-            color: PANEL_INK.CHROME,
-        },
-        chevron: {
-            marginInlineStart: 0,
-            marginInlineEnd: INLINE_GAP,
-            color: PANEL_INK.CHROME,
-        },
-        content: {
-            paddingBlock: 0,
-            paddingInlineStart: PANEL_GRID.GUTTER,
-            paddingInlineEnd: 0,
-        },
-    };
-
-    // Accessibility: the APG "Accordion" pattern, in Mantine's spelling of it.
-    // The header is a real button carrying aria-expanded and aria-controls, and
-    // the content is role="region" named by that button through aria-labelledby.
-    // The chevron is a <span> rather than the button it used to be, which is
-    // what removes the invalid button-inside-button of the previous revision.
+    // Accessibility: the APG "Accordion" pattern. The header is a real button
+    // carrying aria-expanded and aria-controls, and the content is
+    // role="region" named by that button through aria-labelledby.
     //   https://www.w3.org/WAI/ARIA/apg/patterns/accordion/
     return (
-        <Accordion
-            data-testid="control-sub-group"
-            value={isOpen ? ITEM_VALUE : null}
-            onChange={handleAccordionChange}
-            chevronPosition="left"
-            chevronSize={PANEL_GRID.GLYPH_SLOT}
-            // The glyph is chosen from the open state rather than rotated,
-            // because this library draws a closed disclosure as a chevron
-            // pointing along the text direction and an open one pointing down.
-            disableChevronRotation
-            chevron={<UiGlyph name={chevronName} size={SUB_GROUP_CHEVRON} />}
-            styles={styles}
-        >
-            <Accordion.Item value={ITEM_VALUE} data-testid="control-sub-group-item">
-                <Accordion.Control
-                    data-testid="control-sub-group-control"
-                    aria-label={toggleName}
-                    onClick={handleControlClick}
+        <Box data-testid="control-sub-group">
+            <UnstyledButton
+                type="button"
+                id={controlId}
+                data-testid="control-sub-group-control"
+                className="cm-subgroup-control cm-focus-inside"
+                aria-label={toggleName}
+                aria-expanded={isOpen}
+                aria-controls={panelId}
+                onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
+                    setOpen(!isOpen, event);
+                }}
+                style={{ height: PANEL_GRID.ROW_PITCH }}
+            >
+                {/* The 16px slot in the gutter at x 0..16; the label starts on
+                    the section's content edge. */}
+                <Box component="span" aria-hidden="true" className="cm-subgroup-chevron">
+                    <Caret open={isOpen} rtl={isRtl(direction)} />
+                </Box>
+                {/* The name shortens rather than wrapping, so it carries a
+                    title for a reader using a pointer. The header button's own
+                    name repeats it, so a screen reader reads all of it. */}
+                <Box
+                    component="span"
+                    data-testid="control-sub-group-label"
+                    title={label}
+                    style={{
+                        display: "block",
+                        minWidth: 0,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                    }}
                 >
-                    {/* The name shortens rather than wrapping, so it carries a
-                        title for a reader using a pointer. The whole string
-                        stays in the document either way, and the header
-                        button's own name repeats it, so a screen reader reads
-                        all of it however narrow the panel is. */}
-                    <Box
-                        component="span"
-                        data-testid="control-sub-group-label"
-                        title={label}
-                        style={{
-                            display: "block",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                        }}
-                    >
-                        {label}
-                    </Box>
-                </Accordion.Control>
+                    {label}
+                </Box>
+            </UnstyledButton>
 
-                <Accordion.Panel data-testid="control-sub-group-panel">
-                    <Box
-                        data-testid="control-sub-group-content"
-                        style={{ display: "flex", flexDirection: "column", gap: INLINE_GAP }}
-                    >
-                        {children}
-                    </Box>
-                </Accordion.Panel>
-            </Accordion.Item>
-        </Accordion>
+            {/* Opens in one frame (spec 2.8), on the section's own grid. */}
+            <Box
+                id={panelId}
+                role="region"
+                aria-labelledby={controlId}
+                aria-hidden={isOpen ? undefined : true}
+                hidden={!isOpen}
+                data-testid="control-sub-group-panel"
+            >
+                <Box data-testid="control-sub-group-content">{children}</Box>
+            </Box>
+        </Box>
     );
 }

@@ -2,15 +2,8 @@ import { Box, DirectionProvider, Group, Stack } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 import React, { useState } from "react";
 
-import {
-    AdvancedButton,
-    ControlSection,
-    LabelsProvider,
-    PANEL_GRID,
-    PanelField,
-    TrailingSlot,
-    UiGlyph,
-} from "../src";
+import { AdvancedButton, ControlSection, FieldRow,LabelsProvider, PANEL_GRID, PanelField, TrailingSlot, UiGlyph } from "../src";
+import { StoryState, StoryStates } from "./figma/chrome/StoryPanel";
 // Imported from "../src", the package's published entry point, so the stories
 // exercise exactly what a consumer gets from `@graphty/compact-mantine` rather
 // than reaching past it into the source tree.
@@ -55,11 +48,16 @@ const meta: Meta<typeof ControlSection> = {
         layout: "padded",
     },
     decorators: [
-        (Story) => (
-            <Box w={PANEL_GRID.WIDTH} p="md" bg="var(--mantine-color-body)">
+        // Every story sits in a 240px panel on the panel ground; States lays out
+        // several panels side by side, so it brings its own.
+        (Story, context): React.JSX.Element =>
+            context.name === "States" ? (
                 <Story />
-            </Box>
-        ),
+            ) : (
+                <Box w={PANEL_GRID.WIDTH} bg="var(--cm-bg)">
+                    <Story />
+                </Box>
+            ),
     ],
 };
 
@@ -372,4 +370,58 @@ export const Translated: Story = {
             </Stack>
         </LabelsProvider>
     ),
+};
+
+/**
+ * Every state of the section header side by side (design/figma-spec.md 9.2): open and closed,
+ * with header actions, the empty section at rest and under the pointer (its title, chevron and
+ * "+" come up to the primary ink over 100ms), the keyboard focus ring on the toggle, a section
+ * that does not collapse, and one with configured values and a technical name. Switch the
+ * toolbar's theme for dark and its Contrast for the AA option.
+ */
+export const States: Story = {
+    render: () => {
+        const rows = (
+            <FieldRow>
+                <PanelField label="X" value="100" />
+                <PanelField label="Y" value="40" />
+            </FieldRow>
+        );
+        return (
+            <StoryStates>
+                <StoryState name="Open, with actions">
+                    <ControlSection
+                        label="Fill"
+                        actions={<AdvancedButton label="Apply styles" />}
+                    >
+                        {rows}
+                    </ControlSection>
+                </StoryState>
+                <StoryState name="Closed">
+                    <ControlSection label="Export" defaultOpened={false}>
+                        {rows}
+                    </ControlSection>
+                </StoryState>
+                <StoryState name="Empty">
+                    <ControlSection label="Stroke" empty onAdd={() => undefined} />
+                </StoryState>
+                <StoryState name="Empty, hover" force="hover">
+                    <ControlSection label="Stroke" empty onAdd={() => undefined} />
+                </StoryState>
+                <StoryState name="Focus (keyboard)" force="focus">
+                    <ControlSection label="Export">{rows}</ControlSection>
+                </StoryState>
+                <StoryState name="Not collapsible">
+                    <ControlSection label="Position" collapsible={false}>
+                        {rows}
+                    </ControlSection>
+                </StoryState>
+                <StoryState name="Configured, technical name">
+                    <ControlSection label="Arrangement" technicalName="Layout" hasConfiguredValues>
+                        {rows}
+                    </ControlSection>
+                </StoryState>
+            </StoryStates>
+        );
+    },
 };

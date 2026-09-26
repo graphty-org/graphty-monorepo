@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createColorStop, createDefaultGradientStops } from "../../src/utils/color-stops";
 
@@ -53,5 +53,17 @@ describe("createDefaultGradientStops", () => {
         const stops = createDefaultGradientStops();
         expect(stops[0].color).toMatch(/^#[0-9A-Fa-f]{6}$/);
         expect(stops[1].color).toMatch(/^#[0-9A-Fa-f]{6}$/);
+    });
+});
+
+describe("createColorStop outside a secure context", () => {
+    // Browsers expose crypto.randomUUID only in secure contexts; a plain-http page has none.
+    it("still mints an 8-character hex id when crypto.randomUUID is missing", () => {
+        vi.stubGlobal("crypto", { getRandomValues: globalThis.crypto.getRandomValues.bind(globalThis.crypto) });
+        try {
+            expect(createColorStop(0, "#000000").id).toMatch(/^[0-9a-f]{8}$/);
+        } finally {
+            vi.unstubAllGlobals();
+        }
     });
 });

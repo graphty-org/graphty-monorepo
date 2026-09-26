@@ -173,7 +173,7 @@ export function detachedRunContext(): AlgorithmRunContext {
 
 /**
  * Walk a list in chunks, reporting progress between them and yielding once a frame's worth of
- * work has built up (see {@link YIELD_BUDGET_MS}).
+ * work has built up (see `YIELD_BUDGET_MS`, a module constant; TypeDoc cannot link an unexported name).
  *
  * Every per-element pass in every algorithm goes through this, so "report progress and yield"
  * is one decision made once rather than a loop each author writes their own way.

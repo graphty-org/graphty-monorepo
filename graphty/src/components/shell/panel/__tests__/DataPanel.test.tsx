@@ -239,23 +239,38 @@ describe("DataPanel", () => {
             );
         });
 
-        /* `replaceExisting: !loaded`, which is the whole difference between a drop that
-           crosses the 6.12 dataset boundary and one that does not. A drop on a loaded shell
-           asks for the merge the reader meant rather than silently throwing their dataset
-           away, and the SHELL answers it: this build cannot merge a second file (the
-           element's data-source guard is per load and only clearData resets it), so
-           `AppShell.handleLoad` refuses the request with a sentence naming the route that
-           does work. What this panel owes the reader is that the limit is visible before
-           the drop, which is the Coming row below. */
-        it("asks to add to the drawn dataset rather than replacing it once one is loaded", () => {
+        /* A drop on a loaded graph REPLACES it, after the reader confirms. The element keeps
+           the current graph until the dropped file has parsed, so a bad file costs nothing;
+           the confirmation is for a good file the reader dropped by mistake. */
+        it("asks before replacing a loaded dataset with a dropped file, then replaces it", async () => {
             const onLoad = acceptingLoad();
 
             renderPanel("loaded", onLoad);
             dropFile(screen.getByTestId("data-drop-zone"), new File(["{}"], "more.json", { type: "application/json" }));
 
+            const dialog = await screen.findByRole("dialog");
+            expect(within(dialog).getByText(/more\.json/)).toBeInTheDocument();
+            expect(onLoad).not.toHaveBeenCalled();
+
+            fireEvent.click(within(dialog).getByRole("button", { name: "Replace" }));
+
             expect(onLoad).toHaveBeenCalledWith(
-                expect.objectContaining({ inputMethod: "file", format: "auto", replaceExisting: false }),
+                expect.objectContaining({ inputMethod: "file", format: "auto", replaceExisting: true }),
             );
+        });
+
+        it("leaves the loaded dataset alone when the reader cancels the replace", async () => {
+            const onLoad = acceptingLoad();
+
+            renderPanel("loaded", onLoad);
+            dropFile(screen.getByTestId("data-drop-zone"), new File(["{}"], "more.json", { type: "application/json" }));
+
+            fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Cancel" }));
+
+            await waitFor(() => {
+                expect(screen.queryByRole("dialog")).toBeNull();
+            });
+            expect(onLoad).not.toHaveBeenCalled();
         });
 
         /* Design 5.8: an unshipped route is drawn as unshipped rather than left for a

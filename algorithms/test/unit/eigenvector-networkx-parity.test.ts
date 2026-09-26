@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { eigenvectorCentrality } from "../../src/algorithms/centrality/eigenvector.js";
+import {
+    eigenvectorCentrality,
+    type EigenvectorCentralityOptions,
+} from "../../src/algorithms/centrality/eigenvector.js";
 import { Graph } from "../../src/core/graph.js";
 import { ConvergenceError } from "../../src/index.js";
 
@@ -336,28 +339,68 @@ describe("eigenvector centrality matches networkx", () => {
         expect(() => eigenvectorCentrality(graph, { maxIterations: 1000 })).not.toThrow();
     });
 
-    it("directed: a node is fed by its out-neighbours, so it matches networkx on the reversed graph", () => {
-        // networkx 3.1: nx.eigenvector_centrality(nx.DiGraph(edges).reverse()); networkx itself uses in-edges.
+    describe("directed: mode picks which edges feed a node", () => {
         // Both cycles pass through node 2, so the graph is periodic and unshifted iteration oscillates.
-        const graph = new Graph({ directed: true });
-        for (const [source, target] of [
-            [0, 1],
-            [1, 2],
-            [2, 0],
-            [2, 3],
-            [3, 4],
-            [4, 2],
-            [5, 0],
-        ]) {
-            graph.addEdge(String(source), String(target));
+        function directedFixture(): Graph {
+            const graph = new Graph({ directed: true });
+            for (const [source, target] of [
+                [0, 1],
+                [1, 2],
+                [2, 0],
+                [2, 3],
+                [3, 4],
+                [4, 2],
+                [5, 0],
+            ]) {
+                graph.addEdge(String(source), String(target));
+            }
+            return graph;
         }
-        const expected = { "0": 0.346591, "1": 0.436678, "2": 0.55018, "3": 0.346591, "4": 0.436678, "5": 0.27509 };
 
-        const centrality = eigenvectorCentrality(graph, { normalized: false });
+        // networkx 3.1 on G = nx.DiGraph(edges): eigenvector_centrality(G), of G.reverse(), of G.to_undirected().
+        const cases: [string, EigenvectorCentralityOptions["mode"], Record<string, number>][] = [
+            [
+                "default (in-edges, as networkx)",
+                undefined,
+                { "0": 0.454202, "1": 0.360502, "2": 0.572259, "3": 0.454202, "4": 0.3605, "5": 0 },
+            ],
+            ["in", "in", { "0": 0.454202, "1": 0.360502, "2": 0.572259, "3": 0.454202, "4": 0.3605, "5": 0 }],
+            [
+                "out (networkx on the reversed graph)",
+                "out",
+                { "0": 0.346591, "1": 0.436678, "2": 0.55018, "3": 0.346591, "4": 0.436678, "5": 0.27509 },
+            ],
+            [
+                "total (networkx on the undirected graph)",
+                "total",
+                { "0": 0.440344, "1": 0.394179, "2": 0.595813, "3": 0.365831, "4": 0.365831, "5": 0.167518 },
+            ],
+        ];
+        for (const [label, mode, expected] of cases) {
+            it(label, () => {
+                const centrality = eigenvectorCentrality(directedFixture(), { normalized: false, mode });
 
-        for (const [node, value] of Object.entries(expected)) {
-            expect(Math.abs((centrality[node] ?? Number.NaN) - value)).toBeLessThan(1e-4);
+                for (const [node, value] of Object.entries(expected)) {
+                    expect(Math.abs((centrality[node] ?? Number.NaN) - value)).toBeLessThan(1e-4);
+                }
+            });
         }
+
+        it("a node nothing points at scores exactly 0 by default", () => {
+            // a -> b -> c -> a, and d -> a. networkx 3.1: a, b, c 0.57735 each, d 1e-6 (its start value decays).
+            const graph = new Graph({ directed: true });
+            graph.addEdge("a", "b");
+            graph.addEdge("b", "c");
+            graph.addEdge("c", "a");
+            graph.addEdge("d", "a");
+
+            const centrality = eigenvectorCentrality(graph, { normalized: false });
+
+            expect(centrality.d).toBe(0);
+            for (const node of ["a", "b", "c"]) {
+                expect(centrality[node]).toBeCloseTo(0.57735, 4);
+            }
+        });
     });
 
     it("directed acyclic: the only eigenvalue is 0, so every score is 0 and nothing is iterated", () => {

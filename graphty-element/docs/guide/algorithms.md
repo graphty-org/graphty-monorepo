@@ -158,9 +158,14 @@ picture back after a reader cleared it, ask for the suggestion again:
 await element.run("degree");
 
 element.applySuggestedStyles("degree");
+
+// Only when you need the finished picture, for a screenshot or an export:
+await element.waitForStableFrame();
 ```
 
 This automatically maps algorithm results to visual properties like color and size.
+`applySuggestedStyles` returns `true` or `false` straight away and paints in the background;
+`waitForStableFrame()` settles once the suggested layers are stacked and painted.
 
 ## Custom Styling with Algorithm Results
 

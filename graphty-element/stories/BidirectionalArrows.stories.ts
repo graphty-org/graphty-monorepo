@@ -4,7 +4,14 @@ import "../src/graphty-element";
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import { assertArrowCapsDrawn, assertGraphLoaded, drawn, holds, pixelsOfColour } from "./assertions";
-import { arrowTypes, eventWaitingDecorator, renderFn, type StoryArgs, storySetup } from "./helpers";
+import {
+    arrowTypes,
+    eventWaitingDecorator,
+    renderFn,
+    type StoryArgs,
+    storySetup,
+    waitForGraphSettled,
+} from "./helpers";
 
 const meta: Meta = {
     title: "Styles/Edge",
@@ -57,6 +64,10 @@ type Story = StoryObj<StoryArgs>;
  */
 export const Bidirectional: Story = {
     play: async ({ canvasElement }) => {
+        // THE SETTLED PICTURE, not whichever frame the layout is on when the scene is read: a
+        // graph still flying in is drawn smaller, and caps a pixel wide count as no colour.
+        await waitForGraphSettled(canvasElement);
+
         const scene = await drawn(canvasElement, "Styles/Edge Bidirectional");
 
         await assertGraphLoaded(scene, { nodes: 20, edges: 29 });

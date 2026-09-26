@@ -349,6 +349,124 @@ earns 10x is the one task that plan says can start today.
   baselines are assumptions (the midpoint of the measured 10-100x legacy-to-indexed spread);
   a slower port makes the GPU look better and a faster one worse, and only the port settles it.
 
+## Validated against the algorithms that already exist (2026-09-26)
+
+The model's method was re-applied, blind, to the WebGPU work already built, to find out how far
+its predictions can be trusted for the work that is not. The predictions were written down from
+device physics alone -- peak bandwidth, achievable fraction on a gather, fp32 throughput, the
+per-call and per-dispatch floors measured independently of any algorithm, and nanoseconds per
+element for an interpreted CPU loop -- before any benchmark row was read, and are in
+`tmp/gpu-cost-model/blind-predictions.md`. The layouts were the genuinely blind target: nothing in
+this repository had ever timed the CPU implementations they replace.
+
+| Quantity | Predicted from physics | Measured | Error |
+| --- | --- | --- | --- |
+| CPU cost of one pairwise repulsion, JavaScript | 2-5 ns | 2.75 ns (ForceAtlas2), 1.96 ns (Fruchterman-Reingold) | in range |
+| CPU ForceAtlas2, one iteration at 10,000 nodes | 300 ms | 275.3 ms | 9 % |
+| CPU scaling of the exact tier | quadratic | 2.889, 11.108, 44.218, 275.290 ms at 1k, 2k, 4k, 10k | exact |
+| GPU ForceAtlas2, one iteration at 10,000 | 0.2-0.4 ms | 0.593 ms kernel, 0.723 ms wall | 1.5-1.8x optimistic |
+| GPU grid tier, one iteration at 1,000,000 | 5-10 ms | 5.414 ms | in range |
+| Layout speedup at 10,000 nodes | about 1,000x | 464x on kernel time, 381x on the step's wall | 2.2-2.6x optimistic |
+| Layout crossover, Node | about 260 nodes | 192 (kernel) to 290 (wall) | in range |
+| PageRank, 100 iterations at 1M / 10M, wall | 330-630 ms | 204.3 ms | 1.6-3x pessimistic |
+| PageRank speedup at 1M / 10M | 25-45x | 38.7x against the measured CPU | in range |
+| Connected components speedup at 1M / 10M, wall | 1.5-2x | 1.5x (1.3x at 100k / 1M) | in range |
+| Breadth-first search crossover, resident | 30,000-50,000 nodes | about 141,000 | 3-5x optimistic |
+| Shortest paths crossover, resident | 30,000-60,000 nodes | about 107,000 | 2-4x optimistic |
+
+Three conclusions, and the third is the one that changes how this record should be read.
+
+**The physics half is reliable; the CPU half is where the error lives.** Every GPU-side prediction
+landed within a factor of two of the measurement, and the quadratic layout curve was predicted to
+the nanosecond per interaction. The misses are all on the other side: the CPU's cost per element
+is a property of somebody's implementation, not of the hardware, and it varies by a factor of four
+between two traversals of the same graph -- 30 ns per arc for breadth-first search against 116 ns
+for Dijkstra, whose heap dominates it. A crossover carried across a family from one measured
+member is therefore not evidence about the others. Every row of the table above this section rests
+on a CPU measurement of that algorithm; none may be extrapolated from its family.
+
+**A crossover computed against the GPU's floor alone comes out several times too low.** The first
+attempt at scoring these predictions divided the fixed per-call floor by the CPU's cost per arc,
+which assumes the GPU's cost stays flat until the crossover. It does not: at 100,000 nodes the
+traversal kernels are already well above their floor, so the true crossing is at 141,000 nodes for
+breadth-first search rather than the 24,000 that method gives. The crossovers in this record's main
+table were computed from both cost curves and are the ones to use; the element's per-capability
+floors, which were measured end to end rather than modelled, agree with them.
+
+**The model scores an algorithm alone, and some algorithms are only worth building for what they
+carry.** Applied before any of this existed, the method would have recommended against building
+GPU breadth-first search, shortest paths and connected components for this product, because their
+crossovers -- 141,000, 107,000 and a 1.5x wall ratio -- all sit above the 50,000 nodes the renderer
+can hold. As a statement about each algorithm on its own that recommendation is correct, and the
+element's shipped floors say so. It would still have been the wrong call, because the frontier
+machinery those three paid for -- the queue, the compaction, the direction-optimizing sweep, the
+device-side selector -- is what sampled closeness already runs on and what sampled betweenness, the
+strongest unbuilt candidate in the table above at a crossover of 1,500 nodes and 14x at 100,000,
+would have to be built on. There is no route to the algorithms that earn the GPU that does not pass
+through ones that do not. A cost model that ranks algorithms one at a time cannot see that, and a
+reader of this record should not let it decide a phase that builds shared machinery.
+
+## What the shared machinery does and does not change about the list above (2026-09-26)
+
+The section before this one says a model that ranks algorithms one at a time cannot see that some
+are worth building for what they carry. That cuts both ways, and the cut has to be made precisely,
+because "it is foundational" is how a roadmap stops ever saying no. Every entry above was re-read
+against one question: does anything else need the machinery this would build?
+
+**It rescues nothing that was dropped.** k-truss consumes triangle counting and the edge mask and
+produces no primitive (the plan's own task says so). Girvan-Newman consumes edge betweenness.
+The single-query algorithms consume the frontier and the near-far queue. Exact all-source
+closeness is the kernel that already exists, run more times. Every one of them is a leaf, so every
+drop stands on its own number.
+
+**Two of the demotions are different in kind, and the record should not have spelled them the
+same way.** k-core is a pure leaf: its task adds nothing under `src/primitives/` and calls the
+traversal phase's frontier unchanged, so deferring it costs 1.5 days of nothing-downstream and is
+a clean call. Louvain is also a leaf, but both of its substrates -- the device graph build and the
+per-row group-by-key -- are already being built for triangle counting and for label propagation,
+which this record keeps. So its 6.0 days carry no new primitive and no new correctness argument at
+the primitive level. The verdict does not change (2.3x at 100k, 0.26x at 10k), but the reason
+does: it is cheap and marginal rather than expensive and marginal, and those two deserve different
+treatment when a schedule has slack.
+
+**Three entries are routing decisions wearing a build decision's clothes.** Breadth-first search,
+shortest paths and connected components are built and shipped; nothing about them is deferrable
+any more. What the record decides for them is the size above which the element routes to them,
+which is the floors table. Exact all-source closeness is the same: the kernel exists, the decision
+is a cap, and the only thing genuinely blocked is a `sources` option on a published interface.
+Calling these "demoted" and "dropped" invites a reader to think work is being saved, and none is.
+
+**The ordering of the keep list is wrong, and this is the change that matters.** It is ordered by
+speedup, which is a runtime property. Build order should be by what unblocks what:
+
+| Build | Days | Unblocks | Best consumer's number |
+| --- | ---: | --- | --- |
+| the device graph build (`cooToCsr`, the simple symmetric graph) | 2.5 | triangle counting, k-truss, Louvain's contraction | triangles, 12.7x at 100k |
+| the per-row group-by-key | 2.5 | label propagation, Louvain's move pass | label propagation, 20x at 100k |
+| triangle counting | 2.5 | -- (leaf) | itself |
+| label propagation | 1.5 | -- (leaf) | itself |
+| all-pairs, minimum spanning tree, sampled betweenness | -- | -- (leaves) | themselves |
+
+Ordered by speedup, a phase cut short after two tasks has built two leaves and enabled nothing.
+Ordered by what unblocks what, the same two tasks leave every later row cheap.
+
+**The test that keeps this honest.** Before building a substrate, name its best consumer and its
+number, in the plan, in a sentence. The device build passes it (triangle counting, 12.7x); the
+group-by passes it (label propagation, 20x); machinery built for k-core would fail it, because
+nothing consumes k-core. If nobody will write that sentence, what is being proposed is not a
+substrate.
+
+**And the bound this argument needs, which the frontier phase is currently outside of.** A
+substrate justified by a consumer that is never built is pure loss. The frontier family is that
+case today: it was defended by sampled betweenness, betweenness lives in the betweenness and
+all-pairs phase, and that phase has not started. What the frontier machinery carries right now is
+closeness, which the element may not route above 30,000 nodes, and two traversals the element
+routes to the CPU below 141,000 and 107,000 nodes. So the shared-machinery defence of that phase
+is a promissory note, and sampled betweenness is what pays it. That makes betweenness the highest
+priority of the unbuilt work -- not for its own 14x, but because it is what settles a phase
+already paid for. The rule that follows: a substrate and the consumer that justifies it belong in
+the same phase, or neither belongs in the roadmap.
+
 ## Provenance
 
 Nothing for this record ran on the GPU: the card was in use by another workflow, and every GPU

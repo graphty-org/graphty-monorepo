@@ -112,7 +112,7 @@ describe("layout catalogue", () => {
         assert.deepEqual(named.filter((engine) => !registeredEngines.includes(engine)), []);
     });
 
-    it("covers all seventeen registered engines", () => {
+    it("covers all nineteen registered engines", () => {
         const named = new Set(
             LAYOUT_CATALOG.flatMap((entry) => entry.implementations.map((implementation) => implementation.engine)),
         );
@@ -130,8 +130,8 @@ describe("layout catalogue", () => {
         }
     });
 
-    it("says why each unserved built-in layout name has no engine", () => {
-        assert.deepEqual(UNSERVED_LAYOUT_IDS.map((entry) => entry.id), ["radial", "grid"]);
+    it("serves every built-in layout name, so none is listed as unserved", () => {
+        assert.deepEqual(UNSERVED_LAYOUT_IDS.map((entry) => entry.id), []);
         for (const entry of UNSERVED_LAYOUT_IDS) {
             assert.isTrue((KNOWN_LAYOUT_IDS as readonly string[]).includes(entry.id));
             assert.isAbove(entry.reason.length, 20);

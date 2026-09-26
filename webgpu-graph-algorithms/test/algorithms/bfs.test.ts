@@ -440,6 +440,12 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
                     entry.block.frontierDegreeSum,
                     `${label}: frontierDegreeSum vs the oracle's sum over level ${k}`,
                 ).toBe(sweep ? 0 : degreeSums[k]);
+                // issue #391: bfs-next-degree summed the out-degrees of what the level claimed -- the NEXT level, whichever
+                // direction claimed it -- and the next boundary reads that as Beamer's m_f
+                expect(
+                    entry.block.nextDegreeSum,
+                    `${label}: nextDegreeSum vs the oracle's sum over level ${k + 1}`,
+                ).toBe(degreeSums[k + 1] ?? 0);
                 // cadence 1: the words are rebuilt from the flags at the top of the submit and no boundary subtracts
                 expect(entry.block.unvisitedCount, `${label}: unvisitedCount vs the oracle's complement`).toBe(
                     unvisitedAfter[k].count,
@@ -452,7 +458,10 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
             if (tuning.direction === "top-down") {
                 expect(bottomUp, `${name}: bottom-up levels`).toBe(0);
             } else {
-                expect(bottomUp, `${name}: bottom-up levels (rmat14 switches at level 2)`).toBeGreaterThan(0);
+                expect(
+                    bottomUp,
+                    `${name}: bottom-up levels (rmat14 switches at level 1 under the exact m_f)`,
+                ).toBeGreaterThan(0);
             }
         }
         ctx.release(s);
@@ -693,7 +702,7 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
         ctx.release(s);
     }, 300_000);
 
-    it("the unvisited bookkeeping (P8-T8 Step 5, PD-18): after the first rebuild on the grid unvisitedCount is n - 1 and unvisitedDegreeSum arcCount - outDegree(source); on the ten-leaf star from the hub the degree sum still reads 10 after the second boundary (cadence 2) while the count is 0, and 0 (not 2^32 - 10) at the production cadence; isolated vertices are counted but not listed; compactCount equals unvisitedListLen on every rebuild", async (t) => {
+    it("the unvisited bookkeeping (P8-T8 Step 5, PD-18): after the first rebuild on the grid unvisitedCount is n - 1 and unvisitedDegreeSum arcCount - outDegree(source); on the ten-leaf star from the hub both words read 0 after the second boundary (cadence 2: the leaves' 10 arcs are subtracted with the leaves themselves, issue #391) and 0 (not 2^32 - 10) at the production cadence; isolated vertices are counted but not listed; compactCount equals unvisitedListLen on every rebuild", async (t) => {
         const ctx = await context(t);
         const grid = snapshotOf(gridEdges(30, 30), { label: "grid-unvisited" });
         const n = grid.nodeCount;
@@ -729,9 +738,11 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
                 blocks.push(block);
             },
         });
-        // the first submit holds boundaries 0 and 1: the count was subtracted at the second boundary, the degree sum not
+        // the first submit holds boundaries 0 and 1: both words are subtracted at the second boundary -- the degree sum
+        // by the out-degree sum bfs-next-degree measured when the leaves were claimed (issue #391), so it reads 0
+        // here where the one-level-stale rule it replaced left the leaves' 10 arcs in the word until the next rebuild
         expect(blocks[0].unvisitedCount, "star unvisitedCount after the second boundary").toBe(0);
-        expect(blocks[0].unvisitedDegreeSum, "star unvisitedDegreeSum after the second boundary").toBe(10);
+        expect(blocks[0].unvisitedDegreeSum, "star unvisitedDegreeSum after the second boundary").toBe(0);
         const production = await runWithCounters(ctx, star, 0, undefined, {});
         expect(production.block.unvisitedDegreeSum, "star unvisitedDegreeSum at the done boundary").toBe(0);
         expect(production.block.unvisitedCount, "star unvisitedCount at the done boundary").toBe(0);

@@ -59,10 +59,41 @@ export class MeshCache {
      */
     clear(): void {
         for (const mesh of this.meshCacheMap.values()) {
-            mesh.dispose();
+            MeshCache.disposeSource(mesh);
         }
         this.meshCacheMap.clear();
         this.reset();
+    }
+
+    /**
+     * Dispose and forget every cached mesh that nothing is drawn from any more.
+     *
+     * Every source mesh is handed out only as instances, so one with no instances is a look no
+     * element has: a size a layer used to paint, a halo nobody is selected for. Without this the
+     * cache holds one mesh per look ever drawn, which grows with every edit to a size or a shape
+     * until the next dataset boundary. A name that is asked for again is simply built again.
+     */
+    prune(): void {
+        for (const [name, mesh] of this.meshCacheMap) {
+            if (mesh.instances.length === 0) {
+                MeshCache.disposeSource(mesh);
+                this.meshCacheMap.delete(name);
+            }
+        }
+    }
+
+    /**
+     * Dispose a source mesh and the material it was built with.
+     *
+     * Every creator handed to get() builds a fresh material for its mesh, so the material dies
+     * with it; `mesh.dispose()` alone would leave it in `scene.materials` for good. Textures are
+     * kept: node gradient textures are shared across materials per scene.
+     * @param mesh - The cached source mesh
+     */
+    private static disposeSource(mesh: Mesh): void {
+        const {material} = mesh;
+        mesh.dispose();
+        material?.dispose(false, false);
     }
 
     /**

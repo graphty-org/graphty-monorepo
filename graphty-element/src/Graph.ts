@@ -86,6 +86,7 @@ import {
     LayoutManager,
     LifecycleManager,
     type Manager,
+    nodeFramingBox,
     OperationQueueManager,
     type RecordedInputEvent,
     RenderManager,
@@ -337,6 +338,9 @@ export class Graph implements GraphContext {
         this.acceleration = new AccelerationController({
             policy: ACCELERATION_POLICY_DEFAULT,
             minNodes: ACCELERATION_MIN_NODES_DEFAULT,
+            // No frame is drawn while a call-shaped run is on the device: a draw of this scene
+            // is what the run's readback would otherwise wait behind (issue #390).
+            whileRunning: () => this.renderManager.holdFrames(),
         });
 
         // The headless model, over the store the data manager already owns for the life of the
@@ -440,6 +444,19 @@ export class Graph implements GraphContext {
                 await this.repaintFromSession();
             },
             description: "Repaint from the session style stack after data add",
+        }));
+
+        // The same boundary from the other side. Removing a node freezes a snapshot with a new
+        // dense index space, and both the record of what each layer painted and each element's
+        // paint are kept by index -- so until a full pass rebuilds them, a later layer or run
+        // removal has nothing to take back and every node after the removed one shows its
+        // predecessor's paint.
+        this.operationQueue.registerTrigger("data-remove", () => ({
+            category: "style-apply",
+            execute: async () => {
+                await this.repaintFromSession();
+            },
+            description: "Repaint from the session style stack after data remove",
         }));
 
         // Bring the paint up to date once a run has finished and its measurements exist. A layer
@@ -1914,6 +1931,8 @@ export class Graph implements GraphContext {
 
         if (options?.skipQueue) {
             removeAll();
+            // No queue, so no data-remove trigger: rebuild the index-keyed paint here instead.
+            await this.repaintFromSession();
             return;
         }
 
@@ -2773,29 +2792,11 @@ export class Graph implements GraphContext {
                 edge.update();
             }
 
-            // Calculate bounding box and zoom camera to fit the graph
-            // This ensures the graph is visible after the mode switch
-            const nodes = this.getNodes();
-            if (nodes.length > 0) {
-                let minX = Infinity,
-                    minY = Infinity,
-                    minZ = Infinity;
-                let maxX = -Infinity,
-                    maxY = -Infinity,
-                    maxZ = -Infinity;
-
-                for (const node of nodes) {
-                    const pos = node.mesh.position;
-                    const sz = node.size / 2;
-                    minX = Math.min(minX, pos.x - sz);
-                    minY = Math.min(minY, pos.y - sz);
-                    minZ = Math.min(minZ, pos.z - sz);
-                    maxX = Math.max(maxX, pos.x + sz);
-                    maxY = Math.max(maxY, pos.y + sz);
-                    maxZ = Math.max(maxZ, pos.z + sz);
-                }
-
-                this.camera.zoomToBoundingBox(new Vector3(minX, minY, minZ), new Vector3(maxX, maxY, maxZ));
+            // Zoom the camera to fit the nodes. Only the nodes, as the mode switch always has: the
+            // labels are framed by zoom-to-fit, on a data load or a layout change.
+            const box = nodeFramingBox(this.getNodes());
+            if (box) {
+                this.camera.zoomToBoundingBox(box.min, box.max);
             }
         }
     }
@@ -4927,7 +4928,24 @@ export class Graph implements GraphContext {
      * ```
      */
     getVoiceAdapter(): VoiceInputAdapter {
-        this.voiceAdapter ??= new VoiceInputAdapter();
+        if (!this.voiceAdapter) {
+            const adapter = new VoiceInputAdapter();
+
+            // Registered once, with the adapter, so every voice session reaches `addListener`
+            // and the DOM however it was started.
+            adapter.onActiveChange((active, reason) => {
+                if (active) {
+                    this.eventManager.emitGraphEvent("ai-voice-start", {});
+                } else {
+                    this.eventManager.emitGraphEvent("ai-voice-end", { reason });
+                }
+            });
+            adapter.onInput((transcript, isFinal) => {
+                this.eventManager.emitGraphEvent("ai-voice-transcript", { transcript, isFinal });
+            });
+
+            this.voiceAdapter = adapter;
+        }
 
         return this.voiceAdapter;
     }

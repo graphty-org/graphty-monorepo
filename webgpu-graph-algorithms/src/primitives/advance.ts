@@ -34,7 +34,8 @@ import { type Kernel } from "../kernel/kernel.js";
 import { FRONTIER_PARAMS, graphBindings, graphOverrides, kernelSpec } from "../kernels.js";
 import { type CoreBinding } from "../memory/residency.js";
 import { type CoreWindow, coreWindows, rowCountOf } from "./core-shape.js";
-import { type Frontier, type FrontierScope } from "./frontier.js";
+import { type Frontier } from "./frontier.js";
+import { type ReduceScope } from "./reduce.js";
 
 /** A prepared advance (design 6 row 8): records one expansion of a frontier per level. */
 export interface AdvancePlanner {
@@ -64,7 +65,7 @@ export interface AdvancePlanner {
  * @param core - the resident core arrays of the snapshot the frontier walks (windowed or not)
  * @returns the planner
  */
-export async function prepareAdvance(scope: FrontierScope, core: CoreBinding): Promise<AdvancePlanner> {
+export async function prepareAdvance(scope: ReduceScope, core: CoreBinding): Promise<AdvancePlanner> {
     const kernel = await scope.pipelines.kernel(kernelSpec("advance-expand", graphOverrides(core, null)));
     return new AdvancePlannerImpl(scope, core, kernel);
 }
@@ -73,7 +74,7 @@ export async function prepareAdvance(scope: FrontierScope, core: CoreBinding): P
 class AdvancePlannerImpl implements AdvancePlanner {
     readonly kernel: Kernel;
     readonly windows: readonly CoreWindow[];
-    private readonly scope: FrontierScope;
+    private readonly scope: ReduceScope;
     private readonly n: number;
 
     /**
@@ -82,7 +83,7 @@ class AdvancePlannerImpl implements AdvancePlanner {
      * @param core - the core the kernel was compiled for
      * @param kernel - the `advance-expand` kernel
      */
-    constructor(scope: FrontierScope, core: CoreBinding, kernel: Kernel) {
+    constructor(scope: ReduceScope, core: CoreBinding, kernel: Kernel) {
         this.scope = scope;
         this.kernel = kernel;
         this.windows = coreWindows(core);

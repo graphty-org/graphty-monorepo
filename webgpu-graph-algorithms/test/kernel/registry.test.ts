@@ -614,7 +614,6 @@ const TABLE: Readonly<Record<KernelId, ExpectedEntry>> = {
         entryPoint: "frontier_finalize",
         bindings: [
             [1, 0, "counters", "storage", "array<atomic<u32>>"],
-            [1, 1, "args", "storage", "array<u32>"],
             [2, 0, "P", "uniform", "FrontierParams"],
         ],
         overrideDecls: [],
@@ -622,7 +621,7 @@ const TABLE: Readonly<Record<KernelId, ExpectedEntry>> = {
         needs: [],
         snippetSlots: [],
         phase: "P8",
-        storageCount: 2,
+        storageCount: 1,
     },
     "advance-expand": {
         entryPoint: "advance_expand",

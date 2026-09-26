@@ -51,6 +51,11 @@ function anchorBoxes(state: ListState): { anchor: DOMRect; reference: DOMRect } 
  *
  * Measured from the rendered list, so it follows groups, separators and scrolling without being
  * told the selected index.
+ *
+ * A list that would cross the viewport's edge (less 6px) when aligned is cut there instead of
+ * being pushed back inside, as macOS does: its height is capped to the part that fits and its
+ * content scrolled, so the selected option still lands on the field. Pushing the whole list back
+ * (floating-ui's shift) would move the selected option off the field by the overflow.
  * @param state - floating-ui's middleware state
  * @returns the offset along the main axis and the alignment axis
  */
@@ -71,10 +76,22 @@ function overTriggerOffset(state: ListState): { mainAxis: number; alignmentAxis:
     const align = (edge: number): number =>
         rtl ? reference.right - anchor.right - edge : anchor.left - edge - reference.left;
     if (!selected) {
+        floating.style.maxHeight = "";
         return { mainAxis: anchor.bottom - reference.bottom + LISTBOX_BELOW_GAP, alignmentAxis: align(0) };
     }
-    const top = selected.getBoundingClientRect().top - floating.getBoundingClientRect().top;
-    return { mainAxis: anchor.top - top - reference.bottom, alignmentAxis: align(LISTBOX_EDGE) };
+    // Where the list's content would start, unscrolled, for the selected option to sit on the field.
+    const contentTop =
+        anchor.top - (selected.getBoundingClientRect().top - floating.getBoundingClientRect().top + floating.scrollTop);
+    // The list is the part of that content inside the viewport less the margin. A field outside
+    // that band cannot have its option both on it and inside it: the list opens unscrolled and
+    // shift pulls it in.
+    const viewportBottom = floating.ownerDocument.documentElement.clientHeight - VIEWPORT_MARGIN;
+    const inside = anchor.top >= VIEWPORT_MARGIN && anchor.bottom <= viewportBottom;
+    const top = inside ? Math.max(contentTop, VIEWPORT_MARGIN) : contentTop;
+    const bottom = Math.min(contentTop + floating.scrollHeight, viewportBottom);
+    floating.style.maxHeight = inside ? `${String(bottom - top)}px` : "";
+    floating.scrollTop = top - contentTop;
+    return { mainAxis: top - reference.bottom, alignmentAxis: align(LISTBOX_EDGE) };
 }
 
 /**

@@ -614,6 +614,41 @@ describe.skipIf(!available)("6.5 dark listbox", () => {
         expect(d.left).toBeGreaterThanOrEqual(6 - 0.5);
     });
 
+    // A viewport shorter than the aligned list (Storybook's canvas above its addon panel): the list
+    // is cut at the viewport's edges and scrolled, never pushed off the field.
+    it.each([
+        ["Select, list overflowing the bottom", 240, "Item 9"],
+        ["Select, list overflowing the top", 40, "Item 20"],
+        ["ComboInput, list overflowing both ends", 150, "24"],
+    ])("%s: the selected option stays on the field inside the viewport", async (name, y, value) => {
+        await page.viewport(600, 380);
+        const items = Array.from({ length: 30 }, (_, i) => `Item ${String(i + 1)}`);
+        const sizes = [10, 11, 12, 13, 14, 15, 16, 20, 24, 32, 36, 40, 48, 64, 96, 128].map((n) => ({ value: String(n) }));
+        const { container } = await renderFigma(
+            <div style={{ position: "fixed", left: 40, top: y }}>
+                {name.startsWith("Select") ? (
+                    <Select aria-label="Long" data={items} defaultValue={value} style={{ width: 120 }} />
+                ) : (
+                    <ComboInput label="Font size" numeric defaultValue={24} options={sizes} divided />
+                )}
+            </div>,
+        );
+        const trigger = field(container);
+        if (name.startsWith("Select")) {
+            await drive(part(container, "input"), "open");
+        } else {
+            await userEvent.click(part(container, 'button[aria-label="Open list"]'));
+        }
+        const dropdown = await listbox();
+        const checked = part(dropdown, "[data-checked]");
+        expect(checked.textContent).toBe(value);
+        const s = checked.getBoundingClientRect();
+        const d = dropdown.getBoundingClientRect();
+        expect(Math.abs(s.top - trigger.getBoundingClientRect().top)).toBeLessThanOrEqual(1);
+        expect(d.top).toBeGreaterThanOrEqual(6 - 0.5);
+        expect(d.bottom).toBeLessThanOrEqual(window.innerHeight - 6 + 0.5);
+    });
+
     it("hovering another option moves the only fill to it", async () => {
         const hovered = await figmaElement("ii/select-listbox-option-hover", { index: 87 });
         const { container } = await renderFigma(

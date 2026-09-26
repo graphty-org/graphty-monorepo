@@ -1,13 +1,13 @@
 /**
- * The `advance` primitive (design 6 row 8; P8-T5): the block-mapped expansion of a frontier into the edge queue,
- * dispatched indirectly from the slot `frontier-finalize` role 0 wrote, every readback naming its buffer. The edge
+ * The `advance` primitive (design 6 row 8; P8-T5): the block-mapped expansion of a frontier into the edge queue, a
+ * grid-stride dispatch gated by the path word `frontier-finalize` role 0 wrote, every readback naming its buffer. The edge
  * queue is a MULTISET in the schedule's order, so every case compares it SORTED against the nested-loop oracle and
  * asserts run-twice on the sorted queue plus on `edgeCount`, `edgeCountUnclamped` and `frontierDegreeSum` raw (the
  * counters block), which are order-independent sums; the subgroup twin (a second context without the feature, so
  * `wg_scan_u32` takes its Hillis-Steele form) agrees bitwise on the sorted queue. The word past `edgeCount` keeps its
  * poison, so the kernel writes exactly the reserved span. The overflow case (PD-23) fakes a 4,096-entry capacity
- * under the 10,000-degree star hub: the unclamped word is the detector, role 1 clamps `edgeCount`, zeroes the
- * contract slot and sizes the fused-retry slot. The windowed case (P8-T12, DEP-P8-E lifted) fakes the binding limit
+ * under the 10,000-degree star hub: the unclamped word is the detector, role 1 clamps `edgeCount` and switches the
+ * path word to the fused retry. The windowed case (P8-T12, DEP-P8-E lifted) fakes the binding limit
  * so the core is bound as arc windows (the hub row straddling two of them) and holds the per-window expansion equal
  * to the whole-core one. A bad level or frontier is E_INVALID_ARGUMENT naming it before anything is recorded.
  */
@@ -20,12 +20,12 @@ import { type GpuContext } from "../../src/context.js";
 import { isWebGpuGraphError } from "../../src/errors.js";
 import { GraphResidency } from "../../src/memory/residency.js";
 import { prepareAdvance } from "../../src/primitives/advance.js";
-import { prepareFrontier, SLOT } from "../../src/primitives/frontier.js";
+import { PATH, prepareFrontier } from "../../src/primitives/frontier.js";
 import { advanceReport, expectSubMultiset, levelsOf, runAdvance } from "../helpers/advance.js";
 import { fakeCaps } from "../helpers/caps-tables.js";
 import { sortedU32 } from "../helpers/compact.js";
 import { withResidency } from "../helpers/degree-check.js";
-import { POISON, slotOf, ZERO_SLOT } from "../helpers/frontier.js";
+import { POISON } from "../helpers/frontier.js";
 import { gridEdges, hubbedRandom, KARATE_EDGES, rmatEdges, snapshotOf, starEdges } from "../helpers/graphs.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { adapterClass, writeNoiseFixture } from "../helpers/noise-floor.js";
@@ -172,7 +172,7 @@ describe("advance: the block-mapped expansion and the edge queue (design 6 row 8
         await checkFixture(t, "rmat", rmat, [iota(rmat.nodeCount)]);
     }, 300_000);
 
-    it("the overflow rule (PD-23): a FAKED 4,096 capacity under the star hub -- edgeCountUnclamped 10,000, edgeCount 10,000 before role 1 and 4,096 after, the 4,096 words a sub-multiset of the oracle, slot 1 zeroed, slot 6 the retry, overflowLevels 1", async (t) => {
+    it("the overflow rule (PD-23): a FAKED 4,096 capacity under the star hub -- edgeCountUnclamped 10,000, edgeCount 10,000 before role 1 and 4,096 after, the 4,096 words a sub-multiset of the oracle, the path word switched to the fused retry, overflowLevels 1", async (t) => {
         const ctx = await context(t);
         const star = snapshotOf(starEdges(HUB_DEGREE));
         const oracle = sortedU32(advanceOracle(star, [0]));
@@ -183,6 +183,7 @@ describe("advance: the block-mapped expansion and the edge queue (design 6 row 8
             edgeCountUnclamped: HUB_DEGREE,
             frontierDegreeSum: HUB_DEGREE,
             overflowLevels: 0,
+            path: PATH.twoPhase,
         });
         expect(before.queue, "the edge queue (edgeQueue buffer), the first capacity words").toHaveLength(
             FAKED_CAPACITY,
@@ -197,11 +198,9 @@ describe("advance: the block-mapped expansion and the edge queue (design 6 row 8
             overflowLevels: 1,
             fusedLevels: 1,
             twoPhaseLevels: 0,
+            path: PATH.fusedRetry,
         });
         expectSubMultiset(sortedU32(after.queue), oracle, "the clamped edge queue after role 1 vs the oracle");
-        expect(slotOf(after.args, 0, SLOT.expand), "slot 0 (args buffer)").toEqual([1, 1, 1, 1]);
-        expect(slotOf(after.args, 0, SLOT.contract), "slot 1 (args buffer)").toEqual([...ZERO_SLOT]);
-        expect(slotOf(after.args, 0, SLOT.fusedRetry), "slot 6 (args buffer)").toEqual([1, 1, 1, 1]);
 
         // a capacity that fits takes the two-phase branch and clamps nothing
         const [fits] = await runAdvance(ctx, star, [[0]], { edgeCapacity: HUB_DEGREE, role1: true });
@@ -210,9 +209,9 @@ describe("advance: the block-mapped expansion and the edge queue (design 6 row 8
             edgeCountUnclamped: HUB_DEGREE,
             overflowLevels: 0,
             twoPhaseLevels: 1,
+            path: PATH.twoPhase,
         });
         expectBitwiseEqual(sortedU32(fits.queue), oracle, "the whole edge queue when the capacity fits");
-        expect(slotOf(fits.args, 0, SLOT.fusedRetry)).toEqual([...ZERO_SLOT]);
     });
 
     it("windowed (P8-T12, DEP-P8-E lifted): at a FAKED 1 MiB binding limit (>= 8 windows, the hub row longer than one window) the sorted edge queue (edgeQueue buffer) and the counters block of the hub alone and of the whole vertex set equal the unwindowed run's and the oracle, twice", async (t) => {

@@ -1,10 +1,10 @@
 /**
  * The `advance` checks (design 6 row 8; P8-T5) shared by test/primitives/advance.test.ts and
  * test/sabotage/advance.test.ts: an expansion run (a `prepareFrontier` planner and a `prepareAdvance` planner over
- * one `algorithmScope`, the edge queue and the args poisoned, the frontier list written into the input queue with the
- * BFS-style seed `{ nextFrontierCount: count, level: U32_MAX }`, role 0 of `frontier-finalize`, the indirect
- * expansion, optionally role 1, and the readback of the counters block, the written span of the edge queue and the
- * word past it by their OWN bindings); the oracle's BFS levels of a fixture; a sub-multiset check; and the report
+ * one `algorithmScope`, the edge queue poisoned, the frontier list written into the input queue with the BFS-style
+ * seed `{ nextFrontierCount: count, level: U32_MAX }`, role 0 of `frontier-finalize`, the grid-stride expansion,
+ * optionally role 1, and the readback of the counters block, the written span of the edge queue and the word past
+ * it by their OWN bindings); the oracle's BFS levels of a fixture; a sub-multiset check; and the report
  * the sabotage suite measures, bitwise (ratioOf(|a - b|, 0): any mismatch is Infinity) over the sorted queue and the
  * three counters of the reversed karate vertex set (the reversed order is what makes a lower-bound search read the
  * wrong row at every block boundary: on an index-ordered frontier `rowStart[k - 1] + deg[k - 1]` IS `rowStart[k]`),
@@ -24,15 +24,15 @@ import { type AdvancePlanner, prepareAdvance } from "../../src/primitives/advanc
 import {
     type FrontierFinalizeFields,
     type FrontierPlanner,
+    PATH,
     prepareFrontier,
-    SLOT,
 } from "../../src/primitives/frontier.js";
 import { advanceOracle } from "../oracle/advance.js";
 import { fakeCaps } from "./caps-tables.js";
 import { sortedU32 } from "./compact.js";
 import { withResidency } from "./degree-check.js";
 import { readU32 } from "./device.js";
-import { bitwiseReports, type CounterWord, decodeCounters, POISON, slotOf, ZERO_SLOT } from "./frontier.js";
+import { bitwiseReports, type CounterWord, decodeCounters, POISON } from "./frontier.js";
 import { gridEdges, KARATE_EDGES, snapshotOf, starEdges } from "./graphs.js";
 import { type CheckReport, mergeReports, ratioOf } from "./sabotage.js";
 
@@ -40,25 +40,24 @@ import { type CheckReport, mergeReports, ratioOf } from "./sabotage.js";
 interface AdvanceOptions {
     /** A faked edge-queue capacity (the overflow case); omitted: `prepareFrontier`'s default. */
     readonly edgeCapacity?: number | undefined;
-    /** Record `frontier-finalize` role 1 after the expansion (the clamp and the retry slot). */
+    /** Record `frontier-finalize` role 1 after the expansion (the clamp and the retry path). */
     readonly role1?: boolean | undefined;
 }
 
-/** One expansion read back: the first `min(edgeCount, edgeCapacity)` words of the edge queue, the word past them (null at the capacity), the counters block by name and every args word. */
+/** One expansion read back: the first `min(edgeCount, edgeCapacity)` words of the edge queue, the word past them (null at the capacity) and the counters block by name. */
 interface AdvanceRun {
     readonly queue: U32;
     readonly tail: number | null;
     readonly counters: Readonly<Record<CounterWord, number>>;
-    readonly args: U32;
 }
 
-/** The trivial candidate rule of P8-T4 (slot 0 always) and no depth cap. */
+/** The trivial path rule of P8-T4 (two-phase always) and no depth cap. */
 const FIELDS: FrontierFinalizeFields = Object.freeze({ mode: 1, fusedMax: 0, maxDepth: U32_MAX });
 
 /**
  * Expands every frontier of `frontiers` over `s`, one submit each, with the two planners prepared once: the edge
- * queue and the args poisoned before each, the list written into the input queue after `reset` (which seeds
- * `nextFrontierCount` with the count so role 0 rotates it in), then the three readbacks.
+ * queue poisoned before each, the list written into the input queue after `reset` (which seeds `nextFrontierCount`
+ * with the count so role 0 rotates it in), then the two readbacks.
  * @param ctx - the context
  * @param s - the snapshot (uploaded through the context's residency)
  * @param frontiers - the frontier vertex lists
@@ -80,7 +79,6 @@ export async function runAdvance(
         const advance: AdvancePlanner = await prepareAdvance(scope, core);
         const { frontier } = planner;
         const { queue } = ctx.device;
-        const argWords = frontier.args.size / 4;
         const runs: AdvanceRun[] = [];
         for (const list of frontiers) {
             const count = list.length;
@@ -89,7 +87,6 @@ export async function runAdvance(
                 frontier.edgeQueue.offset,
                 new Uint32Array(frontier.edgeCapacity).fill(POISON),
             );
-            queue.writeBuffer(frontier.args.buffer, frontier.args.offset, new Uint32Array(argWords).fill(POISON));
             frontier.reset(queue, 0, { nextFrontierCount: count, level: U32_MAX });
             if (count > 0) {
                 queue.writeBuffer(frontier.input.buffer, frontier.input.offset, Uint32Array.from(list));
@@ -117,12 +114,10 @@ export async function runAdvance(
                 span > 0
                     ? await readU32(ctx, frontier.edgeQueue.buffer, span, frontier.edgeQueue.offset)
                     : new Uint32Array(0);
-            const args = await readU32(ctx, frontier.args.buffer, argWords, frontier.args.offset);
             runs.push({
                 queue: words.slice(0, written),
                 tail: span > written ? words[written] : null,
                 counters,
-                args,
             });
         }
         return runs;
@@ -216,8 +211,8 @@ function differentialReports(label: string, run: AdvanceRun, s: GraphSnapshot, l
 /**
  * The sabotage check of `advance-expand` (spec 11.9 item 1): the reversed karate vertex set, a handful of the
  * 20 x 20 grid's levels and the star hub against the oracle, and the overflow case -- the unclamped word, the clamped
- * word after role 1, the sub-multiset of the 4,096 words, the zeroed contract slot, the retry slot and the overflow
- * count -- every sample bitwise.
+ * word after role 1, the sub-multiset of the 4,096 words, the retry path and the overflow count -- every sample
+ * bitwise.
  * @param ctx - the context
  * @returns the report
  */
@@ -277,11 +272,10 @@ export async function advanceReport(ctx: GpuContext): Promise<CheckReport> {
                 overflow.counters.edgeCountUnclamped,
                 overflow.counters.frontierDegreeSum,
                 overflow.counters.overflowLevels,
+                overflow.counters.path,
             ],
-            [4096, 10_000, 10_000, 1],
+            [4096, 10_000, 10_000, 1, PATH.fusedRetry],
         ),
-        ...bitwiseReports("overflow.slot1", slotOf(overflow.args, 0, SLOT.contract), ZERO_SLOT),
-        ...bitwiseReports("overflow.slot6", slotOf(overflow.args, 0, SLOT.fusedRetry), [1, 1, 1, 1]),
     );
     return mergeReports(reports);
 }

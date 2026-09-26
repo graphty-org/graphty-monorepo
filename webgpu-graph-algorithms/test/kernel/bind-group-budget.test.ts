@@ -50,7 +50,7 @@ const STORAGE_COUNTS: Readonly<Record<string, number | undefined>> = {
     "compact-scatter": 5,
     "dedupe-claim": 3,
     "dedupe-filter": 4,
-    "frontier-finalize": 2,
+    "frontier-finalize": 1,
     "advance-expand": 7,
     "bfs-contract": 4,
     "sssp-pred": 6,

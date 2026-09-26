@@ -1,6 +1,7 @@
 /**
- * The element on a REAL WebGPU device: the three force layouts, a drag, a run, and the
- * arrangement compared against the one the CPU produces from the same graph.
+ * The element on a REAL WebGPU device: the three force layouts, a drag, three runs (PageRank,
+ * a breadth-first search and a Dijkstra route, the last two held against the CPU's answer), and
+ * the arrangement compared against the one the CPU produces from the same graph.
  *
  * Everything else about acceleration is pinned against the deterministic fake, which is the
  * right instrument for a rule: `test/browser/simulation-layout-engine.test.ts` decides what
@@ -20,7 +21,11 @@
  * and SwiftShader is a device -- which is what lets the same file run the real kernels on a
  * machine that has no graphics card.
  *
- * The last case is the one worth reading. A GPU layout is not the CPU layout to the bit: single
+ * The policy cases at the end pin the other half through the same real entry point: `auto`
+ * refuses SwiftShader with `E_SOFTWARE_ONLY` and attaches real hardware, and an element that
+ * attached SwiftShader under `required` lets go of it when the policy relaxes to `auto`.
+ *
+ * The comparison case is the one worth reading. A GPU layout is not the CPU layout to the bit: single
  * precision, a different iteration order and a different settle point all move nodes. What must
  * hold is that it is the same PICTURE, so the case settles the same graph twice, once with
  * `acceleration="off"` and once on the device, and compares the distribution of edge lengths.
@@ -35,6 +40,7 @@ import { afterAll, assert, beforeAll, describe, it } from "vitest";
 import type { Graphty } from "../../index.js";
 import type { AccelerationCapabilities, AccelerationStatus } from "../../src/acceleration";
 import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
+import type { RunResult } from "../../src/session/results/types";
 import { storyGraph } from "../helpers/story-graph";
 
 /** Which Chromium flag set the run asked for; empty when it asked for none. */
@@ -99,7 +105,7 @@ async function until(predicate: () => boolean, what: string, budgetMs = SETTLE_M
  * @param acceleration - The policy the element starts under.
  * @returns The connected element.
  */
-async function mount(acceleration: "required" | "off"): Promise<Graphty> {
+async function mount(acceleration: "required" | "auto" | "off"): Promise<Graphty> {
     const container = document.createElement("div");
 
     container.style.width = "800px";
@@ -233,8 +239,90 @@ function quantiles(element: Graphty): Quantiles {
     return { q10: at(0.1), q50: at(0.5), q90: at(0.9) };
 }
 
+/**
+ * Reads one numeric field of a run's per-element values.
+ * @param values - What the run published for one node or edge.
+ * @param field - The field to read.
+ * @param what - Named in the failure message.
+ * @returns The number.
+ */
+function numberField(values: Readonly<Record<string, unknown>>, field: string, what: string): number {
+    const value = values[field];
+
+    if (typeof value !== "number") {
+        throw new Error(`${what}: ${field} is ${String(value)}, not a number`);
+    }
+
+    return value;
+}
+
+/** One reached node of a breadth-first search, as the run publishes it. */
+interface Reached {
+    /** How many steps from the source. */
+    level: number;
+    /** Its position in the visit order. */
+    order: number;
+}
+
+/**
+ * The level and order of every node a breadth-first run reached, keyed by node id.
+ * @param result - The run's result.
+ * @returns The reached nodes; a node the walk never reached is absent.
+ */
+function reachedOf(result: RunResult): Map<string, Reached> {
+    const reached = new Map<string, Reached>();
+
+    for (const { id } of GRAPH.nodes) {
+        const values = result.node(id);
+
+        if (values !== undefined) {
+            reached.set(id, { level: numberField(values, "level", id), order: numberField(values, "order", id) });
+        }
+    }
+
+    return reached;
+}
+
+/** Where the two traversal cases start, and where the route case is asked to go. */
+const SOURCE = "node-0";
+
+/** Six steps from the source on the shared graph, which is as far as it walks. */
+const TARGET = "node-75";
+
+/** How far apart a distance computed in single precision may sit from the CPU's, as a fraction. */
+const DISTANCE_TOLERANCE = 1e-5;
+
+/**
+ * Two distances agree: both infinite, or within the tolerance of each other.
+ * @param a - One distance.
+ * @param b - The other.
+ * @param what - Named in the failure message.
+ */
+function assertSameDistance(a: number, b: number, what: string): void {
+    if (a === Infinity || b === Infinity) {
+        assert.equal(a, b, `${what}: one backend reached the node and the other did not`);
+        return;
+    }
+
+    assert.closeTo(a, b, DISTANCE_TOLERANCE * Math.max(Math.abs(a), Math.abs(b), 1), what);
+}
+
 /** The element every case but the comparison uses. */
 let gpu: Graphty;
+
+/** The `acceleration="off"` element the two traversal cases compare against, mounted on first use. */
+let reference: Graphty | undefined;
+
+/**
+ * The reference element, mounted the first time a case asks for it.
+ * @returns The element, which attached no accelerator.
+ */
+async function cpuReference(): Promise<Graphty> {
+    reference ??= await mount("off");
+    assert.equal(status(reference).state, "off", "the reference element attached no accelerator");
+
+    return reference;
+}
 
 beforeAll(async () => {
     if (!GPU_LANE) {
@@ -342,6 +430,169 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device", () => {
         assert.equal(run.caveats.precision, "f32");
     });
 
+    // The two traversal cases carry an explicit timeout, as the PageRank case does: a cyclic predecessor chain would
+    // hang the seam's unbounded walk, and a hang must read as a failure on the lane, not as a stalled job.
+
+    it(
+        "labels a breadth-first search computed on the device as single precision, and its levels are the CPU's",
+        { timeout: SETTLE_MS * 2 },
+        async () => {
+            const run = gpu.session.runs.start("bfs", { source: SOURCE });
+            const result = await run;
+
+            assert.equal(run.status, "succeeded");
+            assert.equal(run.caveats.precision, "f32");
+
+            const cpu = await cpuReference();
+            const cpuRun = cpu.session.runs.start("bfs", { source: SOURCE });
+            const cpuResult = await cpuRun;
+
+            assert.equal(cpuRun.status, "succeeded");
+            assert.equal(cpuRun.caveats.precision, "f64", "the reference walked on the CPU");
+
+            const reached = reachedOf(result);
+            const expected = reachedOf(cpuResult);
+
+            assert.isAbove(expected.size, 1, "the source reaches more than itself, or the case proves nothing");
+            assert.deepEqual([...reached.keys()].sort(), [...expected.keys()].sort(), "the same nodes are reached");
+
+            for (const [id, { level }] of expected) {
+                assert.equal(reached.get(id)?.level, level, `${id}: the level the device found`);
+            }
+
+            // The device's order is grouped by level: walking the nodes in visit order never steps back a level.
+            const byOrder = [...reached.values()].sort((a, b) => a.order - b.order);
+
+            assert.deepEqual(
+                byOrder.map((node) => node.order),
+                byOrder.map((_node, position) => position),
+                "the visit order numbers the reached nodes 0 .. n-1 once each",
+            );
+
+            for (let position = 1; position < byOrder.length; position++) {
+                const previous = byOrder[position - 1];
+                const current = byOrder[position];
+
+                assert.isDefined(previous);
+                assert.isDefined(current);
+                assert.isAtLeast(current.level, previous.level, `position ${position}: the order steps back a level`);
+            }
+
+            // Within a level the two backends may visit in a different order (the CPU walks FIFO, the device sorts
+            // by node index), so what is held is that each level occupies the same block of positions.
+            const positionsByLevel = (nodes: Map<string, Reached>): Map<number, number[]> => {
+                const blocks = new Map<number, number[]>();
+
+                for (const { level, order } of nodes.values()) {
+                    blocks.set(
+                        level,
+                        [...(blocks.get(level) ?? []), order].sort((a, b) => a - b),
+                    );
+                }
+
+                return blocks;
+            };
+            const gpuBlocks = positionsByLevel(reached);
+
+            for (const [level, positions] of positionsByLevel(expected)) {
+                assert.deepEqual(gpuBlocks.get(level), positions, `level ${level}: the block of visit positions`);
+            }
+        },
+    );
+
+    it(
+        "labels a Dijkstra run computed on the device as single precision, and its route costs the CPU's",
+        { timeout: SETTLE_MS * 2 },
+        async () => {
+            // "dijkstra" is only a legacy key of the `shortest-path` descriptor; runs.start matches canonical keys.
+            const params = { method: "dijkstra", source: SOURCE, target: TARGET };
+            const run = gpu.session.runs.start("shortest-path", params);
+            const result = await run;
+
+            assert.equal(run.status, "succeeded");
+            assert.equal(run.caveats.precision, "f32");
+            assert.equal(run.caveats.method, "dijkstra");
+
+            const cpu = await cpuReference();
+            const cpuRun = cpu.session.runs.start("shortest-path", params);
+            const cpuResult = await cpuRun;
+
+            assert.equal(cpuRun.caveats.precision, "f64", "the reference searched on the CPU");
+
+            // Every node's distance from the source is the CPU's, to single precision.
+            for (const { id } of GRAPH.nodes) {
+                const values = result.node(id);
+                const expected = cpuResult.node(id);
+
+                assert.isDefined(values, `${id}: the device published a distance`);
+                assert.isDefined(expected, `${id}: the CPU published a distance`);
+                assertSameDistance(numberField(values, "distance", id), numberField(expected, "distance", id), id);
+            }
+
+            const cost = numberField(result.graph, "cost", "graph");
+            const length = numberField(result.graph, "length", "graph");
+            const hops = numberField(result.graph, "hops", "graph");
+
+            assert.isAbove(length, 1, "a route runs from the source to the target, or the case proves nothing");
+            assertSameDistance(cost, numberField(cpuResult.graph, "cost", "graph"), "graph.cost");
+            assert.equal(hops, length - 1);
+
+            // The device's route is ONE valid path from the source to the target whose edge weights sum to the cost.
+            // Not node-for-node equality with the CPU's route: the two backends break ties differently by design (the
+            // CPU's predecessor is the relaxing arc under heap order, the device's the smallest key-step arc), so on
+            // a graph with two equal-cost shortest routes they differ while both are right.
+            const route: (string | undefined)[] = new Array<string | undefined>(length).fill(undefined);
+
+            for (const { id } of GRAPH.nodes) {
+                const values = result.node(id);
+
+                if (values?.onPath === true) {
+                    const position = numberField(values, "order", id);
+
+                    assert.isUndefined(route[position], `${id}: position ${position} on the route is taken`);
+                    route[position] = id;
+                }
+            }
+
+            assert.equal(route[0], SOURCE, "the route starts at the source");
+            assert.equal(route[length - 1], TARGET, "the route ends at the target");
+            assert.notInclude(route, undefined, "every position on the route names a node");
+
+            const routeEdges: { source: string; target: string; weight: number }[] = [];
+
+            for (const id of (await gpu.session.scope.resolve("graph")).edges) {
+                const values = result.edge(id);
+                const edge = gpu.session.data.edge(id);
+
+                assert.isDefined(edge, `${id}: the run named an edge the graph holds`);
+
+                if (values?.onPath === true) {
+                    const weight = typeof edge.weight === "number" ? edge.weight : 1;
+
+                    routeEdges.push({ source: String(edge.source), target: String(edge.target), weight });
+                }
+            }
+
+            assert.equal(routeEdges.length, hops, "one edge on the route per hop");
+
+            let summed = 0;
+
+            for (let position = 1; position < length; position++) {
+                const from = route[position - 1];
+                const to = route[position];
+                const joining = routeEdges.filter(
+                    (edge) =>
+                        (edge.source === from && edge.target === to) || (edge.source === to && edge.target === from),
+                );
+
+                assert.equal(joining.length, 1, `${String(from)} -> ${String(to)}: exactly one route edge joins them`);
+                summed += joining[0]?.weight ?? 0;
+            }
+
+            assertSameDistance(summed, cost, "the route's edge weights sum to the cost");
+        },
+    );
+
     it("settles where the CPU settles, to a quarter of every quantile", { timeout: SETTLE_MS * 4 }, async () => {
         await settle(gpu, "forceatlas2");
         const accelerated = quantiles(gpu);
@@ -378,4 +629,53 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device", () => {
             );
         }
     });
+});
+
+describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device: what the policy accepts", () => {
+    /** SwiftShader is the only software adapter a lane launches; every other flag set is hardware. */
+    const SOFTWARE = ADAPTER === "swiftshader";
+
+    it(
+        SOFTWARE ? "refuses the software adapter under auto, saying why" : "attaches the hardware adapter under auto",
+        { timeout: 200_000 },
+        async () => {
+            const auto = await mount("auto");
+            await until(() => status(auto).state !== "probing", "the probe under auto to settle", 30_000);
+            const found = status(auto);
+
+            console.log(`[webgpu-layout] adapter=${ADAPTER} policy=auto status=${JSON.stringify(found)}`);
+
+            if (SOFTWARE) {
+                assert.equal(found.state, "unavailable");
+                assert.equal(found.code, "E_SOFTWARE_ONLY", found.reason ?? "no reason given");
+                assert.isUndefined(found.backend, "nothing is attached");
+            } else {
+                assert.equal(found.backend, "webgpu", found.reason ?? "no reason given");
+            }
+        },
+    );
+
+    it(
+        SOFTWARE
+            ? "lets go of the software adapter required attached once the policy relaxes to auto"
+            : "keeps the hardware adapter when the policy relaxes from required to auto",
+        { timeout: 60_000 },
+        async () => {
+            assert.equal(status(gpu).backend, "webgpu", "required attached an adapter to begin with");
+
+            gpu.acceleration = "auto";
+            await until(() => status(gpu).state !== "probing", "the policy change to settle", 30_000);
+            const found = status(gpu);
+
+            assert.equal(found.policy, "auto");
+
+            if (SOFTWARE) {
+                assert.equal(found.state, "unavailable");
+                assert.equal(found.code, "E_SOFTWARE_ONLY", found.reason ?? "no reason given");
+                assert.isUndefined(found.backend, "the software adapter was released");
+            } else {
+                assert.equal(found.backend, "webgpu");
+            }
+        },
+    );
 });

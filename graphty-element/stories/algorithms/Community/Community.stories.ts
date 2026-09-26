@@ -108,3 +108,100 @@ export const LouvainMoreCommunitiesThanColours: Story = {
         await holds(last?.label === "other: 3 groups", `the legend's last row reads "${String(last?.label)}"`);
     },
 };
+
+/**
+ * Nested cores: a five-node clique (core 4), a triangle and a square hanging off it (core 2), and
+ * two single nodes on a stalk (core 1). The cat network every other story here draws is one 2-core
+ * from end to end, so it would paint every node the same colour.
+ */
+const coreNodes = [
+    ...["k0", "k1", "k2", "k3", "k4"],
+    ...["t0", "t1", "t2"],
+    ...["s0", "s1", "s2", "s3"],
+    ...["p0", "p1"],
+].map((id) => ({ id }));
+const coreEdges = [
+    ...[0, 1, 2, 3, 4].flatMap((from) =>
+        [0, 1, 2, 3, 4].filter((to) => to > from).map((to) => ({ src: `k${String(from)}`, dst: `k${String(to)}` })),
+    ),
+    { src: "t0", dst: "t1" },
+    { src: "t1", dst: "t2" },
+    { src: "t2", dst: "t0" },
+    { src: "t0", dst: "k0" },
+    { src: "s0", dst: "s1" },
+    { src: "s1", dst: "s2" },
+    { src: "s2", dst: "s3" },
+    { src: "s3", dst: "s0" },
+    { src: "s0", dst: "k2" },
+    { src: "p0", dst: "t1" },
+    { src: "p1", dst: "k3" },
+];
+
+/** The core number each node must be drawn by. */
+const EXPECTED_CORE: Readonly<Record<string, number>> = {
+    k0: 4,
+    k1: 4,
+    k2: 4,
+    k3: 4,
+    k4: 4,
+    t0: 2,
+    t1: 2,
+    t2: 2,
+    s0: 2,
+    s1: 2,
+    s2: 2,
+    s3: 2,
+    p0: 1,
+    p1: 1,
+};
+
+/**
+ * K-core - colours every node by the depth of the most tightly knit core it belongs to.
+ *
+ * A core number is a measurement every node has, so it draws on the same orange-to-brown ramp as
+ * the centrality stories: orange for the loosely attached nodes on a stalk, dark brown for the
+ * clique at the centre, and one colour between them for the triangle and the square.
+ */
+export const KCore: Story = {
+    args: {
+        dataSource: undefined,
+        nodeData: coreNodes,
+        edgeData: coreEdges,
+        setup: storySetup({ preSteps: 8000 }),
+    },
+    play: async ({ canvasElement }) => {
+        await waitForGraphSettled(canvasElement);
+
+        const element = canvasElement.querySelector("graphty-element");
+
+        await holds(element !== null, "KCore: no <graphty-element> rendered");
+
+        const { session } = element as Graphty;
+
+        // Started here rather than on load, for the reason LouvainMoreCommunitiesThanColours gives.
+        const run = session.runs.start("k-core", {}, { style: false });
+        const result = await run;
+
+        for (const [id, core] of Object.entries(EXPECTED_CORE)) {
+            await holds(result.node(id)?.value === core, `${id} has core number ${String(result.node(id)?.value)}, not ${String(core)}`);
+        }
+
+        await session.styles.encode({ run: run.id, channel: "node.color" });
+
+        const scene = await drawn(canvasElement, "Algorithms/Community KCore");
+
+        await assertGraphLoaded(scene, { nodes: coreNodes.length, edges: coreEdges.length });
+
+        const colourOf = new Map(scene.nodes.map((node) => [node.id, node.hex?.toLowerCase()]));
+        const byCore = new Map<number, Set<string | undefined>>();
+
+        for (const [id, core] of Object.entries(EXPECTED_CORE)) {
+            byCore.set(core, (byCore.get(core) ?? new Set()).add(colourOf.get(id)));
+        }
+
+        await holds(
+            [...byCore.values()].every((colours) => colours.size === 1) && new Set([...byCore.values()].map((c) => [...c][0])).size === 3,
+            `expected one colour per core number and three different colours, drew ${JSON.stringify([...byCore].map(([core, c]) => [core, [...c]]))}`,
+        );
+    },
+};

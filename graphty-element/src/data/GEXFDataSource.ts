@@ -77,9 +77,70 @@ function resolveDirection(
     };
 }
 
+/** The time keys a GEXF element, spell or attvalue may carry, as kept on the element's data. */
+interface GEXFInterval {
+    start?: string;
+    end?: string;
+    startOpen?: true;
+    endOpen?: true;
+    timestamp?: string;
+}
+
+/**
+ * Read the lifetime written on a GEXF node, edge, spell or attvalue.
+ *
+ * Times are kept as the raw strings the file wrote (a year, a date or a double, per the graph's
+ * `timeformat`), the same form a visibility time window accepts. GEXF 1.2 writes an open bound as
+ * `startopen` / `endopen` holding the bound's time: that time is kept as `start` / `end` with a
+ * `startOpen` / `endOpen` flag, so nothing about the bound is lost. When a closed and an open form
+ * both appear, the closed one wins, as it does in graph-io's GEXF importer.
+ * @param obj - the parsed element, with its attributes under `@_` keys
+ * @returns only the time keys the element actually carried; empty for an untimed element
+ */
+function readInterval(obj: Record<string, unknown>): GEXFInterval {
+    const interval: GEXFInterval = {};
+    const text = (key: string): string | undefined => {
+        const value = obj[`@_${key}`];
+        return typeof value === "string" && value !== "" ? value : undefined;
+    };
+
+    const start = text("start");
+    const startOpen = text("startopen");
+    if (start !== undefined) {
+        interval.start = start;
+    } else if (startOpen !== undefined) {
+        interval.start = startOpen;
+        interval.startOpen = true;
+    }
+
+    const end = text("end");
+    const endOpen = text("endopen");
+    if (end !== undefined) {
+        interval.end = end;
+    } else if (endOpen !== undefined) {
+        interval.end = endOpen;
+        interval.endOpen = true;
+    }
+
+    const timestamp = text("timestamp");
+    if (timestamp !== undefined) {
+        interval.timestamp = timestamp;
+    }
+
+    return interval;
+}
+
 /**
  * Data source for loading graph data from GEXF (Graph Exchange XML Format) files.
  * Supports node and edge attributes, attribute types, and dynamic graphs.
+ *
+ * Dynamic graphs keep their time data on each record rather than acting on it:
+ * - a node's or edge's `start` / `end` / `timestamp` (see {@link readInterval}) go onto its data
+ *   under those names, and its `<spells>` go onto `spells` as a list of the same intervals;
+ * - an attribute with time-sliced `attvalue`s becomes a list of `{ value, start, end }` slices
+ *   instead of a single value. An attribute with no timed `attvalue` keeps its plain value.
+ *
+ * Dynamic `viz:*` elements (timed positions, colours or sizes) are not read.
  */
 export class GEXFDataSource extends DataSource {
     static readonly type = "gexf";
@@ -115,7 +176,7 @@ export class GEXFDataSource extends DataSource {
             trimValues: true,
             isArray: (name) => {
                 // These elements should always be treated as arrays
-                return ["node", "edge", "attribute", "attvalue"].includes(name);
+                return ["node", "edge", "attribute", "attvalue", "spell"].includes(name);
             },
         });
 
@@ -254,6 +315,7 @@ export class GEXFDataSource extends DataSource {
                     "@_id": string;
                     "@_label"?: string;
                     attvalues?: { attvalue?: unknown[] };
+                    spells?: { spell?: unknown[] };
                     "viz:position"?: {
                         "@_x"?: string;
                         "@_y"?: string;
@@ -287,23 +349,7 @@ export class GEXFDataSource extends DataSource {
                     nodeData.label = nodeObj["@_label"];
                 }
 
-                // Parse attribute values
-                if (nodeObj.attvalues?.attvalue) {
-                    const attvalues = Array.isArray(nodeObj.attvalues.attvalue)
-                        ? nodeObj.attvalues.attvalue
-                        : [nodeObj.attvalues.attvalue];
-
-                    for (const attvalue of attvalues) {
-                        const attObj = attvalue as { "@_for": string; "@_value": string };
-                        const attrId = attObj["@_for"];
-                        const value = attObj["@_value"];
-
-                        const attrDef = attributes.get(attrId);
-                        if (attrDef) {
-                            nodeData[attrDef.title] = this.parseValue(value, attrDef.type);
-                        }
-                    }
-                }
+                this.readTimeData(nodeObj, nodeData, attributes);
 
                 // Parse viz namespace elements
                 if (nodeObj["viz:position"]) {
@@ -384,6 +430,7 @@ export class GEXFDataSource extends DataSource {
                     "@_type"?: string;
                     "@_label"?: string;
                     attvalues?: { attvalue?: unknown[] };
+                    spells?: { spell?: unknown[] };
                 };
 
                 const src = edgeObj["@_source"];
@@ -432,23 +479,7 @@ export class GEXFDataSource extends DataSource {
                     }
                 }
 
-                // Parse attribute values
-                if (edgeObj.attvalues?.attvalue) {
-                    const attvalues = Array.isArray(edgeObj.attvalues.attvalue)
-                        ? edgeObj.attvalues.attvalue
-                        : [edgeObj.attvalues.attvalue];
-
-                    for (const attvalue of attvalues) {
-                        const attObj = attvalue as { "@_for": string; "@_value": string };
-                        const attrId = attObj["@_for"];
-                        const value = attObj["@_value"];
-
-                        const attrDef = attributes.get(attrId);
-                        if (attrDef) {
-                            edgeData[attrDef.title] = this.parseValue(value, attrDef.type);
-                        }
-                    }
-                }
+                this.readTimeData(edgeObj, edgeData, attributes);
 
                 edges.push(edgeData);
             } catch (error) {
@@ -464,6 +495,51 @@ export class GEXFDataSource extends DataSource {
         }
 
         return { edges: edges as AdHocData[], statedDirected, statedUndirected };
+    }
+
+    /**
+     * Copy a node's or edge's lifetime, spells and attribute values onto its record.
+     *
+     * Every `attvalue` for one attribute is kept: if any of them is timed, the attribute becomes
+     * the list of all its slices, `{ value, start, end }`, in file order; otherwise it keeps its
+     * plain value, so a static file reads exactly as it always has.
+     * @param obj - the parsed `<node>` or `<edge>`
+     * @param obj.attvalues - its `<attvalues>` element, if any
+     * @param obj.attvalues.attvalue - the `<attvalue>` children
+     * @param obj.spells - its `<spells>` element, if any
+     * @param obj.spells.spell - the `<spell>` children
+     * @param record - the record being built, written in place
+     * @param attributes - the attribute definitions for this element class
+     */
+    private readTimeData(
+        obj: { attvalues?: { attvalue?: unknown[] }; spells?: { spell?: unknown[] } },
+        record: Record<string, unknown>,
+        attributes: Map<string, GEXFAttribute>,
+    ): void {
+        Object.assign(record, readInterval(obj as Record<string, unknown>));
+
+        const spells = obj.spells?.spell;
+        if (spells) {
+            record.spells = spells.map((spell) => readInterval(spell as Record<string, unknown>));
+        }
+
+        const slices = new Map<string, { value: unknown; interval: GEXFInterval }[]>();
+        for (const attvalue of obj.attvalues?.attvalue ?? []) {
+            const attObj = attvalue as Record<string, unknown> & { "@_for": string; "@_value": string };
+            const attrDef = attributes.get(attObj["@_for"]);
+            if (!attrDef) {
+                continue;
+            }
+
+            const list = slices.get(attrDef.title) ?? [];
+            list.push({ value: this.parseValue(attObj["@_value"], attrDef.type), interval: readInterval(attObj) });
+            slices.set(attrDef.title, list);
+        }
+
+        for (const [title, list] of slices) {
+            const timed = list.some(({ interval }) => Object.keys(interval).length > 0);
+            record[title] = timed ? list.map(({ value, interval }) => ({ value, ...interval })) : list[list.length - 1].value;
+        }
     }
 
     private parseValue(value: string, type: string): string | number | boolean {

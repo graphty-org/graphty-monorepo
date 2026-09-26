@@ -1,13 +1,15 @@
 /**
- * Phase 7 Performance Benchmarks
+ * Phase 7 edge-mesh work counts
  *
- * Validates performance requirements from Phase 7:
- * - 1000 edges render in < 3 seconds
- * - Bezier generation completes in < 15ms per edge
- * - Mesh cache hit rate > 90%
+ * What the Phase 7 performance requirements rest on, asserted in units that do not change with
+ * machine load: how many points a bezier curve generates, and how many source meshes the mesh
+ * cache builds. Wall-clock budgets used to live here; they measured the runner rather than the
+ * code, and the per-call helpers they timed (arrow geometry, arrow position, line endpoint,
+ * transformMesh) are checked for correctness in test/EdgeMesh.test.ts. A hang is caught by the
+ * test timeout.
  */
 
-import { AbstractMesh, InstancedMesh, NullEngine, Scene, Vector3 } from "@babylonjs/core";
+import { InstancedMesh, NullEngine, Scene, Vector3 } from "@babylonjs/core";
 import { assert, beforeEach, describe, test } from "vitest";
 
 import type { EdgeStyleConfig } from "../../src/config";
@@ -15,7 +17,7 @@ import { EDGE_CONSTANTS } from "../../src/constants/meshConstants";
 import { EdgeMesh } from "../../src/meshes/EdgeMesh";
 import { MeshCache } from "../../src/meshes/MeshCache";
 
-describe("Phase 7 Performance Benchmarks", () => {
+describe("Phase 7 edge-mesh work counts", () => {
     let scene: Scene;
     let meshCache: MeshCache;
 
@@ -25,58 +27,18 @@ describe("Phase 7 Performance Benchmarks", () => {
         meshCache = new MeshCache();
     });
 
-    describe("Bezier Generation Performance", () => {
-        test("bezier generation completes in < 15ms per edge (avg over 100 edges)", () => {
-            const startTime = performance.now();
 
-            for (let i = 0; i < 100; i++) {
-                // Vary the positions slightly to simulate real-world usage
-                const srcOffset = new Vector3(i % 10, Math.floor(i / 10) % 10, 0);
-                const dstOffset = new Vector3(100 + (i % 10), Math.floor(i / 10) % 10, 0);
-                EdgeMesh.createBezierLine(srcOffset, dstOffset);
-            }
+    describe("Bezier Generation", () => {
+        test("a longer edge generates more points, at the stated density", () => {
+            const pointsFor = (length: number): number =>
+                EdgeMesh.createBezierLine(new Vector3(0, 0, 0), new Vector3(length, 0, 0)).length / 3;
+            const expected = (length: number): number =>
+                Math.max(10, Math.ceil(length * 1.5 * EDGE_CONSTANTS.BEZIER_POINT_DENSITY)) + 1;
 
-            const endTime = performance.now();
-            const avgTime = (endTime - startTime) / 100;
-
-            // Bezier generation should be < 15ms per edge
-            assert.isBelow(avgTime, 15, `Bezier generation took ${avgTime.toFixed(2)}ms per edge (target < 15ms)`);
+            assert.strictEqual(pointsFor(10), expected(10));
+            assert.strictEqual(pointsFor(200), expected(200));
+            assert.isAbove(pointsFor(200), pointsFor(10), "point count grows with edge length");
         });
-
-        test("bezier generation performance scales with edge length", () => {
-            const shortEdgeTimes: number[] = [];
-            const longEdgeTimes: number[] = [];
-
-            // Short edges (10 units)
-            for (let i = 0; i < 50; i++) {
-                const src = new Vector3(0, 0, 0);
-                const dst = new Vector3(10, 0, 0);
-
-                const start = performance.now();
-                EdgeMesh.createBezierLine(src, dst);
-                shortEdgeTimes.push(performance.now() - start);
-            }
-
-            // Long edges (200 units)
-            for (let i = 0; i < 50; i++) {
-                const src = new Vector3(0, 0, 0);
-                const dst = new Vector3(200, 0, 0);
-
-                const start = performance.now();
-                EdgeMesh.createBezierLine(src, dst);
-                longEdgeTimes.push(performance.now() - start);
-            }
-
-            const avgShort = shortEdgeTimes.reduce((a, b) => a + b, 0) / shortEdgeTimes.length;
-            const avgLong = longEdgeTimes.reduce((a, b) => a + b, 0) / longEdgeTimes.length;
-
-            // Both should be under 15ms
-            assert.isBelow(avgShort, 15, `Short edge bezier: ${avgShort.toFixed(2)}ms`);
-            assert.isBelow(avgLong, 15, `Long edge bezier: ${avgLong.toFixed(2)}ms`);
-
-            // Long edges generate more points but should still be fast
-        });
-
         test("bezier point density follows expected formula", () => {
             // Test point density calculation matches EDGE_CONSTANTS
             const src = new Vector3(0, 0, 0);
@@ -184,211 +146,55 @@ describe("Phase 7 Performance Benchmarks", () => {
             );
         });
     });
-
-    describe("Arrow Geometry Calculation Performance", () => {
-        const arrowTypes = [
-            "normal",
-            "inverted",
-            "dot",
-            "open-dot",
-            "sphere-dot",
-            "diamond",
-            "box",
-            "vee",
-            "tee",
-            "half-open",
-            "crow",
-            "open-normal",
-            "open-diamond",
-        ];
-
-        test("getArrowGeometry is fast (< 0.1ms avg)", () => {
-            const iterations = 10000;
-            const startTime = performance.now();
-
-            for (let i = 0; i < iterations; i++) {
-                const arrowType = arrowTypes[i % arrowTypes.length];
-                EdgeMesh.getArrowGeometry(arrowType);
-            }
-
-            const endTime = performance.now();
-            const avgTime = (endTime - startTime) / iterations;
-
-            assert.isBelow(avgTime, 0.1, `getArrowGeometry took ${avgTime.toFixed(4)}ms per call (target < 0.1ms)`);
-        });
-
-        test("calculateArrowPosition is fast (< 0.1ms avg)", () => {
-            const iterations = 10000;
-            const surfacePoint = new Vector3(10, 0, 0);
-            const direction = new Vector3(1, 0, 0);
-            const arrowLength = 0.5;
-
-            const startTime = performance.now();
-
-            for (let i = 0; i < iterations; i++) {
-                const arrowType = arrowTypes[i % arrowTypes.length];
-                const geometry = EdgeMesh.getArrowGeometry(arrowType);
-                EdgeMesh.calculateArrowPosition(surfacePoint, direction, arrowLength, geometry);
-            }
-
-            const endTime = performance.now();
-            const avgTime = (endTime - startTime) / iterations;
-
-            assert.isBelow(
-                avgTime,
-                0.1,
-                `calculateArrowPosition took ${avgTime.toFixed(4)}ms per call (target < 0.1ms)`,
-            );
-        });
-
-        test("calculateLineEndpoint is fast (< 0.1ms avg)", () => {
-            const iterations = 10000;
-            const surfacePoint = new Vector3(10, 0, 0);
-            const direction = new Vector3(1, 0, 0);
-            const arrowLength = 0.5;
-
-            const startTime = performance.now();
-
-            for (let i = 0; i < iterations; i++) {
-                const arrowType = arrowTypes[i % arrowTypes.length];
-                const geometry = EdgeMesh.getArrowGeometry(arrowType);
-                EdgeMesh.calculateLineEndpoint(surfacePoint, direction, arrowLength, geometry);
-            }
-
-            const endTime = performance.now();
-            const avgTime = (endTime - startTime) / iterations;
-
-            assert.isBelow(
-                avgTime,
-                0.1,
-                `calculateLineEndpoint took ${avgTime.toFixed(4)}ms per call (target < 0.1ms)`,
-            );
-        });
-    });
-
-    describe("Mesh Creation Performance", () => {
-        test("solid line mesh creation is fast (< 5ms avg)", () => {
+    describe("Mesh Creation", () => {
+        test("each distinct solid-line style builds exactly one cached source mesh", () => {
             const iterations = 100;
             const style: EdgeStyleConfig = {
                 line: { width: 0.5, color: "#FF0000" },
             };
 
-            const times: number[] = [];
-
             for (let i = 0; i < iterations; i++) {
-                // Use unique styleId to bypass cache
-                const startTime = performance.now();
-                EdgeMesh.create(
-                    meshCache,
-                    {
-                        styleId: `perf-test-${i}`,
-                        width: style.line?.width ?? 0.25,
-                        color: style.line?.color ?? "#FFFFFF",
-                    },
-                    style,
-                    scene,
-                );
-                times.push(performance.now() - startTime);
+                const options = { styleId: `perf-test-${i}`, width: 0.5, color: "#FF0000" };
+                EdgeMesh.create(meshCache, options, style, scene);
+                EdgeMesh.create(meshCache, options, style, scene);
             }
 
-            const avgTime = times.reduce((a, b) => a + b, 0) / times.length;
-
-            assert.isBelow(avgTime, 5, `Solid line mesh creation took ${avgTime.toFixed(2)}ms per mesh (target < 5ms)`);
+            assert.strictEqual(meshCache.size(), iterations);
+            assert.strictEqual(meshCache.misses, iterations);
+            assert.strictEqual(meshCache.hits, iterations);
         });
 
-        test("bezier mesh creation is fast (< 10ms avg)", () => {
+        test("bezier meshes are built per edge and bypass the cache", () => {
             const iterations = 50;
             const style: EdgeStyleConfig = {
                 line: { width: 0.5, color: "#FF0000", bezier: true },
             };
 
-            const times: number[] = [];
-
             for (let i = 0; i < iterations; i++) {
-                const srcPoint = new Vector3(0, i, 0);
-                const dstPoint = new Vector3(50, i, 0);
-
-                const startTime = performance.now();
-                EdgeMesh.create(
+                const mesh = EdgeMesh.create(
                     meshCache,
-                    {
-                        styleId: `bezier-perf-${i}`,
-                        width: style.line?.width ?? 0.25,
-                        color: style.line?.color ?? "#FFFFFF",
-                    },
+                    { styleId: `bezier-perf-${i}`, width: 0.5, color: "#FF0000" },
                     style,
                     scene,
-                    srcPoint,
-                    dstPoint,
+                    new Vector3(0, i, 0),
+                    new Vector3(50, i, 0),
                 );
-                times.push(performance.now() - startTime);
+                assert.deepEqual((mesh as InstancedMesh).metadata, { isBezierCurve: true });
             }
 
-            const avgTime = times.reduce((a, b) => a + b, 0) / times.length;
-
-            assert.isBelow(avgTime, 10, `Bezier mesh creation took ${avgTime.toFixed(2)}ms per mesh (target < 10ms)`);
+            assert.strictEqual(meshCache.size(), 0);
         });
 
-        test("arrow mesh creation is fast (< 5ms avg)", () => {
-            const iterations = 100;
-            const arrowTypes = ["normal", "inverted", "dot", "diamond", "box"];
-
-            const times: number[] = [];
-
-            for (let i = 0; i < iterations; i++) {
-                const arrowType = arrowTypes[i % arrowTypes.length];
-
-                const startTime = performance.now();
-                EdgeMesh.createArrowHead(
+        test("arrow mesh creation returns a mesh for every filled arrow type", () => {
+            for (const arrowType of ["normal", "inverted", "dot", "diamond", "box"]) {
+                const mesh = EdgeMesh.createArrowHead(
                     meshCache,
-                    `arrow-perf-${i}`,
-                    {
-                        type: arrowType,
-                        width: 1.0,
-                        color: "#FF0000",
-                        size: 1.0,
-                        opacity: 1.0,
-                    },
+                    `arrow-perf-${arrowType}`,
+                    { type: arrowType, width: 1.0, color: "#FF0000", size: 1.0, opacity: 1.0 },
                     scene,
                 );
-                times.push(performance.now() - startTime);
+                assert.isNotNull(mesh, arrowType);
             }
-
-            const avgTime = times.reduce((a, b) => a + b, 0) / times.length;
-
-            assert.isBelow(avgTime, 5, `Arrow mesh creation took ${avgTime.toFixed(2)}ms per mesh (target < 5ms)`);
-        });
-    });
-
-    describe("Mesh Transform Performance", () => {
-        test("transformMesh is fast (< 0.5ms avg)", () => {
-            const iterations = 1000;
-            const style: EdgeStyleConfig = {
-                line: { width: 0.5, color: "#FF0000" },
-            };
-
-            // Create a mesh to transform
-            const mesh = EdgeMesh.create(
-                meshCache,
-                { styleId: "transform-perf", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF" },
-                style,
-                scene,
-            );
-
-            const times: number[] = [];
-
-            for (let i = 0; i < iterations; i++) {
-                const srcPoint = new Vector3(i % 100, (i / 100) % 100, 0);
-                const dstPoint = new Vector3((i % 100) + 50, ((i / 100) % 100) + 50, 0);
-
-                const startTime = performance.now();
-                EdgeMesh.transformMesh(mesh as AbstractMesh, srcPoint, dstPoint);
-                times.push(performance.now() - startTime);
-            }
-
-            const avgTime = times.reduce((a, b) => a + b, 0) / times.length;
-
-            assert.isBelow(avgTime, 0.5, `transformMesh took ${avgTime.toFixed(4)}ms per call (target < 0.5ms)`);
         });
     });
 });

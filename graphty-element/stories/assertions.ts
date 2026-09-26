@@ -32,6 +32,7 @@ import {
     type StandardMaterial,
     Vector3,
 } from "@babylonjs/core";
+import isChromatic from "chromatic/isChromatic";
 import { expect } from "storybook/test";
 
 import type { Graph } from "../src/Graph";
@@ -479,6 +480,16 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
     const live = element as Graphty;
     const { graph, session } = live;
     const deadline = Date.now() + SETTLE_BUDGET_MS;
+
+    // Pre-stepping is for Chromatic's repeatable snapshot only. Anywhere else a pre-stepped
+    // layout is already settled on the first frame, and the reader never sees it animate.
+    const preSteps = live.layoutBehavior?.layout?.preSteps ?? 0;
+
+    await holds(
+        isChromatic() || preSteps === 0,
+        `${story}: the layout runs ${String(preSteps)} steps before the first frame outside Chromatic, ` +
+            "so the reader never sees it animate",
+    );
 
     await until(
         () => session.status.counts.nodes > 0,

@@ -195,7 +195,7 @@ describe("what a session publishes without being asked to compute", () => {
 
     it("lets a host that already owns a controller hand it in instead of ending up with two", () => {
         const injected = {
-            capabilities: { acceleration: { state: "idle", backend: "webgpu" } } as const,
+            capabilities: { acceleration: { policy: "required", state: "idle", backend: "webgpu" } } as const,
             policy: "required" as const,
             minNodes: 5_000,
             disposed: false,
@@ -250,6 +250,21 @@ describe("what a session publishes without being asked to compute", () => {
         assert.strictEqual(session.config.acceleration.policy, "off", "and the configuration says the same");
         assert.strictEqual(session.capabilities.acceleration.state, "off");
         assert.strictEqual(events, 1);
+        session.dispose();
+    });
+
+    it("publishes a policy change once even when the state does not move", () => {
+        const session = createGraphSession();
+        session.setAccelerator(fakeAccelerator());
+        const seen: string[] = [];
+
+        session.on("capabilities:changed", (detail) => {
+            seen.push(`${detail.capabilities.acceleration.policy}/${detail.capabilities.acceleration.state}`);
+        });
+        session.acceleration = "required";
+
+        assert.deepStrictEqual(seen, ["required/idle"], "one event, carrying the new policy");
+        assert.strictEqual(session.capabilities.acceleration.policy, "required");
         session.dispose();
     });
 

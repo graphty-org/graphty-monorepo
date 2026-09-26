@@ -38,9 +38,11 @@ import { FloydWarshallAlgorithm } from "../../../src/algorithms/FloydWarshallAlg
 import { GirvanNewmanAlgorithm } from "../../../src/algorithms/GirvanNewmanAlgorithm";
 import { HITSAlgorithm } from "../../../src/algorithms/HITSAlgorithm";
 import { KatzCentralityAlgorithm } from "../../../src/algorithms/KatzCentralityAlgorithm";
+import { KCoreAlgorithm } from "../../../src/algorithms/KCoreAlgorithm";
 import { KruskalAlgorithm } from "../../../src/algorithms/KruskalAlgorithm";
 import { LabelPropagationAlgorithm } from "../../../src/algorithms/LabelPropagationAlgorithm";
 import { LeidenAlgorithm } from "../../../src/algorithms/LeidenAlgorithm";
+import { LinkPredictionAlgorithm } from "../../../src/algorithms/LinkPredictionAlgorithm";
 import { LouvainAlgorithm } from "../../../src/algorithms/LouvainAlgorithm";
 import { MaxFlowAlgorithm } from "../../../src/algorithms/MaxFlowAlgorithm";
 import { MetricAlgorithm } from "../../../src/algorithms/metrics/MetricAlgorithm";
@@ -158,6 +160,8 @@ const CASES: readonly Case[] = [
     declared("bipartite matching", "bipartite-matching", (g) => new BipartiteMatchingAlgorithm(g)),
     declared("max flow", "max-flow", (g) => new MaxFlowAlgorithm(g, { source: "A", sink: "F" })),
     declared("min cut", "min-cut", (g) => new MinCutAlgorithm(g)),
+    metric("k-core", (g) => new KCoreAlgorithm(g)),
+    declared("link prediction", "link-prediction", (g) => new LinkPredictionAlgorithm(g)),
 ];
 
 /**

@@ -1,4 +1,4 @@
-import { assert, beforeEach, describe, expect, it } from "vitest";
+import { assert, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MockLlmProvider } from "../../../src/ai/providers/MockLlmProvider";
 import type { LlmResponse, StreamCallbacks } from "../../../src/ai/providers/types";
@@ -295,11 +295,23 @@ describe("MockLlmProvider", () => {
             provider.setDelay(50);
             provider.setResponse("test", { text: "Response", toolCalls: [] });
 
-            const startTime = Date.now();
-            await provider.generate([{ role: "user", content: "test" }], []);
-            const elapsed = Date.now() - startTime;
+            vi.useFakeTimers();
+            try {
+                let settled = false;
+                const response = provider.generate([{ role: "user", content: "test" }], []).then((result) => {
+                    settled = true;
+                    return result;
+                });
 
-            assert.ok(elapsed >= 45, `Expected delay of at least 45ms, got ${elapsed}ms`);
+                await vi.advanceTimersByTimeAsync(49);
+                assert.isFalse(settled, "the response must not arrive before the delay has passed");
+
+                await vi.advanceTimersByTimeAsync(1);
+                assert.isTrue(settled, "the response arrives once the delay has passed");
+                assert.strictEqual((await response).text, "Response");
+            } finally {
+                vi.useRealTimers();
+            }
         });
     });
 

@@ -135,6 +135,15 @@ export { ErrorAggregator } from "./src/data/index";
 export { Algorithm } from "./src/algorithms/Algorithm";
 
 // =============================================================================
+// Registration functions, so a `./bundle` user can register without a second module graph
+// =============================================================================
+// The same functions `./extend` publishes. Every registry is shared by every copy of the element
+// on the page, so registering through either address reaches the same element.
+export { registerCameraView } from "./src/catalog/cameraRegistry";
+export { registerLogSink } from "./src/catalog/logSinkRegistry";
+export { registerPalette } from "./src/catalog/paletteRegistry";
+
+// =============================================================================
 // Events
 // =============================================================================
 export type {

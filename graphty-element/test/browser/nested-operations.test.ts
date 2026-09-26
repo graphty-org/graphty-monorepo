@@ -728,9 +728,8 @@ describe("Nested Operations", () => {
         });
 
         it("should not block parent on child completion", async () => {
-            // This tests that nested operations don't cause deadlock
-
-            const startTime = Date.now();
+            // This tests that nested operations don't cause deadlock. A deadlock never
+            // resolves, so the test timeout catches it; no wall-clock budget is needed.
 
             await graph.setLayout("circular");
             await graph.addNodes(TEST_NODES);
@@ -740,11 +739,6 @@ describe("Nested Operations", () => {
             await graph.setViewMode("2d");
 
             await graph.operationQueue.waitForCompletion();
-
-            const elapsed = Date.now() - startTime;
-
-            // Should complete in reasonable time (not blocked)
-            assert.isBelow(elapsed, 5000, "Should complete without blocking");
 
             // State should be correct
             assert.isTrue(graph.getViewMode() === "2d", "Should be in 2D mode");

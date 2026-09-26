@@ -175,21 +175,21 @@ describe("CSRGraph", () => {
                 adjacencyList.set(i, neighbors);
             }
 
-            const startTime = performance.now();
             const csrGraph = new CSRGraph(adjacencyList);
-            const constructionTime = performance.now() - startTime;
 
+            // No wall-clock budget: it measures the machine rather than the code, and failed
+            // whenever the machine was busy (issue #363). The build is checked edge by edge.
             expect(csrGraph.nodeCount()).toBe(nodeCount);
-            expect(constructionTime).toBeLessThan(100); // Should construct in < 100ms
+            expect(csrGraph.edgeCount()).toBe(3 * nodeCount - 6);
 
-            // Test edge lookup performance
-            const lookupStart = performance.now();
-            for (let i = 0; i < 1000; i++) {
-                csrGraph.hasEdge(i, i + 1);
+            // Every edge is found in its own direction and not in the reverse one.
+            for (let i = 0; i < nodeCount; i++) {
+                expect(Array.from(csrGraph.neighbors(i))).toEqual(adjacencyList.get(i));
+                for (const j of adjacencyList.get(i) ?? []) {
+                    expect(csrGraph.hasEdge(i, j)).toBe(true);
+                    expect(csrGraph.hasEdge(j, i)).toBe(false);
+                }
             }
-            const lookupTime = performance.now() - lookupStart;
-
-            expect(lookupTime).toBeLessThan(10); // 1000 lookups in < 10ms
         });
     });
 });

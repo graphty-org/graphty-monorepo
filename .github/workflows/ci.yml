@@ -19,6 +19,12 @@ jobs:
     build:
         name: Build
         runs-on: ubuntu-latest
+        # What the rest of the run tests, decided once here: the test job's matrix and the Chromatic jobs'
+        # conditions read these instead of each asking nx again. See the "Plan" step below.
+        outputs:
+            affected: ${{ steps.plan.outputs.affected }}
+            test-matrix: ${{ steps.plan.outputs.test-matrix }}
+            test-count: ${{ steps.plan.outputs.test-count }}
         steps:
             - uses: actions/checkout@v4
               with:
@@ -36,6 +42,30 @@ jobs:
               run: pnpm install --frozen-lockfile
               env:
                   HUSKY: "0"
+
+            # Plan which packages this run tests. A pull request tests only what nx calls affected: the
+            # packages it changed plus every package that depends on them. Each pull request run used to be
+            # about 30 jobs against an organisation limit of about 60 concurrent jobs, so two open pull
+            # requests queued each other; a pull request confined to graph-io now runs one test shard, not
+            # twenty-one. A push to master and a manual dispatch pass every project as "affected", so they
+            # run every shard and every Chromatic job exactly as before -- master is still fully tested
+            # before release.yml publishes anything.
+            # What counts as "everything" on a pull request is nx.json's sharedGlobals: the root TypeScript,
+            # ESLint, Vite and Vitest configs, pnpm-workspace.yaml, .npmrc and every file under
+            # .github/workflows (nx already treats nx.json, package.json and pnpm-lock.yaml that way). A
+            # change to any of them affects every project, so it runs the full set here too.
+            # The shard list itself lives in tools/ci-test-matrix.mjs, which filters it; the base is named
+            # explicitly for the same reason as "Build affected (PR)" below.
+            - name: Plan affected projects and test shards
+              id: plan
+              run: |
+                  all=$(pnpm exec nx show projects --json)
+                  if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+                      affected=$(pnpm exec nx show projects --affected --base=origin/${{ github.base_ref }} --head=HEAD --json)
+                  else
+                      affected="$all"
+                  fi
+                  node tools/ci-test-matrix.mjs "$all" "$affected" | tee -a "$GITHUB_OUTPUT"
 
             # Security audit - run early to catch vulnerabilities before building
             # Only fail on critical and high severity vulnerabilities
@@ -268,173 +298,20 @@ jobs:
                   retention-days: 1
 
     # Sharded test jobs - run in parallel, collect coverage
+    # Sharded test jobs - run in parallel, collect coverage. The matrix comes from the build job's plan
+    # (tools/ci-test-matrix.mjs holds every shard and why it is split the way it is): every shard on master,
+    # only the affected packages' shards on a pull request. A pull request that affects no package (a docs
+    # or tools change) has no shards, and GitHub fails a job whose matrix is empty instead of skipping it,
+    # so the job is skipped by its condition; "All Checks Pass" counts a skipped job as passing only on a
+    # pull request.
     test:
         name: Test (${{ matrix.shard }})
         needs: build
+        if: needs.build.outputs.test-count != '0'
         runs-on: ubuntu-latest
         strategy:
             fail-fast: false
-            matrix:
-                shard:
-                    - graph-format
-                    - graph-io
-                    - webgpu-graph-algorithms-node
-                    - webgpu-graph-algorithms-browser
-                    - graph-samples
-                    - algorithms-default
-                    - algorithms-browser
-                    - layout
-                    - graphty
-                    - remote-logger
-                    - compact-mantine
-                    - graphty-element-default
-                    - graphty-element-browser-1
-                    - graphty-element-browser-2
-                    - graphty-element-browser-3
-                    - graphty-element-browser-4
-                    - graphty-element-browser-5
-                    - graphty-element-storybook-1
-                    - graphty-element-storybook-2
-                    - graphty-element-storybook-3
-                    - graphty-element-storybook-4
-                include:
-                    # graph-format - single shard (Node.js, no browser)
-                    - shard: graph-format
-                      package: graph-format
-                      test-command: pnpm exec nx run graph-format:coverage
-                      needs-browser: false
-                    # graph-io - single shard (Node.js, no browser); resolves @graphty/graph-format through graph-format/dist
-                    - shard: graph-io
-                      package: graph-io
-                      test-command: pnpm exec nx run graph-io:coverage
-                      needs-browser: false
-                    # webgpu-graph-algorithms - two shards (design/webgpu/webgpu-acceleration-plan.md 12.5): the node
-                    # project on Dawn over Mesa lavapipe with coverage (thresholds active) plus the no-subgroups twins
-                    # pass, and the Chromium SwiftShader browser smoke. The node shard calls vitest directly: the
-                    # nx -> npm -> vitest pipe chain starved the worker RPC for graph-format and graph-io (6fc56c1b).
-                    # needs-lavapipe gates the apt install and the ICD lookup that export the lane's environment.
-                    # The twin pass covers test/algorithms as well: pr-scale and pr-finalize declare
-                    # needs: ["subgroups"] (they call wg_reduce_vec4) and their tests live there, so without that
-                    # path the twin would never exercise the PageRank reduction on a device without the feature.
-                    # the node suite runs through scripts/run-node-shard.js: it forwards every argument and exits with
-                    # vitest's own code. On a non-zero exit its FIRST line is the [missing-files] block -- how many test
-                    # files started, how many reported, and the names of the difference, which is what a dead worker
-                    # swallowed; after it, and after 90 seconds of silence, the process table with each process's kernel
-                    # wait channel and a Node diagnostic report per surviving process (G4-F14).
-                    # The files that break a device on purpose are the `node-device-errors` project and run in an
-                    # invocation of their own, one file at a time, AFTER the node project has written its coverage:
-                    # a worker they kill then takes eleven files with it instead of the hundred and fourteen beside
-                    # them. Their coverage goes to .coverage-parts/device-errors and is uploaded as a second
-                    # artifact, which tools/merge-coverage.sh merges with the first the way it already merges the
-                    # graphty-element shards.
-                    # The twin pass runs TWICE for the same reason. `--project=node` no longer reaches the four
-                    # device-error files under test/layouts (fa2-lifecycle, fr-lifecycle, grid-lifecycle,
-                    # force-simulation), so a second twin invocation names them through the device-error project:
-                    # 44 + 4 = the 48 layout files the twin pass covered before the split, unchanged. It carries no
-                    # --passWithNoTests on purpose -- an empty match there means those files moved and the twin pass
-                    # shrank again, which should be a red step and not a silent pass.
-                    - shard: webgpu-graph-algorithms-node
-                      package: webgpu-graph-algorithms
-                      test-command: cd webgpu-graph-algorithms && node scripts/run-node-shard.js --project=node --coverage && COVERAGE_DIR=.coverage-parts/device-errors node scripts/run-node-shard.js --project=node-device-errors --coverage && GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node test/primitives test/layouts test/algorithms --passWithNoTests && GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node-device-errors test/layouts
-                      needs-browser: false
-                      needs-lavapipe: true
-                    # the browser smoke: scripts/run-browser-project.js wraps vitest in `timeout -k 10 600` and passes a
-                    # timeout iff every test passed (browser.close() can hang after GPU work); SwiftShader flags come
-                    # from the package's vitest.config.ts, not from CI
-                    - shard: webgpu-graph-algorithms-browser
-                      package: webgpu-graph-algorithms
-                      test-command: cd webgpu-graph-algorithms && GRAPHTY_BROWSER_GPU=swiftshader GRAPHTY_GPU_REQUIRE=any node scripts/run-browser-project.js
-                      needs-browser: true
-                    # graph-samples - single shard (Node.js, no browser); resolves @graphty/graph-format through graph-format/dist
-                    - shard: graph-samples
-                      package: graph-samples
-                      test-command: pnpm exec nx run graph-samples:coverage
-                      needs-browser: false
-                    # algorithms - two shards (default and browser separated to avoid worker timeout)
-                    # Each shard outputs to coverage/ directory; CI artifacts are named coverage-algorithms-{default,browser}
-                    - shard: algorithms-default
-                      package: algorithms
-                      test-command: cd algorithms && pnpm exec vitest run --project=default --coverage
-                      needs-browser: false
-                    - shard: algorithms-browser
-                      package: algorithms
-                      test-command: cd algorithms && pnpm exec vitest run --project=browser --coverage
-                      needs-browser: true
-                    # layout - single shard
-                    - shard: layout
-                      package: layout
-                      test-command: pnpm exec nx run layout:coverage
-                      needs-browser: false
-                    # graphty - single shard (uses Playwright for browser-based vitest)
-                    - shard: graphty
-                      package: graphty
-                      test-command: pnpm exec nx run graphty:coverage
-                      needs-browser: true
-                    # remote-logger - single shard (has browser tests)
-                    - shard: remote-logger
-                      package: remote-logger
-                      test-command: pnpm exec nx run remote-logger:coverage
-                      needs-browser: true
-                    # compact-mantine - single shard (uses Playwright for browser-based vitest)
-                    - shard: compact-mantine
-                      package: compact-mantine
-                      test-command: pnpm exec nx run compact-mantine:coverage
-                      needs-browser: true
-                    # graphty-element default tests (Node.js, no browser)
-                    # The bench project runs in the same shard but WITHOUT --coverage: it asserts
-                    # the repaint's timing budget, and v8 coverage instruments this package's own
-                    # source while leaving node_modules alone, so an instrumented run measures the
-                    # instrumentation rather than the repaint.
-                    - shard: graphty-element-default
-                      package: graphty-element
-                      test-command: cd graphty-element && pnpm exec vitest run --project=default --project=mesh --reporter=blob --reporter=default --coverage && pnpm exec vitest run --project=bench --reporter=default
-                      needs-browser: false
-                    # graphty-element browser tests (5 shards)
-                    # Note: Using both blob and default reporters to capture test results and show failures in logs
-                    - shard: graphty-element-browser-1
-                      package: graphty-element
-                      test-command: cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --shard=1/5 --reporter=blob --reporter=default --coverage
-                      needs-browser: true
-                    - shard: graphty-element-browser-2
-                      package: graphty-element
-                      test-command: cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --shard=2/5 --reporter=blob --reporter=default --coverage
-                      needs-browser: true
-                    - shard: graphty-element-browser-3
-                      package: graphty-element
-                      test-command: cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --shard=3/5 --reporter=blob --reporter=default --coverage
-                      needs-browser: true
-                    - shard: graphty-element-browser-4
-                      package: graphty-element
-                      test-command: cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --shard=4/5 --reporter=blob --reporter=default --coverage
-                      needs-browser: true
-                    - shard: graphty-element-browser-5
-                      package: graphty-element
-                      test-command: cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --shard=5/5 --reporter=blob --reporter=default --coverage
-                      needs-browser: true
-                    # graphty-element storybook tests (4 shards)
-                    # Note: Using both blob and default reporters to capture test results and show failures in logs
-                    # These shards need no Storybook server and no storybook-static artifact: the
-                    # storybook vitest project composes each story through Vite in the browser via
-                    # @storybook/addon-vitest, and that plugin only starts a Storybook when it is given
-                    # a storybookScript, which graphty-element/vitest.config.ts does not set. A step that
-                    # served the static build on port 9026 was removed; nothing in the repository has
-                    # referred to that port since.
-                    - shard: graphty-element-storybook-1
-                      package: graphty-element
-                      test-command: cd graphty-element && pnpm exec vitest run --project=storybook --shard=1/4 --reporter=blob --reporter=default --coverage
-                      needs-browser: true
-                    - shard: graphty-element-storybook-2
-                      package: graphty-element
-                      test-command: cd graphty-element && pnpm exec vitest run --project=storybook --shard=2/4 --reporter=blob --reporter=default --coverage
-                      needs-browser: true
-                    - shard: graphty-element-storybook-3
-                      package: graphty-element
-                      test-command: cd graphty-element && pnpm exec vitest run --project=storybook --shard=3/4 --reporter=blob --reporter=default --coverage
-                      needs-browser: true
-                    - shard: graphty-element-storybook-4
-                      package: graphty-element
-                      test-command: cd graphty-element && pnpm exec vitest run --project=storybook --shard=4/4 --reporter=blob --reporter=default --coverage
-                      needs-browser: true
+            matrix: ${{ fromJSON(needs.build.outputs.test-matrix) }}
 
         steps:
             - uses: actions/checkout@v4
@@ -610,9 +487,13 @@ jobs:
                   overwrite: true
 
     # Chromatic visual regression testing (graphty-element)
+    # Every Chromatic job runs on a pull request only when its package is affected, which includes a change
+    # to anything the package depends on (nx affected adds dependents). Its Storybook is built in every run
+    # regardless, because the Links job checks the assembled site. On master every Chromatic job runs.
     chromatic-element:
         name: Chromatic (graphty-element)
         needs: build
+        if: github.event_name != 'pull_request' || contains(fromJSON(needs.build.outputs.affected), 'graphty-element')
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
@@ -651,6 +532,7 @@ jobs:
     chromatic-app:
         name: Chromatic (graphty)
         needs: build
+        if: github.event_name != 'pull_request' || contains(fromJSON(needs.build.outputs.affected), 'graphty')
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
@@ -689,6 +571,7 @@ jobs:
     chromatic-compact-mantine:
         name: Chromatic (compact-mantine)
         needs: build
+        if: github.event_name != 'pull_request' || contains(fromJSON(needs.build.outputs.affected), 'compact-mantine')
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
@@ -727,6 +610,7 @@ jobs:
     chromatic-algorithms:
         name: Chromatic (algorithms)
         needs: build
+        if: github.event_name != 'pull_request' || contains(fromJSON(needs.build.outputs.affected), 'algorithms')
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
@@ -765,6 +649,7 @@ jobs:
     chromatic-layout:
         name: Chromatic (layout)
         needs: build
+        if: github.event_name != 'pull_request' || contains(fromJSON(needs.build.outputs.affected), 'layout')
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
@@ -927,41 +812,32 @@ jobs:
                   retention-days: 90
                   if-no-files-found: ignore
 
-    # Gate job - ensures all required checks pass before release/deploy
+    # Gate job - ensures all required checks pass before release/deploy. It is the required status check,
+    # so it runs even when a job it needs failed (if: always()) and decides for itself.
+    # On a pull request a job this run chose not to start (a test job or Chromatic job for an unaffected
+    # package) is "skipped", and skipped counts as passing; failure and cancelled never do. Build is needed
+    # here and must succeed, because when it fails every other job is skipped too, and without it that
+    # would read as a pass. On master and dispatch every job must succeed: nothing is meant to be skipped
+    # there, so a skip means the plan went wrong and must not pass silently.
     all-checks:
         name: All Checks Pass
-        needs: [test, links, chromatic-element, chromatic-app, chromatic-compact-mantine, chromatic-algorithms, chromatic-layout]
+        needs: [build, test, links, chromatic-element, chromatic-app, chromatic-compact-mantine, chromatic-algorithms, chromatic-layout]
         if: always()
         runs-on: ubuntu-latest
         steps:
             - name: Check all jobs passed
+              env:
+                  NEEDS: ${{ toJSON(needs) }}
+                  EVENT: ${{ github.event_name }}
               run: |
-                  if [[ "${{ needs.test.result }}" != "success" ]]; then
-                    echo "Test job failed"
-                    exit 1
-                  fi
-                  if [[ "${{ needs.links.result }}" != "success" ]]; then
-                    echo "Links job failed"
-                    exit 1
-                  fi
-                  if [[ "${{ needs.chromatic-element.result }}" != "success" ]]; then
-                    echo "Chromatic (graphty-element) job failed"
-                    exit 1
-                  fi
-                  if [[ "${{ needs.chromatic-app.result }}" != "success" ]]; then
-                    echo "Chromatic (graphty) job failed"
-                    exit 1
-                  fi
-                  if [[ "${{ needs.chromatic-compact-mantine.result }}" != "success" ]]; then
-                    echo "Chromatic (compact-mantine) job failed"
-                    exit 1
-                  fi
-                  if [[ "${{ needs.chromatic-algorithms.result }}" != "success" ]]; then
-                    echo "Chromatic (algorithms) job failed"
-                    exit 1
-                  fi
-                  if [[ "${{ needs.chromatic-layout.result }}" != "success" ]]; then
-                    echo "Chromatic (layout) job failed"
-                    exit 1
+                  ok='["success"]'
+                  [[ "$EVENT" == "pull_request" ]] && ok='["success","skipped"]'
+                  jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$NEEDS"
+                  bad=$(jq -r --argjson ok "$ok" \
+                      'to_entries[] | select(.value.result as $r | ($ok | index($r)) == null or (.key == "build" and $r != "success")) | .key' \
+                      <<<"$NEEDS")
+                  if [[ -n "$bad" ]]; then
+                      echo "::error::jobs that did not pass: $(echo $bad)"
+                      exit 1
                   fi
                   echo "All checks passed!"

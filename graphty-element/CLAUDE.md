@@ -24,7 +24,7 @@ graphty-element/
 |-- format.ts                 # Entry point: "./format"
 |-- logging.ts                # Entry point: "./logging"
 |-- session.ts                # Entry point: "./session"
-|-- commands.ts               # Entry point: "./commands" (reserved, exports nothing yet)
+|-- commands.ts               # Entry point: "./commands" (deprecated, exports nothing; removed at next major)
 |-- react.ts                  # Entry point: "./react" (reserved, exports nothing yet)
 |-- webgpu.ts                 # Entry point: "./webgpu" (side-effect: registers the accelerator)
 |-- ai.ts                     # Entry point: "./ai"
@@ -84,13 +84,13 @@ source file of the same name at the package root:
 | Subpath | Source | What it carries | Node-safe |
 |---------|--------|-----------------|-----------|
 | `.` | `index.ts` | The custom element; defines the tag; pulls in Babylon.js and Lit | No |
-| `./schema` | `schema.ts` | Palettes, `NodeShapes`, `defaultNodeStyle`, `defaultEdgeStyle`, `defaultRichTextLabelStyle`, style config types, the colour helpers | Yes |
+| `./schema` | `schema.ts` | Palettes, `NodeShapes`, `EdgeLineTypes`, `EdgeArrowTypes`, `defaultNodeStyle`, `defaultEdgeStyle`, `defaultRichTextLabelStyle`, style config types, the colour helpers | Yes |
 | `./catalog` | `catalog.ts` | Plain-JSON descriptors: `BUILT_IN_ALGORITHMS`, `LAYOUT_DESCRIPTORS`, formats, palettes, scales, `optionsFromZod`, descriptor types | Yes |
 | `./extend` | `extend.ts` | The registration surface: `Algorithm`, `LayoutEngine`, `DataSource`, `registerAccelerator`, `GraphtyError` | Yes |
 | `./format` | `format.ts` | The graph-format decode vocabulary (read-only half; no brand, no version) | Yes |
 | `./session` | `session.ts` | Types only so far -- identities, scopes, result shapes, `Capabilities`, the error model | Yes |
 | `./logging` | `logging.ts` | `GraphtyLogger`, `LogLevel`, `LogRecord`, `Sink`, the console and remote destinations, `formatLogRecord`, the stored configuration, `parseLoggingURLParams` and `lazy` | Yes |
-| `./commands` | `commands.ts` | Nothing yet; the name is reserved for the serialisable command union | Yes (empty) |
+| `./commands` | `commands.ts` | Nothing. Deprecated: removed at the next major unless the serialisable command union (#337) lands first | Yes (empty) |
 | `./react` | `react.ts` | Nothing yet; the name is reserved for typed React wrappers | Yes (empty) |
 | `./webgpu` | `webgpu.ts` | Side-effect import that registers the WebGPU accelerator; the only file that imports the optional peer | No |
 | `./ai` | `ai.ts` | The natural-language layer and its LLM SDKs; needs a DOM | No |

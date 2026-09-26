@@ -1,7 +1,7 @@
 // Registers the <graphty-element> custom element; nothing is referenced by name.
 import "../src/graphty-element";
 
-import type { StandardMaterial, Texture } from "@babylonjs/core";
+import type { GreasedLineBaseMesh, InstancedMesh, StandardMaterial, Texture } from "@babylonjs/core";
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import {
@@ -1775,6 +1775,28 @@ const movingTextureOf = (scene: Drawn, source: string): Texture | null => {
 };
 
 /**
+ * How thick one animated edge is actually drawn, in world units.
+ *
+ * AN ANIMATED LINE IS THE ONE LINE IN THE PACKAGE WHOSE WIDTH IS IN WORLD UNITS. Every other
+ * line is expanded in a vertex shader by a width in screen pixels, which is the unit `edge.width`
+ * is written in; a greased line takes scene units instead. The two are not interchangeable, and
+ * handing the pixel number over unconverted drew the element's own width of 8 as a band eight
+ * scene units thick -- on a graph ten units across, a slab taller than the graph that swallowed
+ * every other edge. The story below asserts this reading against the gap between its own two
+ * edges, which is the smallest thing a line can be too thick for.
+ * @param scene - What the story drew.
+ * @param source - The id of the node the edge starts at.
+ * @returns The drawn width in world units, or null if the edge is not drawn as a greased line.
+ */
+const drawnWidthOf = (scene: Drawn, source: string): number | null => {
+    const edges = [...scene.graph.getDataManager().edges.values()];
+    const mesh = edges.find((candidate) => candidate.srcNode.id === source)?.mesh;
+    const source_ = (mesh as InstancedMesh | undefined)?.sourceMesh ?? mesh;
+
+    return (source_ as GreasedLineBaseMesh | undefined)?.greasedLineMaterial?.width ?? null;
+};
+
+/**
  * Let the scene draw, and wait until it has drawn.
  * @param scene - What the story drew.
  * @param count - How many frames to let pass.
@@ -1855,6 +1877,21 @@ export const AnimationSpeed: Story = {
                 `${travelled.slow.toFixed(3)} -- a ratio of ${ratio.toFixed(2)} where four is asked for. A ` +
                 "ratio of 1 means the speed is being ignored and every animated edge runs at one pace.",
         );
+
+        // The two edges sit four world units apart, so a line thicker than one unit is on its way
+        // to covering its neighbour -- and a line of no width is not drawn at all.
+        for (const source of ["slow-src", "fast-src"]) {
+            const width = drawnWidthOf(scene, source);
+
+            await holds(
+                width !== null && width > 0 && width < 1,
+                `Styles/Edge AnimationSpeed: both edges ask to be drawn twelve pixels wide, four world units ` +
+                    `apart, and the ${source === "slow-src" ? "lower" : "upper"} one is drawn ` +
+                    `${width === null ? "as no greased line at all" : `${width.toFixed(2)} world units thick`}. ` +
+                    "A width in screen pixels handed to a renderer that wants scene units draws a slab across " +
+                    "the whole graph.",
+            );
+        }
     },
     args: {
         setup: storySetup({

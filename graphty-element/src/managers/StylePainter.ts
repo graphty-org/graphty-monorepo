@@ -608,6 +608,18 @@ export class StylePainter {
     }
 
     /**
+     * Whether a style pass is still on its way: asked for, and not yet announced.
+     *
+     * Different from {@link StylePainter.hasPending}, which is paint that has ARRIVED and not been
+     * drawn. This is paint that has not arrived yet, and what it will change -- a colour, a size,
+     * the box the camera frames -- is not known until it does.
+     * @returns True while the bound pass is painting or queued to paint.
+     */
+    get isPainting(): boolean {
+        return this.paint?.painting() ?? false;
+    }
+
+    /**
      * Take the nodes waiting to be drawn.
      * @returns Their dense indices. The set is emptied.
      */

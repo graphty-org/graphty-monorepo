@@ -7,7 +7,9 @@
  * `expectPredChainReachesSource` and the seam's unbounded `walkPredArcs`. Every failure throws an `Error` naming the
  * node or arc; the whole-array comparison of `expectPredArcAttains` is vitest's `toEqual`. Imports nothing from
  * `src/` and nothing from the package under test; `arcSourceIn` is the binary search of
- * `algorithms/src/indexed/structures/arc-source.ts`, copied.
+ * `algorithms/src/indexed/structures/arc-source.ts`, copied. `levelStatsOf` and `expectedDirections` live here
+ * rather than in test/helpers/bfs.ts so the browser leg can replay Beamer's rule without that file's device
+ * imports; both take the run's thresholds as arguments, so neither reaches into `src/` either.
  */
 
 import { type GraphSnapshot, INVALID_INDEX, type NumericVector, type U32 } from "@graphty/graph-format";
@@ -405,6 +407,30 @@ interface DirectionBoundary {
     readonly done: boolean;
 }
 
+/**
+ * The oracle's per-level frontier sizes and out-degree sums from a settled depth array (level 0 the source alone):
+ * what `frontier-finalize` sees at a boundary as `next` and, since issue #391, as `nextDegreeSum`.
+ * @param s - the snapshot
+ * @param depth - the settled depths
+ * @returns the sizes and the out-degree sums, indexed by level
+ */
+export function levelStatsOf(s: GraphSnapshot, depth: U32): { readonly sizes: number[]; readonly degreeSums: number[] } {
+    const sizes: number[] = [];
+    const degreeSums: number[] = [];
+    for (let v = 0; v < depth.length; v++) {
+        const d = depth[v];
+        if (d === INVALID_INDEX) {
+            continue;
+        }
+        while (sizes.length <= d) {
+            sizes.push(0);
+            degreeSums.push(0);
+        }
+        sizes[d] += 1;
+        degreeSums[d] += s.rowPtr[v + 1] - s.rowPtr[v];
+    }
+    return { sizes, degreeSums };
+}
 /**
  * Beamer's rule replayed on the host from the oracle's per-level frontier sizes and out-degree sums, exactly as
  * `frontier-finalize` evaluates it (P8-T8 Steps 2 and 5, PD-18, PD-21, amended for issue #391), boundary by boundary

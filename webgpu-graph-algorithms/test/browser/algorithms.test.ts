@@ -3,17 +3,18 @@
  * SwiftShader on the default lane, the NVIDIA card on the GPU lane -- PageRank after exactly 8 iterations within
  * 1e-5 relative of the f64 oracle, the Afforest labels identical to the union-find oracle's, item 4's third case
  * `breadthFirstSearch` from vertex 0 with `depth` (the depth buffer) identical to the FIFO oracle's, `order` grouped
- * by level and no direction switch, and one `sssp` on the weighted karate with `dist` (the dist buffer) bitwise the
- * f32 oracle's.
+ * by level and the direction switches matching the host replay of Beamer's rule, and one `sssp` on the weighted
+ * karate with `dist` (the dist buffer) bitwise the f32 oracle's.
  */
 
 import { breadthFirstSearch } from "../../src/algorithms/bfs.js";
 import { connectedComponents } from "../../src/algorithms/components.js";
 import { pageRank } from "../../src/algorithms/pagerank.js";
 import { sssp } from "../../src/algorithms/sssp.js";
+import { BEAMER_BETA, MAX_LEVELS_PER_SUBMIT } from "../../src/constants.js";
 import { type EdgeSpec, KARATE_EDGES, snapshotOf, xorshift } from "../helpers/graphs.js";
 import { expectAllClose, expectBitwiseEqual } from "../helpers/matchers.js";
-import { expectOrderGroupedByLevel } from "../helpers/traversal-check.js";
+import { expectedDirections, expectOrderGroupedByLevel, levelStatsOf } from "../helpers/traversal-check.js";
 import { componentsOracle } from "../oracle/components.js";
 import { pageRankOracleTo } from "../oracle/pagerank.js";
 import { bfsOracle, dijkstraOracle } from "../oracle/traversal.js";
@@ -53,7 +54,7 @@ describe("PageRank, connected components, BFS and sssp in the browser (spec 11.6
         ctx.release(karate);
     });
 
-    it("breadthFirstSearch on karate from vertex 0: depth identical to the FIFO oracle's, order grouped by level, no switch", async (t) => {
+    it("breadthFirstSearch on karate from vertex 0: depth identical to the FIFO oracle's, order grouped by level, one switch", async (t) => {
         await requireBrowserGpu(t);
         const ctx = await acquireBrowser({ label: "browser-algorithms/bfs" });
         const karate = snapshotOf(KARATE_EDGES, { label: "browser-algorithms/karate-bfs" });
@@ -62,7 +63,29 @@ describe("PageRank, connected components, BFS and sssp in the browser (spec 11.6
         expectBitwiseEqual(result.depth, expected.depth, "karate depth (the depth buffer) vs the oracle");
         expect(result.visitedCount).toBe(expected.visitedCount);
         expectOrderGroupedByLevel(result);
-        expect(result.switches).toBe(0);
+        // issue #391: m_f is the out-degree sum of the frontier the boundary is ABOUT to expand, so karate switches
+        // once -- at the boundary that rotates in vertex 0's 16 neighbours, whose 69 out-arcs clear
+        // alpha = floor(156 / 34) = 4 against the 71 arcs still unvisited -- and never switches back. The host
+        // replay of Beamer's rule over the oracle's levels is the same check test/algorithms/bfs.test.ts makes.
+        const { sizes, degreeSums } = levelStatsOf(karate, expected.depth);
+        const boundaries = expectedDirections(
+            sizes,
+            degreeSums,
+            karate.nodeCount,
+            karate.arcCount,
+            Math.max(1, Math.floor(karate.arcCount / karate.nodeCount)),   // the driver's default alpha
+            BEAMER_BETA,
+            MAX_LEVELS_PER_SUBMIT,
+        );
+        const last = boundaries.at(-1);
+        if (last === undefined) {
+            throw new Error("karate: the direction model produced no boundary");
+        }
+        expect(result.switches, "karate switches (the counters block) vs the direction model").toBe(last.switches);
+        expect(
+            boundaries.findIndex((b) => b.direction === 1),
+            "karate: the boundary that enters bottom-up",
+        ).toBe(1);
         ctx.release(karate);
     });
 

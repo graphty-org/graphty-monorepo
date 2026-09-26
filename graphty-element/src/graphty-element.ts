@@ -1,5 +1,5 @@
 import type { DuplicatePolicy } from "@graphty/graph-format";
-import { LitElement } from "lit";
+import { css, LitElement } from "lit";
 import { property } from "lit/decorators.js";
 import { set as setDeep } from "lodash";
 
@@ -28,9 +28,42 @@ import type { VisibilityChange } from "./session/visibility";
 const RUN_PROGRESS_INTERVAL_MS = 100;
 
 /**
+ * The properties that take an object or an array, and so cannot survive being written as an
+ * attribute. React 19 writes a prop as an attribute when the element is not yet defined at commit
+ * time, which turns `nodeData={[...]}` into `nodedata="[object Object]"`.
+ */
+const RICH_PROPERTIES = [
+    "nodeData",
+    "edgeData",
+    "dataSourceConfig",
+    "layoutConfig",
+    "layoutBehavior",
+    "selectionStyle",
+    "algorithmsOnLoad",
+    "background",
+    "xr",
+] as const;
+
+/**
  * Graphty creates a graph
  */
 export class Graphty extends LitElement {
+    /**
+     * The host is a block that fills its parent's width. Its height is the parent's when the
+     * parent has a definite height, the element's own when the page sets one, and otherwise half
+     * its width: `aspect-ratio` only applies while the used height is `auto`, so a bare tag keeps
+     * the 2:1 canvas it always had. Every rule here can be overridden from the page.
+     */
+    static styles = css`
+        :host {
+            display: block;
+            position: relative;
+            width: 100%;
+            height: 100%;
+            aspect-ratio: 2 / 1;
+        }
+    `;
+
     #graph: Graph;
     #element: Element;
     #resizeObserver: ResizeObserver | null = null;
@@ -39,6 +72,7 @@ export class Graphty extends LitElement {
     #unwatchSelection: (() => void) | null = null;
     #unwatchVisibility: (() => void) | null = null;
     #runProgressAt = new Map<string, number>();
+    #reportedStrayAttributes = false;
 
     /**
      * Creates a new Graphty element instance.
@@ -47,9 +81,10 @@ export class Graphty extends LitElement {
         super();
 
         this.#element = document.createElement("div");
-        // Ensure the container div fills the graphty-element
-        // position: relative is needed for absolute positioning of XR UI overlay
-        this.#element.setAttribute("style", "width: 100%; height: 100%; display: block; position: relative;");
+        // The container fills the host exactly. It is absolutely positioned so its size comes from
+        // the host's box, never from the canvas's intrinsic 2:1 ratio; being positioned also
+        // anchors the absolutely positioned XR UI overlay.
+        this.#element.setAttribute("style", "position: absolute; inset: 0; display: block;");
         this.#graph = new Graph(this.#element);
     }
 
@@ -208,11 +243,40 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Reports rich props that reached the element as "[object Object]" attributes.
+     *
+     * React 19 sets a custom-element prop as a property only when the element is already defined;
+     * otherwise it writes `String(value)` as an attribute and never retries. When this module is
+     * loaded lazily, `nodeData={[...]}` arrives as `nodedata="[object Object]"` and the graph comes
+     * up empty. The value is gone, so the element cannot recover it, but it can say why.
+     */
+    #reportStrayObjectAttributes(): void {
+        if (this.#reportedStrayAttributes) {
+            return;
+        }
+
+        this.#reportedStrayAttributes = true;
+        for (const name of RICH_PROPERTIES) {
+            // HTML attribute names are case-insensitive, so this also finds `nodedata`.
+            if (this.getAttribute(name) === "[object Object]") {
+                console.error(
+                    `<graphty-element> received ${name} as the attribute ${name.toLowerCase()}="[object Object]", ` +
+                        "so the value was lost. This happens when a framework renders the tag before " +
+                        "@graphty/graphty-element is loaded. Import the element before rendering, or await " +
+                        'customElements.whenDefined("graphty-element"). See ' +
+                        "https://graphty.app/docs/graphty-element/guide/installation#loading-the-element-lazily",
+                );
+            }
+        }
+    }
+
+    /**
      * Called when the element is added to the DOM. Sets up the graph container and resize observer.
      */
     connectedCallback(): void {
         super.connectedCallback();
         this.renderRoot.appendChild(this.#element);
+        this.#reportStrayObjectAttributes();
 
         // Watch for container size changes and resize the canvas accordingly
         this.#resizeObserver = new ResizeObserver(() => {
@@ -1456,12 +1520,13 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * How far the camera starts from the graph.
+     * How far the camera starts from the graph, in scene units.
      * @remarks
-     * It is carried in the element's configuration document. NOTHING READS IT YET -- no camera
-     * is placed from it today, and that was true before this property existed; the property
-     * makes the setting reachable again rather than newly effective. A graph that has settled is
-     * framed by `zoomToFit()`.
+     * Set, it places the 3D camera at this distance from the orbit centre (never closer than the
+     * minimum zoom distance) and gives the 2D camera the same view height, and the element stops
+     * framing the graph on its own after a data load or a layout change. `zoomToFit()` still
+     * frames it when called. Unset (the default), every load is framed to fit. Setting it on a
+     * running graph moves the camera.
      * @since 2.0.0
      * @example
      * ```typescript
@@ -1478,12 +1543,20 @@ export class Graphty extends LitElement {
      */
     set startingCameraDistance(value: number | undefined) {
         const oldValue = this.#startingCameraDistance;
-        this.#startingCameraDistance = value;
 
-        if (value !== undefined) {
-            setDeep(this.#graph.styles.config, "graph.startingCameraDistance", value);
+        try {
+            // A removed attribute arrives as null, and means "no distance": frame to fit again.
+            this.#graph.setStartingCameraDistance(value ?? undefined);
+        } catch (error: unknown) {
+            console.error(
+                "<graphty-element>: the starting camera distance was refused. Keeping the one already set.",
+                error,
+            );
+
+            return;
         }
 
+        this.#startingCameraDistance = value;
         this.requestUpdate("startingCameraDistance", oldValue);
     }
 
@@ -2969,10 +3042,14 @@ export class Graphty extends LitElement {
     // ============================================================================
 
     /**
-     * Set the camera mode.
+     * Activate the camera of the current view mode: `"orbit"` in 3D, `"2d"` in 2D.
+     * @remarks
+     * A camera from the other view mode is refused; change view mode with `viewMode` or
+     * `setViewMode`, which switches the camera with it.
      * @param mode - Camera mode key
      * @param options - Queue options
      * @returns Promise that resolves when camera mode is set
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` when the camera belongs to another view mode
      * @since 1.5.0
      */
     async setCameraMode(

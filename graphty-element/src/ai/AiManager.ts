@@ -11,6 +11,7 @@ import { AiController, type ExecutionResult } from "./AiController";
 import { type AiStatus, AiStatusManager, type StatusChangeCallback } from "./AiStatus";
 import { CommandRegistry } from "./commands";
 // Import built-in commands
+import { listAlgorithms, runAlgorithm } from "./commands/AlgorithmCommands";
 import { setCameraPosition, zoomToNodes } from "./commands/CameraCommands";
 import { setDimension, setLayout } from "./commands/LayoutCommands";
 import { setImmersiveMode } from "./commands/ModeCommands";
@@ -139,6 +140,11 @@ export class AiManager {
             commandRegistry: this.commandRegistry,
             graph: this.graph,
             schemaManager: this.schemaManager,
+            // Onto the graph's own event channel, so `addListener` and the element's DOM
+            // forwarder both deliver every AI event.
+            emitEvent: (event) => {
+                graph.eventManager.emitGraphEvent(event.type, { ...event });
+            },
         });
 
         this.initialized = true;
@@ -189,6 +195,10 @@ export class AiManager {
         // Schema exploration commands
         this.registerCommand(sampleData);
         this.registerCommand(describeProperty);
+
+        // Algorithm commands
+        this.registerCommand(listAlgorithms);
+        this.registerCommand(runAlgorithm);
 
         // Layout commands
         this.registerCommand(setLayout);

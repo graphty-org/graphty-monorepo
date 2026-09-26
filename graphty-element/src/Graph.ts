@@ -45,9 +45,12 @@ const DEFAULT_BACKGROUND_COLOR = "#F5F5F5";
  */
 const DEFAULT_STABLE_FRAME_TIMEOUT_MS = 30000;
 import { measureBounds } from "./camera/bounds.js";
+import { orbitAnglesToPosition } from "./camera/builtins.js";
 import { type CameraViewContext, cameraViewIds, isCameraViewName, resolveCameraView } from "./camera/resolve.js";
 import type { CameraState, DrawingMode, GraphBounds } from "./camera/types.js";
-import { type CameraController, type CameraKey, CameraManager } from "./cameras/CameraManager";
+import { type CameraController, cameraForViewMode, type CameraKey, CameraManager } from "./cameras/CameraManager";
+import { OrbitCameraController } from "./cameras/OrbitCameraController";
+import { TwoDCameraController } from "./cameras/TwoDCameraController";
 import { algorithmByKey, algorithmByLegacyKey } from "./catalog/algorithms";
 import { undetectedFormat } from "./catalog/detect";
 import { registeredAlgorithmByKey } from "./catalog/registry";
@@ -86,6 +89,7 @@ import {
     LayoutManager,
     LifecycleManager,
     type Manager,
+    nodeFramingBox,
     OperationQueueManager,
     type RecordedInputEvent,
     RenderManager,
@@ -339,6 +343,9 @@ export class Graph implements GraphContext {
         this.acceleration = new AccelerationController({
             policy: ACCELERATION_POLICY_DEFAULT,
             minNodes: ACCELERATION_MIN_NODES_DEFAULT,
+            // No frame is drawn while a call-shaped run is on the device: a draw of this scene
+            // is what the run's readback would otherwise wait behind (issue #390).
+            whileRunning: () => this.renderManager.holdFrames(),
         });
 
         // The headless model, over the store the data manager already owns for the life of the
@@ -442,6 +449,19 @@ export class Graph implements GraphContext {
                 await this.repaintFromSession();
             },
             description: "Repaint from the session style stack after data add",
+        }));
+
+        // The same boundary from the other side. Removing a node freezes a snapshot with a new
+        // dense index space, and both the record of what each layer painted and each element's
+        // paint are kept by index -- so until a full pass rebuilds them, a later layer or run
+        // removal has nothing to take back and every node after the removed one shows its
+        // predecessor's paint.
+        this.operationQueue.registerTrigger("data-remove", () => ({
+            category: "style-apply",
+            execute: async () => {
+                await this.repaintFromSession();
+            },
+            description: "Repaint from the session style stack after data remove",
         }));
 
         // Bring the paint up to date once a run has finished and its measurements exist. A layer
@@ -613,7 +633,7 @@ export class Graph implements GraphContext {
                 }
 
                 if (event.shouldZoomToFit) {
-                    this.updateManager.enableZoomToFit();
+                    this.autoFrame();
                 }
 
                 // Run algorithms if runAlgorithmsOnLoad is true. Each is queued, not awaited.
@@ -632,7 +652,7 @@ export class Graph implements GraphContext {
         this.eventManager.addListener("layout-initialized", (event) => {
             if (event.type === "layout-initialized") {
                 if (event.shouldZoomToFit) {
-                    this.updateManager.enableZoomToFit();
+                    this.autoFrame();
                 }
             }
         });
@@ -837,6 +857,7 @@ export class Graph implements GraphContext {
             // The view the graph OPENS in reaches the scene here, before anything can be drawn in
             // the wrong one. See `applyOpeningViewMode` for why this line is where it is.
             this.applyOpeningViewMode();
+            this.applyStartingCameraDistance();
 
             // The default layout is built in the constructor, before a consumer can have asked
             // for 2D, so it was given a Z axis. An opening 2D is not a transition and never
@@ -929,7 +950,7 @@ export class Graph implements GraphContext {
                         if (!this.initialCameraStateCaptured) {
                             this.initialCameraStateCaptured = true;
                             // Force a final zoom to fit after layout has truly settled
-                            this.updateManager.enableZoomToFit();
+                            this.autoFrame();
 
                             // Capture initial camera state after first settlement for resetCamera()
                             // Use setTimeout to allow zoom-to-fit to complete first
@@ -1447,6 +1468,9 @@ export class Graph implements GraphContext {
      * present each time a host re-assigned the property -- and a host that re-renders on state
      * change re-assigns it constantly. The old drop guard was silently doing this job; deleting the
      * guard without this would have turned "assign the same edges twice" into "hold them twice".
+     *
+     * A set past the render ceiling is refused with `E_TOO_LARGE` before an edge is removed, so
+     * the graph keeps the edges it had.
      * @param edges - the edges the graph should hold afterwards
      * @param options - The endpoint expressions, the repeat policy, and queue ordering
      * @returns Promise that resolves once the graph holds exactly these edges
@@ -1456,11 +1480,7 @@ export class Graph implements GraphContext {
         options?: AddEdgesOptions & QueueableOptions,
     ): Promise<void> {
         const replace = (): void => {
-            for (const id of [...this.dataManager.edges.keys()]) {
-                this.dataManager.removeEdge(id);
-            }
-
-            this.dataManager.addEdges(edges, options);
+            this.dataManager.setEdges(edges, options);
         };
 
         if (options?.skipQueue) {
@@ -1490,7 +1510,8 @@ export class Graph implements GraphContext {
      * What the `node-data` property does, and the node half of {@link setEdges}. A node whose id is
      * not in the new set is removed the way {@link removeNodes} removes one, so the edges attached
      * to it go too. A node whose id IS in the new set keeps its object and its position; its data
-     * is not rewritten.
+     * is not rewritten. A set past the render ceiling is refused with `E_TOO_LARGE` before a node
+     * is removed, so the graph keeps the nodes it had.
      * @param nodes - the nodes the graph should hold afterwards
      * @param idPath - Key to use for node IDs (default: the configured node id path)
      * @param options - Queue options for operation ordering
@@ -1504,6 +1525,7 @@ export class Graph implements GraphContext {
     ): Promise<void> {
         const replace = async (): Promise<void> => {
             const keep = new Set(nodes.map((node) => this.dataManager.nodeIdOf(node, idPath)));
+            this.dataManager.refuseNodeSetAboveCeiling(keep.size);
             const leaving = [...this.dataManager.nodes.keys()].filter((id) => !keep.has(id));
             await this.removeNodes(leaving, { skipQueue: true });
             this.dataManager.addNodes(nodes, idPath);
@@ -2015,6 +2037,8 @@ export class Graph implements GraphContext {
 
         if (options?.skipQueue) {
             removeAll();
+            // No queue, so no data-remove trigger: rebuild the index-keyed paint here instead.
+            await this.repaintFromSession();
             return;
         }
 
@@ -2084,11 +2108,33 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Set the active camera mode (e.g., "arcRotate", "universal").
-     * @param mode - Camera mode key to activate
+     * Activate the camera that belongs to the current view mode: `"2d"` in 2D, `"orbit"` in 3D.
+     *
+     * A camera belongs to one view mode, and switching between them is `setViewMode`'s job: it
+     * also rebuilds the meshes and the layout for the new mode. A camera from the other mode is
+     * refused rather than activated, because activating it would leave the scene drawing through
+     * one mode's camera while recording the other, and `setViewMode` would then take the scene
+     * for already being where it was asked to go.
+     * @param mode - Camera key to activate
      * @param options - Queue options for operation ordering
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` when the camera does not belong to the view
+     * mode the graph is in (or is going to, once queued view-mode changes run).
      */
     async setCameraMode(mode: CameraKey, options?: QueueableOptions): Promise<void> {
+        // The configured view mode, not the scene's: `setViewMode` writes it before queueing its
+        // switch, so it is the mode this call will land in once the queue reaches it.
+        const { viewMode } = this.styles.config.graph;
+        const belongs = cameraForViewMode(viewMode);
+        if (mode !== belongs) {
+            const whose = belongs === undefined ? "" : `, whose camera is "${belongs}"`;
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `the "${mode}" camera does not belong to the "${viewMode}" view mode${whose}. Call setViewMode to change view mode; it switches the camera with it`,
+                source: "view",
+                details: { mode, viewMode, ...(belongs === undefined ? {} : { expected: belongs }) },
+            });
+        }
+
         if (options?.skipQueue) {
             this.camera.activateCamera(mode);
             return;
@@ -2653,6 +2699,65 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Frame the graph on the element's own initiative -- after a data load, a new layout, or the
+     * first settlement -- unless the configuration placed the camera itself with
+     * `startingCameraDistance`. An explicit `zoomToFit()` is not affected.
+     */
+    private autoFrame(): void {
+        if (this.styles.config.graph.startingCameraDistance === undefined) {
+            this.updateManager.enableZoomToFit();
+        }
+    }
+
+    /**
+     * Set how far the camera stands from the graph, and stop the element framing the graph on its
+     * own. Undefined hands framing back to zoom-to-fit.
+     *
+     * The 3D orbit camera is moved to the distance (floored at its minimum zoom distance). The 2D
+     * camera's half-width becomes the half-extent the 3D camera's field of view covers at that
+     * distance, so switching view mode keeps a comparable framing.
+     * @param distance - The distance, in scene units, or undefined for automatic framing.
+     * @throws A `GraphtyError` with `E_OPTION_RANGE` when the distance is not a finite number.
+     */
+    setStartingCameraDistance(distance: number | undefined): void {
+        if (distance !== undefined && !Number.isFinite(distance)) {
+            throw new GraphtyError({
+                code: "E_OPTION_RANGE",
+                message: `startingCameraDistance must be a finite number, not ${String(distance)}`,
+                source: "view",
+                details: { name: "startingCameraDistance", value: distance },
+            });
+        }
+
+        this.styles.config.graph.startingCameraDistance = distance;
+        this.applyStartingCameraDistance();
+    }
+
+    /**
+     * Place both cameras from the configured `startingCameraDistance`, when there is one.
+     */
+    private applyStartingCameraDistance(): void {
+        const distance = this.styles.config.graph.startingCameraDistance;
+        if (distance === undefined) {
+            return;
+        }
+
+        const orbit = this.camera.getController("orbit");
+        if (orbit instanceof OrbitCameraController) {
+            orbit.cameraDistance = orbit.clampDistance(distance);
+            orbit.updateCameraPosition();
+
+            const twoD = this.camera.getController("2d");
+            if (twoD instanceof TwoDCameraController) {
+                // The 2D camera keeps its half-width across a resize, so that is the side matched:
+                // it is the half-extent the orbit camera's vertical fov gives at this distance.
+                twoD.config.initialOrthoSize = orbit.cameraDistance * Math.tan(orbit.camera.fov / 2);
+                twoD.updateOrtho(twoD.config.initialOrthoSize);
+            }
+        }
+    }
+
+    /**
      * Set the view mode.
      * This controls the camera type, input handling, and rendering approach.
      * @param mode - The view mode to set: "2d", "3d", "ar", or "vr"
@@ -2732,8 +2837,13 @@ export class Graph implements GraphContext {
         const sceneMode = this.scene.metadata?.viewMode as ViewMode | undefined;
         const sceneIsTwoD = this.scene.metadata?.twoD === true;
 
-        // Skip if the scene already draws what was asked for
-        if (sceneMode === mode) {
+        // Skip if the scene already draws what was asked for -- in that mode's own camera. A
+        // scene that records the mode while another mode's camera draws has drifted, and falls
+        // through so the camera is brought back.
+        const modeCamera = cameraForViewMode(mode);
+        const drawsThroughModeCamera =
+            modeCamera === undefined || this.camera.getActiveController() === this.camera.getController(modeCamera);
+        if (sceneMode === mode && drawsThroughModeCamera) {
             return;
         }
 
@@ -2876,29 +2986,11 @@ export class Graph implements GraphContext {
                 edge.update();
             }
 
-            // Calculate bounding box and zoom camera to fit the graph
-            // This ensures the graph is visible after the mode switch
-            const nodes = this.getNodes();
-            if (nodes.length > 0) {
-                let minX = Infinity,
-                    minY = Infinity,
-                    minZ = Infinity;
-                let maxX = -Infinity,
-                    maxY = -Infinity,
-                    maxZ = -Infinity;
-
-                for (const node of nodes) {
-                    const pos = node.mesh.position;
-                    const sz = node.size / 2;
-                    minX = Math.min(minX, pos.x - sz);
-                    minY = Math.min(minY, pos.y - sz);
-                    minZ = Math.min(minZ, pos.z - sz);
-                    maxX = Math.max(maxX, pos.x + sz);
-                    maxY = Math.max(maxY, pos.y + sz);
-                    maxZ = Math.max(maxZ, pos.z + sz);
-                }
-
-                this.camera.zoomToBoundingBox(new Vector3(minX, minY, minZ), new Vector3(maxX, maxY, maxZ));
+            // Zoom the camera to fit the nodes. Only the nodes, as the mode switch always has: the
+            // labels are framed by zoom-to-fit, on a data load or a layout change.
+            const box = nodeFramingBox(this.getNodes());
+            if (box) {
+                this.camera.zoomToBoundingBox(box.min, box.max);
             }
         }
     }
@@ -3700,7 +3792,7 @@ export class Graph implements GraphContext {
         }
 
         // Resolve preset if needed
-        const resolvedState = "preset" in state ? this.resolveCameraPreset(state.preset) : state;
+        const resolvedState = orbitAnglesToPosition("preset" in state ? this.resolveCameraPreset(state.preset) : state);
 
         // For immediate (non-animated) updates or skipQueue, apply directly
         if (!options || !options.animate || options.skipQueue) {
@@ -3780,6 +3872,7 @@ export class Graph implements GraphContext {
                     computeWorldMatrix: (force: boolean) => void;
                 };
                 cameraDistance: number;
+                clampDistance: (distance: number) => number;
                 updateCameraPosition: () => void;
             };
 
@@ -3819,15 +3912,15 @@ export class Graph implements GraphContext {
                 orbitController.pivot.rotationQuaternion = quat;
             }
 
-            // Set camera distance if provided
+            // Set camera distance if provided, floored the way every orbit distance is
             if (state.cameraDistance !== undefined) {
-                orbitController.cameraDistance = state.cameraDistance;
+                orbitController.cameraDistance = orbitController.clampDistance(state.cameraDistance);
             } else if (state.position && state.target) {
                 // Calculate distance from position to target
                 const dx = state.position.x - state.target.x;
                 const dy = state.position.y - state.target.y;
                 const dz = state.position.z - state.target.z;
-                orbitController.cameraDistance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                orbitController.cameraDistance = orbitController.clampDistance(Math.sqrt(dx * dx + dy * dy + dz * dz));
             }
 
             // Update the pivot's world matrix and camera position
@@ -3915,8 +4008,9 @@ export class Graph implements GraphContext {
      * Required because cameraDistance is not a scene node property
      * @param orbitController - Orbit camera controller instance
      * @param orbitController.cameraDistance - Current camera distance from pivot
+     * @param orbitController.clampDistance - The controller's distance rule (the zoom floor)
      * @param orbitController.updateCameraPosition - Function to update camera position
-     * @param targetDistance - Target camera distance to animate to
+     * @param requestedDistance - Camera distance to animate to, before the zoom floor applies
      * @param frameCount - Number of frames for the animation
      * @param fps - Frames per second for the animation
      * @param easing - Optional easing function name
@@ -3924,13 +4018,17 @@ export class Graph implements GraphContext {
     private async animateCameraDistance(
         orbitController: {
             cameraDistance: number;
+            clampDistance: (distance: number) => number;
             updateCameraPosition: () => void;
         },
-        targetDistance: number,
+        requestedDistance: number,
         frameCount: number,
         fps: number,
         easing?: string,
     ): Promise<void> {
+        // The same floor the immediate path applies, so an animation never ends below it.
+        const targetDistance = orbitController.clampDistance(requestedDistance);
+
         // Create dummy object to animate
         const dummy = { value: orbitController.cameraDistance };
 
@@ -3999,6 +4097,7 @@ export class Graph implements GraphContext {
                 computeWorldMatrix: (force: boolean) => void;
             };
             cameraDistance: number;
+            clampDistance: (distance: number) => number;
             updateCameraPosition: () => void;
         };
 
@@ -5030,7 +5129,24 @@ export class Graph implements GraphContext {
      * ```
      */
     getVoiceAdapter(): VoiceInputAdapter {
-        this.voiceAdapter ??= new VoiceInputAdapter();
+        if (!this.voiceAdapter) {
+            const adapter = new VoiceInputAdapter();
+
+            // Registered once, with the adapter, so every voice session reaches `addListener`
+            // and the DOM however it was started.
+            adapter.onActiveChange((active, reason) => {
+                if (active) {
+                    this.eventManager.emitGraphEvent("ai-voice-start", {});
+                } else {
+                    this.eventManager.emitGraphEvent("ai-voice-end", { reason });
+                }
+            });
+            adapter.onInput((transcript, isFinal) => {
+                this.eventManager.emitGraphEvent("ai-voice-transcript", { transcript, isFinal });
+            });
+
+            this.voiceAdapter = adapter;
+        }
 
         return this.voiceAdapter;
     }

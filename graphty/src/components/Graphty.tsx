@@ -450,15 +450,7 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
                 overflow: "hidden",
             }}
         >
-            <graphty-element
-                ref={graphtyRef}
-                acceleration={acceleration}
-                style={{
-                    display: "block",
-                    width: "100%",
-                    height: "100%",
-                }}
-            />
+            <graphty-element ref={graphtyRef} acceleration={acceleration} />
         </Box>
     );
 });

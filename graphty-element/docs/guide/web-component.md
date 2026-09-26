@@ -33,7 +33,7 @@ All configuration is done through HTML attributes or their corresponding JavaScr
 | `layoutConfig`           | `layout-config`            | `object`                       | `{}`        | Layout algorithm options       |
 | `viewMode`               | `view-mode`                | `'2d' \| '3d' \| 'vr' \| 'ar'` | `'3d'`      | Rendering mode                 |
 | `background`             | `background`               | `object`                       | whitesmoke  | A colour, or a skybox image    |
-| `startingCameraDistance` | `starting-camera-distance` | `number`                       | `30`        | How far the camera starts out  |
+| `startingCameraDistance` | `starting-camera-distance` | `number`                       | unset       | How far the camera starts out; unset frames the graph to fit, set turns automatic framing off |
 | `dataSource`             | `data-source`              | `string`                       | `undefined` | Data source type               |
 | `dataSourceConfig`       | `data-source-config`       | `object`                       | `{}`        | Data source configuration      |
 | `nodeIdPath`             | `node-id-path`             | `string`                       | `'id'`      | Path to node ID in data        |
@@ -318,12 +318,12 @@ For VR/AR modes, see the [VR/AR Guide](./vr-ar).
 
 ## CSS Styling
 
-The component **must have dimensions** to render. Set via CSS:
+The element is a block that fills its container's width. Its height is 2:1 -- half its width --
+unless you give it a height or place it in a parent that has one, in which case it fills that
+parent. Size it with ordinary CSS:
 
 ```css
 graphty-element {
-    display: block;
-    width: 100%;
     height: 500px;
 }
 ```
@@ -331,7 +331,7 @@ graphty-element {
 Or inline styles:
 
 ```html
-<graphty-element style="display: block; width: 800px; height: 600px;"> </graphty-element>
+<graphty-element style="width: 800px; height: 600px;"> </graphty-element>
 ```
 
 ## Events
@@ -375,11 +375,15 @@ function GraphComponent({ nodes, edges, layout = "ngraph" }) {
             node-data={JSON.stringify(nodes)}
             edge-data={JSON.stringify(edges)}
             layout={layout}
-            style={{ width: "100%", height: "500px", display: "block" }}
+            style={{ height: "500px" }}
         />
     );
 }
 ```
+
+If the element module is loaded lazily, make sure it is defined before React renders the tag;
+otherwise React writes object props as `"[object Object]"` attributes. See
+[Loading the element lazily](./installation#loading-the-element-lazily).
 
 ### Vue
 
@@ -506,8 +510,9 @@ const state = element.getCameraState();
 element.setCameraPosition({ x: 0, y: 0, z: 100 });
 element.setCameraTarget({ x: 0, y: 0, z: 0 });
 
-// Camera mode
-await element.setCameraMode("arc-rotate", { target: { x: 0, y: 0, z: 0 } });
+// Camera mode: each view mode has one camera ("orbit" in 3D, "2d" in 2D), and a camera
+// from the other mode is refused. Change view mode with viewMode / setViewMode instead.
+await element.setCameraMode("orbit");
 const controller = element.getCameraController();
 ```
 

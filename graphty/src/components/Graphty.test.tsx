@@ -139,10 +139,9 @@ describe("Graphty", () => {
         });
     });
 
-    it("has proper styling", () => {
+    it("leaves the element's size to the element, which fills the sized container", () => {
         const { container } = render(<Graphty layers={[]} />);
         const graphtyElement = container.querySelector<HTMLElement>("graphty-element");
-        expect(graphtyElement?.style.width).toBe("100%");
-        expect(graphtyElement?.style.height).toBe("100%");
+        expect(graphtyElement?.getAttribute("style")).toBeNull();
     });
 });

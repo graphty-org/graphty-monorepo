@@ -47,6 +47,21 @@ const STORAGE_COUNTS: Readonly<Record<string, number | undefined>> = {
     "grid-downsample": 1,
     "grid-far-field": 5,
     "grid-near-field": 8,
+    "compact-scatter": 5,
+    "dedupe-claim": 3,
+    "dedupe-filter": 4,
+    "frontier-finalize": 1,
+    "advance-expand": 7,
+    "bfs-contract": 4,
+    "sssp-pred": 6,
+    "bfs-fused": 8,
+    "bfs-bottom-up": 8,
+    "bfs-bitset-build": 3,
+    "bfs-unvisited-flags": 5,
+    "sssp-relax": 8,
+    "bf-relax": 6,
+    "closeness-sweep": 8,
+    "closeness-reduce": 3,
 };
 
 /** A spec of an entry with its defaults; an entry with snippet slots gets a trivial VALUE (the layout ignores it). */

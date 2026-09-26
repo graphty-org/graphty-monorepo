@@ -117,8 +117,9 @@ silently do nothing:
   rather than resolved, so "how many nodes would this selector pick" has no answer.
 - **A time role.** Nothing infers that an attribute is a timestamp, so there is no way to ask
   whether a graph can be played over time.
-- **The command union and the journal.** `@graphty/graphty-element/commands` currently exports
-  nothing; the name is reserved.
+- **The command union and the journal.** `@graphty/graphty-element/commands` exports nothing
+  and is deprecated: it is removed at the next major release unless the command union lands
+  there first. Do not import it; read `@graphty/graphty-element/catalog` for the vocabulary.
 - **The React wrappers.** `@graphty/graphty-element/react` currently exports nothing. In React 19
   use the tag directly, which assigns matching props as properties.
 

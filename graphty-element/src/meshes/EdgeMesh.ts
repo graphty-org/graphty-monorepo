@@ -607,20 +607,33 @@ void main() {
         return texture;
     }
 
+    /**
+     * Run the moving texture along a line, at the speed the style asked for.
+     *
+     * `animationSpeed` IS A MULTIPLE OF THE ELEMENT'S OWN PACE, not a distance and not a
+     * frequency: 1 is the pace `EDGE_CONSTANTS.MOVING_TEXTURE_ANIMATION_SPEED` sets, 2 is twice
+     * that, 0.5 is half. Scaling `scene.getAnimationRatio()` rather than counting frames is what
+     * keeps the pace the same on a 144 Hz screen as on a 60 Hz one.
+     * @param mesh - The line the texture runs along.
+     * @param texture - The moving texture, which this takes ownership of.
+     * @param scene - The scene whose frames drive it.
+     * @param animationSpeed - The multiple of the element's own pace, defaulting to it exactly.
+     */
     private static applyAnimatedTexture(
         mesh: GreasedLineBaseMesh,
         texture: RawTexture,
         scene: Scene,
-         
-        _animationSpeed?: number,
+        animationSpeed = 1,
     ): void {
         const material = mesh.material as StandardMaterial;
         material.emissiveTexture = texture;
         material.disableLighting = true;
         texture.uScale = EDGE_CONSTANTS.MOVING_TEXTURE_U_SCALE;
 
+        const perFrame = EDGE_CONSTANTS.MOVING_TEXTURE_ANIMATION_SPEED * animationSpeed;
+
         const observer = scene.onBeforeRenderObservable.add(() => {
-            texture.uOffset -= EDGE_CONSTANTS.MOVING_TEXTURE_ANIMATION_SPEED * scene.getAnimationRatio();
+            texture.uOffset -= perFrame * scene.getAnimationRatio();
         });
 
         // The texture and the per-frame callback belong to this mesh alone; without this every

@@ -91,6 +91,7 @@
         "Selection::Mode3D",
         "Selection::ModeAR",
         "Selection::ModeVR",
+        "Styles/Edge::AnimationSpeed",
         "Styles/Edge::ArrowColor",
         "Styles/Edge::ArrowHead",
         "Styles/Edge::ArrowOpacity",

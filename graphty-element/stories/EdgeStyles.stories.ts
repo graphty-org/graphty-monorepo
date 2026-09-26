@@ -1,6 +1,7 @@
 // Registers the <graphty-element> custom element; nothing is referenced by name.
 import "../src/graphty-element";
 
+import type { StandardMaterial, Texture } from "@babylonjs/core";
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import {
@@ -1749,6 +1750,170 @@ export const TwoDAllLines: Story = {
     parameters: {
         chromatic: {
             delay: 1000,
+        },
+    },
+};
+
+/**
+ * The moving texture running along one edge, or null when that edge has none.
+ *
+ * AN ANIMATED EDGE IS A MOVING TEXTURE ON A STILL LINE. `EdgeMesh.createAnimatedLine` builds the
+ * line once and then slides a two-pixel gradient along it, one step per frame, by advancing the
+ * texture's `uOffset`. That offset is therefore the only reading of "how far has this edge
+ * animated", and it is read off the edge's own material because two edges at two speeds are two
+ * interned meshes with two materials and two textures.
+ * @param scene - What the story drew.
+ * @param source - The id of the node the edge starts at.
+ * @returns The edge's moving texture, or null if it is not drawn with one.
+ */
+const movingTextureOf = (scene: Drawn, source: string): Texture | null => {
+    const edges = [...scene.graph.getDataManager().edges.values()];
+    const edge = edges.find((candidate) => candidate.srcNode.id === source);
+    const material = edge?.mesh.material as StandardMaterial | null | undefined;
+
+    return (material?.emissiveTexture as Texture | null | undefined) ?? null;
+};
+
+/**
+ * Let the scene draw, and wait until it has drawn.
+ * @param scene - What the story drew.
+ * @param count - How many frames to let pass.
+ */
+const framesOf = async (scene: Drawn, count: number): Promise<void> => {
+    for (let frame = 0; frame < count; frame++) {
+        await new Promise<void>((resolve) => {
+            scene.graph.scene.onAfterRenderObservable.addOnce(() => {
+                resolve();
+            });
+        });
+    }
+};
+
+/**
+ * Two edges running the same animation at different speeds.
+ *
+ * WHAT THE NUMBER MEANS. A nonzero `edge.animationSpeed` draws the line as a gradient travelling
+ * along it instead of a flat colour, and the number is a multiple of the element's own pace. The
+ * lower edge here asks for 1 and the upper for 4, so the upper one's gradient travels four times
+ * as far in the same time. Zero, which is what every other edge in the package has, draws a
+ * still line.
+ *
+ * MEASURED AS A RATIO, WHICH IS WHY A SLOW MACHINE CANNOT FAIL IT. Both textures advance on the
+ * same frames and are scaled by the same `scene.getAnimationRatio()`, so however few frames a
+ * loaded machine manages and however long they take, the distance one travels divided by the
+ * distance the other travels is the ratio of the two speeds and nothing else.
+ *
+ * NO VISUAL BASELINE. The picture is deliberately different on every frame, so a snapshot of it
+ * would differ on every build for reasons that say nothing about the code. The behaviour is
+ * pinned by the measurement below instead, which a snapshot could not make anyway: a still
+ * picture of a moving line cannot show how fast it is moving.
+ */
+export const AnimationSpeed: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "Styles/Edge AnimationSpeed");
+
+        await assertGraphLoaded(scene, { nodes: 4, edges: 2 });
+        await assertLayerPainted(scene, "edges where data.source == 'slow-src'", { edges: 1 });
+        await assertLayerPainted(scene, "edges where data.source == 'fast-src'", { edges: 1 });
+
+        const slow = movingTextureOf(scene, "slow-src");
+        const fast = movingTextureOf(scene, "fast-src");
+
+        await holds(
+            slow !== null && fast !== null,
+            "Styles/Edge AnimationSpeed: both edges ask for a nonzero animation speed and at least one of " +
+                "them is drawn with no moving texture, so it is not animating at all",
+        );
+
+        await holds(
+            slow !== fast,
+            "Styles/Edge AnimationSpeed: both edges are running the SAME texture, so one speed is being " +
+                "drawn twice and the two the story promises cannot be told apart",
+        );
+
+        const started = { slow: slow?.uOffset ?? 0, fast: fast?.uOffset ?? 0 };
+
+        await framesOf(scene, 30);
+
+        const travelled = {
+            slow: Math.abs((slow?.uOffset ?? 0) - started.slow),
+            fast: Math.abs((fast?.uOffset ?? 0) - started.fast),
+        };
+
+        await holds(
+            travelled.slow > 0,
+            "Styles/Edge AnimationSpeed: the lower edge asks for the element's own animation pace and its " +
+                "texture did not move at all over thirty frames",
+        );
+
+        const ratio = travelled.fast / travelled.slow;
+
+        await holds(
+            ratio > 3.5 && ratio < 4.5,
+            "Styles/Edge AnimationSpeed: the upper edge asks for four times the lower edge's speed, and over " +
+                `thirty frames their textures travelled ${travelled.fast.toFixed(3)} and ` +
+                `${travelled.slow.toFixed(3)} -- a ratio of ${ratio.toFixed(2)} where four is asked for. A ` +
+                "ratio of 1 means the speed is being ignored and every animated edge runs at one pace.",
+        );
+    },
+    args: {
+        setup: storySetup({
+            viewMode: "3d",
+            layers: [
+                {
+                    name: "edges where data.source == 'slow-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.source == 'slow-src'" },
+                    set: {
+                        "edge.color": "#00A8E8",
+                        "edge.width": 12,
+                        "edge.animationSpeed": 1,
+                        "edge.label": "speed 1",
+                        "edge.labelStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            location: "top",
+                            attachOffset: 1,
+                        },
+                    },
+                },
+                {
+                    name: "edges where data.source == 'fast-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.source == 'fast-src'" },
+                    set: {
+                        "edge.color": "#00A8E8",
+                        "edge.width": 12,
+                        "edge.animationSpeed": 4,
+                        "edge.label": "speed 4",
+                        "edge.labelStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            location: "top",
+                            attachOffset: 1,
+                        },
+                    },
+                },
+            ],
+        }),
+        nodeData: [
+            { id: "fast-src", position: { x: -5, y: 2, z: 0 } },
+            { id: "fast-dst", position: { x: 5, y: 2, z: 0 } },
+            { id: "slow-src", position: { x: -5, y: -2, z: 0 } },
+            { id: "slow-dst", position: { x: 5, y: -2, z: 0 } },
+        ],
+        edgeData: [
+            { src: "fast-src", dst: "fast-dst" },
+            { src: "slow-src", dst: "slow-dst" },
+        ],
+        layout: "fixed",
+    },
+    parameters: {
+        chromatic: {
+            // A picture that is different on every frame by design has no stable baseline.
+            disableSnapshot: true,
         },
     },
 };

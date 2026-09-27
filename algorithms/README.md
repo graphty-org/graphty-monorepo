@@ -1036,6 +1036,7 @@ const result = grsbm(graph, {
 Explore algorithms with interactive Storybook demos: **[View Storybook →](https://graphty.app/storybook/algorithms/)**
 
 Storybook provides:
+
 - **Animated visualizations** showing how each algorithm works step-by-step
 - **Interactive controls** to modify parameters and graph types
 - **Deterministic output** with seeded randomness for reproducibility
@@ -1372,15 +1373,13 @@ interface GRSBMResult {
 ### Setup
 
 ```bash
-# Clone the repository
-git clone https://github.com/graphty-org/algorithms.git
+# Clone the monorepo (the package lives in algorithms/)
+git clone https://github.com/graphty-org/graphty-monorepo.git
+cd graphty-monorepo
+
+# Install dependencies for every package
+pnpm install
 cd algorithms
-
-# Install dependencies
-npm install
-
-# Set up git hooks
-npm run prepare
 ```
 
 ### Scripts

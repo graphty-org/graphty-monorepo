@@ -325,6 +325,8 @@ export interface SelectionSources {
      * @param delta - What joined, what left, what the selection holds now, and who asked.
      */
     readonly onChange?: (delta: SelectionDelta) => void;
+    /** Called on every version bump of either mask, which is what advances the session input tick. */
+    readonly onMaskVersion?: () => void;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -476,8 +478,16 @@ class Selection implements SelectionOwner {
         this.#sources = sources;
         const graph = sources.snapshot();
         this.#frame = frameOf(graph);
-        this.#nodes = new ElementMask<NodeId>(() => this.#frame.nodeSpace, Math.max(1, graph.nodeCount));
-        this.#edges = new ElementMask<EdgeId>(() => this.#frame.edgeSpace, Math.max(1, graph.edgeCount));
+        this.#nodes = new ElementMask<NodeId>(
+            () => this.#frame.nodeSpace,
+            Math.max(1, graph.nodeCount),
+            sources.onMaskVersion,
+        );
+        this.#edges = new ElementMask<EdgeId>(
+            () => this.#frame.edgeSpace,
+            Math.max(1, graph.edgeCount),
+            sources.onMaskVersion,
+        );
         this.#nodes.grow(graph.nodeCount);
         this.#edges.grow(graph.edgeCount);
     }

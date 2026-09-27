@@ -30,6 +30,7 @@ import type { LayoutEngine } from "../layout/LayoutEngine";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
 import { MeshCache } from "../meshes/MeshCache";
 import { Node, NodeIdType } from "../Node";
+import { inputCountersOf, replaceAttributes } from "../session/attributes";
 import { DEFAULT_LIMITS } from "../session/limits";
 import type { DirectionProvenance } from "../session/types";
 import type { Styles } from "../Styles";
@@ -108,6 +109,17 @@ function isStorableRecordId(value: unknown): value is string | number {
 }
 
 /**
+ * Add a record's top-level keys to the fields a batch wrote.
+ * @param into - the batch's written fields
+ * @param record - one ingested record
+ */
+function collectKeys(into: Set<string>, record: object): void {
+    for (const key of Object.keys(record)) {
+        into.add(key);
+    }
+}
+
+/**
  * Manages all data operations for nodes and edges
  * Handles CRUD operations, caching, and data source loading
  *
@@ -167,6 +179,13 @@ export class DataManager implements Manager {
      * import never rewinds it and an edge id is never issued twice (design/sets 4.2).
      */
     private readonly edgeCounter = createEdgeCounter();
+
+    /**
+     * The attribute revisions and the input tick (design/sets 6.2), the same object the session
+     * over this manager reads, handed to every store this manager builds so a freeze advances it
+     * and a Clear never rewinds it.
+     */
+    private readonly inputs = inputCountersOf(this);
 
     // Graph-level algorithm results storage
     graphResults?: AdHocData;
@@ -318,6 +337,7 @@ export class DataManager implements Manager {
             directed: data.directed,
             positionScale: () => this.styles.config.data.knownFields.positionScale,
             edgeCounter: this.edgeCounter,
+            inputs: this.inputs,
             onNodeRemap: (remap) => {
                 this.walkNodeRemap(remap);
             },
@@ -616,6 +636,9 @@ export class DataManager implements Manager {
         const fresh = new Set(ids.filter((id) => !this.nodeCache.get(id)));
         this.refuseAboveCeiling("nodes", this.nodes.size, fresh.size, DEFAULT_LIMITS.renderCeiling);
 
+        // Every field an ingested record writes, bumped once for the batch after the loop.
+        const written = new Set<string>();
+
         // create nodes
         for (const [i, node] of nodes.entries()) {
             const nodeId = ids[i];
@@ -636,6 +659,7 @@ export class DataManager implements Manager {
             // The store is what gives the node its dense row; INVALID_INDEX comes back for an id
             // graph-format will not take, and the node renders anyway. See the class comment.
             n.index = ingestNode(this.store, nodeId, node).index;
+            collectKeys(written, node);
             this.nodeCache.set(nodeId, n);
             this.nodes.set(nodeId, n);
 
@@ -649,6 +673,10 @@ export class DataManager implements Manager {
                 nodeId,
                 metadata: node,
             });
+        }
+
+        if (written.size > 0) {
+            this.inputs.nodes.bump(written);
         }
 
         // Notify that nodes were added
@@ -947,6 +975,10 @@ export class DataManager implements Manager {
         const weightPath = knownFields.edgeWeightPath;
         const tally = this.loadTally ?? newImportTally();
         let legacyWeights = 0;
+        // Every field an ingested record writes, bumped once for the batch after the loop. A
+        // deferred edge's record is counted here, where the store takes it, not when its render
+        // object is built.
+        const written = new Set<string>();
 
         // Decided before any record is stored: a batch the renderer cannot hold is refused whole,
         // so a caller never finds the first part of it held and the rest missing.
@@ -1004,6 +1036,8 @@ export class DataManager implements Manager {
                 this.edgesByRecordId.set(recordId, edgeIndex);
             }
 
+            collectKeys(written, edge);
+
             // Check if both nodes exist before creating the RENDER object, which reads them
             const srcNode = this.nodeCache.get(srcNodeId);
             const dstNode = this.nodeCache.get(dstNodeId);
@@ -1049,6 +1083,10 @@ export class DataManager implements Manager {
                 dstNodeId,
                 metadata: edge,
             });
+        }
+
+        if (written.size > 0) {
+            this.inputs.edges.bump(written);
         }
 
         if (legacyWeights > 0) {
@@ -1202,9 +1240,13 @@ export class DataManager implements Manager {
 
         if (decision.replaceRecord) {
             if (known.edge) {
-                known.edge.data = record as AdHocData;
+                replaceAttributes(this.inputs.edges, known.edge, record as AdHocData);
             } else if (known.pending) {
+                // No render object yet, so no `.data` to write; the record is what it will be built
+                // from. The fields still move, for a reader of the store's edge attributes.
+                const fields = new Set([...Object.keys(known.pending.record), ...Object.keys(record)]);
                 known.pending.record = record;
+                this.inputs.edges.bump(fields);
             }
         }
 

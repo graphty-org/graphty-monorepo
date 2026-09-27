@@ -1,11 +1,18 @@
 /**
- * @file What attributes the graph's records carry, described as data.
+ * @file What attributes the graph's records carry, described as data -- and the one function that
+ * writes them.
  *
  * An options form, a filter builder, a colour encoding and a column picker all need the same
  * four facts about every attribute: what it is called, what type its values are, how many
  * records actually carry it, and what a few of its values look like. Each of those is a walk
  * over the graph, so each of them is the element's to do once rather than every consumer's to do
  * separately.
+ *
+ * The second half is the writer. A cache over a rule that reads `data.weight` is keyed on the
+ * revision of `weight` (design/sets/sets-design.md 6.2), and a revision that some write path forgot
+ * to bump is a cache that answers from values nobody holds any more. So every write into a
+ * record's `data` goes through {@link writeAttributes} or {@link replaceAttributes}, and
+ * `test/session/single-attribute-writer.test.ts` fails on any other.
  */
 
 import type { GraphSnapshot } from "@graphty/graph-format";
@@ -226,4 +233,142 @@ export function describeAttributes(
     }
 
     return Object.freeze(described);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Attribute revisions and the input tick (design/sets/sets-design.md 5.2 and 6.2)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * One session-wide counter that moves whenever any input a set's resolution can read moves: an
+ * attribute revision, a visibility or selection mask version, an execution token or a freeze.
+ *
+ * A memo keyed on it can never outlive an input it summarises, which is its whole job: a reader
+ * that saw the same tick twice knows nothing it could have read has changed in between.
+ */
+export class InputTick {
+    #value = 0;
+
+    /**
+     * The current tick.
+     * @returns the tick, starting at 0 and only ever growing
+     */
+    get value(): number {
+        return this.#value;
+    }
+
+    /** Move the tick on. Allocation-free, so a freeze can call it inside its commit. */
+    advance(): void {
+        this.#value += 1;
+    }
+}
+
+/**
+ * Per-field revisions of one element kind's attributes.
+ *
+ * Keyed by the TOP-LEVEL field, the first segment after `data.`, because that is the granularity a
+ * compiled rule's paths name and the granularity a write touches: editing `label` must not
+ * invalidate a rule over `weight`.
+ */
+export class AttributeRevisions {
+    readonly #revisions = new Map<string, number>();
+    readonly #tick: InputTick;
+
+    /**
+     * Start every field at revision 0.
+     * @param tick - the session tick every bump advances
+     */
+    constructor(tick: InputTick) {
+        this.#tick = tick;
+    }
+
+    /**
+     * The revision of one field.
+     * @param field - the top-level attribute key
+     * @returns how many writes have touched it; 0 for a field nothing has written
+     */
+    of(field: string): number {
+        return this.#revisions.get(field) ?? 0;
+    }
+
+    /**
+     * Record that one write touched these fields. A write that changed no value still counts:
+     * comparing old and new values would cost a deep equality per field for no correctness gain.
+     * @param fields - the top-level keys written
+     */
+    bump(fields: Iterable<string>): void {
+        for (const field of fields) {
+            this.#revisions.set(field, (this.#revisions.get(field) ?? 0) + 1);
+        }
+
+        this.#tick.advance();
+    }
+}
+
+/** The three counters a set's input signature reads, shared by a session and its store's owner. */
+export interface InputCounters {
+    /** The session input tick. */
+    readonly tick: InputTick;
+    /** Node attribute revisions. */
+    readonly nodes: AttributeRevisions;
+    /** Edge attribute revisions. */
+    readonly edges: AttributeRevisions;
+}
+
+const countersByOwner = new WeakMap<object, InputCounters>();
+
+/**
+ * The counters of one store owner, created on first ask.
+ *
+ * Keyed by the object the session is handed as its store: `DataManager` for a rendered graph, which
+ * passes the same counters to every `GraphStore` it builds so a Clear never rewinds them, or the
+ * `GraphStore` itself for a headless session. A side table rather than a member, so the published
+ * `SessionGraphStore` interface gains nothing.
+ * @param owner - the store, or whoever builds stores
+ * @returns its counters
+ */
+export function inputCountersOf(owner: object): InputCounters {
+    let counters = countersByOwner.get(owner);
+    if (counters === undefined) {
+        const tick = new InputTick();
+        counters = { tick, nodes: new AttributeRevisions(tick), edges: new AttributeRevisions(tick) };
+        countersByOwner.set(owner, counters);
+    }
+
+    return counters;
+}
+
+/**
+ * Write fields into a record's attributes and bump each field's revision. With `fields` naming
+ * only some keys of `update`, only those are written.
+ * @param revisions - the revisions of the record's kind
+ * @param data - the record's attribute object (`node.data`, `edge.data`)
+ * @param update - where the values come from
+ * @param fields - the keys to write; every own key of `update` when absent
+ */
+export function writeAttributes(
+    revisions: AttributeRevisions,
+    data: Record<string, unknown>,
+    update: Readonly<Record<string, unknown>>,
+    fields: readonly string[] = Object.keys(update),
+): void {
+    for (const field of fields) {
+        data[field] = update[field];
+    }
+
+    revisions.bump(fields);
+}
+
+/**
+ * Replace a record's attributes wholesale (the `last` repeated-edge policy) and bump every field
+ * the old or the new record carries, since a field that disappeared changed too.
+ * @param revisions - the revisions of the record's kind
+ * @param owner - the object holding `data`
+ * @param owner.data - its current attributes
+ * @param record - the new attributes, held by reference as the constructor holds the first
+ */
+export function replaceAttributes<T extends object>(revisions: AttributeRevisions, owner: { data: T }, record: T): void {
+    const fields = new Set([...Object.keys(owner.data), ...Object.keys(record)]);
+    owner.data = record;
+    revisions.bump(fields);
 }

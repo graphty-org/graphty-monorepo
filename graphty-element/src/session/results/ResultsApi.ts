@@ -146,6 +146,12 @@ export interface ResultsRunEntry {
     readonly shape: ResultShape;
     /** The result, once the run has published one. */
     readonly result?: RunResult;
+    /**
+     * The token of the execution that produced `result`, written with it so whatever restores the
+     * result restores its token (design/sets 5.2). Internal: surfaced later only as the opaque
+     * `ResultItem.execution`.
+     */
+    readonly execution?: string;
 }
 
 /**
@@ -300,11 +306,29 @@ class Results implements ResultsApi {
     }
 }
 
+/** The registry behind each results API, so internal readers reach entries without a public member. */
+const registries = new WeakMap<ResultsApi, ResultsRegistry>();
+
+/**
+ * The execution token of a run's current result, read from its result entry.
+ * @param results - A results API this module built.
+ * @param run - The run, its result, or its id.
+ * @returns The token, or undefined when there is no result or none was minted.
+ */
+export function resultExecutionOf(results: ResultsApi, run: RunRef): string | undefined {
+    const entry = registries.get(results)?.entry(runIdOf(run));
+
+    return entry?.result === undefined ? undefined : entry.execution;
+}
+
 /**
  * Build the results API over a registry of runs.
  * @param registry - Where runs are looked up.
  * @returns The API.
  */
 export function createResultsApi(registry: ResultsRegistry): ResultsApi {
-    return new Results(registry);
+    const results = new Results(registry);
+    registries.set(results, registry);
+
+    return results;
 }

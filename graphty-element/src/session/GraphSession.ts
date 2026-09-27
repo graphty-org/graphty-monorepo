@@ -28,6 +28,7 @@ import { createEdgeCounter } from "../data/edgeIdentity";
 import { GraphStore } from "../data/GraphStore";
 import type { ElementPositions } from "../data/positions";
 import { GraphtyError, isGraphtyError } from "../errors";
+import { type InputCounters, inputCountersOf } from "./attributes";
 import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
 import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { SessionData } from "./data";
@@ -39,6 +40,7 @@ import {
     createLocalRunQueue,
     createRunsApi,
     ENGINE_VERSIONS,
+    ManagedRun,
     type ResolvedScope,
     type Run,
     type RunExecutionContext,
@@ -1091,6 +1093,13 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         nodes: (remap: U32, count: number) => selection?.remapNodes(remap, count),
         edges: (remap: U32, count: number) => selection?.remapEdges(remap, count),
     });
+    // The attribute revisions and the input tick (design/sets 6.2), shared with whoever writes the
+    // store's records: the store owner's, so its writes, its freezes and this session's masks and
+    // runs all advance one tick.
+    const inputs = inputCountersOf(store.store);
+    const advanceTick = (): void => {
+        inputs.tick.advance();
+    };
     const acceleration = resolveAcceleration(options.acceleration, policy, minNodes);
     const data = new SessionData(store.store, options.records ?? null, readData);
     const runsOptions = options.runs ?? {};
@@ -1128,6 +1137,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         onChange: (change) => {
             publish(watchers, "visibility:changed", change);
         },
+        onMaskVersion: advanceTick,
     });
 
     const defaultScope: Scope = runsOptions.defaultScope ?? "visible";
@@ -1138,6 +1148,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         execute: runsOptions.execute ?? refuseToExecute,
         engine: runsOptions.engine ?? ENGINE_VERSIONS,
         defaultScope,
+        onExecution: advanceTick,
         ...(runsOptions.defaultCaveats === undefined ? {} : { defaultCaveats: runsOptions.defaultCaveats }),
         // ONE POLICY, EVERY ROUTE. A run paints itself on its first completion, from the encoding
         // its own shape derives -- see `./styles/autoApply` for the six rules and `./styles/derive`
@@ -1249,6 +1260,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         onChange: (delta) => {
             publish(watchers, "selection:changed", delta);
         },
+        onMaskVersion: advanceTick,
     });
 
     // ONE registry for the stack and for the pass that paints from it. Two would let a layer be
@@ -1308,7 +1320,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         acceleration.controller,
     );
 
-    return new Session({
+    const session = new Session({
         store: store.store,
         ownedStore: store.owned,
         data,
@@ -1336,6 +1348,28 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         planning,
         watchers,
     });
+    sessionInputs.set(session, inputs);
+
+    return session;
+}
+
+/** Each session's input counters, beside it rather than on it so the published type gains nothing. */
+const sessionInputs = new WeakMap<GraphSession, InputCounters>();
+
+/**
+ * A session's input counters: its input tick and its attribute revisions (design/sets 6.2).
+ * Internal.
+ * @param session - a session this module built
+ * @returns its counters
+ * @throws An Error for a session this module did not build.
+ */
+export function inputCountersOfSession(session: GraphSession): InputCounters {
+    const inputs = sessionInputs.get(session);
+    if (inputs === undefined) {
+        throw new Error("Not a session built by createGraphSession.");
+    }
+
+    return inputs;
 }
 
 /**
@@ -1416,6 +1450,7 @@ function toResultsEntry(run: Run): ResultsRunEntry {
         label: run.label,
         shape: run.shape,
         ...(run.result === undefined ? {} : { result: run.result }),
+        ...(run instanceof ManagedRun && run.resultExecution !== undefined ? { execution: run.resultExecution } : {}),
     };
 }
 

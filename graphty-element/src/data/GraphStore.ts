@@ -9,6 +9,7 @@ import {
 } from "@graphty/graph-format";
 
 import { hashNodeId } from "../catalog/sets/hash";
+import { type InputCounters, inputCountersOf } from "../session/attributes";
 import type { DirectionProvenance } from "../session/types";
 import {
     completeLoad,
@@ -57,6 +58,12 @@ export interface GraphStoreOptions {
      * one counts from 0 on its own.
      */
     readonly edgeCounter?: EdgeCounter;
+    /**
+     * The input counters every freeze advances the tick of (design/sets 6.2). Handed in by the
+     * same owner, for the same reason, as the edge counter; a store built without them keys its
+     * own under itself, which is what a headless session reads.
+     */
+    readonly inputs?: InputCounters;
 }
 
 /** The node column an importer seeds file coordinates into; deleted from every snapshot by the attach. */
@@ -152,6 +159,8 @@ export class GraphStore {
     private loadDepth = 0;
     /** Whether edge pairs are ordered, latched when the first edge is completed. */
     private pairsOrdered: boolean | null = null;
+    /** The counters whose tick every freeze advances. */
+    private readonly inputs: InputCounters;
     private readonly undirectedCache = new WeakMap<GraphSnapshot, DerivedGraph>();
     private cache: GraphSnapshot | null = null;
     private cachedRevision = -1;
@@ -202,6 +211,7 @@ export class GraphStore {
         this.edgeOrdinalColumn = this.builder.declareEdgeColumn({ name: IDENTITY_COLUMNS.edgeOrdinal, dtype: "i32", default: -1 });
         this.edgeAmongColumn = this.builder.declareEdgeColumn({ name: IDENTITY_COLUMNS.edgeAmong, dtype: "i32", default: -1 });
         this.counter = options.edgeCounter ?? createEdgeCounter();
+        this.inputs = options.inputs ?? inputCountersOf(this);
     }
 
     /**
@@ -367,6 +377,8 @@ export class GraphStore {
         this.cachedRevision = this.revision;
         this.pending = { replacement: { previous, next: snapshot, report }, stage: "node-remap" };
         this.pendingPositions = { snapshot, nodeRemap: report.nodeRemap, stage: "remap" };
+        // Allocation-free, so it cannot throw between the commit and the resumable stages.
+        this.inputs.tick.advance();
         // Allocation-free, so it cannot throw between the commit and the resumable stages.
         this.followIdentityRemap(report.edgeRemap);
 

@@ -189,6 +189,8 @@ export interface RunsApiOptions {
      * @param change - The run's record, and which moment it reached.
      */
     readonly onChange?: (change: RunChange) => void;
+    /** Called once per execution token minted, which is what advances the session input tick. */
+    readonly onExecution?: () => void;
 }
 
 /** The runs API, plus the two things a session needs and a consumer never calls. */
@@ -365,6 +367,48 @@ function checkOptionValue(algorithm: AlgorithmKey, option: OptionDescriptor, val
 }
 
 // ---------------------------------------------------------------------------------------------
+// Execution tokens (design/sets/sets-design.md 5.2)
+// ---------------------------------------------------------------------------------------------
+
+/** Minters built in this process, so two sessions' nonces differ even if the random part does not. */
+let mintersBuilt = 0;
+
+/**
+ * A random 64-bit value in hex, from Web Crypto where the platform has it.
+ * @returns 16 hex digits
+ */
+function randomHex(): string {
+    const words = new Uint32Array(2);
+    if (typeof globalThis.crypto?.getRandomValues === "function") {
+        globalThis.crypto.getRandomValues(words);
+    } else {
+        words[0] = Math.floor(Math.random() * 0x1_0000_0000);
+        words[1] = Math.floor(Math.random() * 0x1_0000_0000);
+    }
+
+    return [...words].map((word) => word.toString(16).padStart(8, "0")).join("");
+}
+
+/**
+ * Build one session's execution-token minter: a nonce drawn once, then a counter shared by every
+ * run the session holds, never a per-run count. `startedAt` was rejected as an identity because
+ * two executions in one millisecond compare equal.
+ * @param onMint - called after every mint
+ * @returns the minter; each call returns `<nonce>.<counter>`, opaque to every reader
+ */
+export function createExecutionMinter(onMint?: () => void): () => string {
+    const nonce = `${randomHex()}${(mintersBuilt++).toString(36)}`;
+    let counter = 0;
+
+    return () => {
+        counter += 1;
+        onMint?.();
+
+        return `${nonce}.${counter}`;
+    };
+}
+
+// ---------------------------------------------------------------------------------------------
 // The runs API
 // ---------------------------------------------------------------------------------------------
 
@@ -390,6 +434,9 @@ class Runs implements SessionRunsApi {
 
     private disposed = false;
 
+    /** Mints the token of every execution this session starts. */
+    private readonly mintExecution: () => string;
+
     /**
      * Build the runs API.
      * @param options - The queue, the catalogue, the scope resolver and the thing that does the
@@ -399,6 +446,7 @@ class Runs implements SessionRunsApi {
         this.options = options;
         this.defaultScope = options.defaultScope ?? "visible";
         this.defaultCaveats = options.defaultCaveats ?? DEFAULT_CAVEATS;
+        this.mintExecution = createExecutionMinter(options.onExecution);
     }
 
     // -- starting -----------------------------------------------------------------------------
@@ -493,6 +541,7 @@ class Runs implements SessionRunsApi {
             stale: () => null,
             resolveScope: () => this.options.resolveScope(this.defaultScope),
             enqueue: (body) => enqueueBesideQueue(body, id),
+            mintExecution: this.mintExecution,
             notify: (phase) => {
                 this.announce(run, phase);
             },
@@ -663,6 +712,7 @@ class Runs implements SessionRunsApi {
             stale: () => this.staleOf(id),
             resolveScope: () => this.options.resolveScope(spec),
             enqueue: (body) => (policy === "now" ? enqueueBesideQueue(body, id) : this.enqueueOnQueue(id, body)),
+            mintExecution: this.mintExecution,
             notify: (phase) => {
                 this.announce(run, phase);
 

@@ -105,6 +105,7 @@ import { Node, type NodeIdType } from "./Node";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
+import { inputCountersOf, writeAttributes } from "./session/attributes";
 import type { Run, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionTarget, SetOp } from "./session/selection";
 import type { Layer, StyleSuggestion } from "./session/styles";
@@ -2117,6 +2118,27 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Write each update into its node's attributes through the one attribute writer, so the
+     * revision of every field written moves. `id` is the address, not an attribute, and is not
+     * written.
+     * @param updates - the updates, each naming its node by `id`
+     */
+    private writeNodeUpdates(updates: readonly { id: string | number; [key: string]: unknown }[]): void {
+        const revisions = inputCountersOf(this.dataManager).nodes;
+        for (const update of updates) {
+            const node = this.dataManager.getNode(update.id);
+            if (node) {
+                writeAttributes(
+                    revisions,
+                    node.data,
+                    update,
+                    Object.keys(update).filter((key) => key !== "id"),
+                );
+            }
+        }
+    }
+
+    /**
      * Update node data for existing nodes in the graph.
      * @param updates - Array of update objects containing node ID and properties to update
      * @param options - Queue options for operation ordering
@@ -2126,12 +2148,7 @@ export class Graph implements GraphContext {
         options?: QueueableOptions,
     ): Promise<void> {
         if (options?.skipQueue) {
-            updates.forEach((update) => {
-                const node = this.dataManager.getNode(update.id);
-                if (node) {
-                    Object.assign(node.data, update);
-                }
-            });
+            this.writeNodeUpdates(updates);
 
             // A layer can select on any of the values that just changed, so the whole stack is
             // asked again rather than each node being re-resolved by hand.
@@ -2147,12 +2164,7 @@ export class Graph implements GraphContext {
                     throw new Error("Operation cancelled");
                 }
 
-                updates.forEach((update) => {
-                    const node = this.dataManager.getNode(update.id);
-                    if (node) {
-                        Object.assign(node.data, update);
-                    }
-                });
+                this.writeNodeUpdates(updates);
 
                 // See the skipQueue branch above: the values a layer selects on have moved, so
                 // the stack is asked again rather than each node being re-resolved by hand.

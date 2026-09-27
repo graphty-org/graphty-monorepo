@@ -289,6 +289,8 @@ export interface VisibilitySources extends FilterSources {
      * @param change - The counts, the unresolved paths, and what produced the change.
      */
     readonly onChange?: (change: VisibilityChange) => void;
+    /** Called on every version bump of either mask, which is what advances the session input tick. */
+    readonly onMaskVersion?: () => void;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -441,8 +443,8 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
     // The spaces are read through the live frame rather than captured, so one mask object spans
     // every snapshot this session ever holds and its id cache still notices when the ids move.
-    const nodeMaskValue = new ElementMask<NodeId>(() => currentFrame().nodeSpace, 1);
-    const edgeMaskValue = new ElementMask<EdgeId>(() => currentFrame().edgeSpace, 1);
+    const nodeMaskValue = new ElementMask<NodeId>(() => currentFrame().nodeSpace, 1, sources.onMaskVersion);
+    const edgeMaskValue = new ElementMask<EdgeId>(() => currentFrame().edgeSpace, 1, sources.onMaskVersion);
 
     let cachedNodeIds: readonly NodeId[] | null = null;
     let cachedNodeSet: ReadonlySet<NodeId> | null = null;

@@ -257,6 +257,13 @@ export interface RunSurroundings {
      * @param phase - Which moment.
      */
     notify?(phase: RunPhase): void;
+    /**
+     * Mint the token that identifies one execution of this run (design/sets 5.2): a session nonce
+     * plus a session-wide counter. Called once when the work starts. Optional for the same reason
+     * as `notify`: a run driven directly by a test has no session to mint from.
+     * @returns The token.
+     */
+    mintExecution?(): string;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -416,6 +423,12 @@ export class ManagedRun<T = RunResult> implements Run<T> {
     private fieldsValue: readonly FieldDescriptor[];
 
     private resultValue: T | undefined = undefined;
+
+    /** The token of the execution now running, minted when its work started. */
+    private executionValue: string | null = null;
+
+    /** The token of the execution that produced {@link resultValue}, written with it. */
+    private resultExecutionValue: string | undefined = undefined;
 
     private summaryValue: ResultSummary | undefined = undefined;
 
@@ -584,6 +597,15 @@ export class ManagedRun<T = RunResult> implements Run<T> {
     }
 
     /**
+     * The execution token of the current result: undefined until a result exists, and for a run
+     * whose surroundings mint none. Internal: not on the published `Run` interface.
+     * @returns The token.
+     */
+    get resultExecution(): string | undefined {
+        return this.resultExecutionValue;
+    }
+
+    /**
      * Why the run failed.
      * @returns The error, or undefined when it did not.
      */
@@ -749,6 +771,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
         this.statusValue = "running";
         this.startedAtValue = new Date().toISOString();
         this.startedAtMs = nowMs();
+        this.executionValue = this.surroundings.mintExecution?.() ?? null;
         this.scopeValue = this.surroundings.resolveScope();
 
         const execution = new AbortController();
@@ -835,6 +858,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
         const partial = outcome.partial ?? (timedOut || canceled);
 
         this.resultValue = outcome.result;
+        this.resultExecutionValue = this.executionValue ?? undefined;
         this.summaryValue = outcome.summary;
         this.fieldsValue = outcome.fields ?? this.fieldsValue;
         this.caveatsValue = this.mergeCaveats(outcome, partial, timedOut);
@@ -1077,6 +1101,8 @@ export class ManagedRun<T = RunResult> implements Run<T> {
         this.caveatsValue = this.definition.caveats;
         this.fieldsValue = this.definition.fields;
         this.resultValue = undefined;
+        this.resultExecutionValue = undefined;
+        this.executionValue = null;
         this.summaryValue = undefined;
         this.errorValue = undefined;
         this.startedAtValue = null;

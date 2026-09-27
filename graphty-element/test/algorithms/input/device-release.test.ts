@@ -8,11 +8,19 @@
  * free (`release`); the runs go through `accelerated()`, the seam a real adapter uses.
  */
 
+import { accelerated } from "@graphty/algorithms";
 import type { GraphSnapshot } from "@graphty/graph-format";
 import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
+import { BFSAlgorithm } from "../../../src/algorithms/BFSAlgorithm";
+import { ConnectedComponentsAlgorithm } from "../../../src/algorithms/ConnectedComponentsAlgorithm";
+import { DijkstraAlgorithm } from "../../../src/algorithms/DijkstraAlgorithm";
 import { derivedInputsOf, type ResolvedInputScope, withRunInput } from "../../../src/algorithms/input/ScopedInput";
+import { KruskalAlgorithm } from "../../../src/algorithms/KruskalAlgorithm";
+import { PageRankAlgorithm } from "../../../src/algorithms/PageRankAlgorithm";
+import { detachedRunContext } from "../../../src/algorithms/results";
+import type { Graph } from "../../../src/Graph";
 import { createFakeAccelerator, type FakeAccelerator } from "../../../src/testing/fakeAccelerator";
 import { InputGraph } from "./harness";
 
@@ -163,4 +171,80 @@ describe("uploaded equals released", () => {
         assert.include(fake.calls.release, computed, "released when the run published");
         assertBalanced(graph, fake);
     });
+});
+
+/**
+ * The shared fake, with the three members it lacks answered by the CPU port and recorded as
+ * uploads, so every accelerated adapter hands it its input.
+ * @returns The fake.
+ */
+function everyMember(): FakeAccelerator {
+    const cpu = accelerated(null);
+    const recorded =
+        <A extends unknown[], R>(name: string, work: (snapshot: GraphSnapshot, ...rest: A) => Promise<R>) =>
+        (snapshot: GraphSnapshot, ...rest: A): Promise<R> => {
+            fake.calls.uploaded.push(snapshot);
+            return work(snapshot, ...rest).then((value) => {
+                assert.isDefined(value, name);
+                return value;
+            });
+        };
+    const fake = createFakeAccelerator({
+        members: {
+            sssp: recorded("sssp", (snapshot, source: number) => cpu.sssp(snapshot, source)),
+            breadthFirstSearch: recorded("breadthFirstSearch", (snapshot, source: number) => cpu.breadthFirstSearch(snapshot, source)),
+            minimumSpanningTree: recorded("minimumSpanningTree", (snapshot) => cpu.minimumSpanningTree(snapshot)),
+        },
+    });
+
+    return fake;
+}
+
+/** The five adapters that run through `accelerated()`, as a scoped run builds them. */
+const ADAPTERS: readonly (readonly [string, (graph: Graph) => Algorithm])[] = [
+    ["pagerank", (graph) => new PageRankAlgorithm(graph)],
+    ["dijkstra", (graph) => new DijkstraAlgorithm(graph)],
+    ["bfs", (graph) => new BFSAlgorithm(graph)],
+    ["connected components", (graph) => new ConnectedComponentsAlgorithm(graph)],
+    ["kruskal", (graph) => new KruskalAlgorithm(graph)],
+];
+
+describe("uploaded equals released, through the five real adapters", () => {
+    for (const [name, build] of ADAPTERS) {
+        it(`${name}: repeated scoped runs, a re-freeze, and teardown`, async () => {
+            const ids = Array.from({ length: 12 }, (_, index) => `n${String(index)}`);
+            const graph = new InputGraph(
+                ids,
+                ids.map((id, index) => [id, ids[(index + 1) % ids.length], index + 1] as const),
+            );
+            const fake = everyMember();
+            graph.acceleration.setAccelerator(fake);
+            const run = async (): Promise<void> => {
+                const algorithm = build(graph.asGraph());
+                const scope = graph.scope(["n0", "n1", "n2", "n3"]);
+                await withRunInput(algorithm, graph, () => scope, undefined, () => algorithm.publishResult(detachedRunContext(), "r"));
+            };
+
+            await run();
+            await run();
+            assert.strictEqual(new Set(fake.calls.uploaded).size, 1, "a repeated scope hands the accelerator the same snapshot");
+            assert.strictEqual(fake.calls.uploaded[0].nodeCount, 4, "the scope's input, not the whole graph");
+
+            graph.add(["late"]);
+            derivedInputsOf(graph).freeze();
+            await run();
+
+            assert.strictEqual(new Set(fake.calls.uploaded).size, 2);
+
+            /* An undirected adapter's input is derived through a declared intermediate that is
+               cached beside it and never uploaded; it is released too, which a real accelerator
+               answers as a no-op for a snapshot it never saw. So: every upload is released, once. */
+            derivedInputsOf(graph).dispose();
+            const released = fake.calls.release;
+            assert.strictEqual(new Set(released).size, released.length, "nothing is released twice");
+            for (const snapshot of new Set(fake.calls.uploaded)) {
+                assert.include(released, snapshot, "every upload is released");
+            }
+        });
+    }
 });

@@ -25,6 +25,8 @@ const K_CORE_FIELDS: readonly FieldDescriptor[] = nodeMetricFields({
 export class KCoreAlgorithm extends MetricAlgorithm {
     static namespace = "graphty";
     static type = "k-core";
+    /** Computes over the run's scope: the node list and the graph both come from the input. */
+    static scopeInput = "subgraph" as const;
 
     /**
      * The fields a k-core result publishes.

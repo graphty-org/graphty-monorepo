@@ -1,6 +1,7 @@
-import { describe, it, expect } from "vitest";
-import { forceatlas2Layout } from "../src/layouts/force-directed/forceatlas2";
+import { describe, expect,it } from "vitest";
+
 import { randomGraph } from "../src/generators/random";
+import { forceatlas2Layout } from "../src/layouts/force-directed/forceatlas2";
 
 describe("ForceAtlas2 3D Edge Cases", () => {
     it("should handle 2D initial positions when requesting 3D output", () => {
@@ -32,7 +33,7 @@ describe("ForceAtlas2 3D Edge Cases", () => {
         );
 
         // All positions should be 3D with valid Z coordinates
-        Object.entries(positions3D).forEach(([node, pos]) => {
+        Object.values(positions3D).forEach((pos) => {
             expect(pos).toHaveLength(3);
             expect(typeof pos[0]).toBe("number");
             expect(typeof pos[1]).toBe("number");
@@ -80,7 +81,7 @@ describe("ForceAtlas2 3D Edge Cases", () => {
         );
 
         // All should be valid 3D
-        Object.entries(positions3D).forEach(([node, pos]) => {
+        Object.values(positions3D).forEach((pos) => {
             expect(pos).toHaveLength(3);
             expect(isNaN(pos[0])).toBe(false);
             expect(isNaN(pos[1])).toBe(false);
@@ -123,7 +124,7 @@ describe("ForceAtlas2 3D Edge Cases", () => {
         );
 
         // Should expand to 3D
-        Object.entries(positions3D).forEach(([node, pos]) => {
+        Object.values(positions3D).forEach((pos) => {
             expect(pos).toHaveLength(3);
             expect(isNaN(pos[0])).toBe(false);
             expect(isNaN(pos[1])).toBe(false);
@@ -152,7 +153,7 @@ describe("ForceAtlas2 3D Edge Cases", () => {
             3,
         );
 
-        Object.entries(positions3D).forEach(([node, pos]) => {
+        Object.values(positions3D).forEach((pos) => {
             expect(pos).toHaveLength(3);
             expect(isNaN(pos[0])).toBe(false);
             expect(isNaN(pos[1])).toBe(false);

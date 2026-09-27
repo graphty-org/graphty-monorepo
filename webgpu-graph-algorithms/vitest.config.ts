@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
 import { defineConfig } from "vitest/config";
 
 /**
@@ -87,7 +88,7 @@ function browserLaunchEnv(): Record<string, string> | undefined {
  * @returns the names in command-line order
  */
 function selectedProjects(): string[] {
-    const argv = process.argv;
+    const {argv} = process;
     const names: string[] = [];
     for (let i = 0; i < argv.length; i++) {
         const a = argv[i];

@@ -31,6 +31,7 @@ import type { RunResult } from "../results/types";
 import type { FilterRunResult } from "../visibility/filter";
 import { type OfferCounts, resolveSet } from "./cache";
 import { itemKeyOf } from "./captures";
+import { listedEdgesOf } from "./prepare";
 import { type ResolveContext, ruleHalves } from "./resolve";
 import { definitionSignature, identityOf } from "./signature";
 import type { ElementSet, Memberships, SetOffer } from "./types";
@@ -510,7 +511,7 @@ function holds(set: ElementSet, isNode: boolean, index: number, context: Resolve
     }
 
     // A fixed set's node half is its nodes plus its edges' endpoints; with no edges, its nodes.
-    if (definition.kind === "fixed" && (definition.edges ?? []).length === 0) {
+    if (definition.kind === "fixed" && listedEdgesOf(definition).length === 0) {
         const has = (node: number): boolean => holdsNode(definition.nodes, snapshot.ids.idOf(node));
 
         return isNode ? has(index) : has(snapshot.edgeSource(index)) && has(snapshot.edgeTarget(index));

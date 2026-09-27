@@ -22,9 +22,9 @@
 import { type GraphSnapshot, INVALID_INDEX, makeMask, maskSet, maskToIndices, maskXor, type U32 } from "@graphty/graph-format";
 
 import type { Scope } from "../../catalog/types";
+import { EDGE_ID_COLUMN } from "../../data/edgeIdentity";
 import { isGraphtyError } from "../../errors";
 import { canonicalize } from "../runs/runId";
-import { edgeSpaceOf } from "../scope/ScopeApi";
 import type { LiveScope, SelectorTarget } from "../styles/predicate";
 import type { ElementIndices } from "../styles/repaint";
 import type { SetWatch } from "./notify";
@@ -251,13 +251,23 @@ class Entry implements LiveScope {
                 }
             }
 
+            // Edges by their counters: one pass over each edge-id column, never graph-format's
+            // EdgeIdIndex (design 6.3), which would hold a map entry per edge of the graph.
             const edge = makeMask(graph.edgeCount);
-            const fromSpace = edgeSpaceOf(from);
-            const toSpace = edgeSpaceOf(graph);
-            for (const index of maskToIndices(resolution.edges, from.edgeCount)) {
-                const row = toSpace.indexOf(fromSpace.idOf(index));
-                if (row !== INVALID_INDEX) {
-                    maskSet(edge, row, true);
+            const before = from.edges.typed(EDGE_ID_COLUMN, "u32");
+            const after = graph.edges.typed(EDGE_ID_COLUMN, "u32");
+            if (before !== null && after !== null) {
+                const counters = new Set<number>();
+                for (const index of maskToIndices(resolution.edges, from.edgeCount)) {
+                    if (before.isSet(index)) {
+                        counters.add(before.data[index]);
+                    }
+                }
+
+                for (let row = 0; counters.size > 0 && row < graph.edgeCount; row++) {
+                    if (after.isSet(row) && counters.has(after.data[row])) {
+                        maskSet(edge, row, true);
+                    }
                 }
             }
 

@@ -373,7 +373,8 @@ function seedsPart(seeds: EdgeSeeds | undefined): string {
 function definitionPart(id: SetId, definition: SetDefinition, context: ResolveContext, parts: Map<unknown, string | null> | null, seen: Set<ScopeId>): string | null {
     switch (definition.kind) {
         case "fixed":
-            return definition.edges === undefined ? "f" : `f${seedsPart(context.sets?.seedsOf(id))}`;
+            // `in`, not a read: reading `edges` would materialise a fixed set's compact members.
+            return "edges" in definition ? `f${seedsPart(context.sets?.seedsOf(id))}` : "f";
         case "path":
             return `p${seedsPart(context.sets?.seedsOf(id))}`;
         case "rule":

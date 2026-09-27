@@ -36,7 +36,7 @@ import { type CompiledHalves, compileFilter, type FilterSources, type FilterValu
 import type { SetsCache } from "./cache";
 import { referentReading } from "./dependencies";
 import { resolvePath } from "./path";
-import { opaqueName } from "./prepare";
+import { type EdgeMemberList, listedEdgesOf, opaqueName } from "./prepare";
 import { scopeSignature } from "./signature";
 
 /**
@@ -762,7 +762,7 @@ const monotonic = new WeakMap<GraphSnapshot, boolean>();
  * @param seeds - Its seeds, if any.
  * @returns The plan.
  */
-function planOf(key: object, members: readonly EdgeMember[], seeds: EdgeSeeds | undefined): BindingPlan {
+function planOf(key: object, members: EdgeMemberList, seeds: EdgeSeeds | undefined): BindingPlan {
     const cached = plans.get(key);
     if (cached !== undefined && cached.seeds === seeds && cached.version === (seeds?.version ?? 0)) {
         return cached;
@@ -772,7 +772,7 @@ function planOf(key: object, members: readonly EdgeMember[], seeds: EdgeSeeds | 
     const pairs: [counter: number, member: number][] = [];
     const unseeded: number[] = [];
     for (let i = 0; i < members.length; i++) {
-        const counter = seeds === undefined || seeds.counters.size === 0 ? undefined : seeds.counters.get(edgeMemberKey(members[i]));
+        const counter = seeds === undefined || seeds.counters.size === 0 ? undefined : seeds.counters.get(edgeMemberKey(members.at(i) as EdgeMember));
         if (counter === undefined) {
             unseeded.push(i);
         } else {
@@ -875,7 +875,7 @@ function bindSeeded(plan: BindingPlan, snapshot: GraphSnapshot, rowOf: Int32Arra
  * @param context - What the resolution reads.
  * @param rowOf - Written: each bound member's row, or {@link EDGE_AMBIGUOUS}.
  */
-function bindByIdentity(members: readonly EdgeMember[], which: readonly number[], context: ResolveContext, rowOf: Int32Array): void {
+function bindByIdentity(members: EdgeMemberList, which: readonly number[], context: ResolveContext, rowOf: Int32Array): void {
     const { snapshot } = context;
     const ids = context.ids ?? snapshot.ids;
     const ordered = pairsOrdered(snapshot);
@@ -884,7 +884,7 @@ function bindByIdentity(members: readonly EdgeMember[], which: readonly number[]
     const byPair = new Map<number, number[]>();
     const hashes = new Map<number, LanePair>();
     for (const i of which) {
-        const member = members[i];
+        const member = members.at(i) as EdgeMember;
         const s = ids.indexOf(member.source);
         const t = ids.indexOf(member.target);
         if (s === INVALID_INDEX || t === INVALID_INDEX) {
@@ -919,7 +919,7 @@ function bindByIdentity(members: readonly EdgeMember[], which: readonly number[]
         }
 
         for (const i of candidates) {
-            const member = members[i];
+            const member = members.at(i) as EdgeMember;
             const hash = hashes.get(i);
             const match =
                 hash === undefined
@@ -940,7 +940,7 @@ function bindByIdentity(members: readonly EdgeMember[], which: readonly number[]
  * @param seeds - The set's seeds, if any.
  * @returns One entry per member: its row, {@link EDGE_MISSING} or {@link EDGE_AMBIGUOUS}.
  */
-export function bindEdgeMembers(key: object, members: readonly EdgeMember[], context: ResolveContext, seeds?: EdgeSeeds): Int32Array {
+export function bindEdgeMembers(key: object, members: EdgeMemberList, context: ResolveContext, seeds?: EdgeSeeds): Int32Array {
     const rowOf = new Int32Array(members.length).fill(EDGE_MISSING);
     if (members.length === 0) {
         return rowOf;
@@ -987,9 +987,10 @@ export function resolveFixed(definition: Extract<SetDefinition, { kind: "fixed" 
     const { snapshot } = context;
     const nodes = makeMask(snapshot.nodeCount);
     const missingNodes = addIds(definition.nodes, nodes, context);
-    const listed = definition.edges ?? [];
+    const listed = listedEdgesOf(definition);
 
-    for (const member of listed) {
+    for (let i = 0; i < listed.length; i++) {
+        const member = listed.at(i) as EdgeMember;
         // Endpoints join the node half; one the graph no longer holds is simply not there.
         for (const end of [member.source, member.target]) {
             const index = (context.ids ?? snapshot.ids).indexOf(end);

@@ -190,11 +190,31 @@ class Interner {
 const ABSENT = -1;
 
 /**
+ * The bytes one materialised member object is charged: a frozen object of three or four
+ * properties plus its array slot, on a 64-bit engine without pointer compression.
+ */
+const MATERIALISED_MEMBER_BYTES = 72;
+
+/**
+ * Edge members read one at a time, without materialising them all: an array, or a fixed set's
+ * compact columns, which build each member only when it is read. Internal.
+ */
+export interface EdgeMemberList {
+    readonly length: number;
+    /**
+     * One member.
+     * @param index - Its position.
+     * @returns The member, or undefined past the end.
+     */
+    at(index: number): EdgeMember | undefined;
+}
+
+/**
  * A fixed set's edge members in canonical order, as five typed columns over an interned id table:
  * about 20 bytes a member instead of an object each. Door-mode members only (an id, or an ordinal
  * with among; never a key or an unknown field), which is every member a door writes.
  */
-class EdgeColumns {
+class EdgeColumns implements EdgeMemberList {
     private materialised: readonly EdgeMember[] | undefined;
 
     /**
@@ -261,7 +281,20 @@ class EdgeColumns {
      * @returns The byte count.
      */
     get bytes(): number {
-        return this.source.byteLength * 5 + 16 * this.interner.values.length;
+        return this.source.byteLength * 5 + 16 * this.interner.values.length + MATERIALISED_MEMBER_BYTES * (this.materialised?.length ?? 0);
+    }
+
+    /**
+     * One member, built for this read unless the members were already materialised.
+     * @param row - The row.
+     * @returns The member, or undefined past the end.
+     */
+    at(row: number): EdgeMember | undefined {
+        if (row < 0 || row >= this.length) {
+            return undefined;
+        }
+
+        return this.materialised?.[row] ?? this.member(row);
     }
 
     /**
@@ -933,6 +966,26 @@ export function prepareMembers(records: RecordView, command: MembersCommand, lim
  */
 export function prepareRemove(records: RecordView, command: { readonly id: SetId }): SetId {
     return requireRecord(records, command.id).id;
+}
+
+/**
+ * A fixed definition's listed edge members, read through its compact columns when it has them, so
+ * a resolution never materialises `definition.edges`.
+ * @param definition - A fixed definition.
+ * @returns The members.
+ */
+export function listedEdgesOf(definition: Extract<SetDefinition, { kind: "fixed" }>): EdgeMemberList {
+    return columnsOf.get(definition) ?? definition.edges ?? [];
+}
+
+/**
+ * Door-mode edge members in the compact column form a fixed set holds them in: about 20 bytes a
+ * member plus the interned ids, instead of an object each.
+ * @param members - Members with an id, or an ordinal with among.
+ * @returns The members, and the bytes they hold by the columns' accounting.
+ */
+export function compactEdgeMembers(members: readonly EdgeMember[]): EdgeMemberList & { readonly bytes: number } {
+    return EdgeColumns.of(members);
 }
 
 /**

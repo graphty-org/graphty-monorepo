@@ -21,14 +21,18 @@ import { type GraphSnapshot, INVALID_INDEX, makeMask } from "@graphty/graph-form
 import { compareIds, runIdOfRef } from "../../catalog/sets/canonical";
 import type { EdgeMember, ItemKey, NodeId, ResultItem, RunId } from "../../catalog/types";
 import type { CapturedHalves, FilterRunResult } from "../visibility/filter";
+import { compactEdgeMembers, type EdgeMemberList } from "./prepare";
 import { addEdgeRow, bindEdgeMembers, edgeMemberKey, type ResolveContext } from "./resolve";
 
 /** One held item's members, as a re-run captured them. Frozen. */
 export interface Capture {
     /** Present when the item's field lives on nodes: the node ids, sorted. */
     readonly nodes?: readonly NodeId[];
-    /** Present when it lives on edges: the edges' stable identities, sorted by key. */
-    readonly edges?: readonly EdgeMember[];
+    /**
+     * Present when it lives on edges: the edges' stable identities, sorted by key, in the compact
+     * column form a fixed set holds them in.
+     */
+    readonly edges?: EdgeMemberList;
 }
 
 /** One run's captures: by held execution, then by item key ({@link itemKeyOf}). */
@@ -127,7 +131,7 @@ export function captureItem(
 ): Capture {
     const kinds = new Set(result.fields.filter((field) => field.name === key.field).map((field) => field.kind));
     let nodes: NodeId[] | undefined;
-    let edges: EdgeMember[] | undefined;
+    let edges: EdgeMemberList | undefined;
     if (kinds.has("node")) {
         nodes = [];
         for (let index = 0; index < snapshot.nodeCount; index++) {
@@ -148,12 +152,12 @@ export function captureItem(
             }
         }
 
-        edges = keyed.sort((a, b) => (a[0] < b[0] ? -1 : Number(a[0] > b[0]))).map(([, member]) => member);
+        edges = compactEdgeMembers(keyed.sort((a, b) => (a[0] < b[0] ? -1 : Number(a[0] > b[0]))).map(([, member]) => member));
     }
 
     return Object.freeze({
         ...(nodes === undefined ? {} : { nodes: Object.freeze(nodes) }),
-        ...(edges === undefined ? {} : { edges: Object.freeze(edges) }),
+        ...(edges === undefined ? {} : { edges }),
     });
 }
 

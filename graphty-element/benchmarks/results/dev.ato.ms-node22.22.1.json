@@ -272,5 +272,483 @@
                 "rateUnit": null
             }
         ]
+    },
+    {
+        "date": "2026-09-27T11:21:00.877Z",
+        "host": "dev.ato.ms",
+        "node": "v22.22.1",
+        "cpu": "Intel(R) Core(TM) i9-14900KF",
+        "exposeGc": false,
+        "results": [
+            {
+                "group": "sets",
+                "name": "revisionOf(fixed, 100k nodes)",
+                "medianMs": 27.087016000000062,
+                "minMs": 22.12947700000001,
+                "maxMs": 69.30893099999997,
+                "runs": 5,
+                "memoryDeltaBytes": 10003992,
+                "rate": 3691805.697608026,
+                "rateUnit": "members/s"
+            },
+            {
+                "group": "sets",
+                "name": "revisionOf(fixed, 100k listed edges)",
+                "medianMs": 164.92065200000002,
+                "minMs": 162.20445000000007,
+                "maxMs": 166.35118599999987,
+                "runs": 5,
+                "memoryDeltaBytes": 11370088,
+                "rate": 606352.198995672,
+                "rateUnit": "members/s"
+            },
+            {
+                "group": "resolve",
+                "name": "resolveNow({ nodes }) 50%, counts only, 100k / 499975 edges",
+                "medianMs": 5.005153999999948,
+                "minMs": 4.534954000000198,
+                "maxMs": 5.221454999999878,
+                "runs": 5,
+                "memoryDeltaBytes": 7097432,
+                "rate": 99892031.29414305,
+                "rateUnit": "edges/s"
+            },
+            {
+                "group": "resolve",
+                "name": "old Set-based resolve + fold, 50%, 100k / 499975 edges",
+                "medianMs": 15.845636999999897,
+                "minMs": 15.479475999999977,
+                "maxMs": 19.172373000000334,
+                "runs": 5,
+                "memoryDeltaBytes": 6023792,
+                "rate": 31552849.53201965,
+                "rateUnit": "edges/s"
+            },
+            {
+                "group": "resolve",
+                "name": "resolveFixed induced 50% (with edge pass), 100k / 499975 edges",
+                "medianMs": 2.7042939999996634,
+                "minMs": 2.659997000000203,
+                "maxMs": 3.5984019999996235,
+                "runs": 5,
+                "memoryDeltaBytes": 2076192,
+                "rate": 184881895.23774496,
+                "rateUnit": "edges/s"
+            },
+            {
+                "group": "resolve",
+                "name": "resolveFixed listed 50% (no edge pass), 100k / 499975 edges",
+                "medianMs": 0.3981770000000324,
+                "minMs": 0.38071899999977177,
+                "maxMs": 1.4821210000000065,
+                "runs": 5,
+                "memoryDeltaBytes": 2076480,
+                "rate": 1255660171.2302804,
+                "rateUnit": "edges/s"
+            },
+            {
+                "group": "resolve",
+                "name": "digest of \"visible\", nothing hidden, 100k / 499975 edges",
+                "medianMs": 2.1534130000000005,
+                "minMs": 2.130720999999994,
+                "maxMs": 2.254558999999972,
+                "runs": 5,
+                "memoryDeltaBytes": 308264,
+                "rate": 232177942.64267927,
+                "rateUnit": "edges/s"
+            },
+            {
+                "group": "listed",
+                "name": "first resolution, by identity, 249988 of 499975 edges",
+                "medianMs": 63.56919799999969,
+                "minMs": 61.48860399999967,
+                "maxMs": 82.78390200000013,
+                "runs": 5,
+                "memoryDeltaBytes": 30830696,
+                "rate": 3932533.488939112,
+                "rateUnit": "members/s"
+            },
+            {
+                "group": "listed",
+                "name": "first resolution, seeded (merge), 249988 of 499975 edges",
+                "medianMs": 97.56555800000024,
+                "minMs": 95.4594590000006,
+                "maxMs": 121.67239599999994,
+                "runs": 5,
+                "memoryDeltaBytes": 25820608,
+                "rate": 2562256.6520861736,
+                "rateUnit": "members/s"
+            },
+            {
+                "group": "algebra",
+                "name": "combineMasks union, 100k / 499975 edges, 50% induced with 33% listed",
+                "medianMs": 5.345852999999806,
+                "minMs": 5.0007290000003195,
+                "maxMs": 7.043657000000167,
+                "runs": 5,
+                "memoryDeltaBytes": -6484576,
+                "rate": 93525766.60825095,
+                "rateUnit": "edges/s"
+            },
+            {
+                "group": "algebra",
+                "name": "combineMasks intersection, 100k / 499975 edges, 50% induced with 33% listed",
+                "medianMs": 1.5784260000000359,
+                "minMs": 1.5716359999996712,
+                "maxMs": 1.6843150000004243,
+                "runs": 5,
+                "memoryDeltaBytes": 1914780,
+                "rate": 316755425.9749831,
+                "rateUnit": "edges/s"
+            },
+            {
+                "group": "algebra",
+                "name": "combineMasks difference, 100k / 499975 edges, 50% induced with 33% listed",
+                "medianMs": 2.4743399999997564,
+                "minMs": 2.4312449999997625,
+                "maxMs": 2.6881329999996524,
+                "runs": 5,
+                "memoryDeltaBytes": 3816900,
+                "rate": 202063984.73938474,
+                "rateUnit": "edges/s"
+            },
+            {
+                "group": "algebra",
+                "name": "combineMasks symmetric-difference, 100k / 499975 edges, 50% induced with 33% listed",
+                "medianMs": 4.8732910000007905,
+                "minMs": 4.657600999999886,
+                "maxMs": 5.149599999999737,
+                "runs": 5,
+                "memoryDeltaBytes": 9237060,
+                "rate": 102594940.46218847,
+                "rateUnit": "edges/s"
+            },
+            {
+                "group": "doors",
+                "name": "createFrom(\"visible\"), no filter, 100k (projection at 1M: under 200 ms)",
+                "medianMs": 19.26458999999977,
+                "minMs": 14.791752999999517,
+                "maxMs": 24.727145999999266,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": null,
+                "rateUnit": null
+            },
+            {
+                "group": "doors",
+                "name": "createFrom of a listed scope of every other edge, 100k, total",
+                "medianMs": 1453.6811310000012,
+                "minMs": 1343.6058990000001,
+                "maxMs": 1502.9840990000012,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": null,
+                "rateUnit": null
+            },
+            {
+                "group": "doors",
+                "name": "createFrom of a listed scope of every other edge, 100k, synchronous commit (projection at 5M edges: under 50 ms)",
+                "medianMs": 439.08844899999895,
+                "minMs": 405.0953980000013,
+                "maxMs": 456.72371100000237,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": null,
+                "rateUnit": null
+            },
+            {
+                "group": "members",
+                "name": "addMembers of 3 nodes on a 50000-member set, 100k",
+                "medianMs": 5.367615999999543,
+                "minMs": 5.019454000001133,
+                "maxMs": 5.759120999999141,
+                "runs": 5,
+                "memoryDeltaBytes": -4807752,
+                "rate": 558.9073435954165,
+                "rateUnit": "members/s"
+            }
+        ]
+    },
+    {
+        "date": "2026-09-27T11:26:27.949Z",
+        "host": "dev.ato.ms",
+        "node": "v22.22.1",
+        "cpu": "Intel(R) Core(TM) i9-14900KF",
+        "exposeGc": false,
+        "results": [
+            {
+                "group": "sets",
+                "name": "revisionOf(fixed, 1M nodes)",
+                "medianMs": 115.02317999999991,
+                "minMs": 111.80697299999997,
+                "maxMs": 118.24948099999995,
+                "runs": 5,
+                "memoryDeltaBytes": 35450776,
+                "rate": 8693899.786112685,
+                "rateUnit": "members/s"
+            },
+            {
+                "group": "sets",
+                "name": "revisionOf(fixed, 1M listed edges)",
+                "medianMs": 1642.9398359999996,
+                "minMs": 1599.4679160000005,
+                "maxMs": 1681.037182,
+                "runs": 5,
+                "memoryDeltaBytes": 94298240,
+                "rate": 608665.0150468445,
+                "rateUnit": "members/s"
+            },
+            {
+                "group": "resolve",
+                "name": "resolveNow({ nodes }) 50%, counts only, 1M / 4999975 edges",
+                "medianMs": 66.199273000002,
+                "minMs": 49.61701600000015,
+                "maxMs": 67.30308400000285,
+                "runs": 5,
+                "memoryDeltaBytes": 18459520,
+                "rate": 75529152.71440895,
+                "rateUnit": "edges/s"
+            },
+            {
+                "group": "resolve",
+                "name": "old Set-based resolve + fold, 50%, 1M / 4999975 edges",
+                "medianMs": 249.38307899999927,
+                "minMs": 240.6446939999987,
+                "maxMs": 335.48923300000024,
+                "runs": 5,
+                "memoryDeltaBytes": 13869528,
+                "rate": 20049375.523188625,
+                "rateUnit": "edges/s"
+            },
+            {
+                "group": "resolve",
+                "name": "resolveFixed induced 50% (with edge pass), 1M / 4999975 edges",
+                "medianMs": 27.141805999999633,
+                "minMs": 26.994670999996742,
+                "maxMs": 29.158321000002616,
+                "runs": 5,
+                "memoryDeltaBytes": 751128,
+                "rate": 184216739.29878017,
+                "rateUnit": "edges/s"
+            },
+            {
+                "group": "resolve",
+                "name": "resolveFixed listed 50% (no edge pass), 1M / 4999975 edges",
+                "medianMs": 2.304425000002084,
+                "minMs": 2.2831609999993816,
+                "maxMs": 2.364924000001338,
+                "runs": 5,
+                "memoryDeltaBytes": 751336,
+                "rate": 2169727806.283771,
+                "rateUnit": "edges/s"
+            },
+            {
+                "group": "resolve",
+                "name": "digest of \"visible\", nothing hidden, 1M / 4999975 edges",
+                "medianMs": 9.536267999999836,
+                "minMs": 9.275094999997236,
+                "maxMs": 9.555238999997528,
+                "runs": 5,
+                "memoryDeltaBytes": 1864,
+                "rate": 524311502.1515845,
+                "rateUnit": "edges/s"
+            },
+            {
+                "group": "listed",
+                "name": "first resolution, by identity, 999995 of 4999975 edges",
+                "medianMs": 981.3508489999949,
+                "minMs": 916.6022040000025,
+                "maxMs": 1155.6112009999997,
+                "runs": 5,
+                "memoryDeltaBytes": 148942824,
+                "rate": 1018998.4560761359,
+                "rateUnit": "members/s"
+            },
+            {
+                "group": "listed",
+                "name": "first resolution, seeded (merge), 999995 of 4999975 edges",
+                "medianMs": 544.4969399999973,
+                "minMs": 511.18442000000505,
+                "maxMs": 583.240641999997,
+                "runs": 5,
+                "memoryDeltaBytes": 133428264,
+                "rate": 1836548.4294549113,
+                "rateUnit": "members/s"
+            },
+            {
+                "group": "algebra",
+                "name": "combineMasks union, 1M / 4999975 edges, 50% induced with 33% listed",
+                "medianMs": 46.32144399999379,
+                "minMs": 45.415525999997044,
+                "maxMs": 48.00307199999952,
+                "runs": 5,
+                "memoryDeltaBytes": 11791480,
+                "rate": 107940827.57870568,
+                "rateUnit": "edges/s"
+            },
+            {
+                "group": "algebra",
+                "name": "combineMasks intersection, 1M / 4999975 edges, 50% induced with 33% listed",
+                "medianMs": 15.44183399999747,
+                "minMs": 15.419294999999693,
+                "maxMs": 15.5697380000056,
+                "runs": 5,
+                "memoryDeltaBytes": 944296,
+                "rate": 323794116.68334335,
+                "rateUnit": "edges/s"
+            },
+            {
+                "group": "algebra",
+                "name": "combineMasks difference, 1M / 4999975 edges, 50% induced with 33% listed",
+                "medianMs": 23.045422000002873,
+                "minMs": 22.808893999994325,
+                "maxMs": 24.822684999999183,
+                "runs": 5,
+                "memoryDeltaBytes": 4430700,
+                "rate": 216961746.24180788,
+                "rateUnit": "edges/s"
+            },
+            {
+                "group": "algebra",
+                "name": "combineMasks symmetric-difference, 1M / 4999975 edges, 50% induced with 33% listed",
+                "medianMs": 46.50420500000473,
+                "minMs": 43.58237799999915,
+                "maxMs": 48.96321400000306,
+                "runs": 5,
+                "memoryDeltaBytes": -5287532,
+                "rate": 107516621.34638129,
+                "rateUnit": "edges/s"
+            },
+            {
+                "group": "doors",
+                "name": "createFrom(\"visible\"), no filter, 1M (projection at 1M: under 200 ms)",
+                "medianMs": 190.30230999999912,
+                "minMs": 174.75700099999085,
+                "maxMs": 202.60687499999767,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": null,
+                "rateUnit": null
+            },
+            {
+                "group": "doors",
+                "name": "createFrom of a listed scope of every other edge, 1M, total",
+                "medianMs": 21112.017771000043,
+                "minMs": 20464.08972399999,
+                "maxMs": 21885.718796,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": null,
+                "rateUnit": null
+            },
+            {
+                "group": "doors",
+                "name": "createFrom of a listed scope of every other edge, 1M, synchronous commit (projection at 5M edges: under 50 ms)",
+                "medianMs": 7176.495931999991,
+                "minMs": 6607.885930999997,
+                "maxMs": 7217.506506000005,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": null,
+                "rateUnit": null
+            },
+            {
+                "group": "members",
+                "name": "addMembers of 3 nodes on a 500000-member set, 1M",
+                "medianMs": 50.737415999989025,
+                "minMs": 49.61746499995934,
+                "maxMs": 53.4653849999886,
+                "runs": 5,
+                "memoryDeltaBytes": 629144,
+                "rate": 59.12796189700809,
+                "rateUnit": "members/s"
+            }
+        ]
+    },
+    {
+        "date": "2026-09-27T11:53:09.638Z",
+        "host": "dev.ato.ms",
+        "node": "v22.22.1",
+        "cpu": "Intel(R) Core(TM) i9-14900KF",
+        "exposeGc": false,
+        "results": [
+            {
+                "group": "doors",
+                "name": "createFrom(\"visible\"), no filter, 1M, m = 10 (projection at 1M: under 200 ms)",
+                "medianMs": 329.3796719999955,
+                "minMs": 309.3887550000072,
+                "maxMs": 443.9417270000122,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": null,
+                "rateUnit": null
+            },
+            {
+                "group": "doors",
+                "name": "createFrom of a listed scope of every other edge, 1M, m = 10, total",
+                "medianMs": 56432.56231099996,
+                "minMs": 50829.887101,
+                "maxMs": 64545.47423200001,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": null,
+                "rateUnit": null
+            },
+            {
+                "group": "doors",
+                "name": "createFrom of a listed scope of every other edge, 1M, m = 10, synchronous commit (projection at 5M edges: under 50 ms)",
+                "medianMs": 18112.50210099999,
+                "minMs": 17037.583301000006,
+                "maxMs": 24930.051038999984,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": null,
+                "rateUnit": null
+            },
+            {
+                "group": "algebra",
+                "name": "combineMasks union, 1M, m = 10 / 9999900 edges, 50% induced with 33% listed",
+                "medianMs": 88.09315899992362,
+                "minMs": 85.581341000041,
+                "maxMs": 167.81955200002994,
+                "runs": 5,
+                "memoryDeltaBytes": 23429948,
+                "rate": 113515057.39519082,
+                "rateUnit": "edges/s"
+            },
+            {
+                "group": "algebra",
+                "name": "combineMasks intersection, 1M, m = 10 / 9999900 edges, 50% induced with 33% listed",
+                "medianMs": 30.543776000034995,
+                "minMs": 30.03036799991969,
+                "maxMs": 41.7319290000014,
+                "runs": 5,
+                "memoryDeltaBytes": 4976920,
+                "rate": 327395669.74261934,
+                "rateUnit": "edges/s"
+            },
+            {
+                "group": "algebra",
+                "name": "combineMasks difference, 1M, m = 10 / 9999900 edges, 50% induced with 33% listed",
+                "medianMs": 44.6815470000729,
+                "minMs": 44.11660800001118,
+                "maxMs": 74.76250099996105,
+                "runs": 5,
+                "memoryDeltaBytes": 8717036,
+                "rate": 223803799.8098787,
+                "rateUnit": "edges/s"
+            },
+            {
+                "group": "algebra",
+                "name": "combineMasks symmetric-difference, 1M, m = 10 / 9999900 edges, 50% induced with 33% listed",
+                "medianMs": 84.91968399996404,
+                "minMs": 83.36661700007971,
+                "maxMs": 286.5107710000593,
+                "runs": 5,
+                "memoryDeltaBytes": 3335776,
+                "rate": 117757150.391707,
+                "rateUnit": "edges/s"
+            }
+        ]
     }
 ]

@@ -3,14 +3,16 @@
  * and appends the session to `benchmarks/results/<host>-<node>.json`. Timings are recorded beside
  * the design's projections (design/sets/sets-design.md section 6.5), never asserted.
  *
- * Inputs are seeded Barabasi-Albert graphs (m = 5) from @graphty/graph-samples at 100k nodes, or
- * 1M with GRAPHTY_BENCH_SCALE=large.
+ * Inputs are seeded Barabasi-Albert graphs from @graphty/graph-samples at 100k nodes, or 1M with
+ * GRAPHTY_BENCH_SCALE=large; m = 5 (about 5 edges a node), or GRAPHTY_BENCH_M=10 for the rows
+ * design 6.5 states at 1M nodes / 10M edges.
  *
  * Usage (from the package directory):
  *
  *   npm run benchmark                                  # every group
  *   npx tsx benchmarks/run.ts sets                     # selected groups
  *   GRAPHTY_BENCH_SCALE=large npm run benchmark        # the 1M rows
+ *   GRAPHTY_BENCH_SCALE=large GRAPHTY_BENCH_M=10 npx tsx benchmarks/run.ts resolve doors   # 1M / 10M
  *   node --expose-gc --import tsx benchmarks/run.ts    # GC before every run for exact memory deltas
  *   npx tsx benchmarks/run.ts --no-save                # do not append to benchmarks/results
  */
@@ -33,14 +35,15 @@ import { appendSession, bench, type BenchResult, benchTimed, printTable } from "
 
 const LARGE = process.env.GRAPHTY_BENCH_SCALE === "large";
 const NODES = LARGE ? 1_000_000 : 100_000;
-const LABEL = LARGE ? "1M" : "100k";
+const M = Number(process.env.GRAPHTY_BENCH_M ?? 5);
+const LABEL = `${LARGE ? "1M" : "100k"}${M === 5 ? "" : `, m = ${String(M)}`}`;
 
 /**
  * The sets rows: the revision of a fixed set of every node, and of as many listed edges.
  * @returns The results.
  */
 function runSetsBenchmarks(): BenchResult[] {
-    const graph = barabasiAlbertGraph({ n: NODES, m: 5, seed: 1 });
+    const graph = barabasiAlbertGraph({ n: NODES, m: M, seed: 1 });
     const nodes = Array.from({ length: NODES }, (_, i) => i);
     const edges: EdgeMember[] = Array.from({ length: NODES }, (_, i) => ({
         source: graph.src[i],
@@ -99,7 +102,7 @@ function setBasedResolve(snapshot: GraphSnapshot, ids: readonly NodeId[]): strin
  * @returns The results.
  */
 function runResolveBenchmarks(): BenchResult[] {
-    const graph = barabasiAlbertGraph({ n: NODES, m: 5, seed: 1 });
+    const graph = barabasiAlbertGraph({ n: NODES, m: M, seed: 1 });
     const snapshot = fromEdgeArrays(graph);
     const half = Array.from({ length: Math.floor(NODES / 2) }, (_, i) => 2 * i);
     const nodeSpace = nodeSpaceOf(snapshot);
@@ -154,7 +157,7 @@ function runResolveBenchmarks(): BenchResult[] {
  * @returns The results.
  */
 function runListedBenchmarks(): BenchResult[] {
-    const graph = barabasiAlbertGraph({ n: NODES, m: 5, seed: 1 });
+    const graph = barabasiAlbertGraph({ n: NODES, m: M, seed: 1 });
     const store = new GraphStore({
         directed: false,
         positionScale: () => 1,
@@ -204,7 +207,7 @@ function runListedBenchmarks(): BenchResult[] {
  * @returns The session and its snapshot.
  */
 function sessionOverGraph(): { session: GraphSession; snapshot: GraphSnapshot } {
-    const graph = barabasiAlbertGraph({ n: NODES, m: 5, seed: 1 });
+    const graph = barabasiAlbertGraph({ n: NODES, m: M, seed: 1 });
     const store = new GraphStore({
         directed: false,
         positionScale: () => 1,
@@ -233,7 +236,7 @@ function sessionOverGraph(): { session: GraphSession; snapshot: GraphSnapshot } 
  * @returns The results.
  */
 function runAlgebraBenchmarks(): BenchResult[] {
-    const graph = barabasiAlbertGraph({ n: NODES, m: 5, seed: 1 });
+    const graph = barabasiAlbertGraph({ n: NODES, m: M, seed: 1 });
     const snapshot = fromEdgeArrays(graph);
     const induced = resolveFixed({ kind: "fixed", nodes: Array.from({ length: Math.ceil(NODES / 2) }, (_, i) => 2 * i), reading: "induced" }, { snapshot });
     const listedEdges = makeMask(snapshot.edgeCount);
@@ -315,12 +318,45 @@ async function runDoorBenchmarks(): Promise<BenchResult[]> {
     return [visible, total, commit];
 }
 
+/**
+ * The member-edit row (design 6.5): a three-node `addMembers` on a set of half the graph's nodes
+ * (500,000 at the large scale), which updates the resolution, revision and digest by the delta.
+ * @returns The results.
+ */
+function runMemberBenchmarks(): BenchResult[] {
+    const { session } = sessionOverGraph();
+    const half = Array.from({ length: NODES / 2 }, (_, i) => 2 * i);
+
+    return [
+        bench(
+            "members",
+            `addMembers of 3 nodes on a ${String(half.length)}-member set, ${LABEL}`,
+            {
+                setup: () => {
+                    const id = session.sets.create({ kind: "fixed", nodes: half, reading: "induced" });
+                    // Resolved once, as a set on screen would be, so the edit carries the delta.
+                    void session.scope.count({ set: id });
+
+                    return id;
+                },
+                run: (id) => {
+                    session.sets.addMembers(id, { nodes: [1, 3, 5] });
+
+                    return session.sets.get(id)?.revision;
+                },
+            },
+            { items: 3, unit: "members" },
+        ),
+    ];
+}
+
 const GROUPS: Readonly<Record<string, () => BenchResult[] | Promise<BenchResult[]>>> = {
     sets: runSetsBenchmarks,
     resolve: runResolveBenchmarks,
     listed: runListedBenchmarks,
     algebra: runAlgebraBenchmarks,
     doors: runDoorBenchmarks,
+    members: runMemberBenchmarks,
 };
 
 const args = process.argv.slice(2);

@@ -32,6 +32,7 @@ import { createOffering, offerCounters,type Offering } from "../../../src/sessio
 import { digestOf, type Resolution, type ResolveContext, resolveCounters, resolveScope } from "../../../src/session/sets/resolve";
 import { scopeSignature, signatureCounters } from "../../../src/session/sets/signature";
 import { InputGraph, resolutionOver } from "../../algorithms/input/harness";
+import { reachableBytes } from "./bytes";
 import { type EdgeRecord, TestGraph } from "./graphs";
 
 const RECORDS: EdgeRecord[] = [
@@ -498,25 +499,6 @@ function sized(bytes: number): Resolution {
         missingEdges: 0,
         ambiguousEdges: 0,
     };
-}
-
-/**
- * Every typed-array byte reachable from a value.
- * @param value - The value.
- * @param seen - Objects walked already.
- * @returns The bytes.
- */
-function reachableBytes(value: unknown, seen = new Set<unknown>()): number {
-    if (typeof value !== "object" || value === null || seen.has(value)) {
-        return 0;
-    }
-
-    seen.add(value);
-    if (ArrayBuffer.isView(value)) {
-        return value.byteLength;
-    }
-
-    return Object.values(value).reduce<number>((sum, child) => sum + reachableBytes(child, seen), 0);
 }
 
 const MB = 1024 * 1024;

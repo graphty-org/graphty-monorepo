@@ -21,7 +21,7 @@
  * by name.
  */
 
-import { commands } from "@vitest/browser/context";
+import { commands } from "vitest/browser";
 
 import type { BenchResult, BenchSession, GpuSessionInfo } from "../../benchmarks/harness.js";
 import { runnerClass } from "../../scripts/runner-class.js";

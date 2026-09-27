@@ -57,7 +57,7 @@ import {
 } from "./fa2-parity.js";
 import { fixture } from "./graphs.js";
 import { fieldRelError, flooredRelError } from "./matchers.js";
-import { noiseFloorFor } from "./noise-floor.js";
+import { noiseFloorFor, sampleStrided } from "./noise-floor.js";
 import { type CheckReport, ratioOf } from "./sabotage.js";
 
 // ---------------------------------------------------------------- options and tunings
@@ -96,9 +96,9 @@ export const NEAR_MAX_SAMPLING = 8;
 const WRITE = process.env.GRAPHTY_NOISE_FLOOR_WRITE === "1";
 /** The one-cell fixtures that take an anchor node inside the layout (the module comment). */
 const ONE_CELL_FIXTURES: readonly string[] = Object.freeze(["hubcell", "onecell1k", "onecell1025"]);
-/** Every 4th node of a per-node noise fixture (the unscaled random20k: 5,000 nodes, 15,000 values per file). */
-const NODE_STRIDE = 4;
-/** At most this many cells of every pyramid level in the pyramid noise fixture (every level contributes; the coarse levels whole). */
+/** Every 5th node of a per-node noise fixture (the unscaled random20k: 4,000 nodes, 12,000 values per file); odd, so every lane residue is sampled (issue #267). */
+const NODE_STRIDE = 5;
+/** About this many cells of every pyramid level in the pyramid noise fixture (the stride rounded up to odd; every level contributes; the coarse levels whole). */
 const PYRAMID_LEVEL_SAMPLES = 1024;
 
 /** The anchor's coordinate on every axis (the module comment). */
@@ -290,7 +290,11 @@ export interface GridNoiseFixtureName {
  * trims those near-singular terms, the total left over is a sum of moderate terms that partly cancel, and the
  * floored per-node error of the positions after K5 reads 2.2e-5 on the RTX 4070 SUPER and 2.5e-5 on Apple Metal
  * where random20k's reads 2.4e-6 -- the same rounding on a worse-conditioned total, not a kernel defect (without
- * the floor clumpy100 reads 1.5e-5, as it did before #89).
+ * the floor clumpy100 reads 1.5e-5, as it did before #89). And `exactRmsSe` / `exactP99Se`, the exact-vs-grid
+ * repulsion of the SPRING-ELECTRICAL model (LAW 2) on the UNSCALED random20k in 2D, written by grid-law.test.ts:
+ * grid-law.test.ts and the LAW sabotage rows hold that model to grid-exact.rms / grid-exact.p99 too, and its RMS
+ * reads 2.5e-2 on the RTX 4070 SUPER where the ForceAtlas2 member reads 2.4e-3, so a floor from ForceAtlas2 alone
+ * derived a tolerance the spring model does not meet.
  */
 export const GRID_NOISE_FIXTURES: Readonly<
     Record<
@@ -308,6 +312,8 @@ export const GRID_NOISE_FIXTURES: Readonly<
         | "tiersSpmv"
         | "exactRms"
         | "exactP99"
+        | "exactRmsSe"
+        | "exactP99Se"
         | "expansion"
         | "distributional"
         | "unbiased",
@@ -328,6 +334,8 @@ export const GRID_NOISE_FIXTURES: Readonly<
     tiersSpmv: { kernel: "spmv-pull", fixture: "hub10k-tiers" },
     exactRms: { kernel: "grid-exact", fixture: "random20k-rms" },
     exactP99: { kernel: "grid-exact", fixture: "random20k-p99" },
+    exactRmsSe: { kernel: "grid-exact", fixture: "se-random20k-rms" },
+    exactP99Se: { kernel: "grid-exact", fixture: "se-random20k-p99" },
     expansion: { kernel: "grid-expansion", fixture: "random20k-spread200" },
     distributional: { kernel: "grid-distributional", fixture: "random20k-metrics200" },
     unbiased: { kernel: "grid-unbiased", fixture: `hubcell-mean${UNBIASED_SEEDS}` },
@@ -423,22 +431,14 @@ export function gridTolerance(id: string): { readonly value: number; readonly ba
 // ---------------------------------------------------------------- the noise fixture samples
 
 /**
- * Every NODE_STRIDE-th node's three lanes of a stride-3 array (the per-node noise fixtures of the unscaled
+ * Every NODE_STRIDE-th node's three values of a stride-3 array (the per-node noise fixtures of the unscaled
  * random20k; the same nodes on every adapter and in the reference, so the floored metric's floor is the same).
  * @param values - stride-3 values
  * @param n - the node count
  * @returns the sampled stride-3 values
  */
 export function sampleNodes(values: ArrayLike<number>, n: number): F64 {
-    const count = Math.ceil(n / NODE_STRIDE);
-    const out = new Float64Array(3 * count);
-    for (let k = 0; k < count; k++) {
-        const i = k * NODE_STRIDE;
-        out[3 * k] = values[3 * i];
-        out[3 * k + 1] = values[3 * i + 1];
-        out[3 * k + 2] = values[3 * i + 2];
-    }
-    return out;
+    return Float64Array.from(sampleStrided(values, NODE_STRIDE, 3, n));
 }
 
 /**
@@ -453,7 +453,9 @@ export function samplePyramid(xyz: ArrayLike<number>, spec: GridSpec): F64 {
     for (let level = 0; level < spec.levels; level++) {
         const base = spec.levelOffsets[level];
         const count = (level + 1 < spec.levels ? spec.levelOffsets[level + 1] : spec.pyramidCells) - base;
-        const stride = Math.max(1, Math.ceil(count / PYRAMID_LEVEL_SAMPLES));
+        // odd, like every noise fixture stride, so a sampled level reaches every lane residue (issue #267)
+        const even = Math.max(1, Math.ceil(count / PYRAMID_LEVEL_SAMPLES));
+        const stride = even % 2 === 0 ? even + 1 : even;
         for (let c = 0; c < count; c += stride) {
             out.push(xyz[3 * (base + c)], xyz[3 * (base + c) + 1], xyz[3 * (base + c) + 2]);
         }

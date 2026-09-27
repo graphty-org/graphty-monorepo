@@ -1,4 +1,4 @@
-import { BenchmarkBenchmarkGraphImpl, BenchmarkBenchmarkGraphMetadata } from "../types";
+import type { GraphImpl as BenchmarkGraphImpl, GraphMetadata as BenchmarkGraphMetadata } from "../benchmark-graph";
 import { generateRMATBenchmark } from "../datasets/generators/rmat-generator";
 import { generateSmallWorldBenchmark } from "../datasets/generators/small-world";
 
@@ -20,9 +20,9 @@ function generateRandomGraphFixed(vertices: number, edges: number): BenchmarkGra
         const from = Math.floor(Math.random() * vertices);
         const to = Math.floor(Math.random() * vertices);
 
-        if (from !== to && !adjacencyList.get(from)!.has(to)) {
-            adjacencyList.get(from)!.add(to);
-            adjacencyList.get(to)!.add(from);
+        if (from !== to && !adjacencyList.get(from)?.has(to)) {
+            adjacencyList.get(from)?.add(to);
+            adjacencyList.get(to)?.add(from);
             edgeCount++;
         }
         attempts++;
@@ -113,16 +113,16 @@ export const generateTestGraphs = {
                 // Connect to right neighbor
                 if (col < size - 1) {
                     const right = current + 1;
-                    adjacencyList.get(current)!.add(right);
-                    adjacencyList.get(right)!.add(current);
+                    adjacencyList.get(current)?.add(right);
+                    adjacencyList.get(right)?.add(current);
                     edges.push([current, right]);
                 }
 
                 // Connect to bottom neighbor
                 if (row < size - 1) {
                     const bottom = current + size;
-                    adjacencyList.get(current)!.add(bottom);
-                    adjacencyList.get(bottom)!.add(current);
+                    adjacencyList.get(current)?.add(bottom);
+                    adjacencyList.get(bottom)?.add(current);
                     edges.push([current, bottom]);
                 }
             }
@@ -174,8 +174,8 @@ export const generateTestGraphs = {
         // Connect all pairs
         for (let i = 0; i < vertices; i++) {
             for (let j = i + 1; j < vertices; j++) {
-                adjacencyList.get(i)!.add(j);
-                adjacencyList.get(j)!.add(i);
+                adjacencyList.get(i)?.add(j);
+                adjacencyList.get(j)?.add(i);
                 edges.push([i, j]);
             }
         }

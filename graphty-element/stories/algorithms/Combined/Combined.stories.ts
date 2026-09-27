@@ -8,6 +8,7 @@ import {
     type Drawn,
     drawn,
     holds,
+    renderedElement,
 } from "../../assertions";
 import { algorithmMetaBase, assertSizedBy, type Story, storySetup, waitForGraphSettled } from "../helpers";
 
@@ -65,8 +66,7 @@ export const DegreeAndPageRank: Story = {
             return;
         }
 
-        const graphtyElement = element as Graphty;
-        const { graph } = graphtyElement;
+        const { graph } = element;
 
         await graph.operationQueue.waitForCompletion();
 
@@ -78,7 +78,7 @@ export const DegreeAndPageRank: Story = {
                 "so neither run had anything to paint",
         );
 
-        await sizeByPageRank(graphtyElement, "Algorithms/Combined DegreeAndPageRank");
+        await sizeByPageRank(element, "Algorithms/Combined DegreeAndPageRank");
 
         const scene = await drawn(canvasElement, "Algorithms/Combined DegreeAndPageRank");
 
@@ -144,8 +144,7 @@ export const CentralityVsCommunity: Story = {
             return;
         }
 
-        const graphtyElement = element as Graphty;
-        const { graph } = graphtyElement;
+        const { graph } = element;
 
         await graph.operationQueue.waitForCompletion();
 
@@ -157,7 +156,7 @@ export const CentralityVsCommunity: Story = {
                 "had anything to paint",
         );
 
-        await sizeByPageRank(graphtyElement, "Algorithms/Combined CentralityVsCommunity");
+        await sizeByPageRank(element, "Algorithms/Combined CentralityVsCommunity");
 
         const scene = await drawn(canvasElement, "Algorithms/Combined CentralityVsCommunity");
 
@@ -200,8 +199,7 @@ export const CommunityStructureWithPath: Story = {
             return;
         }
 
-        const graphtyElement = element as Graphty;
-        const { graph } = graphtyElement;
+        const { graph } = element;
 
         await graph.operationQueue.waitForCompletion();
 
@@ -219,7 +217,7 @@ export const CommunityStructureWithPath: Story = {
                 "algorithms, so none of them had anything to paint",
         );
 
-        await sizeByPageRank(graphtyElement, "Algorithms/Combined CommunityStructureWithPath");
+        await sizeByPageRank(element, "Algorithms/Combined CommunityStructureWithPath");
 
         const scene = await drawn(canvasElement, "Algorithms/Combined CommunityStructureWithPath");
 
@@ -260,7 +258,7 @@ export const CombinedEdgeFlow: Story = {
             return;
         }
 
-        const { session } = element as Graphty;
+        const { session } = element;
 
         await session.styles.add({
             name: "Relationship strength",
@@ -306,11 +304,7 @@ export const LinkPrediction: Story = {
     play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
 
-        const element = canvasElement.querySelector("graphty-element");
-
-        await holds(element !== null, "LinkPrediction: no <graphty-element> rendered");
-
-        const { session } = element as Graphty;
+        const { session } = await renderedElement(canvasElement, "LinkPrediction: no <graphty-element> rendered");
         const layersBefore = session.styles.list().length;
         const result = await session.runs.start("link-prediction", { topK: 1 });
         const pairs = result.graph.pairs as readonly { source: string; target: string; score: number }[];
@@ -336,8 +330,8 @@ export const LinkPrediction: Story = {
         const painted = scene.nodes.filter((node) => node.hex?.toLowerCase() === PREDICTED_COLOUR).map((node) => node.id);
 
         await holds(
-            [...painted].sort().join(",") === [String(best.source), String(best.target)].sort().join(","),
-            `expected exactly ${String(best.source)} and ${String(best.target)} painted, drew ${painted.join(", ")}`,
+            [...painted].sort().join(",") === [best.source, best.target].sort().join(","),
+            `expected exactly ${best.source} and ${best.target} painted, drew ${painted.join(", ")}`,
         );
         await assertDistinctPicture(scene, "Algorithms/Combined");
     },

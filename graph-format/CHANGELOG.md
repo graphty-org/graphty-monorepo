@@ -1,3 +1,17 @@
+## 1.0.7 (2026-09-27)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.0.6 (2026-09-27)
+
+### 🩹 Fixes
+
+- **graph-format:** count every change the next freeze would show in mutationCount ([#100](https://github.com/graphty-org/graphty-monorepo/issues/100))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 1.0.5 (2026-09-26)
 
 This was a version bump only for graph-format to align it with other projects, there were no code changes.

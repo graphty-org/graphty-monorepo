@@ -25,6 +25,16 @@ export interface BoundKernel {
 /** Bytes of one indirect args slot: (x, y, 1, count) as four u32 (spec 5.4; P4 PD-2). */
 export const INDIRECT_ARGS_STRIDE = 16;
 
+/**
+ * The most buffer sets one Kernel keeps bind groups for; binding one more forgets the least recently bound. A
+ * Kernel lives as long as its context (the PipelineCache holds it), so an unbounded cache kept the bind groups --
+ * and, on Dawn, the native memory behind them -- of every simulation and scratch lease ever bound, disposed or not
+ * (issue #162). A caller keeps the BoundKernel it was given, so eviction only costs a later bind() of the same
+ * buffers a new createBindGroup. One simulation binds at most a dozen sets per kernel (the scan's levels).
+ * ponytail: a count bound, not a lifetime one; a per-buffer destroy hook would free a set as soon as its buffer goes.
+ */
+export const BIND_GROUP_CACHE_LIMIT = 32;
+
 /** Buffer identities for the bind-group cache key: every GPUBuffer seen by any Kernel gets one number, once. */
 const bufferIds = new WeakMap<GPUBuffer, number>();
 let nextBufferId = 1;
@@ -71,7 +81,7 @@ export class Kernel {
     private readonly groups: readonly (readonly BindingDecl[])[];
     /** The uniform-binding count of each group (the dynamic offsets a setBindGroup takes). */
     private readonly dynamicCounts: readonly number[];
-    /** Cached bind groups by buffer identity + offset + size. */
+    /** Cached bind groups by buffer identity + offset + size, least recently bound first (at most BIND_GROUP_CACHE_LIMIT). */
     private readonly cache = new Map<string, BoundKernel>();
 
     /**
@@ -213,6 +223,9 @@ export class Kernel {
             .join("|");
         const cached = this.cache.get(key);
         if (cached !== undefined) {
+            // re-insert: the Map's insertion order is the recency order the eviction below reads
+            this.cache.delete(key);
+            this.cache.set(key, cached);
             return cached;
         }
         const byName = new Map(resolved.map(({ decl, binding }) => [decl.name, binding] as const));
@@ -241,6 +254,9 @@ export class Kernel {
             dynamicGroups: Object.freeze(dynamicGroups),
         });
         this.cache.set(key, bound);
+        if (this.cache.size > BIND_GROUP_CACHE_LIMIT) {
+            this.cache.delete(this.cache.keys().next().value as string);
+        }
         return bound;
     }
 
@@ -290,11 +306,15 @@ export class Kernel {
     ): void {
         this.check(bound, dynamicOffsets);
         if (!Number.isInteger(slot) || slot < 0 || (slot + 1) * INDIRECT_ARGS_STRIDE > args.size) {
-            throw new WebGpuGraphError("E_INVALID_ARGUMENT", `${this.spec.id}: args slot ${slot} is outside the binding`, {
-                argument: "slot",
-                value: slot,
-                expected: `0 <= slot < ${Math.floor(args.size / INDIRECT_ARGS_STRIDE)}`,
-            });
+            throw new WebGpuGraphError(
+                "E_INVALID_ARGUMENT",
+                `${this.spec.id}: args slot ${slot} is outside the binding`,
+                {
+                    argument: "slot",
+                    value: slot,
+                    expected: `0 <= slot < ${Math.floor(args.size / INDIRECT_ARGS_STRIDE)}`,
+                },
+            );
         }
         this.setUp(pass, bound, dynamicOffsets);
         pass.dispatchWorkgroupsIndirect(args.buffer, args.offset + INDIRECT_ARGS_STRIDE * slot);
@@ -339,7 +359,11 @@ export class Kernel {
      * @param bound - a BoundKernel of this kernel
      * @param dynamicOffsets - one byte offset per entry of bound.dynamicGroups (absent = 0)
      */
-    private setUp(pass: GPUComputePassEncoder, bound: BoundKernel, dynamicOffsets: readonly number[] | undefined): void {
+    private setUp(
+        pass: GPUComputePassEncoder,
+        bound: BoundKernel,
+        dynamicOffsets: readonly number[] | undefined,
+    ): void {
         pass.setPipeline(this.pipeline);
         let next = 0;
         bound.bindGroups.forEach((bindGroup, group) => {

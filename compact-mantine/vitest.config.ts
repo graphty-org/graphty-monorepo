@@ -1,4 +1,5 @@
 import react from "@vitejs/plugin-react";
+import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
@@ -33,13 +34,13 @@ export default defineConfig({
                         "**/node_modules/**",
                         "**/dist/**",
                     ],
+                    // Disable file parallelism to prevent race conditions
+                    fileParallelism: false,
                     browser: {
                         enabled: true,
                         headless: true,
-                        provider: "playwright",
+                        provider: playwright(),
                         instances: [{ browser: "chromium" }],
-                        // Disable file parallelism to prevent race conditions
-                        fileParallelism: false,
                     },
                 },
             },

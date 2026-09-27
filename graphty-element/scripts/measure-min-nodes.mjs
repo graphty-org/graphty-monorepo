@@ -320,8 +320,8 @@ async function measureArm(page, options, nodes, policy) {
         // of GPU objects behind until the tab's next collection, and at these sizes the next
         // mount in the same page measures that backlog rather than the layout.
         await page.reload({ waitUntil: "load" });
-        await page.waitForFunction(() => typeof window.__measureArm === "function", null, { timeout: 120000 });
-        last = await page.evaluate((argument) => window.__measureArm(argument), job);
+        await page.waitForFunction(() => typeof globalThis.__measureArm === "function", null, { timeout: 120000 });
+        last = await page.evaluate((argument) => globalThis.__measureArm(argument), job);
         medians.push(median(last.deltas));
         frames.push(last.deltas.length);
         process.stderr.write(
@@ -357,7 +357,7 @@ async function main() {
 
     try {
         await page.goto(`http://127.0.0.1:${options.port}/measure.html`);
-        await page.waitForFunction(() => typeof window.__measureArm === "function", null, { timeout: 120000 });
+        await page.waitForFunction(() => typeof globalThis.__measureArm === "function", null, { timeout: 120000 });
 
         for (const nodes of options.sizes) {
             const cpu = await measureArm(page, options, nodes, "off");

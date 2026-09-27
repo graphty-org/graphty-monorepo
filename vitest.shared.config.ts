@@ -1,8 +1,7 @@
 // This is the shared Vitest configuration for the monorepo
 // Package-specific configs should import and extend this
 
-import { defineConfig } from "vitest/config";
-import type { UserConfig } from "vitest/config";
+import { defineConfig, type UserConfig } from "vitest/config";
 
 // Every Playwright browser the test projects launch inherits this process's environment. Chromium
 // 143 (Playwright's chromium_headless_shell-1200) calls setenv("FC_FONTATIONS", "1") from a font

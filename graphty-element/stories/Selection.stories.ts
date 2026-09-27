@@ -110,7 +110,7 @@ const renderSelectionDemo = (viewMode: ViewMode): HTMLDivElement => {
     // Create graph element
     // min-height: 0 is required for flexbox - without it, flex items have min-height: auto
     // which prevents them from shrinking below their content size
-    const graphEl = document.createElement("graphty-element") as Graphty;
+    const graphEl = document.createElement("graphty-element");
     graphEl.style.cssText = "flex: 1; display: block; min-height: 0;";
     graphEl.nodeData = selectionNodeData;
     graphEl.edgeData = selectionEdgeData;

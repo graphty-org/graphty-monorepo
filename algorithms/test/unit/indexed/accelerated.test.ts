@@ -1,9 +1,10 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
+import { Graph } from "../../../src/core/graph.js";
 import {
-    type AcceleratedAlgorithms,
     accelerated,
+    type AcceleratedAlgorithms,
     type AlgorithmAccelerator,
     type BfsResultLike,
     type LabelResultLike,
@@ -12,7 +13,6 @@ import {
     type SsspResultLike,
     toSnapshot,
 } from "../../../src/index.js";
-import { Graph } from "../../../src/core/graph.js";
 
 // No vi.fn anywhere: algorithms has no mock-injection convention (plan decision PD-13) and a plain
 // literal with a closed-over call log proves everything the design asks for.

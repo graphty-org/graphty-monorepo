@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, type Mock, vi } from "vitest";
 
 import { CAT_SOCIAL_NETWORK, CAT_SOCIAL_NETWORK_NAME } from "../../../data/sampleGraphs";
 import { SAMPLE_MANIFEST, type SampleRecord, sampleSizeString } from "../../../data/sampleManifest";
@@ -590,9 +590,9 @@ interface StubGraph {
     /** Every algorithm run the shell asked for, in order. */
     readonly runAlgorithm: ReturnType<typeof vi.fn>;
     /** Every canvas selection the shell asked for, which is the spine's last hop. */
-    readonly selectNode: ReturnType<typeof vi.fn>;
+    readonly selectNode: Mock<(nodeId: string | number) => boolean>;
     /** Every clear of it. The element has to be told, or its own selection outlives the shell's. */
-    readonly deselectNode: ReturnType<typeof vi.fn>;
+    readonly deselectNode: Mock<() => void>;
     /** What the ELEMENT still holds, which is not always what the shell thinks it holds. */
     readonly elementHoldsSelection: () => string | number | null;
     /** The element's style stack, and the policy that paints a finished run. */

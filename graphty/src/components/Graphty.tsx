@@ -1,5 +1,5 @@
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
-import type { AccelerationPolicy, DataSourceInput, GraphSession, Layer } from "@graphty/graphty-element/session";
+import type { AccelerationPolicy, GraphSession, Layer } from "@graphty/graphty-element/session";
 import { Box } from "@mantine/core";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 
@@ -55,103 +55,12 @@ interface GraphtyProps {
     onSession?: (session: GraphSession) => void;
 }
 
-// Format detection utilities
-type FormatType = "json" | "graphml" | "gexf" | "csv" | "gml" | "dot" | "pajek";
-
-const FORMAT_EXTENSIONS: Record<string, FormatType> = {
-    ".json": "json",
-    ".graphml": "graphml",
-    ".xml": "graphml",
-    ".gexf": "gexf",
-    ".csv": "csv",
-    ".edges": "csv",
-    ".edgelist": "csv",
-    ".gml": "gml",
-    ".dot": "dot",
-    ".gv": "dot",
-    ".net": "pajek",
-    ".paj": "pajek",
-};
-
-function detectFormatFromFilename(filename: string): FormatType | null {
-    const ext = /\.[^.]+$/.exec(filename.toLowerCase())?.[0];
-    if (ext && ext in FORMAT_EXTENSIONS) {
-        return FORMAT_EXTENSIONS[ext];
-    }
-
-    return null;
-}
-
-function detectFormatFromContent(content: string): FormatType | null {
-    const trimmed = content.trim();
-
-    // XML-based formats
-    if (trimmed.startsWith("<?xml") || trimmed.startsWith("<")) {
-        if (trimmed.includes('xmlns="http://graphml.graphdrawing.org')) {
-            return "graphml";
-        }
-
-        if (trimmed.includes('xmlns="http://gexf.net')) {
-            return "gexf";
-        }
-
-        // Check for graphml or gexf root elements
-        if (trimmed.includes("<graphml") || trimmed.includes("<graph")) {
-            return "graphml";
-        }
-
-        if (trimmed.includes("<gexf")) {
-            return "gexf";
-        }
-
-        return "graphml"; // Default to graphml for XML
-    }
-
-    // JSON
-    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-        return "json";
-    }
-
-    // GML
-    if (/graph\s*\[/i.test(trimmed)) {
-        return "gml";
-    }
-
-    // Pajek
-    if (/^\*vertices/i.test(trimmed)) {
-        return "pajek";
-    }
-
-    // DOT
-    if (/^\s*(strict\s+)?(di)?graph\s+/i.test(trimmed)) {
-        return "dot";
-    }
-
-    // CSV (very generic, check last)
-    if (/^[\w-]+\s*,\s*[\w-]+/m.test(trimmed)) {
-        return "csv";
-    }
-
-    return null;
-}
-
 export interface GraphtyHandle {
     /** Get node and edge data from the graph */
     getData: () => {
         nodes: Record<string, unknown>[];
         edges: Record<string, unknown>[];
     };
-    /**
-     * The data source a URL names, for `session.data.import`: the format from the extension, or
-     * from the content when the extension says nothing. Touches nothing on the element.
-     *
-     * Temporary: this detection belongs in the element. `session.data.import` requires the
-     * format to be named, so the app detects it here; delete this and both detectors once the
-     * import detects it itself (GitHub issue #539).
-     */
-    sourceFromUrl: (url: string, format?: string) => Promise<DataSourceInput>;
-    /** The data source a file holds, for `session.data.import`, detected the same way. */
-    sourceFromFile: (file: File, format?: string) => Promise<DataSourceInput>;
     /** Captures the canvas as an image, forwarded to the element's own verb. */
     captureScreenshot: GraphtyElement["captureScreenshot"];
     /**
@@ -182,47 +91,6 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
                 return session === undefined
                     ? { nodes: [], edges: [] }
                     : { nodes: [...session.data.nodes()], edges: [...session.data.edges()] };
-            },
-            sourceFromUrl: async (url: string, format?: string): Promise<DataSourceInput> => {
-                const named = format ?? detectFormatFromFilename(url) ?? undefined;
-
-                if (named !== undefined) {
-                    // The element fetches it.
-                    return { type: named, config: { url } };
-                }
-
-                // No extension to go by, so the content decides, and is passed on so it is fetched once.
-                const response = await fetch(url);
-                if (!response.ok) {
-                    throw new Error(`Failed to fetch URL: ${response.status} ${response.statusText}`);
-                }
-
-                const content = await response.text();
-                const detected = detectFormatFromContent(content.slice(0, 2048));
-
-                if (!detected) {
-                    throw new Error(
-                        `Could not detect file format from URL '${url}'. ` +
-                            "Supported formats: JSON, GraphML, GEXF, CSV, GML, DOT, Pajek.",
-                    );
-                }
-
-                return { type: detected, config: { data: content } };
-            },
-            sourceFromFile: async (file: File, format?: string): Promise<DataSourceInput> => {
-                const detected =
-                    format ??
-                    detectFormatFromFilename(file.name) ??
-                    detectFormatFromContent(await file.slice(0, 2048).text());
-
-                if (!detected) {
-                    throw new Error(
-                        `Could not detect file format from '${file.name}'. ` +
-                            "Supported formats: JSON, GraphML, GEXF, CSV, GML, DOT, Pajek.",
-                    );
-                }
-
-                return { type: detected, config: { data: await file.text() } };
             },
             captureScreenshot: (options) => {
                 if (!graphtyRef.current) {

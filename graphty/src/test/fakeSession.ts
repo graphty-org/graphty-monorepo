@@ -48,6 +48,7 @@ import type { MetricAvailability } from "@graphty/graphty-element/catalog";
 import type {
     Channel,
     CostEstimate,
+    DataSourceDescriptor,
     DataSourceInput,
     EdgeRecord,
     GraphSession,
@@ -358,6 +359,8 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
         }
     };
 
+    /* What `data.source()` answers. */
+    let loadedFrom: DataSourceDescriptor | null = null;
     /* The history: every step, oldest first, and how many are applied. */
     const steps: HistoryStep[] = [];
     let position = 0;
@@ -745,11 +748,18 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
             statistics: statisticsNow,
             nodes: () => options.records?.().nodes ?? [],
             edges: () => options.records?.().edges ?? [],
+            /* Where the graph came from, as the last load named it; history does not move it here. */
+            source: () => loadedFrom,
             import: async (source: DataSourceInput, importOptions?: ImportOptions): Promise<void> => {
                 await (options.importer?.(source, importOptions) ?? Promise.resolve());
-                record(`Loaded ${source.type}`, "data.import", ["graph"]);
+                loadedFrom = {
+                    ...(source.type === undefined ? {} : { type: source.type }),
+                    ...(source.name === undefined ? {} : { name: source.name }),
+                };
+                record(`Loaded ${source.name ?? source.type ?? "data"}`, "data.import", ["graph"]);
             },
             clear: (): Promise<void> => {
+                loadedFrom = null;
                 record("Cleared the graph", "data.apply", ["graph"]);
 
                 return Promise.resolve();

@@ -1,3 +1,4 @@
+import { detectFormats } from "@graphty/graphty-element/catalog";
 import {
     Box,
     Button,
@@ -73,7 +74,7 @@ export interface LoadDataModalProps {
 
 interface DetectionResult {
     format: FormatType | null;
-    confidence: "high" | "medium" | "low";
+    confidence: "high" | "low";
 }
 
 const FORMAT_OPTIONS = [
@@ -90,28 +91,20 @@ const FORMAT_OPTIONS = [
 /** What the error line says when the refusal carried no message of its own. */
 const UNREADABLE_LOAD_ERROR = "The data could not be loaded, and the loader gave no reason.";
 
-const FORMAT_EXTENSIONS: Record<string, FormatType> = {
-    ".json": "json",
-    ".graphml": "graphml",
-    ".xml": "graphml", // Could also be GEXF, will check content
-    ".gexf": "gexf",
-    ".csv": "csv",
-    ".edges": "csv",
-    ".edgelist": "csv",
-    ".gml": "gml",
-    ".dot": "dot",
-    ".gv": "dot",
-    ".net": "pajek",
-    ".paj": "pajek",
-};
+/**
+ * Which format graphty-element would read this as: from a file name or a URL, from the first
+ * bytes, or both. The element ranks every format that claims the data; one claimant is a firm
+ * answer, and several (an `.xml` file GraphML and GEXF both read) is a guess the reader should
+ * check.
+ * @param input - the file name or URL, the first bytes, or both.
+ * @param input.filename - the file name or URL.
+ * @param input.sample - the first bytes, as text.
+ * @returns the best format, or null when nothing recognises the data.
+ */
+function detect(input: { filename?: string; sample?: string }): DetectionResult {
+    const found = detectFormats(input);
 
-function detectFormatFromFilename(filename: string): FormatType | null {
-    const ext = /\.[^.]+$/.exec(filename.toLowerCase())?.[0];
-    if (ext && ext in FORMAT_EXTENSIONS) {
-        return FORMAT_EXTENSIONS[ext];
-    }
-
-    return null;
+    return { format: (found[0] ?? null) as FormatType | null, confidence: found.length === 1 ? "high" : "low" };
 }
 
 /**
@@ -136,51 +129,6 @@ function loadFailureMessage(error: unknown): string {
     }
 
     return UNREADABLE_LOAD_ERROR;
-}
-
-function detectFormatFromContent(content: string): DetectionResult {
-    const trimmed = content.trim();
-
-    // XML-based formats
-    if (trimmed.startsWith("<?xml") || trimmed.startsWith("<")) {
-        if (trimmed.includes('xmlns="http://graphml.graphdrawing.org')) {
-            return { format: "graphml", confidence: "high" };
-        }
-
-        if (trimmed.includes('xmlns="http://gexf.net')) {
-            return { format: "gexf", confidence: "high" };
-        }
-
-        // Generic XML - could be GraphML or GEXF
-        return { format: "graphml", confidence: "low" };
-    }
-
-    // JSON
-    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-        return { format: "json", confidence: "high" };
-    }
-
-    // GML
-    if (/graph\s*\[/i.test(trimmed)) {
-        return { format: "gml", confidence: "high" };
-    }
-
-    // Pajek
-    if (/^\*vertices/i.test(trimmed)) {
-        return { format: "pajek", confidence: "high" };
-    }
-
-    // DOT
-    if (/^\s*(strict\s+)?(di)?graph\s+/i.test(trimmed)) {
-        return { format: "dot", confidence: "high" };
-    }
-
-    // CSV (very generic, check last)
-    if (/^[\w-]+\s*,\s*[\w-]+/m.test(trimmed)) {
-        return { format: "csv", confidence: "medium" };
-    }
-
-    return { format: null, confidence: "low" };
 }
 
 /**
@@ -227,19 +175,17 @@ export function LoadDataModal({ opened, onClose, onLoad }: LoadDataModalProps): 
         setSelectedFile(file);
         setError(null);
 
-        // Detect format from filename
-        const formatFromName = detectFormatFromFilename(file.name);
-        if (formatFromName) {
-            setDetectedFormat({ format: formatFromName, confidence: "high" });
+        // The name first; the first bytes only when the name says nothing.
+        const byName = detect({ filename: file.name });
+        if (byName.format !== null) {
+            setDetectedFormat(byName);
         } else {
-            // Read content to detect format
             const reader = new FileReader();
             reader.onload = (e) => {
                 const content = e.target?.result as string;
-                const detection = detectFormatFromContent(content.slice(0, 1000)); // Check first 1KB
-                setDetectedFormat(detection);
+                setDetectedFormat(detect({ filename: file.name, sample: content }));
             };
-            reader.readAsText(file.slice(0, 1000));
+            reader.readAsText(file.slice(0, 2048));
         }
     }, []);
 
@@ -282,12 +228,8 @@ export function LoadDataModal({ opened, onClose, onLoad }: LoadDataModalProps): 
 
         // Detect format from URL extension
         if (value) {
-            const formatFromUrl = detectFormatFromFilename(value);
-            if (formatFromUrl) {
-                setDetectedFormat({ format: formatFromUrl, confidence: "medium" });
-            } else {
-                setDetectedFormat(null);
-            }
+            const byName = detect({ filename: value.split(/[?#]/)[0] });
+            setDetectedFormat(byName.format === null ? null : byName);
         } else {
             setDetectedFormat(null);
         }
@@ -298,8 +240,7 @@ export function LoadDataModal({ opened, onClose, onLoad }: LoadDataModalProps): 
         setError(null);
 
         if (value.trim()) {
-            const detection = detectFormatFromContent(value);
-            setDetectedFormat(detection);
+            setDetectedFormat(detect({ sample: value }));
         } else {
             setDetectedFormat(null);
         }

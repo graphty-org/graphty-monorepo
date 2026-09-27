@@ -697,28 +697,26 @@ interface DrawnDataset {
 }
 
 /**
- * What a load request is called and the data source it names, read without touching the
- * element: the wrapper detects the format of a file or a URL that does not state one.
- * @param handle - the wrapper's handle.
+ * The data source a load request names, for `session.data.import`, under the name the top bar
+ * and the history call it. graphty-element detects the format of a file or a URL that does not
+ * state one.
  * @param request - what the dialog or a drop asked for.
- * @param format - the format the reader chose, or undefined to detect it.
- * @returns the name the reader knows the data by, and the source to import.
+ * @param format - the format the reader chose, or undefined to let the element detect it.
+ * @returns the source to import.
  */
-async function readSource(
-    handle: GraphtyHandle,
-    request: LoadDataRequest,
-    format: string | undefined,
-): Promise<[string, DataSourceInput]> {
+function sourceOf(request: LoadDataRequest, format: string | undefined): DataSourceInput {
+    const type = format === undefined ? {} : { type: format };
+
     if (request.inputMethod === "url" && request.url !== undefined) {
-        return [request.url.split("/").pop() ?? request.url, await handle.sourceFromUrl(request.url, format)];
+        return { ...type, name: request.url.split("/").pop() || request.url, config: { url: request.url } };
     }
 
     if (request.inputMethod === "file" && request.file !== undefined) {
-        return [request.file.name, await handle.sourceFromFile(request.file, format)];
+        return { ...type, name: request.file.name, config: { file: request.file } };
     }
 
     if (request.inputMethod === "paste" && request.data !== undefined) {
-        return [PASTED_DATA_NAME, { type: format ?? "json", config: { data: request.data } }];
+        return { type: format ?? "json", name: PASTED_DATA_NAME, config: { data: request.data } };
     }
 
     throw new Error(NO_SOURCE_NAMED);
@@ -1912,30 +1910,11 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         openActivity("explore");
     }, [loadCompletions, openActivity]);
 
-    /* The shell's own name for the dataset after each step that loaded or closed one, by step
-       id, so an undo or a redo can put the right name back in the top bar. The element keeps
-       the data and where it came from; what the reader called it is the shell's. */
-    const datasetAfterStepRef = useRef(new Map<string, DrawnDataset>());
-
-    /**
-     * Remembers what the step just recorded leaves on screen.
-     * @param session - the session the step was recorded on.
-     * @param dataset - the dataset that step leaves drawn.
-     */
-    const recordDatasetStep = useCallback((session: GraphSession, dataset: DrawnDataset) => {
-        const { steps, position } = session.history;
-        const top = steps.at(position - 1);
-
-        if (top !== undefined) {
-            datasetAfterStepRef.current.set(top.id, dataset);
-        }
-    }, []);
-
     /*
-     * An undo, a redo or a restore can bring a dataset back or take one away, so the shell's
-     * claim about what is drawn follows the history: the dataset named after the latest
-     * applied step that loaded or closed one. With no such step it says Empty only when the
-     * graph really is empty, and otherwise leaves the claim alone.
+     * An undo, a redo or a restore can bring a dataset back or take one away, so the top bar
+     * and the Loaded data section follow what graphty-element says the graph was loaded from,
+     * which moves with its history. A graph with no import behind it says Empty only when it
+     * really is empty, and otherwise leaves the claim alone.
      */
     useEffect(() => {
         if (session === null) {
@@ -1947,21 +1926,20 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 return;
             }
 
-            const { steps, position } = session.history;
-            let dataset: DrawnDataset | undefined;
+            const source = session.data.source();
 
-            for (let at = position - 1; at >= 0 && dataset === undefined; at -= 1) {
-                dataset = datasetAfterStepRef.current.get(steps[at].id);
-            }
-
-            if (dataset === undefined && session.data.statistics().nodeCount === 0) {
-                dataset = { loaded: false, name: null, summary: undefined };
-            }
-
-            if (dataset !== undefined) {
-                setDataLoaded(dataset.loaded);
-                setDatasetName(dataset.name);
-                setLoadedSummary(dataset.summary);
+            if (source !== null) {
+                setDataLoaded(true);
+                setDatasetName(source.name ?? null);
+                setLoadedSummary(
+                    source.type === undefined
+                        ? undefined
+                        : { format: source.type, size: source.size === undefined ? undefined : fileSizeLabel(source.size) },
+                );
+            } else if (session.data.statistics().nodeCount === 0) {
+                setDataLoaded(false);
+                setDatasetName(null);
+                setLoadedSummary(undefined);
             }
 
             refreshGraphData();
@@ -2059,7 +2037,10 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             const measured: { degree?: ReturnType<typeof startDegreePass>; labelCount: number } = { labelCount: 0 };
 
             await session.transaction(label, async (tx) => {
-                const imported = tx.data.import(source, { mode: "replace", layout: "recommended" });
+                const imported = tx.data.import(
+                    { ...source, name: source.name ?? label },
+                    { mode: "replace", layout: "recommended" },
+                );
 
                 await tx.styles.removeBySource(describesDataset);
                 await imported;
@@ -2107,8 +2088,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 }
             });
 
-            recordDatasetStep(session, { loaded: true, name: label, summary });
-
             const { degree, labelCount } = measured;
 
             if (degree === undefined) {
@@ -2136,7 +2115,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 () => undefined,
             );
         },
-        [crossDatasetBoundary, recordDatasetStep],
+        [crossDatasetBoundary],
     );
 
     /* ---------------------------------------------------------------------- */
@@ -2247,7 +2226,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     throw new Error(ADDITIVE_LOAD_UNSUPPORTED);
                 }
 
-                const [name, source] = await readSource(handle, request, format);
+                const source = sourceOf(request, format);
+                const name = source.name ?? PASTED_DATA_NAME;
 
                 finishLoad(name, format ?? "auto", loadedDataSummary(request));
                 await loadDataset(name, loadedDataSummary(request), source, null);
@@ -3404,14 +3384,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                                     await tx.styles.removeBySource(describesDataset);
                                     await tx.data.clear();
                                 })
-                                .then(
-                                    () => {
-                                        recordDatasetStep(session, { loaded: false, name: null, summary: undefined });
-                                    },
-                                    (error: unknown) => {
-                                        console.error("[shell] the element refused to close the dataset:", error);
-                                    },
-                                );
+                                .catch((error: unknown) => {
+                                    console.error("[shell] the element refused to close the dataset:", error);
+                                });
                         }
 
                         setDataLoaded(false);
@@ -3459,7 +3434,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         }
 
         return [];
-    }, [activeActivity, crossDatasetBoundary, recordDatasetStep]);
+    }, [activeActivity, crossDatasetBoundary]);
 
     const panelBody = useMemo(() => {
         switch (activeActivity) {

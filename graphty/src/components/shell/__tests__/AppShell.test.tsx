@@ -15,17 +15,18 @@ import { ACTIVITY_RAIL_WIDTH, NARROW_BREAKPOINT, STATUS_BAR_HEIGHT, TOP_BAR_HEIG
  * too-small message rather than a dialog floating over it.
  */
 const MANTINE_MODAL_Z_INDEX = 200;
-import type {
-    AccelerationStatus,
-    DataSourceInput,
-    GraphSession,
-    GraphStatistics,
-    Histogram,
-    ImportOptions,
-    Layer,
-    LayerSpec,
-    RunId,
-    RunResult,
+import {
+    type AccelerationStatus,
+    createGraphSession,
+    type DataSourceInput,
+    type GraphSession,
+    type GraphStatistics,
+    type Histogram,
+    type ImportOptions,
+    type Layer,
+    type LayerSpec,
+    type RunId,
+    type RunResult,
 } from "@graphty/graphty-element/session";
 
 import { LAYOUT_METADATA } from "../../../data/layoutMetadata";
@@ -4169,16 +4170,24 @@ describe("AppShell", () => {
 
             fireEvent.click(screen.getByRole("button", { name: "Data" }));
 
-            /* This one never reaches the element: the wrapper cannot name a format for it and
-               throws before the load starts. */
-            await dropFile(
-                screen.getByTestId("data-drop-zone"),
-                new File(["nothing here that reads like a graph"], "notes.txt"),
-            );
+            /* graphty-element refuses a file no format recognises before it loads anything: the
+               stand-in session answers the import with the element's own refusal, read from a
+               headless session asked the same thing. */
+            const notes = new File(["nothing here that reads like a graph"], "notes.txt");
+            const refusal = await createGraphSession()
+                .data.import({ config: { file: notes } })
+                .then(
+                    () => new Error("the element loaded a file it should have refused"),
+                    (error: unknown) => error as Error,
+                );
 
-            expect(inlineLoadError(container)?.textContent).toBe(
-                "Could not load notes.txt. Could not detect file format from 'notes.txt'. " +
-                    "Supported formats: JSON, GraphML, GEXF, CSV, GML, DOT, Pajek.",
+            expect((refusal as { code?: unknown }).code).toBe("E_UNKNOWN_FORMAT");
+            installGraph(container, [], () => Promise.reject(refusal));
+
+            await dropFile(screen.getByTestId("data-drop-zone"), notes);
+
+            expect(inlineLoadError(container)?.textContent).toMatch(
+                /^Could not load notes\.txt\. nothing recognised the format of "notes\.txt"\. The formats this element can read are: json, /,
             );
             expect(statusToast(container)?.textContent).toContain("Could not load notes.txt.");
 

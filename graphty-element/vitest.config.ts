@@ -413,12 +413,14 @@ export default defineConfig({
                 },
             },
             {
-                // The one env var that crosses into the page: which flag set the run asked for.
+                // The env vars that cross into the page. The first is which flag set the run asked for.
                 // Naming it as a prefix is what puts it on `import.meta.env` in the browser --
                 // Vite copies every matching variable out of the process environment -- and
                 // test/browser/webgpu-layout.test.ts skips itself when it is absent, so the five
                 // CI shards never try to use a WebGPU that is not there.
-                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU"],
+                // GRAPHTY_UPDATE_RENDER_BUDGET makes test/browser/render-budget.test.ts rewrite its
+                // baseline instead of checking against it.
+                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_UPDATE_RENDER_BUDGET"],
                 // Pre-bundle IWER up front: discovered mid-run, Vite re-optimizes and reloads the
                 // page under the running test (test/browser/xr-session.test.ts imports it).
                 optimizeDeps: { include: ["iwer", ...BABYLON_SIDE_EFFECTS] },

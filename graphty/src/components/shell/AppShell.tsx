@@ -1437,7 +1437,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
        call returns, because `loadData` queues the load and returns before a single
        node exists. This ref carries the current reader into the mount-only effect
        below, which registers once and must not re-run when the reader changes. */
-    const refreshGraphDataRef = useRef<() => void>(() => undefined);
+    const refreshGraphDataRef = useRef<() => Promise<void>>(() => Promise.resolve());
 
     /* The graph the data listeners are already attached to.
        `Graph` publishes `addListener` and no matching remove, and `addListener`
@@ -1466,7 +1466,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 if (dataListenerGraphRef.current !== graph) {
                     dataListenerGraphRef.current = graph;
                     graphOnDataChanged(graph, () => {
-                        refreshGraphDataRef.current();
+                        void refreshGraphDataRef.current();
                     });
                 }
 
@@ -1571,9 +1571,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     /* Data loading                                                            */
     /* ---------------------------------------------------------------------- */
 
-    const refreshGraphData = useCallback(() => {
-        const data = graphtyRef.current?.getData() ?? NO_GRAPH_DATA;
+    const refreshGraphData = useCallback(async () => {
         const session = elementSession(graphtyRef.current?.graph);
+        const data = (await graphtyRef.current?.getData()) ?? NO_GRAPH_DATA;
         const statistics = readGraphStatistics(session);
 
         /* The counts travel with the rest of the shape, in {@link graphStatistics}, so the
@@ -1595,16 +1595,18 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * Counts the loads graphty-element has reported COMPLETE, on the frame the event
      * bubbles to ({@link DATA_LOADED_EVENT}), and settles the wait that load is holding.
      *
-     * The counts are refreshed in the same callback, so the completion and the records
-     * it completed reach React in one batch: no reader can see the flag move ahead of
-     * the data it stands for, whatever order the element's own listeners run in.
+     * The completion is counted only once the records it completed have been read, and in
+     * the same batch, so no reader can see the flag move ahead of the data it stands for,
+     * whatever order the element's own listeners run in. Listing the records is
+     * asynchronous, so the count waits for it.
      */
     useEffect(() => {
         const frame = frameRef.current;
 
         const onDataLoaded = (): void => {
-            refreshGraphDataRef.current();
-            setLoadCompletions((count) => count + 1);
+            void refreshGraphDataRef.current().then(() => {
+                setLoadCompletions((count) => count + 1);
+            });
         };
 
         frame?.addEventListener(DATA_LOADED_EVENT, onDataLoaded);
@@ -1687,8 +1689,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             if (pending?.survivesFailure === true) {
                 setDatasetName(pending.previousName);
                 setLoadedSummary(pending.previousSummary);
-                setLoadCompletions((count) => count + 1);
-                refreshGraphData();
+                void refreshGraphData().then(() => {
+                    setLoadCompletions((count) => count + 1);
+                });
 
                 return;
             }
@@ -1698,7 +1701,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             setDataLoaded(false);
             setDatasetName(null);
             setLoadedSummary(undefined);
-            refreshGraphData();
+            void refreshGraphData();
 
             /* The reader was moved onto Explore by the optimistic `finishLoad` and the rail
                disables Explore in the Empty state, so leaving them there leaves an open
@@ -1870,7 +1873,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             setDatasetName(name);
             setDataLoaded(true);
             setLoadedSummary(summary);
-            refreshGraphData();
+            void refreshGraphData();
         },
         [refreshGraphData],
     );
@@ -3024,7 +3027,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     const openDrawerOn = useCallback(
         (tab: DataDrawerTab) => {
             setDrawerTab(tab);
-            refreshGraphData();
+            void refreshGraphData();
             setDrawerOpen(true);
         },
         [refreshGraphData, setDrawerOpen],

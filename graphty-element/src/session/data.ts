@@ -194,6 +194,7 @@ export class SessionData implements SessionDataApi {
             op: "data.import",
             source: { type: source.type, config: source.config },
             mode: options.mode ?? "replace",
+            ...(options.layout === undefined ? {} : { layout: options.layout }),
         });
     }
 

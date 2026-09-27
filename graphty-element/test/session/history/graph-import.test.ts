@@ -179,6 +179,43 @@ describe("data.import", () => {
         assert.strictEqual(digest(session), before);
         session.dispose();
     });
+
+    it("takes the recommended layout through the typed import verb too", async () => {
+        const session = await fixtureSession();
+        await session.layout.set("spiral");
+        const steps = session.history.steps.length;
+
+        await session.data.import({ type: "json", config: { data: DOCUMENT } }, { layout: "recommended" });
+        for (let wait = 0; wait < 100 && session.history.pending.length > 0; wait++) {
+            await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+
+        assert.lengthOf(session.history.steps, steps + 1, "the import and its layout are one step");
+        assert.strictEqual(session.layout.id, "force");
+        session.dispose();
+    });
+
+    it("takes the recommended layout into a transaction's step when the import is a member", async () => {
+        const session = await fixtureSession();
+        await session.layout.set("spiral");
+        const before = digest(session);
+        const steps = session.history.steps.length;
+
+        await session.transaction("Loaded the file", async (tx) => {
+            await tx.data.import({ type: "json", config: { data: DOCUMENT } }, { layout: "recommended" });
+        });
+        for (let wait = 0; wait < 100 && session.history.pending.length > 0; wait++) {
+            await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+
+        assert.lengthOf(session.history.steps, steps + 1, "the import and its layout are one step");
+        assert.strictEqual(session.layout.id, "force");
+
+        await session.undo();
+        assert.strictEqual(session.layout.id, "spiral", "one undo leaves the previous layout");
+        assert.strictEqual(digest(session), before);
+        session.dispose();
+    });
 });
 
 describe("batch", () => {

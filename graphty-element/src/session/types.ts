@@ -449,6 +449,11 @@ export interface DataSourceInput {
 export interface ImportOptions {
     /** `"replace"` (the default) empties the graph first, in the same step; `"merge"` adds to it. */
     readonly mode?: "replace" | "merge";
+    /**
+     * `"recommended"` also chooses a layout for what was loaded, from its shape and its
+     * coordinates, in the same step; `"keep"` (the default) leaves the layout as it is.
+     */
+    readonly layout?: "recommended" | "keep";
 }
 
 /** A node record to add: its id is read through `data.knownFields.nodeIdPath`. */

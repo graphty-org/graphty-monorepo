@@ -509,14 +509,16 @@ export const ACCELERATION_MIN_NODES_MEASUREMENT = "RTX 4070 SUPER, headless Chro
  */
 export type FlooredCapability = Exclude<keyof AlgorithmAccelerator, "kind" | "release">;
 
-export const ACCELERATION_MIN_NODES_BY_CAPABILITY: Readonly<Partial<Record<FlooredCapability, number>>> = Object.freeze({
-    // Above the 50,000-node render ceiling, so not routed to the device today; the kernel's own
-    // resident crossover, because the element cannot hold a graph this large to measure one.
-    breadthFirstSearch: 141_000,
-    // Likewise above the render ceiling, and likewise the kernel's resident crossover.
-    sssp: 107_000,
-    // Measured through the element: the only capability that crosses inside what it can hold.
-    pageRank: 50_000,
-    // Above the render ceiling. Was 50,000, where the device measured 0.51x -- twice as slow.
-    connectedComponents: 132_000,
-});
+export const ACCELERATION_MIN_NODES_BY_CAPABILITY: Readonly<Partial<Record<FlooredCapability, number>>> = Object.freeze(
+    {
+        // Above the 50,000-node render ceiling, so not routed to the device today; the kernel's own
+        // resident crossover, because the element cannot hold a graph this large to measure one.
+        breadthFirstSearch: 141_000,
+        // Likewise above the render ceiling, and likewise the kernel's resident crossover.
+        sssp: 107_000,
+        // Measured through the element: the only capability that crosses inside what it can hold.
+        pageRank: 50_000,
+        // Above the render ceiling. Was 50,000, where the device measured 0.51x -- twice as slow.
+        connectedComponents: 132_000,
+    },
+);

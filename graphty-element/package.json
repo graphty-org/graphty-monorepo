@@ -199,6 +199,7 @@
         "lodash": "^4.17.21",
         "ngraph.random": "^1.2.0",
         "storybook": "^9.1.20",
+        "tsx": "^4.21.0",
         "typedoc": "^0.28.15",
         "typedoc-plugin-markdown": "^4.9.0",
         "typedoc-vitepress-theme": "^1.1.2",

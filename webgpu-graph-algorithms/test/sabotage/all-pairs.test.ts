@@ -15,10 +15,17 @@ import { fileURLToPath } from "node:url";
 import { type KernelId, KERNELS, kernelSpec } from "../../src/kernels.js";
 import { allPairsReport } from "../helpers/all-pairs.js";
 import { assertCheckPasses, type Mutation, SABOTAGE, sabotagedBody, withSabotage } from "../helpers/sabotage.js";
-import { acquire, requireGpu } from "../setup/gpu.js";
+import { acquire, isSoftware, requireGpu } from "../setup/gpu.js";
 
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const ALL_PAIRS_TEST = "test/algorithms/all-pairs.test.ts";
+
+/**
+ * Rows only a software adapter catches: they remove a barrier whose race shows only when the lanes of a workgroup
+ * run out of step. Lavapipe runs them one SIMD group at a time and fails them every run; NVIDIA's warps stay close
+ * enough that the mutant matches the reference bitwise, so on hardware these rows are skipped, never passed.
+ */
+const SOFTWARE_ONLY = new Set(["step-barrier-removed"]);
 
 /** The two kernels and the rows each must carry, by name. */
 const MEASURED: readonly { readonly id: KernelId; readonly names: readonly string[] }[] = [
@@ -29,6 +36,7 @@ const MEASURED: readonly { readonly id: KernelId; readonly names: readonly strin
             "pivot-tile-shifted",
             "inner-loop-31",
             "barrier-after-stage-removed",
+            "step-barrier-removed",
             "edge-store-guard-dropped",
             "phase2-stages-pivot",
         ],
@@ -71,6 +79,9 @@ describe("sabotage: apsp-init and apsp-fw (spec 11.9 item 1)", () => {
         for (const mutation of SABOTAGE[id] ?? []) {
             it(`${id}/${mutation.name}: fails the check by >= ${mutation.minFactor}x`, async (t) => {
                 requireGpu(t);
+                if (SOFTWARE_ONLY.has(mutation.name) && !isSoftware()) {
+                    t.skip("the race this row opens shows only on a software adapter; lavapipe runs it");
+                }
                 const report = await withSabotage(id, mutation, (ctx) => allPairsReport(ctx));
                 console.warn(`[sabotage] ${id}/${mutation.name}: factor ${report.worst} at ${report.worstLabel}`);
                 expect(report.worst).toBeGreaterThanOrEqual(mutation.minFactor);

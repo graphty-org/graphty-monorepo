@@ -153,6 +153,7 @@
         "lcov-result-merger": "^5.0.1",
         "nx": "22.3.3",
         "playwright": "^1.54.1",
+        "pngjs": "^7.0.0",
         "prettier": "^3.4.2",
         "semantic-release": "^25.0.2",
         "semver": "^7.7.3",

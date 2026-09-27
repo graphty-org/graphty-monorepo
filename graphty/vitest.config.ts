@@ -30,11 +30,11 @@ export default defineConfig({
     test: {
         globals: true,
         exclude: BASE_EXCLUDE,
-        // The tests that mount the real graphty-element get a browser project of their own.
-        // Every file of one browser project runs in an iframe of the same page, and same-page
-        // iframes share one main thread: a real element loading and laying out a sample holds
-        // that thread for seconds at a time, and a neighbouring file's module import then
-        // outruns its test timeout.
+        // The tests that mount the real graphty-element get a project of their own, run after
+        // the others finish (sequence.groupOrder). Browser test files share the renderer's main
+        // thread, and a real element loading and laying out a sample holds it for seconds at a
+        // time: run beside the rest, a neighbouring file's import of the element bundle
+        // (src/types/__tests__/ai.test.ts) outran its 15 second test timeout.
         projects: [
             {
                 extends: true,
@@ -51,6 +51,7 @@ export default defineConfig({
                 test: {
                     name: "real-element",
                     include: [REAL_ELEMENT_TESTS],
+                    sequence: { groupOrder: 1 },
                     browser: chromium(),
                     setupFiles: "./src/test/setup.ts",
                 },

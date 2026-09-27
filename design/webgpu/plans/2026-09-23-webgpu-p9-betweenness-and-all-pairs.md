@@ -421,6 +421,20 @@ Expected: the table prints; `bench:compare` finds no tracked median above 3x its
 
 - [ ] **Step 5: Commit (owner)** -- `perf(webgpu-graph-algorithms): the all-pairs benchmarks and the binding-ceiling tests`.
 
+### As built: the all-pairs half (P9-T1 through P9-T5)
+
+Where the code departs from the steps above, and why. Each is a PLAN DECISION in the sense of the package CLAUDE.md; none changes a design statement.
+
+- **`apsp-init` is one lane per ROW with a plain `min`, not an `atomicMin` over arcs (Step 2 of P9-T3).** Every arc of row `u` lands in row `u` of the matrix, so a lane that owns the row owns every cell its arcs write: parallel arcs collapse to the cheapest with no race and no atomic. The `+Infinity` fill is the existing `fill` kernel (value `F32_INF_BITS`), so `apsp-init` has no `MODE` override. Its sabotage row for parallel arcs is "the last arc wins", caught by a fixture that lists the cheaper arc first on one pair and last on the other.
+- **`apsp-init` binds the four graph slots (5 storage bindings, not 4).** The package's bind-group rule gives group 0 all four slots whether or not the permutation is used; `perm` is bound to its dummy.
+- **`+Infinity` reaches `apsp-fw` through the params block (`ApspParams.infBits`).** Tint refuses `bitcast<f32>(F32_INF_BITS)` as a constant expression (a G8 platform fact), and the edge tiles need `+Infinity` for the cells outside `n x n`.
+- **In-place tile updates write only a strictly smaller candidate.** The cells every lane reads in pivot step `k` (row `k` and column `k` of the tile) would be rewritten with `d + d[k][k] = d`, so with a strict `<` they are never written in that step and phases 0 and 1 have no read-write race.
+- **The ceiling uses the smaller of `maxStorageBufferBindingSize` and `maxBufferSize` (Step 4 of P9-T3).** The matrix is one buffer as well as one binding; on every device measured so far the binding limit is the smaller, so the three design numbers are unchanged, and the refusal names whichever limit bound.
+- **Weighted parity is bitwise against Floyd-Warshall in the BLOCKED order with f32 rounding (Step 6 of P9-T3).** Blocked and textbook Floyd-Warshall reach the same shortest paths through different f32 additions, so the textbook f32 matrix can differ from the device's by an ulp; `floydWarshallOracle` takes a `tile` (`>= n` is the textbook order), the device matches the tile-32 run bitwise, and the textbook f64 run bounds the drift at design 9.7's `1e-5`. The triangle inequality over a weighted matrix carries the same `1e-5` slack, because a Floyd-Warshall entry is the sum of two partial sums where the check adds one weight.
+- **The Brandes reference, `spearman`, `expectTopKOrder` and `expectArcPairsEqual` of P9-T2 are not written yet.** Only betweenness uses them; they land with the betweenness half. The all-pairs checks are `expectMatrixTriangleInequality` and `expectSymmetric` in `test/oracle/all-pairs.ts`.
+- **No noise-floor row and no profiler row.** The weighted tolerance is design 9.7's `1e-5` directly (the measured f32-vs-f64 spread is printed by the differential suite, 3e-6 at most on its fixtures). The sweep is one compute pass per submit and never resolves the profiler, as the BFS group already notes, so the `apsp` group records wall time and the readback alone.
+- **The `apsp` group is added to `REQUIRED_GROUPS`, but no baseline is recorded here (Step 2 of P9-T5).** Timings belong to a measurement run on an idle card; until a session with the group is appended, `bench:compare` prints its rows as "new (no baseline)".
+
 ---
 
 ### Task P9-T6: The source batch, the claim log and the level boundary

@@ -63,8 +63,11 @@ export interface LayoutChoice {
     readonly dimension: "2d" | "3d";
 }
 
-/** The `arrangement` slice: node coordinates at rest, copied out of the positions lane. */
-interface ArrangementCapture {
+/**
+ * The `arrangement` slice: node coordinates at rest, copied out of the positions lane. Immutable
+ * once taken; see `./arrangement.ts`.
+ */
+export interface ArrangementCapture {
     /** The node ids of the snapshot the coordinates belong to, in row order. */
     readonly ids: readonly NodeId[];
     /** The graph token of that snapshot. */
@@ -101,13 +104,13 @@ export interface VisibilityState {
 /** The whole project, as readers see it. */
 export interface ProjectState {
     readonly graph: GraphSlice;
-    /** Op-log slice; its writer arrives with the graph primitives. */
+    /** The pinned node ids. An op-log slice, written by the graph primitives. */
     readonly pins: ReadonlySet<NodeId>;
     /** One key per leaf of `ProjectConfig`, by dotted path. */
     readonly config: ReadonlyMap<string, unknown>;
     /** Null until a layout is chosen. */
     readonly layout: LayoutChoice | null;
-    /** Null until the first capture. */
+    /** The capture the lane was last sealed into or restored from; null until the first. */
     readonly arrangement: ArrangementCapture | null;
     readonly runs: ReadonlyMap<RunId, RunEntry>;
     /** The frozen, compiled layer stack, index 0 the bottom. */

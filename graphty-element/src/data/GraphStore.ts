@@ -103,8 +103,6 @@ interface RemovedNode {
     readonly index: number;
     /** Its value in every registered column: the seed coordinate, and any column added later. */
     readonly values: RowValues;
-    /** Whether the reader had pinned it. */
-    readonly pinned: boolean;
 }
 
 /** An edge row a removal took out: resolved endpoints and weight, never re-read through ingest. */
@@ -129,14 +127,18 @@ export interface RemovedRows {
     readonly edges: readonly RemovedEdge[];
 }
 
+/** Where rows the graph took out were in the positions lane, by id. */
+interface LaneRows {
+    readonly ids: readonly NodeId[];
+    readonly coords: Float32Array;
+}
+
 /** A whole graph a replace set aside, for its undo. */
 export interface KeptGraph {
     /** The graph, frozen fresh so it still carries every builder column and no positions lane. */
     readonly snapshot: GraphSnapshot;
     /** How its direction had been settled. */
     readonly direction: DirectionProvenance;
-    /** The ids the reader had pinned. */
-    readonly pinned: readonly NodeId[];
 }
 
 /**
@@ -221,8 +223,6 @@ export class GraphStore {
     private edgeIdHandle: ColumnHandle;
     /** Structural changes waiting to be applied, already folded to their net effect. */
     private structural: Structural[] = [];
-    /** Pinned ids a structural change put back, pinned again once their rows exist. */
-    private pinsToRestore: NodeId[] = [];
     /** Every column of the last freeze, taken before the positions lane replaced the seed column. */
     private frozenColumns: { readonly node: readonly Column[]; readonly edge: readonly Column[] } = {
         node: [],
@@ -240,6 +240,14 @@ export class GraphStore {
     private readonly indexByEdgeId: number[] = [];
     private pending: PendingPublish | null = null;
     private pendingPositions: PendingPositions | null = null;
+    /**
+     * Where the rows each removal and each kept graph took out were in the lane, read again at
+     * every redo: the lane half of a removed row, so undoing the removal puts the node back where
+     * it was rather than where its file seeded it.
+     */
+    private readonly heldLane = new WeakMap<RemovedRows | KeptGraph, LaneRows>();
+    /** Rows put back since the last freeze, by what put them back; written once they have rows. */
+    private readonly laneToRestore = new Map<RemovedRows | KeptGraph, LaneRows>();
     private publishing = false;
     private disposed = false;
 
@@ -526,14 +534,14 @@ export class GraphStore {
         this.pendingPositions = { snapshot, nodeRemap: report.nodeRemap, stage: "remap" };
 
         this.applyPositions();
-        this.restorePins(snapshot);
         this.publish();
         return snapshot;
     }
 
     /**
      * Take rows out of the graph, recording everything that putting them back needs: their rows,
-     * every registered column's value, an edge's resolved endpoints and weight, and the pins.
+     * every registered column's value, and an edge's resolved endpoints and weight. Pins are the
+     * session's `pins` slice, which the removal's own draft records.
      * Removing a node removes every edge attached to it.
      * @param nodeIds - The nodes to remove; one the graph does not hold is skipped.
      * @param edgeIds - The element-assigned ids of edges to remove; likewise.
@@ -591,9 +599,13 @@ export class GraphStore {
                     id: builder.idOf(row),
                     index: row,
                     values: this.rowValues(this.frozenColumns.node, row),
-                    pinned: this.positions.isPinned(row),
                 }),
             );
+        const lane = this.positions.view(this.positions.count);
+        const coords = new Float32Array(3 * nodes.length);
+        nodes.forEach((node, at) => {
+            coords.set(lane.subarray(POSITION_COMPONENTS * node.index, POSITION_COMPONENTS * node.index + 3), 3 * at);
+        });
         for (const edge of edges) {
             builder.removeEdge(edge.index);
         }
@@ -606,7 +618,9 @@ export class GraphStore {
             this.touch();
         }
 
-        return { nodes, edges };
+        const removed = { nodes, edges };
+        this.heldLane.set(removed, { ids: nodes.map((node) => node.id), coords });
+        return removed;
     }
 
     /**
@@ -615,6 +629,7 @@ export class GraphStore {
      * @param rows - What the removal recorded.
      */
     insertRows(rows: RemovedRows): void {
+        this.putBack(rows);
         this.defer({ kind: "insert", rows });
     }
 
@@ -623,6 +638,11 @@ export class GraphStore {
      * @param rows - What the removal recorded.
      */
     dropRows(rows: RemovedRows): void {
+        this.laneToRestore.delete(rows);
+        this.holdLane(
+            rows,
+            rows.nodes.map((node) => node.id),
+        );
         this.defer({ kind: "drop", rows });
     }
 
@@ -638,21 +658,16 @@ export class GraphStore {
     }
 
     /**
-     * Set the whole graph aside for a replace: every row, every column, the direction and the pins.
+     * Set the whole graph aside for a replace: every row, every column and the direction.
      * @returns What was set aside.
      */
     keep(): KeptGraph {
-        this.getSnapshot();
-        const pinned: NodeId[] = [];
-        for (let row = 0; row < this.current.nodeCount; row++) {
-            if (this.positions.isPinned(row)) {
-                pinned.push(this.current.idOf(row));
-            }
-        }
-
+        const current = this.getSnapshot();
         // A second freeze of a builder about to be replaced: its report chain no longer matters,
         // and unlike the cached snapshot this one still carries the seed column.
-        return { snapshot: this.current.freeze({ label: "graphty-element kept" }), direction: this.direction, pinned };
+        const kept = { snapshot: this.current.freeze({ label: "graphty-element kept" }), direction: this.direction };
+        this.heldLane.set(kept, { ids: current.ids.toArray(), coords: this.positions.view(current.nodeCount).slice() });
+        return kept;
     }
 
     /**
@@ -663,7 +678,79 @@ export class GraphStore {
      */
     replace(kept: KeptGraph, restore: boolean): void {
         this.direction = restore ? kept.direction : this.emptyDirection();
+        // Whatever was put back before the replace is gone with the graph it was put back into.
+        this.laneToRestore.clear();
+        if (restore) {
+            this.putBack(kept);
+        } else if (this.cache !== null) {
+            this.holdLane(kept, this.cache.ids.toArray());
+        }
+
         this.defer({ kind: "replace", kept, restore });
+    }
+
+    /**
+     * Read again where rows about to be taken out are in the lane, for those it holds now.
+     * @param taken - The removal or the kept graph.
+     * @param ids - Its node ids.
+     */
+    private holdLane(taken: RemovedRows | KeptGraph, ids: readonly NodeId[]): void {
+        const snapshot = this.cache;
+        const held = this.heldLane.get(taken);
+        // With structural changes still waiting, the rows were never put back into the lane, so
+        // nothing has moved them since they were read.
+        if (
+            snapshot === null ||
+            held === undefined ||
+            this.structural.length > 0 ||
+            snapshot.nodeCount > this.positions.count
+        ) {
+            return;
+        }
+
+        const lane = this.positions.view(snapshot.nodeCount);
+        const coords = new Float32Array(3 * ids.length).fill(Number.NaN);
+        ids.forEach((id, at) => {
+            const row = snapshot.ids.indexOf(id as string | number);
+            if (row !== INVALID_INDEX) {
+                coords.set(lane.subarray(POSITION_COMPONENTS * row, POSITION_COMPONENTS * row + 3), 3 * at);
+            }
+        });
+        this.heldLane.set(taken, { ids, coords });
+    }
+
+    /**
+     * Queue the coordinates rows being put back had in the lane, for the next freeze.
+     * @param taken - The removal or the kept graph.
+     */
+    private putBack(taken: RemovedRows | KeptGraph): void {
+        const held = this.heldLane.get(taken);
+        if (held !== undefined) {
+            this.laneToRestore.set(taken, held);
+        }
+    }
+
+    /**
+     * Give rows put back the coordinates they had when they were taken out, before anything seeds
+     * them. Not a move of the arrangement, so it writes the array directly.
+     * @param snapshot - The snapshot just frozen, its lane already remapped.
+     */
+    private restoreLane(snapshot: GraphSnapshot): void {
+        if (this.laneToRestore.size === 0) {
+            return;
+        }
+
+        const lane = this.positions.view(snapshot.nodeCount);
+        for (const { ids, coords } of this.laneToRestore.values()) {
+            ids.forEach((id, at) => {
+                const row = snapshot.ids.indexOf(id as string | number);
+                if (row !== INVALID_INDEX && !this.positions.isPlaced(row) && isStorableCoordinate(coords[3 * at])) {
+                    lane.set(coords.subarray(3 * at, 3 * at + 3), POSITION_COMPONENTS * row);
+                }
+            });
+        }
+
+        this.laneToRestore.clear();
     }
 
     /**
@@ -765,9 +852,6 @@ export class GraphStore {
 
         for (const node of nodes) {
             this.writeNode(builder.addNode(node.id), node.values);
-            if (node.pinned) {
-                this.pinsToRestore.push(node.id);
-            }
         }
 
         for (const edge of edges) {
@@ -801,23 +885,18 @@ export class GraphStore {
             oldEdges = frozen.report.edgeRemap ?? Uint32Array.from({ length: edge.length }, (_, row) => row);
         } else if (replace.restore) {
             base = replace.kept.snapshot;
-            this.pinsToRestore.push(...replace.kept.pinned);
         }
 
         let nodeRows: Row<RemovedNode>[] = Array.from({ length: base?.nodeCount ?? 0 }, (_, row) => row);
         let edgeRows: Row<RemovedEdge>[] = Array.from({ length: base?.edgeCount ?? 0 }, (_, row) => row);
-        const nodeIdOf = (row: Row<RemovedNode>): NodeId => (typeof row === "number" ? (base as GraphSnapshot).ids.idOf(row) : row.id);
+        const nodeIdOf = (row: Row<RemovedNode>): NodeId =>
+            typeof row === "number" ? (base as GraphSnapshot).ids.idOf(row) : row.id;
         const edgeIdOf = (row: Row<RemovedEdge>): unknown =>
             typeof row === "number" ? (base as GraphSnapshot).edges.value(EDGE_ID_COLUMN, row) : row.edgeId;
         for (const change of changes) {
             if (change.kind === "insert") {
                 nodeRows = mergeAt(nodeRows, change.rows.nodes);
                 edgeRows = mergeAt(edgeRows, change.rows.edges);
-                for (const removed of change.rows.nodes) {
-                    if (removed.pinned) {
-                        this.pinsToRestore.push(removed.id);
-                    }
-                }
             } else if (change.kind === "drop") {
                 const nodes = new Set(change.rows.nodes.map((each) => each.id));
                 const edges = new Set(change.rows.edges.map((each) => each.edgeId));
@@ -926,21 +1005,6 @@ export class GraphStore {
     }
 
     /**
-     * Pin again the rows a structural change put back, once they exist and are placed: a pin on a
-     * row with no coordinate would hold a node at nowhere. Coordinates come back in phase 16a of
-     * design/undo/undo-plan.md.
-     * @param snapshot - The snapshot just frozen.
-     */
-    private restorePins(snapshot: GraphSnapshot): void {
-        for (const id of this.pinsToRestore.splice(0)) {
-            const row = snapshot.ids.indexOf(id);
-            if (row !== INVALID_INDEX && this.positions.isPlaced(row)) {
-                this.positions.setPinned(row, true);
-            }
-        }
-    }
-
-    /**
      * The undirected view of a snapshot, cached per snapshot (14.4 rule 8).
      *
      * Returns the whole DerivedGraph, not just its snapshot, because edge-result adapters need
@@ -1038,6 +1102,7 @@ export class GraphStore {
         }
 
         if (work.stage === "seed") {
+            this.restoreLane(snapshot);
             this.seedUnplaced(snapshot);
             work.stage = "attach";
         }

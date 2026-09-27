@@ -70,6 +70,7 @@ const SESSION_ROOTS: Readonly<Record<string, (session: ElementSession) => object
     StylesApi: (session) => session.styles,
     SessionStylesApi: (session) => session.styles,
     ElementPositions: (session) => session.positions,
+    SessionPositions: (session) => session.positions,
 };
 
 describe("the door ratchet", () => {

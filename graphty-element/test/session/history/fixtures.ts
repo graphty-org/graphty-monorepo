@@ -107,7 +107,10 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         name: "data.apply add-edges",
         variant: "add-edges",
         tags: BOTH,
-        command: { op: "data.apply", mutation: { kind: "add-edges", records: [{ src: "n3", dst: "n1", kind: "back" }] } },
+        command: {
+            op: "data.apply",
+            mutation: { kind: "add-edges", records: [{ src: "n3", dst: "n1", kind: "back" }] },
+        },
     },
     {
         name: "data.apply add-edges folding a repeat into the edge it repeats",
@@ -122,7 +125,10 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         name: "data.apply set-attributes",
         variant: "set-attributes",
         tags: BOTH,
-        command: { op: "data.apply", mutation: { kind: "set-attributes", target: "node", ids: ["n1", "n2"], values: { type: "hub" } } },
+        command: {
+            op: "data.apply",
+            mutation: { kind: "set-attributes", target: "node", ids: ["n1", "n2"], values: { type: "hub" } },
+        },
     },
     {
         name: "data.apply update-rows on nodes",
@@ -137,7 +143,10 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         name: "data.apply update-rows on edges",
         variant: "update-rows",
         tags: BOTH,
-        command: { op: "data.apply", mutation: { kind: "update-rows", target: "edge", rows: [{ id: "1", values: { kind: "next" } }] } },
+        command: {
+            op: "data.apply",
+            mutation: { kind: "update-rows", target: "edge", rows: [{ id: "1", values: { kind: "next" } }] },
+        },
     },
     {
         name: "data.apply remove-nodes from the middle",
@@ -225,7 +234,12 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         variant: "update",
         tags: BOTH,
         before: withLayers(nodeLayer("Fixture A", "#ff0000")),
-        command: { op: "style.patch", action: "update", id: "fixture-a_1", patch: { set: { "node.color": "#00ff00" } } },
+        command: {
+            op: "style.patch",
+            action: "update",
+            id: "fixture-a_1",
+            patch: { set: { "node.color": "#00ff00" } },
+        },
     },
     {
         name: "style.patch remove",
@@ -397,5 +411,32 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         variant: "layoutBehavior",
         tags: BOTH,
         command: { op: "config.set", values: { layoutBehavior: { minDelta: 0.5 } } },
+    },
+    {
+        name: "positions.set: one node placed",
+        tags: BOTH,
+        command: { op: "positions.set", entries: [{ id: "n2", x: 5, y: 6, z: 7 }] },
+    },
+    {
+        name: "positions.set over most of the rows, kept as a capture",
+        tags: BOTH,
+        command: {
+            op: "positions.set",
+            entries: [
+                { id: "n1", x: 1, y: 1, z: 1 },
+                { id: "n3", x: 3, y: 3 },
+            ],
+        },
+    },
+    {
+        name: "positions.pin: a node pinned",
+        tags: BOTH,
+        command: { op: "positions.pin", ids: ["n1"], pinned: true },
+    },
+    {
+        name: "positions.pin: a pin released",
+        tags: BOTH,
+        before: (session) => session.positions.pin(["n1"]),
+        command: { op: "positions.pin", ids: ["n1"], pinned: false },
     },
 ];

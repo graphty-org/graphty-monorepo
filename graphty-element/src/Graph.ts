@@ -351,24 +351,27 @@ export class Graph implements GraphContext {
         // The records live in the session's `graph` slice, which every write through the graph
         // primitives fills, so the session reads them there; the data manager is bound to the
         // session below so that its writes are those primitives.
-        this.session = createElementSession({
-            acceleration: this.acceleration,
-            store: this.dataManager,
-            runs: {
-                // The element's own queue, so a run takes its turn among the loads, the layouts
-                // and the style passes rather than interleaving with them.
-                queue: this.operationQueue,
-                // Late-bound on purpose: the algorithm manager is built after the session, and an
-                // algorithm needs this Graph to read the data manager through. The session only
-                // ever calls this once a run reaches the front of the queue.
-                execute: (context) => this.algorithmManager.execute(context, algorithmByKey(context.algorithm)),
+        this.session = createElementSession(
+            {
+                acceleration: this.acceleration,
+                store: this.dataManager,
+                runs: {
+                    // The element's own queue, so a run takes its turn among the loads, the layouts
+                    // and the style passes rather than interleaving with them.
+                    queue: this.operationQueue,
+                    // Late-bound on purpose: the algorithm manager is built after the session, and an
+                    // algorithm needs this Graph to read the data manager through. The session only
+                    // ever calls this once a run reaches the front of the queue.
+                    execute: (context) => this.algorithmManager.execute(context, algorithmByKey(context.algorithm)),
+                },
             },
-        }, {
-            // An import takes its turn on the element's queue, among the loads, layouts and runs.
-            scheduler: queueScheduler(this.operationQueue),
-            // What the page declares before the graph first holds data is where history starts.
-            baselineWindow: true,
-        });
+            {
+                // An import takes its turn on the element's queue, among the loads, layouts and runs.
+                scheduler: queueScheduler(this.operationQueue),
+                // What the page declares before the graph first holds data is where history starts.
+                baselineWindow: true,
+            },
+        );
 
         // Every data door dispatches through the session from here on, and the session's
         // `data.apply` and `data.import` are carried out by the data manager's ingest. A command
@@ -394,7 +397,7 @@ export class Graph implements GraphContext {
         // The `graph` hook: the render objects follow the slice, forward and on undo, redo and
         // rollback. Only a forward add starts the layout and frames the camera; the paint is
         // brought up to date either way, since a layer can select on any value that moved.
-        const {lane} = dispatcherOf(this.session);
+        const { lane } = dispatcherOf(this.session);
         lane.register("graph", async (_rendered, target, dirty) => {
             const { cause } = lane;
             this.dataManager.reconcile(target.graph, dirty, cause);
@@ -414,6 +417,40 @@ export class Graph implements GraphContext {
             }
         });
 
+        // The `arrangement` hook's engine is this graph's layout: a history call stops it, a restore
+        // hands it the restored coordinates and redraws the nodes where they now are, and a pin
+        // reaches it. Where it comes to rest is sealed into history (design/undo section 6.4).
+        const { arrangement } = dispatcherOf(this.session);
+        arrangement.engine = {
+            suspend: () => {
+                this.layoutManager.running = false;
+            },
+            loadArrangement: (restoring) => {
+                this.layoutManager.layoutEngine?.loadArrangement();
+                if (restoring) {
+                    this.layoutManager.running = false;
+                }
+
+                this.updateManager.redrawArrangement();
+            },
+            pin: (id, pinned) => {
+                const node = this.getNode(id as string | number);
+                const engine = this.layoutManager.layoutEngine;
+                if (node === undefined || engine === undefined) {
+                    return;
+                }
+
+                try {
+                    if (pinned) {
+                        engine.pin(node);
+                    } else {
+                        engine.unpin(node);
+                    }
+                } catch {
+                    // An engine may refuse a node it was never told about; the pin is recorded.
+                }
+            },
+        };
         // The renderer reads its paint from the session's stack from here on. Until the first
         // pass has run, an element draws itself from the element's own defaults; see
         // `bootstrapNodePaint` in StylePainter.
@@ -423,7 +460,8 @@ export class Graph implements GraphContext {
         // forward, on undo and on redo alike. Import settings take effect at the next import and
         // the layout-behaviour settings at the next layout, as they always have.
         dispatcherOf(this.session).lane.register("config", (rendered, target, dirty) => {
-            const changed = (key: string): boolean => dirty.has(key) && rendered.config.get(key) !== target.config.get(key);
+            const changed = (key: string): boolean =>
+                dirty.has(key) && rendered.config.get(key) !== target.config.get(key);
             // Read live: a change made since this pass began gets a pass of its own, and both
             // steps below are idempotent.
             const { graph } = this.styles.config;
@@ -479,6 +517,12 @@ export class Graph implements GraphContext {
 
         // Initialize LayoutManager
         this.layoutManager = new LayoutManager(this.eventManager, this.dataManager, this.styles);
+        // A rest point seals where the layout came to rest into history; while a restore is on its
+        // way to the array, a new snapshot reloads the layout without starting it.
+        this.layoutManager.onRest = () => {
+            dispatcherOf(this.session).arrangement.rest();
+        };
+        this.layoutManager.restoring = () => dispatcherOf(this.session).lane.restoring;
 
         // The release list (WebGPU design 9.4 item 2). GPU memory is not garbage collected, so an
         // accelerator holding device buffers for a snapshot has to be TOLD when that snapshot stops
@@ -1079,7 +1123,9 @@ export class Graph implements GraphContext {
      *     positive, an opacity outside `[0, 1]`, a colour the element cannot read.
      */
     setSelectionStyle(selection: GraphSelectionStyleInput): void {
-        const current = dispatcherOf(this.session).state.config.get("selectionStyle") as GraphSelectionStyleInput | undefined;
+        const current = dispatcherOf(this.session).state.config.get("selectionStyle") as
+            | GraphSelectionStyleInput
+            | undefined;
         const merged = { ...current, ...selection };
 
         GraphSelectionStyleOpts.parse(merged);
@@ -1162,7 +1208,8 @@ export class Graph implements GraphContext {
         // Only what was set: no empty groups, so an untouched graph reads undefined.
         const set = Object.fromEntries(
             Object.entries(merged).filter(
-                ([, value]) => value !== undefined && (typeof value !== "object" || Object.keys(value as object).length > 0),
+                ([, value]) =>
+                    value !== undefined && (typeof value !== "object" || Object.keys(value as object).length > 0),
             ),
         );
 
@@ -1971,7 +2018,12 @@ export class Graph implements GraphContext {
      * @param details - Where it came from.
      */
     #reportStyleError(error: unknown, details: Record<string, unknown>): void {
-        this.eventManager.emitGraphError(this, error instanceof Error ? error : new Error(String(error)), "other", details);
+        this.eventManager.emitGraphError(
+            this,
+            error instanceof Error ? error : new Error(String(error)),
+            "other",
+            details,
+        );
     }
 
     /**
@@ -2068,10 +2120,16 @@ export class Graph implements GraphContext {
      * @returns Settles once the change is drawn
      */
     async removeEdges(edgeIds: string[], options?: QueueableOptions): Promise<void> {
-        await this.applyData("data-remove", { kind: "remove-edges", ids: edgeIds }, `Removing ${edgeIds.length} edges`, options, () => {
-            // Told first, for the reason `removeNodes` gives.
-            this.selectionManager.onEdgesRemoved(edgeIds);
-        });
+        await this.applyData(
+            "data-remove",
+            { kind: "remove-edges", ids: edgeIds },
+            `Removing ${edgeIds.length} edges`,
+            options,
+            () => {
+                // Told first, for the reason `removeNodes` gives.
+                this.selectionManager.onEdgesRemoved(edgeIds);
+            },
+        );
     }
 
     /**

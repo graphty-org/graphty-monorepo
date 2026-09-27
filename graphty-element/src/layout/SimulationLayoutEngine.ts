@@ -235,11 +235,7 @@ function resolveCentre(centre: ArrayLike<number> | null | undefined): [number, n
         return [0, 0, 0];
     }
 
-    return [
-        centre.length > 0 ? centre[0] : 0,
-        centre.length > 1 ? centre[1] : 0,
-        centre.length > 2 ? centre[2] : 0,
-    ];
+    return [centre.length > 0 ? centre[0] : 0, centre.length > 1 ? centre[1] : 0, centre.length > 2 ? centre[2] : 0];
 }
 
 /**
@@ -424,6 +420,13 @@ export class SimulationLayoutEngine extends LayoutEngine {
     #endWork: (() => void) | null = null;
     #iterations = 1;
     #iterationsDone = 0;
+
+    /**
+     * Moves at every {@link SimulationLayoutEngine.loadArrangement}. A batch submitted before the
+     * last one computed from coordinates that were since restored over, so what it reads back is
+     * dropped.
+     */
+    #arrangement = 0;
 
     /**
      * Builds a bridge. Nothing is planned and no simulation exists until {@link init} loads one.
@@ -703,6 +706,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         }
 
         this.#iterationsDone += this.#iterations;
+        const arrangement = this.#arrangement;
         const batch = simulation.step(this.#iterations);
         this.#syncWork();
         if (batch !== undefined && !this.#caught.has(batch)) {
@@ -711,6 +715,11 @@ export class SimulationLayoutEngine extends LayoutEngine {
                 () => {
                     // The batch has landed, so the simulation knows by now whether it settled.
                     this.#syncWork();
+                    // Submitted before a restore, it read back coordinates the restore replaced:
+                    // take the element's array again, which still holds the restored ones.
+                    if (arrangement !== this.#arrangement && this.#snapshot !== null && this.#positions !== null) {
+                        this.#adoptPositions(this.#snapshot.nodeCount, this.#positions);
+                    }
                 },
                 (error: unknown) => {
                     // The simulation this batch was SUBMITTED on, not whichever one is current
@@ -751,6 +760,20 @@ export class SimulationLayoutEngine extends LayoutEngine {
         if (typeof simulation?.reheat === "function") {
             simulation.reheat();
         }
+    }
+
+    /**
+     * Takes the element's array as the simulation's coordinates, through a reload of the graph it
+     * holds, and drops what batches already in flight read back.
+     */
+    override loadArrangement(): void {
+        this.#arrangement++;
+        if (this.#snapshot === null) {
+            return;
+        }
+
+        const snapshot = this.#dataManager.getSnapshot();
+        this.reload(snapshot, this.#dataManager.positions.view(snapshot.nodeCount));
     }
 
     /**

@@ -6,8 +6,8 @@
  * The state digest is `stateDigest` over the dispatcher's project state and the snapshot's rows
  * (node and edge order, endpoints, weights and columns). The picture digest is
  * what the session derives from it: every element's resolved style and mesh key, and the ids the
- * visibility masks leave showing. Neither includes the positions lane or the arrangement: nothing
- * restores coordinates until phase 16a of design/undo/undo-plan.md, which turns them on.
+ * visibility masks leave showing. The state digest includes the positions lane, its coordinates
+ * and pin bytes, read at rest: the caller says how to wait for the layout to come to rest.
  */
 
 import { assert } from "vitest";
@@ -55,7 +55,7 @@ export function pictureDigest(session: GraphSession): string {
  */
 function digestsOf(session: GraphSession, extra: () => string): Digests {
     return {
-        state: stateDigest(dispatcherOf(session).state, { snapshot: session.snapshot() }),
+        state: stateDigest(dispatcherOf(session).state, { snapshot: session.snapshot(), arrangement: true }),
         picture: pictureDigest(session),
         extra: extra(),
     };
@@ -66,24 +66,30 @@ function digestsOf(session: GraphSession, extra: () => string): Digests {
  * @param session - The session to run it on.
  * @param fixture - The fixture.
  * @param extra - A further digest compared alongside the state and the picture.
+ * @param rest - Settles once the layout is at rest; the digests are read then.
  */
 export async function roundTrip(
     session: GraphSession,
     fixture: RoundTripFixture,
     extra: () => string = () => "",
+    rest: () => Promise<void> = () => Promise.resolve(),
 ): Promise<void> {
+    const digests = async (): Promise<Digests> => {
+        await rest();
+        return digestsOf(session, extra);
+    };
     await fixture.before?.(session);
+    const before = await digests();
     const steps = session.history.steps.length;
-    const before = digestsOf(session, extra);
 
     await session.execute(fixture.command);
-    const after = digestsOf(session, extra);
+    const after = await digests();
     assert.strictEqual(session.history.steps.length, steps + 1, `${fixture.name} recorded one step`);
     assert.notStrictEqual(after.state, before.state, `${fixture.name} changed project state`);
 
     await session.undo();
-    assert.deepEqual(digestsOf(session, extra), before, `${fixture.name}: undo restores every digest`);
+    assert.deepEqual(await digests(), before, `${fixture.name}: undo restores every digest`);
 
     await session.redo();
-    assert.deepEqual(digestsOf(session, extra), after, `${fixture.name}: redo restores every digest`);
+    assert.deepEqual(await digests(), after, `${fixture.name}: redo restores every digest`);
 }

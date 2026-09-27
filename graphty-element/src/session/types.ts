@@ -37,7 +37,17 @@ import type { GraphtyError } from "../errors/GraphtyError";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
 import type { AlgorithmRunCommand, Plan, SessionCommand } from "./planning";
 import type { ResultsApi } from "./results";
-import type { Caveats, EngineVersions, Run, RunChange, RunExecutor, RunOptions, RunQueue, RunRemoval, RunsApi } from "./runs";
+import type {
+    Caveats,
+    EngineVersions,
+    Run,
+    RunChange,
+    RunExecutor,
+    RunOptions,
+    RunQueue,
+    RunRemoval,
+    RunsApi,
+} from "./runs";
 import type { ScopeApi } from "./scope/index";
 import type { SelectionApi, SelectionDelta, SelectionOwner } from "./selection";
 import type { ElementPaint, SessionStylesApi, StyleChange, StylesApi } from "./styles";
@@ -761,6 +771,51 @@ export interface CommandOutcomeMap {
     "view.camera": Promise<void>;
     /** Settles once the settings are recorded and the picture has caught up. */
     "config.set": Promise<void>;
+    /** Settles once the coordinates are recorded and the layout has taken them. */
+    "positions.set": Promise<void>;
+    /** Settles once the pins are recorded and the layout has taken them. */
+    "positions.pin": Promise<void>;
+}
+
+/** One node's coordinates for `positions.set`, in scene units. */
+export interface PositionEntry {
+    readonly id: NodeId;
+    readonly x: number;
+    readonly y: number;
+    /** Defaults to 0. */
+    readonly z?: number;
+}
+
+/**
+ * Placing and pinning nodes, as undoable steps.
+ *
+ * Coordinates a running layout writes are not steps: where the layout comes to rest is recorded
+ * into the step before it, so undo and redo restore where the nodes were without running the
+ * layout again.
+ */
+export interface SessionPositions {
+    /** The pinned node ids: the nodes no layout moves. */
+    readonly pinned: ReadonlySet<NodeId>;
+    /**
+     * Place nodes. One step; calls made one after another within the coalescing window are one.
+     * @param entries - The nodes and where to put them.
+     * @returns Settles once the step is recorded and the layout has taken the coordinates.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` for a node the graph does not
+     *     hold or a coordinate that is not a finite number; nothing is placed then.
+     */
+    set(entries: readonly PositionEntry[]): Promise<void>;
+    /**
+     * Pin nodes where they are. One step. A node the graph does not hold is skipped.
+     * @param ids - The nodes.
+     * @returns Settles once the step is recorded and the layout has taken the pins.
+     */
+    pin(ids: readonly NodeId[]): Promise<void>;
+    /**
+     * Release pinned nodes, so the layout arranges them again. One step.
+     * @param ids - The nodes.
+     * @returns Settles once the step is recorded and the layout has taken the change.
+     */
+    unpin(ids: readonly NodeId[]): Promise<void>;
 }
 
 /**
@@ -863,13 +918,13 @@ export interface GraphSession {
     readonly views: SessionViews;
     /**
      * The element-owned node coordinates: a stride-3 Float32Array indexed by dense node index,
-     * where a row no layout has placed reads NaN rather than the origin.
+     * where a row no layout has placed reads NaN rather than the origin, with the verbs that place
+     * and pin nodes as undoable steps.
      *
-     * The typed placement verbs of the design's positions API -- pinning, snapshot and restore,
-     * per-id reads -- arrive with the layout work. This is the array itself, which is what a
-     * layout, a drag and a GPU readback all write into.
+     * Place and pin through `set`, `pin` and `unpin`. The array's own writers are what a layout, a
+     * drag and a GPU readback write through, and a write made through them is not a step.
      */
-    readonly positions: ElementPositions;
+    readonly positions: ElementPositions & SessionPositions;
     /**
      * How many nodes the DATA arrived carrying a coordinate for.
      *

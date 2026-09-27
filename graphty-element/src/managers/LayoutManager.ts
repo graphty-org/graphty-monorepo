@@ -291,6 +291,17 @@ export class LayoutManager implements Manager {
 
     private logger: Logger = GraphtyLogger.getLogger(["graphty", "layout"]);
 
+    /** Told when the layout comes to rest: it settled, was paused, or finished placing. */
+    onRest: (() => void) | null = null;
+
+    /**
+     * Whether undo, redo or a restore is on its way to the position array. While it is, a new
+     * snapshot or accelerator reloads the engine without starting it, so nothing moves the
+     * arrangement being restored.
+     * @returns True while one is.
+     */
+    restoring: () => boolean = () => false;
+
     /**
      * Gets the running state of the layout
      * @returns True if layout is running, false otherwise
@@ -311,7 +322,11 @@ export class LayoutManager implements Manager {
      */
     set running(value: boolean) {
         const resuming = value && !this._running;
+        const resting = !value && this._running;
         this._running = value;
+        if (resting) {
+            this.onRest?.();
+        }
 
         // ONLY THE BRIDGE HAS A SETTLE COUNT TO RESTART. The one-shot engines are finished when
         // they are finished, and `ngraph` never reports settled, so neither has anything a
@@ -404,7 +419,7 @@ export class LayoutManager implements Manager {
 
         try {
             engine.replaceSimulation();
-            this.running = true;
+            this.running = !this.restoring();
         } catch (error) {
             this.running = false;
             this.reportSimulationFailure(error);
@@ -423,7 +438,9 @@ export class LayoutManager implements Manager {
 
         try {
             engine.reload(event.next, this.dataManager.positions.view(event.next.nodeCount));
-            this.running = true;
+            if (!this.restoring()) {
+                this.running = true;
+            }
         } catch (error) {
             // Same channel and the same reason as `onAccelerationChange`: the reload re-plans, so
             // under `required` with nothing attached it throws -- and this runs inside the
@@ -476,6 +493,7 @@ export class LayoutManager implements Manager {
         this.layoutEngine?.dispose();
 
         this.layoutEngine = undefined;
+        this.onRest = null;
         this.running = false;
     }
 
@@ -546,11 +564,7 @@ export class LayoutManager implements Manager {
                 const init: SimulationEngineInit = {
                     type: simulationType,
                     layoutType: type,
-                    options: resolveSimulationOptions(
-                        simulationType,
-                        layoutOpts,
-                        this.styles.config.behavior.layout,
-                    ),
+                    options: resolveSimulationOptions(simulationType, layoutOpts, this.styles.config.behavior.layout),
                     controller: this.acceleration,
                     report: (error) => {
                         this.reportLayoutFailure(type, error, "stepped");
@@ -703,7 +717,11 @@ export class LayoutManager implements Manager {
      * to start.
      * @returns The error to throw.
      */
-    private reportLayoutFailure(type: string, error: unknown, phase: "built" | "initialised" | "stepped"): GraphtyError {
+    private reportLayoutFailure(
+        type: string,
+        error: unknown,
+        phase: "built" | "initialised" | "stepped",
+    ): GraphtyError {
         const thrown = error instanceof Error ? error : new Error(String(error));
 
         this.logger.error(`Layout could not be ${phase}`, thrown, { layoutType: type });

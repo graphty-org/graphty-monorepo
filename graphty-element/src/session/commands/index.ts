@@ -11,6 +11,7 @@ import type { CommandDefinition, UndoableDefinition } from "../project/Dispatche
 import { ALGO_DEFINITIONS } from "./algo";
 import { CONFIG_DEFINITIONS } from "./config";
 import { DATA_DEFINITIONS } from "./data";
+import { POSITIONS_DEFINITIONS } from "./positions";
 import { SCOPE_DEFINITIONS } from "./scope";
 import { STYLE_DEFINITIONS } from "./style";
 import { VIEW_DEFINITIONS } from "./view";
@@ -41,7 +42,11 @@ const batch: UndoableDefinition<BatchCommand> = {
     byReference: ["records", "config", "nodes", "edges"],
     members: (command) => ({ label: command.label ?? `${String(command.steps.length)} changes`, steps: command.steps }),
     execute: () => {
-        throw new GraphtyError({ code: "E_INTERNAL", message: "A batch runs as a transaction of its members.", source: "history" });
+        throw new GraphtyError({
+            code: "E_INTERNAL",
+            message: "A batch runs as a transaction of its members.",
+            source: "history",
+        });
     },
 };
 
@@ -55,4 +60,5 @@ export const DEFINITIONS: readonly CommandDefinition<SessionCommand>[] = [
     ...SCOPE_DEFINITIONS,
     ...VIEW_DEFINITIONS,
     ...CONFIG_DEFINITIONS,
+    ...POSITIONS_DEFINITIONS,
 ];

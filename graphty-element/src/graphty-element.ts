@@ -1336,7 +1336,9 @@ export class Graphty extends LitElement {
             parseAlgorithmsOnLoad(value);
         }
 
-        this.#setSetting("algorithmsOnLoad", this.algorithmsOnLoad, { data: { algorithms: value as AlgorithmOnLoad[] | undefined } });
+        this.#setSetting("algorithmsOnLoad", this.algorithmsOnLoad, {
+            data: { algorithms: value as AlgorithmOnLoad[] | undefined },
+        });
     }
 
     /**
@@ -1479,10 +1481,7 @@ export class Graphty extends LitElement {
             try {
                 this.#graph.setBackground(value);
             } catch (error: unknown) {
-                console.error(
-                    "<graphty-element>: the background was refused. Keeping the one already set.",
-                    error,
-                );
+                console.error("<graphty-element>: the background was refused. Keeping the one already set.", error);
 
                 return;
             }
@@ -2130,10 +2129,7 @@ export class Graphty extends LitElement {
      * await element.removeEdges(['0', '3']);
      * ```
      */
-    async removeEdges(
-        edgeIds: string[],
-        options?: import("./utils/queue-migration").QueueableOptions,
-    ): Promise<void> {
+    async removeEdges(edgeIds: string[], options?: import("./utils/queue-migration").QueueableOptions): Promise<void> {
         return this.#graph.removeEdges(edgeIds, options);
     }
 
@@ -2263,9 +2259,7 @@ export class Graphty extends LitElement {
      * ```
      */
     pin(ids: (string | number) | readonly (string | number)[]): void {
-        for (const id of Array.isArray(ids) ? ids : [ids as string | number]) {
-            this.#graph.getNode(id)?.pin();
-        }
+        this.#pin(ids, true);
     }
 
     /**
@@ -2274,9 +2268,20 @@ export class Graphty extends LitElement {
      * @since 2.0.0
      */
     unpin(ids: (string | number) | readonly (string | number)[]): void {
-        for (const id of Array.isArray(ids) ? ids : [ids as string | number]) {
-            this.#graph.getNode(id)?.unpin();
-        }
+        this.#pin(ids, false);
+    }
+
+    /**
+     * Pin or release the nodes that answer to these ids, in either spelling, as one step. An id
+     * nothing answers to is skipped, as it always has been.
+     * @param ids - One node id, or several.
+     * @param pinned - Pin, or release.
+     */
+    #pin(ids: (string | number) | readonly (string | number)[], pinned: boolean): void {
+        const nodes = (Array.isArray(ids) ? ids : [ids as string | number]).map(
+            (id) => this.#graph.getNode(id)?.id ?? id,
+        );
+        void dispatcherOf(this.#graph.getSession()).dispatchNow({ op: "positions.pin", ids: nodes, pinned });
     }
 
     /**

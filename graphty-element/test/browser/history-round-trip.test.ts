@@ -9,6 +9,9 @@
  * order: instance colour and scale, source mesh, enabled and visible flags, and label bounds.
  * Without the second part a derivation hook that skipped a repaint after undo would leave stale
  * paint on the meshes while every state digest matched.
+ *
+ * Every digest is read with the layout at rest, and the state digest holds the positions lane, so
+ * each fixture's round trip also restores where the nodes were.
  */
 
 import { PhotoDome } from "@babylonjs/core";
@@ -29,6 +32,23 @@ afterEach(() => {
         cleanup();
     }
 });
+
+/**
+ * Settles once the graph's layout has come to rest and a frame has been drawn since, with the
+ * render loop running: an edge's length is drawn from where its ends are at each frame.
+ * @param graph - The graph.
+ */
+async function atRest(graph: Graph): Promise<void> {
+    await graph.waitForSettled();
+    for (let wait = 0; wait < 1000 && graph.getLayoutManager().running; wait++) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+
+    assert.isFalse(graph.getLayoutManager().running, "the layout came to rest");
+    for (let frame = 0; frame < 2; frame++) {
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+}
 
 /**
  * A real `Graph` holding a small graph, laid out in one pass.
@@ -56,17 +76,20 @@ async function loadedGraph(): Promise<Graph> {
 }
 
 /**
- * What one mesh shows, read back from the render side.
+ * What one mesh shows, read back from the render side. A disabled mesh draws nothing, so its
+ * scale is not part of the picture: an edge hidden by a filter keeps the length it was last drawn
+ * at, which depends on how many frames ran while it showed, not on the state.
  * @param mesh - The mesh.
  * @returns Its paint.
  */
 function paintOf(mesh: AbstractMesh): unknown {
     const color = (mesh.instancedBuffers as { color?: { asArray(): number[] } } | undefined)?.color;
+    const enabled = mesh.isEnabled();
     return {
         source: (mesh as { sourceMesh?: { name: string } }).sourceMesh?.name ?? mesh.name,
-        enabled: mesh.isEnabled(),
+        enabled,
         visible: mesh.isVisible,
-        scale: mesh.scaling.asArray(),
+        scale: enabled ? mesh.scaling.asArray() : null,
         color: color?.asArray() ?? null,
     };
 }
@@ -103,7 +126,12 @@ describe("round trip per command, on a renderer", () => {
             fixture.name,
             async () => {
                 const graph = await loadedGraph();
-                await roundTrip(graph.getSession(), fixture, () => sceneDigest(graph));
+                await roundTrip(
+                    graph.getSession(),
+                    fixture,
+                    () => sceneDigest(graph),
+                    () => atRest(graph),
+                );
             },
             TEST_TIMEOUT_MS,
         );
@@ -120,7 +148,4 @@ describe("round trip per command, on a renderer", () => {
         },
         TEST_TIMEOUT_MS,
     );
-
-    it.skip("digests the positions lane and the arrangement: nothing restores coordinates until phase 16a", () =>
-        undefined);
 });

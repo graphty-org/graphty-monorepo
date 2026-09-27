@@ -105,6 +105,7 @@ import type {
     SessionEventMap,
     SessionGraphStore,
     SessionHistory,
+    SessionPositions,
     SessionRecordSource,
     SessionRunsOptions,
     SessionStatus,
@@ -284,6 +285,8 @@ class Session implements ElementSession {
     /** The one path every change to project state takes, and the history it records. */
     private readonly dispatcher: Dispatcher;
     private disposed = false;
+    /** The lane with the positions verbs beside it; built once, on first read. */
+    private positionsView: (ElementPositions & SessionPositions) | undefined;
 
     /**
      * Assemble the session from parts the factory has already decided the ownership of.
@@ -419,7 +422,9 @@ class Session implements ElementSession {
             ...(command.sample === undefined ? {} : { sample: command.sample }),
             ...(command.exact === undefined ? {} : { exact: command.exact }),
             ...(command.as === undefined ? {} : { as: command.as }),
-            ...(command.applySuggestedStyles === undefined ? {} : { applySuggestedStyles: command.applySuggestedStyles }),
+            ...(command.applySuggestedStyles === undefined
+                ? {}
+                : { applySuggestedStyles: command.applySuggestedStyles }),
         });
     }
 
@@ -451,8 +456,9 @@ class Session implements ElementSession {
      * where a row no layout has placed reads NaN rather than the origin.
      * @returns the live position array
      */
-    get positions(): ElementPositions {
-        return this.store.positions;
+    get positions(): ElementPositions & SessionPositions {
+        this.positionsView ??= positionsOf(this.store, this.dispatcher);
+        return this.positionsView;
     }
 
     /**
@@ -464,7 +470,6 @@ class Session implements ElementSession {
     get seededNodeCount(): number {
         return this.store.seededNodeCount;
     }
-
 
     /**
      * The O(1) facts, as a fresh frozen struct on every read so that a consumer cannot hold a
@@ -633,6 +638,8 @@ class Session implements ElementSession {
         }
 
         this.disposed = true;
+        // The store may be the renderer's, and gone: nothing is captured on the way out.
+        this.dispatcher.arrangement.bind(null);
         this.dispatcher.clear();
         this.unwatchController();
         // Runs first: a run still in flight holds a reference to the data it is reading, and
@@ -686,6 +693,52 @@ export function dispatcherOf(session: GraphSession): Dispatcher {
 }
 
 /**
+ * The positions lane, with the verbs that place and pin nodes as steps beside its own members.
+ *
+ * A proxy, because the lane is a class whose private fields a plain object cannot carry: every
+ * member but the four verbs is the lane's own, bound to it.
+ * @param store - The store whose lane it is.
+ * @param dispatcher - The dispatcher the verbs dispatch through.
+ * @returns The lane with the verbs.
+ */
+function positionsOf(store: SessionGraphStore, dispatcher: Dispatcher): ElementPositions & SessionPositions {
+    const verbs: SessionPositions = {
+        get pinned() {
+            return dispatcher.state.pins;
+        },
+        set: async (entries) => {
+            await dispatcher.dispatch({ op: "positions.set", entries });
+        },
+        pin: async (ids) => {
+            await dispatcher.dispatch({ op: "positions.pin", ids, pinned: true });
+        },
+        unpin: async (ids) => {
+            await dispatcher.dispatch({ op: "positions.pin", ids, pinned: false });
+        },
+    };
+    const bound = new Map<PropertyKey, unknown>();
+
+    return new Proxy(store.positions, {
+        get(lane, key) {
+            if (Object.hasOwn(verbs, key)) {
+                return verbs[key as keyof SessionPositions];
+            }
+
+            const value: unknown = Reflect.get(lane, key, lane);
+            if (typeof value !== "function") {
+                return value;
+            }
+
+            if (!bound.has(key)) {
+                bound.set(key, (value as (...args: unknown[]) => unknown).bind(lane));
+            }
+
+            return bound.get(key);
+        },
+    }) as ElementPositions & SessionPositions;
+}
+
+/**
  * The saved camera views: the dispatcher's `views` slice, read as a map, with the two verbs that
  * write it.
  * @param dispatcher - The dispatcher.
@@ -699,7 +752,10 @@ function viewsOf(dispatcher: Dispatcher): SessionViews {
         },
         get: (name: string) => held.get(name),
         has: (name: string) => held.has(name),
-        forEach: (visit: (camera: CameraState, name: string, map: ReadonlyMap<string, CameraState>) => void, self?: unknown) => {
+        forEach: (
+            visit: (camera: CameraState, name: string, map: ReadonlyMap<string, CameraState>) => void,
+            self?: unknown,
+        ) => {
             held.forEach((camera, name) => {
                 visit.call(self, camera, name, views);
             });
@@ -1433,6 +1489,12 @@ function buildSession(options: CreateGraphSessionOptions, internals: SessionInte
     });
     const acceleration = resolveAcceleration(options.acceleration, policy, minNodes);
     const snapshot = (): GraphSnapshot => store.store.getSnapshot();
+    dispatcher.arrangement.bind({
+        snapshot,
+        get positions() {
+            return store.store.positions;
+        },
+    });
     const slice = (): GraphSlice => dispatcher.state.graph;
     // What the records say, from the `graph` slice every primitive fills, then from a host's own
     // source for rows it wrote some other way.
@@ -1642,7 +1704,9 @@ function buildSession(options: CreateGraphSessionOptions, internals: SessionInte
         const kept = new Set(rendered.styles);
         // ponytail: repaints every kept layer, not only those reading the changed runs -- the
         // cost the element paid before on every finished run; name the readers if it shows.
-        const edits = target.styles.filter((entry) => kept.has(entry)).map((entry) => ({ previous: entry, next: entry }));
+        const edits = target.styles
+            .filter((entry) => kept.has(entry))
+            .map((entry) => ({ previous: entry, next: entry }));
 
         if (edits.length > 0) {
             await painter.repaint({ reason: "update", edits, stack: target.styles, fromIndex: 0 }, RUNS_PASS);

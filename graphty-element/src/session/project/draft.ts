@@ -15,13 +15,15 @@
  * This module covers the value slices. The op-log slices (`graph`, `pins`) have writers of their
  * own (`./graphOps.ts`), which write live state themselves and hand the draft an {@link OpLogEntry}
  * saying how to put the write back and do it again; the draft keeps those entries in order, and
- * undo, redo and rollback run them. The `arrangement` capture has a writer of its own too.
+ * undo, redo and rollback run them. The coordinates a `positions.set` writes are kept as a row
+ * patch beside them (`./arrangement.ts`); the history, not the draft, restores them.
  */
 
 import type { CameraState } from "../../camera/types";
 import type { RunId, ScopeId } from "../../catalog/types";
 import type { SavedScopeRecord } from "../scope/ScopeApi";
 import type { CompiledLayer } from "../styles/Layer";
+import { mergeRowPatches, type RowPatch, rowPatchBytes } from "./arrangement";
 import type { LayoutChoice, ProjectState, RunEntry, VisibilityState } from "./state";
 import { strictStateEnabled, strictViolation } from "./strict";
 
@@ -40,8 +42,8 @@ interface PatchEntry {
     readonly next: unknown;
 }
 
-/** A slice a patch can touch, by value or as an op-log. */
-export type Slice = ValueSlice | "graph" | "pins";
+/** A slice a patch can touch, by value, as an op-log, or as coordinates. */
+export type Slice = ValueSlice | "graph" | "pins" | "arrangement";
 
 /**
  * One write to an op-log slice, recorded by the primitive that made it: live state already holds
@@ -63,6 +65,8 @@ export interface Patch {
     readonly entries: readonly PatchEntry[];
     /** The op-log writes, in the order they were made. */
     readonly log: readonly OpLogEntry[];
+    /** The rows `positions.set` wrote, or null. */
+    readonly rows: RowPatch | null;
 }
 
 /**
@@ -71,7 +75,7 @@ export interface Patch {
  * @returns True when it wrote a value key or an op-log entry.
  */
 export function isEmptyPatch(patch: Patch): boolean {
-    return patch.entries.length === 0 && patch.log.length === 0;
+    return patch.entries.length === 0 && patch.log.length === 0 && patch.rows === null;
 }
 
 /**
@@ -80,7 +84,7 @@ export function isEmptyPatch(patch: Patch): boolean {
  * @returns Bytes; value entries are held by reference and count nothing here.
  */
 export function patchBytes(patch: Patch): number {
-    return patch.log.reduce((sum, entry) => sum + entry.bytes(), 0);
+    return patch.log.reduce((sum, entry) => sum + entry.bytes(), patch.rows === null ? 0 : rowPatchBytes(patch.rows));
 }
 
 /** Writes one key of a keyed slice. */
@@ -105,6 +109,11 @@ export interface Draft {
      * @param entry - How to put it back and do it again.
      */
     log(entry: OpLogEntry): void;
+    /**
+     * Keep rows `positions.set` wrote to the lane already, merged with any the draft holds.
+     * @param rows - The rows, with their prior and new values.
+     */
+    arrange(rows: RowPatch): void;
     /** Close the draft and hand back what it recorded. */
     seal(): Patch;
     /**
@@ -142,6 +151,7 @@ interface OpenEntry {
 interface OpenDraft {
     readonly entries: Map<string, OpenEntry>;
     readonly log: OpLogEntry[];
+    rows: RowPatch | null;
     closed: boolean;
 }
 
@@ -261,7 +271,7 @@ export function createProjectStore(
     const store: ProjectStore = {
         state,
         open(): Draft {
-            const draft: OpenDraft = { entries: new Map(), log: [], closed: false };
+            const draft: OpenDraft = { entries: new Map(), log: [], rows: null, closed: false };
             openDrafts.add(draft);
             const seal = (): Patch => {
                 close(draft);
@@ -269,6 +279,7 @@ export function createProjectStore(
                 return Object.freeze({
                     entries: Object.freeze([...draft.entries.values()].map((entry) => Object.freeze({ ...entry }))),
                     log: Object.freeze([...draft.log]),
+                    rows: draft.rows,
                 });
             };
 
@@ -300,6 +311,13 @@ export function createProjectStore(
                     }
 
                     draft.log.push(entry);
+                },
+                arrange(rows) {
+                    if (draft.closed) {
+                        throw new Error("A closed draft cannot write arrangement.");
+                    }
+
+                    draft.rows = draft.rows === null ? rows : mergeRowPatches(draft.rows, rows);
                 },
                 seal,
                 rollback() {
@@ -388,7 +406,16 @@ export function mergePatches(older: Patch, newer: Patch): Patch {
         merged.set(id, first === undefined ? entry : Object.freeze({ ...entry, prior: first.prior }));
     }
 
-    return Object.freeze({ entries: Object.freeze([...merged.values()]), log: Object.freeze([...older.log, ...newer.log]) });
+    const rows =
+        older.rows === null || newer.rows === null
+            ? (newer.rows ?? older.rows)
+            : mergeRowPatches(older.rows, newer.rows);
+
+    return Object.freeze({
+        entries: Object.freeze([...merged.values()]),
+        log: Object.freeze([...older.log, ...newer.log]),
+        rows,
+    });
 }
 
 /**

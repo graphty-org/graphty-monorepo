@@ -24,6 +24,7 @@ import { NodeEffects } from "./meshes/NodeEffects";
 import { NodeMesh } from "./meshes/NodeMesh";
 import { RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { NodeBehavior, type NodeDragHandler } from "./NodeBehavior";
+import { dispatcherOf } from "./session/GraphSession";
 
 export type NodeIdType = string | number;
 
@@ -1059,8 +1060,15 @@ export class Node {
      * of the element's bit and never a second source of truth. The order is load-bearing: the bit
      * is recorded FIRST, so an engine that calls back into {@link Node.isPinned} while being told
      * sees the pin.
+     *
+     * In a graph with a session the pin is an undoable step: it is recorded in the session's
+     * `pins`, which writes the byte and tells the engine.
      */
     pin(): void {
+        if (this.dispatchPin(true)) {
+            return;
+        }
+
         if (!this.positionsLane?.setPinned(this.index, true)) {
             // A node the graph builder never took has no row to pin, and pinning happens from a
             // pointer gesture, so this says so rather than throwing inside the frame that reports
@@ -1081,8 +1089,27 @@ export class Node {
      * been told about.
      */
     unpin(): void {
+        if (this.dispatchPin(false)) {
+            return;
+        }
+
         this.positionsLane?.setPinned(this.index, false);
         this.tellEngine("unpin");
+    }
+
+    /**
+     * Pin or release this node as a step of its graph's session, when it has one.
+     * @param pinned - Pin, or release.
+     * @returns False when there is no session to dispatch through.
+     */
+    private dispatchPin(pinned: boolean): boolean {
+        const session = this.context.getSession?.();
+        if (session === undefined) {
+            return false;
+        }
+
+        void dispatcherOf(session).dispatchNow({ op: "positions.pin", ids: [this.id], pinned });
+        return true;
     }
 
     /**

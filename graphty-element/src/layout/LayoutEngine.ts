@@ -380,6 +380,24 @@ export abstract class LayoutEngine {
     }
 
     /**
+     * Take the coordinates in the position array as this engine's own, and stay at rest.
+     *
+     * Undo and redo write where the nodes were into the array and then call this, so the next
+     * drag, add or `setRunning(true)` starts from the restored arrangement instead of the one the
+     * engine was holding. The default hands every placed node back through
+     * {@link LayoutEngine.setNodePosition}, which is right for any engine that keeps coordinates of
+     * its own; an engine that can adopt the array in one pass overrides it.
+     */
+    loadArrangement(): void {
+        const at = { x: 0, y: 0, z: 0 };
+        for (const n of this.nodes) {
+            if (this.readNodePosition(n, at)) {
+                this.setNodePosition(n, at);
+            }
+        }
+    }
+
+    /**
      * Read a node's published coordinates into an object the CALLER owns.
      *
      * The point of the out parameter is that a renderer can pass the vector it is about to draw
@@ -969,6 +987,16 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
      */
     unpin(): void {
         // See the doc comment: the element's position array holds the pin, not this engine.
+    }
+
+    /**
+     * Keep the arrangement in the array instead of recomputing one: a static layout that was
+     * marked stale by the graph change an undo made would otherwise lay the graph out afresh at
+     * the next read and write over what was restored.
+     */
+    override loadArrangement(): void {
+        this.stale = false;
+        super.loadArrangement();
     }
 
     // properties

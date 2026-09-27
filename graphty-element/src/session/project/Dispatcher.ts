@@ -26,6 +26,7 @@
  * one called from inside a listener runs after the current call has returned.
  */
 
+import type { NodeId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { OperationCategory } from "../../managers/OperationQueueManager";
 import type { RunService } from "../commands/algo";
@@ -34,6 +35,7 @@ import type { ScopeService } from "../commands/scope";
 import type { StyleService } from "../commands/style";
 import type { CameraService } from "../commands/view";
 import type { VisibilityService } from "../commands/visibility";
+import { Arrangement } from "./arrangement";
 import { DerivationLane } from "./derive";
 import {
     createProjectStore,
@@ -46,7 +48,7 @@ import {
     type ProjectStore,
     type Slice,
 } from "./draft";
-import { GraphOps } from "./graphOps";
+import { GraphOps, nodeKey } from "./graphOps";
 import { History, type HistoryChangeReason } from "./History";
 import { createProjectState, type ProjectState } from "./state";
 import { checkSoleHolder, strictStateEnabled } from "./strict";
@@ -74,6 +76,8 @@ const RUN_CATEGORY: OperationCategory = "algorithm-run";
  */
 interface CommandServices {
     data?: DataService;
+    /** The arrangement: where `positions.*` write. Always present. */
+    positions?: Arrangement;
     runs?: RunService;
     styles?: StyleService;
     visibility?: VisibilityService;
@@ -102,7 +106,10 @@ interface DispatchOptions {
 }
 
 /** Dispatch one command, as a transaction's scope or a deferred member's origin does. */
-export type DispatchFunction = <C extends CommandLike>(command: Dispatchable<C>, options?: DispatchOptions) => Promise<unknown>;
+export type DispatchFunction = <C extends CommandLike>(
+    command: Dispatchable<C>,
+    options?: DispatchOptions,
+) => Promise<unknown>;
 
 /** What an undoable command executes with: the state to read, and the draft that writes it. */
 export interface UndoableContext {
@@ -265,7 +272,11 @@ export interface Scheduler {
      * @param onTurn - Called when the slot comes up.
      * @returns The slot.
      */
-    enqueue(category: OperationCategory, onTurn: (context?: SlotContext) => Promise<void>, description?: string): ScheduledSlot;
+    enqueue(
+        category: OperationCategory,
+        onTurn: (context?: SlotContext) => Promise<void>,
+        description?: string,
+    ): ScheduledSlot;
 }
 
 /** The part of the element's `OperationQueueManager` a scheduler needs. */
@@ -325,14 +336,17 @@ export function runQueueScheduler(queue: RunQueueLike): Scheduler {
             const id = queue.queueOperation(
                 "algorithm-run",
                 (context) => {
-                context.signal.addEventListener(
-                    "abort",
-                    () => {
-                        controller.abort(context.signal.reason);
-                    },
-                    { once: true },
-                );
-                return onTurn({ ...(context.progress === undefined ? {} : { progress: context.progress }), id: context.id });
+                    context.signal.addEventListener(
+                        "abort",
+                        () => {
+                            controller.abort(context.signal.reason);
+                        },
+                        { once: true },
+                    );
+                    return onTurn({
+                        ...(context.progress === undefined ? {} : { progress: context.progress }),
+                        id: context.id,
+                    });
                 },
                 description === undefined ? undefined : { description },
             );
@@ -558,7 +572,13 @@ function opLogKeys(keys: readonly SliceKey[]): SliceKey[] {
  * @returns The slices.
  */
 function slicesOf(patch: Patch): readonly Slice[] {
-    return [...new Set<Slice>([...patch.entries.map((entry) => entry.slice), ...patch.log.map((entry) => entry.slice)])];
+    return [
+        ...new Set<Slice>([
+            ...patch.entries.map((entry) => entry.slice),
+            ...patch.log.map((entry) => entry.slice),
+            ...(patch.rows === null ? [] : ["arrangement" as const]),
+        ]),
+    ];
 }
 
 /**
@@ -648,8 +668,10 @@ export class Dispatcher {
     readonly events: DispatcherEvents;
     /** What definitions reach besides state; see {@link CommandServices}. */
     readonly services: CommandServices = {};
-    /** The graph primitives over this dispatcher's `graph` slice. */
+    /** The graph primitives over this dispatcher's `graph` and `pins` slices. */
     readonly graph: GraphOps;
+    /** Node coordinates at rest: captures, the `arrangement` and `pins` hooks, rest points. */
+    readonly arrangement: Arrangement;
     private readonly store: ProjectStore;
     private readonly definitions = new Map<string, CommandDefinition<CommandLike>>();
     private readonly scheduler: Scheduler;
@@ -695,6 +717,8 @@ export class Dispatcher {
         });
         this.lane = new DerivationLane(this.store.state);
         const state = this.store.state as { graph: ProjectState["graph"] };
+        // The store's own set (`createProjectState`), typed read-only for every other reader.
+        const pins = this.store.state.pins as Set<NodeId>;
         this.graph = new GraphOps({
             read: () => state.graph,
             write: (slice) => {
@@ -702,6 +726,10 @@ export class Dispatcher {
             },
             touch: (key) => {
                 this.lane.touch("graph", key);
+            },
+            pins: () => pins,
+            touchPin: (id) => {
+                this.lane.touch("pins", nodeKey(id));
             },
             strict: this.strict,
             session: true,
@@ -721,7 +749,10 @@ export class Dispatcher {
             onChange: (reason) => {
                 this.note(reason);
             },
+            rows: (patch) => patch.rows,
         });
+        this.arrangement = new Arrangement(this.store.state, this.lane, this.history, this.graph);
+        this.services.positions = this.arrangement;
     }
 
     /**
@@ -933,7 +964,8 @@ export class Dispatcher {
      */
     clear(): void {
         this.cancelAll(this.cascade(this.ordered()), "cancel");
-        this.history.clear();
+        this.arrangement.flush();
+        this.history.clear(this.arrangement.capture());
         this.steps.clear();
         this.flushHistory();
     }
@@ -1030,11 +1062,17 @@ export class Dispatcher {
             return { kind: "cancelled", pending: this.cancelAll(plan.cancel, direction) };
         }
 
+        // Sealed before the cursor moves, so an arrangement in flight is not given to the step
+        // below (design section 6.2).
+        this.arrangement.seal();
         this.lane.restore(direction);
+        this.arrangement.stop();
         const step = direction === "undo" ? this.history.undo() : this.history.redo();
         if (step === null) {
             return { kind: "nothing" };
         }
+
+        this.arrangement.restore(this.history.takeArrangement());
 
         this.markUndone(direction, [step]);
         const change = { slices: step.slices, cause: direction };
@@ -1079,8 +1117,11 @@ export class Dispatcher {
                 : { kind: "nothing" };
         }
 
+        this.arrangement.seal();
         this.lane.restore();
+        this.arrangement.stop();
         const passed = this.history.restoreTo(id);
+        this.arrangement.restore(this.history.takeArrangement());
         this.markUndone(target < position ? "undo" : "redo", passed);
         const slices = [...new Set(passed.flatMap((step) => step.slices))];
         this.emit(
@@ -1636,6 +1677,11 @@ export class Dispatcher {
                 ops: group.ops,
                 slices,
                 bytes: { done: bytes, undone: bytes },
+                // A `positions.set` over more than a third of the rows keeps a capture instead.
+                after:
+                    patch.rows !== null && this.arrangement.wantsCapture(patch.rows)
+                        ? this.arrangement.capture()
+                        : null,
             };
             if (group.after !== null && this.history.amend(group.after, input)) {
                 id = group.after;
@@ -1655,6 +1701,10 @@ export class Dispatcher {
             }
 
             this.prune();
+            if (slices.includes("pins")) {
+                this.arrangement.checkPins();
+            }
+
             const change = { slices, cause: "command" as const };
             this.emit(change, [change]);
         }
@@ -1708,7 +1758,13 @@ export class Dispatcher {
      */
     private rollback(group: Group): void {
         this.leave(group);
-        this.reverted(slicesOf(group.draft.rollback()));
+        const patch = group.draft.rollback();
+        const slices = slicesOf(patch);
+        if (slices.length > 0) {
+            this.arrangement.restore(patch.rows === null ? [] : [{ patch: patch.rows, forward: false }]);
+        }
+
+        this.reverted(slices);
         this.release(group, false);
     }
 

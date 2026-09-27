@@ -10,7 +10,9 @@
  * The graph part hashes the `graph` slice (the records by id and the graph-level values), and,
  * given the snapshot, the rows behind it: node ids in row order, edges in row order
  * with their endpoints and weights, and every column of the snapshot's tables except the two the
- * positions lane lends it. The arrangement part is off until captures are restored.
+ * positions lane lends it. With `arrangement`, those two are hashed as well: the coordinates and
+ * pin bytes the lane holds now, which is the arrangement undo and redo restore. The `arrangement`
+ * slice itself is not hashed: it names the last capture, a record of how the lane got there.
  */
 
 import type { GraphSnapshot } from "@graphty/graph-format";
@@ -20,7 +22,7 @@ import type { ProjectState } from "./state";
 
 /** Which optional parts a digest includes. */
 interface DigestOptions {
-    /** Hash the `arrangement` slice. Off until undo restores coordinates. */
+    /** Hash the positions lane too: its coordinates and pin bytes. Needs `snapshot`. */
     readonly arrangement?: boolean;
     /** The snapshot of the graph the state holds, whose rows are hashed with the slice. */
     readonly snapshot?: GraphSnapshot;
@@ -75,7 +77,10 @@ function canonical(value: unknown, path: WeakSet<object>): string {
         }
 
         if (value instanceof Set) {
-            return `Set{${[...value].map((entry: unknown) => canonical(entry, path)).sort().join(",")}}`;
+            return `Set{${[...value]
+                .map((entry: unknown) => canonical(entry, path))
+                .sort()
+                .join(",")}}`;
         }
 
         if (value instanceof Date) {
@@ -115,11 +120,7 @@ export function stateDigest(state: ProjectState, options: DigestOptions = {}): s
         `views=${canonical(state.views, path)}`,
     ];
     if (options.snapshot !== undefined) {
-        parts.push(`rows=${rowsDigest(options.snapshot, path)}`);
-    }
-
-    if (options.arrangement === true) {
-        parts.push(`arrangement=${canonical(state.arrangement, path)}`);
+        parts.push(`rows=${rowsDigest(options.snapshot, path, options.arrangement === true)}`);
     }
 
     return stableDigest(parts.join("\n"));
@@ -130,9 +131,10 @@ export function stateDigest(state: ProjectState, options: DigestOptions = {}): s
  * except the column names.
  * @param snapshot - The snapshot.
  * @param path - The cycle guard of the digest being written.
+ * @param lane - Whether the columns the positions lane lends are hashed too.
  * @returns Its text.
  */
-function rowsDigest(snapshot: GraphSnapshot, path: WeakSet<object>): string {
+function rowsDigest(snapshot: GraphSnapshot, path: WeakSet<object>, lane: boolean): string {
     const { ids, weights, edgeToArc } = snapshot;
     const edges = Array.from({ length: snapshot.edgeCount }, (_, edge) => [
         ids.idOf(snapshot.edgeSource(edge)),
@@ -142,7 +144,7 @@ function rowsDigest(snapshot: GraphSnapshot, path: WeakSet<object>): string {
     const tables = { nodes: snapshot.nodes, edges: snapshot.edges, graph: snapshot.graph };
     const columns = Object.entries(tables).map(([table, columns]) =>
         [...columns.names()]
-            .filter((name) => !LANE_COLUMNS.has(name))
+            .filter((name) => lane || !LANE_COLUMNS.has(name))
             .sort()
             .map((name) => {
                 const values = Array.from({ length: columns.rowCount }, (_, row) => columns.value(name, row));

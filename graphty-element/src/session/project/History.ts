@@ -6,7 +6,21 @@
  * functions: apply a patch forward (redo), apply it backward (undo), and merge a newer patch into
  * an older one (coalescing). Steps before the cursor are done; steps from the cursor on are the
  * redo tail. See design/undo/undo-design.md sections 5, 5.2 and 7.
+ *
+ * It also keeps the arrangement (design section 6.4): each step may hold a before-capture, an
+ * after-capture and a row patch, and the arrangement after steps 1..k is
+ *
+ *     A(k) = after(k), if step k has one, with the rows a merged placement wrote over it since;
+ *            otherwise (before(k) if step k has one, else A(k-1)) with row patch(k) applied.
+ *     A(0) = the baseline capture.
+ *
+ * Undoing step k restores before(k) when it has one and A(k-1) otherwise; redoing it restores
+ * A(k). Each undo and redo leaves the {@link ArrangementOp}s that do this, which the caller takes.
  */
+
+import type { NodeId } from "../../catalog/types";
+import { type ArrangementOp, captureBytes, coordsIn, mergeRowPatches, type RowPatch } from "./arrangement";
+import type { ArrangementCapture } from "./state";
 
 /** Every step counts this much on top of what its patch retains. */
 export const STEP_OVERHEAD_BYTES = 512;
@@ -35,6 +49,8 @@ export interface HistoryOptions<P> {
     limitSteps?: number;
     /** Called after every change, once the version has moved. */
     onChange?: (reason: HistoryChangeReason) => void;
+    /** The row patch a patch carries, if any. */
+    rows?(patch: P): RowPatch | null;
 }
 
 /** What one recorded group contributes to a step. */
@@ -49,6 +65,8 @@ interface RecordInput<P> {
     readonly provenance?: Readonly<Record<string, string>>;
     /** What the patch retains while done (for undo) and while undone (for redo). */
     readonly bytes?: { readonly done: number; readonly undone: number };
+    /** The arrangement after the step, when it already has one: a large `positions.set`. */
+    readonly after?: ArrangementCapture | null;
 }
 
 /** A step as the history publishes it. Frozen. */
@@ -78,10 +96,12 @@ interface Step<P> {
     readonly provenance: Readonly<Record<string, string>>;
     doneBytes: number;
     undoneBytes: number;
-    /** Arrangement captures and the row patch; filled from design section 6.4 on. */
-    readonly beforeCapture: unknown;
-    readonly afterCapture: unknown;
-    readonly rowPatch: unknown;
+    /** The arrangement when the step's group began changing things, if it took one. */
+    readonly before: ArrangementCapture | null;
+    /** The arrangement at rest after the step; the step's row patch is inside it. */
+    after: ArrangementCapture | null;
+    /** Rows a merged `positions.set` wrote after the after-capture was taken, applied over it. */
+    afterRows: RowPatch | null;
     /**
      * Something kept only to make undoing or redoing the step cheaper (a mask copy): counted in
      * `bytes` on both sides of the cursor, and the first thing dropped when a limit is exceeded.
@@ -105,6 +125,10 @@ export class History<P> {
     private mergeable = false;
     private maxBytes: number;
     private maxSteps: number;
+    /** A(0): the arrangement before the first step. */
+    private baselineCapture: ArrangementCapture | null = null;
+    /** What the undos and redos since the last take restore, in order. */
+    private arrangementOps: ArrangementOp[] = [];
 
     /**
      * Create an empty history.
@@ -189,8 +213,9 @@ export class History<P> {
         const time = this.now();
         const at = new Date().toISOString();
         const key = input.key ?? null;
-        const done = input.bytes?.done ?? 0;
-        const undone = input.bytes?.undone ?? 0;
+        const held = input.after ? captureBytes(input.after) : 0;
+        const done = (input.bytes?.done ?? 0) + held;
+        const undone = (input.bytes?.undone ?? 0) + held;
         const top = this.entries.at(-1);
 
         if (
@@ -221,9 +246,9 @@ export class History<P> {
             provenance: Object.freeze({ ...input.provenance }),
             doneBytes: done,
             undoneBytes: undone,
-            beforeCapture: null,
-            afterCapture: null,
-            rowPatch: null,
+            before: null,
+            after: input.after ?? null,
+            afterRows: null,
             cache: null,
             view: undefined,
         });
@@ -279,6 +304,32 @@ export class History<P> {
         step.view = undefined;
         this.changed("size");
         this.evictIfOver();
+    }
+
+    /**
+     * Seal a capture of the lane into the seal target: the top applied step's after-capture, or
+     * the baseline when no step is applied.
+     * @param capture - The capture.
+     */
+    seal(capture: ArrangementCapture): void {
+        const step = this.cursor > 0 ? this.entries[this.cursor - 1] : null;
+        if (step === null) {
+            this.total += captureBytes(capture) - (this.baselineCapture ? captureBytes(this.baselineCapture) : 0);
+            this.baselineCapture = capture;
+        } else {
+            this.retake(step, capture);
+        }
+
+        this.changed("size");
+        this.evictIfOver();
+    }
+
+    /**
+     * What the undos and redos since the last call restore, in the order they happened.
+     * @returns The ops; the list is emptied.
+     */
+    takeArrangement(): ArrangementOp[] {
+        return this.arrangementOps.splice(0);
     }
 
     /**
@@ -343,11 +394,16 @@ export class History<P> {
         return Object.freeze(passed);
     }
 
-    /** Drop every step: the current state becomes the baseline. */
-    clear(): void {
+    /**
+     * Drop every step: the current state becomes the baseline.
+     * @param baseline - The arrangement now, the new A(0).
+     */
+    clear(baseline: ArrangementCapture | null = null): void {
         this.entries = [];
         this.cursor = 0;
-        this.total = 0;
+        this.baselineCapture = baseline;
+        this.total = baseline ? captureBytes(baseline) : 0;
+        this.arrangementOps = [];
         this.mergeable = false;
         this.changed("clear");
     }
@@ -363,6 +419,14 @@ export class History<P> {
         const done = input.bytes?.done ?? 0;
         const undone = input.bytes?.undone ?? 0;
         top.patch = this.options.merge(top.patch, input.patch);
+        const rows = this.options.rows?.(input.patch) ?? null;
+        if (input.after) {
+            this.retake(top, input.after);
+        } else if (top.after !== null && rows !== null) {
+            // Written over the arrangement the step already holds, so applied over its capture.
+            top.afterRows = top.afterRows === null ? rows : mergeRowPatches(top.afterRows, rows);
+        }
+
         // The step now ends somewhere else, so what it cached about its end is no longer true.
         this.total -= top.cache?.bytes ?? 0;
         top.cache = null;
@@ -390,6 +454,7 @@ export class History<P> {
         }
 
         const step = this.entries[this.cursor - 1];
+        this.arrangementOps.push(...this.undoOps(this.cursor - 1));
         this.options.backward(step.patch);
         this.cursor--;
         this.moved(step, step.undoneBytes - step.doneBytes);
@@ -406,6 +471,7 @@ export class History<P> {
         }
 
         const step = this.entries[this.cursor];
+        this.arrangementOps.push(...this.redoOps(this.cursor));
         this.options.forward(step.patch);
         this.cursor++;
         this.moved(step, step.doneBytes - step.undoneBytes);
@@ -462,7 +528,16 @@ export class History<P> {
         // The latest done step (cursor - 1) and the next redo step (cursor) are never evicted.
         const before = this.entries.length;
         while (over() && dropOld < this.cursor - 1) {
-            this.total -= this.size(this.entries[dropOld], true);
+            const step = this.entries[dropOld];
+            this.total -= this.size(step, true);
+            // ponytail: keeps the newest evicted capture as A(0) and loses the row patches of
+            // evicted steps without one; the fold of design section 7 replaces this.
+            const kept = step.after ?? step.before;
+            if (kept !== null) {
+                this.total += captureBytes(kept) - (this.baselineCapture ? captureBytes(this.baselineCapture) : 0);
+                this.baselineCapture = kept;
+            }
+
             dropOld++;
         }
 
@@ -482,6 +557,135 @@ export class History<P> {
         } else if (dropped) {
             this.changed("size");
         }
+    }
+
+    /**
+     * Give a step a new after-capture, replacing the one it had.
+     * @param step - The step.
+     * @param capture - The capture.
+     */
+    private retake(step: Step<P>, capture: ArrangementCapture): void {
+        const delta = captureBytes(capture) - (step.after ? captureBytes(step.after) : 0);
+        step.after = capture;
+        step.afterRows = null;
+        step.doneBytes += delta;
+        step.undoneBytes += delta;
+        step.view = undefined;
+        this.total += delta;
+    }
+
+    /**
+     * The row patch of a step, if it has one that counts: an after-capture already holds it.
+     * @param step - The step.
+     * @returns The patch, or null.
+     */
+    private rowsOf(step: Step<P>): RowPatch | null {
+        return step.after === null ? (this.options.rows?.(step.patch) ?? null) : null;
+    }
+
+    /**
+     * What undoing the step at `index` restores, given that the lane holds A(index + 1).
+     * @param index - The step.
+     * @returns The ops: before(k), or A(k-1).
+     */
+    private undoOps(index: number): ArrangementOp[] {
+        const step = this.entries[index];
+        if (step.before !== null) {
+            return [{ capture: step.before }];
+        }
+
+        if (step.after !== null) {
+            return this.arrangementAt(index);
+        }
+
+        const rows = this.rowsOf(step);
+        if (rows === null) {
+            // A(k) is A(k-1): the lane already holds it.
+            return [];
+        }
+
+        // Only its rows differ from A(k-1), which may have been sealed again since they were
+        // written, so each takes its value in A(k-1) rather than the prior it was written over.
+        const values = Float32Array.from(rows.values);
+        rows.ids.forEach((id, at) => {
+            values.set(this.valueAt(index, id, rows.rows[at]) ?? rows.values.subarray(6 * at, 6 * at + 3), 6 * at + 3);
+        });
+        return [{ patch: { ids: rows.ids, rows: rows.rows, values }, forward: true }];
+    }
+
+    /**
+     * What redoing the step at `index` restores, given that the lane holds A(index).
+     * @param index - The step.
+     * @returns The ops: A(k).
+     */
+    private redoOps(index: number): ArrangementOp[] {
+        const step = this.entries[index];
+        if (step.after !== null) {
+            return afterOps(step);
+        }
+
+        const rows = this.rowsOf(step);
+        const patched: ArrangementOp[] = rows === null ? [] : [{ patch: rows, forward: true }];
+        return step.before === null ? patched : [{ capture: step.before }, ...patched];
+    }
+
+    /**
+     * A(count), the arrangement after the first `count` steps, as ops written over the lane.
+     * @param count - How many steps.
+     * @returns The ops; without the baseline capture when there is none.
+     */
+    private arrangementAt(count: number): ArrangementOp[] {
+        const patches: ArrangementOp[] = [];
+        for (let index = count - 1; index >= 0; index--) {
+            const step = this.entries[index];
+            if (step.after !== null) {
+                return [...afterOps(step), ...patches.reverse()];
+            }
+
+            const rows = this.rowsOf(step);
+            if (rows !== null) {
+                patches.push({ patch: rows, forward: true });
+            }
+
+            if (step.before !== null) {
+                return [{ capture: step.before }, ...patches.reverse()];
+            }
+        }
+
+        return [...(this.baselineCapture === null ? [] : [{ capture: this.baselineCapture }]), ...patches.reverse()];
+    }
+
+    /**
+     * One node's coordinates in A(count).
+     * @param count - How many steps.
+     * @param id - The node.
+     * @param hint - The row it is expected at.
+     * @returns x, y, z, or null when nothing the history holds places it.
+     */
+    private valueAt(count: number, id: NodeId, hint: number): Float32Array | null {
+        for (let index = count - 1; index >= 0; index--) {
+            const step = this.entries[index];
+            const late = step.afterRows?.ids.indexOf(id) ?? -1;
+            if (step.afterRows !== null && late !== -1) {
+                return step.afterRows.values.subarray(6 * late + 3, 6 * late + 6);
+            }
+
+            if (step.after !== null) {
+                return coordsIn(step.after, id, hint);
+            }
+
+            const rows = this.rowsOf(step);
+            const at = rows?.ids.indexOf(id) ?? -1;
+            if (rows !== null && at !== -1) {
+                return rows.values.subarray(6 * at + 3, 6 * at + 6);
+            }
+
+            if (step.before !== null) {
+                return coordsIn(step.before, id, hint);
+            }
+        }
+
+        return this.baselineCapture === null ? null : coordsIn(this.baselineCapture, id, hint);
     }
 
     /**
@@ -512,4 +716,21 @@ export class History<P> {
         });
         return step.view;
     }
+}
+
+/**
+ * A(k) of a step that has an after-capture: the capture, and the rows written over it since.
+ * @param step - The step.
+ * @param step.after - Its after-capture.
+ * @param step.afterRows - The rows written over it.
+ * @returns The ops.
+ */
+function afterOps(step: {
+    readonly after: ArrangementCapture | null;
+    readonly afterRows: RowPatch | null;
+}): ArrangementOp[] {
+    return [
+        ...(step.after === null ? [] : [{ capture: step.after }]),
+        ...(step.afterRows === null ? [] : [{ patch: step.afterRows, forward: true }]),
+    ];
 }

@@ -71,7 +71,7 @@ export const PHASES = [
 type PlanPhase = (typeof PHASES)[number];
 
 /** The phase this branch has reached. Each phase's commit raises it. */
-export const PLAN_PHASE: PlanPhase = "15";
+export const PLAN_PHASE: PlanPhase = "16a";
 
 /** How the doors tests call a door. */
 export type DoorCall =
@@ -265,6 +265,12 @@ const DATA_DOORS: Readonly<Record<string, Door>> = {
     updateEdges: calls([[{ id: "0", weight: 2 }]], [updateRow("edge", "0", { weight: 2 })]),
     removeEdges: calls([["0"]], [removes("remove-edges", ["0"])]),
 };
+
+/** Pinning node n1, as the element's and a `Node`'s doors dispatch it. */
+const PIN_N1: SessionCommand = { op: "positions.pin", ids: ["n1"], pinned: true };
+
+/** Releasing node n1. */
+const UNPIN_N1: SessionCommand = { op: "positions.pin", ids: ["n1"], pinned: false };
 
 /** The element's and `Graph`'s node removal. */
 const REMOVE_NODES = calls([["n3"]], [removes("remove-nodes", ["n3"])]);
@@ -497,7 +503,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 batchOf("Replaced the nodes", removes("remove-nodes", ["n1", "n2", "n3"]), addNodes({ id: "x1" })),
             ),
             // The row above took every edge with the nodes, so there is nothing to remove.
-            edgeData: assigns([{ src: "n1", dst: "n2" }], batchOf("Replaced the edges", addEdges({ src: "n1", dst: "n2" }))),
+            edgeData: assigns(
+                [{ src: "n1", dst: "n2" }],
+                batchOf("Replaced the edges", addEdges({ src: "n1", dst: "n2" })),
+            ),
             dataSource: assigns("json", [imports("replace", { type: "json" }, { coalesce: "element-source" })]),
             // A URL rather than inline text, so the getter reads back exactly the value set: the
             // graph keeps where it was loaded from, never the text itself.
@@ -577,8 +586,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             addDataFromSource: ADD_FROM_SOURCE,
             loadFromUrl: LOAD_FROM_URL_ELEMENT,
             loadFromFile: LOAD_FROM_FILE,
-            pin: gap("16a", "positions.pin", [["n1"]]),
-            unpin: gap("16a", "positions.pin", [["n1"]]),
+            pin: calls([["n1"]], [PIN_N1]),
+            unpin: calls([["n1"]], [UNPIN_N1]),
             isPinned: READ,
             pinnedNodes: READ,
             getNode: READ,
@@ -613,7 +622,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             setRunning: IN_FLIGHT,
             worldToScreen: READ,
             screenToWorld: READ,
-            setData: calls([{ nodes: [{ id: "d1" }], edges: [] }], batchOf("Set the graph data", addNodes({ id: "d1" }))),
+            setData: calls(
+                [{ nodes: [{ id: "d1" }], edges: [] }],
+                batchOf("Set the graph data", addNodes({ id: "d1" })),
+            ),
             getStyles: READ,
             getDataManager: READ,
             getLayoutManager: READ,
@@ -706,7 +718,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // Both finished `degree` runs the rows above left, in one step.
             applySuggestedStyles: calls(
                 ["graphty:degree"],
-                [DEGREE_ENCODE, { op: "style.encode", spec: { run: "door-run", field: "value", channel: "node.color" } }],
+                [
+                    DEGREE_ENCODE,
+                    { op: "style.encode", spec: { run: "door-run", field: "value", channel: "node.color" } },
+                ],
             ),
             getSuggestedStyles: READ,
             removeNodes: REMOVE_NODES,
@@ -789,7 +804,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 [{ "door import": { zoom: 3 } }],
                 [{ op: "view.save", views: [{ name: "door import", camera: { zoom: 3 } }] }],
             ),
-            setData: calls([{ nodes: [{ id: "d1" }], edges: [] }], batchOf("Set the graph data", addNodes({ id: "d1" }))),
+            setData: calls(
+                [{ nodes: [{ id: "d1" }], edges: [] }],
+                batchOf("Set the graph data", addNodes({ id: "d1" })),
+            ),
             getNode: READ,
             getNodes: READ,
             render: RENDER,
@@ -841,8 +859,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             isSelected: READ,
             setSelected: SELECTION,
             refreshSelectionOverlay: RENDER,
-            pin: gap("16a", "positions.pin", []),
-            unpin: gap("16a", "positions.pin", []),
+            pin: calls([], [PIN_N1]),
+            unpin: calls([], [UNPIN_N1]),
             showTooltip: RENDER,
             hideTooltip: RENDER,
             tooltipText: READ,
@@ -974,7 +992,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getEdge: READ,
             getEdgesBetween: READ,
             // Called while no edge is drawn: the one the row above added waits for its endpoint.
-            setEdges: calls([[{ src: "n1", dst: "n2" }]], batchOf("Replaced the edges", addEdges({ src: "n1", dst: "n2" }))),
+            setEdges: calls(
+                [[{ src: "n1", dst: "n2" }]],
+                batchOf("Replaced the edges", addEdges({ src: "n1", dst: "n2" })),
+            ),
             addDataFromSource: ADD_FROM_SOURCE,
             clear: calls([], [CLEAR]),
             startLabelAnimations: RENDER,
@@ -1005,6 +1026,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getStats: READ,
             hasLayoutEngine: READ,
             updatePositions: TRANSPORT,
+            onRest: RENDER,
+            restoring: RENDER,
         },
     },
     {
@@ -1118,6 +1141,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         file: "src/managers/GraphContext.ts",
         half: "renderer",
         doors: {
+            getSession: READ,
             getStyles: READ,
             getStylePainter: READ,
             getDataManager: READ,
@@ -1242,6 +1266,20 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         },
     },
     {
+        name: "SessionPositions",
+        file: "src/session/types.ts",
+        half: "session",
+        doors: {
+            pinned: READ,
+            set: calls(
+                [[{ id: "n1", x: 1, y: 2, z: 3 }]],
+                [{ op: "positions.set", entries: [{ id: "n1", x: 1, y: 2, z: 3 }] }],
+            ),
+            pin: calls([["n1"]], [PIN_N1]),
+            unpin: calls([["n1"]], [UNPIN_N1]),
+        },
+    },
+    {
         name: "SessionConfig",
         file: "src/session/types.ts",
         half: "session",
@@ -1297,6 +1335,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             pinnedView: escape("18c"),
             isPlaced: READ,
             read: READ,
+            generation: READ,
+            moved: escape("18c"),
             write: escape("18c"),
             fillUnplaced: escape("18c"),
         },
@@ -1387,6 +1427,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             attachPositions: TRANSPORT,
             publishPositions: TRANSPORT,
             readNodePosition: READ,
+            loadArrangement: RENDER,
             type: READ,
         },
     },

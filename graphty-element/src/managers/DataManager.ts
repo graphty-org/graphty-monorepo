@@ -291,7 +291,7 @@ export class DataManager implements Manager {
      * @param writer - The command's writer.
      */
     private applyMutation(mutation: DataMutation, writer: GraphWriter): void {
-        const {cause} = this;
+        const { cause } = this;
         this.cause = "command";
         try {
             this.ingest.apply(mutation, writer, (target, id) => this.resolveId(target, id));
@@ -462,6 +462,18 @@ export class DataManager implements Manager {
         this.eventManager.emitSnapshotDropped();
         this.store.forgetSnapshot();
 
+        // The layout lets go of them too, as it does of a node removed one at a time: an engine
+        // still holding the old nodes would lay out a graph that no longer exists and write their
+        // old rows into the position array, growing it under the snapshot it is lent to.
+        for (const edge of this.edges.values()) {
+            this.layoutEngine?.removeEdge(edge);
+        }
+
+        for (const node of this.nodes.values()) {
+            node.index = INVALID_INDEX;
+            this.layoutEngine?.removeNode(node);
+        }
+
         // Free the per-node and per-edge Babylon resources BEFORE dropping the references to
         // them. See disposeNodesAndEdges: meshCache.clear() below only reaches CACHED meshes,
         // and arrowheads, patterned lines and labels are not cached.
@@ -476,7 +488,6 @@ export class DataManager implements Manager {
         this.pendingByPair.clear();
         this.graphResults = undefined;
         this.meshCache.clear();
-        // TODO: Notify layout engine to clear
     }
 
     /**
@@ -1169,7 +1180,15 @@ export class DataManager implements Manager {
             throw new Error("GraphContext not set. Call setGraphContext before adding edges.");
         }
 
-        const e = new Edge(this.graphContext, srcNodeId, dstNodeId, edgeId, bootstrapEdgePaint(), edge as AdHocData, opts);
+        const e = new Edge(
+            this.graphContext,
+            srcNodeId,
+            dstNodeId,
+            edgeId,
+            bootstrapEdgePaint(),
+            edge as AdHocData,
+            opts,
+        );
         this.registerEdge(e, edgeIndex);
 
         // Add to layout engine if it exists

@@ -1,6 +1,9 @@
 /**
  * @file The graph primitives: the only writers of the `graph` slice and of the builder behind it.
  *
+ * The `pins` slice is an op-log too, written here: a pin or a release, and the pins a removal
+ * takes with the rows it removes, so undoing the removal pins them again.
+ *
  * A primitive writes live state at once and records, beside the write, the resolved values its
  * inverse needs: the ids it added, the prior records of what it patched, an edge's endpoints,
  * weight and element-assigned id. Undo and redo write those values straight back into the builder
@@ -40,6 +43,10 @@ interface GraphHome {
     write(slice: GraphSlice): void;
     /** A key of the slice changed; the derivation lane marks it. */
     touch(key: string): void;
+    /** The `pins` slice now. */
+    pins(): Set<NodeId>;
+    /** A node's pin changed; the derivation lane marks it. */
+    touchPin(id: NodeId): void;
     /** Whether strict state is on for this home. */
     readonly strict: boolean;
     /** Whether a history lives here: false for a data manager built without a session. */
@@ -52,6 +59,13 @@ interface GraphHome {
  * @returns The key; JSON, so 1 and "1" stay two keys.
  */
 export const nodeKey = (id: NodeId): string => `n:${JSON.stringify(id)}`;
+
+/**
+ * The node id a lane key names.
+ * @param key - A key {@link nodeKey} made.
+ * @returns The id.
+ */
+export const nodeOfKey = (key: string): NodeId => JSON.parse(key.slice(2)) as NodeId;
 
 /**
  * The lane key of an edge's record and row.
@@ -173,7 +187,11 @@ export interface GraphWriter {
      * @param seed - The file coordinate, in file units, or null.
      * @returns The row, INVALID_INDEX for an id with none, and whether the builder already held it.
      */
-    addNode(id: NodeId, record: GraphRecord, seed: readonly [number, number, number] | null): { index: number; merged: boolean };
+    addNode(
+        id: NodeId,
+        record: GraphRecord,
+        seed: readonly [number, number, number] | null,
+    ): { index: number; merged: boolean };
     /**
      * Add an edge row with a fresh element-assigned id, and its record.
      * @param source - The resolved source id.
@@ -248,12 +266,15 @@ export class GraphOps {
      */
     static standalone(): GraphOps {
         let slice = emptyGraphSlice();
+        const pins = new Set<NodeId>();
         return new GraphOps({
             read: () => slice,
             write: (next) => {
                 slice = next;
             },
             touch: () => undefined,
+            pins: () => pins,
+            touchPin: () => undefined,
             strict: false,
             session: false,
         });
@@ -277,7 +298,9 @@ export class GraphOps {
     writer(draft: Draft | null, store: GraphStore): GraphWriter {
         if (draft === null && this.home.session) {
             if (this.home.strict) {
-                throw strictViolation("a graph primitive was called outside a command; dispatch data.apply or data.import");
+                throw strictViolation(
+                    "a graph primitive was called outside a command; dispatch data.apply or data.import",
+                );
             }
 
             if (!this.warned) {
@@ -321,13 +344,88 @@ export class GraphOps {
     }
 
     /**
+     * Pin or release nodes in the `pins` slice, recording the change in `draft`.
+     * @param draft - The command's draft, or null for a write with no history to record into.
+     * @param ids - The nodes.
+     * @param pinned - Pin, or release.
+     * @returns The ids whose pin changed.
+     */
+    setPinned(draft: Draft | null, ids: readonly NodeId[], pinned: boolean): NodeId[] {
+        const pins = this.home.pins();
+        const changed = [...new Set(ids)].filter((id) => pins.has(id) !== pinned);
+        if (changed.length === 0) {
+            return changed;
+        }
+
+        const entry = new PinsEntry(this, changed, pinned);
+        entry.redo();
+        draft?.log(entry);
+        return changed;
+    }
+
+    /**
+     * The `pins` slice, for the entries that write it.
+     * @returns The set.
+     */
+    pins(): Set<NodeId> {
+        return this.home.pins();
+    }
+
+    /**
+     * Mark a node's pin dirty on the lane.
+     * @param id - The node.
+     */
+    touchPin(id: NodeId): void {
+        this.home.touchPin(id);
+    }
+
+    /**
      * Swap the slice's three maps, keeping the token.
      * @param maps - The maps to hold from now on.
      */
     swapMaps(maps: GraphMaps): void {
         this.home.write(Object.freeze({ ...this.home.read(), ...maps }));
     }
+}
 
+/** One pin or release of several nodes, as the `pins` slice records it. */
+class PinsEntry implements OpLogEntry {
+    readonly slice = "pins";
+
+    constructor(
+        private readonly graph: GraphOps,
+        private readonly ids: readonly NodeId[],
+        private readonly pinned: boolean,
+    ) {}
+
+    bytes(): number {
+        return 32 * this.ids.length;
+    }
+
+    undo(): void {
+        this.write(!this.pinned);
+    }
+
+    redo(): void {
+        this.write(this.pinned);
+    }
+
+    /**
+     * Pin or release every id.
+     * @param pinned - Pin, or release.
+     */
+    private write(pinned: boolean): void {
+        const pins = this.graph.pins();
+        for (const id of this.ids) {
+            if (pinned) {
+                pins.add(id);
+            } else {
+                pins.delete(id);
+            }
+
+            this.graph.touchPin(id);
+        }
+    }
 }
 
 /** The entry one recorded writer logs, growing as it writes. */
@@ -427,7 +525,11 @@ class GraphEntry implements OpLogEntry {
                 }
 
                 case "record":
-                    restore(op.target === "node" ? nodes : edges, op.target === "node" ? op.id : String(op.id), op.prior);
+                    restore(
+                        op.target === "node" ? nodes : edges,
+                        op.target === "node" ? op.id : String(op.id),
+                        op.prior,
+                    );
                     this.graph.touch(op.target === "node" ? nodeKey(op.id) : edgeKey(String(op.id)));
                     break;
                 case "value":
@@ -510,7 +612,11 @@ class GraphEntry implements OpLogEntry {
                 }
 
                 case "record":
-                    restore(op.target === "node" ? nodes : edges, op.target === "node" ? op.id : String(op.id), op.next);
+                    restore(
+                        op.target === "node" ? nodes : edges,
+                        op.target === "node" ? op.id : String(op.id),
+                        op.next,
+                    );
                     this.graph.touch(op.target === "node" ? nodeKey(op.id) : edgeKey(String(op.id)));
                     break;
                 case "value":
@@ -651,7 +757,11 @@ class Writer implements GraphWriter {
         this.store.stampEdgeId(index, edgeId);
         this.store.touch();
         (this.graph.slice.edges as Map<EdgeId, GraphRecord>).set(edgeIdOf(edgeId), record);
-        this.record({ kind: "edge", edgeId, source, target, weight, record, created }, edgeKey(edgeIdOf(edgeId)), EDGES_ADDED);
+        this.record(
+            { kind: "edge", edgeId, source, target, weight, record, created },
+            edgeKey(edgeIdOf(edgeId)),
+            EDGES_ADDED,
+        );
         return { index, edgeId };
     }
 
@@ -754,12 +864,20 @@ class Writer implements GraphWriter {
             this.record({ kind: "record", target: "node", id, prior, next: undefined }, nodeKey(id), null);
         }
 
+        const pins = this.graph.pins();
+        this.graph.setPinned(
+            this.draft,
+            [...new Set(rowless)].filter((id) => pins.has(id)),
+            false,
+        );
         const removed = this.removeRows(stored, []);
         return { nodes: [...new Set(rowless), ...removed.nodes], edges: removed.edges };
     }
 
     removeEdges(ids: readonly EdgeId[]): Removed {
-        const counters = ids.map((id) => edgeCounterOf(id)).filter((counter) => this.store.edgeIndexOf(counter) !== INVALID_INDEX);
+        const counters = ids
+            .map((id) => edgeCounterOf(id))
+            .filter((counter) => this.store.edgeIndexOf(counter) !== INVALID_INDEX);
         if (counters.length === 0) {
             return { nodes: [], edges: [] };
         }
@@ -772,6 +890,8 @@ class Writer implements GraphWriter {
         this.begin();
         const { slice } = this.graph;
         const prior: GraphMaps = { nodes: slice.nodes, edges: slice.edges, values: slice.values };
+        // The pins go with the graph, in this draft, so undoing the clear pins them again.
+        this.graph.setPinned(this.draft, [...this.graph.pins()], false);
         const kept = this.store.keep();
         this.graph.swapMaps(emptyMaps());
         this.store.replace(kept, false);
@@ -800,6 +920,14 @@ class Writer implements GraphWriter {
         for (const edge of rows.edges) {
             edges.delete(edgeIdOf(edge.edgeId));
         }
+
+        // A removed node's pin goes with it, after the rows, so undo puts the rows back first.
+        const pins = this.graph.pins();
+        this.graph.setPinned(
+            this.draft,
+            rows.nodes.map((node) => node.id).filter((id) => pins.has(id)),
+            false,
+        );
 
         if (this.entry !== null) {
             this.entry.push({ kind: "remove", rows, nodeRecords, edgeRecords });

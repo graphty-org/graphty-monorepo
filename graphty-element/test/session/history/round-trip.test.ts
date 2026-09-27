@@ -31,7 +31,10 @@ describe("round trip per command", () => {
 
     it("filter across a data step: set a filter, remove nodes, undo both, and the masks equal a fresh evaluation of the original filter on the original graph", async () => {
         const shown = (session: GraphSession): string =>
-            JSON.stringify([[...session.visibility.nodes].map(String).sort(), [...session.visibility.edges].map(String).sort()]);
+            JSON.stringify([
+                [...session.visibility.nodes].map(String).sort(),
+                [...session.visibility.edges].map(String).sort(),
+            ]);
         const filter = { kind: "degree", min: 1, max: 1 } as const;
         const fresh = await fixtureSession();
         const unfiltered = shown(fresh);
@@ -49,9 +52,5 @@ describe("round trip per command", () => {
         await session.undo();
         assert.strictEqual(shown(session), unfiltered, "undoing the filter too: everything shows");
         session.dispose();
-    });
-
-    it.skip("digests the positions lane and the arrangement: nothing restores coordinates until phase 16a", () => {
-        // Phase 16a turns on `stateDigest(state, { arrangement: true })` and the lane at rest.
     });
 });

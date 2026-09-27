@@ -1,6 +1,7 @@
 import type {
     AcceleratedAlgorithms,
     AlgorithmAccelerator,
+    ApspResultLike,
     BellmanFordResultLike,
     BfsOptions,
     BfsResultLike,
@@ -60,7 +61,9 @@ expectTypeOf(injected).toMatchTypeOf<LayoutAccelerator>();
 expectTypeOf<GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2Stats>>().toMatchTypeOf<LayoutSimulation>();
 expectTypeOf<ReturnType<NonNullable<LayoutAccelerator["forceAtlas2"]>>>().toEqualTypeOf<LayoutSimulation>();
 // P5: the two other layout members route the same way (spec 9.3 lines 3018-3025; PD-19)
-expectTypeOf<GpuLayoutSimulation<FruchtermanReingoldOptions, FruchtermanReingoldStats>>().toMatchTypeOf<LayoutSimulation>();
+expectTypeOf<
+    GpuLayoutSimulation<FruchtermanReingoldOptions, FruchtermanReingoldStats>
+>().toMatchTypeOf<LayoutSimulation>();
 expectTypeOf<GpuLayoutSimulation<SpringElectricalOptions, SpringElectricalStats>>().toMatchTypeOf<LayoutSimulation>();
 expectTypeOf<ReturnType<NonNullable<LayoutAccelerator["fruchtermanReingold"]>>>().toEqualTypeOf<LayoutSimulation>();
 expectTypeOf<ReturnType<NonNullable<LayoutAccelerator["springElectrical"]>>>().toEqualTypeOf<LayoutSimulation>();
@@ -122,3 +125,8 @@ expectTypeOf<Awaited<ReturnType<GpuAccelerator["breadthFirstSearch"]>>>().toMatc
 expectTypeOf<Awaited<ReturnType<GpuAccelerator["sssp"]>>>().toMatchTypeOf<SsspResultLike>();
 expectTypeOf<Awaited<ReturnType<GpuAccelerator["bellmanFord"]>>>().toMatchTypeOf<BellmanFordResultLike>();
 expectTypeOf<Awaited<ReturnType<GpuAccelerator["closenessCentrality"]>>>().toMatchTypeOf<ScoresResultLike>();
+
+// ---- all-pairs shortest paths: the seam's own option type in (both keys refused at run time), a result that
+// satisfies `ApspResultLike` out.
+expectTypeOf<SsspOptions | undefined>().toEqualTypeOf<Parameters<GpuAccelerator["allPairsShortestPath"]>[1]>();
+expectTypeOf<Awaited<ReturnType<GpuAccelerator["allPairsShortestPath"]>>>().toMatchTypeOf<ApspResultLike>();

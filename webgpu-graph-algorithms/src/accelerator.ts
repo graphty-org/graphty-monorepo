@@ -7,7 +7,7 @@
  * P5's `fruchtermanReingold` and `springElectrical` (the two other layout members of spec 9.3, landed together once
  * both models were green, P5 PD-19), P7's seven algorithm members (spec 8.2, 8.3; M8b-T8, PD-14) and P8's four
  * traversal members (spec 8.4; P8-T13 PD-16, PD-19: `breadthFirstSearch`, `sssp`, `bellmanFord`,
- * `closenessCentrality`, each taking the seam's own option type) and nothing else: the CPU-side dispatchers
+ * `closenessCentrality`, each taking the seam's own option type) and `allPairsShortestPath` (design 8.7), and nothing else: the CPU-side dispatchers
  * (`accelerated()`, `createSimulation()`) test `acc.betweennessCentrality !== undefined` /
  * `acc.fruchtermanReingold !== undefined` and route to the CPU when the member is absent (spec 2.4 row "method
  * missing"), so a method the GPU does not implement must not exist here -- never a throwing stub. The remaining
@@ -16,6 +16,7 @@
 
 import { type F32, type F64, type GraphSnapshot } from "@graphty/graph-format";
 
+import { allPairsShortestPath } from "./algorithms/all-pairs.js";
 import { bellmanFord } from "./algorithms/bellman-ford.js";
 import { breadthFirstSearch } from "./algorithms/bfs.js";
 import { closenessCentrality } from "./algorithms/closeness.js";
@@ -24,6 +25,7 @@ import { pageRank, personalizedPageRank } from "./algorithms/pagerank.js";
 import { eigenvectorCentrality, hits, katzCentrality } from "./algorithms/spectral.js";
 import { sssp } from "./algorithms/sssp.js";
 import { type GpuContext } from "./context.js";
+import { WebGpuGraphError } from "./errors.js";
 import { createForceAtlas2 } from "./layouts/forceatlas2.js";
 import { createFruchtermanReingold } from "./layouts/fruchterman-reingold.js";
 import { createSpringElectrical } from "./layouts/spring-electrical.js";
@@ -45,6 +47,7 @@ import {
     type KatzOptions,
     type PageRankOptions,
 } from "./types/algorithms.js";
+import { type GpuApspResult } from "./types/all-pairs.js";
 import {
     type ForceAtlas2Stats,
     type FruchtermanReingoldStats,
@@ -163,7 +166,9 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
          * @param o - the CPU option type (spec 9.3 SpringElectricalOptions, ngraph's names)
          * @returns a fresh simulation in state "created"
          */
-        springElectrical(o?: SpringElectricalOptions): GpuLayoutSimulation<SpringElectricalOptions, SpringElectricalStats> {
+        springElectrical(
+            o?: SpringElectricalOptions,
+        ): GpuLayoutSimulation<SpringElectricalOptions, SpringElectricalStats> {
             ctx.assertReady();
             return createSpringElectrical(ctx, { ...o, ...frozen.layout });
         },
@@ -288,6 +293,27 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
         async closenessCentrality(gs: GraphSnapshot, o?: HitsOptionsLike): Promise<GpuScoresResult> {
             ctx.assertReady();
             return await closenessCentrality(ctx, gs, o);
+        },
+        /**
+         * All-pairs shortest paths on the device (design 8.7): blocked Floyd-Warshall, `E_TOO_LARGE` above the device's
+         * storage-binding ceiling. The seam passes `SsspOptions`; neither of its keys has an all-pairs meaning, so a
+         * defined `cutoff` (it would change what `+Infinity` means) or `weights` (a per-arc override is a different
+         * matrix from the snapshot's resident column) is `E_UNSUPPORTED { option }`, never silently dropped.
+         * @param gs - the snapshot
+         * @param o - the seam's `SsspOptions`; both keys refused when defined
+         * @returns the row-major `n x n` distances and `n` (spec 3.3 line 835)
+         */
+        async allPairsShortestPath(gs: GraphSnapshot, o?: SsspOptions): Promise<GpuApspResult> {
+            ctx.assertReady();
+            for (const key of ["cutoff", "weights"] as const) {
+                if (o?.[key] !== undefined) {
+                    throw new WebGpuGraphError("E_UNSUPPORTED", `allPairsShortestPath: ${key} is not supported`, {
+                        option: key,
+                        hint: "all-pairs shortest paths runs over the snapshot's own weights with no cutoff",
+                    });
+                }
+            }
+            return await allPairsShortestPath(ctx, gs);
         },
         /**
          * Destroys every device buffer recorded for the snapshot (spec 4.5); delegates to ctx.release.

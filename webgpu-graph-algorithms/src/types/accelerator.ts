@@ -39,6 +39,7 @@ import type {
     KatzOptions,
     PageRankOptions,
 } from "./algorithms.js";
+import type { GpuApspResult } from "./all-pairs.js";
 import type {
     ForceAtlas2Stats,
     FruchtermanReingoldStats,
@@ -91,7 +92,8 @@ export interface AcceleratorOptions {
     readonly algorithms?:
         | {
               readonly betweenness?:
-                  { readonly k?: number | undefined; readonly sources?: readonly number[] | undefined } | undefined;
+                  | { readonly k?: number | undefined; readonly sources?: readonly number[] | undefined }
+                  | undefined;
           }
         | undefined;
 }
@@ -107,7 +109,8 @@ export interface AcceleratorOptions {
  * the mirror declares none and an extra REQUIRED parameter would stop the member satisfying it. The four traversals
  * take the seam's OWN option types (PD-19: `BfsOptions`, `SsspOptions` for both `sssp` and `bellmanFord`,
  * `HitsOptionsLike` for `closenessCentrality`), so a key the CPU dispatcher forwards is exactly a key the GPU reads;
- * `test/types/conformance.test-d.ts` holds each parameter EQUAL to the seam's, not merely assignable. Later phases add
+ * `test/types/conformance.test-d.ts` holds each parameter EQUAL to the seam's, not merely assignable.
+ * `allPairsShortestPath` (design 8.7) takes the seam's `SsspOptions` too and refuses both of its keys. Later phases add
  * one member per shipped algorithm.
  * Exported: implemented by src/accelerator.ts (P3-T3); re-exported from src/index.ts at P3-T3.
  * @public
@@ -120,7 +123,9 @@ export interface GpuAccelerator extends AlgorithmAccelerator, LayoutAccelerator 
     fruchtermanReingold(
         options?: FruchtermanReingoldOptions,
     ): GpuLayoutSimulation<FruchtermanReingoldOptions, FruchtermanReingoldStats>;
-    springElectrical(options?: SpringElectricalOptions): GpuLayoutSimulation<SpringElectricalOptions, SpringElectricalStats>;
+    springElectrical(
+        options?: SpringElectricalOptions,
+    ): GpuLayoutSimulation<SpringElectricalOptions, SpringElectricalStats>;
     pageRank(s: GraphSnapshot, options?: PageRankOptions): Promise<GpuPageRankResult>;
     personalizedPageRank(
         s: GraphSnapshot,
@@ -136,6 +141,7 @@ export interface GpuAccelerator extends AlgorithmAccelerator, LayoutAccelerator 
     sssp(s: GraphSnapshot, source: number, options?: SsspOptions): Promise<GpuSsspResult>;
     bellmanFord(s: GraphSnapshot, source: number, options?: SsspOptions): Promise<GpuBellmanFordResult>;
     closenessCentrality(s: GraphSnapshot, options?: HitsOptionsLike): Promise<GpuScoresResult>;
+    allPairsShortestPath(s: GraphSnapshot, options?: SsspOptions): Promise<GpuApspResult>;
     release(s: GraphSnapshot): void;
     dispose(): void;
 }

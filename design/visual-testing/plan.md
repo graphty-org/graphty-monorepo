@@ -116,6 +116,10 @@ did not settle) or `excluded`. `local` is null for CI and holds `git describe --
 the SHA-256 of `git diff HEAD --binary` for a local run, as `{ "describe": "...", "diff": "<sha256>" }`;
 the page labels a local run "preview, not acceptable". That is the whole answer to dirty state.
 
+`bbox` is `[x, y, width, height]` of the changed pixels, in the capture's coordinates. For an
+`unchanged` item with `flaky: true`, `capture` is the hash of the second capture (the one that
+matched the baseline); for `changed` and `unstable` it is the first.
+
 `validateResults(parsed)` in `trusted/lib/results.mjs` returns a list of problems (empty when
 valid); every reader calls it before using a field. Beyond the types it enforces that `file` is
 exactly `<id>[.<mode>].png` (id and mode are lowercase letters, digits and hyphens, so a file name

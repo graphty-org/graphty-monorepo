@@ -43,6 +43,9 @@ export default tseslint.config(
             // without this line `npx eslint .` reports three "not found by the project service"
             // parsing errors that the package's own lint gate has never reported.
             "webgpu-graph-algorithms/demo/**",
+            // Third-party source vendored unchanged (pixelmatch); its own style is not ours to lint,
+            // and editing it to pass would make the next upgrade a merge instead of a copy.
+            "visual-review/trusted/vendor/**",
             // VitePress cache and generated files
             "**/.vitepress/cache/**",
             "**/.vitepress/dist/**",

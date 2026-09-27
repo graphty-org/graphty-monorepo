@@ -23,7 +23,6 @@ const config: KnipConfig = {
             ignore: ["**/dist/**", "**/coverage/**", "**/node_modules/**"],
             ignoreDependencies: [
                 // Nx plugins are used dynamically
-                "@nx/web",
                 "@nx/react",
                 "@nx/js",
                 // Documentation tools
@@ -117,8 +116,6 @@ const config: KnipConfig = {
                 // Benchmark tooling
                 "benchmark",
                 "@types/benchmark",
-                // Playwright for browser tests
-                "playwright",
                 // ESLint plugins (used via root config)
                 "@eslint/js",
                 "eslint-plugin-simple-import-sort",
@@ -225,8 +222,6 @@ const config: KnipConfig = {
             project: ["src/**/*.{ts,tsx}!"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
             ignoreDependencies: [
-                // Testing
-                "jsdom",
                 // Loaded only under import.meta.env.DEV (src/main.tsx) and declared in the root
                 // package.json; `lint:knip:prod` runs --strict, which reads only this workspace's own
                 // dependencies, and would otherwise report it as unlisted.

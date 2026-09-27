@@ -640,6 +640,10 @@ export const P3_TOLERANCE_CAPS: Readonly<Record<string, { readonly cap: number; 
         "fa2-trace-parity.cross10": { cap: 2e-4, basis: "fa2-trace-parity.cross10" },
         "fa2-trace-parity.f64": { cap: 5e-2, basis: "fa2-trace-parity.oracle-f64" },
         "fa2-trace-parity.cross50": { cap: 1e-1, basis: "fa2-trace-parity.cross50" },
+        // the GPU positions against @graphty/layout's CPU ForceAtlas2Simulation (fa2-layout-oracle.test.ts): the
+        // free-running cap of spec 11.4 against the CPU class, twice it across adapters (PLAN DECISION 16)
+        "fa2-layout-oracle": { cap: 5e-2, basis: "fa2-layout-oracle.oracle-f64" },
+        "fa2-layout-oracle.cross": { cap: 1e-1, basis: "fa2-layout-oracle.cross" },
         "fa2-distributional": { cap: 0.1, basis: "fa2-distributional.oracle-f64" },
         "fa2-distributional.cross": { cap: 0.2, basis: "fa2-distributional.cross" },
         "fa2-twins.force": { cap: 1e-6, basis: "fa2-twins.force.twin" },
@@ -732,11 +736,22 @@ export interface NoiseFixtureName {
  * the recorded factor of fa2-trace-parity.f64 honest); `resync50` / `resyncKarate50` are the paper-mode
  * re-synchronised traces (resyncTrace over TRACE_ITERATIONS), whose oracle fixtures are per adapter class;
  * `states10` is K4's record of ONE iteration from each of the ten trajectory states of oracleStates() in each mode
- * (the re-synchronised twin comparison of fa2-twins.test.ts: twenty geometries through the same reductions).
+ * (the re-synchronised twin comparison of fa2-twins.test.ts: twenty geometries through the same reductions);
+ * `layout5` is the GPU's positions after 5 paper-mode iterations on random1k against @graphty/layout's CPU class (the
+ * member of fa2-layout-oracle; the case of that file's asserted set furthest from the CPU class, so the derived
+ * tolerance covers the others).
  */
 export const NOISE_FIXTURES: Readonly<
     Record<
-        StageKey | "trace10" | "trace50" | "trace50Karate" | "resync50" | "resyncKarate50" | "states10" | "metrics100",
+        | StageKey
+        | "trace10"
+        | "trace50"
+        | "trace50Karate"
+        | "resync50"
+        | "resyncKarate50"
+        | "states10"
+        | "metrics100"
+        | "layout5",
         NoiseFixtureName
     >
 > = Object.freeze({
@@ -755,6 +770,7 @@ export const NOISE_FIXTURES: Readonly<
     resyncKarate50: { kernel: "fa2-speed-finalize", fixture: "karate-resync50" },
     states10: { kernel: "fa2-speed-finalize", fixture: "random1k-states10" },
     metrics100: { kernel: "fa2-integrate", fixture: "random1k-metrics100" },
+    layout5: { kernel: "fa2-integrate", fixture: "random1k-paper-layout5" },
 });
 
 /**

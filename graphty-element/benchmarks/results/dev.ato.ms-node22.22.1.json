@@ -60,5 +60,69 @@
                 "rateUnit": "members/s"
             }
         ]
+    },
+    {
+        "date": "2026-09-27T02:30:18.245Z",
+        "host": "dev.ato.ms",
+        "node": "v22.22.1",
+        "cpu": "Intel(R) Core(TM) i9-14900KF",
+        "exposeGc": false,
+        "results": [
+            {
+                "group": "resolve",
+                "name": "resolveNow({ nodes }) 50%, counts only, 100k / 499975 edges",
+                "medianMs": 3.7918220000000247,
+                "minMs": 3.7661059999999225,
+                "maxMs": 4.944154000000026,
+                "runs": 5,
+                "memoryDeltaBytes": 5042088,
+                "rate": 131856136.70683824,
+                "rateUnit": "edges/s"
+            },
+            {
+                "group": "resolve",
+                "name": "old Set-based resolve + fold, 50%, 100k / 499975 edges",
+                "medianMs": 15.134978000000046,
+                "minMs": 14.304786000000036,
+                "maxMs": 20.773642999999993,
+                "runs": 5,
+                "memoryDeltaBytes": 6030824,
+                "rate": 33034405.467916667,
+                "rateUnit": "edges/s"
+            },
+            {
+                "group": "resolve",
+                "name": "resolveFixed induced 50% (with edge pass), 100k / 499975 edges",
+                "medianMs": 2.3024379999999383,
+                "minMs": 2.2287370000000237,
+                "maxMs": 2.7005049999999073,
+                "runs": 5,
+                "memoryDeltaBytes": 2076512,
+                "rate": 217150255.51177204,
+                "rateUnit": "edges/s"
+            },
+            {
+                "group": "resolve",
+                "name": "resolveFixed listed 50% (no edge pass), 100k / 499975 edges",
+                "medianMs": 0.38982399999997597,
+                "minMs": 0.3593519999999444,
+                "maxMs": 1.0048699999999826,
+                "runs": 5,
+                "memoryDeltaBytes": 2076352,
+                "rate": 1282565978.4929373,
+                "rateUnit": "edges/s"
+            },
+            {
+                "group": "resolve",
+                "name": "digest of \"visible\", nothing hidden, 100k / 499975 edges",
+                "medianMs": 1.2294440000000577,
+                "minMs": 0.8016569999999774,
+                "maxMs": 1.2990599999999404,
+                "runs": 5,
+                "memoryDeltaBytes": 2000,
+                "rate": 406667566.80253553,
+                "rateUnit": "edges/s"
+            }
+        ]
     }
 ]

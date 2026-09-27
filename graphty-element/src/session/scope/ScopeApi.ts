@@ -33,6 +33,7 @@ import { canonicalize } from "../runs/runId";
 import type { ResolvedScope } from "../runs/types";
 import {
     type ComponentLabels,
+    digestOf,
     type NodeHalf,
     type Resolution,
     type ResolveContext,
@@ -46,104 +47,6 @@ export type { ComponentLabels } from "../sets/resolve";
 
 /** How many edges {@link ScopeApi.count} looks at when it is allowed to answer approximately. */
 export const DEFAULT_SCOPE_SAMPLE = 10_000;
-
-// ---------------------------------------------------------------------------------------------
-// The membership digest
-// ---------------------------------------------------------------------------------------------
-
-/** The FNV-1a prime, for the 32-bit variant. */
-const FNV_PRIME = 0x01000193;
-
-/** The seed the node ids fold with. */
-const NODE_SEED = 0x1b873593;
-
-/** The seed the edge ids fold with, so a node id and an edge id never fold the same way. */
-const EDGE_SEED = 0xcc9e2d51;
-
-/** The offset basis the two digest lanes start from. */
-const DIGEST_SEED_A = 0x811c9dc5;
-
-/** The second lane's multiplier, unrelated to the first so the lanes do not share collisions. */
-const DIGEST_MULTIPLIER_B = 0x85ebca6b;
-
-/** How wide one 32-bit lane of the digest is once written in hexadecimal. */
-const DIGEST_LANE_WIDTH = 8;
-
-/** An order-independent summary of one set of ids. */
-interface MembershipFold {
-    /** How many ids there were. */
-    readonly count: number;
-    /** The exclusive-or of their hashes. */
-    readonly xor: number;
-    /** The wrapping sum of their hashes, which catches the pairs an exclusive-or cancels out. */
-    readonly sum: number;
-}
-
-/**
- * The 32-bit hash of one id.
- * @param id - The node or edge id.
- * @param seed - The offset basis to start from.
- * @returns The hash.
- */
-function hashId(id: NodeId | EdgeId, seed: number): number {
-    // The tag is what keeps the number 1 and the string "1" from hashing the same way, which
-    // they must not: the element treats them as two different nodes everywhere else.
-    const text = typeof id === "number" ? `#${id}` : `$${id}`;
-    let hash = seed >>> 0;
-
-    for (let at = 0; at < text.length; at++) {
-        hash ^= text.charCodeAt(at);
-        hash = Math.imul(hash, FNV_PRIME) >>> 0;
-    }
-
-    return hash >>> 0;
-}
-
-/**
- * Fold one set of ids into a summary that does not depend on the order they arrived in.
- *
- * Order independence is not a nicety. A freeze can renumber the dense indices, and a scope walked
- * in index order would then fold differently for the same set of elements -- reporting every run
- * over it stale because a node was removed somewhere else entirely.
- * @param ids - The ids in the set.
- * @param seed - The hash seed for this kind of id.
- * @returns The fold.
- */
-function foldIds(ids: readonly (NodeId | EdgeId)[], seed: number): MembershipFold {
-    let xor = 0;
-    let sum = 0;
-
-    for (const id of ids) {
-        const hashed = hashId(id, seed);
-        xor = (xor ^ hashed) >>> 0;
-        sum = (sum + hashed) >>> 0;
-    }
-
-    return { count: ids.length, xor, sum };
-}
-
-/**
- * The digest a resolved scope carries: equal digests mean the same elements.
- *
- * Two 32-bit lanes rather than one, because a single 32-bit digest starts colliding at a few
- * tens of thousands of distinct scopes, and a collision here reports a stale run as fresh.
- * @param nodes - The node ids in the scope, in any order.
- * @param edges - The edge ids in the scope, in any order.
- * @returns The digest: sixteen lower-case hexadecimal characters.
- */
-export function membershipDigest(nodes: readonly NodeId[], edges: readonly EdgeId[]): string {
-    const nodeFold = foldIds(nodes, NODE_SEED);
-    const edgeFold = foldIds(edges, EDGE_SEED);
-    let laneA = DIGEST_SEED_A;
-    let laneB = FNV_PRIME;
-
-    for (const value of [nodeFold.count, nodeFold.xor, nodeFold.sum, edgeFold.count, edgeFold.xor, edgeFold.sum]) {
-        laneA = Math.imul(laneA ^ (value >>> 0), FNV_PRIME) >>> 0;
-        laneB = Math.imul(laneB ^ (laneA + value), DIGEST_MULTIPLIER_B) >>> 0;
-    }
-
-    return laneA.toString(16).padStart(DIGEST_LANE_WIDTH, "0") + laneB.toString(16).padStart(DIGEST_LANE_WIDTH, "0");
-}
 
 // ---------------------------------------------------------------------------------------------
 // The identity spaces
@@ -487,24 +390,6 @@ function idSetOf<TId>(mask: U32, length: number, idOf: (index: number) => TId): 
     return ids;
 }
 
-const digests = new WeakMap<Resolution, string>();
-
-/**
- * A resolution's digest, folded from its id sets once and memoised on the resolution.
- * @param resolution - The resolution.
- * @param scope - The resolved scope dressing it, whose lazy sets the fold reads.
- * @returns The digest.
- */
-function digestOf(resolution: Resolution, scope: ResolvedScope): string {
-    let digest = digests.get(resolution);
-    if (digest === undefined) {
-        digest = membershipDigest([...scope.nodes], [...scope.edges]);
-        digests.set(resolution, digest);
-    }
-
-    return digest;
-}
-
 /**
  * Dress a resolution as the published {@link ResolvedScope}. `nodes`, `edges` and `digest` are
  * lazy: each is built on its first read and kept by this object; the digest is memoised on the
@@ -542,7 +427,7 @@ function resolvedScopeOf(resolution: Resolution, graph: GraphSnapshot, spec: Sco
         },
         nodeCount: { enumerable: true, value: resolution.nodeCount },
         edgeCount: { enumerable: true, value: resolution.edgeCount },
-        digest: { enumerable: true, get: (): string => digestOf(resolution, scope as ResolvedScope) },
+        digest: { enumerable: true, get: (): string => digestOf(resolution, graph) },
         spec: { enumerable: true, value: spec },
         // A fresh object per call, so `resolvedAt` is when it was asked rather than when the
         // resolution behind it happened to be cached.

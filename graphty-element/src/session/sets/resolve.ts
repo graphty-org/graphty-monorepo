@@ -23,7 +23,9 @@ import {
     type U32,
 } from "@graphty/graph-format";
 
+import { EMPTY_SUM, type LanePair, membershipDigestOf } from "../../catalog/sets/hash";
 import type { EdgeId, NodeId, Query, Scope, ScopeId, SetDefinition } from "../../catalog/types";
+import { identityColumnsOf } from "../../data/edgeIdentity";
 import { GraphtyError } from "../../errors";
 import { canonicalize } from "../runs/runId";
 import type { ElementMask } from "../scope/ElementMask";
@@ -32,9 +34,10 @@ import type { ElementMask } from "../scope/ElementMask";
  * Invocation counts the complexity tests read (design/sets plan 1.4). Internal; never reset here.
  * - `edgePasses`: full passes over the edge list; `edgeRowVisits`: edge rows those passes read.
  * - `maskPacks`: byte masks packed into bitmaps.
+ * - `digestSums`: masked sums over the hash columns.
  * - `idSetBuilds`: id `Set`s materialised from a bitmap.
  */
-export const resolveCounters = { edgePasses: 0, edgeRowVisits: 0, maskPacks: 0, idSetBuilds: 0 };
+export const resolveCounters = { edgePasses: 0, edgeRowVisits: 0, maskPacks: 0, digestSums: 0, idSetBuilds: 0 };
 
 /** One resolution: what a scope or a definition covers in one snapshot. */
 export interface Resolution {
@@ -389,4 +392,62 @@ export function resolveFixed(definition: Extract<SetDefinition, { kind: "fixed" 
     const edges = definition.reading === "induced" ? deriveEdges(half, snapshot) : makeMask(snapshot.edgeCount);
 
     return resolutionOf(half, edges, context, 0);
+}
+
+/**
+ * The member sum of a bitmap over one hash column (two uint32 lanes per row).
+ * @param mask - The bitmap.
+ * @param length - How many indices it covers.
+ * @param column - The hash column.
+ * @returns The count and the lane-wise sum.
+ */
+function maskedSum(mask: U32, length: number, column: Uint32Array): { count: number; sum: LanePair } {
+    let a = 0;
+    let b = 0;
+    let count = 0;
+    const words = (length + 31) >>> 5;
+    for (let word = 0; word < words; word++) {
+        let bits = mask[word];
+        while (bits !== 0) {
+            const low = bits & -bits;
+            const index = (word << 5) + (31 - Math.clz32(low));
+            a = (a + column[2 * index]) >>> 0;
+            b = (b + column[2 * index + 1]) >>> 0;
+            count++;
+            bits ^= low;
+        }
+    }
+
+    return { count, sum: count === 0 ? EMPTY_SUM : { a, b } };
+}
+
+const digests = new WeakMap<Resolution, string>();
+
+/**
+ * A resolution's `d1:` membership digest: one masked sum over each hash column, computed on first
+ * read and memoised on the resolution.
+ * @param resolution - The resolution.
+ * @param snapshot - The snapshot it was resolved against.
+ * @returns The digest.
+ * @throws An Error when the snapshot is not the one the resolution was resolved against.
+ */
+export function digestOf(resolution: Resolution, snapshot: GraphSnapshot): string {
+    const cached = digests.get(resolution);
+    if (cached !== undefined) {
+        return cached;
+    }
+
+    if (snapshot.serial !== resolution.serial) {
+        throw new Error("A digest must be read against the snapshot its resolution came from.");
+    }
+
+    resolveCounters.digestSums++;
+    const { nodeHash, edgeHash } = identityColumnsOf(snapshot);
+    const digest = membershipDigestOf(
+        maskedSum(resolution.nodes, snapshot.nodeCount, nodeHash),
+        maskedSum(resolution.edges, snapshot.edgeCount, edgeHash),
+    );
+    digests.set(resolution, digest);
+
+    return digest;
 }

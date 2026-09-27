@@ -239,7 +239,11 @@ export interface ResolvedScope {
     readonly nodeCount: number;
     /** How many edges are in scope. */
     readonly edgeCount: number;
-    /** Equal digests mean equal scopes, which is how staleness is derived rather than tracked. */
+    /**
+     * Equal digests mean equal scopes, which is how staleness is derived rather than tracked.
+     * Versioned: `d1:` and 16 hex digits, comparable only within one session and store. Computed
+     * on first read.
+     */
     readonly digest: string;
     /** What was asked for, before it was resolved. */
     readonly spec: Scope;

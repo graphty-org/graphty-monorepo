@@ -333,3 +333,25 @@ export function revisionOf(definition: SetDefinition): string {
 
     return `r1:${hashHex(end())}`;
 }
+
+/**
+ * The `d1:` membership digest (design section 6.4): `H` of six numeric parts, the node count, the
+ * node sum's lanes A and B, the edge count, the edge sum's lanes A and B, where each sum is the
+ * member sum of the resolved members' column hashes (`graphty.nodeHash`, `graphty.edgeHash`, the
+ * undirected rule while pairs are unordered). The counts keep a node half and an edge half apart
+ * even when their sums happen to agree. Comparable only within one session and store.
+ * @param nodes - The resolved nodes' count and member sum.
+ * @param edges - The resolved edges' count and member sum.
+ * @returns `d1:` and 16 hex digits.
+ */
+export function membershipDigestOf(nodes: MemberSummary, edges: MemberSummary): string {
+    begin();
+    numberPart(nodes.count);
+    numberPart(nodes.sum.a);
+    numberPart(nodes.sum.b);
+    numberPart(edges.count);
+    numberPart(edges.sum.a);
+    numberPart(edges.sum.b);
+
+    return `d1:${hashHex(end())}`;
+}

@@ -21,7 +21,7 @@ import { barabasiAlbertGraph } from "@graphty/graph-samples/generators";
 import { revisionOf } from "../src/catalog/sets/hash";
 import type { EdgeMember, NodeId, SetDefinition } from "../src/catalog/types";
 import { createScopeApi, edgeSpaceOf, ElementMask, nodeSpaceOf } from "../src/session/scope/index";
-import { resolveFixed, resolveScope } from "../src/session/sets/resolve";
+import { digestOf, resolveFixed, resolveScope } from "../src/session/sets/resolve";
 import { appendSession, bench, type BenchResult, printTable } from "./harness";
 
 const LARGE = process.env.GRAPHTY_BENCH_SCALE === "large";
@@ -87,8 +87,8 @@ function setBasedResolve(snapshot: GraphSnapshot, ids: readonly NodeId[]): strin
 }
 
 /**
- * The resolution rows (design 6.5): a 50% node list and a fixed 50% set with and without its
- * edge pass, beside the Set-based cost they replace.
+ * The resolution rows (design 6.5): a 50% node list, a fixed 50% set with and without its edge
+ * pass, and the digest of "visible", each beside the Set-based cost it replaces.
  * @returns The results.
  */
 function runResolveBenchmarks(): BenchResult[] {
@@ -106,6 +106,8 @@ function runResolveBenchmarks(): BenchResult[] {
     const visibility = { nodes: () => visibleNodes, edges: () => visibleEdges };
     const opts = { items: snapshot.edgeCount, unit: "edges" };
     const label = `${LABEL} / ${snapshot.edgeCount} edges`;
+    // Warm the lazily computed identity columns once, as a session's store would have them.
+    digestOf(resolveScope("graph", { snapshot }), snapshot);
 
     return [
         bench(
@@ -125,6 +127,12 @@ function runResolveBenchmarks(): BenchResult[] {
             "resolve",
             `resolveFixed listed 50% (no edge pass), ${label}`,
             { setup: () => ({ kind: "fixed", nodes: half, reading: "listed" }) as const, run: (d) => resolveFixed(d, { snapshot }) },
+            opts,
+        ),
+        bench(
+            "resolve",
+            `digest of "visible", nothing hidden, ${label}`,
+            { setup: () => resolveScope("visible", { snapshot, visibility }), run: (r) => digestOf(r, snapshot) },
             opts,
         ),
     ];

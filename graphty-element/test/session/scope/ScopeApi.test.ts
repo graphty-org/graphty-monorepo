@@ -9,7 +9,6 @@ import {
     DEFAULT_SCOPE_SAMPLE,
     edgeSpaceOf,
     ElementMask,
-    membershipDigest,
     nodeSpaceOf,
     type SavedScope,
     type ScopeApi,
@@ -591,19 +590,5 @@ describe("the identity spaces a mask is built over", () => {
         assert.isFalse(mask.hasId(edgeBetween(harness, "a", "b")));
         assert.deepStrictEqual([...mask.ids()], [edgeBetween(harness, "b", "c")]);
         harness.session.dispose();
-    });
-});
-
-describe("the membership digest on its own", () => {
-    it("does not care what order the ids came out in", () => {
-        assert.strictEqual(membershipDigest(["a", "b"], ["0"]), membershipDigest(["b", "a"], ["0"]));
-    });
-
-    it("tells a node apart from an edge that happens to share its name", () => {
-        assert.notStrictEqual(membershipDigest(["x"], []), membershipDigest([], ["x"]));
-    });
-
-    it("moves when one element joins", () => {
-        assert.notStrictEqual(membershipDigest(["a"], []), membershipDigest(["a", "b"], []));
     });
 });

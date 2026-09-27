@@ -170,6 +170,26 @@ jobs:
             - name: Build layout gh-pages
               run: pnpm exec nx run layout:build:gh-pages
 
+            # Every package's dist in one artifact, so a test shard fetches them in one request.
+            # The per-package artifacts below stay: release.yml, deploy-pages.yml and the
+            # performance job download them by name.
+            - name: Upload all package builds
+              uses: actions/upload-artifact@v4
+              with:
+                  name: build-packages
+                  path: |
+                      graph-format/dist/
+                      graph-io/dist/
+                      webgpu-graph-algorithms/dist/
+                      graph-samples/dist/
+                      algorithms/dist/
+                      layout/dist/
+                      graphty/dist/
+                      graphty-element/dist/
+                      remote-logger/dist/
+                      compact-mantine/dist/
+                  retention-days: 1
+
             - name: Upload graph-format build
               uses: actions/upload-artifact@v4
               with:
@@ -331,65 +351,24 @@ jobs:
               env:
                   HUSKY: "0"
 
-            - name: Download graph-format build
+            # One download instead of one per package: about twenty shards starting at once, each
+            # making ten requests, drew 403 errors from the artifact service (#252). The archive
+            # keeps each package's path, so it unpacks into place at the repository root. A failed
+            # download is tried once more.
+            - name: Download all package builds
+              id: download-packages
+              continue-on-error: true
               uses: actions/download-artifact@v4
               with:
-                  name: build-graph-format
-                  path: graph-format/dist/
+                  name: build-packages
+                  path: .
 
-            - name: Download graph-io build
+            - name: Download all package builds (retry)
+              if: steps.download-packages.outcome == 'failure'
               uses: actions/download-artifact@v4
               with:
-                  name: build-graph-io
-                  path: graph-io/dist/
-
-            - name: Download webgpu-graph-algorithms build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-webgpu-graph-algorithms
-                  path: webgpu-graph-algorithms/dist/
-
-            - name: Download graph-samples build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-graph-samples
-                  path: graph-samples/dist/
-
-            - name: Download algorithms build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-algorithms
-                  path: algorithms/dist/
-
-            - name: Download layout build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-layout
-                  path: layout/dist/
-
-            - name: Download graphty build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-graphty
-                  path: graphty/dist/
-
-            - name: Download graphty-element build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-graphty-element
-                  path: graphty-element/dist/
-
-            - name: Download remote-logger build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-remote-logger
-                  path: remote-logger/dist/
-
-            - name: Download compact-mantine build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-compact-mantine
-                  path: compact-mantine/dist/
+                  name: build-packages
+                  path: .
 
             - name: Cache Playwright browsers
               if: matrix.needs-browser

@@ -233,8 +233,8 @@ echo ""
 # graphty -- the FULL app shell suite, browser (playwright/chromium) and all.
 #
 # This is a separate step rather than a line in the "Fast tests" block above because it
-# is not a 'default'-project run: graphty/vitest.config.ts sets browser.enabled and
-# defines no non-browser project, so `npm run test:run` here IS the browser suite.
+# is not a 'default'-project run: graphty/vitest.config.ts runs the app's tests in a browser
+# project, plus a small node project for its lint rules, and `npm run test:run` runs both.
 #
 # Running all of it is a measured choice, not an assumption. Wall clock for the whole
 # suite -- 1762 tests across 109 files -- is ~14s, and ~14s again with node_modules/.vite

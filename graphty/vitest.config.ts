@@ -14,14 +14,32 @@ export default defineConfig({
     },
     test: {
         globals: true,
-        browser: {
-            enabled: true,
-            headless: true,
-            provider: "playwright",
-            instances: [{ browser: "chromium" }],
-        },
         exclude: ["**/node_modules/**", "**/dist/**", "**/.worktrees/**"],
-        setupFiles: "./src/test/setup.ts",
+        projects: [
+            {
+                extends: true,
+                test: {
+                    name: "browser",
+                    include: ["src/**/*.test.{ts,tsx}"],
+                    browser: {
+                        enabled: true,
+                        headless: true,
+                        provider: "playwright",
+                        instances: [{ browser: "chromium" }],
+                    },
+                    setupFiles: "./src/test/setup.ts",
+                },
+            },
+            {
+                // Tests of the app's tooling (its lint rules), which need Node APIs.
+                extends: true,
+                test: {
+                    name: "node",
+                    include: ["test/**/*.test.ts"],
+                    environment: "node",
+                },
+            },
+        ],
         coverage: {
             all: true,
             provider: "v8",

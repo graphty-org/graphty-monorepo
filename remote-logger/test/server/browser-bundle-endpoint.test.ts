@@ -2,8 +2,8 @@ import * as http from "http";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 import { createDualServer, type DualServerResult } from "../../src/server/dual-server.js";
-import { LogStorage } from "../../src/server/log-storage.js";
 import { resetBrowserBundleCache } from "../../src/server/log-server.js";
+
 
 function httpGet(port: number, path: string): Promise<{ status: number; headers: http.IncomingHttpHeaders; body: string }> {
     return new Promise((resolve, reject) => {

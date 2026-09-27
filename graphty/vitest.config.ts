@@ -4,6 +4,21 @@ import { defineConfig } from "vitest/config";
 
 import { aliases } from "./vite.aliases";
 
+/** The tests that mount the real graphty-element, unmocked. */
+const REAL_ELEMENT_TESTS = "src/**/*.real-element.test.tsx";
+const BASE_EXCLUDE = ["**/node_modules/**", "**/dist/**", "**/.worktrees/**"];
+/**
+ * A fresh headless Chromium config per project: vitest writes each instance's name into the
+ * object it is handed, so two projects must not share one.
+ * @returns the browser config.
+ */
+const chromium = () => ({
+    enabled: true,
+    headless: true,
+    provider: playwright(),
+    instances: [{ browser: "chromium" as const }],
+});
+
 export default defineConfig({
     plugins: [react()],
     // The same aliases as the dev server, so tests run graphty-element from source rather
@@ -14,19 +29,30 @@ export default defineConfig({
     },
     test: {
         globals: true,
-        exclude: ["**/node_modules/**", "**/dist/**", "**/.worktrees/**"],
+        exclude: BASE_EXCLUDE,
+        // The tests that mount the real graphty-element get a project of their own, run after
+        // the others finish (sequence.groupOrder). Browser test files share the renderer's main
+        // thread, and a real element loading and laying out a sample holds it for seconds at a
+        // time: run beside the rest, a neighbouring file's import of the element bundle
+        // (src/types/__tests__/ai.test.ts) outran its 15 second test timeout.
         projects: [
             {
                 extends: true,
                 test: {
                     name: "browser",
                     include: ["src/**/*.test.{ts,tsx}"],
-                    browser: {
-                        enabled: true,
-                        headless: true,
-                        provider: playwright(),
-                        instances: [{ browser: "chromium" }],
-                    },
+                    exclude: [...BASE_EXCLUDE, REAL_ELEMENT_TESTS],
+                    browser: chromium(),
+                    setupFiles: "./src/test/setup.ts",
+                },
+            },
+            {
+                extends: true,
+                test: {
+                    name: "real-element",
+                    include: [REAL_ELEMENT_TESTS],
+                    sequence: { groupOrder: 1 },
+                    browser: chromium(),
                     setupFiles: "./src/test/setup.ts",
                 },
             },

@@ -9,34 +9,6 @@ const GRAPHML = `<?xml version="1.0" encoding="UTF-8"?>
 </graphml>`;
 
 describe("Network retry behavior", () => {
-    test("retries on network failure", async () => {
-        // This test requires a mock server - documenting expected behavior
-        // In a real implementation, use MSW (Mock Service Worker) or similar
-
-        // Setup: Mock server that fails twice, succeeds third time
-        // Action: Create DataSource with URL
-        // Assert: Successfully fetches data after 2 retries
-
-        // For now, we'll test with an invalid URL and verify error message
-        const source = new GraphMLDataSource({
-            url: "http://invalid-nonexistent-domain-12345.test/data.xml",
-        });
-
-        let errorThrown = false;
-        try {
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            for await (const chunk of source.getData()) {
-                // Should not get here
-                assert.fail("Should have thrown an error");
-            }
-        } catch (error) {
-            errorThrown = true;
-            assert.include((error as Error).message, "after 3 attempts");
-        }
-
-        assert.isTrue(errorThrown, "Should have thrown an error");
-    });
-
     describe("with a stubbed fetch", () => {
         afterEach(() => {
             vi.useRealTimers();
@@ -45,13 +17,19 @@ describe("Network retry behavior", () => {
 
         /**
          * Stub fetch to answer with each status in turn, and count the requests.
-         * @param statuses - The status of each successive response
+         * @param statuses - The status of each successive response, or "offline" for a
+         *   request that fails at the network level
          * @returns The mock, whose calls are the requests made
          */
-        function stubFetch(...statuses: number[]): ReturnType<typeof vi.fn> {
+        function stubFetch(...statuses: (number | "offline")[]): ReturnType<typeof vi.fn> {
             let call = 0;
             const mock = vi.fn(() => {
                 const status = statuses[Math.min(call++, statuses.length - 1)];
+                if (status === "offline") {
+                    // What fetch does when DNS or the connection fails: it rejects with a TypeError.
+                    return Promise.reject(new TypeError("fetch failed"));
+                }
+
                 return Promise.resolve(new Response(status === 200 ? GRAPHML : "", { status }));
             });
             vi.stubGlobal("fetch", mock);
@@ -109,6 +87,25 @@ describe("Network retry behavior", () => {
             assert.instanceOf(error, GraphtyError);
             assert.isTrue((error).recoverable);
             assert.strictEqual(((error).details as { status?: number }).status, 429);
+        });
+
+        test("a network failure is retried and fails after 3 attempts", async () => {
+            vi.useFakeTimers();
+            const fetchMock = stubFetch("offline");
+            const error = await drain(new GraphMLDataSource({ url: "https://example.test/data.xml" }));
+
+            assert.strictEqual(fetchMock.mock.calls.length, 3);
+            assert.instanceOf(error, GraphtyError);
+            assert.include(error.message, "after 3 attempts");
+        });
+
+        test("two network failures then a 200 succeed on the third request", async () => {
+            vi.useFakeTimers();
+            const fetchMock = stubFetch("offline", "offline", 200);
+            const error = await drain(new GraphMLDataSource({ url: "https://example.test/data.xml" }));
+
+            assert.isUndefined(error);
+            assert.strictEqual(fetchMock.mock.calls.length, 3);
         });
     });
 });

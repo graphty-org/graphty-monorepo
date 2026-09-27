@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
-import { LogStorage } from "../../../src/server/log-storage.js";
 import { logsListSessionsHandler } from "../../../src/mcp/tools/logs-list-sessions.js";
+import { LogStorage } from "../../../src/server/log-storage.js";
 
 describe("logs_list_sessions tool", () => {
     let storage: LogStorage;

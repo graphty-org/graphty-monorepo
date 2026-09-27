@@ -10,9 +10,9 @@ import * as os from "os";
 import * as path from "path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { JsonlWriter } from "../../src/server/jsonl-writer.js";
-import { LogStorage } from "../../src/server/log-storage.js";
 import { createDualServer, type DualServerResult } from "../../src/server/dual-server.js";
+import { JsonlWriter } from "../../src/server/jsonl-writer.js";
+
 
 describe("E2E: Browser to Claude Code", () => {
     let dualServer: DualServerResult;
@@ -20,7 +20,7 @@ describe("E2E: Browser to Claude Code", () => {
     let testBaseDir: string;
     let jsonlWriter: JsonlWriter;
 
-    beforeEach(async () => {
+    beforeEach(() => {
         // 0 asks the OS for any free port. A hand-picked one is reused by a later test in this
         // file, and Node's global HTTP agent keeps a connection pooled per host:port -- so the
         // later test is handed the socket of the server the earlier test already tore down, and

@@ -12,12 +12,13 @@
  * a table and appended as JSON to benchmarks/results/io-<host>-node<version>.json.
  */
 
-import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { open } from "node:fs/promises";
 import { cpus, hostname } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 
 import { csvExporter, csvImporter } from "../src/formats/csv/index.js";
 import { dotExporter } from "../src/formats/dot/index.js";
@@ -138,7 +139,7 @@ async function benchImport(
         times.push(profile.ms);
         peak = Math.max(peak, profile.peakHeap - profile.baseHeap);
         retained = profile.retainedHeap - profile.baseHeap;
-        samples = profile.samples;
+        ({ samples } = profile);
         if (run === RUNS - 1) {
             const t0 = performance.now();
             sink.freeze();
@@ -185,7 +186,7 @@ async function benchExport(name: string, exporter: GraphExporter, snapshot: Grap
         times.push(profile.ms);
         peak = Math.max(peak, profile.peakHeap - profile.baseHeap);
         retained = profile.retainedHeap - profile.baseHeap;
-        samples = profile.samples;
+        ({ samples } = profile);
     }
     times.sort((a, b) => a - b);
     record({
@@ -245,7 +246,11 @@ async function doubling(
 export async function runImportBenchmarks(args: readonly string[]): Promise<void> {
     quick = args.includes("--quick");
     const runsArg = args.indexOf("--runs");
-    RUNS = quick ? 1 : runsArg >= 0 ? Number(args[runsArg + 1]) : 3;
+    if (quick) {
+        RUNS = 1;
+    } else {
+        RUNS = runsArg >= 0 ? Number(args[runsArg + 1]) : 3;
+    }
     results.length = 0;
     console.log(
         `graph-io import benchmark: ${hostname()}, ${cpus()[0]?.model ?? "unknown cpu"}, Node ${process.version}, runs ${RUNS}${quick ? " (quick)" : ""}`,

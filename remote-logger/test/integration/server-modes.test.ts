@@ -10,7 +10,7 @@
  */
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
-import { createDualServer, LogStorage, type DualServerResult } from "../../src/server/index.js";
+import { createDualServer, type DualServerResult,LogStorage } from "../../src/server/index.js";
 
 // Use ports in the integration test range (8200-8399)
 const BASE_PORT = 8300;
@@ -312,7 +312,7 @@ describe("Server modes", () => {
         // These tests verify the mode is correctly set based on options
         // They don't need HTTP requests, just check the storage config
 
-        test("sets mode to mcp-only when logReceiveOnly=true and mcpEnabled=true", async () => {
+        test("sets mode to mcp-only when logReceiveOnly=true and mcpEnabled=true", () => {
             // Manually set server config to simulate what createDualServer would do
             // (without actually calling it, to avoid MCP stdio blocking)
             storage.setServerConfig({
@@ -342,7 +342,7 @@ describe("Server modes", () => {
             expect(config?.mode).toBe("http-only");
         });
 
-        test("sets mode to dual when mcpEnabled=true and logReceiveOnly=false", async () => {
+        test("sets mode to dual when mcpEnabled=true and logReceiveOnly=false", () => {
             // Manually set server config to simulate what createDualServer would do
             storage.setServerConfig({
                 httpPort: BASE_PORT + 32,

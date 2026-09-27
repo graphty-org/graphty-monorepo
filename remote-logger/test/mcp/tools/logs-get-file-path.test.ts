@@ -7,12 +7,12 @@ import * as os from "os";
 import * as path from "path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { JsonlWriter } from "../../../src/server/jsonl-writer.js";
-import { LogStorage } from "../../../src/server/log-storage.js";
 import {
     logsGetFilePathHandler,
     logsGetFilePathTool,
 } from "../../../src/mcp/tools/logs-get-file-path.js";
+import { JsonlWriter } from "../../../src/server/jsonl-writer.js";
+import { LogStorage } from "../../../src/server/log-storage.js";
 
 describe("logs_get_file_path tool", () => {
     let storage: LogStorage;

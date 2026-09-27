@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect,it } from "vitest";
+
 import { rescaleLayout } from "../src/utils/rescale";
 
 describe("Bug Report #3: rescaleLayout returns all zeros when encountering NaN values", () => {
@@ -13,7 +14,7 @@ describe("Bug Report #3: rescaleLayout returns all zeros when encountering NaN v
         const scaled = rescaleLayout(positionsWithNaN, 1, [0, 0, 0]);
 
         // Fixed: When NaN is present, valid coordinates are preserved
-        Object.entries(scaled).forEach(([node, pos]) => {
+        Object.values(scaled).forEach((pos) => {
             expect(pos).toHaveLength(3);
             // X and Y should be rescaled properly
             expect(typeof pos[0]).toBe("number");

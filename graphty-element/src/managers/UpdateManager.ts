@@ -951,10 +951,14 @@ export class UpdateManager implements Manager {
     /**
      * Move every node and edge to where the position array has it now, without stepping the
      * layout: how a restored arrangement reaches the picture while the layout is at rest.
+     * @param moved - Whether any coordinate was written; when none was, the nodes are placed and
+     *     the edges, whose endpoints are where they were, are left as they are drawn.
      */
-    redrawArrangement(): void {
+    redrawArrangement(moved = true): void {
         this.updateNodes();
-        this.updateEdges();
+        if (moved) {
+            this.updateEdges();
+        }
     }
 
     /**

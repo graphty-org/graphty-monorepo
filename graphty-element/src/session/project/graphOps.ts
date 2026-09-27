@@ -19,7 +19,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import { INVALID_INDEX } from "@graphty/graph-format";
+import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
 import type { EdgeId, NodeId } from "../../catalog/types";
 import { edgeCounterOf, edgeIdOf } from "../../data/edgeIdentity";
@@ -79,6 +79,33 @@ export const NODES_ADDED = "rows:nodes";
 
 /** The lane key marking that edge rows were added: a forward pass starts the layout. */
 export const EDGES_ADDED = "rows:edges";
+
+/**
+ * What a snapshot holds, estimated from its storage: the adjacency arrays, every column's arrays,
+ * and an id slot and a map entry per node. Arrays a snapshot derives on first access are not
+ * counted until something asks for them.
+ * @param snapshot - The snapshot.
+ * @returns Bytes.
+ */
+export function snapshotBytes(snapshot: GraphSnapshot): number {
+    let bytes = snapshot.rowPtr.byteLength + snapshot.colIdx.byteLength + (snapshot.weights?.byteLength ?? 0);
+    bytes += 64 * snapshot.ids.size;
+    for (const table of [snapshot.nodes, snapshot.edges]) {
+        for (const name of table.names()) {
+            const column = table.get(name) as unknown as Readonly<Record<string, unknown>> | null;
+            for (const field of ["data", "validity", "codes", "offsets", "utf8", "dictionary"]) {
+                const value = column?.[field];
+                if (ArrayBuffer.isView(value)) {
+                    bytes += value.byteLength;
+                } else if (Array.isArray(value)) {
+                    bytes += 16 * value.length;
+                }
+            }
+        }
+    }
+
+    return bytes;
+}
 
 /**
  * Bytes a record is estimated at: 64 for the object, 32 per key, plus string lengths.
@@ -525,6 +552,19 @@ class PinsEntry implements OpLogEntry {
     }
 }
 
+/**
+ * Whether undoing a patch puts removed nodes back. Their rows come back at the coordinates they
+ * had when they were removed, which is not the arrangement below the step when the layout had
+ * moved them since the last rest point.
+ * @param log - The patch's op-log writes.
+ * @returns True when one of them removed a node.
+ */
+export function restoresNodes(log: readonly OpLogEntry[]): boolean {
+    return log.some(
+        (entry) => entry instanceof GraphEntry && entry.ops.some((op) => op.kind === "remove" && op.rows.nodes.length > 0),
+    );
+}
+
 /** The entry one recorded writer logs, growing as it writes. */
 class GraphEntry implements OpLogEntry {
     readonly slice = "graph";
@@ -554,8 +594,10 @@ class GraphEntry implements OpLogEntry {
                 this.retained += recordBytes(record);
             }
         } else if (op.kind === "replace") {
-            // ponytail: the kept graph is estimated at its records only; the snapshot's typed
-            // arrays are not counted, which undercounts a large graph with few attributes.
+            // The kept graph: its records, its snapshot's arrays and columns, and the lane rows
+            // held for its undo.
+            const { snapshot } = op.kept;
+            this.retained += snapshotBytes(snapshot) + 3 * Float32Array.BYTES_PER_ELEMENT * snapshot.nodeCount;
             for (const record of [...op.prior.nodes.values(), ...op.prior.edges.values()]) {
                 this.retained += recordBytes(record);
             }
@@ -633,22 +675,33 @@ class GraphEntry implements OpLogEntry {
             switch (op.kind) {
                 case "node":
                     restore(nodes, op.id, op.prior);
-                    if (!op.existed && isStorableId(op.id) && store.builder.hasNode(op.id)) {
-                        store.builder.removeNode(op.id);
+                    if (!op.existed && isStorableId(op.id)) {
+                        // Behind a structural change still waiting, the row goes with it, at
+                        // the next read: reading the builder now would rebuild the graph.
+                        if (store.deferring) {
+                            store.dropAdded([op.id], []);
+                        } else if (store.builder.hasNode(op.id)) {
+                            store.builder.removeNode(op.id);
+                        }
                     }
 
                     this.graph.touch(nodeKey(op.id));
                     break;
                 case "edge": {
-                    const row = store.edgeIndexOf(op.edgeId);
-                    if (row !== INVALID_INDEX) {
-                        store.builder.removeEdge(row);
-                    }
-
                     edges.delete(edgeIdOf(op.edgeId));
-                    for (const id of op.created) {
-                        if (!nodes.has(id) && store.builder.hasNode(id)) {
-                            store.builder.removeNode(id);
+                    const created = op.created.filter((id) => !nodes.has(id));
+                    if (store.deferring) {
+                        store.dropAdded(created, [op.edgeId]);
+                    } else {
+                        const row = store.edgeIndexOf(op.edgeId);
+                        if (row !== INVALID_INDEX) {
+                            store.builder.removeEdge(row);
+                        }
+
+                        for (const id of created) {
+                            if (store.builder.hasNode(id)) {
+                                store.builder.removeNode(id);
+                            }
                         }
                     }
 

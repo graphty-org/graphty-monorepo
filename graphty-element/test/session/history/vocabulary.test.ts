@@ -6,10 +6,9 @@
  * exempt ops say why, and every undoable op has a round-trip fixture for every value of its
  * argument's discriminant (read from the definition's `variants`, never written again here),
  * with a renderer fixture when it changes what is drawn (only that, for an op that runs only on a
- * renderer, which a session must refuse). An op whose every door is still
- * `knownGap` is not yet reachable through the history, so its fixture checks are pending, named
- * with the phase that ports it. The checks that need a slice not yet ported (design/undo/undo-design.md
- * section 12.2) are written here and skip, naming the phase that brings the slice.
+ * renderer, which a session must refuse). An op whose every door is still `knownGap` is not
+ * reachable through the history yet, and fails here naming the phase that ports it; no check
+ * skips (`./no-skips.test.ts`).
  */
 
 import { assert, describe, it } from "vitest";
@@ -18,7 +17,6 @@ import { z } from "zod/v4";
 import { type CommandMeta, COMMANDS } from "../../../commands";
 import { DataConfig } from "../../../src/config/DataConfig";
 import { CONFIG_KEYS } from "../../../src/session/commands/config";
-import { DOOR_ROOTS, PHASES } from "../../../src/session/commands/doors";
 import { DEFINITIONS } from "../../../src/session/commands/index";
 import { dispatcherOf } from "../../../src/session/GraphSession";
 import type { SessionCommand } from "../../../src/session/planning";
@@ -26,24 +24,10 @@ import { stateDigest } from "../../../src/session/project/digest";
 import type { ElementSession } from "../../../src/session/types";
 import { fixtureSession } from "./fixture-session";
 import { FIXTURES } from "./fixtures";
+import { pendingPhase } from "./pending-ops";
 
 /** The published table, as entries. */
 const PUBLISHED = Object.entries(COMMANDS) as [string, CommandMeta][];
-
-/**
- * The phase that ports the first door of `op`, when no door dispatches it yet.
- * @param op - The op.
- * @returns The phase, or null when some door dispatches it.
- */
-function pendingPhase(op: string): string | null {
-    const doors = DOOR_ROOTS.flatMap((root) => Object.values(root.doors ?? {}));
-    if (doors.some((door) => (door.kind === "dispatches" || door.kind === "partial") && door.op === op)) {
-        return null;
-    }
-
-    const phases = doors.flatMap((door) => (door.kind === "knownGap" && door.op === op ? [door.phase] : []));
-    return phases.sort((a, b) => PHASES.indexOf(a) - PHASES.indexOf(b))[0] ?? null;
-}
 
 describe("the vocabulary", () => {
     it("has a definition for every published op, and a published entry for every definition", () => {
@@ -111,23 +95,18 @@ describe("the vocabulary", () => {
                 assert.propertyVal(refused, "code", "E_UNSUPPORTED");
                 session.dispose();
             });
-        } else if (pending === null) {
+        } else {
             it(fixtureTitle, () => {
+                assert.isNull(pending, `${definition.op}: no door dispatches it until phase ${String(pending)}`);
                 assert.deepEqual(covers("session"), [], `${definition.op}: values with no session fixture`);
             });
-        } else {
-            it.skip(`${fixtureTitle} (pending: its doors are ported in phase ${pending})`, () => undefined);
         }
 
         if (definition.draws === true) {
-            const rendererTitle = `${definition.op} changes what is drawn, so it has a renderer fixture for every value`;
-            if (pending === null) {
-                it(rendererTitle, () => {
-                    assert.deepEqual(covers("renderer"), [], `${definition.op}: values with no renderer fixture`);
-                });
-            } else {
-                it.skip(`${rendererTitle} (pending: phase ${pending})`, () => undefined);
-            }
+            it(`${definition.op} changes what is drawn, so it has a renderer fixture for every value`, () => {
+                assert.isNull(pending, `${definition.op}: no door dispatches it until phase ${String(pending)}`);
+                assert.deepEqual(covers("renderer"), [], `${definition.op}: values with no renderer fixture`);
+            });
         }
     }
 

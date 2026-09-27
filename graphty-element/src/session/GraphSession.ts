@@ -1660,6 +1660,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         get positions() {
             return store.store.positions;
         },
+        holdsNoRows: () => (store.store instanceof GraphStore ? store.store.holdsNoRows : true),
     });
     const slice = (): GraphSlice => dispatcher.state.graph;
     // What the records say, from the `graph` slice every primitive fills, then from a host's own

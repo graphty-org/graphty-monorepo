@@ -201,6 +201,9 @@ export default defineConfig({
                     name: "bench",
                     setupFiles: ["./test/setup.ts"],
                     include: ["test/**/*.bench.test.ts"],
+                    // A browser benchmark needs a page, which this project has not got: it runs in
+                    // "bench-browser" below.
+                    exclude: ["test/browser/**", "**/node_modules/**"],
                 },
             },
             {
@@ -416,6 +419,26 @@ export default defineConfig({
                 },
             },
             {
+                // Timing benchmarks on a real graph in the browser, kept out of "browser" for the
+                // reason "bench" is kept out of "default": nothing here runs under coverage, which
+                // would time the instrumentation. CI runs it in the graphty-element-browser-1 job
+                // with: npx vitest run --project=bench-browser.
+                optimizeDeps: { include: BABYLON_SIDE_EFFECTS },
+                test: {
+                    name: "bench-browser",
+                    setupFiles: ["./test/setup.ts"],
+                    include: ["test/browser/**/*.bench.test.ts"],
+                    browser: {
+                        enabled: true,
+                        headless: true,
+                        screenshotDirectory: FAILURE_SCREENSHOT_DIR,
+                        provider: "playwright",
+                        instances: [{ browser: "chromium" }],
+                        fileParallelism: false,
+                    },
+                },
+            },
+            {
                 // The one env var that crosses into the page: which flag set the run asked for.
                 // Naming it as a prefix is what puts it on `import.meta.env` in the browser --
                 // Vite copies every matching variable out of the process environment -- and
@@ -449,6 +472,8 @@ export default defineConfig({
                         "test/interactions/**/*.test.ts",
                         // So do the WebXR tests: see the "xr" project
                         ...XR_BROWSER_TESTS,
+                        // And the timing benchmarks: see "bench-browser"
+                        "test/browser/**/*.bench.test.ts",
                         // Tests using Node.js-only libraries (pngjs).
                         //
                         // This file therefore runs in NO project: "default" excludes all of

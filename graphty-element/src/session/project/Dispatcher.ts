@@ -51,7 +51,7 @@ import {
     type Slice,
     touchedBy,
 } from "./draft";
-import { GraphOps, nodeKey, TouchedIds } from "./graphOps";
+import { GraphOps, nodeKey, restoresNodes, TouchedIds } from "./graphOps";
 import { History, type HistoryChangeReason, type OpenArrangement } from "./History";
 import { createProjectState, type ProjectState } from "./state";
 import { checkInlineKey, checkSoleHolder, strictStateEnabled, verifyFreshArrays } from "./strict";
@@ -161,6 +161,8 @@ type Lane<C extends CommandLike> =
           readonly kind: "queued";
           /** The queue category, which decides the queue's obsolescence rules for it. */
           readonly category: OperationCategory;
+          /** For an op whose commands differ (an add, an update, a removal): each one's category. */
+          categoryOf?(command: C): OperationCategory;
           /** Two commands with one key collapse into one slot while the first has not started. */
           coalesce?(command: C): string | null;
       };
@@ -550,6 +552,11 @@ interface StepMeta {
     recorded: number;
     undone: number;
     oplog: SliceKey[];
+    /**
+     * It removed nodes while a layout had moved the lane since the last rest point, so undoing it
+     * puts them back where they were in flight rather than where the step below came to rest.
+     */
+    removedInFlight: boolean;
 }
 
 /**
@@ -806,6 +813,7 @@ export class Dispatcher {
                 this.note(reason);
             },
             rows: (patch) => patch.rows,
+            restoresRows: (id) => this.steps.get(id)?.removedInFlight === true,
         });
         this.arrangement = new Arrangement(this.store.state, this.lane, this.history, this.graph);
         this.services.positions = this.arrangement;
@@ -1092,8 +1100,8 @@ export class Dispatcher {
     }
 
     /**
-     * Do one immediate command now, and throw what it throws, for a synchronous door. A queued
-     * command is refused: it cannot run before this returns.
+     * Do one command now, and throw what it throws, for a synchronous door. A queued command
+     * starts beside the queue rather than waiting for a turn, as `skipQueue` always did.
      * @param command - The command.
      * @returns What `execute` returned.
      */
@@ -1103,7 +1111,7 @@ export class Dispatcher {
         }
 
         this.syncFailure = null;
-        const promise = this.submit(command, null) as Promise<unknown>;
+        const promise = this.submit(command, null, { beside: true }) as Promise<unknown>;
         const failure = this.syncFailure as { error: unknown } | null;
         this.syncFailure = null;
         if (failure !== null) {
@@ -1195,19 +1203,24 @@ export class Dispatcher {
             return { kind: "cancelled", pending: this.cancelAll(plan.cancel, direction) };
         }
 
-        // Sealed before the cursor moves, so an arrangement in flight is not given to the step
-        // below (design section 6.2).
-        this.arrangement.seal();
-        this.lane.restore(direction);
-        this.arrangement.stop();
-        this.touching = this.startTouching();
-        const step = direction === "undo" ? this.history.undo() : this.history.redo();
+        const step = this.history.moveAs(() => {
+            // Sealed before the cursor moves, so an arrangement in flight is not given to the
+            // step below (design section 6.2).
+            this.arrangement.seal();
+            this.lane.restore(direction);
+            this.arrangement.stop();
+            this.touching = this.startTouching();
+            const moved = direction === "undo" ? this.history.undo() : this.history.redo();
+            if (moved !== null) {
+                this.arrangement.restore(this.history.takeArrangement());
+            }
+
+            return moved;
+        });
         if (step === null) {
             this.touching = null;
             return { kind: "nothing" };
         }
-
-        this.arrangement.restore(this.history.takeArrangement());
 
         this.markUndone(direction, [step]);
         const change = { slices: step.slices, cause: direction };
@@ -1253,12 +1266,15 @@ export class Dispatcher {
                 : { kind: "nothing" };
         }
 
-        this.arrangement.seal();
-        this.lane.restore();
-        this.arrangement.stop();
-        this.touching = this.startTouching();
-        const passed = this.history.restoreTo(id);
-        this.arrangement.restore(this.history.takeArrangement());
+        const passed = this.history.moveAs(() => {
+            this.arrangement.seal();
+            this.lane.restore();
+            this.arrangement.stop();
+            this.touching = this.startTouching();
+            const steps = this.history.restoreTo(id);
+            this.arrangement.restore(this.history.takeArrangement());
+            return steps;
+        });
         this.markUndone(target < position ? "undo" : "redo", passed);
         const slices = [...new Set(passed.flatMap((step) => step.slices))];
         this.emit(
@@ -1460,7 +1476,7 @@ export class Dispatcher {
 
         const compound = definition.members?.(concrete);
         if (compound !== undefined) {
-            return this.compound(compound.label, compound.steps, tx, isSetup(concrete));
+            return this.compound(compound.label, compound.steps, tx, isSetup(concrete), options.beside === true);
         }
 
         const undoable = definition as UndoableDefinition<CommandLike>;
@@ -1522,7 +1538,7 @@ export class Dispatcher {
             this.admit(job);
         } else if (lane.kind === "queued") {
             job.slot = this.scheduler.enqueue(
-                lane.category,
+                lane.categoryOf?.(concrete) ?? lane.category,
                 (context) => this.turn(job, context),
                 undoable.undo.label(concrete, state),
             );
@@ -1554,14 +1570,23 @@ export class Dispatcher {
      * @param steps - The members.
      * @param tx - The transaction it was dispatched in, or null.
      * @param setup - Whether it was declared at construction.
+     * @param beside - Whether its queued members start at once, beside the queue, as a
+     *     synchronous door's must.
      * @returns Settles when every member has.
      */
-    private compound(label: string, steps: readonly CommandLike[], tx: Group | null, setup: boolean): Promise<unknown> {
+    private compound(
+        label: string,
+        steps: readonly CommandLike[],
+        tx: Group | null,
+        setup: boolean,
+        beside: boolean,
+    ): Promise<unknown> {
+        const options = beside ? { beside } : {};
         if (tx !== null) {
-            return Promise.all(steps.map((step) => settle(() => this.submit(step, tx))));
+            return Promise.all(steps.map((step) => settle(() => this.submit(step, tx, options))));
         }
 
-        const done = this.transaction(label, (scope) => Promise.all(steps.map((step) => scope.dispatch(step))), {
+        const done = this.transaction(label, (scope) => Promise.all(steps.map((step) => scope.dispatch(step, options))), {
             setup,
             compound: true,
         });
@@ -1683,7 +1708,10 @@ export class Dispatcher {
         }
 
         if (refuses(blocker.group)) {
-            this.fail(job, heldError(job.command.op, blocker.key, blocker.group));
+            const error = heldError(job.command.op, blocker.key, blocker.group);
+            // A synchronous door starting a queued command beside the queue throws it.
+            this.syncFailure = { error };
+            this.fail(job, error);
             return "failed";
         }
 
@@ -1929,8 +1957,10 @@ export class Dispatcher {
         const baseline = !isEmptyPatch(patch) && this.intoBaseline(group, slicesOf(patch));
         if (isEmptyPatch(patch) || baseline) {
             // No step of its own: where the lane came to rest while it was open is the seal
-            // target's now.
-            const rest = newEpoch ?? open?.provisional ?? null;
+            // target's now. Rows the baseline itself wrote are where it ends, so undoing
+            // everything returns them there, not to wherever a later step left them.
+            const rows = baseline && slicesOf(patch).includes("graph") ? this.arrangement.settledCapture() : null;
+            const rest = newEpoch ?? open?.provisional ?? rows;
             if (rest !== null) {
                 this.history.seal(rest);
             }
@@ -1946,20 +1976,20 @@ export class Dispatcher {
 
         if (!isEmptyPatch(patch)) {
             const slices = slicesOf(patch);
-            const bytes = patchBytes(patch);
+            const removedInFlight = this.arrangement.moved && restoresNodes(patch.log);
+            // A `positions.set` over more than a third of the rows keeps a capture instead of its
+            // row patch: the capture holds every row it wrote, so the step keeps the one, not both.
+            const captured = newEpoch === null && patch.rows !== null && this.arrangement.wantsCapture(patch.rows);
+            const kept = captured ? Object.freeze({ ...patch, rows: null }) : patch;
+            const bytes = patchBytes(kept);
             const input = {
                 label: group.label,
-                patch,
+                patch: kept,
                 key: group.key,
                 ops: group.ops,
                 slices,
                 bytes: { done: bytes, undone: bytes },
-                // A `positions.set` over more than a third of the rows keeps a capture instead.
-                after:
-                    newEpoch ??
-                    (patch.rows !== null && this.arrangement.wantsCapture(patch.rows)
-                        ? this.arrangement.capture()
-                        : (open?.provisional ?? null)),
+                after: newEpoch ?? (captured ? this.arrangement.capture() : (open?.provisional ?? null)),
                 before: open?.before ?? null,
             };
             if (group.after !== null && this.history.amend(group.after, input)) {
@@ -1976,10 +2006,11 @@ export class Dispatcher {
             const meta = this.steps.get(id);
             const recorded = this.tick++;
             if (meta === undefined) {
-                this.steps.set(id, { recorded, undone: -1, oplog });
+                this.steps.set(id, { recorded, undone: -1, oplog, removedInFlight });
             } else {
                 meta.recorded = recorded;
                 meta.oplog.push(...oplog);
+                meta.removedInFlight ||= removedInFlight;
             }
 
             this.prune();

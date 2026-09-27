@@ -659,6 +659,54 @@ export class GraphStore {
     }
 
     /**
+     * Whether the graph holds no node rows, answered without freezing: a clear still waiting to be
+     * applied empties it, and any other structural change still waiting is taken to leave rows.
+     * @returns True when it holds none.
+     */
+    get holdsNoRows(): boolean {
+        const last = this.structural.at(-1);
+        if (last !== undefined) {
+            return last.kind === "replace" && !last.restore;
+        }
+
+        return this.current.nodeCount === 0;
+    }
+
+    /**
+     * Whether structural changes are waiting for the next read. While they are, a write that
+     * would read the builder rebuilds it first; {@link GraphStore.dropAdded} waits with them.
+     * @returns True when some are.
+     */
+    get deferring(): boolean {
+        return this.structural.length > 0;
+    }
+
+    /**
+     * Take rows an add appended out again -- the undo of an add -- at the next read, with the
+     * structural changes waiting before it, so that undoing adds and removals in one run rebuilds
+     * the graph once rather than once per add.
+     * @param nodes - The nodes the add created.
+     * @param edges - The element-assigned ids of the edges it added.
+     */
+    dropAdded(nodes: readonly NodeId[], edges: readonly number[]): void {
+        const none: RowValues = new Map();
+        this.defer({
+            kind: "drop",
+            rows: {
+                nodes: nodes.map((id) => ({ id, index: INVALID_INDEX, values: none })),
+                edges: edges.map((edgeId) => ({
+                    edgeId,
+                    index: INVALID_INDEX,
+                    source: "",
+                    target: "",
+                    weight: 1,
+                    values: none,
+                })),
+            },
+        });
+    }
+
+    /**
      * Put removed rows back where they were: the undo of {@link GraphStore.removeRows}. Applied at
      * the next read, folded with whatever else is waiting.
      * @param rows - What the removal recorded.

@@ -836,15 +836,18 @@ export class Graphty extends LitElement {
         const setup = this.#settingUp;
         const dispatcher = dispatcherOf(this.#graph.getSession());
         const dispatch = (): Promise<unknown> => dispatcher.dispatch(build(dispatcher.state.graph, setup));
+        // Before the graph is up, the step is built once the queue reaches this turn, and
+        // dispatched after it: its members take turns of their own, which they could not while
+        // this one held the queue.
         const done = this.#graph.initialized
             ? dispatch()
-            : operationQueueOf(this.#graph).queueOperationAsync("data-add", async (context) => {
-                  if (context.signal.aborted) {
-                      throw new Error("Operation cancelled");
-                  }
-
-                  await dispatch();
-              });
+            : operationQueueOf(this.#graph)
+                  .queueOperationAsync("data-add", (context) => {
+                      if (context.signal.aborted) {
+                          throw new Error("Operation cancelled");
+                      }
+                  })
+                  .then(dispatch);
         done.catch((error: unknown) => {
             this.#reportLoadFailure(error);
         });

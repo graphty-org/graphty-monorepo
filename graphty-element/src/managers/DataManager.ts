@@ -340,15 +340,26 @@ export class DataManager implements Manager {
      * @param hooks.rowsAdded - Called by each command that adds rows, after it wrote them, with how
      *     that command starts work as its deferred members.
      * @param hooks.loading - Called with true when an import starts reading and false when it stops.
+     * @param hooks.removing - Called with the nodes and edges a removal names, before it writes.
      */
     bindSession(
         dispatcher: Dispatcher,
-        hooks: { rowsAdded(after: UndoableContext["after"] | undefined): void; loading(active: boolean): void },
+        hooks: {
+            rowsAdded(after: UndoableContext["after"] | undefined): void;
+            loading(active: boolean): void;
+            removing(nodes: readonly NodeIdType[], edges: readonly EdgeId[]): void;
+        },
     ): void {
         this.dispatcher = dispatcher;
         this.graph = dispatcher.graph;
         dispatcher.services.data = {
             apply: (mutation, draft, after) => {
+                if (mutation.kind === "remove-nodes") {
+                    hooks.removing(mutation.ids, []);
+                } else if (mutation.kind === "remove-edges") {
+                    hooks.removing([], mutation.ids);
+                }
+
                 this.applyMutation(mutation, this.graph.writer(draft, this.store));
                 if (mutation.kind === "add-nodes" || mutation.kind === "add-edges") {
                     hooks.rowsAdded(after);
@@ -419,6 +430,7 @@ export class DataManager implements Manager {
         let addedNodes = 0;
         let addedEdges = 0;
         const edgeKeys: EdgeId[] = [];
+        const doomed = new Set<NodeIdType>();
         for (const key of dirty) {
             if (key.startsWith("e:")) {
                 edgeKeys.push(key.slice(2));
@@ -427,8 +439,7 @@ export class DataManager implements Manager {
                 const record = slice.nodes.get(id);
                 const node = this.nodes.get(id);
                 if (record === undefined && node !== undefined) {
-                    removedEdges.push(...this.dropRenderNode(node));
-                    removedNodes.push(id);
+                    doomed.add(node.id);
                 } else if (record !== undefined && node === undefined) {
                     this.buildNode(id, record as Record<string, unknown>, this.store.builder.indexOf(id));
                     addedNodes++;
@@ -436,6 +447,13 @@ export class DataManager implements Manager {
                     node.adoptRecord(record as AdHocData<string | number>);
                 }
             }
+        }
+
+        // Torn down together: one pass over the edges for all of them, not one per node, and the
+        // nodes in the order they were built, which is the order the scene holds their meshes in.
+        if (doomed.size > 0) {
+            removedEdges.push(...this.dropRenderNodes(doomed));
+            removedNodes.push(...doomed);
         }
 
         // Edges after nodes: an edge is built only once both its endpoints are drawn.
@@ -490,21 +508,26 @@ export class DataManager implements Manager {
     }
 
     /**
-     * Tear down one node's render objects and every render edge attached to it, leaving the store
-     * alone: the store already reflects the state being drawn.
-     * @param node - The node.
-     * @returns The ids of the edges torn down with it.
+     * Tear down nodes' render objects and every render edge attached to one of them, leaving the
+     * store alone: the store already reflects the state being drawn.
+     * @param ids - The nodes.
+     * @returns The ids of the edges torn down with them.
      */
-    private dropRenderNode(node: Node): EdgeId[] {
+    private dropRenderNodes(ids: ReadonlySet<NodeIdType>): EdgeId[] {
         const removed: EdgeId[] = [];
         for (const edge of [...this.edges.values()]) {
-            if (edge.srcId === node.id || edge.dstId === node.id) {
+            if (ids.has(edge.srcId) || ids.has(edge.dstId)) {
                 this.teardownEdge(edge, edge.index);
                 removed.push(edge.id);
             }
         }
 
-        this.disposeRenderNode(node);
+        for (const node of [...this.nodes.values()]) {
+            if (ids.has(node.id)) {
+                this.disposeRenderNode(node);
+            }
+        }
+
         return removed;
     }
 

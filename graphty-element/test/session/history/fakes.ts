@@ -12,6 +12,9 @@
  *
  * - The layout is a fake engine (`fakeLayout`) that moves the lane only when told to: a step,
  *   a rest point and a GPU-style readback landing late are generated commands too.
+ * - A queued command dispatched inside `heldScheduler(...).holding` waits for its turn until the
+ *   model releases it, and a run started after `runGate().hold()` computes at once but finishes
+ *   only when the model releases it, so pending work outlives the command that dispatched it.
  */
 
 import type fc from "fast-check";
@@ -20,6 +23,7 @@ import type { NodeId } from "../../../src/catalog/types";
 import { dispatcherOf, laneOf } from "../../../src/session/GraphSession";
 import type { ArrangementEngine } from "../../../src/session/project/arrangement";
 import type { Scheduler } from "../../../src/session/project/Dispatcher";
+import type { RunExecutionContext, RunOutcome } from "../../../src/session/runs";
 import type { GraphSession } from "../../../src/session/types";
 
 /** A clock that stands still until it is moved. */
@@ -192,4 +196,136 @@ export function fakeLayout(session: GraphSession): FakeLayout {
     };
     arrangement.engine = engine;
     return engine;
+}
+
+/** A queued command's turn, held until the model releases it. */
+export interface HeldTurn {
+    /** Whether the dispatcher took it back: cancelled, or coalesced away. */
+    readonly dropped: boolean;
+    /**
+     * Give the command its turn.
+     * @returns Settles once the command has finished with its slot.
+     */
+    release(): Promise<void>;
+}
+
+/** A queue that holds the turns of commands dispatched inside {@link HeldQueue.holding}. */
+export interface HeldQueue extends Scheduler {
+    /**
+     * Dispatch with every queued turn taken here held.
+     * @param dispatch - The dispatch.
+     * @returns What it returned, and the turns it queued.
+     */
+    holding<T>(dispatch: () => T): { readonly value: T; readonly turns: readonly HeldTurn[] };
+}
+
+/**
+ * A queue that gives every turn at the next microtask, as the random model's immediate commands
+ * need, except the ones held.
+ * @param base - Where a turn not held goes; by default, the next microtask.
+ * @returns The queue.
+ */
+export function heldScheduler(base?: Scheduler): HeldQueue {
+    let holding: HeldTurn[] | null = null;
+
+    const queue: HeldQueue = {
+        enqueue(category, onTurn, description) {
+            if (holding === null) {
+                if (base !== undefined) {
+                    return base.enqueue(category, onTurn, description);
+                }
+
+                const controller = new AbortController();
+                void Promise.resolve().then(async () => {
+                    if (!controller.signal.aborted) {
+                        await onTurn();
+                    }
+                });
+
+                return { signal: controller.signal, cancel: () => controller.abort() };
+            }
+
+            const controller = new AbortController();
+            const turn: HeldTurn = {
+                get dropped() {
+                    return controller.signal.aborted;
+                },
+                release: async () => {
+                    if (!controller.signal.aborted) {
+                        await onTurn();
+                    }
+                },
+            };
+            holding.push(turn);
+            return {
+                signal: controller.signal,
+                cancel: () => {
+                    controller.abort(new DOMException("The queue dropped this turn.", "AbortError"));
+                },
+            };
+        },
+        holding(dispatch) {
+            const turns: HeldTurn[] = [];
+            holding = turns;
+            try {
+                return { value: dispatch(), turns };
+            } finally {
+                holding = null;
+            }
+        },
+    };
+
+    return queue;
+}
+
+/** Holds the completion of the next runs a session starts. */
+export interface RunGate {
+    /**
+     * Hold the next run: it computes when its turn comes and finishes only once released.
+     * @returns Releases it.
+     */
+    hold(): () => void;
+    /** Stands in front of the fake runs, as `fixtureSession`'s `wrap` does. */
+    wrap(context: RunExecutionContext, fake: () => Promise<RunOutcome>): Promise<RunOutcome>;
+    /** Release every run still held, so nothing waits after the test. */
+    releaseAll(): void;
+}
+
+/**
+ * A gate for runs.
+ * @returns The gate.
+ */
+export function runGate(): RunGate {
+    const next: Promise<void>[] = [];
+    const open = new Set<() => void>();
+
+    return {
+        hold() {
+            let release = (): void => undefined;
+            next.push(
+                new Promise<void>((resolve) => {
+                    release = resolve;
+                }),
+            );
+            open.add(release);
+            return () => {
+                open.delete(release);
+                release();
+            };
+        },
+        async wrap(_context, fake) {
+            const gate = next.shift();
+            // Computed now, over the graph as it is when the turn comes; finished when released.
+            const outcome = await fake();
+            await gate;
+            return outcome;
+        },
+        releaseAll() {
+            for (const release of open) {
+                release();
+            }
+
+            open.clear();
+        },
+    };
 }

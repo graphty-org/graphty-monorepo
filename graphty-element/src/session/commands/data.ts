@@ -13,10 +13,11 @@
  * so undo and redo never pass through ingest, a data source or a fetcher again. See
  * design/undo/undo-design.md sections 3.3, 3.4, 4.7 and 11.1.
  *
- * `data.apply` and `data.expand` run on the immediate lane: the write is visible as soon as
- * `dispatch` returns, and the element's own doors take their turn on the operation queue first, so
- * an add is ordered against loads and layouts as before. `data.import` takes its turn on the queue
- * itself, holding the whole graph while it reads.
+ * `data.apply` and `data.import` take their turn on the queue, so an add is ordered against the
+ * loads, layouts and runs dispatched before it, and one still waiting is pending work that undo
+ * cancels. A synchronous door starts its `data.apply` beside the queue instead. `data.import`
+ * holds the whole graph while it reads. `data.expand` runs on the immediate lane: the write is
+ * visible as soon as `dispatch` returns.
  */
 
 import type { DuplicatePolicy } from "@graphty/graph-format";
@@ -320,7 +321,7 @@ const dataApply: UndoableDefinition<DataApplyCommand> = {
 
         return ids.map((id) => `graph/${mutation.target === "node" ? nodeKey(id) : edgeKey(String(id))}`);
     },
-    lane: { kind: "immediate" },
+    lane: { kind: "queued", category: "data-add", categoryOf: (command) => categoryOf(command.mutation) },
     // The records are the caller's own objects, kept as they are: `Node.data` has always been the
     // record handed in. Freezing them is design/undo/undo-plan.md phase 18b.
     byReference: ["records"],
@@ -328,6 +329,24 @@ const dataApply: UndoableDefinition<DataApplyCommand> = {
         serviceOf(ctx.services.data).apply(command.mutation, ctx.draft, ctx.after);
     },
 };
+
+/**
+ * The queue category of a mutation, which decides what it obsoletes on the element's queue.
+ * @param mutation - The mutation.
+ * @returns `data-add`, `data-update` or `data-remove`.
+ */
+function categoryOf(mutation: DataMutation): "data-add" | "data-update" | "data-remove" {
+    switch (mutation.kind) {
+        case "add-nodes":
+        case "add-edges":
+            return "data-add";
+        case "set-attributes":
+        case "update-rows":
+            return "data-update";
+        default:
+            return "data-remove";
+    }
+}
 
 /**
  * The data service, or the refusal of a session that has none.

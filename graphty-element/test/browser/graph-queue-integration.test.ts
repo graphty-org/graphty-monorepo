@@ -34,7 +34,7 @@ describe("Graph Queue Integration", () => {
             "data-add",
             expect.any(Function),
             expect.objectContaining({
-                description: "Adding 2 nodes",
+                description: "Added 2 nodes",
             }),
         );
 
@@ -250,7 +250,7 @@ describe("Graph Queue Integration", () => {
             "data-remove",
             expect.any(Function),
             expect.objectContaining({
-                description: "Removing 1 nodes",
+                description: "Removed a node",
             }),
         );
 
@@ -271,7 +271,7 @@ describe("Graph Queue Integration", () => {
             "data-update",
             expect.any(Function),
             expect.objectContaining({
-                description: "Updating 1 nodes",
+                description: "Edited 1 node",
             }),
         );
 

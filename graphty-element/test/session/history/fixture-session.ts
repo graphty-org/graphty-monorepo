@@ -48,19 +48,29 @@ function fakeRun(harness: () => Harness, context: RunExecutionContext): Promise<
 }
 
 /**
- * A session holding the fixtures' graph -- `n1 -> n2 -> n3` -- that can run `degree` and
- * `shortest-path`, with its baseline painted the way a renderer's first draw paints it. A
- * headless session paints only what an edit touches, so without that first draw the picture
- * before the first edit would be an empty one no undo returns to.
+ * A session that can run `degree` and `shortest-path` and holds no graph yet.
  * @param internals - The history clock and queue, for a test that drives them itself.
  * @param wrap - Stands in front of the fake runs, for a test that holds a run back or counts them;
  *     it is handed the fake to call.
  * @returns The session.
  */
-export async function fixtureSession(
+export function blankSession(
     internals?: NonNullable<Parameters<typeof makeSession>[0]>["internals"],
     wrap?: (context: RunExecutionContext, fake: () => Promise<RunOutcome>) => Promise<RunOutcome>,
-): Promise<GraphSession> {
+): ElementSession {
+    return blankHarness(internals, wrap).session as ElementSession;
+}
+
+/**
+ * {@link blankSession}, with the store behind it, for a test that reads the store's counters.
+ * @param internals - The history clock and queue.
+ * @param wrap - Stands in front of the fake runs.
+ * @returns The harness.
+ */
+export function blankHarness(
+    internals?: NonNullable<Parameters<typeof makeSession>[0]>["internals"],
+    wrap?: (context: RunExecutionContext, fake: () => Promise<RunOutcome>) => Promise<RunOutcome>,
+): Harness {
     const harness = makeSession({
         runs: {
             execute: (context) => {
@@ -70,7 +80,37 @@ export async function fixtureSession(
         },
         ...(internals === undefined ? {} : { internals }),
     });
-    const session = harness.session as ElementSession;
+
+    return harness;
+}
+
+/**
+ * Paint a session the way a renderer's first draw paints it. A headless session paints only what
+ * an edit touches, so without that first draw the picture before the first edit would be an
+ * empty one no undo returns to.
+ * @param session - The session.
+ */
+export async function paintBaseline(session: GraphSession): Promise<void> {
+    const element = session as ElementSession;
+    await element.paint.repaintAll(element.styles.compiled(), {
+        signal: new AbortController().signal,
+        report: () => undefined,
+    });
+}
+
+/**
+ * A session holding the fixtures' graph -- `n1 -> n2 -> n3` -- that can run `degree` and
+ * `shortest-path`, with its baseline painted.
+ * @param internals - The history clock and queue, for a test that drives them itself.
+ * @param wrap - Stands in front of the fake runs, for a test that holds a run back or counts them;
+ *     it is handed the fake to call.
+ * @returns The session.
+ */
+export async function fixtureSession(
+    internals?: NonNullable<Parameters<typeof makeSession>[0]>["internals"],
+    wrap?: (context: RunExecutionContext, fake: () => Promise<RunOutcome>) => Promise<RunOutcome>,
+): Promise<GraphSession> {
+    const session = blankSession(internals, wrap);
     // Through the data verbs, as a consumer would, so the records are in the `graph` slice; the
     // steps they record are the baseline, not history.
     await session.data.addNodes([{ id: "n1" }, { id: "n2" }, { id: "n3" }]);
@@ -79,11 +119,7 @@ export async function fixtureSession(
         { src: "n2", dst: "n3" },
     ]);
     session.history.clear();
-    await session.paint.repaintAll(session.styles.compiled(), {
-        signal: new AbortController().signal,
-        report: () => undefined,
-    });
+    await paintBaseline(session);
 
     return session;
 }
-

@@ -52,6 +52,8 @@ export type ArrangementOp =
 interface LaneSource {
     snapshot(): GraphSnapshot;
     readonly positions: ElementPositions;
+    /** Whether the graph holds no node rows, answered without freezing; absent, records decide. */
+    holdsNoRows?(): boolean;
 }
 
 /** What moves the lane besides history: the layout engine, as the renderer hands it in. */
@@ -63,8 +65,10 @@ export interface ArrangementEngine {
      * coordinates it held before.
      * @param restoring - True for undo, redo, a restore or a rollback: the engine is left at rest.
      *     False for a forward `positions.set`: the engine keeps running if it was.
+     * @param wrote - Whether anything was written into the lane; when nothing was, every row the
+     *     graph held before holds what it did, and only rows the graph just gained are new.
      */
-    loadArrangement(restoring: boolean): void;
+    loadArrangement(restoring: boolean, wrote: boolean): void;
     /**
      * A node was pinned or released; the lane's pin byte is already written.
      * @param id - The node.
@@ -183,6 +187,8 @@ export class Arrangement {
      * before-arrangement shares instead of copying the lane. Null after a row write.
      */
     private exact: ArrangementCapture | null = null;
+    /** Whether a forward `positions.set` wrote the lane since the last pass. */
+    private written = false;
     private readonly ops: ArrangementOp[] = [];
     private readonly strict = strictStateEnabled();
 
@@ -236,10 +242,12 @@ export class Arrangement {
             return null;
         }
 
-        // A cleared graph is captured as empty rather than by freezing a snapshot nothing draws:
-        // every row a session holds has a node record or an edge record naming it.
+        // A cleared graph is captured as empty rather than by freezing a snapshot nothing draws.
+        // Records alone do not say the graph is empty: an edge's missing endpoint is a row with no
+        // node record, and it outlives the edge that brought it in.
         const { graph } = this.state;
-        const snapshot = graph.nodes.size === 0 && graph.edges.size === 0 ? null : source.snapshot();
+        const empty = graph.nodes.size === 0 && graph.edges.size === 0 && (source.holdsNoRows?.() ?? true);
+        const snapshot = empty ? null : source.snapshot();
         const capture: ArrangementCapture = Object.freeze({
             ids: Object.freeze(snapshot === null ? [] : snapshot.ids.toArray()),
             token: this.state.graph.token,
@@ -369,6 +377,7 @@ export class Arrangement {
         draft.arrange(rowPatch(ids, rows, values));
         this.captured = lane.generation;
         this.exact = null;
+        this.written = true;
         // The engine takes the new rows as its own at the next pass.
         this.lane.touch("arrangement", "");
     }
@@ -475,7 +484,9 @@ export class Arrangement {
         // The engine taking the lane may write it back unchanged; that is not a move. A layout
         // write made before this pass still is, and the next rest point seals it.
         const atRest = !this.moved;
-        this.engine?.loadArrangement(restoring);
+        const wrote = this.written || (source !== null && ops.length > 0);
+        this.written = false;
+        this.engine?.loadArrangement(restoring, wrote);
         if (atRest) {
             this.captured = source?.positions.generation ?? 0;
         }

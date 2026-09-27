@@ -191,7 +191,12 @@ describe("a plugin algorithm without a descriptor is one step", () => {
             const session = graph.getSession();
 
             const running = graph.runAlgorithm(LEGACY_NAMESPACE, "calls-doors");
-            await session.data.updateNodes([{ id: "n1", values: { weight: 5 } }]);
+            await session.styles.add({
+                name: "Meanwhile",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.color": "#ff0000" },
+            });
             await running;
             await operationQueueOf(graph).waitForCompletion();
 
@@ -199,6 +204,32 @@ describe("a plugin algorithm without a descriptor is one step", () => {
             await session.undo();
             await session.undo();
             assert.isUndefined(graph.getNode("from-plugin"));
+            assert.notInclude(
+                session.styles.list().map((layer) => layer.name),
+                "Meanwhile",
+            );
+        },
+        TEST_TIMEOUT_MS,
+    );
+
+    it(
+        "a data edit made while a plugin runs cancels the run, as a data edit cancels any run in progress, and is a step of its own",
+        async () => {
+            const graph = await loadedGraph();
+            const session = graph.getSession();
+
+            const running = graph.runAlgorithm(LEGACY_NAMESPACE, "calls-doors");
+            await session.data.updateNodes([{ id: "n1", values: { weight: 5 } }]);
+            const cancelled = await Promise.resolve(running).then(
+                () => false,
+                (error: unknown) => (error as { name?: string }).name === "AbortError",
+            );
+            await operationQueueOf(graph).waitForCompletion();
+
+            assert.isTrue(cancelled, "the run was cancelled");
+            assert.isUndefined(graph.getNode("from-plugin"), "and wrote nothing");
+            assert.lengthOf(session.history.steps, 1);
+            await session.undo();
             assert.isUndefined((graph.getNode("n1")?.data as { weight?: unknown }).weight);
         },
         TEST_TIMEOUT_MS,

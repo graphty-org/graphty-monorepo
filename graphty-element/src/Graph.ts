@@ -465,6 +465,9 @@ export class Graph implements GraphContext {
                     dispatcherOf(this.session).graph.touch("import:settled");
                 }
             },
+            removing: (nodeIds, edgeIds) => {
+                this.selectRemoval(nodeIds, edgeIds);
+            },
         });
 
         // The `graph` hook: the render objects follow the slice, forward and on undo, redo and
@@ -504,13 +507,17 @@ export class Graph implements GraphContext {
             suspend: () => {
                 this.layoutManager.running = false;
             },
-            loadArrangement: (restoring) => {
+            loadArrangement: (restoring, wrote) => {
                 this.layoutManager.loadArrangement(restoring);
                 if (restoring) {
                     this.layoutManager.running = false;
                 }
 
-                this.updateManager.redrawArrangement();
+                // The edges are redrawn only when coordinates were written: a redraw re-fits
+                // every edge's arrowheads, and a graph step undone with nothing to place -- a
+                // removal, whose rows come back where they were -- would pay for all of them to
+                // move none.
+                this.updateManager.redrawArrangement(wrote);
             },
             pin: (id, pinned) => {
                 const node = this.getNode(id as string | number);
@@ -1668,7 +1675,6 @@ export class Graph implements GraphContext {
         await this.applyData(
             "data-add",
             { kind: "add-nodes", records: nodes, ...(idPath === undefined ? {} : { idPath }) },
-            `Adding ${nodes.length} nodes`,
             options,
         );
     }
@@ -1732,7 +1738,6 @@ export class Graph implements GraphContext {
                 ...(options?.target === undefined ? {} : { target: options.target }),
                 ...(options?.repeated === undefined ? {} : { repeated: options.repeated }),
             },
-            `Adding ${edges.length} edges`,
             options,
         );
     }
@@ -2204,42 +2209,7 @@ export class Graph implements GraphContext {
      * @returns Settles once the change is drawn
      */
     async removeNodes(nodeIds: (string | number)[], options?: QueueableOptions): Promise<void> {
-        await this.applyData(
-            "data-remove",
-            { kind: "remove-nodes", ids: nodeIds },
-            `Removing ${nodeIds.length} nodes`,
-            options,
-            () => {
-                // THE SELECTION IS TOLD FIRST, and that ordering is the whole of it. The session's
-                // masks are keyed by dense index; an id is resolved to an index through the current
-                // snapshot. Once the builder has tombstoned these rows, the next freeze compacts and
-                // every surviving edge slides down -- so a mask still holding the dead indices would
-                // silently be holding the SURVIVORS instead, and a removal would leave two edges the
-                // reader never selected highlighted on screen.
-                const doomed = new Set<string | number>();
-                for (const id of nodeIds) {
-                    const node = this.dataManager.getNode(id);
-                    if (node) {
-                        doomed.add(node.id);
-                    }
-                }
-
-                const doomedEdges: string[] = [];
-                for (const edge of this.dataManager.edges.values()) {
-                    if (doomed.has(edge.srcId) || doomed.has(edge.dstId)) {
-                        doomedEdges.push(edge.id);
-                    }
-                }
-
-                this.selectionManager.onEdgesRemoved(doomedEdges);
-                for (const id of doomed) {
-                    const node = this.dataManager.getNode(id);
-                    if (node) {
-                        this.selectionManager.onNodeRemoved(node);
-                    }
-                }
-            },
-        );
+        await this.applyData("data-remove", { kind: "remove-nodes", ids: nodeIds }, options);
     }
 
     /**
@@ -2250,16 +2220,7 @@ export class Graph implements GraphContext {
      * @returns Settles once the change is drawn
      */
     async removeEdges(edgeIds: string[], options?: QueueableOptions): Promise<void> {
-        await this.applyData(
-            "data-remove",
-            { kind: "remove-edges", ids: edgeIds },
-            `Removing ${edgeIds.length} edges`,
-            options,
-            () => {
-                // Told first, for the reason `removeNodes` gives.
-                this.selectionManager.onEdgesRemoved(edgeIds);
-            },
-        );
+        await this.applyData("data-remove", { kind: "remove-edges", ids: edgeIds }, options);
     }
 
     /**
@@ -2275,7 +2236,6 @@ export class Graph implements GraphContext {
         await this.applyData(
             "data-update",
             { kind: "update-rows", target: "node", rows: updates.map(({ id, ...values }) => ({ id, values })) },
-            `Updating ${updates.length} nodes`,
             options,
         );
     }
@@ -2291,58 +2251,78 @@ export class Graph implements GraphContext {
         await this.applyData(
             "data-update",
             { kind: "update-rows", target: "edge", rows: updates.map(({ id, ...values }) => ({ id, values })) },
-            `Updating ${updates.length} edges`,
             options,
         );
     }
 
     /**
-     * Dispatch one `data.apply`, or a batch of them, on its turn in the operation queue, or at once
-     * with `skipQueue`. The turn keeps an add ordered against the loads and layouts queued before it.
-     * @param category - The queue category.
+     * Tell the selection about a removal before it is written, whichever door dispatched it.
+     *
+     * THE SELECTION IS TOLD FIRST, and that ordering is the whole of it. The session's masks are
+     * keyed by dense index; an id is resolved to an index through the current snapshot. Once the
+     * builder has tombstoned these rows, the next freeze compacts and every surviving edge slides
+     * down -- so a mask still holding the dead indices would silently be holding the SURVIVORS
+     * instead, and a removal would leave two edges the reader never selected highlighted on screen.
+     * @param nodeIds - The nodes removed, whose incident edges go with them.
+     * @param edgeIds - The edges removed.
+     */
+    private selectRemoval(nodeIds: readonly (string | number)[], edgeIds: readonly string[]): void {
+        const doomed = new Set<string | number>();
+        for (const id of nodeIds) {
+            const node = this.dataManager.getNode(id);
+            if (node) {
+                doomed.add(node.id);
+            }
+        }
+
+        const doomedEdges: string[] = [...edgeIds];
+        if (doomed.size > 0) {
+            for (const edge of this.dataManager.edges.values()) {
+                if (doomed.has(edge.srcId) || doomed.has(edge.dstId)) {
+                    doomedEdges.push(edge.id);
+                }
+            }
+        }
+
+        this.selectionManager.onEdgesRemoved(doomedEdges);
+        for (const id of doomed) {
+            const node = this.dataManager.getNode(id);
+            if (node) {
+                this.selectionManager.onNodeRemoved(node);
+            }
+        }
+    }
+
+    /**
+     * Dispatch one `data.apply`, or a batch of them. It takes its turn on the operation queue,
+     * which keeps an add ordered against the loads and layouts queued before it, or starts at once
+     * with `skipQueue`.
+     * @param category - The queue category the command takes its turn under.
      * @param mutation - The mutation, or the batch.
-     * @param description - What the queue shows.
      * @param options - Queue options.
-     * @param before - Run on the turn, just before dispatching.
      */
     private async applyData(
         category: "data-add" | "data-update" | "data-remove",
         mutation: DataMutation | BatchCommand,
-        description: string,
         options?: QueueableOptions,
-        before?: () => void,
     ): Promise<void> {
-        const dispatch = async (): Promise<void> => {
-            before?.();
-            await dispatcherOf(this.session).dispatch("op" in mutation ? mutation : { op: "data.apply", mutation });
-        };
-
-        // Called through a plugin's graph facade, the running command holds the queue's slot, so
-        // the change joins that command at once rather than waiting behind it.
-        if (options?.skipQueue || dispatcherOf(this.session).routing) {
-            await dispatch();
+        const dispatcher = dispatcherOf(this.session);
+        const command = "op" in mutation ? mutation : { op: "data.apply" as const, mutation };
+        if (options?.skipQueue === true) {
+            await dispatcher.dispatch(command, { beside: true });
             return;
         }
 
-        await this.operationQueue.queueOperationAsync(
-            category,
-            async (context) => {
-                if (context.signal.aborted) {
-                    throw new Error("Operation cancelled");
-                }
-
-                // The `data-add` and `data-remove` triggers paint after this operation, so the pass
-                // does not.
-                const trigger = category === "data-update" ? 0 : 1;
-                this.#queuedAdds += trigger;
-                try {
-                    await dispatch();
-                } finally {
-                    this.#queuedAdds -= trigger;
-                }
-            },
-            { description, ...options },
-        );
+        // The `data-add` and `data-remove` triggers paint once the command's turn on the queue
+        // ends, so the graph hook's pass does not. Called through a plugin's graph facade, the
+        // change joins the running command at once and takes no turn of its own.
+        const trigger = category === "data-update" || dispatcher.routing ? 0 : 1;
+        this.#queuedAdds += trigger;
+        try {
+            await dispatcher.dispatch(command);
+        } finally {
+            this.#queuedAdds -= trigger;
+        }
     }
 
     /**
@@ -5225,7 +5205,6 @@ export class Graph implements GraphContext {
                 label: "Set the graph data",
                 steps: steps.map((mutation) => ({ op: "data.apply", mutation })),
             },
-            `Setting ${data.nodes.length} nodes and ${data.edges.length} edges`,
         ).catch((e: unknown) => {
             console.error("Error setting data:", e);
         });

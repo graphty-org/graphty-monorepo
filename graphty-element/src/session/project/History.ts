@@ -58,6 +58,11 @@ export interface HistoryOptions<P> {
     onChange?: (reason: HistoryChangeReason) => void;
     /** The row patch a patch carries, if any. */
     rows?(patch: P): RowPatch | null;
+    /**
+     * Whether undoing a step brings rows back at coordinates other than A(k-1), which must then
+     * be written over them; without it, a step with no capture and no row patch restores nothing.
+     */
+    restoresRows?(id: string): boolean;
 }
 
 /** What one recorded group contributes to a step. */
@@ -164,6 +169,8 @@ export class History<P> {
     private groups: { before: ArrangementCapture; provisional: ArrangementCapture | null }[] = [];
     /** What the undos and redos since the last take restore, in order. */
     private arrangementOps: ArrangementOp[] = [];
+    /** While above zero, a history move is under way and eviction waits for it to land. */
+    private moving = 0;
 
     /**
      * Create an empty history.
@@ -554,6 +561,18 @@ export class History<P> {
         this.options.backward(step.patch);
         this.cursor--;
         this.moved(step, step.undoneBytes - step.doneBytes);
+        if (step.before !== null) {
+            // The lane now holds where the step began, which is where the position it lands on
+            // ends: a rest point sealed into that position after the step began is older news.
+            // Without this, undoing a later step that moved nothing would put the lane back to
+            // that older rest point.
+            if (this.cursor === 0) {
+                this.setBaseline(step.before, false);
+            } else {
+                this.retake(this.entries[this.cursor - 1], step.before);
+            }
+        }
+
         return step;
     }
 
@@ -598,9 +617,26 @@ export class History<P> {
         );
     }
 
+    /**
+     * Make one history move: the capture sealed before the cursor moves can take the history over
+     * its budget, and evicting then could take the very step being moved to. Eviction waits until
+     * the cursor has landed, where the step it landed on is protected.
+     * @param move - The seal and the move.
+     * @returns What `move` returned.
+     */
+    moveAs<T>(move: () => T): T {
+        this.moving++;
+        try {
+            return move();
+        } finally {
+            this.moving--;
+            this.evictIfOver();
+        }
+    }
+
     /** Evict the oldest done steps, then the farthest redo steps, down to 90% of both limits. */
     private evictIfOver(): void {
-        if (this.total <= this.maxBytes && this.entries.length <= this.maxSteps) {
+        if (this.moving > 0 || (this.total <= this.maxBytes && this.entries.length <= this.maxSteps)) {
             return;
         }
 
@@ -765,8 +801,8 @@ export class History<P> {
 
         const rows = this.rowsOf(step);
         if (rows === null) {
-            // A(k) is A(k-1): the lane already holds it.
-            return [];
+            // A(k) is A(k-1): the lane already holds it, except for rows the undo puts back.
+            return this.options.restoresRows?.(step.id) === true ? this.arrangementAt(index) : [];
         }
 
         // Only its rows differ from A(k-1), which may have been sealed again since they were

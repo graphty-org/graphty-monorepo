@@ -1,3 +1,4 @@
+import type { EngineInstrumentation, SceneInstrumentation } from "@babylonjs/core";
 import { assert, beforeEach, describe, it, vi } from "vitest";
 
 import type { EventManager } from "../../src/managers/EventManager";
@@ -201,6 +202,21 @@ describe("StatsManager", () => {
             assert.equal(summary.renderTime, 0);
             assert.equal(summary.gpuTime, 0);
             assert.equal(summary.drawCalls, 0);
+        });
+
+        it("reports the draw calls of the last frame, not the number of frames counted", () => {
+            // Babylon's draw-call PerfCounter keeps the last frame's calls in `current` and the
+            // number of frames it has seen in `count`. The summary used to report `count`, so a
+            // graph drawn in 3 calls read as however many frames had been rendered so far.
+            const counter = { current: 3, count: 500, min: 0, average: 0, lastSecAverage: 0, max: 0, total: 0 };
+            // Every counter the summary and the report read is this one; only the draw calls matter.
+            const everyCounter = new Proxy({}, { get: () => counter });
+            const scene = everyCounter as SceneInstrumentation;
+            const engine = everyCounter as EngineInstrumentation;
+            statsManager._injectMockInstrumentation(engine, scene);
+
+            assert.equal(statsManager.getPerformanceSummary().drawCalls, 3);
+            assert.include(statsManager.toString(), "Draw Calls: 3\n");
         });
     });
 });

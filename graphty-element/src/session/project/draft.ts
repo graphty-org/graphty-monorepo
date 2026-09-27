@@ -437,6 +437,36 @@ export function deepFreeze<T>(value: T): T {
 }
 
 /**
+ * A node or edge record as the `graph` slice keeps it: deep-frozen. Plain objects and arrays not
+ * frozen yet are copied as they are frozen, so the caller's own object is never frozen under it;
+ * anything else is copied with `structuredClone`. A value already frozen is kept as it is, which
+ * is what makes patching one key of a large record cost that key and not the record.
+ * @param value - The record, or a value inside one.
+ * @returns The frozen value.
+ */
+export function frozenRecord<T>(value: T): T {
+    if (typeof value !== "object" || value === null || Object.isFrozen(value)) {
+        return value;
+    }
+
+    if (Array.isArray(value)) {
+        return Object.freeze(value.map((entry: unknown) => frozenRecord(entry))) as T;
+    }
+
+    const proto: unknown = Object.getPrototypeOf(value);
+    if (proto !== Object.prototype && proto !== null) {
+        return deepFreeze(structuredClone(value));
+    }
+
+    const copy: Record<string, unknown> = {};
+    for (const [key, entry] of Object.entries(value)) {
+        copy[key] = frozenRecord(entry);
+    }
+
+    return Object.freeze(copy) as T;
+}
+
+/**
  * Copy a command argument that will be stored, and deep-freeze the copy, so a caller mutating
  * its own object afterwards changes nothing in state.
  * @param value - The argument, as the caller handed it in.

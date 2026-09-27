@@ -28,7 +28,7 @@ import type { DerivationLane } from "./derive";
 import type { Draft } from "./draft";
 import { type GraphOps, nodeOfKey } from "./graphOps";
 import type { ArrangementCapture, ProjectState } from "./state";
-import { strictStateEnabled, strictViolation } from "./strict";
+import { retainArray, strictStateEnabled, strictViolation } from "./strict";
 
 /**
  * The coordinates a few rows were written with, and what they held before. Row indices are
@@ -121,7 +121,21 @@ export function mergeRowPatches(older: RowPatch, newer: RowPatch): RowPatch {
         }
     });
 
-    return Object.freeze({ ids: Object.freeze(ids), rows: Uint32Array.from(rows), values: Float32Array.from(values) });
+    return rowPatch(ids, rows, values);
+}
+
+/**
+ * A row patch, frozen, its arrays noted by strict state: a step keeps it.
+ * @param ids - The node ids.
+ * @param rows - Their rows.
+ * @param values - Six values per row: the prior coordinate, then the new one.
+ * @returns The patch.
+ */
+function rowPatch(ids: NodeId[], rows: readonly number[], values: readonly number[]): RowPatch {
+    const patch = Object.freeze({ ids: Object.freeze(ids), rows: Uint32Array.from(rows), values: Float32Array.from(values) });
+    retainArray(patch.rows, "the arrangement slice's row patch");
+    retainArray(patch.values, "the arrangement slice's row patch");
+    return patch;
 }
 
 /**
@@ -232,6 +246,7 @@ export class Arrangement {
             epoch: this.state.graph.epoch,
             coords: snapshot === null ? new Float32Array(0) : source.positions.view(snapshot.nodeCount).slice(),
         });
+        retainArray(capture.coords, "the arrangement slice's capture");
         this.current(capture);
         return capture;
     }
@@ -351,9 +366,7 @@ export class Arrangement {
             lane.write(row, values[6 * index + 3], values[6 * index + 4], values[6 * index + 5]);
         }
 
-        draft.arrange(
-            Object.freeze({ ids: Object.freeze(ids), rows: Uint32Array.from(rows), values: Float32Array.from(values) }),
-        );
+        draft.arrange(rowPatch(ids, rows, values));
         this.captured = lane.generation;
         this.exact = null;
         // The engine takes the new rows as its own at the next pass.

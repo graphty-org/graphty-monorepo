@@ -59,3 +59,111 @@ export function checkSoleHolder(key: string, holder: string | null): void {
 export function checkInlineKey(op: string, key: string, holder: string): void {
     throw strictViolation(`"${op}", dispatched inline through a plugin's graph facade, needs ${key}, which "${holder}" holds`);
 }
+
+// ---------------------------------------------------------------------------------------------
+// Retained typed arrays
+// ---------------------------------------------------------------------------------------------
+
+/** A typed array state keeps, with what it was when first kept. */
+interface Retained {
+    readonly array: WeakRef<ArrayBufferView>;
+    /** What holds it, for the message: "the arrangement slice's capture". */
+    readonly what: string;
+    readonly sum: number;
+}
+
+/** Every array retained, and those retained since the last dispatch checked them. */
+const retained = { all: new Set<Retained>(), fresh: [] as Retained[], seen: new WeakSet<ArrayBufferView>() };
+
+/**
+ * A checksum of an array's bytes (FNV-1a), or -1 for one whose buffer was detached.
+ * @param array - The array.
+ * @returns The checksum.
+ */
+function checksum(array: ArrayBufferView): number {
+    if (array.buffer.byteLength === 0 && array.byteLength === 0) {
+        return -1;
+    }
+
+    const bytes = new Uint8Array(array.buffer, array.byteOffset, array.byteLength);
+    let sum = 0x811c9dc5;
+    for (const byte of bytes) {
+        sum = Math.imul(sum ^ byte, 0x01000193);
+    }
+
+    return sum >>> 0;
+}
+
+/**
+ * Strict: note a typed array state has just come to keep. Typed arrays cannot be frozen, so its
+ * bytes are summed now, and a later check that finds them changed names what holds it. Nothing
+ * happens when strict state is off, or for an array already noted.
+ * @param array - The array.
+ * @param what - What holds it, as a noun phrase naming the slice.
+ */
+export function retainArray(array: ArrayBufferView, what: string): void {
+    if (!strictStateEnabled() || retained.seen.has(array)) {
+        return;
+    }
+
+    retained.seen.add(array);
+    const entry = { array: new WeakRef(array), what, sum: checksum(array) };
+    retained.all.add(entry);
+    retained.fresh.push(entry);
+}
+
+/**
+ * Throw when one retained array's bytes changed.
+ * @param entry - The array.
+ * @returns False when the array has been collected.
+ */
+function verify(entry: Retained): boolean {
+    const array = entry.array.deref();
+    if (array === undefined) {
+        return false;
+    }
+
+    const sum = checksum(array);
+    if (sum !== -1 && sum !== entry.sum) {
+        throw strictViolation(`${entry.what} was written in place after state kept it; typed arrays in state are never written`);
+    }
+
+    return true;
+}
+
+/** Strict: check the arrays retained since the last check, as each dispatch does. */
+export function verifyFreshArrays(): void {
+    const { fresh } = retained;
+    retained.fresh = [];
+    for (const entry of fresh) {
+        verify(entry);
+    }
+}
+
+/** Strict: check every retained array still alive, as the test setup does after each test. */
+export function verifyRetainedArrays(): void {
+    retained.fresh = [];
+    for (const entry of retained.all) {
+        if (!verify(entry)) {
+            retained.all.delete(entry);
+        }
+    }
+}
+
+/**
+ * Strict: the graph store's builder was changed by something other than the graph primitives.
+ * @param count - How many mutations nobody accounted for.
+ * @returns The error, to throw.
+ */
+export function builderDrift(count: number): GraphtyError {
+    return strictViolation(
+        `the graph slice's builder was mutated ${String(count)} time(s) outside a command; ` +
+            "dispatch data.apply or data.import instead of writing the store",
+    );
+}
+
+// The test setup sweeps every retained array after each test, and reaches this through a global
+// so that the setup file imports nothing from the element. Only where strict state is on.
+if (strictStateEnabled()) {
+    (globalThis as { __GRAPHTY_STRICT_SWEEP__?: () => void }).__GRAPHTY_STRICT_SWEEP__ = verifyRetainedArrays;
+}

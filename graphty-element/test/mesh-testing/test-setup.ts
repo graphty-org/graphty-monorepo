@@ -15,7 +15,7 @@
  * modules initialise depend on the setup file rather than on the test.
  */
 
-import { beforeAll } from "vitest";
+import { afterEach, beforeAll } from "vitest";
 
 import { installCanvasPolyfills } from "./recording-canvas";
 
@@ -23,6 +23,10 @@ import { installCanvasPolyfills } from "./recording-canvas";
 // through the dispatcher (src/session/project/strict.ts, design/undo/undo-design.md section 12.1).
 // A plain global rather than an import, so this file reaches nothing under src/ at setup time.
 (globalThis as { __GRAPHTY_STRICT_STATE__?: boolean }).__GRAPHTY_STRICT_STATE__ = true;
+// Its full sweep after each test: no typed array state kept was written in place.
+afterEach(() => {
+    (globalThis as { __GRAPHTY_STRICT_SWEEP__?: () => void }).__GRAPHTY_STRICT_SWEEP__?.();
+});
 
 /**
  * Installs the canvas and document polyfills the mesh lane needs.

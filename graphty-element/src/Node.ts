@@ -25,6 +25,7 @@ import { NodeMesh } from "./meshes/NodeMesh";
 import { RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { NodeBehavior, type NodeDragHandler } from "./NodeBehavior";
 import { dispatcherOf } from "./session/GraphSession";
+import { frozenRecord } from "./session/project/draft";
 
 export type NodeIdType = string | number;
 
@@ -88,8 +89,8 @@ export class Node {
     index: number = INVALID_INDEX;
 
     /**
-     * The record this node carries, as the graph holds it: read-only here. A change goes
-     * through the graph (`updateNodes`, `session.data.updateNodes`, ...), which is what undo sees.
+     * The record this node carries, as the graph holds it: deep-frozen, so a write to it throws. A
+     * change goes through the graph (`updateNodes`, `session.data.updateNodes`, ...), which is what undo sees.
      * @returns The record.
      */
     get data(): AdHocData<string | number> {
@@ -256,7 +257,7 @@ export class Node {
         this.parentGraph = graph;
         this.id = nodeId;
         this.opts = opts;
-        this.#record = data;
+        this.#record = frozenRecord(data);
 
         this.meshKey = paint.meshKey;
 
@@ -655,7 +656,7 @@ export class Node {
      * @param record - The record.
      */
     adoptRecord(record: AdHocData<string | number>): void {
-        this.#record = record;
+        this.#record = frozenRecord(record);
     }
 
     /**

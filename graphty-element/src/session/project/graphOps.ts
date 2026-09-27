@@ -25,9 +25,9 @@ import type { EdgeId, NodeId } from "../../catalog/types";
 import { edgeCounterOf, edgeIdOf } from "../../data/edgeIdentity";
 import type { GraphStore, KeptGraph, RemovedRows } from "../../data/GraphStore";
 import type { DirectionProvenance } from "../types";
-import type { Draft, OpLogEntry } from "./draft";
+import { type Draft, frozenRecord, type OpLogEntry } from "./draft";
 import { createCounter, emptyGraphSlice, type GraphRecord, type GraphSlice } from "./state";
-import { strictViolation } from "./strict";
+import { builderDrift, strictViolation } from "./strict";
 
 /** Which kind of element a record belongs to. */
 type RecordTarget = "node" | "edge";
@@ -253,6 +253,8 @@ export class GraphOps {
     private readonly tokens = createCounter();
     private readonly epochs = createCounter();
     private warned = false;
+    /** The store the last writer wrote, which strict state checks for writes made around it. */
+    private store: GraphStore | null = null;
 
     /**
      * Primitives over a slice held somewhere else, a session's project state.
@@ -312,7 +314,19 @@ export class GraphOps {
             }
         }
 
+        this.store = store;
         return new Writer(this, store, draft);
+    }
+
+    /**
+     * Strict: throw when the builder of the store last written was mutated outside the graph
+     * primitives. The dispatcher asks at each dispatch and each commit.
+     */
+    checkStore(): void {
+        const drift = this.store?.isDisposed === false ? this.store.mutationDrift : 0;
+        if (drift > 0) {
+            throw builderDrift(drift);
+        }
     }
 
     /**
@@ -506,6 +520,7 @@ class GraphEntry implements OpLogEntry {
 
     undo(rollback: boolean): void {
         const { store } = this;
+        store.audit();
         // Re-read after a replace, which swaps the maps.
         let { nodes, edges, values } = this.maps();
         for (let index = this.ops.length - 1; index >= 0; index--) {
@@ -598,6 +613,7 @@ class GraphEntry implements OpLogEntry {
 
     redo(): void {
         const { store } = this;
+        store.audit();
         // Re-read after a replace, which swaps the maps.
         let { nodes, edges, values } = this.maps();
         const added = new Set<string>();
@@ -743,10 +759,11 @@ class Writer implements GraphWriter {
 
     addNode(
         id: NodeId,
-        record: GraphRecord,
+        given: GraphRecord,
         seed: readonly [number, number, number] | null,
     ): { index: number; merged: boolean } {
         this.begin();
+        const record = frozenRecord(given);
         const nodes = this.graph.slice.nodes as Map<NodeId, GraphRecord>;
         const prior = nodes.get(id);
         let index = INVALID_INDEX;
@@ -768,12 +785,13 @@ class Writer implements GraphWriter {
         return { index, merged };
     }
 
-    addEdge(source: unknown, target: unknown, weight: number, record: GraphRecord): { index: number; edgeId: number } {
+    addEdge(source: unknown, target: unknown, weight: number, given: GraphRecord): { index: number; edgeId: number } {
         if (!isStorableId(source) || !isStorableId(target)) {
             return { index: INVALID_INDEX, edgeId: INVALID_INDEX };
         }
 
         this.begin();
+        const record = frozenRecord(given);
         const { builder } = this.store;
         const created = [source, target].filter((id, at, both) => !builder.hasNode(id) && both.indexOf(id) === at);
         const index = builder.addEdge(source, target, weight);
@@ -789,8 +807,9 @@ class Writer implements GraphWriter {
         return { index, edgeId };
     }
 
-    mergeEdge(edgeIndex: number, weight: number, record: GraphRecord | null): void {
+    mergeEdge(edgeIndex: number, weight: number, given: GraphRecord | null): void {
         this.begin();
+        const record = given === null ? null : frozenRecord(given);
         const edgeId = this.store.edgeIdAt(edgeIndex);
         const prior = this.store.builder.edgeWeight(edgeIndex);
         this.store.builder.setEdgeWeight(edgeIndex, weight);
@@ -814,7 +833,7 @@ class Writer implements GraphWriter {
         }
 
         this.begin();
-        const next = { ...prior, ...values };
+        const next = frozenRecord({ ...prior, ...values });
         map.set(key, next);
         // A layer or a filter may read any value just written, so every reader keyed on the
         // snapshot asks again.
@@ -976,6 +995,8 @@ class Writer implements GraphWriter {
         }
 
         this.begun = true;
+        // Anything that wrote the builder since the last primitive is kept, not absorbed.
+        this.store.audit();
         const before = this.graph.slice.token;
         const after = this.graph.retoken();
         if (this.draft !== null) {

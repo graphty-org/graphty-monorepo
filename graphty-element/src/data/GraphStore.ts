@@ -10,6 +10,7 @@ import {
     type U32,
 } from "@graphty/graph-format";
 
+import { retainArray } from "../session/project/strict";
 import type { DirectionProvenance } from "../session/types";
 import { ElementPositions, isStorableCoordinate, POSITION_COMPONENTS } from "./positions";
 
@@ -250,6 +251,10 @@ export class GraphStore {
     private readonly laneToRestore = new Map<RemovedRows | KeptGraph, LaneRows>();
     private publishing = false;
     private disposed = false;
+    /** The builder and its `mutationCount` after the last write the store accounted for. */
+    private accounted: { builder: GraphBuilder; count: number };
+    /** Builder mutations found unaccounted for before a write of the store's own. */
+    private drift = 0;
 
     /**
      * Build the empty store: one builder, one position array, the two element columns.
@@ -261,6 +266,7 @@ export class GraphStore {
         this.current = this.createBuilder(this.emptyDirected());
         this.seedHandle = this.current.nodeColumn(SEED_COLUMN);
         this.edgeIdHandle = this.current.edgeColumn(EDGE_ID_COLUMN);
+        this.accounted = { builder: this.current, count: this.current.mutationCount };
     }
 
     /**
@@ -403,6 +409,33 @@ export class GraphStore {
     touch(): void {
         this.requireAlive("touch");
         this.revision++;
+        this.account();
+    }
+
+    /**
+     * How many times the builder was mutated with nobody accounting for it: a write that reached
+     * `builder` directly, without the graph primitives. Every legitimate write ends in
+     * {@link GraphStore.touch}, which accounts for it, and begins with {@link GraphStore.audit},
+     * which keeps what it finds. Strict state fails the next dispatch when this is not zero.
+     * @returns The count.
+     */
+    get mutationDrift(): number {
+        const { builder, count } = this.accounted;
+        return this.drift + (builder === this.current ? this.current.mutationCount - count : 0);
+    }
+
+    /**
+     * Keep the unaccounted mutations found now, before a write of the graph primitives or of the
+     * store itself would account for them.
+     */
+    audit(): void {
+        this.drift = this.mutationDrift;
+        this.account();
+    }
+
+    /** Account for every mutation of the builder so far. */
+    private account(): void {
+        this.accounted = { builder: this.current, count: this.current.mutationCount };
     }
 
     /**
@@ -497,7 +530,9 @@ export class GraphStore {
         // and because a listener must never be handed a snapshot whose position column is missing.
         this.applyPositions();
         this.publish();
+        this.audit();
         const carried = this.materialize();
+        this.account();
         if (carried === null && this.cache !== null && this.cachedRevision === this.revision) {
             return this.cache;
         }
@@ -666,6 +701,8 @@ export class GraphStore {
         // A second freeze of a builder about to be replaced: its report chain no longer matters,
         // and unlike the cached snapshot this one still carries the seed column.
         const kept = { snapshot: this.current.freeze({ label: "graphty-element kept" }), direction: this.direction };
+        // History holds it until the step is evicted: nothing may write it meanwhile.
+        seal(kept.snapshot, "a kept graph's snapshot");
         this.heldLane.set(kept, { ids: current.ids.toArray(), coords: this.positions.view(current.nodeCount).slice() });
         return kept;
     }
@@ -1120,6 +1157,9 @@ export class GraphStore {
             dtype: "u8",
             mutable: true,
         });
+        // The resident snapshot is complete: from here its column set is fixed, and a consumer
+        // that tries to attach, remove or rename a column gets E_FROZEN.
+        seal(snapshot, "the resident snapshot");
         this.pendingPositions = null;
     }
 
@@ -1331,5 +1371,29 @@ export class GraphStore {
         }
 
         this.seeded = seeded;
+    }
+}
+
+/** The two columns the positions lane backs: a running layout writes them every frame. */
+const LANE_COLUMNS: ReadonlySet<string> = new Set(["position", PINNED_COLUMN]);
+
+/**
+ * Seal a snapshot's column set, and under strict state sum the typed arrays its columns hold, the
+ * lane columns excepted, so a write to one in place is found (design/undo/undo-design.md 12.1).
+ * @param snapshot - The snapshot.
+ * @param what - What holds it, for the message.
+ */
+function seal(snapshot: GraphSnapshot, what: string): void {
+    snapshot.seal();
+    for (const [domain, table] of [
+        ["node", snapshot.nodes],
+        ["edge", snapshot.edges],
+    ] as const) {
+        for (const column of table) {
+            const data = "data" in column ? column.data : null;
+            if (!LANE_COLUMNS.has(column.meta.name) && ArrayBuffer.isView(data)) {
+                retainArray(data, `the graph slice's ${what} ${domain} column "${column.meta.name}"`);
+            }
+        }
     }
 }

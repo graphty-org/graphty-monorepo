@@ -15,6 +15,7 @@ import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { Simple2DLineRenderer } from "./meshes/Simple2DLineRenderer";
 import { Node, NodeIdType } from "./Node";
+import { frozenRecord } from "./session/project/draft";
 
 interface InterceptPoint {
     srcPoint: Vector3 | null;
@@ -111,8 +112,8 @@ export class Edge {
     dstNode: Node;
     srcNode: Node;
     /**
-     * The record this edge carries, as the graph holds it: read-only here. A change goes
-     * through the graph (`updateNodes`, `session.data.updateNodes`, ...), which is what undo sees.
+     * The record this edge carries, as the graph holds it: deep-frozen, so a write to it throws. A
+     * change goes through the graph (`updateNodes`, `session.data.updateNodes`, ...), which is what undo sees.
      * @returns The record.
      */
     get data(): AdHocData {
@@ -280,7 +281,7 @@ export class Edge {
         this.dstId = dstNodeId;
         this.id = edgeIdOf(edgeId);
         this.opts = opts;
-        this.#record = data;
+        this.#record = frozenRecord(data);
 
         // make sure both srcNode and dstNode already exist
         const srcNode = this.context.getDataManager().nodeCache.get(srcNodeId);
@@ -807,7 +808,7 @@ export class Edge {
      * @param record - The record.
      */
     adoptRecord(record: AdHocData): void {
-        this.#record = record;
+        this.#record = frozenRecord(record);
     }
 
     /**

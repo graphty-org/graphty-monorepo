@@ -27,6 +27,7 @@ import type { NodeIdType } from "../../Node";
 import type { Styles } from "../../Styles";
 import { type DataImportCommand, type DataMutation, describeSource, SOURCE_VALUE } from "../commands/data";
 import { DEFAULT_LIMITS } from "../limits";
+import { frozenRecord } from "./draft";
 import type { DirectionOutcome, GraphWriter } from "./graphOps";
 
 /**
@@ -410,8 +411,10 @@ export class Ingest<K extends KnownEdge> {
 
             // The store is what gives the node its dense row; INVALID_INDEX comes back for an id
             // graph-format will not take, and the host draws the node anyway.
-            const { index } = writer.addNode(nodeId, node, readSeedPosition(node));
-            this.host.nodeStored(nodeId, node, index);
+            // Frozen once, here, so the render object holds the record the graph slice holds.
+            const record = frozenRecord(node);
+            const { index } = writer.addNode(nodeId, record, readSeedPosition(node));
+            this.host.nodeStored(nodeId, record, index);
         }
 
         if (nodes.length > 0) {
@@ -484,9 +487,10 @@ export class Ingest<K extends KnownEdge> {
 
             const recordId = recordIdPath === null ? undefined : readEndpoint(edge, recordIdPath);
             const known = this.knownEdgeFor(srcNodeId, dstNodeId, recordId);
+            const record = frozenRecord(edge);
             if (known !== null) {
                 tally.repeatedSeen++;
-                if (this.mergeRepeat(known, edge, weight.weight, policy, srcNodeId, dstNodeId, tally, writer)) {
+                if (this.mergeRepeat(known, record, weight.weight, policy, srcNodeId, dstNodeId, tally, writer)) {
                     continue;
                 }
             }
@@ -494,7 +498,7 @@ export class Ingest<K extends KnownEdge> {
             // The STORE takes the edge now, whether or not the endpoints have render objects:
             // the builder creates a missing endpoint itself, so the snapshot is complete while
             // the scene is still catching up.
-            const { index: edgeIndex, edgeId } = writer.addEdge(srcNodeId, dstNodeId, weight.weight, edge);
+            const { index: edgeIndex, edgeId } = writer.addEdge(srcNodeId, dstNodeId, weight.weight, record);
             if (edgeIndex === INVALID_INDEX) {
                 // graph-format will not hold an edge between these ids -- most often because the
                 // record does not answer the endpoint expressions at all, so both came back null.
@@ -508,7 +512,7 @@ export class Ingest<K extends KnownEdge> {
                 this.edgesByRecordId.set(recordId, edgeIndex);
             }
 
-            this.host.edgeStored({ record: edge, sourceId: srcNodeId, targetId: dstNodeId, edgeIndex, edgeId });
+            this.host.edgeStored({ record, sourceId: srcNodeId, targetId: dstNodeId, edgeIndex, edgeId });
         }
 
         if (legacyWeights > 0) {

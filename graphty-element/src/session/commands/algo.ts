@@ -27,7 +27,7 @@ import type { RunId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { AlgorithmRunCommand } from "../planning";
 import type { Dispatcher, DispatchFunction, UndoableContext, UndoableDefinition } from "../project/Dispatcher";
-import type { Draft } from "../project/draft";
+import { deepFreeze, type Draft } from "../project/draft";
 import type { RowUpdate } from "../types";
 
 /** `algo.remove`: take a finished run, and every layer bound to it, out of the project. */
@@ -160,6 +160,31 @@ interface Entry {
     readonly record: object;
     /** The written top-level keys, each holding its own copy of that subtree. */
     readonly overlay: Record<PropertyKey, unknown>;
+    /** The scope it was read in: once that has closed, a write through the view throws. */
+    readonly scope: LegacyWrites;
+}
+
+/**
+ * The error a write through a copy-on-write view throws once its command has ended: a plugin kept
+ * a record it read while it ran and wrote to it later, which would change nothing and be lost.
+ * @param entry - The record written.
+ * @param key - The key written.
+ * @returns The error, naming the command to use instead.
+ */
+function lateWrite(entry: Entry, key: PropertyKey): GraphtyError {
+    const use =
+        entry.target === "graph"
+            ? "write graphResults while the algorithm runs"
+            : `use session.data.${entry.target === "node" ? "updateNodes" : "updateEdges"}([{ id, values }])`;
+    const what = entry.target === "graph" ? "the graph's values" : `${entry.target} ${JSON.stringify(entry.id)}`;
+    return new GraphtyError({
+        code: "E_READONLY",
+        message:
+            `A plugin algorithm wrote "${String(key)}" of ${what} after its run ended. Records are ` +
+            `read-only outside the algorithm's own run; to change one, ${use}.`,
+        source: "run",
+        details: { target: entry.target, id: entry.id, key: String(key) },
+    });
 }
 
 /**
@@ -192,6 +217,8 @@ export class LegacyWrites {
     readonly #entries: Entry[] = [];
     /** The graph's values as they were when first read. */
     #graph: object | undefined;
+    /** Set when the command ends: from then on every view refuses writes. */
+    #closed = false;
 
     /**
      * Open no scope yet: {@link openLegacyScope} does.
@@ -213,7 +240,7 @@ export class LegacyWrites {
     view(target: WriteTarget, id: string | number, record: object): object {
         let view = this.#views.get(record);
         if (view === undefined) {
-            const entry: Entry = { target, id, record, overlay: {} };
+            const entry: Entry = { target, id, record, overlay: {}, scope: this };
             this.#entries.push(entry);
             view = nested(entry, []);
             this.#views.set(record, view);
@@ -230,6 +257,25 @@ export class LegacyWrites {
     graph(values: ReadonlyMap<string, unknown>): Record<string, unknown> {
         this.#graph ??= Object.fromEntries(values);
         return this.view("graph", "", this.#graph) as Record<string, unknown>;
+    }
+
+    /**
+     * Whether the command has ended.
+     * @returns True once {@link LegacyWrites.close} ran.
+     */
+    get closed(): boolean {
+        return this.#closed;
+    }
+
+    /**
+     * End the command: a view kept past it throws on the next write, and a copied subtree handed
+     * out while it ran is frozen, so a write to that throws too.
+     */
+    close(): void {
+        this.#closed = true;
+        for (const entry of this.#entries) {
+            deepFreeze(entry.overlay);
+        }
     }
 
     /**
@@ -276,8 +322,11 @@ function nested(entry: Entry, path: readonly PropertyKey[]): object {
     const holder = (key: PropertyKey): unknown => walk(copied(key) ? entry.overlay : record, path);
     const read = (key: PropertyKey): unknown => {
         const value = (holder(key) as Record<PropertyKey, unknown> | undefined)?.[key];
-        // A copied subtree is this command's own, so it is handed out as it is.
-        return typeof value === "object" && value !== null && !copied(key) ? nested(entry, [...path, key]) : value;
+        // A copied subtree is this command's own, so it is handed out as it is -- until the command
+        // ends, after which every read is a view again, so a late write names what to do instead.
+        return typeof value === "object" && value !== null && (!copied(key) || entry.scope.closed)
+            ? nested(entry, [...path, key])
+            : value;
     };
     const copy = (key: PropertyKey): void => {
         const name = path[0] ?? key;
@@ -289,6 +338,10 @@ function nested(entry: Entry, path: readonly PropertyKey[]): object {
     return new Proxy(Array.isArray(walk(record, path)) ? [] : {}, {
         get: (_stand, key) => read(key),
         set: (_stand, key, value) => {
+            if (entry.scope.closed) {
+                throw lateWrite(entry, key);
+            }
+
             if (path.length === 0) {
                 entry.overlay[key] = value;
             } else {
@@ -299,6 +352,10 @@ function nested(entry: Entry, path: readonly PropertyKey[]): object {
             return true;
         },
         deleteProperty: (_stand, key) => {
+            if (entry.scope.closed) {
+                throw lateWrite(entry, key);
+            }
+
             if (path.length === 0) {
                 // A record's key is written, never removed: undefined is what the draft takes.
                 entry.overlay[key] = undefined;
@@ -414,6 +471,7 @@ export function openLegacyScope(scope: LegacyWrites, prototypes: readonly DataPr
 
     open.add(scope);
     return () => {
+        scope.close();
         if (!open.delete(scope) || open.size > 0) {
             return;
         }

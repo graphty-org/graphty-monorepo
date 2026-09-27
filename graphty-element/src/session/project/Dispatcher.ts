@@ -52,7 +52,7 @@ import {
 import { GraphOps, nodeKey } from "./graphOps";
 import { History, type HistoryChangeReason, type OpenArrangement } from "./History";
 import { createProjectState, type ProjectState } from "./state";
-import { checkInlineKey, checkSoleHolder, strictStateEnabled } from "./strict";
+import { checkInlineKey, checkSoleHolder, strictStateEnabled, verifyFreshArrays } from "./strict";
 
 /** The part of a command the dispatcher reads: its op. */
 interface CommandLike {
@@ -1353,6 +1353,7 @@ export class Dispatcher {
         options: DispatchOptions = {},
         origin: DeferredOrigin | null = null,
     ): unknown {
+        this.checkStrict();
         const { state } = this.store;
         const raw = typeof command === "function" ? command(state) : command;
         const definition = this.definitions.get(raw.op);
@@ -1497,6 +1498,7 @@ export class Dispatcher {
             throw cancelledError(parent.group.label, "cancel");
         }
 
+        this.checkStrict();
         const { state } = this.store;
         const raw = typeof command === "function" ? command(state) : command;
         const definition = this.definitions.get(raw.op);
@@ -1811,6 +1813,17 @@ export class Dispatcher {
     }
 
     /**
+     * Strict: nothing wrote state around the dispatcher since the last check -- the builder
+     * behind the `graph` slice, and the typed arrays retained since then (design section 12.1).
+     */
+    private checkStrict(): void {
+        if (this.strict) {
+            this.graph.checkStore();
+            verifyFreshArrays();
+        }
+    }
+
+    /**
      * Record a group's patch as one step, or nothing when it wrote nothing, then release its
      * holds. A deferred member merges into its transaction's step while that step is on top.
      * @param group - The group.
@@ -1819,6 +1832,7 @@ export class Dispatcher {
     private seal(group: Group): string | null {
         this.leave(group);
         const patch = group.draft.seal();
+        this.checkStrict();
         const oplog = [...group.holds.keys()];
         const open = group.arrangement;
         if (open !== null) {

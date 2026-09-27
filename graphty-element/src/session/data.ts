@@ -21,6 +21,7 @@ import { GraphtyError } from "../errors";
 import { describeAttributes } from "./attributes";
 import type { DataImportCommand, DataMutation, DataService } from "./commands/data";
 import type { Dispatcher } from "./project/Dispatcher";
+import { frozenRecord } from "./project/draft";
 import { Ingest } from "./project/ingest";
 import type { GraphSlice } from "./project/state";
 import { computeFingerprint, computeStatistics } from "./statistics";
@@ -222,7 +223,9 @@ export class SessionData implements SessionDataApi {
         // The id is written AFTER the attribute bag so that a record carrying its own "id" key --
         // which every record imported through the element's default id path does -- cannot
         // disagree with the id the node is actually stored under.
-        return Object.freeze({ ...this.records?.nodeAttributes(index, id), id });
+        // Deep-frozen: a nested value is the graph's own, and writing it would change state
+        // no command recorded.
+        return frozenRecord({ ...this.records?.nodeAttributes(index, id), id });
     }
 
     /**
@@ -241,7 +244,7 @@ export class SessionData implements SessionDataApi {
             return undefined;
         }
 
-        return Object.freeze({
+        return frozenRecord({
             ...this.records?.edgeAttributes(index),
             id,
             source: snapshot.ids.idOf(snapshot.edgeSource(index)),

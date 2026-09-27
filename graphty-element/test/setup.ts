@@ -65,6 +65,10 @@ export function createMockInputSystem(): MockDeviceInputSystem {
 
 // Cleanup after each test
 afterEach(() => {
+    // Strict state's full sweep: no typed array state kept was written in place during the test.
+    // Registered by src/session/project/strict.ts once a test has loaded it.
+    (globalThis as { __GRAPHTY_STRICT_SWEEP__?: () => void }).__GRAPHTY_STRICT_SWEEP__?.();
+
     // Only run DOM cleanup if document is available (browser environment)
     if (typeof document !== "undefined") {
         // Clean up any lingering canvases

@@ -308,7 +308,7 @@ export interface VisibilitySources extends FilterSources {
 }
 
 /** What the filter follows its sets through: the session's change notifier and cache. */
-export interface FilterWatchSources {
+interface FilterWatchSources {
     /**
      * Watch through the session's notifier.
      * @param watch - The watch; it resolves to whether the masks were re-evaluated.
@@ -335,7 +335,7 @@ export interface FilterWatchSources {
  * @param filter - The filter, or null.
  * @returns The scopes.
  */
-export function filterScopes(filter: Filter | null): Scope[] {
+function filterScopes(filter: Filter | null): Scope[] {
     const found: Scope[] = [];
     const walk = (node: Filter): void => {
         if (node.kind === "scope") {

@@ -6,15 +6,6 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import type { LayerItem } from "./layout/LeftSidebar";
 
 /**
- * How often the style effect looks for the element's session while it is still coming up.
- *
- * The element builds its graph asynchronously and publishes no "ready" event a consumer
- * can wait on, so the one honest option is to look again. The interval is cleared the
- * moment the session is found.
- */
-const SESSION_POLL_MS = 50;
-
-/**
  * How the app wants the element to draw: node labels that would land on each other are thinned
  * out. A view setting, not a project one, so it is written on the tag and records no step.
  */
@@ -154,8 +145,9 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
        canvas is already showing. The element's `style-changed` DOM event predates the
        stack and fires for none of that.
 
-       The session appears when the element finishes coming up, which is asynchronous, so
-       this polls for it exactly as the layer sync did before. */
+       The element builds its session in its constructor, so the session is there as soon as
+       the tag has upgraded. A tag rendered before the element's module has defined it is
+       upgraded when the definition lands, which `customElements.whenDefined` announces. */
     useEffect(() => {
         const element = graphtyRef.current;
         if (!element || (!onStylesChange && !onSession)) {
@@ -163,21 +155,12 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
         }
 
         let unwatch: (() => void) | null = null;
-        let pollInterval: ReturnType<typeof setInterval> | null = null;
-
-        const stopPolling = (): void => {
-            if (pollInterval !== null) {
-                clearInterval(pollInterval);
-                pollInterval = null;
-            }
-        };
+        let disposed = false;
 
         const bind = (): boolean => {
-            // Guard against a partially initialised graph, which is what a test environment
-            // and the first few frames of a real load both hand back.
             // Undefined until the tag has upgraded to the element.
             const session = element.session as GraphSession | undefined;
-            if (session === undefined) {
+            if (session === undefined || disposed) {
                 return false;
             }
 
@@ -194,15 +177,13 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
         };
 
         if (!bind()) {
-            pollInterval = setInterval(() => {
-                if (bind()) {
-                    stopPolling();
-                }
-            }, SESSION_POLL_MS);
+            void customElements.whenDefined("graphty-element").then(() => {
+                bind();
+            });
         }
 
         return () => {
-            stopPolling();
+            disposed = true;
             unwatch?.();
         };
     }, [onSession, onStylesChange]);

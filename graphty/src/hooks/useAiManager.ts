@@ -1,16 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
+import type { AiStatus } from "@graphty/graphty-element/ai";
+import { useCallback, useEffect, useState } from "react";
 
-import {
-    type AiManagerType,
-    type AiStatus,
-    type ExecutionResult,
-    getCreateAiManager,
-    type ProviderType,
-} from "../types/ai";
+import type { ExecutionResult, ProviderType } from "../types/ai";
 
 interface UseAiManagerOptions {
-    /** Graph instance to use for AI operations (undefined when graph not yet available) */
-    graph?: unknown;
+    /** The element whose assistant this drives; undefined until it has mounted. */
+    element?: GraphtyElement | null;
     /** Default AI provider to use */
     defaultProvider?: ProviderType;
     /** API key getter function */
@@ -39,16 +35,16 @@ interface UseAiManagerResult {
 }
 
 /**
- * React hook for managing AI operations.
- * Wraps the AiManager from graphty-element with React state management.
+ * React hook for the element's AI assistant. The element builds, owns and disposes the assistant
+ * (`enableAiControl`, `disableAiControl`); this hook switches it on for the chosen provider and
+ * mirrors its status into React state.
  * @param options - Configuration options for the AI manager
  * @returns Methods and state for managing AI operations
  */
 export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
-    const { graph, defaultProvider, getKey } = options;
+    const { element, defaultProvider, getKey } = options;
 
-    const managerRef = useRef<AiManagerType | null>(null);
-    const [isReady, setIsReady] = useState(false);
+    const [enabled, setEnabled] = useState<GraphtyElement | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
     const [status, setStatus] = useState<AiStatus | null>(null);
     const [currentProvider, setCurrentProvider] = useState<ProviderType | null>(defaultProvider ?? null);
@@ -62,10 +58,10 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
         }
     }, [defaultProvider, currentProvider]);
 
-    // Initialize manager when graph becomes available
+    // Switch the element's assistant on for the current provider once the element is there.
     useEffect(() => {
-        if (!graph) {
-            setIsReady(false);
+        if (!element || !currentProvider) {
+            setEnabled(null);
 
             return undefined;
         }
@@ -73,92 +69,81 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
         let cancelled = false;
         let unsubscribe: (() => void) | undefined;
 
-        async function initManager(): Promise<void> {
+        async function enable(target: GraphtyElement, provider: ProviderType): Promise<void> {
             try {
-                const createAiManager = await getCreateAiManager();
-
-                if (cancelled) {
-                    return;
-                }
-
-                const manager = createAiManager();
-                managerRef.current = manager;
-
-                // Subscribe to status changes
-                unsubscribe = manager.onStatusChange((newStatus) => {
-                    setStatus(newStatus);
-                    setIsProcessing(
-                        newStatus.stage === "processing" ||
-                            newStatus.stage === "executingTool" ||
-                            newStatus.stage === "streaming",
-                    );
-
-                    if (newStatus.stage === "error" && newStatus.error) {
-                        setError(newStatus.error);
-                    }
-                });
-
-                // Initialize with current provider
-                if (currentProvider) {
-                    const apiKey = getKey?.(currentProvider);
-                    manager.init(graph, {
-                        provider: currentProvider,
-                        apiKey,
-                    });
-                    setIsReady(true);
-                }
+                await target.enableAiControl({ provider, apiKey: getKey?.(provider) });
             } catch (err) {
-                console.error("[useAiManager] Failed to load createAiManager:", err);
+                console.error("[useAiManager] Failed to enable the assistant:", err);
+                return;
             }
+
+            if (cancelled) {
+                target.disableAiControl();
+                return;
+            }
+
+            unsubscribe = target.onAiStatusChange((newStatus) => {
+                setStatus(newStatus);
+                setIsProcessing(
+                    newStatus.state === "submitted" || newStatus.state === "streaming" || newStatus.state === "executing",
+                );
+
+                if (newStatus.state === "error" && newStatus.error) {
+                    setError(newStatus.error);
+                }
+            });
+            setEnabled(target);
         }
 
-        void initManager();
+        void enable(element, currentProvider);
 
         return () => {
             cancelled = true;
             unsubscribe?.();
-            managerRef.current?.dispose();
-            managerRef.current = null;
+            element.disableAiControl();
+            setEnabled(null);
         };
-    }, [graph, currentProvider, getKey]);
+    }, [element, currentProvider, getKey]);
 
     const setProvider = useCallback((provider: ProviderType) => {
         // Just update state - useEffect will handle re-initialization
         setCurrentProvider(provider);
     }, []);
 
-    const execute = useCallback(async (input: string): Promise<ExecutionResult> => {
-        if (!managerRef.current) {
-            return {
-                success: false,
-                error: new Error("AI Manager not initialized"),
-            };
-        }
+    const execute = useCallback(
+        async (input: string): Promise<ExecutionResult> => {
+            if (!enabled) {
+                return {
+                    success: false,
+                    error: new Error("AI Manager not initialized"),
+                };
+            }
 
-        setError(null);
+            setError(null);
 
-        try {
-            const result = await managerRef.current.execute(input);
-
-            return result;
-        } catch (err) {
-            return {
-                success: false,
-                error: err instanceof Error ? err : new Error(String(err)),
-            };
-        }
-    }, []);
+            try {
+                const { success, message, llmText } = await enabled.aiCommand(input);
+                return { success, message, llmText };
+            } catch (err) {
+                return {
+                    success: false,
+                    error: err instanceof Error ? err : new Error(String(err)),
+                };
+            }
+        },
+        [enabled],
+    );
 
     const cancel = useCallback(() => {
-        managerRef.current?.cancel();
-    }, []);
+        enabled?.cancelAiCommand();
+    }, [enabled]);
 
     const clearError = useCallback(() => {
         setError(null);
     }, []);
 
     return {
-        isReady,
+        isReady: enabled !== null,
         isProcessing,
         status,
         currentProvider,

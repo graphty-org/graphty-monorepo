@@ -1,5 +1,5 @@
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CAT_SOCIAL_NETWORK, CAT_SOCIAL_NETWORK_NAME } from "../../../data/sampleGraphs";
 import { SAMPLE_MANIFEST, type SampleRecord, sampleSizeString } from "../../../data/sampleManifest";
@@ -98,11 +98,31 @@ function reportSelection(container: HTMLElement, nodeId: string | number | null)
 }
 
 /**
+ * Announces that the mounted host has "upgraded": what `customElements.whenDefined` would
+ * resolve with once the element's module defined the tag. Replaced for every board.
+ */
+let announceUpgrade: () => void = () => undefined;
+
+beforeEach(() => {
+    let resolve: () => void = () => undefined;
+    const upgraded = new Promise<CustomElementConstructor>((done) => {
+        resolve = () => {
+            done(HTMLElement);
+        };
+    });
+    announceUpgrade = resolve;
+    const whenDefined = customElements.whenDefined.bind(customElements);
+    vi.spyOn(customElements, "whenDefined").mockImplementation((name) =>
+        name === "graphty-element" ? upgraded : whenDefined(name),
+    );
+});
+
+/**
  * Stands the element's session, and the element members the shell calls, on the mounted host.
  *
  * The host is not upgraded in these boards (nothing imports the element's module), so each is
  * an own property: `session`, and the camera, selection and XR members the shell calls on the
- * element itself.
+ * element itself. Standing them is the upgrade, so it is announced the way the platform would.
  * @param element - the mounted `graphty-element`.
  * @param session - the stand-in session.
  * @param members - element members beyond the no-op defaults.
@@ -122,6 +142,8 @@ function standElement(element: Element, session: GraphSession, members: Readonly
     for (const [name, value] of Object.entries({ ...defaults, ...members, session })) {
         Object.defineProperty(element, name, { configurable: true, value });
     }
+
+    announceUpgrade();
 }
 
 /**
@@ -166,16 +188,15 @@ const FLUSH_TURNS = 30;
 /**
  * How long a flush waits for the wrapper to find the element's session.
  *
- * `Graphty` subscribes to `session.on("style:changed")`, and the session only exists once the
- * element has finished coming up -- which the element publishes no event for, so the wrapper
- * looks again on a timer. A board that installs a stand-in graph after the shell has mounted
- * is in exactly that state, so every flush waits one interval rather than each board knowing
- * about the timer.
+ * `Graphty` subscribes to `session.on("style:changed")` once the tag has upgraded, which it
+ * learns from `customElements.whenDefined`. A board that installs a stand-in graph after the
+ * shell has mounted announces the upgrade then, and every flush waits long enough for the
+ * wrapper and the shell to have re-rendered with the session.
  */
 const SESSION_BIND_MS = 80;
 
 /**
- * Lets the wrapper's session poll fire, so a graph installed after mount is seen.
+ * Lets the wrapper bind the session announced by a graph installed after mount.
  */
 async function settleSession(): Promise<void> {
     await act(async () => {

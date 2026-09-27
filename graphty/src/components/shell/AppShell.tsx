@@ -472,27 +472,28 @@ function fileSizeLabel(bytes: number): string {
 }
 
 /**
- * What the Loaded data section's RT-2 compound can say about a load, from the request
- * alone.
+ * What the Loaded data section's RT-2 compound can say about a load.
  *
- * Only measured facts go in. The format is there when the request NAMED one; with
- * "auto" the loader detected it and publishes no answer, so the compound is not drawn
- * rather than drawn with a guess. The size is there when a real file was read. The
- * direction is in neither, and not because it is unknown: the element measures it and the
- * Counts "Type" row prints that. It is absent from THIS compound because the compound
- * describes the REQUEST -- what the reader asked for and what was read -- and the direction
- * is a fact about the graph that came back.
- * @param request - the load request that just succeeded.
- * @returns the compound's values, or undefined when the request measured none of them.
+ * Only measured facts go in. The format is the one the request named or, once the load is
+ * in, the one graphty-element detected (`session.data.source().type`); before that, a load
+ * with "auto" has no format yet, so the compound is not drawn rather than drawn with a
+ * guess. The size is there when a real file was read. The direction is in neither, and not
+ * because it is unknown: the element measures it and the Counts "Type" row prints that. It
+ * is absent from THIS compound because the compound describes the REQUEST -- what the
+ * reader asked for and what was read -- and the direction is a fact about the graph that
+ * came back.
+ * @param request - the load request.
+ * @param format - the format named or detected, or undefined while none is known.
+ * @returns the compound's values, or undefined when no format is known yet.
  */
-function loadedDataSummary(request: LoadDataRequest): LoadedDataSummary | undefined {
-    if (request.format === "auto") {
+function loadedDataSummary(request: LoadDataRequest, format: string | undefined): LoadedDataSummary | undefined {
+    if (format === undefined) {
         return undefined;
     }
 
     const size = request.file === undefined ? undefined : fileSizeLabel(request.file.size);
 
-    return { format: request.format, size };
+    return { format, size };
 }
 
 /**
@@ -697,9 +698,9 @@ interface DrawnDataset {
 }
 
 /**
- * The data source a load request names, for `session.data.import`, under the name the top bar
- * and the history call it. graphty-element detects the format of a file or a URL that does not
- * state one.
+ * The data source a load request names, for `session.data.import`. graphty-element detects the
+ * format when the reader chose none, and names a file or a URL after it; pasted text has no
+ * name of its own, so it is given one.
  * @param request - what the dialog or a drop asked for.
  * @param format - the format the reader chose, or undefined to let the element detect it.
  * @returns the source to import.
@@ -708,15 +709,15 @@ function sourceOf(request: LoadDataRequest, format: string | undefined): DataSou
     const type = format === undefined ? {} : { type: format };
 
     if (request.inputMethod === "url" && request.url !== undefined) {
-        return { ...type, name: request.url.split("/").pop() || request.url, config: { url: request.url } };
+        return { ...type, config: { url: request.url } };
     }
 
     if (request.inputMethod === "file" && request.file !== undefined) {
-        return { ...type, name: request.file.name, config: { file: request.file } };
+        return { ...type, config: { file: request.file } };
     }
 
     if (request.inputMethod === "paste" && request.data !== undefined) {
-        return { type: format ?? "json", name: PASTED_DATA_NAME, config: { data: request.data } };
+        return { ...type, name: PASTED_DATA_NAME, config: { data: request.data } };
     }
 
     throw new Error(NO_SOURCE_NAMED);
@@ -1403,7 +1404,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     const aiProvider = aiDefaultProvider ?? aiKeyStorage.configuredProviders[0];
 
     const aiManager = useAiManager({
-        graph: graphtyRef.current?.element?.graph ?? undefined,
+        // Read once the session exists, which re-renders the shell after the element mounted.
+        element: session === null ? null : (graphtyRef.current?.element ?? null),
         defaultProvider: aiProvider,
         getKey: aiKeyStorage.getKey,
     });
@@ -2037,10 +2039,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             const measured: { degree?: ReturnType<typeof startDegreePass>; labelCount: number } = { labelCount: 0 };
 
             await session.transaction(label, async (tx) => {
-                const imported = tx.data.import(
-                    { ...source, name: source.name ?? label },
-                    { mode: "replace", layout: "recommended" },
-                );
+                const imported = tx.data.import(source, { mode: "replace", layout: "recommended" });
 
                 await tx.styles.removeBySource(describesDataset);
                 await imported;
@@ -2145,7 +2144,12 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         const summary: LoadedDataSummary = { format: "json", size: undefined };
 
         finishLoad(CAT_SOCIAL_NETWORK_NAME, "json", summary);
-        loadDataset(CAT_SOCIAL_NETWORK_NAME, summary, { type: "json", config: { data: JSON.stringify(CAT_SOCIAL_NETWORK) } }, null).catch(
+        loadDataset(
+            CAT_SOCIAL_NETWORK_NAME,
+            summary,
+            { type: "json", name: CAT_SOCIAL_NETWORK_NAME, config: { data: JSON.stringify(CAT_SOCIAL_NETWORK) } },
+            null,
+        ).catch(
             (error: unknown) => {
                 console.error("[shell] failed to load the test fixture:", error);
                 reportLoadFailureRef.current(loadFailureReason(error));
@@ -2227,10 +2231,12 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 }
 
                 const source = sourceOf(request, format);
-                const name = source.name ?? PASTED_DATA_NAME;
 
-                finishLoad(name, format ?? "auto", loadedDataSummary(request));
-                await loadDataset(name, loadedDataSummary(request), source, null);
+                finishLoad(fileName, format ?? "auto", loadedDataSummary(request, format));
+                await loadDataset(fileName, loadedDataSummary(request, format), source, null);
+                if (format === undefined) {
+                    setLoadedSummary(loadedDataSummary(request, handle.session?.data.source()?.type));
+                }
             };
 
             try {
@@ -2293,8 +2299,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             const summary: LoadedDataSummary = { format: source.format, size: undefined };
             const input: DataSourceInput =
                 source.kind === "inline"
-                    ? { type: source.format, config: { data: JSON.stringify(source.payload) } }
-                    : { type: source.format, config: { url: source.url } };
+                    ? { type: source.format, name: record.fileName, config: { data: JSON.stringify(source.payload) } }
+                    : { type: source.format, name: record.fileName, config: { url: source.url } };
 
             finishLoad(record.fileName, source.format, summary);
             loadDataset(record.fileName, summary, input, runSuggested ? (record.suggestedCapability ?? null) : null).catch(

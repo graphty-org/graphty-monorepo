@@ -8,10 +8,12 @@
  * app reaching for it instead of `session.*` or a transaction's `tx.*` splits one gesture into
  * several steps and keeps the app coupled to the renderer. This rule reports:
  *
- * - a call of, or an assignment to, a member of a renderer-side element type (`Graphty`, `Graph`,
- *   `Node`, the managers) that the element's door list marks as changing project state;
- * - any access to a manager (`getDataManager()`, `dataManager`, `operationQueue`, ...);
- * - the `<Graphty>` component props that set element state (`layout`, `layoutConfig`, `viewMode`);
+ * - a member of a renderer-side element type (`Graphty`, `Graph`, `Node`, the managers) that the
+ *   element's door list marks as changing project state: a method read in any way (called,
+ *   passed on, `.call`ed, bound or destructured), a property assigned; a computed access with a
+ *   literal key (`element["addNodes"]`) counts the same;
+ * - any access to a manager (`getDataManager()`, `dataManager`, `operationQueue`, ...), and a
+ *   read of the element's internal `graph`;
  * - a local type or interface named after an element type (`ElementGraph`, `ElementNodeLike`),
  *   which is a duck-typed copy of the element's own type.
  *
@@ -25,6 +27,8 @@
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+
+import ts from "typescript";
 
 /**
  * @typedef {{ kind: string }} DoorEntry
@@ -50,8 +54,8 @@ const MANAGERS = new Set([
     "layoutEngine",
 ]);
 
-/** The `<Graphty>` props that set element state instead of dispatching a session command. */
-const GRAPHTY_STATE_PROPS = new Set(["layout", "layoutConfig", "viewMode"]);
+/** Members that hand out the element's internal graph, which the app never holds. */
+const INTERNALS = new Set(["graph"]);
 
 /** Declarations under this path are graphty-element's, whether read from source or from dist. */
 const ELEMENT_PATH = /[\\/]graphty-element[\\/]/;
@@ -125,7 +129,8 @@ export function createRule(loadDoors) {
                 door: "`{{name}}` changes the graph outside the session. Use the session command (session.* or a transaction's tx.*) so it is one undoable step.",
                 manager:
                     "`{{name}}` reaches one of graphty-element's managers. Use the session or a public element member instead.",
-                prop: "The `{{name}}` prop of <Graphty> sets element state outside the session. Dispatch the session command instead.",
+                internal:
+                    "`{{name}}` hands out graphty-element's internal graph. Use the element's public members or its session instead.",
                 redeclared:
                     "`{{name}}` re-declares graphty-element's `{{root}}` type. Import the element's own type instead.",
             },
@@ -138,16 +143,42 @@ export function createRule(loadDoors) {
             const checker = services.program.getTypeChecker();
 
             /**
-             * The renderer roots that declare the member a member expression reads.
+             * The declarations of the member a member expression reads: through its name, or
+             * through the object's type for a computed access with a literal key.
              * @param {MemberNode} node - The member expression.
+             * @returns {any[]} The declarations; empty when there is no member to resolve.
+             */
+            function memberDeclarations(node) {
+                const tsNode = /** @type {any} */ (services.esTreeNodeToTSNodeMap.get(node));
+                if (!node.computed) {
+                    const symbol = tsNode?.name ? checker.getSymbolAtLocation(tsNode.name) : undefined;
+                    return symbol?.declarations ?? [];
+                }
+
+                const name = memberName(node);
+                return name === null || !tsNode?.expression ? [] : propertyDeclarations(tsNode.expression, name);
+            }
+
+            /**
+             * The declarations of a named property of an expression's type.
+             * @param {any} expression - A TypeScript expression.
+             * @param {string} name - The property.
+             * @returns {any[]} The declarations; empty when the type has no such property.
+             */
+            function propertyDeclarations(expression, name) {
+                const type = checker.getNonNullableType(checker.getTypeAtLocation(expression));
+                return checker.getPropertyOfType(type, name)?.declarations ?? [];
+            }
+
+            /**
+             * The renderer roots that own a member's declarations.
+             * @param {any[]} declarations - The member's declarations.
              * @returns {DoorRootEntry[]} Each root declaring it; empty for anything that is not the element's.
              */
-            function declaringRoots(node) {
-                const tsNode = services.esTreeNodeToTSNodeMap.get(node);
-                const symbol = tsNode?.name ? checker.getSymbolAtLocation(tsNode.name) : undefined;
+            function rootsOf(declarations) {
                 /** @type {DoorRootEntry[]} */
                 const found = [];
-                for (const declaration of symbol?.declarations ?? []) {
+                for (const declaration of declarations) {
                     const root = ownerRoot(declaration);
                     if (root) {
                         found.push(root);
@@ -155,6 +186,23 @@ export function createRule(loadDoors) {
                 }
 
                 return found;
+            }
+
+            /**
+             * Whether a door by this name, declared so, changes project state when read in the given
+             * way: a method whenever it is read, since reading it is how it gets called; anything
+             * else only when it is written.
+             * @param {any[]} declarations - The member's declarations.
+             * @param {string} name - The member.
+             * @param {boolean} written - Whether it is written (assigned, updated) or called.
+             * @returns {boolean} True when it should be reported.
+             */
+            function mutates(declarations, name, written) {
+                const isMethod = declarations.some((each) => ts.isMethodDeclaration(each) || ts.isMethodSignature(each));
+                return (
+                    (written || isMethod) &&
+                    rootsOf(declarations).some((root) => MUTATING.has((root.doors?.[name] ?? root.whole)?.kind ?? ""))
+                );
             }
 
             /**
@@ -187,57 +235,49 @@ export function createRule(loadDoors) {
                 return undefined;
             }
 
-            /**
-             * Reports a door called or assigned.
-             * @param {MemberNode} node - The member being called or assigned.
-             */
-            function checkWrite(node) {
-                if (node.computed || node.property.type !== "Identifier") {
-                    return;
-                }
-                const name = node.property.name;
-                const mutates = declaringRoots(node).some((root) =>
-                    MUTATING.has((root.doors?.[name] ?? root.whole)?.kind ?? ""),
-                );
-                if (mutates) {
-                    context.report({ node: node.property, messageId: "door", data: { name } });
-                }
-            }
-
             return {
                 MemberExpression(node) {
-                    if (node.computed || node.property.type !== "Identifier") {
+                    const name = memberName(node);
+                    if (name === null) {
                         return;
                     }
-                    const name = node.property.name;
-                    if (MANAGERS.has(name)) {
-                        if (declaringRoots(node).length > 0) {
-                            context.report({ node: node.property, messageId: "manager", data: { name } });
+                    const declarations = memberDeclarations(node);
+                    if (MANAGERS.has(name) || INTERNALS.has(name)) {
+                        if (rootsOf(declarations).length > 0) {
+                            const messageId = MANAGERS.has(name) ? "manager" : "internal";
+                            context.report({ node: node.property, messageId, data: { name } });
                         }
                         return;
                     }
-                    /** @type {Parameters<NonNullable<import("eslint").Rule.RuleListener["CallExpression"]>>[0]["parent"] | undefined} */
                     const p = /** @type {any} */ (node).parent;
-                    if (
+                    const written =
                         (p?.type === "CallExpression" && p.callee === node) ||
                         (p?.type === "AssignmentExpression" && p.left === node) ||
-                        (p?.type === "UpdateExpression" && p.argument === node)
-                    ) {
-                        checkWrite(node);
+                        (p?.type === "UpdateExpression" && p.argument === node);
+                    if (mutates(declarations, name, written)) {
+                        context.report({ node: node.property, messageId: "door", data: { name } });
                     }
                 },
                 /**
-                 * Reports a state prop on `<Graphty>`.
-                 * @param {any} node - A JSX attribute.
+                 * Reports a door method destructured out of an element: `const { addNodes } = element`.
+                 * @param {any} node - A variable declarator.
                  */
-                JSXAttribute(node) {
-                    const owner = node.parent?.name;
-                    if (
-                        owner?.type === "JSXIdentifier" &&
-                        owner.name === "Graphty" &&
-                        GRAPHTY_STATE_PROPS.has(node.name?.name)
-                    ) {
-                        context.report({ node, messageId: "prop", data: { name: node.name.name } });
+                VariableDeclarator(node) {
+                    if (node.id.type !== "ObjectPattern" || node.init === null) {
+                        return;
+                    }
+                    const init = services.esTreeNodeToTSNodeMap.get(node.init);
+                    for (const property of node.id.properties) {
+                        const key = property.type === "Property" ? property.key : null;
+                        const name =
+                            key?.type === "Identifier" && !property.computed
+                                ? key.name
+                                : key?.type === "Literal" && typeof key.value === "string"
+                                  ? key.value
+                                  : null;
+                        if (name !== null && mutates(propertyDeclarations(init, name), name, false)) {
+                            context.report({ node: key, messageId: "door", data: { name } });
+                        }
                     }
                 },
                 /**
@@ -255,6 +295,25 @@ export function createRule(loadDoors) {
                     checkName(node);
                 },
             };
+
+            /**
+             * The member a member expression names: its identifier, or a computed literal string.
+             * @param {MemberNode} node - The member expression.
+             * @returns {string | null} The name, or null for a key only known at run time.
+             */
+            function memberName(node) {
+                if (!node.computed) {
+                    return node.property.type === "Identifier" ? node.property.name : null;
+                }
+                const key = /** @type {any} */ (node.property);
+                if (key.type === "Literal" && typeof key.value === "string") {
+                    return key.value;
+                }
+                if (key.type === "TemplateLiteral" && key.expressions.length === 0) {
+                    return key.quasis[0].value.cooked;
+                }
+                return null;
+            }
 
             /**
              * Reports a local type named after an element type. A type inside an ambient

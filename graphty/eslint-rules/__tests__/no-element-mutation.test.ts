@@ -23,7 +23,6 @@ RuleTester.itOnly = it.only;
 
 const fixtures = resolve(dirname(fileURLToPath(import.meta.url)), "fixtures");
 const TS = resolve(fixtures, "file.ts");
-const TSX = resolve(fixtures, "component.tsx");
 
 const tester = new RuleTester({
     languageOptions: {
@@ -32,6 +31,9 @@ const tester = new RuleTester({
             project: "./tsconfig.json",
             tsconfigRootDir: fixtures,
             ecmaFeatures: { jsx: true },
+            // CI=true switches typescript-eslint to single-run mode, which builds one program from
+            // the fixture files on disk and never sees each case's code.
+            disallowAutomaticSingleRunInference: true,
         },
     },
 });
@@ -87,11 +89,34 @@ tester.run("no-element-mutation", rule, {
             errors: [{ messageId: "door", data: { name: "pin" } }],
         },
         {
-            filename: TSX,
-            code: src(
-                'declare function Graphty(props: { layout?: string }): null;\nexport const view = <Graphty layout="d3" />;',
-            ),
-            errors: [{ messageId: "prop", data: { name: "layout" } }],
+            filename: TS,
+            code: src('element?.addNodes([{ id: "a" }]);'),
+            errors: [{ messageId: "door", data: { name: "addNodes" } }],
+        },
+        {
+            filename: TS,
+            code: src('element["addNodes"]([{ id: "a" }]);'),
+            errors: [{ messageId: "door", data: { name: "addNodes" } }],
+        },
+        {
+            filename: TS,
+            code: src('element.addNodes.call(element, [{ id: "a" }]);'),
+            errors: [{ messageId: "door", data: { name: "addNodes" } }],
+        },
+        {
+            filename: TS,
+            code: src("const add = element.addNodes.bind(element);\nvoid add;"),
+            errors: [{ messageId: "door", data: { name: "addNodes" } }],
+        },
+        {
+            filename: TS,
+            code: src("const { addNodes } = element;\nvoid addNodes;"),
+            errors: [{ messageId: "door", data: { name: "addNodes" } }],
+        },
+        {
+            filename: TS,
+            code: src("const inner = element.graph;\nvoid inner;"),
+            errors: [{ messageId: "internal", data: { name: "graph" } }],
         },
         {
             filename: TS,

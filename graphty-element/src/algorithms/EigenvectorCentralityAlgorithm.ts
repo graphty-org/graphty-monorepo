@@ -6,6 +6,7 @@ import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config
 import { GraphtyError } from "../errors";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import type { ScopeInputDeclaration } from "./input/ScopedInput";
 import { walkInChunks } from "./metrics/context";
 import { nodeMetricFields } from "./metrics/fields";
 import { MetricAlgorithm } from "./metrics/MetricAlgorithm";
@@ -91,6 +92,7 @@ const EIGENVECTOR_FIELDS: readonly FieldDescriptor[] = nodeMetricFields({
 export class EigenvectorCentralityAlgorithm extends MetricAlgorithm<EigenvectorCentralityOptions> {
     static namespace = "graphty";
     static type = "eigenvector";
+    static scopeInput: ScopeInputDeclaration = "subgraph";
 
     static zodOptionsSchema: ZodOptionsSchema = eigenvectorCentralityOptionsSchema;
 
@@ -164,7 +166,7 @@ export class EigenvectorCentralityAlgorithm extends MetricAlgorithm<EigenvectorC
         // "total" (the default), or a graph loaded undirected: influence flows across an edge in
         // either direction. "in" and "out" on a directed graph keep the declared direction and let
         // the algorithm pick which edges feed a node.
-        const directed = mode !== "total" && this.graph.getDataManager().getSnapshot().directed;
+        const directed = mode !== "total" && this.input("declared").graph.directed;
         const graphData = this.algorithmGraph(directed ? "directed" : "undirected");
 
         context.report({

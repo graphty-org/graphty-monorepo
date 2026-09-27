@@ -35,7 +35,7 @@ const EXPECTED: Readonly<Record<string, "on" | "off">> = {
     "graphty:degree": "on",
     "graphty:dfs": "on",
     "graphty:dijkstra": "on",
-    "graphty:eigenvector": "off",
+    "graphty:eigenvector": "on",
     "graphty:floyd-warshall": "on",
     "graphty:girvan-newman": "on",
     "graphty:hits": "on",
@@ -44,7 +44,7 @@ const EXPECTED: Readonly<Record<string, "on" | "off">> = {
     "graphty:kruskal": "on",
     "graphty:label-propagation": "on",
     "graphty:leiden": "on",
-    "graphty:link-prediction": "off",
+    "graphty:link-prediction": "on",
     "graphty:louvain": "on",
     "graphty:max-flow": "on",
     "graphty:min-cut": "on",
@@ -133,7 +133,9 @@ class Recording extends InputGraph {
                 get: (object, property) => {
                     this.around.push(`${name}.${String(property)}`);
                     const value: unknown = Reflect.get(object, property, object);
-                    return typeof value === "function" ? (value as (...args: unknown[]) => unknown).bind(object) : value;
+                    return typeof value === "function"
+                        ? (value as (...args: unknown[]) => unknown).bind(object)
+                        : value;
                 },
             });
 
@@ -164,7 +166,11 @@ let active: Recording | null = null;
  * @returns It.
  */
 function fixture(spec: Fixture = SHARED): Recording {
-    active = new Recording([...spec.nodes], spec.edges.map(([s, t, w]) => [s, t, w] as const), true);
+    active = new Recording(
+        [...spec.nodes],
+        spec.edges.map(([s, t, w]) => [s, t, w] as const),
+        true,
+    );
     return active;
 }
 
@@ -226,7 +232,10 @@ function declared(key: string): "on" | "off" {
 describe("the declaration table", () => {
     it("lists every registered built-in, and each declares what the table says", () => {
         assert.sameMembers(KEYS, Object.keys(EXPECTED));
-        assert.deepStrictEqual(Object.fromEntries(KEYS.map((key) => [key, declared(key)])), Object.fromEntries(KEYS.map((key) => [key, EXPECTED[key]])));
+        assert.deepStrictEqual(
+            Object.fromEntries(KEYS.map((key) => [key, declared(key)])),
+            Object.fromEntries(KEYS.map((key) => [key, EXPECTED[key]])),
+        );
     });
 
     it("the hand-built graph holds its nodes and edges in the order inducedSubgraph gives them", () => {
@@ -276,7 +285,13 @@ describe("the recording of reads around the input accessor", () => {
     it("sees a read of the node map, and not the input's own read of the snapshot", async () => {
         const graph = fixture();
         const peeker = new Peeker(graph.asGraph());
-        const seen = await withRunInput(peeker, graph, () => graph.scope(MEMBERS), undefined, () => Promise.resolve(peeker.peek()));
+        const seen = await withRunInput(
+            peeker,
+            graph,
+            () => graph.scope(MEMBERS),
+            undefined,
+            () => Promise.resolve(peeker.peek()),
+        );
 
         assert.deepStrictEqual(seen, [5, 7]);
         assert.deepStrictEqual(graph.around, ["nodes.size"]);
@@ -299,17 +314,26 @@ describe.runIf(DECLARED_ON.length > 0)("every algorithm declared on computes ove
 
             const whole = await runWhole(build, fixture(spec));
             const covered = coveredBy(graph, scope);
+            // A pair list publishes its answer as graph-level rows and nothing on an element, so
+            // its rows are what tell the two runs apart. Every other shape is told apart by its
+            // element values alone: a graph-level summary such as a range would differ anyway.
+            const reading = (result: typeof scoped): unknown => ({
+                values: valuesOf(result, graph, covered.node, covered.edge),
+                rows: result?.shape === "pair-list" ? result.graph : undefined,
+            });
             assert.notDeepEqual(
-                valuesOf(whole, graph, covered.node, covered.edge),
-                valuesOf(scoped, graph, covered.node, covered.edge),
+                reading(whole),
+                reading(scoped),
                 "the fixture tells a scoped run from a whole-graph one",
             );
         });
     }
 });
 
-describe("every algorithm declared off says it computed on the whole graph", () => {
-    for (const key of Object.keys(EXPECTED).filter((name) => EXPECTED[name] === "off")) {
+const DECLARED_OFF = Object.keys(EXPECTED).filter((name) => EXPECTED[name] === "off");
+
+describe.runIf(DECLARED_OFF.length > 0)("every algorithm declared off says it computed on the whole graph", () => {
+    for (const key of DECLARED_OFF) {
         it(key, async () => {
             const graph = fixture();
             const result = await runScoped(builderOf(key), graph, graph.scope(MEMBERS));

@@ -12,6 +12,7 @@ import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import { Algorithm } from "./Algorithm";
+import type { ScopeInputDeclaration } from "./input/ScopedInput";
 import { type AlgorithmOutput, type AlgorithmRunContext, DeclaredAlgorithm, declaredCaveats } from "./results";
 import type { OptionsSchema } from "./types/OptionSchema";
 
@@ -55,6 +56,7 @@ interface LinkPredictionOptions extends Record<string, unknown> {
 export class LinkPredictionAlgorithm extends DeclaredAlgorithm<LinkPredictionOptions> {
     static namespace = "graphty";
     static type = "link-prediction";
+    static scopeInput: ScopeInputDeclaration = "subgraph";
 
     static zodOptionsSchema: ZodOptionsSchema = linkPredictionOptionsSchema;
 
@@ -81,12 +83,13 @@ export class LinkPredictionAlgorithm extends DeclaredAlgorithm<LinkPredictionOpt
     };
 
     /**
-     * Score every unconnected pair of nodes and keep the best.
+     * Score every unconnected pair of the run's nodes and keep the best. A pair is published as a
+     * row of the result and never written into the graph.
      * @param context - What the element gave the run.
      * @returns The scored pairs, best first, or null when the graph has no nodes.
      */
     compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
-        if (this.graph.getDataManager().nodes.size === 0) {
+        if (this.input("undirected").nodeCount === 0) {
             return Promise.resolve(null);
         }
 

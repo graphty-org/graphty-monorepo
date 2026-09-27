@@ -24,16 +24,6 @@ const PERMANENT: Readonly<Record<string, string>> = {
 };
 
 /**
- * Files still to move onto the input accessor. The list only shrinks: each entry must still read
- * the graph directly, so a migrated file is removed from it in the commit that migrates it.
- */
-const TO_MIGRATE: readonly string[] = [
-    "EigenvectorCentralityAlgorithm.ts",
-    "LinkPredictionAlgorithm.ts",
-    "utils/graphUtils.ts",
-];
-
-/**
  * Every TypeScript file under a directory, relative to the algorithms root.
  * @param directory - The directory.
  * @returns The paths.
@@ -57,20 +47,12 @@ const reading = sources(ROOT)
 
 describe("no algorithm reads the graph around the input accessor", () => {
     it("no file outside the allowlist calls getDataManager() or getSnapshot()", () => {
-        const allowed = new Set([...Object.keys(PERMANENT), ...TO_MIGRATE]);
+        const allowed = new Set(Object.keys(PERMANENT));
 
         assert.deepStrictEqual(
             reading.filter((path) => !allowed.has(path)),
             [],
             "read the graph through Algorithm.input, or list the file with a reason",
-        );
-    });
-
-    it("every file still to migrate still reads directly, so the list only shrinks", () => {
-        assert.deepStrictEqual(
-            TO_MIGRATE.filter((path) => !reading.includes(path)),
-            [],
-            "a migrated file comes off the list in the commit that migrates it",
         );
     });
 });

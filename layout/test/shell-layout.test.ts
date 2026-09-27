@@ -1,5 +1,6 @@
-import { describe, it, assert } from "vitest";
-import { shellLayout, completeGraph, cycleGraph, starGraph, wheelGraph, gridGraph, randomGraph } from "../src";
+import { assert,describe, it } from "vitest";
+
+import { completeGraph, cycleGraph, gridGraph, randomGraph,shellLayout, starGraph, wheelGraph } from "../src";
 
 describe("Shell Layout", () => {
     describe("Basic functionality", () => {
@@ -28,7 +29,7 @@ describe("Shell Layout", () => {
             const positions = shellLayout(singleNode);
 
             assert.equal(Object.keys(positions).length, 1);
-            assert.deepEqual(positions["node1"], [0, 0]);
+            assert.deepEqual(positions.node1, [0, 0]);
         });
 
         it("should default to single shell when no shells specified", () => {
@@ -99,7 +100,7 @@ describe("Shell Layout", () => {
 
             // Calculate radii for each shell
             const radii = shells.map((shell, idx) => {
-                if (idx === 0) return 0; // Center
+                if (idx === 0) {return 0;} // Center
                 const [x, y] = positions[shell[0]];
                 return Math.sqrt(x * x + y * y);
             });
@@ -227,7 +228,7 @@ describe("Shell Layout", () => {
 
             const positions = shellLayout(graph, shells);
 
-            assert.deepEqual(positions["center"], [0, 0]);
+            assert.deepEqual(positions.center, [0, 0]);
             ["a", "b", "c", "d"].forEach((node) => {
                 const [x, y] = positions[node];
                 const r = Math.sqrt(x * x + y * y);
@@ -333,7 +334,7 @@ describe("Shell Layout", () => {
 
             // Verify concentric structure
             const radii = shells.map((shell) => {
-                if (shell.length === 0) return 0;
+                if (shell.length === 0) {return 0;}
                 const [x, y] = positions[shell[0]];
                 return Math.sqrt(x * x + y * y);
             });

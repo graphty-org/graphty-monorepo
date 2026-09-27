@@ -1,6 +1,7 @@
-import { describe, it, expect } from "vitest";
-import { forceatlas2Layout, springLayout, kamadaKawaiLayout, arfLayout } from "../src/index";
-import { randomGraph, completeGraph } from "../src/generators";
+import { describe, expect,it } from "vitest";
+
+import { completeGraph,randomGraph } from "../src/generators";
+import { arfLayout,forceatlas2Layout, kamadaKawaiLayout, springLayout } from "../src/index";
 
 describe("Layout Integration Tests - 3D with Real Usage Patterns", () => {
     // Test the actual usage pattern from the examples
@@ -85,7 +86,7 @@ describe("Layout Integration Tests - 3D with Real Usage Patterns", () => {
             3, // Request 3D
         );
 
-        Object.entries(positions3D).forEach(([node, pos]) => {
+        Object.values(positions3D).forEach((pos) => {
             expect(pos).toHaveLength(3);
             expect(isNaN(pos[0])).toBe(false);
             expect(isNaN(pos[1])).toBe(false);

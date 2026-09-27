@@ -1,6 +1,7 @@
-import { describe, it, expect } from "vitest";
-import { forceatlas2Layout } from "../src/layouts/force-directed/forceatlas2";
+import { describe, expect,it } from "vitest";
+
 import { randomGraph } from "../src/generators/random";
+import { forceatlas2Layout } from "../src/layouts/force-directed/forceatlas2";
 
 describe("Bug Report #2: forceatlas2Layout returns NaN for Z coordinates in 3D mode", () => {
     it("should return valid 3D positions when dim=3", () => {
@@ -31,7 +32,7 @@ describe("Bug Report #2: forceatlas2Layout returns NaN for Z coordinates in 3D m
         expect(Object.keys(positions)).toHaveLength(nodes.length);
 
         // Check each position
-        Object.entries(positions).forEach(([node, pos]) => {
+        Object.values(positions).forEach((pos) => {
             expect(pos).toHaveLength(3); // Should have 3 coordinates
 
             // X and Y coordinates should be valid numbers
@@ -110,7 +111,7 @@ describe("Bug Report #2: forceatlas2Layout returns NaN for Z coordinates in 3D m
             2, // 2D
         );
 
-        Object.entries(positions2d).forEach(([node, pos]) => {
+        Object.values(positions2d).forEach((pos) => {
             expect(pos).toHaveLength(2);
             expect(isNaN(pos[0])).toBe(false);
             expect(isNaN(pos[1])).toBe(false);

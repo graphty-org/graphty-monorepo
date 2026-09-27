@@ -1,14 +1,15 @@
-import { describe, it, assert } from "vitest";
+import { assert,describe, it } from "vitest";
+
 import {
+    bipartiteGraph,
+    circularLayout,
     completeGraph,
     cycleGraph,
-    starGraph,
-    wheelGraph,
     gridGraph,
     randomGraph,
-    bipartiteGraph,
     scaleFreeGraph,
-    circularLayout,
+    starGraph,
+    wheelGraph,
 } from "../src";
 
 describe("Graph Generators", () => {
@@ -125,8 +126,8 @@ describe("Graph Generators", () => {
             // Check all leaves connected to center
             const connectedToCenter = new Set();
             edges.forEach((edge) => {
-                if (edge[0] === 0) connectedToCenter.add(edge[1]);
-                if (edge[1] === 0) connectedToCenter.add(edge[0]);
+                if (edge[0] === 0) {connectedToCenter.add(edge[1]);}
+                if (edge[1] === 0) {connectedToCenter.add(edge[0]);}
             });
 
             assert.equal(connectedToCenter.size, 5);

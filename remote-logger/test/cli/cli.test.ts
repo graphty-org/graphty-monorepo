@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, type MockInstance, test, vi } from "vitest";
 
 import { HELP_TEXT, parseArgs } from "../../src/server/log-server.js";
 
@@ -201,7 +201,7 @@ describe("CLI", () => {
 
     describe("SIGINT handling", () => {
         let sigintHandlers: Array<() => void>;
-        let mockExit: ReturnType<typeof vi.spyOn>;
+        let mockExit: MockInstance<typeof process.exit>;
 
         beforeEach(() => {
             // Track SIGINT handlers

@@ -2,8 +2,9 @@
  * Tests for graph utility functions
  */
 
-import { describe, it, expect } from "vitest";
-import { getNodesFromGraph, getEdgesFromGraph, getNodeDegree, getNeighbors } from "../src/utils/graph";
+import { describe, expect,it } from "vitest";
+
+import { getEdgesFromGraph, getNeighbors,getNodeDegree, getNodesFromGraph } from "../src/utils/graph";
 import { createTestGraph } from "./test-utils";
 
 describe("Graph Utils", () => {

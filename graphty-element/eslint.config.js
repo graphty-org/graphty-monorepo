@@ -24,13 +24,16 @@ export default tseslint.config(
         ignores: [
             "index.d.ts",
             "index.js",
+            // Ad-hoc debugging scripts, never run by a test or a gate. Not linted yet: the test block
+            // below applies @typescript-eslint rules to test/**/*.js, where that plugin is not
+            // registered, so ESLint refuses these files outright. Scope that block to .ts and fix
+            // the findings to remove this line.
             "test/helpers/scripts/**/*.js",
             "test/fast-check-experiment/**",
             "examples/**/*.js",
             "bin/**",
             ".storybook/webllm-stub.js",
             "docs/.vitepress/**",
-            "scripts/**",
         ],
     },
 

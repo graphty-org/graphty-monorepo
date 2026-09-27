@@ -1,13 +1,13 @@
 #!/usr/bin/env tsx
 
 // Node.js Floyd-Warshall Performance Benchmark using Benchmark.js
-import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
-import { generateTestGraphs } from "../utils/test-data-generator";
-import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { floydWarshall } from "../../src/algorithms/shortest-path/floyd-warshall";
+import { getEdgeDensity, getGraphSizes } from "../algorithm-complexity";
 import { saveBenchmarkSession } from "../utils/benchmark-result";
+import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
+import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { formatSystemInfo, getSystemInfo } from "../utils/system-info";
-import { getGraphSizes, getEdgeDensity, getAlgorithmConfig } from "../algorithm-complexity";
+import { generateTestGraphs } from "../utils/test-data-generator";
 
 // Store test data globally for Benchmark.js
 const globalTestData = new Map();
@@ -37,7 +37,6 @@ async function runFloydWarshallBenchmark(configType: "quick" | "comprehensive") 
     const config = configs[configType];
     const benchmark = new CrossPlatformBenchmark(config, `Floyd-Warshall ${configType} Performance`);
 
-    const algConfig = getAlgorithmConfig("Floyd-Warshall", configType === "quick");
     console.log(`⚠️  Note: Floyd-Warshall has O(V³) complexity`);
     console.log(`   Using adaptive sizing: ${config.sizes.join(", ")} vertices`);
     console.log(`   Edge density: ${getEdgeDensity("Floyd-Warshall")}`);
@@ -86,14 +85,14 @@ async function runFloydWarshallBenchmark(configType: "quick" | "comprehensive") 
     for (const [key, testData] of testGraphs.entries()) {
         // Create a function that accesses the global store
         const testFn = new Function(
-            'return function() { const graph = globalTestData.get("' +
-                key +
-                '"); const result = floydWarshall(graph); if (!result.distances || result.distances.size === 0) { throw new Error("Floyd-Warshall returned empty result"); } }',
+            `return function() { const graph = globalTestData.get("${ 
+                key 
+                }"); const result = floydWarshall(graph); if (!result.distances || result.distances.size === 0) { throw new Error("Floyd-Warshall returned empty result"); } }`,
         )();
 
         // Make sure global references are available
-        (globalThis as any).globalTestData = globalTestData;
-        (globalThis as any).floydWarshall = floydWarshall;
+        Object.assign(globalThis, { globalTestData });
+        Object.assign(globalThis, { floydWarshall });
 
         benchmark.addTest(`Floyd-Warshall ${testData.graphSize} vertices (${testData.graphType})`, testFn, testData, {
             minSamples: config.iterations,
@@ -136,9 +135,9 @@ async function runFloydWarshallBenchmark(configType: "quick" | "comprehensive") 
                 globalTestData.set(testKey, graph);
 
                 const testFn = new Function(
-                    'return function() { const graph = globalTestData.get("' +
-                        testKey +
-                        '"); const result = floydWarshall(graph); if (!result.distances || result.distances.size === 0) { throw new Error("Floyd-Warshall returned empty result"); } }',
+                    `return function() { const graph = globalTestData.get("${ 
+                        testKey 
+                        }"); const result = floydWarshall(graph); if (!result.distances || result.distances.size === 0) { throw new Error("Floyd-Warshall returned empty result"); } }`,
                 )();
 
                 benchmark.addTest(`Floyd-Warshall ${size} vertices (sparse)`, testFn, testData, {
@@ -162,7 +161,7 @@ async function runFloydWarshallBenchmark(configType: "quick" | "comprehensive") 
         const session = await benchmark.run();
 
         // Display summary
-        console.log("\n" + "=".repeat(70));
+        console.log(`\n${  "=".repeat(70)}`);
         console.log("BENCHMARK RESULTS SUMMARY");
         console.log("=".repeat(70));
         console.log("Size\tType\t\tEdges\tTime(ms)\tOps/sec\tMargin");

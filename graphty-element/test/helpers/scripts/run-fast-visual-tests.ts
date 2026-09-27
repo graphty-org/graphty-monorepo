@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { chromium } from "@playwright/test";
 
 const STORYBOOK_URL = process.env.STORYBOOK_URL ?? "https://localhost:6006";

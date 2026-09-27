@@ -332,7 +332,9 @@ export class GraphBuilder implements GraphBuilderContract {
     }
 
     /**
-     * Increments on every topology or weight mutation; column writes and freeze() do not count.
+     * Increments on every change that makes the next freeze() differ (topology, weights, cell and
+     * column writes, declarations, graph values, meta, extension tables, record and graph merges);
+     * freeze() itself does not count.
      * @returns the count
      */
     get mutationCount(): number {
@@ -930,6 +932,7 @@ export class GraphBuilder implements GraphBuilderContract {
             buildGraphColumn(name, value, patch);
         }
         this.graphValues.set(name, { decl: patch, value });
+        this.mutated();
     }
 
     /**
@@ -940,6 +943,7 @@ export class GraphBuilder implements GraphBuilderContract {
     setMeta(meta: GraphMetaPatch): void {
         this.check();
         this.metaValue = resolveGraphMeta(this.metaValue, meta);
+        this.mutated();
     }
 
     /**
@@ -967,6 +971,7 @@ export class GraphBuilder implements GraphBuilderContract {
             columns.push(column);
         }
         staging.extensions.push({ name, columns, rowCount: 0 });
+        this.mutated();
         return (staging.extensions.length - 1) as ExtensionHandle;
     }
 
@@ -996,6 +1001,7 @@ export class GraphBuilder implements GraphBuilderContract {
             target.columns[i].write(row, checked[i]);
         }
         target.rowCount = row + 1;
+        this.mutated();
         return row;
     }
 
@@ -1180,6 +1186,8 @@ export class GraphBuilder implements GraphBuilderContract {
         for (const [name, table] of snapshot.extensions) {
             this.appendExtension(name, table, refs);
         }
+        // attribute merges onto existing nodes change the next freeze without adding anything
+        this.mutated();
     }
 
     // ---------------------------------------------------------------- output and lifecycle
@@ -1629,6 +1637,7 @@ export class GraphBuilder implements GraphBuilderContract {
             return existing as ColumnHandle;
         }
         const columns = this.columnsOf(domain);
+        this.mutated();
         return this.pushColumn(columns, new StagingColumn(meta, false)) as ColumnHandle;
     }
 
@@ -1882,6 +1891,7 @@ export class GraphBuilder implements GraphBuilderContract {
         if (widened !== null) {
             this.widenings.push({ column: target.meta.name, domain, from: widened.from, to: widened.to });
         }
+        this.mutated();
     }
 
     /**
@@ -1915,6 +1925,7 @@ export class GraphBuilder implements GraphBuilderContract {
         } else {
             this.pushColumn(columns, column);
         }
+        this.mutated();
     }
 
     private extensionOf(handle: ExtensionHandle): ExtensionStaging {

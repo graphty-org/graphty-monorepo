@@ -183,7 +183,11 @@ describe("the arrangement under undo and redo", () => {
         assert.deepEqual(lane(session), rest, "undoing the style edit moves nothing");
         await session.undo();
         const { n4: _gone, ...before } = rest;
-        assert.deepEqual(lane(session), Object.fromEntries(Object.keys(before).map((id) => [id, start[id]])), "undoing the add goes back to before it");
+        assert.deepEqual(
+            lane(session),
+            Object.fromEntries(Object.keys(before).map((id) => [id, start[id]])),
+            "undoing the add goes back to before it",
+        );
         await session.redo();
         assert.deepEqual(lane(session), rest, "redoing the add returns to where it settled");
         session.dispose();
@@ -409,7 +413,7 @@ describe("the arrangement under undo and redo", () => {
         layout.step();
         layout.settle();
         await styleEdit(session);
-        const {bytes} = session.history.steps[0];
+        const { bytes } = session.history.steps[0];
         const before = lane(session);
 
         const load = await halfLoaded(session, "merge");
@@ -434,7 +438,7 @@ describe("the arrangement under undo and redo", () => {
         layout.step();
         layout.settle();
         await styleEdit(session);
-        const {bytes} = session.history.steps[0];
+        const { bytes } = session.history.steps[0];
         const before = lane(session);
 
         const load = await halfLoaded(session, "replace");
@@ -458,7 +462,7 @@ describe("the arrangement under undo and redo", () => {
         layout.step();
         layout.settle();
         await styleEdit(session);
-        const {bytes} = session.history.steps[0];
+        const { bytes } = session.history.steps[0];
         const before = lane(session);
 
         let loaded = (): void => undefined;

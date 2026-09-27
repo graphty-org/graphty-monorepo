@@ -128,11 +128,7 @@ describe("a run with more groups than the default palette has colours", () => {
         const named = pieceColours.filter((colour) => colour !== OTHER_GROUP_COLOR.toLowerCase());
 
         assert.lengthOf(named, 8, "the eight largest pieces keep a palette colour");
-        assert.lengthOf(
-            new Set(named),
-            8,
-            "and no two of them share one: a categorical palette must never wrap.",
-        );
+        assert.lengthOf(new Set(named), 8, "and no two of them share one: a categorical palette must never wrap.");
         assert.lengthOf(grey, PIECES - 8, "every piece past the palette is the one 'other' grey");
     });
 

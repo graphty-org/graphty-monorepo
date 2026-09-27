@@ -139,7 +139,9 @@ export function parseAlgorithmsOnLoad(value: unknown): AlgorithmOnLoad[] {
         // Parsed against the one form it is trying to be, so the issue names the bad option rather
         // than "matched neither form".
         const parsed =
-            typeof entry === "object" && entry !== null ? AlgorithmWithOptions.safeParse(entry) : AlgorithmName.safeParse(entry);
+            typeof entry === "object" && entry !== null
+                ? AlgorithmWithOptions.safeParse(entry)
+                : AlgorithmName.safeParse(entry);
 
         if (!parsed.success) {
             const issue = parsed.error.issues[0];

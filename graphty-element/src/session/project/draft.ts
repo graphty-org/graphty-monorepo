@@ -107,7 +107,10 @@ function sameValue(left: unknown, right: unknown): boolean {
     }
 
     const keys = Object.keys(left);
-    return keys.length === Object.keys(right).length && keys.every((key) => Object.hasOwn(right, key) && sameValue(left[key], right[key]));
+    return (
+        keys.length === Object.keys(right).length &&
+        keys.every((key) => Object.hasOwn(right, key) && sameValue(left[key], right[key]))
+    );
 }
 
 /**
@@ -148,7 +151,9 @@ function wroteNothing(entry: PatchEntry): boolean {
  */
 export function withoutNoOps(patch: Patch): Patch {
     const entries = patch.entries.filter((entry) => !wroteNothing(entry));
-    return entries.length === patch.entries.length ? patch : Object.freeze({ ...patch, entries: Object.freeze(entries) });
+    return entries.length === patch.entries.length
+        ? patch
+        : Object.freeze({ ...patch, entries: Object.freeze(entries) });
 }
 
 /**

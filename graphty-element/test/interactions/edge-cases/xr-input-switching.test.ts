@@ -45,7 +45,7 @@ describe("XR Input Switching", () => {
     describe("Input Handler Management", () => {
         test("XR session manager exists", () => {
             // Access private property for testing purposes
-             
+
             const xrManager = (graph as any).xrSessionManager;
             assert.isDefined(xrManager, "XR session manager should exist");
         });

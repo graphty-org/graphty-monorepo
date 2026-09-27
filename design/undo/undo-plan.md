@@ -29,7 +29,7 @@ wrong the first time a test gained a line. Serial order costs nothing on one bra
 Six rules hold for every phase:
 
 1. **The door ratchet keeps partial work honest.** From phase 6 on, `graphty-element/src/session/
-   commands/doors.ts` lists every public member that can change the element, each marked with
+commands/doors.ts` lists every public member that can change the element, each marked with
    one of five statuses: the op it dispatches; `exempt` with a reason; `readOnly`; `knownGap`
    with the phase that will port it (the door does not dispatch yet); or `partial` with the phase
    that will finish it and a reason (the door dispatches, but a single call of it is not yet one
@@ -133,41 +133,41 @@ module has to be reachable through the package's exports map.
 
 ### Phase map
 
-| # | Phase | Area |
-|---|---|---|
-| 1 | Sealable snapshots in graph-format | graph-format |
-| 2 | Project state, drafts and patches | state core |
-| 3 | History: steps, cursor, coalescing, budget | state core |
-| 4a | Dispatcher: dispatch, groups, rollback, transactions | state core |
-| 4b | Dispatcher: queued lane, holds, pending work, undo rules, cancel | state core |
-| 5 | Derivation lane and event order | state core |
-| 6 | Public history API, `./commands`, vocabulary and door tests | API and gap guarantees |
-| 7 | Styles | slice port |
-| 8 | Visibility | slice port |
-| 9 | Scopes and saved views | slice port |
-| 10 | Project settings and the frozen merged configuration | slice port |
-| 11 | Ingest moves to the Node-safe session | graph slice |
-| 12 | Graph additions and attribute edits | graph slice |
-| 13 | Graph removals, clear, and lazy structural inverses | graph slice |
-| 14 | Imports, expansion and batches | graph slice |
-| 15 | Runs as steps | runs slice |
-| 16a | Pins, positions, captures and restore mode | arrangement |
-| 16b | Group captures, seal targets, epochs and the eviction fold | arrangement |
-| 17 | Layout choice and dimension | layout slice |
-| 18a | Plugin algorithms and the `Graph` facade | closure |
-| 18b | Frozen records, sealed snapshots, strict state complete | closure |
-| 18c | Narrowing the public escapes and moving their callers | closure |
-| 19a | Gestures: drag, keys, assistant, XR, `batchOperations` | gestures |
-| 19b | Camera and view-preset doors | element API |
-| 20 | Selection after history, and columnar run results | behaviour and memory |
-| 21 | Random sequences complete, and scale | gap guarantees |
-| 22 | Stories and picture equality | gap guarantees |
-| 23 | App: history surfaces call the session; `undoStore.ts` deleted | app |
-| 24 | The app lint rule, at warning level | gap guarantees |
-| 25a | App: load, close and the load failure as transactions | app |
-| 25b | App: the component, its handle, graph commands, runs and metrics | app |
-| 25c | App: mirrors, removed runs, strict state; the lint rule becomes an error | app |
-| 26 | Documentation and release | docs |
+| #   | Phase                                                                    | Area                   |
+| --- | ------------------------------------------------------------------------ | ---------------------- |
+| 1   | Sealable snapshots in graph-format                                       | graph-format           |
+| 2   | Project state, drafts and patches                                        | state core             |
+| 3   | History: steps, cursor, coalescing, budget                               | state core             |
+| 4a  | Dispatcher: dispatch, groups, rollback, transactions                     | state core             |
+| 4b  | Dispatcher: queued lane, holds, pending work, undo rules, cancel         | state core             |
+| 5   | Derivation lane and event order                                          | state core             |
+| 6   | Public history API, `./commands`, vocabulary and door tests              | API and gap guarantees |
+| 7   | Styles                                                                   | slice port             |
+| 8   | Visibility                                                               | slice port             |
+| 9   | Scopes and saved views                                                   | slice port             |
+| 10  | Project settings and the frozen merged configuration                     | slice port             |
+| 11  | Ingest moves to the Node-safe session                                    | graph slice            |
+| 12  | Graph additions and attribute edits                                      | graph slice            |
+| 13  | Graph removals, clear, and lazy structural inverses                      | graph slice            |
+| 14  | Imports, expansion and batches                                           | graph slice            |
+| 15  | Runs as steps                                                            | runs slice             |
+| 16a | Pins, positions, captures and restore mode                               | arrangement            |
+| 16b | Group captures, seal targets, epochs and the eviction fold               | arrangement            |
+| 17  | Layout choice and dimension                                              | layout slice           |
+| 18a | Plugin algorithms and the `Graph` facade                                 | closure                |
+| 18b | Frozen records, sealed snapshots, strict state complete                  | closure                |
+| 18c | Narrowing the public escapes and moving their callers                    | closure                |
+| 19a | Gestures: drag, keys, assistant, XR, `batchOperations`                   | gestures               |
+| 19b | Camera and view-preset doors                                             | element API            |
+| 20  | Selection after history, and columnar run results                        | behaviour and memory   |
+| 21  | Random sequences complete, and scale                                     | gap guarantees         |
+| 22  | Stories and picture equality                                             | gap guarantees         |
+| 23  | App: history surfaces call the session; `undoStore.ts` deleted           | app                    |
+| 24  | The app lint rule, at warning level                                      | gap guarantees         |
+| 25a | App: load, close and the load failure as transactions                    | app                    |
+| 25b | App: the component, its handle, graph commands, runs and metrics         | app                    |
+| 25c | App: mirrors, removed runs, strict state; the lint rule becomes an error | app                    |
+| 26  | Documentation and release                                                | docs                   |
 
 ---
 
@@ -177,6 +177,7 @@ module has to be reachable through the package's exports map.
 handing out writable tables (design section 4.9, "Writable attribute tables").
 
 **Files.**
+
 - `graph-format/src/types/columns.ts` and the snapshot implementation under `graph-format/src/`:
   add `snapshot.seal()`; after it, `set`, `remove` and `rename` on the attribute tables throw.
 - `graph-format/src/errors` (the module that defines the existing `E_*` codes): add `E_FROZEN`.
@@ -199,6 +200,7 @@ yet; phase 18b does.
 using it yet (design sections 3.1, 3.4, 3.5, 4.1).
 
 **Files (all new, Node-safe).**
+
 - `graphty-element/src/session/project/state.ts`: the ten slice types (`graph`, `pins`, `config`,
   `layout`, `arrangement`, `runs`, `styles`, `visibility`, `scopes`, `views`), `RunEntry`, the
   baseline, and the never-reissued counters for the graph token and the graph epoch.
@@ -218,6 +220,7 @@ using it yet (design sections 3.1, 3.4, 3.5, 4.1).
   without `export` so knip stays green; the phase that first imports one adds the `export`.
 
 **Tests first** (`graphty-element/test/session/history/draft.test.ts`, `digest.test.ts`).
+
 - Writing a key records the prior value; `applyBackward` restores the identical object;
   `applyForward` after it restores the written object.
 - Two open patches: B writes a key A wrote; A's patch loses the key, B's prior is A's prior;
@@ -239,6 +242,7 @@ reachable from an entry yet); lint, knip and build are green.
 patches are made (design sections 5, 5.2, 7).
 
 **Files.**
+
 - `graphty-element/src/session/project/History.ts` (new): the step list, `position`, record
   (discards the redo tail), merge into the top step by coalesce key within `coalesceMs` (a merge
   keeps the first prior, the last written value, and concatenates op-logs), undo, redo,
@@ -253,6 +257,7 @@ patches are made (design sections 5, 5.2, 7).
   after-capture and a row patch that stay empty until phase 16a.
 
 **Tests first** (`test/session/history/history.test.ts`).
+
 - Record, undo, redo, record after undo empties the redo tail.
 - Coalescing: equal keys within the window merge; an undo in between, a different step in
   between, or an expired window prevents it.
@@ -273,6 +278,7 @@ patches are made (design sections 5, 5.2, 7).
 (design sections 4.1, 4.2, 4.4, 5.1).
 
 **Files.**
+
 - `graphty-element/src/session/project/Dispatcher.ts` (new): `CommandDefinition` as in design
   section 4.1 (`undo` undoable-with-label-and-coalesce or exempt-with-reason, `moves`, `keys`,
   `lane`, `execute`); `dispatch` steps 1 to 7 of design section 4.4 on the immediate lane only;
@@ -299,6 +305,7 @@ patches are made (design sections 5, 5.2, 7).
 
 **Tests first** (`test/session/history/dispatcher.test.ts`, `transaction.test.ts`), all over fake
 definitions.
+
 - A plain dispatch is one step labelled by its definition; an exempt command gets no draft (a
   type test in `test/types/` asserts writing state from an exempt `ctx` does not compile).
 - A throwing command leaves no step and state unchanged; a throw before any write publishes
@@ -323,6 +330,7 @@ so this checks only that switching it on is harmless); lint, knip, build green.
 undo does while work is pending (design sections 4.3, 4.5, 4.8, 6.1).
 
 **Files.**
+
 - `Dispatcher.ts`: the queued lane on the session's existing `OperationQueueManager` with
   coalesce-while-queued; queue obsolescence treated as cancellation with reason `"obsolete"`;
   op-log id holds (per id up to 1024, whole slice above), `E_HELD_BY_TRANSACTION` for a
@@ -343,6 +351,7 @@ undo does while work is pending (design sections 4.3, 4.5, 4.8, 6.1).
 
 **Tests first** (`test/session/history/queued.test.ts`, `pending.test.ts`), over fake definitions
 and a fake queue.
+
 - Two queued dispatches with one coalesce key before the first runs are one execution and one
   step; obsolescence cancels, never seals a partial draft.
 - Holds: a dispatch needing an id a transaction holds fails at once with the error naming the
@@ -364,6 +373,7 @@ and a fake queue.
 (design sections 9.1, 9.3, 6.2).
 
 **Files.**
+
 - `graphty-element/src/session/project/derive.ts` (new): `rendered` state, per-slice dirty sets,
   one scheduled pass per burst of changes, hook order (`graph`, `layout`, `pins`, `arrangement`,
   then the rest), the `restoring` flag held from a history call until the `arrangement` hook has
@@ -375,6 +385,7 @@ and a fake queue.
   the pass, and serialise a history call made from inside a listener as a microtask.
 
 **Tests first** (`test/session/history/derive.test.ts`, `event-order.test.ts`).
+
 - Thirty undos without awaiting run one pass; a hook sees the net change from `rendered` to the
   target.
 - Hooks run in the fixed order; changes arriving during a pass wait for the next one.
@@ -394,6 +405,7 @@ ported yet, so every mutating door is on the gap list. The names are the design'
 final when the owner approves design section 15, before the pull request merges.
 
 **Files.**
+
 - `graphty-element/src/session/types.ts`: the types of design section 10.1 that this phase makes
   real: `SessionHistory`, `HistoryStep`, `PendingStep`, `HistoryOutcome`, `HistoryCause`,
   `ProjectSlice`, `TransactionScope`, `TransactionOptions`, `CommandOutcome`,
@@ -420,7 +432,7 @@ final when the owner approves design section 15, before the pull request merges.
   (`DataManager`, `LayoutManager`, `StyleManager`, `RenderManager` and the rest under
   `src/managers/`).
 - `graphty-element/commands.ts`: export `COMMANDS` (declared with `satisfies { readonly [Op in
-  SessionCommand["op"]]: CommandMeta }`), `CommandMeta`, `isSessionCommand`, and re-export
+SessionCommand["op"]]: CommandMeta }`), `CommandMeta`, `isSessionCommand`, and re-export
   `SessionCommand`; rewrite the header to name the union `SessionCommand` and say the builders,
   `parsePattern`, `formatCommand` and the JSON Schema remain for #337.
 - `graphty-element/test/packaging/node-safe-entries.test.ts` and `exports-map.test.ts`: the new
@@ -448,6 +460,7 @@ final when the owner approves design section 15, before the pull request merges.
   phase 18c; `AlgorithmManager.execute` in phase 15.
 
 **Tests first.**
+
 - `test/session/history/vocabulary.test.ts`: every op has a definition and a `COMMANDS` entry;
   `undo.kind` agrees; exempt reasons are non-empty; every undoable op has a fixture in
   `fixtures.ts` for every value of its argument discriminant (the list of values is read from
@@ -511,6 +524,7 @@ sections 3.4 "The styles slice", 5.2, 9.2, 11.3, 10.1 "What the style and visibi
 handles mean now").
 
 **Files.**
+
 - `graphty-element/src/session/commands/style.ts` (new): `style.patch`, `style.encode`,
   `style.template`, immediate lane, coalesce key `style:<layerId>:<sorted patched keys>` for a
   single-layer update.
@@ -531,7 +545,7 @@ handles mean now").
   they call rather than one per gesture. They become `partial` rows, not `knownGap`: the AI
   style commands (`ai/commands/StyleCommands.ts`, which call `styles.add`, `removeBySource` and
   `remove`), finished in phase 19a; `Graph.applySuggestedStyles`, the `runAlgorithm(...,
-  { applySuggestedStyles })` path (`Graph.ts` reaches `session.styles.highlight` and `encode`
+{ applySuggestedStyles })` path (`Graph.ts` reaches `session.styles.highlight` and `encode`
   from `runAlgorithm`) and the run auto-apply, all finished in phase 15. Until then an undo
   after one of these gestures reverts only its last style verb; the rows' reasons say so.
 - As built: `style.patch` is discriminated by `action`, one value per styles verb (`add`,
@@ -573,6 +587,7 @@ handles mean now").
   in phase 15, when there is a run for it to finish.
 
 **Tests first.**
+
 - Fixtures in `fixtures.ts` for `style.patch` (add, update, remove, move, removeBySource,
   highlight, resolveToStatic), `style.encode`, `style.template`, each tagged `renderer` as well,
   so the twin checks the repaint on a real `Graph`.
@@ -581,25 +596,25 @@ handles mean now").
 - `test/session/history/random-sequences.test.ts` (new) and `test/session/history/fakes.ts`
   (new), the random-sequence model of design section 12.5 over the ops ported so far, grown by
   every later port (rule 3):
-  - Built on `fc.scheduledModelRun` with `fc.scheduler`. `fc.scheduler` controls only promises
-    wrapped with `s.schedule`, so the model never runs on the real queue or the wall clock: the
-    session under test is built with the scheduler interface of phase 4b implemented over
-    `s.schedule` (every queue turn is a scheduled promise) and with a fake `now()` that only a
-    model command advances. "Advance time within `coalesceMs`" and "advance time past
-    `coalesceMs`" are generated commands, so coalescing is a generated choice too. Every
-    promise resolution (a queued command reaching its turn, a fake run finishing, a listener's
-    reentrant undo) then replays and shrinks with the seed, on any machine and under coverage.
-    `fakes.ts` holds the fake scheduler, the fake clock, and the fake accelerator whose
-    completion the scheduler controls.
-  - Before every action, the live state digest must equal the digest recorded for the current
-    history position, so a change that records no step (an exempt op, a background write) fails
-    at the next action, not only when a later undo happens to cross it. After every history move
-    the digest must equal the one sealed for the position reached.
-  - A fixed `numRuns` and `maxCommands`, and a fixed list of seeds run in CI, one `it` per
-    seed, each with an explicit `90_000` ms timeout (the `default` project's `testTimeout` is
-    30 seconds, which a coverage run of the full model would exceed); `FC_SEED` and
-    `FC_NUM_RUNS` override them for a local soak. A failure prints the seed and the
-    counterexample path.
+    - Built on `fc.scheduledModelRun` with `fc.scheduler`. `fc.scheduler` controls only promises
+      wrapped with `s.schedule`, so the model never runs on the real queue or the wall clock: the
+      session under test is built with the scheduler interface of phase 4b implemented over
+      `s.schedule` (every queue turn is a scheduled promise) and with a fake `now()` that only a
+      model command advances. "Advance time within `coalesceMs`" and "advance time past
+      `coalesceMs`" are generated commands, so coalescing is a generated choice too. Every
+      promise resolution (a queued command reaching its turn, a fake run finishing, a listener's
+      reentrant undo) then replays and shrinks with the seed, on any machine and under coverage.
+      `fakes.ts` holds the fake scheduler, the fake clock, and the fake accelerator whose
+      completion the scheduler controls.
+    - Before every action, the live state digest must equal the digest recorded for the current
+      history position, so a change that records no step (an exempt op, a background write) fails
+      at the next action, not only when a later undo happens to cross it. After every history move
+      the digest must equal the one sealed for the position reached.
+    - A fixed `numRuns` and `maxCommands`, and a fixed list of seeds run in CI, one `it` per
+      seed, each with an explicit `90_000` ms timeout (the `default` project's `testTimeout` is
+      30 seconds, which a coverage run of the full model would exceed); `FC_SEED` and
+      `FC_NUM_RUNS` override them for a local soak. A failure prints the seed and the
+      counterexample path.
 - `test/session/styles/undo.test.ts`: an update drag of 60 frames within the window is one step;
   undo restores the identical previous stack object; a restored stack is not recompiled (spy on
   the compiler).
@@ -619,6 +634,7 @@ dispatching and the `partial` rows above dispatching; the app's colour picker st
 3.4 "The visibility masks are derived", 9.2 `visibility` row, 11.3).
 
 **Files.**
+
 - `graphty-element/src/session/commands/visibility.ts` (new): `visibility.set` (coalesce key
   `filter`), `visibility.window` (`window`), `visibility.context` (new op), all immediate.
 - `graphty-element/src/session/visibility/VisibilityApi.ts`: the three closures at
@@ -635,6 +651,7 @@ dispatching and the `partial` rows above dispatching; the app's colour picker st
 - `VisibilityChange` gains `cause`.
 
 **Tests first.**
+
 - Fixtures for the three ops.
 - `test/session/visibility/undo.test.ts`: a slider drag copies the masks once, not per frame;
   undoing a filter with a matching copy does not evaluate (spy); a copy whose tag no longer
@@ -691,6 +708,7 @@ cache test in `test/session/scope/` still passes); lint, knip, build green.
 10.2).
 
 **Files.**
+
 - `graphty-element/src/session/commands/scope.ts` (new): `scope.save` (redo reuses the minted
   id), `scope.remove`. `ScopeApi.ts` `save` / `remove` and `SelectionApi.ts` `promote` dispatch;
   the stored spec is copied and frozen; the `scopes` hook bumps `savedRevision`.
@@ -700,6 +718,7 @@ cache test in `test/session/scope/` still passes); lint, knip, build green.
   element; `session.views` (`SessionViews`) added.
 
 **Tests first.**
+
 - Fixtures for `scope.save`, `scope.remove`, `view.save`, `view.remove`.
 - `test/session/scope/undo.test.ts`: redo of a save returns the same `ScopeId`; mutating the spec
   object passed in changes nothing.
@@ -739,6 +758,7 @@ mutable store; `Styles.config` becomes a frozen view built on change (design sec
 `ProjectConfig`, 11.4, 9.2 `config` row).
 
 **Files.**
+
 - `graphty-element/src/session/commands/config.ts` (new): `config.set` with `ProjectConfigPatch`
   (plain objects recurse; arrays, `background` and `selectionStyle` replaced whole; `undefined`
   restores the default), coalesce key `config:<sorted key paths>`. The key list is enumerated at
@@ -777,6 +797,7 @@ mutable store; `Styles.config` becomes a frozen view built on change (design sec
   place.
 
 **Tests first.**
+
 - Fixtures for `config.set` over a data-config leaf, `runAlgorithmsOnLoad`, `background` (colour
   and skybox), `selectionStyle`, each project layout-behaviour key.
 - Vocabulary checks un-skipped: a `config.set` naming a key outside `ProjectConfig` is rejected;
@@ -793,6 +814,7 @@ the view-mode, dimension-toggle and XR-entry tests pass in the `browser` and `xr
 (rule 5); the app's settings controls still work; lint, knip, build green.
 
 **As built.**
+
 - The `config` slice holds each setting as it was set (a background's colour name, a partial
   selection style), keyed by dotted path; a key that is absent reads as its default, and the
   readers parse. So the element's getters return what was set and `undefined` when nothing was,
@@ -830,6 +852,7 @@ policy, weight resolution, declared direction, the import report and chunking le
 headless session data write verbs (design section 3.5).
 
 **Files.**
+
 - `graphty-element/src/session/project/ingest.ts` (new), moved from `DataManager.ts` and
   `data/ingest.ts`; it writes through a thin interface that today calls the existing store
   methods and from phase 12 calls the `graphOps.ts` primitives. A load that does not yet come
@@ -855,6 +878,7 @@ graph, and the data doors that use them dispatch (design sections 3.4 "The graph
 op-log", 4.7, 9.2 `graph` row, 11.1).
 
 **Files.**
+
 - `graphty-element/src/session/project/graphOps.ts` (new): `addNodes`, `addEdges`,
   `setAttributes`, `setGraphValues` (graph-level results and the import report),
   `setDirected`; each records its inverse on resolved values, never through ingest; the records
@@ -928,6 +952,7 @@ op-log", 4.7, 9.2 `graph` row, 11.1).
   builder column, records, graph values).
 
 **Tests first.**
+
 - Fixtures for each `data.apply` kind above.
 - `test/session/history/graph-add.test.ts`: undoing an add removes exactly the ids added, by id,
   even when rows were appended after them; redo reuses the assigned edge ids; redo writes the
@@ -968,6 +993,7 @@ and a burst of undos pays one rebuild (design section 3.4 "Removals keep every c
 restores row order exactly", "Structural inverses are applied lazily", the pins paragraph).
 
 **Files.**
+
 - `graphty-element/src/session/project/graphOps.ts`: `removeNodes` and `removeEdges` recording
   records, incident edges with resolved endpoints, weights and element-assigned ids, row
   indices, and every registered builder column's value per removed row; `replace(next)` holding
@@ -1002,6 +1028,7 @@ restores row order exactly", "Structural inverses are applied lazily", the pins 
   restores coordinates, and a pin on it would hold a node at nowhere).
 
 **Tests first.**
+
 - Fixtures for `remove-nodes`, `remove-edges`, `clear`.
 - Removal order: remove from the middle, undo: node and edge id order and the snapshot
   fingerprint equal the originals.
@@ -1026,6 +1053,7 @@ go, and multi-part data doors are one step (design sections 3.3, 4.4, 4.7, 9.1 "
 derive as they go", 11.1).
 
 **Files.**
+
 - `data.import` with `mode: "replace" | "merge"` and `layout: "recommended" | "keep"` (the
   `recommended` half lands in phase 17; until then it is rejected with a clear error and the
   vocabulary test marks it pending), the source descriptor in the import record (never the
@@ -1084,6 +1112,7 @@ What was built, where it differs from the list above:
   no renderer loaded.
 
 **Tests first.**
+
 - Fixtures for `data.import` (replace and merge), `data.expand`, `batch`.
 - A page with `<graphty-element data-source=...>` shows `canUndo` false after load; a load after
   mount is one step; a failed first import leaves no step and later style edits are steps.
@@ -1110,6 +1139,7 @@ undo keeps the result instead of recomputing; undo during a run cancels it (desi
 4.7, 4.8, 6.1, 6.3, 11.2).
 
 **Files.**
+
 - `graphty-element/src/session/commands/algo.ts` (new): `algo.run` (queued `algorithm-run`,
   `applySuggestedStyles?` argument), `algo.remove` (run and bound layers in one draft).
 - `graphty-element/src/session/runs/RunsApi.ts`: the maps at `RunsApi.ts:377-386` and `:677-682`
@@ -1139,6 +1169,7 @@ undo keeps the result instead of recomputing; undo during a run cancels it (desi
   nothing else reads it.
 
 **Tests first.**
+
 - Fixtures for `algo.run` (with and without `applySuggestedStyles`) and `algo.remove`.
 - A redone run returns the identical `RunResult` and the executor spy's count does not change;
   the handle held before the undo is what `runs.get(id)` returns after redo.
@@ -1192,6 +1223,7 @@ What was built, where it differs from the list above:
 the coordinates of plain steps without reheating the layout (design sections 6.2, 6.4).
 
 **Files.**
+
 - `graphty-element/src/session/project/arrangement.ts` (new): immutable captures (node-id list,
   graph token, epoch, `Float32Array` lane copy); mapping by id across tokens in one epoch; row
   patches as typed arrays.
@@ -1231,6 +1263,7 @@ the coordinates of plain steps without reheating the layout (design sections 6.2
   drag holds.
 
 **Tests first.**
+
 - A node added with no coordinate and no rest point, undone and redone, lands at the same
   coordinates (seeded from its id).
 - Fixtures for `positions.set` and `positions.pin` (`renderer` as well).
@@ -1302,6 +1335,7 @@ What was built, where it differs from the list above:
 after eviction (design sections 6.2, 6.4, 7 "eviction fold").
 
 **Files.**
+
 - `History.ts`: groups that take a before-arrangement (`moves` commands, slot-holding writers, a
   transaction at its first graph write or `moves` command); the seal target (the newest open
   group's provisional after-capture, else the top applied step); a rollback writes the
@@ -1322,6 +1356,7 @@ after eviction (design sections 6.2, 6.4, 7 "eviction fold").
   fixtures; the eviction fold is in `random-sequences.test.ts`.
 
 **Tests first.**
+
 - Datasets do not share coordinates: import A, import B with the same ids, edit a style before
   B settles, undo the style: no row takes A's coordinates.
 - Cancelled work restores the arrangement: undo cancels a chunked import mid-load: lane equals
@@ -1344,6 +1379,7 @@ one home, and switching either is undoable (design sections 3.2 "The dimension h
 4.7 slot-holding writers, 6.4 "Entering VR or AR from 2D", 11.4).
 
 **Files.**
+
 - `graphty-element/src/session/commands/layout.ts` (new): `layout.set` and `view.dimension`
   (queued `layout-set`, slot-holding: take the before-arrangement, write the slice, run the
   `layout` hook inline, spend pre-steps checking the arrangement generation and liveness after
@@ -1368,6 +1404,7 @@ one home, and switching either is undoable (design sections 3.2 "The dimension h
 - `data.import` with `layout: "recommended"` applies `recommendLayout` inside the import's group.
 
 **Tests first.**
+
 - Fixtures for `layout.set` and `view.dimension`.
 - Alternate engine: `layout.set("force", { engine: "d3", options })`, change layout, undo: engine
   is d3 and the options are identical.
@@ -1424,6 +1461,7 @@ What was built, where it differs from the list above:
 it runs, is one undoable step (design sections 4.5, 3.6).
 
 **Files.**
+
 - `algo.legacy` (new op) runs a descriptor-less plugin with a group-tagged `Graph` facade whose
   dispatches run inline in the command's group, and, for its duration only, swaps the `data`
   getters on the `Node` and `Edge` prototypes for copy-on-write proxies (one per record, cached
@@ -1444,6 +1482,7 @@ it runs, is one undoable step (design sections 4.5, 3.6).
 - `strict.ts`: the facade key check for inline plugin dispatches.
 
 **Tests first.**
+
 - Fixture for `algo.legacy`: a plugin writing nested `algorithmResults` on nodes and edges and a
   `graphResults` value is one step, and undo removes all three.
 - A plugin whose `run(g)` calls `g.addNodes` and `g.getSession().styles.add` yields exactly one
@@ -1461,8 +1500,9 @@ plugin doors leave the gap list; lint, knip, build green.
 checks everything design section 12.1 lists (design sections 4.9, 12.1).
 
 **Files.**
+
 - `Node.data` / `Edge.data` return deep-frozen records, in production as well; `session.data
-  .node()` / `edge()` return frozen values. The records map built in phase 12 is frozen as it
+.node()` / `edge()` return frozen values. The records map built in phase 12 is frozen as it
   is written.
 - `GraphStore`: attaches the position and pin columns and calls `seal()` (phase 1). The
   accessor-only `position` and `graphty.pinned` columns of the snapshot handed to a consumer
@@ -1474,6 +1514,7 @@ checks everything design section 12.1 lists (design sections 4.9, 12.1).
   `builder.mutationCount` at each commit.
 
 **Tests first.**
+
 - `test/session/history/strict-state.test.ts`: one case per row of the bypass table in design
   section 4.9 that this phase closes (record writes, resident tables, retained typed arrays),
   asserting the write throws or the next dispatch fails naming the slice.
@@ -1492,6 +1533,7 @@ tests run" (rule 5 for `browser` and `storybook`); lint, knip, build green.
 read-only (design sections 4.9, 15.2).
 
 **Files.**
+
 - `session.positions` loses `write`, `setPinned`, `fillUnplaced`, `grow`, `remap`, `view`,
   `pinnedView`, and becomes `SessionPositions extends ReadonlyElementPositions`;
   `SessionGraphStore.positions` narrows to `ReadonlyElementPositions`; `session.data.store`
@@ -1527,6 +1569,7 @@ read-only (design sections 4.9, 15.2).
   data door holds the queue -- so the two land together.
 
 **Tests first.**
+
 - `strict-state.test.ts`: the remaining rows of the bypass table (the removed members) as
   compile-time cases.
 - A type test that `session.positions.write`, an assignment to `graph.styles` and the removed
@@ -1544,6 +1587,7 @@ build green.
 itself (design sections 5.1 `batchOperations`, 5.3, 10.2).
 
 **Files.**
+
 - `graphty-element/src/NodeBehavior.ts`: the drag opens an element transaction at the top of
   `onDragStart`; pointer moves stay in-flight writes; the drop dispatches `positions.set` and,
   with `pinOnDrag`, `positions.pin` through the drag's `tx`; a settle while held is the drag's
@@ -1574,6 +1618,7 @@ itself (design sections 5.1 `batchOperations`, 5.3, 10.2).
   cancels.
 
 **Tests first.**
+
 - Drag: with the layout running at drag start, drag and drop, undo: every unpinned node is back
   where it was at drag start. Undo mid-drag: lane equals the drag-start capture, no step, the drop
   does nothing. A drag held until the layout settles, then undo. Undo then reheat.
@@ -1598,6 +1643,7 @@ and belongs to the element; these doors are exempt from history (camera state is
 the project file).
 
 **Files.**
+
 - Read `graphty/src/components/shell/graphCommands.ts` (`graphZoomToFit`, `graphZoomStep`,
   `graphZoomToSelection`, `graphResetView`, `graphViewPreset`, `graphDisableBuiltInXrButtons`)
   and list each camera or XR-button operation it performs on the raw graph. For each one the
@@ -1616,6 +1662,7 @@ the project file).
   moved: the Views menu rows name the element's views directly.
 
 **Tests first.**
+
 - `test/browser/camera-doors.test.ts`: each new door moves the camera as the app's helper does
   today (compare camera position and target with the helper's result on the same graph), and
   leaves the state digest and `history.steps` unchanged.
@@ -1633,6 +1680,7 @@ enough for the byte budget at a million nodes (design section 7 "Run results bec
 columnar").
 
 **Files.**
+
 - Primitives report touched node and edge ids; after an undo, redo or restore the session calls
   `selection.applyNow({ nodes, edges }, "replace", "history")`, dropping ids that no longer
   exist and leaving the selection alone for style, filter, run, layout, config and view steps,
@@ -1649,6 +1697,7 @@ columnar").
   resident snapshot changes.
 
 **Tests first.**
+
 - `test/session/selection/history.test.ts`: undoing a removal selects the restored nodes; undoing
   a style edit leaves the selection unchanged; a step touching more ids than the cap leaves it
   unchanged; selection never changes the digest.
@@ -1668,6 +1717,7 @@ redo-all to the end for random interleavings of every op, and history stays insi
 scale, including a million nodes (design sections 12.5, 12.6).
 
 **Files.**
+
 - `test/session/history/random-sequences.test.ts`: already covers every op, grown by each port
   since phase 7. This phase adds the remaining starting states of design section 12.5 (so it
   starts from each of the five), low `limitBytes` and `limitSteps` to exercise eviction with
@@ -1738,6 +1788,7 @@ passes; the million-node byte assertions pass in `default`; the local browser ti
 picture is asserted in a test (design section 12.7).
 
 **Files.**
+
 - `graphty-element/stories/Undo.stories.ts` (new): an untouched baseline story and act-then-undo
   stories for an import, a run with auto-applied styling, a style edit, a filter, a pin and a
   drag, a layout switch, 2D to 3D, 3D to 2D, colour to skybox background, and a saved view. Each
@@ -1769,6 +1820,7 @@ approval; nobody else accepts them.
 is gone (design section 13, items 1 to 4 and 9).
 
 **Files (under `graphty/src`).**
+
 - Delete `components/shell/topbar/undoStore.ts` and `topbar/__tests__/undoStore.test.ts`;
   delete `UNDO_DEPTH` from `components/shell/constants.ts` and its assertion.
 - New `components/shell/topbar/useSessionHistory.ts`: `useSyncExternalStore` over
@@ -1808,6 +1860,7 @@ itself is the migration's work list and its precise, type-aware check (not a tex
 what decides when the migration is done. Phase 25c makes it an error.
 
 **Files.**
+
 - `graphty-element` build writes `graphty-element/build/doors.json` from
   `src/session/commands/doors.ts` (a small script run by the build; `build/` is git-ignored and
   not in `files`).
@@ -1861,6 +1914,7 @@ lint, knip, build green.
 item 5).
 
 **Files (under `graphty/src`).**
+
 - `handleLoad` and `loadSample` in `AppShell.tsx`: one `session.transaction(fileName, ...)`
   containing the style sweep, `tx.data.import(source, { mode: "replace", layout: "recommended" })`,
   the degree run through `tx.run({ ..., as: degreeRunId })` and the label layer through
@@ -1871,6 +1925,7 @@ item 5).
 - The failure branch at `AppShell.tsx:1980-1985` stops calling `clearData()`.
 
 **Tests first.**
+
 - A load followed by one Undo, after the degree pass finished, leaves no trace of the load,
   including its labels and chosen layout.
 - A failed load leaves `history.steps` unchanged and the previous dataset on screen.
@@ -1880,12 +1935,13 @@ item 5).
 code; the app's tests pass; lint, knip, build green.
 
 **As built.**
+
 - The typed verb `session.data.import` did not accept `layout: "recommended"` (only the
   `data.import` command did); `ImportOptions.layout` was added to the element and passed through.
 - The degree run takes the id the element derives (`runs.start` returns it at once) rather than a
   caller-chosen `as`; the label layer names that id.
 - The three tests run against the real element in `graphty/src/components/shell/__tests__/
-  AppShellLoadHistory.test.tsx`; the shell's other tests never register the element. A failed load
+AppShellLoadHistory.test.tsx`; the shell's other tests never register the element. A failed load
   there is a document the element refuses (a GEXF file with no graph element): malformed JSON is
   not a failure in the element, whose JSON source recovers it as an empty graph with a parse-error
   summary, so a malformed paste is recorded as a load of an empty graph.
@@ -1906,6 +1962,7 @@ code; the app's tests pass; lint, knip, build green.
 (design section 13, item 6).
 
 **Files (under `graphty/src`).**
+
 - `components/Graphty.tsx`: the dead `graph.dataManager` path deleted; `layout`, `layoutConfig`,
   `viewMode` props removed; `GraphtyHandle` drops `graph`; camera and XR calls use the element
   doors (including those of phase 19b).
@@ -1928,6 +1985,7 @@ code; the app's tests pass; lint, knip, build green.
   `elementSession` moves with them. Their `__tests__` are updated.
 
 **Tests first.**
+
 - Remove result removes the run as well as its layers.
 - Each camera button calls the element door (a spy on the element), and the app has no zoom
   arithmetic left.
@@ -1938,6 +1996,7 @@ door, the door is added to the element in this phase with its `doors.ts` row and
 omission is noted in the commit message.
 
 **Outcome.**
+
 - One door was missing: the data table and the algorithm modal's node pickers need every record,
   and the session read records only one at a time by id. `session.data.nodes()` and
   `session.data.edges()` were added (read-only rows in `doors.ts`, tests in
@@ -1966,6 +2025,7 @@ strict state, and the lint rule guards the result (design section 13, items 7, 8
 and 10).
 
 **Files (under `graphty/src`, and `graphty/eslint.config.js`).**
+
 - Mirrors (`layers`, `legendChannels`, `layoutType`, `layoutConfig`, `viewMode`, `pinnedNodes`)
   are re-read on `style:changed` and on `project:changed` naming `layout` or `pins`;
   `activeResult` and `degreePass` handle the `"removed"` phase; the metric spinner ends on
@@ -1975,6 +2035,7 @@ and 10).
 - `graphty/eslint.config.js`: `no-element-mutation` moves from `warn` to `error`.
 
 **Tests first.**
+
 - Undo of a layout change updates the layout control; undo of a pin updates the pinned list.
 - `graphty/src/test/strict-state.test.ts`: on an element created by the app's test setup, a
   write to a frozen node record throws. A switch that silently failed to turn on fails this
@@ -1993,6 +2054,7 @@ lint, knip, build green. #197 is closed by this branch's pull request.
 major version (design sections 10.3, 15.3).
 
 **Files.**
+
 - `graphty-element/docs/guide/undo.md` (new) and its sidebar entry in
   `graphty-element/docs/.vitepress/config.ts`: every topic listed in design section 10.3, with a
   runnable example and the React `useSyncExternalStore` pattern.
@@ -2007,7 +2069,7 @@ major version (design sections 10.3, 15.3).
 - `graphty-element/CLAUDE.md`: a short section on the dispatcher rule (a new mutating door
   dispatches a command; a new op declares undoable or exempt with a reason).
 - File an element issue for the app's own file-format sniffing (`graphty/src/components/
-  Graphty.tsx:108-186`), labelled per the repository's issue labels. Filed as #539: the gap was
+Graphty.tsx:108-186`), labelled per the repository's issue labels. Filed as #539: the gap was
   that `session.data.import` required a format name, which master's fix for #47 (the app calling
   the element's `loadFromUrl` / `loadFromFile`) does not cover, because those are not the undoable
   path. `session.data.import` now detects the format when none is named, and the app's detectors

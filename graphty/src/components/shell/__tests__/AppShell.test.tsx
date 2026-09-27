@@ -205,7 +205,6 @@ async function settleSession(): Promise<void> {
     });
 }
 
-
 /**
  * Lets the load path's promise chain settle inside `act`.
  *
@@ -702,7 +701,10 @@ const FIXTURE_HISTOGRAM_BINS = 20;
  * @param right - the other's.
  * @returns the comparison, for `Array.prototype.sort`.
  */
-function byValueThenPrintedId(left: readonly [string | number, number], right: readonly [string | number, number]): number {
+function byValueThenPrintedId(
+    left: readonly [string | number, number],
+    right: readonly [string | number, number],
+): number {
     if (left[1] !== right[1]) {
         return right[1] - left[1];
     }
@@ -1273,8 +1275,7 @@ function installNovicePathGraph(container: HTMLElement, options: NovicePathOptio
  */
 function metricLayers(layers: readonly Layer[]): readonly Layer[] {
     return layers.filter(
-        (layer) =>
-            layer.source.by === "run" && ["degree", "pagerank", "betweenness"].includes(layer.source.algorithm),
+        (layer) => layer.source.by === "run" && ["degree", "pagerank", "betweenness"].includes(layer.source.algorithm),
     );
 }
 
@@ -2503,7 +2504,8 @@ describe("AppShell", () => {
         /* A tie across the budget can leave the switch reading ON over a graph with no labels,
            so Settings > Performance shows the element's sentence for why. */
         it("says in Settings why a tie across the label budget left labels out", async () => {
-            const reason = "12 tie at 12, and taking them would make 12, more than the 11 asked for, so none are taken.";
+            const reason =
+                "12 tie at 12, and taking them would make 12, more than the 11 asked for, so none are taken.";
             const { container } = await renderMeasuredShell();
 
             captureLoads(container);
@@ -2729,10 +2731,7 @@ describe("AppShell", () => {
                shell tagged and nothing else: an earlier version walked the stack by index,
                which took the `default` layer -- and with it every node's shape type -- so
                the next load died in mesh building and drew nothing at all. */
-            expect(graph.styles.layers().map((layer) => layer.name)).toEqual([
-                "default",
-                "selection",
-            ]);
+            expect(graph.styles.layers().map((layer) => layer.name)).toEqual(["default", "selection"]);
 
             await reportLoadComplete(container);
 
@@ -3426,10 +3425,7 @@ describe("AppShell", () => {
 
             // The layers go with the load's own step, before the new data is in.
             expect(metricLayers(graph.styles.layers())).toHaveLength(0);
-            expect(graph.styles.layers().map((layer) => layer.name)).toEqual([
-                "default",
-                "selection",
-            ]);
+            expect(graph.styles.layers().map((layer) => layer.name)).toEqual(["default", "selection"]);
 
             // The shell's own reading of the old dataset goes once the new one has arrived.
             await reportLoadComplete(container);
@@ -4101,9 +4097,7 @@ describe("AppShell", () => {
                carries the name from the top of the load and leads the sentence with it.
                6.10 floor item 4 keeps the reason, in the words of whoever knew it. */
             expect(inline).not.toBeNull();
-            expect(inline?.textContent).toBe(
-                "Could not load friends.json. Unexpected token o in JSON at position 1.",
-            );
+            expect(inline?.textContent).toBe("Could not load friends.json. Unexpected token o in JSON at position 1.");
             expect(inline).toHaveAttribute("role", "alert");
 
             /* In the drop zone, beside the formats line, and not behind a door: spec 1034
@@ -4422,10 +4416,9 @@ describe("AppShell", () => {
             fireEvent.click(screen.getByRole("button", { name: "Data" }));
             await dropFile(screen.getByTestId("data-drop-zone"), new File(["{oops"], "extra.json"));
             fireEvent.click(
-                within(await screen.findByRole("dialog", { name: "Replace the current graph?" })).getByRole(
-                    "button",
-                    { name: "Replace" },
-                ),
+                within(await screen.findByRole("dialog", { name: "Replace the current graph?" })).getByRole("button", {
+                    name: "Replace",
+                }),
             );
             await flushMicrotasks();
             await reportLoadingError(container, "Unexpected token o in JSON at position 1");
@@ -4914,7 +4907,13 @@ describe("AppShell", () => {
         it("draws the chip as soon as the element reports, with or without a dataset", async () => {
             const { container } = await renderMeasuredShell();
 
-            await reportAcceleration(container, { policy: "auto", state: "idle", backend: "webgpu", vendor: "nvidia", architecture: "ampere" });
+            await reportAcceleration(container, {
+                policy: "auto",
+                state: "idle",
+                backend: "webgpu",
+                vendor: "nvidia",
+                architecture: "ampere",
+            });
 
             expect(screen.getByText("GPU acceleration: on (nvidia ampere)")).toBeInTheDocument();
         });
@@ -5002,7 +5001,10 @@ describe("AppShell", () => {
             const { container } = await renderMeasuredShell();
 
             captureLoads(container);
-            await dropFile(container.querySelector("[data-dragging]") as HTMLElement, new File(["{oops"], "friends.json"));
+            await dropFile(
+                container.querySelector("[data-dragging]") as HTMLElement,
+                new File(["{oops"], "friends.json"),
+            );
             await reportLoadingError(container, "bad file");
             await reportAcceleration(container, {
                 policy: "auto",

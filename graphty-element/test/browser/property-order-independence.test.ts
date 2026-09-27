@@ -1587,7 +1587,6 @@ describe("Property Order Independence", () => {
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
             assert.equal(graph.getEdgeCount(), 6, "Should have 6 edges");
             assert.isFalse(graph.getViewMode() === "2d", "Should be in 3D mode");
-
         });
 
         it("Variant 34: Cancel algorithm + camera", async () => {
@@ -1617,7 +1616,6 @@ describe("Property Order Independence", () => {
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
             assert.equal(graph.getEdgeCount(), 6, "Should have 6 edges");
             assert.isFalse(graph.getViewMode() === "2d", "Should be in 3D mode");
-
         });
     });
 });

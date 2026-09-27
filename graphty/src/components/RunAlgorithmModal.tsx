@@ -71,7 +71,9 @@ export function RunAlgorithmModal({ opened, onClose, graphtyRef }: RunAlgorithmM
         // Set default values if nodes are available
         if (graphNodes.length > 0) {
             setSelectedSourceNode(graphNodes[0].value);
-            setSelectedTargetNode(graphNodes.length > 1 ? graphNodes[graphNodes.length - 1].value : graphNodes[0].value);
+            setSelectedTargetNode(
+                graphNodes.length > 1 ? graphNodes[graphNodes.length - 1].value : graphNodes[0].value,
+            );
         } else {
             setSelectedSourceNode(null);
             setSelectedTargetNode(null);
@@ -147,9 +149,18 @@ export function RunAlgorithmModal({ opened, onClose, graphtyRef }: RunAlgorithmM
                 setError(message);
                 setIsExecuting(false);
             });
-    }, [graphtyRef, selectedAlgorithm, applySuggestedStyles, selectedSourceNode, selectedTargetNode, optionsValues, onClose]);
+    }, [
+        graphtyRef,
+        selectedAlgorithm,
+        applySuggestedStyles,
+        selectedSourceNode,
+        selectedTargetNode,
+        optionsValues,
+        onClose,
+    ]);
 
-    const canRun = (graphtyRef.current?.session ?? null) !== null && selectedAlgorithm !== null && !isExecuting && !success;
+    const canRun =
+        (graphtyRef.current?.session ?? null) !== null && selectedAlgorithm !== null && !isExecuting && !success;
 
     // Build select data for categories
     const categoryData = categories.map((cat) => ({
@@ -338,7 +349,12 @@ export function RunAlgorithmModal({ opened, onClose, graphtyRef }: RunAlgorithmM
                     <Button variant="subtle" color="gray" onClick={onClose}>
                         Cancel
                     </Button>
-                    <Button onClick={handleRun} disabled={!canRun} loading={isExecuting} leftSection={<Zap size={16} />}>
+                    <Button
+                        onClick={handleRun}
+                        disabled={!canRun}
+                        loading={isExecuting}
+                        leftSection={<Zap size={16} />}
+                    >
                         Run Algorithm
                     </Button>
                 </Group>

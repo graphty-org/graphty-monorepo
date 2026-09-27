@@ -309,11 +309,7 @@ describe("Node glow effect", () => {
 
     it("puts a glowing node's rendered mesh into the glow layer", () => {
         harness = createHarness();
-        const node = addNode(
-            harness,
-            "src",
-            nodeStyle({ effect: { glow: { color: "#FF0000", strength: 2 } } }),
-        );
+        const node = addNode(harness, "src", nodeStyle({ effect: { glow: { color: "#FF0000", strength: 2 } } }));
 
         const glowLayer = findGlowLayer(harness.scene);
         assert.isDefined(glowLayer, "a style carrying effect.glow must create the glow layer");
@@ -364,7 +360,10 @@ describe("Node and Edge disposal", () => {
         edge.dispose();
 
         assert.isTrue(edge.isDisposed());
-        assert.isTrue(arrowMesh?.isDisposed(), "the arrowhead is created bare against the scene; only dispose frees it");
+        assert.isTrue(
+            arrowMesh?.isDisposed(),
+            "the arrowhead is created bare against the scene; only dispose frees it",
+        );
         assert.isNull(edge.arrowMesh);
     });
 

@@ -115,7 +115,12 @@ function assertSameCamera(actual: CameraState, expected: CameraState, label: str
         const e = expected[key] as Record<string, number> | undefined;
         assert.strictEqual(a === undefined, e === undefined, `${label}: ${key} present in one state only`);
         for (const axis of Object.keys(e ?? {})) {
-            assert.approximately(a?.[axis] ?? Number.NaN, e?.[axis] ?? Number.NaN, TOLERANCE, `${label}: ${key}.${axis}`);
+            assert.approximately(
+                a?.[axis] ?? Number.NaN,
+                e?.[axis] ?? Number.NaN,
+                TOLERANCE,
+                `${label}: ${key}.${axis}`,
+            );
         }
     }
 
@@ -132,7 +137,12 @@ function assertSameCamera(actual: CameraState, expected: CameraState, label: str
  * @param app - The app recipe.
  * @param door - The element member.
  */
-async function compare(graph: Graph, label: string, app: () => Promise<void>, door: () => Promise<void>): Promise<void> {
+async function compare(
+    graph: Graph,
+    label: string,
+    app: () => Promise<void>,
+    door: () => Promise<void>,
+): Promise<void> {
     const session = graph.getSession();
     const dispatcher = dispatcherOf(session);
     const start = graph.getCameraState();

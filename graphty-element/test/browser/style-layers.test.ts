@@ -462,7 +462,10 @@ describe("what a reader is told about a real run", () => {
         // The element's own edge id, which is a counter. The first edge this fixture added gets
         // "0"; the pair string it used to be is now an id naming nothing.
         assert.doesNotThrow(() => session.styles.explain({ edge: "0" }));
-        assert.strictEqual(syncCodeOf(() => session.styles.explain({ node: "zz" })), "E_BAD_COMMAND");
+        assert.strictEqual(
+            syncCodeOf(() => session.styles.explain({ node: "zz" })),
+            "E_BAD_COMMAND",
+        );
     });
 
     it("names the layer that painted one element, and the colour it painted", async () => {

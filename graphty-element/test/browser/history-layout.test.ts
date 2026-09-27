@@ -97,7 +97,7 @@ function agrees(graph: Graph, dimension: "2d" | "3d", what: string): void {
     assert.strictEqual(context.is2D(), twoD, `${what}: GraphContext.is2D`);
     assert.strictEqual(graph.getLayoutManager().dimension, twoD ? 2 : 3, `${what}: the engine's dimension`);
     assert.strictEqual(graph.getScene().metadata?.twoD, twoD, `${what}: scene.metadata.twoD`);
-     
+
     assert.strictEqual(graph.styles.config.graph.twoD, twoD, `${what}: Styles.config.graph.twoD`);
     assert.strictEqual(graph.styles.config.graph.viewMode, dimension, `${what}: Styles.config.graph.viewMode`);
 }

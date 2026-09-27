@@ -77,7 +77,11 @@ export function checkDispatches(label: string, door: Door, seen: readonly unknow
         );
     } else if (door.kind === "dispatches" || door.kind === "partial") {
         assert.isNotEmpty(seen, `${label} is ${door.kind} but dispatched nothing`);
-        assert.deepEqual(seen, door.expect, `${label} dispatched something other than its row expects: ${JSON.stringify(seen)}`);
+        assert.deepEqual(
+            seen,
+            door.expect,
+            `${label} dispatched something other than its row expects: ${JSON.stringify(seen)}`,
+        );
     }
 }
 

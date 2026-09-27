@@ -57,7 +57,9 @@ export function checkSoleHolder(key: string, holder: string | null): void {
  * @param holder - The label of that group.
  */
 export function checkInlineKey(op: string, key: string, holder: string): void {
-    throw strictViolation(`"${op}", dispatched inline through a plugin's graph facade, needs ${key}, which "${holder}" holds`);
+    throw strictViolation(
+        `"${op}", dispatched inline through a plugin's graph facade, needs ${key}, which "${holder}" holds`,
+    );
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -124,7 +126,9 @@ function verify(entry: Retained): boolean {
 
     const sum = checksum(array);
     if (sum !== -1 && sum !== entry.sum) {
-        throw strictViolation(`${entry.what} was written in place after state kept it; typed arrays in state are never written`);
+        throw strictViolation(
+            `${entry.what} was written in place after state kept it; typed arrays in state are never written`,
+        );
     }
 
     return true;

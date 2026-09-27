@@ -707,9 +707,7 @@ class Runs implements SessionRunsApi {
     get queue(): readonly QueueEntry[] {
         const waiting = this.waiting();
 
-        return Object.freeze(
-            waiting.map((run, index) => Object.freeze({ runId: run.id, index, of: waiting.length })),
-        );
+        return Object.freeze(waiting.map((run, index) => Object.freeze({ runId: run.id, index, of: waiting.length })));
     }
 
     /** Cancel everything still running and forget every run this session held. */
@@ -785,7 +783,10 @@ class Runs implements SessionRunsApi {
             this.holds.set(id, hold);
         }
 
-        if (existing !== undefined && (this.listed(existing) || this.identities.get(id) === canonicalIdentity(identity))) {
+        if (
+            existing !== undefined &&
+            (this.listed(existing) || this.identities.get(id) === canonicalIdentity(identity))
+        ) {
             return this.reuse(existing, identity, launch);
         }
 
@@ -1056,7 +1057,7 @@ class Runs implements SessionRunsApi {
             },
             { once: true },
         );
-        const {token} = ctx.state.graph;
+        const { token } = ctx.state.graph;
         let wrote = false;
         let written: () => void = () => undefined;
         const writing = new Promise<void>((resolve) => {
@@ -1155,7 +1156,7 @@ class Runs implements SessionRunsApi {
      * @param suggestions - What to paint.
      */
     private paint(draft: Draft, runId: RunId, suggestions: readonly StyleSuggestion[]): void {
-        const {styles} = this.dispatcher.services;
+        const { styles } = this.dispatcher.services;
 
         if (styles === undefined) {
             return;
@@ -1177,7 +1178,7 @@ class Runs implements SessionRunsApi {
      * @param run - The run.
      */
     private applySuggested(draft: Draft, run: ManagedRun): void {
-        const {styles} = this.dispatcher.services;
+        const { styles } = this.dispatcher.services;
 
         if (styles === undefined) {
             return;
@@ -1223,7 +1224,7 @@ class Runs implements SessionRunsApi {
         }
 
         if (layerIds.length > 0) {
-            const {styles} = this.dispatcher.services;
+            const { styles } = this.dispatcher.services;
 
             if (styles === undefined) {
                 this.options.layers?.remove?.(layerIds);

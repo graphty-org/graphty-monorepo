@@ -535,17 +535,14 @@ class Session implements ElementSession {
         const via: DispatchFunction = (each, options) => scope.dispatch(each, options);
         // Every verb of a part runs with its dispatches routed into the transaction, so
         // `tx.styles.add` and `tx.data.addNodes` join it exactly as `tx.execute` does.
-        const parts = Object.fromEntries(
-            TX_PARTS.map((name) => [name, { value: this.routedPart(this[name], via) }]),
-        );
+        const parts = Object.fromEntries(TX_PARTS.map((name) => [name, { value: this.routedPart(this[name], via) }]));
         const tx: TransactionScope = Object.create(this, {
             ...parts,
             execute: {
                 value: <C extends SessionCommand>(command: C) => this.executeThrough(command, via),
             },
             run: {
-                value: (command: AlgorithmRunCommand, options?: RunOptions) =>
-                    this.startCommand(via, command, options),
+                value: (command: AlgorithmRunCommand, options?: RunOptions) => this.startCommand(via, command, options),
             },
             // Its layout verbs join the transaction too.
             layout: {
@@ -875,27 +872,30 @@ function pinnedOf(pins: ReadonlySet<NodeId>): ReadonlySet<NodeId> {
  * @returns The coordinates and the verbs.
  */
 function positionsOf(store: SessionGraphStore, dispatcher: Dispatcher): SessionPositions {
-    return Object.defineProperties(readonlyPositions(() => store.positions), {
-        pinned: { get: () => pinnedOf(dispatcher.state.pins), enumerable: true },
-        set: {
-            value: async (entries: readonly PositionEntry[]) => {
-                await dispatcher.dispatch({ op: "positions.set", entries });
+    return Object.defineProperties(
+        readonlyPositions(() => store.positions),
+        {
+            pinned: { get: () => pinnedOf(dispatcher.state.pins), enumerable: true },
+            set: {
+                value: async (entries: readonly PositionEntry[]) => {
+                    await dispatcher.dispatch({ op: "positions.set", entries });
+                },
+                enumerable: true,
             },
-            enumerable: true,
-        },
-        pin: {
-            value: async (ids: readonly NodeId[]) => {
-                await dispatcher.dispatch({ op: "positions.pin", ids, pinned: true });
+            pin: {
+                value: async (ids: readonly NodeId[]) => {
+                    await dispatcher.dispatch({ op: "positions.pin", ids, pinned: true });
+                },
+                enumerable: true,
             },
-            enumerable: true,
-        },
-        unpin: {
-            value: async (ids: readonly NodeId[]) => {
-                await dispatcher.dispatch({ op: "positions.pin", ids, pinned: false });
+            unpin: {
+                value: async (ids: readonly NodeId[]) => {
+                    await dispatcher.dispatch({ op: "positions.pin", ids, pinned: false });
+                },
+                enumerable: true,
             },
-            enumerable: true,
         },
-    }) as SessionPositions;
+    ) as SessionPositions;
 }
 
 /**

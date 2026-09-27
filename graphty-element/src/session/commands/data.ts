@@ -151,7 +151,12 @@ export interface DataService {
      * @param after - Starts work once the import's step is recorded, as its deferred members.
      * @returns Settles once the last chunk is written.
      */
-    import(command: DataImportCommand, draft: Draft, signal: AbortSignal, after?: UndoableContext["after"]): Promise<void>;
+    import(
+        command: DataImportCommand,
+        draft: Draft,
+        signal: AbortSignal,
+        after?: UndoableContext["after"],
+    ): Promise<void>;
     /**
      * Set graph-level values through `draft`: what a plugin algorithm wrote to `graphResults`.
      * A renderer's only; a headless session runs no plugin.
@@ -174,7 +179,9 @@ export function describeSource(source: ImportSource): ImportSource {
     const config =
         source.config === undefined
             ? undefined
-            : Object.freeze(Object.fromEntries(Object.entries(source.config).filter(([key]) => key !== "data" && key !== "file")));
+            : Object.freeze(
+                  Object.fromEntries(Object.entries(source.config).filter(([key]) => key !== "data" && key !== "file")),
+              );
 
     return Object.freeze({
         ...(source.type === undefined ? {} : { type: source.type }),
@@ -413,17 +420,19 @@ const dataImport: UndoableDefinition<DataImportCommand> = {
             ctx.after("layout:recommended", (dispatch) => {
                 const advice = advise?.();
                 if (advice !== undefined) {
-                    void dispatch({ op: "layout.set", id: advice.id, engine: advice.engine }).catch((error: unknown) => {
-                        // An undo that took the import away cancels this too; anything else is a
-                        // layout the import promised and did not apply.
-                        if ((error as { name?: unknown } | null)?.name !== "AbortError") {
-                            GraphtyLogger.getLogger(["graphty", "data"]).error(
-                                "The layout recommended for the imported data could not be applied",
-                                error instanceof Error ? error : new Error(String(error)),
-                                { layout: advice.id },
-                            );
-                        }
-                    });
+                    void dispatch({ op: "layout.set", id: advice.id, engine: advice.engine }).catch(
+                        (error: unknown) => {
+                            // An undo that took the import away cancels this too; anything else is a
+                            // layout the import promised and did not apply.
+                            if ((error as { name?: unknown } | null)?.name !== "AbortError") {
+                                GraphtyLogger.getLogger(["graphty", "data"]).error(
+                                    "The layout recommended for the imported data could not be applied",
+                                    error instanceof Error ? error : new Error(String(error)),
+                                    { layout: advice.id },
+                                );
+                            }
+                        },
+                    );
                 }
             });
         }

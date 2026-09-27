@@ -54,7 +54,7 @@ describe("Mouse Controls Integration", () => {
             assert.isDefined(cameraController, "Camera controller should be defined");
 
             // Access the 2D camera controller directly to spy on pan method
-             
+
             const cameraManager = graph.camera as any;
             const twoDController = cameraManager.activeCameraController;
             assert.isDefined(twoDController, "2D camera controller should be defined");
@@ -202,7 +202,7 @@ describe("Mouse Controls Integration", () => {
             assert.isDefined(cameraController, "Camera controller should be defined");
 
             // Access the orbit controller and input controller
-             
+
             const cameraManager = graph.camera as any;
             const orbitController = cameraManager.activeCameraController;
             const inputController = cameraManager.activeInputHandler;
@@ -248,7 +248,7 @@ describe("Mouse Controls Integration", () => {
 
         test("keyboard W to zoom in 3D mode", () => {
             // Get the camera controller - 3D mode uses OrbitCameraController
-             
+
             const cameraManager = graph.camera as any;
             const orbitController = cameraManager.activeCameraController;
             const inputController = cameraManager.activeInputHandler;
@@ -275,7 +275,7 @@ describe("Mouse Controls Integration", () => {
 
         test("keyboard S to zoom out in 3D mode", () => {
             // Get the camera controller - 3D mode uses OrbitCameraController
-             
+
             const cameraManager = graph.camera as any;
             const orbitController = cameraManager.activeCameraController;
             const inputController = cameraManager.activeInputHandler;

@@ -1048,8 +1048,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     const dispatcher = sources.dispatcher ?? new Dispatcher({ definitions: STYLE_DEFINITIONS });
 
     let listCache: { readonly of: readonly CompiledLayer[]; readonly layers: readonly Layer[] } | null = null;
-    let indexCache: { readonly of: readonly CompiledLayer[]; readonly byId: ReadonlyMap<LayerId, CompiledLayer> } | null =
-        null;
+    let indexCache: {
+        readonly of: readonly CompiledLayer[];
+        readonly byId: ReadonlyMap<LayerId, CompiledLayer>;
+    } | null = null;
     let edits = 0;
     /** Edits written since the last pass, told once it has repainted them. */
     const announcements: Announcement[] = [];
@@ -1276,7 +1278,14 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             engine,
             exact: null,
             fields: NO_FIELDS,
-            id: deriveRunId({ algorithm: `styles.${verb}`, exact: null, params, sample: null, scope: WHOLE_GRAPH, seed: null }),
+            id: deriveRunId({
+                algorithm: `styles.${verb}`,
+                exact: null,
+                params,
+                sample: null,
+                scope: WHOLE_GRAPH,
+                seed: null,
+            }),
             params,
             sample: null,
             seed: null,
@@ -1563,7 +1572,9 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @param spec - The highlight, naming its run by id.
      * @returns The plan.
      */
-    const planHighlight = (spec: Extract<StylePatchCommand, { action: "highlight" }>["spec"]): EditPlan<readonly Layer[]> => {
+    const planHighlight = (
+        spec: Extract<StylePatchCommand, { action: "highlight" }>["spec"],
+    ): EditPlan<readonly Layer[]> => {
         const run = requireRun(spec.run, requireRuns("highlight"));
 
         if (!isHighlightShape(run.shape)) {
@@ -1648,7 +1659,9 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
         const stack = current();
         const removing = new Set(
-            stack.filter((entry) => !entry.layer.locked && entry.layer.kind === "highlight").map((entry) => entry.layer.id),
+            stack
+                .filter((entry) => !entry.layer.locked && entry.layer.kind === "highlight")
+                .map((entry) => entry.layer.id),
         );
 
         return {
@@ -1776,7 +1789,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             case "resolveToStatic":
                 // The value and the patch are worked out by the same reading that reported the
                 // channel uneditable, and applied by the same update any other patch goes through.
-                return planUpdate(command.id, resolveRule(command.id, command.channel, explainSources, command.at).patch);
+                return planUpdate(
+                    command.id,
+                    resolveRule(command.id, command.channel, explainSources, command.at).patch,
+                );
             default:
                 throw badCommand(`"${String((command as { action?: unknown }).action)}" is not a style.patch action.`, {
                     action: (command as { action?: unknown }).action,
@@ -1824,8 +1840,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
         if (sources.repaint !== undefined) {
             try {
-                painted =
-                    request.edits.length === 0 ? NOTHING_PAINTED : await sources.repaint(request, PASS_CONTEXT);
+                painted = request.edits.length === 0 ? NOTHING_PAINTED : await sources.repaint(request, PASS_CONTEXT);
             } catch (error) {
                 failure = error;
             }
@@ -1913,7 +1928,12 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         },
 
         update(id: LayerId, patch: Partial<LayerSpec>, options: RunOptions = {}): Run<Layer> {
-            return edit<Layer>("update", `Update layer ${id}`, { op: "style.patch", action: "update", id, patch }, options);
+            return edit<Layer>(
+                "update",
+                `Update layer ${id}`,
+                { op: "style.patch", action: "update", id, patch },
+                options,
+            );
         },
 
         remove(id: LayerId, options: RunOptions = {}): Run<void> {

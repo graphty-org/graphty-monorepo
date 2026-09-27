@@ -72,7 +72,11 @@ describe("a { where } predicate on a session", () => {
 
         await selection.apply({ where: "data.source == 'b'" });
 
-        assert.deepStrictEqual([...selection.edges], [edgeBetween(harness, "b", "c")], "an edge predicate selects edges");
+        assert.deepStrictEqual(
+            [...selection.edges],
+            [edgeBetween(harness, "b", "c")],
+            "an edge predicate selects edges",
+        );
 
         const missing = await selection.apply({ where: "data.nope == 'x'" });
 

@@ -19,16 +19,16 @@ For usage patterns and examples, see the [JavaScript API Guide](../guide/javascr
 
 ### Data Management
 
-| Method                 | Parameters     | Returns             | Description            |
-| ---------------------- | -------------- | ------------------- | ---------------------- |
-| `addNodes(nodes)`      | `NodeData[]`   | `Promise<void>`     | Add nodes to the graph |
-| `addEdges(edges, options?)` | `EdgeData[]`, `{source?, target?, repeated?}` | `Promise<void>` | Add edges to the graph |
-| `setEdges(edges, options?)` | `EdgeData[]`, `{source?, target?, repeated?}` | `Promise<void>` | Replace every edge with these |
-| `removeNodes(ids)`     | `string[]`     | `Promise<void>`     | Remove nodes and their incident edges |
-| `updateNodes(updates)` | `NodeUpdate[]` | `Promise<void>`     | Update node properties |
-| `getNode(id)`          | `string`       | `Node \| undefined` | Get node by ID         |
-| `getNodes()`           | -              | `Node[]`            | Get all nodes          |
-| `clear()`              | -              | `Promise<void>`     | Remove all data        |
+| Method                      | Parameters                                    | Returns             | Description                           |
+| --------------------------- | --------------------------------------------- | ------------------- | ------------------------------------- |
+| `addNodes(nodes)`           | `NodeData[]`                                  | `Promise<void>`     | Add nodes to the graph                |
+| `addEdges(edges, options?)` | `EdgeData[]`, `{source?, target?, repeated?}` | `Promise<void>`     | Add edges to the graph                |
+| `setEdges(edges, options?)` | `EdgeData[]`, `{source?, target?, repeated?}` | `Promise<void>`     | Replace every edge with these         |
+| `removeNodes(ids)`          | `string[]`                                    | `Promise<void>`     | Remove nodes and their incident edges |
+| `updateNodes(updates)`      | `NodeUpdate[]`                                | `Promise<void>`     | Update node properties                |
+| `getNode(id)`               | `string`                                      | `Node \| undefined` | Get node by ID                        |
+| `getNodes()`                | -                                             | `Node[]`            | Get all nodes                         |
+| `clear()`                   | -                                             | `Promise<void>`     | Remove all data                       |
 
 Every node and edge record at once is `session.data.nodes()` and `session.data.edges()`.
 Edge records are read through the session, by edge id -- `session.data.edge(id)` -- because an
@@ -50,13 +50,13 @@ this call. Assigning the `edge-data` property, or calling `setEdges`, REPLACES t
 
 ### Layout
 
-| Method                      | Parameters         | Returns         | Description                  |
-| --------------------------- | ------------------ | --------------- | ---------------------------- |
-| `setLayout(type, options?)` | `string`, `object` | `void`          | Set layout algorithm         |
-| `waitForSettled()`          | -                  | `Promise<void>` | Wait for queued operations to finish |
-| `waitForStableFrame(opts?)` | `{ timeoutMs? }`   | `Promise<void>` | Wait for the picture to stop changing |
+| Method                      | Parameters         | Returns         | Description                              |
+| --------------------------- | ------------------ | --------------- | ---------------------------------------- |
+| `setLayout(type, options?)` | `string`, `object` | `void`          | Set layout algorithm                     |
+| `waitForSettled()`          | -                  | `Promise<void>` | Wait for queued operations to finish     |
+| `waitForStableFrame(opts?)` | `{ timeoutMs? }`   | `Promise<void>` | Wait for the picture to stop changing    |
 | `isFrameStable`             | -                  | `boolean`       | Whether the drawn frame is the final one |
-| `isSettled()`               | -                  | `boolean`       | Check if layout is stable    |
+| `isSettled()`               | -                  | `boolean`       | Check if layout is stable                |
 
 ### Algorithms
 
@@ -107,8 +107,8 @@ can report progress and be cancelled. The stack moves only once the repaint has 
 
 ### Batch Operations
 
-| Method                | Parameters       | Returns         | Description               |
-| --------------------- | ---------------- | --------------- | ------------------------- |
+| Method                | Parameters           | Returns         | Description                                                |
+| --------------------- | -------------------- | --------------- | ---------------------------------------------------------- |
 | `batchOperations(fn)` | `async (tx) => void` | `Promise<void>` | Make the changes `fn` makes through `tx` one undoable step |
 
 ## Manager Classes

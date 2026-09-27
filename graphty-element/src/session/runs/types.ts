@@ -16,7 +16,16 @@
  * run was started from, which arrives with the command union.
  */
 
-import type { AlgorithmKey, EdgeId, FieldDescriptor, LayerId, NodeId, ResultShape, RunId, Scope } from "../../catalog/types";
+import type {
+    AlgorithmKey,
+    EdgeId,
+    FieldDescriptor,
+    LayerId,
+    NodeId,
+    ResultShape,
+    RunId,
+    Scope,
+} from "../../catalog/types";
 import type { GraphtyError } from "../../errors/GraphtyError";
 import type { ResultSummary, RunResult } from "../results/types";
 import type { StyleSuggestion } from "../styles/derive";
@@ -71,7 +80,12 @@ export const RUN_STATUSES = ["queued", "running", "succeeded", "failed", "cancel
 export type RunStatus = (typeof RUN_STATUSES)[number];
 
 /** The statuses a run never leaves once it reaches them. */
-export const TERMINAL_RUN_STATUSES: readonly RunStatus[] = Object.freeze(["succeeded", "failed", "canceled", "removed"]);
+export const TERMINAL_RUN_STATUSES: readonly RunStatus[] = Object.freeze([
+    "succeeded",
+    "failed",
+    "canceled",
+    "removed",
+]);
 
 /**
  * Tell whether a value is one of the run statuses.

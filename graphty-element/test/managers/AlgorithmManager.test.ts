@@ -88,7 +88,11 @@ describe("AlgorithmManager", () => {
             assertFacade(algorithmGetCalls[0][0]);
             assert.deepEqual(algorithmGetCalls[0].slice(1), ["test", "algorithm", undefined]);
             assert.equal(algorithmRunCalls.length, 1);
-            assert.strictEqual(algorithmRunCalls[0][0], algorithmGetCalls[0][0], "run with the facade it was built with");
+            assert.strictEqual(
+                algorithmRunCalls[0][0],
+                algorithmGetCalls[0][0],
+                "run with the facade it was built with",
+            );
         });
 
         it("should handle algorithm not found", async () => {

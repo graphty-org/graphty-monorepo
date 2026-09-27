@@ -98,11 +98,7 @@ describe("an edge tooltip, withdrawn in 2.0", () => {
 
         const named = checked.errors.find((problem) => problem.code === "E_UNKNOWN_CHANNEL");
 
-        assert.include(
-            named?.message ?? "",
-            "edge.tooltip",
-            "the refusal does not name the channel that was refused",
-        );
+        assert.include(named?.message ?? "", "edge.tooltip", "the refusal does not name the channel that was refused");
     });
 
     it("is gone from the edge style schema, block and all", () => {

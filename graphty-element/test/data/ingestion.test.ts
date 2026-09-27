@@ -13,8 +13,14 @@ import { readSeedPosition, resolveEdgeWeight } from "../../src/session/project/i
  * @param record - The record.
  * @returns The row and whether the builder held the id already.
  */
-function ingestNode(store: GraphStore, id: unknown, record: Record<string, unknown>): { index: number; merged: boolean } {
-    return GraphOps.standalone().writer(null, store).addNode(id as NodeId, record, readSeedPosition(record));
+function ingestNode(
+    store: GraphStore,
+    id: unknown,
+    record: Record<string, unknown>,
+): { index: number; merged: boolean } {
+    return GraphOps.standalone()
+        .writer(null, store)
+        .addNode(id as NodeId, record, readSeedPosition(record));
 }
 
 /**
@@ -25,7 +31,12 @@ function ingestNode(store: GraphStore, id: unknown, record: Record<string, unkno
  * @param weight - The weight.
  * @returns The row and the element-assigned id.
  */
-function ingestEdge(store: GraphStore, source: unknown, target: unknown, weight: number): { index: number; edgeId: number } {
+function ingestEdge(
+    store: GraphStore,
+    source: unknown,
+    target: unknown,
+    weight: number,
+): { index: number; edgeId: number } {
     return GraphOps.standalone().writer(null, store).addEdge(source, target, weight, {});
 }
 

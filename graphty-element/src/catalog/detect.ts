@@ -170,7 +170,7 @@ export function detectFormats(input: DetectionInput): readonly FormatId[] {
     );
 
     for (const entry of registered) {
-        const {detect} = entry;
+        const { detect } = entry;
         if (detect !== undefined && claims(detect, sample) && !byContent.includes(entry.descriptor.id)) {
             byContent.push(entry.descriptor.id);
         }
@@ -198,7 +198,10 @@ export function detectFormat(input: DetectionInput): FormatId | null {
  * @returns The ids, the element's own first.
  */
 function knownFormatIds(): readonly FormatId[] {
-    return [...FORMAT_DESCRIPTORS.map((descriptor) => descriptor.id), ...registeredFormats().map((entry) => entry.descriptor.id)];
+    return [
+        ...FORMAT_DESCRIPTORS.map((descriptor) => descriptor.id),
+        ...registeredFormats().map((entry) => entry.descriptor.id),
+    ];
 }
 
 /**
@@ -217,7 +220,9 @@ export function unknownFormat(name: string): GraphtyError {
     // cannot be read instead.
     const unserved = UNSERVED_FORMAT_IDS.find((entry) => entry.id === name);
     const refusal =
-        unserved === undefined ? `no format is named "${name}".` : `the format "${name}" cannot be read: ${unserved.reason}`;
+        unserved === undefined
+            ? `no format is named "${name}".`
+            : `the format "${name}" cannot be read: ${unserved.reason}`;
 
     return new GraphtyError({
         code: "E_UNKNOWN_FORMAT",

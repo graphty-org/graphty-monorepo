@@ -143,7 +143,9 @@ describe("AppShell loads and closes as undoable steps", () => {
         fireEvent.change(within(dialog).getByLabelText("Paste graph data"), { target: { value: UNLOADABLE_PASTE } });
         fireEvent.click(within(dialog).getByRole("button", { name: /^Load / }));
 
-        expect(await within(dialog).findByText(/^Could not load pasted-data\./, {}, { timeout: SETTLE_MS })).toBeInTheDocument();
+        expect(
+            await within(dialog).findByText(/^Could not load pasted-data\./, {}, { timeout: SETTLE_MS }),
+        ).toBeInTheDocument();
 
         expect(session.history.steps.map((step) => step.id)).toEqual(steps);
         expect(session.data.statistics().nodeCount).toBe(CAT_SOCIAL_NETWORK.nodes.length);

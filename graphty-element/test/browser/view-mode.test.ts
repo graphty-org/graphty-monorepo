@@ -112,14 +112,14 @@ describe("ViewMode API", () => {
             await operationQueueOf(graph).waitForCompletion();
 
             assert.isTrue(graph.getViewMode() === "2d", "is2D() should be true when viewMode is '2d'");
-             
+
             assert.isTrue(graph.styles.config.graph.twoD, "twoD config should be true");
 
             await graph.setViewMode("3d");
             await operationQueueOf(graph).waitForCompletion();
 
             assert.isFalse(graph.getViewMode() === "2d", "is2D() should be false when viewMode is '3d'");
-             
+
             assert.isFalse(graph.styles.config.graph.twoD, "twoD config should be false");
         });
 

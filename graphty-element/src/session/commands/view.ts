@@ -91,7 +91,9 @@ const viewSave: UndoableDefinition<ViewSaveCommand> = {
     undo: {
         kind: "undoable",
         label: (command) =>
-            command.views.length === 1 ? `Saved the view "${command.views[0].name}"` : `Saved ${command.views.length} views`,
+            command.views.length === 1
+                ? `Saved the view "${command.views[0].name}"`
+                : `Saved ${command.views.length} views`,
     },
     execute: (command, ctx) => {
         for (const view of command.views) {
@@ -112,7 +114,9 @@ const viewRemove: UndoableDefinition<ViewRemoveCommand> = {
     undo: {
         kind: "undoable",
         label: (command) =>
-            command.names.length === 1 ? `Removed the view "${command.names[0]}"` : `Removed ${command.names.length} views`,
+            command.names.length === 1
+                ? `Removed the view "${command.names[0]}"`
+                : `Removed ${command.names.length} views`,
     },
     execute: (command, ctx) => {
         const missing = command.names.filter((name) => !ctx.state.views.has(name));

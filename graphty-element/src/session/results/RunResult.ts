@@ -355,7 +355,11 @@ function tableColumn(table: ElementTable, field: string): NumericColumnSource {
  */
 function orderOf(table: ElementTable, field: string): Uint32Array {
     const column = tableColumn(table, field);
-    return rankOrder(table.length, (position) => column.get(position), (position) => table.index.idOf(position));
+    return rankOrder(
+        table.length,
+        (position) => column.get(position),
+        (position) => table.index.idOf(position),
+    );
 }
 
 /**
@@ -824,7 +828,12 @@ class Result implements RunResult {
         const order = this.#orderFor(field, table);
         const column = tableColumn(table, field);
 
-        return rankedPrefix(order, limit ?? order.length, (position) => column.get(position), (position) => table.index.idOf(position));
+        return rankedPrefix(
+            order,
+            limit ?? order.length,
+            (position) => column.get(position),
+            (position) => table.index.idOf(position),
+        );
     }
 
     /**
@@ -859,7 +868,12 @@ class Result implements RunResult {
         }
 
         const top = topOfRanking(
-            rankedPrefix(order, end, (position) => column.get(position), (position) => table.index.idOf(position)),
+            rankedPrefix(
+                order,
+                end,
+                (position) => column.get(position),
+                (position) => table.index.idOf(position),
+            ),
             limit,
         );
         this.#tops.set(key, top);

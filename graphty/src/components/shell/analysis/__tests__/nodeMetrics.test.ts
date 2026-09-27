@@ -110,7 +110,12 @@ function makeStub(finished: Partial<Record<NodeMetricId, Published>>): Stub {
                 startOptions.push(options);
 
                 const existing = runs.find((run) => run.algorithm === algorithm);
-                const run = existing ?? { id: `${algorithm}_1`, algorithm, status: "succeeded", result: fakeResult({}) };
+                const run = existing ?? {
+                    id: `${algorithm}_1`,
+                    algorithm,
+                    status: "succeeded",
+                    result: fakeResult({}),
+                };
 
                 return Object.assign(Promise.resolve(run.result), { id: run.id });
             },

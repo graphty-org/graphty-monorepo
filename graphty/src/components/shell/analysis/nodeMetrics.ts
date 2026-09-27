@@ -435,9 +435,7 @@ function rankingFromResult(metric: NodeMetricId, result: RunResult): NodeMetricR
  * @public
  */
 export function readNodeMetricResults(session: Pick<GraphSession, "runs">, metric: NodeMetricId): NodeMetricRanking {
-    const finished = session.runs
-        .list()
-        .filter((run) => run.algorithm === metric && run.status === "succeeded");
+    const finished = session.runs.list().filter((run) => run.algorithm === metric && run.status === "succeeded");
     const latest = finished.at(-1);
 
     if (latest?.result === undefined) {

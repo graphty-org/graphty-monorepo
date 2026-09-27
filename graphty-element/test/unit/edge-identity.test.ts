@@ -79,7 +79,15 @@ function createHarness(): Harness {
     const layoutManager = new LayoutManager(eventManager, dataManager, styles);
     layoutManagerInternals.setEngine(layoutManager, new StillLayout());
 
-    const context = new DefaultGraphContext(() => styles, dataManager, layoutManager, meshCache, scene, statsManager, {});
+    const context = new DefaultGraphContext(
+        () => styles,
+        dataManager,
+        layoutManager,
+        meshCache,
+        scene,
+        statsManager,
+        {},
+    );
     dataManager.setGraphContext(context);
 
     return {

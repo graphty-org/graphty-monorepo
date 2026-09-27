@@ -158,7 +158,10 @@ describe("a third party's algorithm", () => {
 
     describe("when it declares a catalogue descriptor", () => {
         it("appears in the catalogue beside the element's own", () => {
-            const keys = graph.getSession().catalog.algorithms().map((entry) => entry.key);
+            const keys = graph
+                .getSession()
+                .catalog.algorithms()
+                .map((entry) => entry.key);
 
             assert.include(keys, "neighbour-count", "a consumer listing what it can run finds it");
             assert.include(keys, "degree", "and the element's own are still there");
@@ -216,7 +219,10 @@ describe("a third party's algorithm", () => {
 
     describe("when it declares none", () => {
         it("stays out of the catalogue", () => {
-            const keys = graph.getSession().catalog.algorithms().map((entry) => entry.key);
+            const keys = graph
+                .getSession()
+                .catalog.algorithms()
+                .map((entry) => entry.key);
 
             assert.notInclude(keys, "silent-marker");
         });

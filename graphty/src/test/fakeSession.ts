@@ -561,7 +561,8 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
     const handHolds = (): boolean =>
         layers.some(
             (layer) =>
-                layer.source.by === "user" && (layer.set?.[COLOUR] !== undefined || layer.encode?.[COLOUR] !== undefined),
+                layer.source.by === "user" &&
+                (layer.set?.[COLOUR] !== undefined || layer.encode?.[COLOUR] !== undefined),
         );
 
     const styles = {

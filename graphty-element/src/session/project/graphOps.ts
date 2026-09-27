@@ -562,7 +562,8 @@ class PinsEntry implements OpLogEntry {
  */
 export function restoresNodes(log: readonly OpLogEntry[]): boolean {
     return log.some(
-        (entry) => entry instanceof GraphEntry && entry.ops.some((op) => op.kind === "remove" && op.rows.nodes.length > 0),
+        (entry) =>
+            entry instanceof GraphEntry && entry.ops.some((op) => op.kind === "remove" && op.rows.nodes.length > 0),
     );
 }
 
@@ -1007,7 +1008,11 @@ class Writer implements GraphWriter {
 
         // Writing what the record already holds changes nothing, so it records nothing: a second
         // identical edit is not a step of its own.
-        if (Object.entries(values).every(([name, value]) => Object.hasOwn(prior, name) && deepEquals(prior[name], value))) {
+        if (
+            Object.entries(values).every(
+                ([name, value]) => Object.hasOwn(prior, name) && deepEquals(prior[name], value),
+            )
+        ) {
             return true;
         }
 

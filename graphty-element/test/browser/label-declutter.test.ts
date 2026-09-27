@@ -131,7 +131,12 @@ describe("node labels do not overlap", () => {
                 ys.push(p.y);
             }
 
-            const plane = { left: Math.min(...xs), right: Math.max(...xs), top: Math.min(...ys), bottom: Math.max(...ys) };
+            const plane = {
+                left: Math.min(...xs),
+                right: Math.max(...xs),
+                top: Math.min(...ys),
+                bottom: Math.max(...ys),
+            };
             if (words && label) {
                 const text = label.textBounds;
                 const w = plane.right - plane.left;

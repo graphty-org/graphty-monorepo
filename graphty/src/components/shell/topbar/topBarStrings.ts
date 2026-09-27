@@ -113,8 +113,7 @@ export const CLOSE_TITLE = "Close (Esc)";
  * The History pop-out's info circle. The resident footer line is an explanation, so
  * Rule 8 circles it rather than leaving it on the surface. Spec 02 section 2.5.
  */
-export const HISTORY_INFO_TEXT =
-    "Hover previews, click restores, click a title opens its panel, Esc closes.";
+export const HISTORY_INFO_TEXT = "Hover previews, click restores, click a title opens its panel, Esc closes.";
 
 /** The mark on the entry at the current position. HistoryPopover.dc.html. */
 export const HISTORY_CURRENT_BADGE = "Current";

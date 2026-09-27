@@ -156,9 +156,7 @@ export default defineConfig({
                 },
                 {
                     text: "API",
-                    items: [
-                        { text: "Overview", link: "/algorithms/api/" },
-                    ],
+                    items: [{ text: "Overview", link: "/algorithms/api/" }],
                 },
                 {
                     text: "Generated TypeDoc",

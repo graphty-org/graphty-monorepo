@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "../../../../test/test-utils";
 import { LEGEND_EMPTY_REASON } from "../../canvas/legendAvailability";
 import { CANVAS_TOOLBAR_DESKTOP } from "../../constants";
-import { ViewsMenu,type ViewsMenuProps } from "../ViewsMenu";
+import { ViewsMenu, type ViewsMenuProps } from "../ViewsMenu";
 
 function props(overrides: Partial<ViewsMenuProps> = {}): ViewsMenuProps {
     return {

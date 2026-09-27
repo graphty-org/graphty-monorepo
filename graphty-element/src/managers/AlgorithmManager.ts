@@ -208,7 +208,9 @@ export class AlgorithmManager implements Manager {
                     const trimmedName = algName.trim();
                     const [namespace, type] = trimmedName.split(":");
                     if (!namespace || !type) {
-                        throw new Error(`invalid algorithm name format: ${trimmedName}. Expected format: namespace:type`);
+                        throw new Error(
+                            `invalid algorithm name format: ${trimmedName}. Expected format: namespace:type`,
+                        );
                     }
 
                     await this.dispatchLegacy(

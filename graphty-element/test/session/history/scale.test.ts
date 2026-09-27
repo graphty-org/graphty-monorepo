@@ -98,7 +98,12 @@ describe("what each kind of step retains, at the largest graph a session holds",
     });
 
     it("a style, scope or settings edit: the replaced values, a few KB", async () => {
-        await session.styles.add({ name: "Red", target: "node", selector: { match: "everything" }, set: { "node.color": "#ff0000" } });
+        await session.styles.add({
+            name: "Red",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#ff0000" },
+        });
         assert.isAtMost(topBytes(session), 4096);
         session.scope.save("Some", { nodes: ["v1", "v2", "v3"] });
         assert.isAtMost(topBytes(session), 4096);
@@ -122,11 +127,18 @@ describe("what each kind of step retains, at the largest graph a session holds",
     });
 
     it("positions.set of a few rows: 36 bytes a row; of more than a third of them, one capture and nothing else", async () => {
-        await session.positions.set(Array.from({ length: 10 }, (_, at) => ({ id: `v${String(at)}`, x: at, y: 0, z: 0 })));
+        await session.positions.set(
+            Array.from({ length: 10 }, (_, at) => ({ id: `v${String(at)}`, x: at, y: 0, z: 0 })),
+        );
         assert.isAtMost(topBytes(session), 36 * 10);
 
         // Not merged into the step above: a merge keeps both estimates.
-        await session.styles.add({ name: "Between", target: "node", selector: { match: "everything" }, set: { "node.size": 2 } });
+        await session.styles.add({
+            name: "Between",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.size": 2 },
+        });
         const many = Math.ceil(rows / 3) + 1;
         await session.positions.set(
             Array.from({ length: many }, (_, at) => ({ id: `v${String(at + 1000)}`, x: at, y: 1, z: 0 })),
@@ -157,10 +169,18 @@ describe("what each kind of step retains, at the largest graph a session holds",
 
     it("an expansion and a merging import: a before-capture at most, and what they added", async () => {
         const held = session.snapshot().nodeCount;
-        await session.execute({ op: "data.expand", seed: "v1", nodes: [{ id: "x1" }], edges: [{ src: "v1", dst: "x1" }] });
+        await session.execute({
+            op: "data.expand",
+            seed: "v1",
+            nodes: [{ id: "x1" }],
+            edges: [{ src: "v1", dst: "x1" }],
+        });
         assert.isAtMost(topBytes(session), CAPTURE_PER_ROW * held + 1024);
         await session.data.import(
-            { type: "json", config: { data: JSON.stringify({ nodes: [{ id: "m1" }], edges: [{ src: "m1", dst: "v1" }] }) } },
+            {
+                type: "json",
+                config: { data: JSON.stringify({ nodes: [{ id: "m1" }], edges: [{ src: "m1", dst: "v1" }] }) },
+            },
             { mode: "merge" },
         );
         assert.isAtMost(topBytes(session), CAPTURE_PER_ROW * (held + 1) + 1024);
@@ -201,7 +221,12 @@ describe("what each kind of step retains, at the largest graph a session holds",
         assert.isAbove(bytes, history.limitBytes, "over the budget on its own");
         assert.lengthOf(history.steps, 1, "and kept as the only step");
 
-        await session.styles.add({ name: "After", target: "node", selector: { match: "everything" }, set: { "node.color": "#00ff00" } });
+        await session.styles.add({
+            name: "After",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#00ff00" },
+        });
         assert.isAtMost(history.bytes, history.limitBytes, "within the budget once it could be evicted");
         assert.notInclude(
             history.steps.map((step) => step.label),
@@ -210,28 +235,46 @@ describe("what each kind of step retains, at the largest graph a session holds",
         );
     });
 
-    it("a run of steps that each keep a capture stays within the budget", async () => {
-        const { history } = session;
-        await session.data.import(
-            {
-                type: "json",
-                config: {
-                    data: JSON.stringify({
-                        nodes: Array.from({ length: NODES }, (_, at) => ({ id: `w${String(at)}` })),
-                        edges: [],
-                    }),
+    it(
+        "a run of steps that each keep a capture stays within the budget",
+        async () => {
+            const { history } = session;
+            await session.data.import(
+                {
+                    type: "json",
+                    config: {
+                        data: JSON.stringify({
+                            nodes: Array.from({ length: NODES }, (_, at) => ({ id: `w${String(at)}` })),
+                            edges: [],
+                        }),
+                    },
                 },
-            },
-            { mode: "replace" },
-        );
-        history.limitBytes = 10 * CAPTURE_PER_ROW * NODES;
-        for (const layout of ["circular", "spiral", "shell", "random", "grid", "circular", "spiral", "shell", "random", "grid", "circular", "spiral", "shell"]) {
-            await session.layout.set(layout);
-            assert.isAtMost(history.bytes, history.limitBytes, `after switching to ${layout}`);
-        }
+                { mode: "replace" },
+            );
+            history.limitBytes = 10 * CAPTURE_PER_ROW * NODES;
+            for (const layout of [
+                "circular",
+                "spiral",
+                "shell",
+                "random",
+                "grid",
+                "circular",
+                "spiral",
+                "shell",
+                "random",
+                "grid",
+                "circular",
+                "spiral",
+                "shell",
+            ]) {
+                await session.layout.set(layout);
+                assert.isAtMost(history.bytes, history.limitBytes, `after switching to ${layout}`);
+            }
 
-        assert.isAtLeast(history.steps.length, 2, "the latest steps are kept");
-    }, TIMEOUT_MS);
+            assert.isAtLeast(history.steps.length, 2, "the latest steps are kept");
+        },
+        TIMEOUT_MS,
+    );
 });
 
 describe("at a million nodes and five million edges, without a scene", () => {
@@ -245,7 +288,7 @@ describe("at a million nodes and five million edges, without a scene", () => {
             const dst = new Uint32Array(ARCS);
             for (let at = 0; at < ARCS; at++) {
                 src[at] = at % MILLION;
-                dst[at] = (at % MILLION) + 1 + (Math.floor(at / MILLION) * 7919) % (MILLION - 1);
+                dst[at] = (at % MILLION) + 1 + ((Math.floor(at / MILLION) * 7919) % (MILLION - 1));
                 dst[at] %= MILLION;
             }
 
@@ -279,9 +322,23 @@ describe("at a million nodes and five million edges, without a scene", () => {
 
             // The steps a million-node session records: a replacing import keeping that graph,
             // captures, runs of that size, and small edits between them.
-            const history = new History<null>({ forward: () => undefined, backward: () => undefined, merge: () => null });
+            const history = new History<null>({
+                forward: () => undefined,
+                backward: () => undefined,
+                merge: () => null,
+            });
             const capture = CAPTURE_PER_ROW * MILLION;
-            const sizes = [graphBytes, capture, retentionOf(result).bytes, 1024, capture, retentionOf(result).bytes, capture, 512, capture];
+            const sizes = [
+                graphBytes,
+                capture,
+                retentionOf(result).bytes,
+                1024,
+                capture,
+                retentionOf(result).bytes,
+                capture,
+                512,
+                capture,
+            ];
             for (let round = 0; round < 4; round++) {
                 for (const size of sizes) {
                     history.record({ label: "Step", patch: null, bytes: { done: size, undone: size } });

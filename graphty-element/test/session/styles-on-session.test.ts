@@ -343,7 +343,10 @@ describe("session.styles", () => {
         const harness = harnessOf();
 
         assert.isNull(syncCodeOf(() => harness.session.styles.explain({ node: "a" })));
-        assert.strictEqual(syncCodeOf(() => harness.session.styles.explain({ node: "zz" })), "E_BAD_COMMAND");
+        assert.strictEqual(
+            syncCodeOf(() => harness.session.styles.explain({ node: "zz" })),
+            "E_BAD_COMMAND",
+        );
         assert.isNull(syncCodeOf(() => harness.session.styles.explain({ edge: edgeBetween(harness, "a", "b") })));
         harness.session.dispose();
     });

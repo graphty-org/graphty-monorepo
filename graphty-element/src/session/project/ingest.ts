@@ -382,7 +382,11 @@ export class Ingest<K extends KnownEdge> {
      *     configured one
      * @param writer - the graph primitives to write through
      */
-    addNodes(nodes: readonly Record<string | number, unknown>[], idPath: string | undefined, writer: GraphWriter): void {
+    addNodes(
+        nodes: readonly Record<string | number, unknown>[],
+        idPath: string | undefined,
+        writer: GraphWriter,
+    ): void {
         this.logger.debug("Adding nodes", { count: nodes.length });
 
         // Records handed over, counted before any of them is skipped as already known, because
@@ -1091,7 +1095,7 @@ async function* untilAborted<T>(chunks: AsyncIterable<T>, signal: AbortSignal | 
     let stop: () => void = () => undefined;
     const aborted = new Promise<never>((_, reject) => {
         stop = (): void => {
-            const {reason} = signal;
+            const { reason } = signal;
             reject(reason instanceof Error ? reason : new Error(String(reason)));
         };
         signal.addEventListener("abort", stop, { once: true });

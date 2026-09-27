@@ -287,9 +287,7 @@ async function addLayer(
         // answer nobody could act on: the reader learned a word had been dropped and not what the
         // element draws instead. An empty list contributes an empty string, so an ordinary layer
         // still reads "Added the node style layer" and stops.
-        const caveat = unsupported
-            .map(({ property, reason }) => ` ${property} was not applied: ${reason}`)
-            .join("");
+        const caveat = unsupported.map(({ property, reason }) => ` ${property} was not applied: ${reason}`).join("");
         const unbound =
             verdict.unresolvedPaths.length === 0
                 ? ""

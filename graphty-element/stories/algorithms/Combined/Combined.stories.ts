@@ -327,7 +327,9 @@ export const LinkPrediction: Story = {
 
         await assertGraphLoaded(scene, { nodes: 20, edges: 29 });
 
-        const painted = scene.nodes.filter((node) => node.hex?.toLowerCase() === PREDICTED_COLOUR).map((node) => node.id);
+        const painted = scene.nodes
+            .filter((node) => node.hex?.toLowerCase() === PREDICTED_COLOUR)
+            .map((node) => node.id);
 
         await holds(
             [...painted].sort().join(",") === [best.source, best.target].sort().join(","),

@@ -27,7 +27,15 @@
 
 import type { NodeId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
-import type { Histogram, HistogramBin, HistogramOptions, Normalization, NumericColumnView, RankingEntry, TopRanking } from "./types";
+import type {
+    Histogram,
+    HistogramBin,
+    HistogramOptions,
+    Normalization,
+    NumericColumnView,
+    RankingEntry,
+    TopRanking,
+} from "./types";
 
 // ---------------------------------------------------------------------------------------------
 // The bounds
@@ -274,11 +282,7 @@ export function analyzeColumn(column: NumericColumnSource): AnalyzedColumn {
  * @param normalization - The rule the metric declares.
  * @returns The scaled value, which is the raw value when the rule is "none".
  */
-export function normalizeValue(
-    value: number,
-    statistics: ColumnStatistics,
-    normalization: Normalization,
-): number {
+export function normalizeValue(value: number, statistics: ColumnStatistics, normalization: Normalization): number {
     if (normalization === "none") {
         return value;
     }
@@ -405,7 +409,9 @@ export function rankedPrefix(
             previous = value;
         }
 
-        result.push(Object.freeze({ id: idAt(order[index]), value, rank, percentile: (measured - rank + 1) / measured }));
+        result.push(
+            Object.freeze({ id: idAt(order[index]), value, rank, percentile: (measured - rank + 1) / measured }),
+        );
     }
 
     return Object.freeze(result);

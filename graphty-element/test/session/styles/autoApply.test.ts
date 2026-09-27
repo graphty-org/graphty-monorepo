@@ -69,9 +69,7 @@ const DEGREE = runOf("degree", "node-metric", [field("value", "node", "number", 
 const PAGERANK = runOf("pagerank", "node-metric", [field("value", "node", "number", "pagerank")]);
 
 /** An edge measurement, which asks for the other half and therefore clashes with none of them. */
-const EDGE_BETWEENNESS = runOf("edgebetweenness", "edge-metric", [
-    field("value", "edge", "number", "edgebetweenness"),
-]);
+const EDGE_BETWEENNESS = runOf("edgebetweenness", "edge-metric", [field("value", "edge", "number", "edgebetweenness")]);
 
 /** A route, which is a highlight rather than an encoding. */
 const ROUTE = runOf("route", "path", [
@@ -182,14 +180,20 @@ describe("when a finished run paints", () => {
         const first = harness.policy.completed(BETWEENNESS, false);
         const again = harness.policy.completed(BETWEENNESS, false);
 
-        assert.deepStrictEqual([...encodedRuns(first.paint), ...encodedRuns(again.paint)], ["betweenness", "betweenness"]);
+        assert.deepStrictEqual(
+            [...encodedRuns(first.paint), ...encodedRuns(again.paint)],
+            ["betweenness", "betweenness"],
+        );
     });
 
     it("paints nothing for a run that failed or was cancelled", () => {
         const harness = record();
 
         for (const status of ["failed", "canceled", "running", "queued"] as RunStatus[]) {
-            const decision = harness.policy.completed(runOf(`r${status}`, "node-metric", BETWEENNESS.fields, { status }), false);
+            const decision = harness.policy.completed(
+                runOf(`r${status}`, "node-metric", BETWEENNESS.fields, { status }),
+                false,
+            );
 
             assert.lengthOf(decision.paint, 0, status);
             assert.isFalse(decision.painted, status);
@@ -199,7 +203,10 @@ describe("when a finished run paints", () => {
     it("paints nothing when the caller asked for the numbers without the picture", () => {
         const harness = record();
 
-        const decision = harness.policy.completed(runOf("quiet", "node-metric", BETWEENNESS.fields, { style: false }), false);
+        const decision = harness.policy.completed(
+            runOf("quiet", "node-metric", BETWEENNESS.fields, { style: false }),
+            false,
+        );
 
         assert.lengthOf(decision.paint, 0);
     });
@@ -244,7 +251,10 @@ describe("when somebody has already said what that channel looks like", () => {
     });
 
     it("counts a template's layer and a plugin's layer as authored too", () => {
-        for (const source of [{ by: "template", templateId: "t" }, { by: "plugin", name: "p" }] as LayerSource[]) {
+        for (const source of [
+            { by: "template", templateId: "t" },
+            { by: "plugin", name: "p" },
+        ] as LayerSource[]) {
             const harness = record();
             harness.layers = [layerOf("theirs", source)];
 
@@ -303,7 +313,9 @@ describe("when a sweep finishes", () => {
         const harness = record();
         const hold = harness.policy.hold();
 
-        const during = [DEGREE, BETWEENNESS, PAGERANK].flatMap((run) => harness.policy.completed(run, false, hold).paint);
+        const during = [DEGREE, BETWEENNESS, PAGERANK].flatMap(
+            (run) => harness.policy.completed(run, false, hold).paint,
+        );
         assert.lengthOf(during, 0, "nothing paints while the sweep is running");
 
         assert.deepStrictEqual(encodedRuns(hold.release()), ["pagerank"]);

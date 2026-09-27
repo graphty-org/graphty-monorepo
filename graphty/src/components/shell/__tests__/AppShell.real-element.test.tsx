@@ -20,7 +20,6 @@ import { AppShell } from "../AppShell";
 /** The element itself, by its own published type; the import above registers it. */
 type ElementUnderTest = import("@graphty/graphty-element").Graphty;
 
-
 /** A hang guard for loading a sample, laying it out and drawing it; not a pass/fail timing. */
 const LOAD_TEST_TIMEOUT_MS = 120_000;
 

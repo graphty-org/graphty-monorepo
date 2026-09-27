@@ -91,7 +91,9 @@ describe("a columnar run result", () => {
     });
 
     it("ranks exactly as ranking plain entries does, ties, gaps and mixed ids included", () => {
-        const ids: NodeId[] = Array.from({ length: 400 }, (_, position) => (position % 3 === 0 ? position : `v${String(position)}`));
+        const ids: NodeId[] = Array.from({ length: 400 }, (_, position) =>
+            position % 3 === 0 ? position : `v${String(position)}`,
+        );
         const valueAt = (position: number): number => {
             if (position % 17 === 0) {
                 return Number.NaN;
@@ -116,7 +118,11 @@ describe("a columnar run result", () => {
 
     it("shares the snapshot's id index when its order matches, and keeps its own otherwise", () => {
         const ids = ["a", "b", "c"];
-        const snapshotIds = { size: 3, idOf: (position: number): NodeId => ids[position], indexOf: (id: NodeId) => ids.indexOf(String(id)) };
+        const snapshotIds = {
+            size: 3,
+            idOf: (position: number): NodeId => ids[position],
+            indexOf: (id: NodeId) => ids.indexOf(String(id)),
+        };
         const shared = degreeResult(ids, (position) => position);
         shareNodeIndex(shared, snapshotIds, 7);
         const [nodeIndex] = retentionOf(shared).indexes;

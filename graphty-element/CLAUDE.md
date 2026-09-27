@@ -81,20 +81,20 @@ graphty-element/
 This package is not one barrel. `package.json` publishes an exports map, and each subpath has a
 source file of the same name at the package root:
 
-| Subpath | Source | What it carries | Node-safe |
-|---------|--------|-----------------|-----------|
-| `.` | `index.ts` | The custom element; defines the tag; pulls in Babylon.js and Lit | No |
-| `./schema` | `schema.ts` | Palettes, `NodeShapes`, `EdgeLineTypes`, `EdgeArrowTypes`, `defaultNodeStyle`, `defaultEdgeStyle`, `defaultRichTextLabelStyle`, style config types, the colour helpers | Yes |
-| `./catalog` | `catalog.ts` | Plain-JSON descriptors: `BUILT_IN_ALGORITHMS`, `LAYOUT_DESCRIPTORS`, formats, palettes, scales, `optionsFromZod`, descriptor types | Yes |
-| `./extend` | `extend.ts` | The registration surface: `Algorithm`, `LayoutEngine`, `DataSource`, `registerAccelerator`, `GraphtyError` | Yes |
-| `./format` | `format.ts` | The graph-format decode vocabulary (read-only half; no brand, no version) | Yes |
-| `./session` | `session.ts` | Types only so far -- identities, scopes, result shapes, `Capabilities`, the error model | Yes |
-| `./logging` | `logging.ts` | `GraphtyLogger`, `LogLevel`, `LogRecord`, `Sink`, the console and remote destinations, `formatLogRecord`, the stored configuration, `parseLoggingURLParams` and `lazy` | Yes |
-| `./commands` | `commands.ts` | `COMMANDS` (every op, undoable or exempt with a reason), `CommandMeta`, `isSessionCommand`, `SessionCommand` | Yes |
-| `./react` | `react.ts` | Nothing yet; the name is reserved for typed React wrappers | Yes (empty) |
-| `./webgpu` | `webgpu.ts` | Side-effect import that registers the WebGPU accelerator; the only file that imports the optional peer | No |
-| `./ai` | `ai.ts` | The natural-language layer and its LLM SDKs; needs a DOM | No |
-| `./bundle` | `index.ts` via `vite.bundle.config.ts` | One self-contained file for a `<script>` tag (replaced the UMD build) | No |
+| Subpath      | Source                                 | What it carries                                                                                                                                                        | Node-safe   |
+| ------------ | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `.`          | `index.ts`                             | The custom element; defines the tag; pulls in Babylon.js and Lit                                                                                                       | No          |
+| `./schema`   | `schema.ts`                            | Palettes, `NodeShapes`, `EdgeLineTypes`, `EdgeArrowTypes`, `defaultNodeStyle`, `defaultEdgeStyle`, `defaultRichTextLabelStyle`, style config types, the colour helpers | Yes         |
+| `./catalog`  | `catalog.ts`                           | Plain-JSON descriptors: `BUILT_IN_ALGORITHMS`, `LAYOUT_DESCRIPTORS`, formats, palettes, scales, `optionsFromZod`, descriptor types                                     | Yes         |
+| `./extend`   | `extend.ts`                            | The registration surface: `Algorithm`, `LayoutEngine`, `DataSource`, `registerAccelerator`, `GraphtyError`                                                             | Yes         |
+| `./format`   | `format.ts`                            | The graph-format decode vocabulary (read-only half; no brand, no version)                                                                                              | Yes         |
+| `./session`  | `session.ts`                           | Types only so far -- identities, scopes, result shapes, `Capabilities`, the error model                                                                                | Yes         |
+| `./logging`  | `logging.ts`                           | `GraphtyLogger`, `LogLevel`, `LogRecord`, `Sink`, the console and remote destinations, `formatLogRecord`, the stored configuration, `parseLoggingURLParams` and `lazy` | Yes         |
+| `./commands` | `commands.ts`                          | `COMMANDS` (every op, undoable or exempt with a reason), `CommandMeta`, `isSessionCommand`, `SessionCommand`                                                           | Yes         |
+| `./react`    | `react.ts`                             | Nothing yet; the name is reserved for typed React wrappers                                                                                                             | Yes (empty) |
+| `./webgpu`   | `webgpu.ts`                            | Side-effect import that registers the WebGPU accelerator; the only file that imports the optional peer                                                                 | No          |
+| `./ai`       | `ai.ts`                                | The natural-language layer and its LLM SDKs; needs a DOM                                                                                                               | No          |
+| `./bundle`   | `index.ts` via `vite.bundle.config.ts` | One self-contained file for a `<script>` tag (replaced the UMD build)                                                                                                  | No          |
 
 **Node-safe means the module resolves with no Babylon.js, no Lit and no DOM anywhere in its
 run-time import graph.** `test/packaging/node-safe-entries.test.ts` enforces it for `session.ts`,
@@ -127,14 +127,14 @@ Six things can be brought to the element from outside. This list is the SUPPORTE
 closed: it is what a third party may build against, what the element promises not to break, and
 what every change here is measured against.
 
-| Extension point | What a third party brings |
-|---|---|
-| Palette | A named set of colour anchors a style layer ramps through |
-| File format | A reader for a graph file the element does not ship, reached by the same routes the built-in formats are |
-| Camera | A way of deciding where the viewer is and what they are looking at |
-| Layout | An engine that decides where nodes sit, live or in a single pass |
-| Algorithm | Something computed over the graph that publishes a result |
-| Logging | A destination the element's log records are delivered to |
+| Extension point | What a third party brings                                                                                |
+| --------------- | -------------------------------------------------------------------------------------------------------- |
+| Palette         | A named set of colour anchors a style layer ramps through                                                |
+| File format     | A reader for a graph file the element does not ship, reached by the same routes the built-in formats are |
+| Camera          | A way of deciding where the viewer is and what they are looking at                                       |
+| Layout          | An engine that decides where nodes sit, live or in a single pass                                         |
+| Algorithm       | Something computed over the graph that publishes a result                                                |
+| Logging         | A destination the element's log records are delivered to                                                 |
 
 **The rule: an extension must be able to do everything its built-in peer can.** Whatever the
 element's own palettes, importers, cameras, layouts, algorithms and log sinks can do, a third
@@ -304,13 +304,13 @@ frame-count-independent, and it is shared by the tests and the stories -- write 
 
 ### Test Projects
 
-| Project | Environment | Purpose |
-|---------|-------------|---------|
-| `default` | happy-dom | Unit tests |
-| `browser` | Playwright/Chromium | Browser integration tests |
-| `storybook` | Playwright | Component tests via stories |
-| `interactions` | Playwright | User interaction tests |
-| `llm-regression` | Node | AI/LLM regression tests |
+| Project          | Environment         | Purpose                     |
+| ---------------- | ------------------- | --------------------------- |
+| `default`        | happy-dom           | Unit tests                  |
+| `browser`        | Playwright/Chromium | Browser integration tests   |
+| `storybook`      | Playwright          | Component tests via stories |
+| `interactions`   | Playwright          | User interaction tests      |
+| `llm-regression` | Node                | AI/LLM regression tests     |
 
 `GRAPHTY_BROWSER_GPU` picks the Chromium flag set the `browser` project launches with --
 `swiftshader` for a workstation or a plain runner, `nvidia` for the GPU lane's card (add
@@ -344,10 +344,12 @@ for an element the algorithm never measured. Fix the layer's selector so the unm
 is never visited; do not pick a prettier colour.
 
 **Manager Pattern**: Always use manager methods instead of direct manipulation:
+
 - Right: `styleManager.addLayer(layer)` - uses manager
 - Wrong: `graph.styles.layers.push(layer)` - bypasses cache invalidation
 
 **Algorithm Registration**: All algorithm classes must auto-register:
+
 ```typescript
 export class MyAlgorithm extends Algorithm {
     static namespace = "my-namespace";
@@ -435,6 +437,7 @@ rather than inferred because every agent involved in it complied with every inst
 ## Edge Styling System
 
 Comprehensive edge customization:
+
 - **Line Types**: solid, dash, dot, star, diamond, dash-dot, sinewave, zigzag
 - **Arrow Types**: normal, inverted, dot, diamond, box, vee, tee, half-open, crow, etc.
 - **Bezier Curves**: Smooth curved edges with automatic control points
@@ -445,6 +448,7 @@ Key files: `src/Edge.ts`, `src/meshes/EdgeMesh.ts`, `src/meshes/PatternedLineMes
 ## AI Integration
 
 The `src/ai/` directory provides LLM-powered features:
+
 - Natural language commands for graph manipulation
 - Schema extraction for data understanding
 - Multiple provider support (OpenAI, Anthropic, Google)
@@ -459,6 +463,7 @@ and scales, with every option each accepts -- is published as plain JSON by
 ## XR Support
 
 The `src/xr/` directory provides VR/AR support:
+
 - WebXR integration with Babylon.js
 - Controller input handling
 - Immersive graph exploration
@@ -466,6 +471,7 @@ The `src/xr/` directory provides VR/AR support:
 ## Debugging
 
 ### Screenshot Capture
+
 ```bash
 # Multi-angle 3D screenshots
 npx tsx test/helpers/capture-3d-debug-screenshots.ts <story-id> [--axes]
@@ -477,5 +483,6 @@ npx tsx test/helpers/capture-2d-screenshots.ts <story-id> [--zoom-levels]
 ## Configuration Stability
 
 The config interface in `src/config` should be stable:
+
 - Don't remove or change existing config settings
 - Adding new settings is acceptable for new features

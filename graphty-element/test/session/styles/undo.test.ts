@@ -20,7 +20,12 @@ vi.mock("../../../src/session/styles/selector", async (original) => {
 });
 
 /** A layer painting every node red. */
-const RED: LayerSpec = { name: "Red", target: "node", selector: { match: "everything" }, set: { "node.color": "#ff0000" } };
+const RED: LayerSpec = {
+    name: "Red",
+    target: "node",
+    selector: { match: "everything" },
+    set: { "node.color": "#ff0000" },
+};
 
 const sessions: ElementSession[] = [];
 
@@ -76,7 +81,9 @@ describe("a style edit in the history", () => {
 
         for (let frame = 0; frame < 60; frame++) {
             advance(16);
-            void session.styles.update(layer.id, { set: { "node.color": `#00${frame.toString(16).padStart(2, "0")}00` } });
+            void session.styles.update(layer.id, {
+                set: { "node.color": `#00${frame.toString(16).padStart(2, "0")}00` },
+            });
         }
 
         await session.styles.settled();
@@ -118,7 +125,12 @@ describe("a style edit in the history", () => {
 
     it("keeps the caller's objects out of state: a changed spec changes nothing", async () => {
         const { session } = clocked();
-        const spec: LayerSpec = { name: "Mine", target: "node", selector: { match: "everything" }, set: { "node.color": "#ff0000" } };
+        const spec: LayerSpec = {
+            name: "Mine",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#ff0000" },
+        };
         const userData = { expanded: true };
 
         const layer = await session.styles.add({ ...spec, userData });

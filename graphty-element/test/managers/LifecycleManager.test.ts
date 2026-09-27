@@ -106,7 +106,6 @@ describe("LifecycleManager", () => {
 
             // Should throw immediately on construction with null container
             assert.throws(() => {
-                 
                 new Graph(badContainer as any);
             }, /Graph constructor requires 'element' argument/);
         });

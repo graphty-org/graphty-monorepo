@@ -49,14 +49,18 @@ describe("the style-changed event", () => {
             seen.push(event as { type: string });
         });
 
-        await graph.getSession().styles.add({ name: "red nodes", selector: { match: "everything" }, set: { "node.color": "#FF0000" } });
+        await graph
+            .getSession()
+            .styles.add({ name: "red nodes", selector: { match: "everything" }, set: { "node.color": "#FF0000" } });
 
         assert.strictEqual(seen.length, 1, "adding a layer announced itself");
         assert.strictEqual(seen[0].type, "style-changed");
     });
 
     it("fires when a layer is removed", async () => {
-        const added = await graph.getSession().styles.add({ name: "red nodes", selector: { match: "everything" }, set: { "node.color": "#FF0000" } });
+        const added = await graph
+            .getSession()
+            .styles.add({ name: "red nodes", selector: { match: "everything" }, set: { "node.color": "#FF0000" } });
 
         const seen: unknown[] = [];
         graph.eventManager.addListener("style-changed", (event) => {
@@ -74,7 +78,9 @@ describe("the style-changed event", () => {
             seen.push(event as { painted?: unknown });
         });
 
-        await graph.getSession().styles.add({ name: "red nodes", selector: { match: "everything" }, set: { "node.color": "#FF0000" } });
+        await graph
+            .getSession()
+            .styles.add({ name: "red nodes", selector: { match: "everything" }, set: { "node.color": "#FF0000" } });
 
         assert.isDefined(seen[0].painted, "a consumer mirroring the stack is told what moved");
     });

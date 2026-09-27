@@ -119,7 +119,10 @@ async function begin(start: Start): Promise<{ real: Real; model: Model }> {
         await setup(session, {
             op: "batch",
             steps: [
-                { op: "data.apply", mutation: { kind: "add-nodes", records: [{ id: "n1" }, { id: "n2" }, { id: "n3" }] } },
+                {
+                    op: "data.apply",
+                    mutation: { kind: "add-nodes", records: [{ id: "n1" }, { id: "n2" }, { id: "n3" }] },
+                },
                 {
                     op: "data.apply",
                     mutation: {
@@ -133,7 +136,12 @@ async function begin(start: Start): Promise<{ real: Real; model: Model }> {
             ],
         });
         await setup(session, { op: "algo.run", algorithm: "degree", as: "deg" });
-        await setup(session, { op: "algo.run", algorithm: "shortest-path", as: "route", params: { source: "n1", target: "n3" } });
+        await setup(session, {
+            op: "algo.run",
+            algorithm: "shortest-path",
+            as: "route",
+            params: { source: "n1", target: "n3" },
+        });
     } else if (start === "setup-import") {
         await setup(session, { op: "data.import", source: { type: "json", config: { data: FIXTURE_JSON } } });
     } else if (start === "failed-import") {
@@ -150,7 +158,10 @@ async function begin(start: Start): Promise<{ real: Real; model: Model }> {
     if (start === "first-load") {
         const before = { digest: live(real), visible: "", lane: laneOf(real) };
         const { visibility } = session;
-        before.visible = JSON.stringify([[...visibility.nodes].map(String).sort(), [...visibility.edges].map(String).sort()]);
+        before.visible = JSON.stringify([
+            [...visibility.nodes].map(String).sort(),
+            [...visibility.edges].map(String).sort(),
+        ]);
         await session.data.import({ type: "json", config: { data: FIXTURE_JSON } });
         assert.lengthOf(session.history.steps, 1, "a first load after mount is a step");
         return { real, model: modelAfterLoad(real, before) };
@@ -209,31 +220,35 @@ describe("random sequences of edits, pending work and history moves, from every 
 });
 
 describe("eviction folds the arrangement of every evicted step into the baseline", () => {
-    it("2000 placements with coalescing off and a limit of 1000 steps, all undone, leave every evicted placement in place", async () => {
-        const clock = fakeClock();
-        const session = await fixtureSession({ now: clock.now });
-        const real: Real = { session, clock, layout: fakeLayout(session) };
-        session.history.limitSteps = 1000;
-        const expected = laneOf(real);
-        const ids = ["n1", "n2", "n3"];
-        const placed: [string, string][] = [];
-        for (let step = 1; step <= 2000; step++) {
-            const id = ids[step % ids.length];
-            await session.positions.set([{ id, x: step, y: step, z: -step }]);
-            placed.push([id, `${String(step)},${String(step)},${String(-step)}`]);
-            // Past the coalescing window, so every placement is a step of its own.
-            clock.advance(COALESCE_MS + 1);
-        }
+    it(
+        "2000 placements with coalescing off and a limit of 1000 steps, all undone, leave every evicted placement in place",
+        async () => {
+            const clock = fakeClock();
+            const session = await fixtureSession({ now: clock.now });
+            const real: Real = { session, clock, layout: fakeLayout(session) };
+            session.history.limitSteps = 1000;
+            const expected = laneOf(real);
+            const ids = ["n1", "n2", "n3"];
+            const placed: [string, string][] = [];
+            for (let step = 1; step <= 2000; step++) {
+                const id = ids[step % ids.length];
+                await session.positions.set([{ id, x: step, y: step, z: -step }]);
+                placed.push([id, `${String(step)},${String(step)},${String(-step)}`]);
+                // Past the coalescing window, so every placement is a step of its own.
+                clock.advance(COALESCE_MS + 1);
+            }
 
-        const kept = session.history.steps.length;
-        assert.isAtMost(kept, 1000);
-        assert.isAbove(2000 - kept, 1000, "most placements were evicted");
-        for (const [id, value] of placed.slice(0, 2000 - kept)) {
-            expected.set(id, value);
-        }
+            const kept = session.history.steps.length;
+            assert.isAtMost(kept, 1000);
+            assert.isAbove(2000 - kept, 1000, "most placements were evicted");
+            for (const [id, value] of placed.slice(0, 2000 - kept)) {
+                expected.set(id, value);
+            }
 
-        await session.history.restoreTo(null);
-        assert.deepEqual(laneOf(real), expected, "the baseline, with every evicted placement applied");
-        session.dispose();
-    }, SEED_TIMEOUT_MS);
+            await session.history.restoreTo(null);
+            assert.deepEqual(laneOf(real), expected, "the baseline, with every evicted placement applied");
+            session.dispose();
+        },
+        SEED_TIMEOUT_MS,
+    );
 });

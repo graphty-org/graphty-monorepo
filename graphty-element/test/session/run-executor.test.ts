@@ -144,7 +144,13 @@ describe("the run executor", () => {
     it("returns a result, and the elements it measured are drawn again", async () => {
         // The result is the source of truth and the only place a value lives: the 1.10
         // `algorithmResults` projection beside it went with the style layers that selected on it.
-        const graph = mockGraph(["a", "b", "c"], [["a", "b"], ["b", "c"]]);
+        const graph = mockGraph(
+            ["a", "b", "c"],
+            [
+                ["a", "b"],
+                ["b", "c"],
+            ],
+        );
 
         const outcome: RunOutcome = await graph.manager.execute(
             context(graph, "degree", {}, "degree"),
@@ -165,7 +171,13 @@ describe("the run executor", () => {
     });
 
     it("fills the ranking, the range and the summary nobody computed by hand", async () => {
-        const graph = mockGraph(["a", "b", "c"], [["a", "b"], ["b", "c"]]);
+        const graph = mockGraph(
+            ["a", "b", "c"],
+            [
+                ["a", "b"],
+                ["b", "c"],
+            ],
+        );
 
         const outcome = await graph.manager.execute(context(graph, "degree"), algorithmByKey("degree"));
         const summary = outcome.result.summary();
@@ -178,7 +190,13 @@ describe("the run executor", () => {
     });
 
     it("runs a declared algorithm too, publishing its own shape", async () => {
-        const graph = mockGraph(["a", "b", "c"], [["a", "b"], ["b", "c"]]);
+        const graph = mockGraph(
+            ["a", "b", "c"],
+            [
+                ["a", "b"],
+                ["b", "c"],
+            ],
+        );
 
         const outcome = await graph.manager.execute(
             context(graph, "components", {}, "pieces"),

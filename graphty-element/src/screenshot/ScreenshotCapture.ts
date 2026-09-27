@@ -111,7 +111,6 @@ export class ScreenshotCapture {
         // Check engine configuration
         const gl = (this.engine as Engine)._gl;
 
-         
         if (gl && !gl.getContextAttributes()?.preserveDrawingBuffer) {
             throw new ScreenshotError(
                 "Screenshot requires Engine to be created with preserveDrawingBuffer: true",
@@ -381,7 +380,7 @@ export class ScreenshotCapture {
             listenerId = this.graph.eventManager.addListener("graph-settled", handler);
 
             // Check immediately in case it's already settled
-             
+
             if (!completed && atRest()) {
                 completed = true;
                 cleanup();

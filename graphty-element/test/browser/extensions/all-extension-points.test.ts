@@ -35,7 +35,13 @@
 
 import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
 
-import { cameraDescriptor, formatDescriptor, layoutDescriptor, logSinkDescriptor, paletteDescriptor } from "../../../catalog";
+import {
+    cameraDescriptor,
+    formatDescriptor,
+    layoutDescriptor,
+    logSinkDescriptor,
+    paletteDescriptor,
+} from "../../../catalog";
 import {
     type AlgorithmDescriptor,
     type AlgorithmOutput,
@@ -773,8 +779,16 @@ describe("six extensions, one graph", () => {
     it("painted the graph with the registered palette, landing on the anchors the palette declared", () => {
         // Two anchors and a domain of 0 to 4: the lowest score takes the first anchor and the
         // highest the last, exactly, with nothing to interpolate.
-        assert.strictEqual(paintedColor("ann"), SIGNAL_ANCHORS[0].toUpperCase(), "the lowest score takes the first anchor");
-        assert.strictEqual(paintedColor("ed"), SIGNAL_ANCHORS[1].toUpperCase(), "the highest score takes the last anchor");
+        assert.strictEqual(
+            paintedColor("ann"),
+            SIGNAL_ANCHORS[0].toUpperCase(),
+            "the lowest score takes the first anchor",
+        );
+        assert.strictEqual(
+            paintedColor("ed"),
+            SIGNAL_ANCHORS[1].toUpperCase(),
+            "the highest score takes the last anchor",
+        );
     });
 
     it("reports the registered palette in the legend, under the kind it registered", () => {
@@ -805,7 +819,12 @@ describe("six extensions, one graph", () => {
 
         assert.ok(landed.position, "the element reports where the camera ended up");
         assert.ok(expected.position);
-        assert.closeTo(landed.position.x, expected.position.x, PLACE_TOLERANCE, "the viewer stands where the view said");
+        assert.closeTo(
+            landed.position.x,
+            expected.position.x,
+            PLACE_TOLERANCE,
+            "the viewer stands where the view said",
+        );
         assert.closeTo(landed.position.y, expected.position.y, PLACE_TOLERANCE);
         assert.closeTo(landed.position.z, expected.position.z, PLACE_TOLERANCE);
 
@@ -924,7 +943,9 @@ describe("every registration surface the published entry points carry", () => {
         }
 
         return (
-            typeof value === "object" && value !== null && typeof (value as { register?: unknown }).register === "function"
+            typeof value === "object" &&
+            value !== null &&
+            typeof (value as { register?: unknown }).register === "function"
         );
     }
 

@@ -79,7 +79,9 @@ function declaredMembers(file: string): Set<string> {
     const source = readFileSync(file, "utf8");
     const names = new Set<string>();
 
-    for (const match of source.matchAll(/^\s{4}(?:(?:public|private|protected|static|readonly|async|get|set)\s+)*([A-Za-z_$][\w$]*)\s*[(:<]/gm)) {
+    for (const match of source.matchAll(
+        /^\s{4}(?:(?:public|private|protected|static|readonly|async|get|set)\s+)*([A-Za-z_$][\w$]*)\s*[(:<]/gm,
+    )) {
         names.add(match[1]);
     }
 

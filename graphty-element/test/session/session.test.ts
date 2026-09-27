@@ -84,7 +84,7 @@ describe("createGraphSession", () => {
 describe("a session's ownership of what it holds", () => {
     it("disposes the store it built", () => {
         const session = createGraphSession();
-        const {store} = session.data;
+        const { store } = session.data;
 
         assert.doesNotThrow(() => store.getSnapshot());
         session.dispose();

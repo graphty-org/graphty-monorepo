@@ -410,7 +410,8 @@ function sameTag(a: MaskTag, b: MaskTag): boolean {
 }
 
 /** What a caller writing into a visible-id set is told to do instead. */
-const VISIBLE_HINT = "The visible ids are a materialisation of the visibility mask; call visibility.set() to change what is visible.";
+const VISIBLE_HINT =
+    "The visible ids are a materialisation of the visibility mask; call visibility.set() to change what is visible.";
 
 /**
  * What to call an edit, on its run.

@@ -498,7 +498,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // Each property row assigns a value other than its default, so the assignment is a step undo
             // can take back. Assigning the default records no step and reads back as the value in
             // effect; test/browser/doors.test.ts checks that separately.
-            nodeIdPath: assigns("key", [{ op: "config.set", values: { data: { knownFields: { nodeIdPath: "key" } } } }]),
+            nodeIdPath: assigns("key", [
+                { op: "config.set", values: { data: { knownFields: { nodeIdPath: "key" } } } },
+            ]),
             edgeSrcIdPath: assigns("src", [
                 { op: "config.set", values: { data: { knownFields: { edgeSrcIdPath: "src" } } } },
             ]),
@@ -701,8 +703,29 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ...DATA_DOORS,
             // Called while the graph holds every node the rows above left: naming them all again removes none.
             setNodes: calls(
-                [[{ id: "n1" }, { id: "n2" }, { id: "n3" }, { id: "door-a" }, { id: "door-b" }, { id: "j1" }, { id: "j2" }]],
-                batchOf("Replaced the nodes", addNodes({ id: "n1" }, { id: "n2" }, { id: "n3" }, { id: "door-a" }, { id: "door-b" }, { id: "j1" }, { id: "j2" })),
+                [
+                    [
+                        { id: "n1" },
+                        { id: "n2" },
+                        { id: "n3" },
+                        { id: "door-a" },
+                        { id: "door-b" },
+                        { id: "j1" },
+                        { id: "j2" },
+                    ],
+                ],
+                batchOf(
+                    "Replaced the nodes",
+                    addNodes(
+                        { id: "n1" },
+                        { id: "n2" },
+                        { id: "n3" },
+                        { id: "door-a" },
+                        { id: "door-b" },
+                        { id: "j1" },
+                        { id: "j2" },
+                    ),
+                ),
             ),
             // Called while the graph holds the edges the rows above left.
             setEdges: calls(
@@ -1003,8 +1026,29 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             addDataFromSource: ADD_FROM_SOURCE,
             // Called while the graph holds every node the rows above left: naming them all again removes none.
             setNodes: calls(
-                [[{ id: "n1" }, { id: "n2" }, { id: "n3" }, { id: "door-c" }, { id: "door-d" }, { id: "j1" }, { id: "j2" }]],
-                batchOf("Replaced the nodes", addNodes({ id: "n1" }, { id: "n2" }, { id: "n3" }, { id: "door-c" }, { id: "door-d" }, { id: "j1" }, { id: "j2" })),
+                [
+                    [
+                        { id: "n1" },
+                        { id: "n2" },
+                        { id: "n3" },
+                        { id: "door-c" },
+                        { id: "door-d" },
+                        { id: "j1" },
+                        { id: "j2" },
+                    ],
+                ],
+                batchOf(
+                    "Replaced the nodes",
+                    addNodes(
+                        { id: "n1" },
+                        { id: "n2" },
+                        { id: "n3" },
+                        { id: "door-c" },
+                        { id: "door-d" },
+                        { id: "j1" },
+                        { id: "j2" },
+                    ),
+                ),
             ),
             snapshotStale: READ,
             beginLoad: IN_FLIGHT,

@@ -577,7 +577,11 @@ describe("the simulation layout bridge", () => {
         // The node the reader said nothing about falls back to its degree, not to another node's
         // mass: the record was re-resolved rather than re-used.
         assert.strictEqual(rig.engine.resolvedNodeMass?.[rig.row("late")], 1, "a lone new node weighs degree + 1");
-        assert.lengthOf(rig.errors.filter((event) => event.context === "layout"), 0, "and nothing failed");
+        assert.lengthOf(
+            rig.errors.filter((event) => event.context === "layout"),
+            0,
+            "and nothing failed",
+        );
     });
 
     it("re-resolves a node-mass record when a freeze changes how many nodes there are", async () => {
@@ -597,7 +601,11 @@ describe("the simulation layout bridge", () => {
 
         assert.strictEqual(rig.engine.resolvedNodeMass?.length, 6, "and one per row of the graph as it is");
         assert.strictEqual(rig.engine.resolvedNodeMass?.[rig.row("n0")], 5, "still following the reader's ids");
-        assert.lengthOf(rig.errors.filter((event) => event.context === "layout"), 0, "and nothing failed");
+        assert.lengthOf(
+            rig.errors.filter((event) => event.context === "layout"),
+            0,
+            "and nothing failed",
+        );
     });
 
     it("minNodes above the count keeps the CPU simulation until a reload crosses it", async () => {
@@ -609,14 +617,7 @@ describe("the simulation layout bridge", () => {
         const rig = await bridge(graph);
         assert.isFalse(rig.engine.isAccelerated, "five nodes is below the threshold, so the CPU runs it");
 
-        await graph.addNodes([
-            { id: "a" },
-            { id: "b" },
-            { id: "c" },
-            { id: "d" },
-            { id: "e" },
-            { id: "f" },
-        ]);
+        await graph.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }, { id: "e" }, { id: "f" }]);
         graph.getDataManager().getSnapshot();
 
         assert.isTrue(rig.engine.isAccelerated, "the reload re-planned and the bigger graph crossed the threshold");

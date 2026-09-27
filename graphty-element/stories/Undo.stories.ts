@@ -14,7 +14,8 @@ import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup } from "./h
  * The graph every story here starts from: twenty cats and who they know, in a circle, which
  * places every node from the node set alone and so draws the same picture every time.
  */
-const CATS = "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/cat-social-network-2.json";
+const CATS =
+    "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/cat-social-network-2.json";
 
 /** A second, larger graph the import story merges in. */
 const DATA3 = "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/data3.json";
@@ -138,7 +139,10 @@ async function drag(scene: Drawn, id: string): Promise<void> {
 export const Baseline: Story = {
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Undo Baseline");
-        await holds(scene.nodeCount === 20, `Undo Baseline: the cats graph has 20 nodes, drew ${String(scene.nodeCount)}`);
+        await holds(
+            scene.nodeCount === 20,
+            `Undo Baseline: the cats graph has 20 nodes, drew ${String(scene.nodeCount)}`,
+        );
         await scene.graph.waitForStableFrame();
     },
 };
@@ -153,7 +157,10 @@ export const ImportThenUndo: Story = {
                 mode: "merge",
             });
         });
-        await holds(scene.session.status.counts.nodes === 20, "Undo ImportThenUndo: the imported nodes are still there");
+        await holds(
+            scene.session.status.counts.nodes === 20,
+            "Undo ImportThenUndo: the imported nodes are still there",
+        );
     },
 };
 

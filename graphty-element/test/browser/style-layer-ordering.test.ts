@@ -119,7 +119,10 @@ function halfLayer(half: string, color: string): LayerSpec {
  * @param ms - The budget.
  * @returns What it did.
  */
-async function outcomeOf(work: PromiseLike<unknown>, ms = SETTLE_BUDGET_MS): Promise<"resolved" | "rejected" | "neither"> {
+async function outcomeOf(
+    work: PromiseLike<unknown>,
+    ms = SETTLE_BUDGET_MS,
+): Promise<"resolved" | "rejected" | "neither"> {
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     const settled = Promise.resolve(work).then(

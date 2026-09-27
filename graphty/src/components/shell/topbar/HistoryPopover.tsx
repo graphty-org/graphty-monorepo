@@ -121,9 +121,9 @@ function HistoryRowItem(props: HistoryRowItemProps): React.JSX.Element {
                 borderRadius: HISTORY_ROW_RADIUS,
                 ...(current
                     ? {
-                        background: "var(--mantine-primary-color-light)",
-                        boxShadow: `inset ${HISTORY_CURRENT_BAR_WIDTH}px 0 0 ${PANEL_INK.ACCENT}`,
-                    }
+                          background: "var(--mantine-primary-color-light)",
+                          boxShadow: `inset ${HISTORY_CURRENT_BAR_WIDTH}px 0 0 ${PANEL_INK.ACCENT}`,
+                      }
                     : {}),
             }}
         >
@@ -309,9 +309,7 @@ function HistoryXrGroup(props: HistoryXrGroupProps): React.JSX.Element {
                 <span aria-hidden="true" style={{ display: "inline-flex", color: PANEL_INK.CHROME }}>
                     <UiGlyph name={open ? "chevronDown" : "chevronRight"} size={HISTORY_CLOSE_GLYPH_SIZE} />
                 </span>
-                <span style={{ ...TITLE_CELL, textDecoration: undone ? "line-through" : undefined }}>
-                    {label}
-                </span>
+                <span style={{ ...TITLE_CELL, textDecoration: undone ? "line-through" : undefined }}>{label}</span>
                 <span style={{ color: PANEL_INK.CHROME }}>{xrSessionStepCount(steps)}</span>
                 <span style={MONO_COLUMN}>{formatHistoryTime(at)}</span>
             </button>

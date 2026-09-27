@@ -134,7 +134,11 @@ describe("session.visibility", () => {
 
         assert.lengthOf(seen, 1);
         assert.strictEqual(seen[0]?.filterKind, "context");
-        assert.strictEqual(harness.session.visibility.summary.visibleNodes, 5, "drawing a hidden node is not showing it");
+        assert.strictEqual(
+            harness.session.visibility.summary.visibleNodes,
+            5,
+            "drawing a hidden node is not showing it",
+        );
 
         harness.session.visibility.showContext = true;
         await harness.session.styles.settled();

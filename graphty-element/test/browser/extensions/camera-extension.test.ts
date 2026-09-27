@@ -436,7 +436,12 @@ describe("a third party's camera view", () => {
 
             assert.isAbove(announced.length, 0, "the element announced the change");
             const last = announced[announced.length - 1];
-            assert.closeTo(last?.position?.z ?? 0, center.z + maxDimension, 0.01, "and it announced what the view computed");
+            assert.closeTo(
+                last?.position?.z ?? 0,
+                center.z + maxDimension,
+                0.01,
+                "and it announced what the view computed",
+            );
         });
 
         it("computes a different view in two dimensions than in three, from one registration", async () => {
@@ -490,7 +495,11 @@ describe("a third party's camera view", () => {
                 assert.ok(isGraphtyError(error));
                 assert.strictEqual(error.code, "E_UNKNOWN_CAMERA");
                 const available = error.details?.available as string[];
-                assert.includeMembers(available, ["isometric", "acme-corner"], "the refusal lists what would have worked");
+                assert.includeMembers(
+                    available,
+                    ["isometric", "acme-corner"],
+                    "the refusal lists what would have worked",
+                );
             }
         });
     });
@@ -546,7 +555,10 @@ describe("a third party's camera view", () => {
         it("receives the values the consumer chose, and moves accordingly", async () => {
             const { center, maxDimension } = graphBox();
 
-            await graph.applyCameraView("acme-corner", { params: { padding: 3, corner: "south-west" }, animate: false });
+            await graph.applyCameraView("acme-corner", {
+                params: { padding: 3, corner: "south-west" },
+                animate: false,
+            });
 
             const state = graph.getCameraState();
             assert.ok(state.position);
@@ -606,7 +618,10 @@ describe("a third party's camera view", () => {
                 duration: 1200,
                 easing: "easeInOut",
             });
-            await waitFor(() => operationQueueOf(graph).getActiveOperations().length > 0, "the camera animation to start");
+            await waitFor(
+                () => operationQueueOf(graph).getActiveOperations().length > 0,
+                "the camera animation to start",
+            );
             await delay(FRAME_MS * 4);
 
             const midFlight = graph.getCameraState();
@@ -622,7 +637,12 @@ describe("a third party's camera view", () => {
 
             const state = graph.getCameraState();
             assert.ok(state.position);
-            assert.closeTo(state.position.x, destination.x, PLACE_TOLERANCE, "the animation finished at the view's state");
+            assert.closeTo(
+                state.position.x,
+                destination.x,
+                PLACE_TOLERANCE,
+                "the animation finished at the view's state",
+            );
             assert.closeTo(state.position.y, destination.y, PLACE_TOLERANCE);
             assert.closeTo(state.position.z, destination.z, PLACE_TOLERANCE);
         });
@@ -635,7 +655,10 @@ describe("a third party's camera view", () => {
             await graph.setCameraPosition({ x: 1, y: 1, z: 1 });
 
             const travelling = graph.applyCameraView("acme-corner", { animate: true, duration: 4000 });
-            await waitFor(() => operationQueueOf(graph).getActiveOperations().length > 0, "the camera animation to start");
+            await waitFor(
+                () => operationQueueOf(graph).getActiveOperations().length > 0,
+                "the camera animation to start",
+            );
             await delay(FRAME_MS * 4);
 
             for (const id of operationQueueOf(graph).getActiveOperations()) {
@@ -736,7 +759,12 @@ describe("a third party's camera view", () => {
             const resolved = graph.resolveCameraPreset("acme-latecomer");
 
             assert.ok(resolved.position, "the name resolved to something with a position");
-            assert.closeTo(resolved.position.x, LATECOMER_PLACE.x, PLACE_TOLERANCE, "the view answered, not the snapshot");
+            assert.closeTo(
+                resolved.position.x,
+                LATECOMER_PLACE.x,
+                PLACE_TOLERANCE,
+                "the view answered, not the snapshot",
+            );
             assert.closeTo(resolved.position.y, LATECOMER_PLACE.y, PLACE_TOLERANCE);
             assert.closeTo(resolved.position.z, LATECOMER_PLACE.z, PLACE_TOLERANCE);
         });

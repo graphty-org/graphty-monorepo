@@ -62,7 +62,11 @@ async function loadedGraph(): Promise<Graph> {
  * @param graph - The graph.
  * @returns The three spies.
  */
-function watch(graph: Graph): { layout: ReturnType<typeof vi.fn>; frame: ReturnType<typeof vi.fn>; run: ReturnType<typeof vi.fn> } {
+function watch(graph: Graph): {
+    layout: ReturnType<typeof vi.fn>;
+    frame: ReturnType<typeof vi.fn>;
+    run: ReturnType<typeof vi.fn>;
+} {
     const watched = graph as unknown as Watched;
     return {
         layout: vi.spyOn(watched.statsManager, "startLayoutSession") as unknown as ReturnType<typeof vi.fn>,

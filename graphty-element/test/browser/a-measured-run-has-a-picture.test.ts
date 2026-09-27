@@ -54,9 +54,7 @@ const PARAMS: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
 };
 
 /** Every catalogue algorithm whose result shape has a picture in it. */
-const PAINTABLE = BUILT_IN_ALGORITHMS.filter(
-    (descriptor) => resultShapeContract(descriptor.shape).layer !== "none",
-);
+const PAINTABLE = BUILT_IN_ALGORITHMS.filter((descriptor) => resultShapeContract(descriptor.shape).layer !== "none");
 
 describe("an algorithm that measures elements has a picture to suggest", () => {
     let container: HTMLElement;

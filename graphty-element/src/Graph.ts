@@ -914,7 +914,6 @@ export class Graph implements GraphContext {
                 }
             }
         });
-
     }
 
     /**
@@ -929,7 +928,10 @@ export class Graph implements GraphContext {
         }
 
         try {
-            await layoutManagerInternals.apply(this.layoutManager, opening, { restoring: false, ...(signal === undefined ? {} : { signal }) });
+            await layoutManagerInternals.apply(this.layoutManager, opening, {
+                restoring: false,
+                ...(signal === undefined ? {} : { signal }),
+            });
         } catch (e) {
             if (isAbort(e)) {
                 return;
@@ -3305,10 +3307,7 @@ export class Graph implements GraphContext {
      * @param options - How it joins the queue.
      * @param options.beside - Start at once, beside the queue.
      */
-    private async dispatchSuperseded(
-        command: SessionCommand,
-        options?: { readonly beside?: boolean },
-    ): Promise<void> {
+    private async dispatchSuperseded(command: SessionCommand, options?: { readonly beside?: boolean }): Promise<void> {
         const done = dispatcherOf(this.session).dispatch(command, options);
         try {
             await done;
@@ -5417,14 +5416,11 @@ export class Graph implements GraphContext {
             return;
         }
 
-        this.applyData(
-            "data-add",
-            {
-                op: "batch",
-                label: "Set the graph data",
-                steps: steps.map((mutation) => ({ op: "data.apply", mutation })),
-            },
-        ).catch((e: unknown) => {
+        this.applyData("data-add", {
+            op: "batch",
+            label: "Set the graph data",
+            steps: steps.map((mutation) => ({ op: "data.apply", mutation })),
+        }).catch((e: unknown) => {
             console.error("Error setting data:", e);
         });
     }

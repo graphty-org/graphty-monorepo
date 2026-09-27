@@ -1607,10 +1607,14 @@ export class Dispatcher {
             return Promise.all(steps.map((step) => settle(() => this.submit(step, tx, options))));
         }
 
-        const done = this.transaction(label, (scope) => Promise.all(steps.map((step) => scope.dispatch(step, options))), {
-            setup,
-            compound: true,
-        });
+        const done = this.transaction(
+            label,
+            (scope) => Promise.all(steps.map((step) => scope.dispatch(step, options))),
+            {
+                setup,
+                compound: true,
+            },
+        );
         // As a single command's promise is: a batch nobody awaited, cancelled, is not an unhandled
         // rejection.
         done.catch(() => undefined);

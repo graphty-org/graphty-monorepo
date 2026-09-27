@@ -55,10 +55,10 @@ interface Stub {
  */
 function fakeResult(published: Published): RunResult {
     const ranking = published.ranking ?? [];
-    const {groups} = published;
+    const { groups } = published;
     const summary: ResultSummary = {
         count: ranking.length,
-        measured: published.measured ?? (groups?.reduce((total, group) => total + group.size, 0) ?? ranking.length),
+        measured: published.measured ?? groups?.reduce((total, group) => total + group.size, 0) ?? ranking.length,
         min: ranking.length > 0 ? ranking[ranking.length - 1].value : null,
         max: ranking.length > 0 ? ranking[0].value : null,
         median: null,
@@ -114,7 +114,12 @@ function makeStub(finished: Record<string, Published>): Stub {
                 startOptions.push(options);
 
                 const existing = runs.find((run) => run.algorithm === algorithm);
-                const run = existing ?? { id: `${algorithm}_1`, algorithm, status: "succeeded", result: fakeResult({}) };
+                const run = existing ?? {
+                    id: `${algorithm}_1`,
+                    algorithm,
+                    status: "succeeded",
+                    result: fakeResult({}),
+                };
 
                 return Object.assign(Promise.resolve(run.result), { id: run.id });
             },
@@ -240,7 +245,10 @@ describe("the degree distribution", () => {
 
         const results = await startDegreePass(stub.session).results;
 
-        expect(results.distribution.bins.map((bin) => bin.label)).toEqual(["2 to 5 links: 40 nodes", "6 to 40 links: 3 nodes"]);
+        expect(results.distribution.bins.map((bin) => bin.label)).toEqual([
+            "2 to 5 links: 40 nodes",
+            "6 to 40 links: 3 nodes",
+        ]);
         expect(results.distribution.logX).toBe(true);
     });
 
@@ -325,7 +333,14 @@ describe("runCommunityDetection", () => {
     });
 
     it("reports no modularity at all when the run published none", async () => {
-        const stub = makeStub({ louvain: { groups: [{ group: 0, size: 1 }, { group: 1, size: 1 }] } });
+        const stub = makeStub({
+            louvain: {
+                groups: [
+                    { group: 0, size: 1 },
+                    { group: 1, size: 1 },
+                ],
+            },
+        });
 
         const result = await runCommunityDetection(stub.session);
 
@@ -335,7 +350,10 @@ describe("runCommunityDetection", () => {
     });
 
     it("reports no modularity when the published value is not a finite number", async () => {
-        const groups = [{ group: 0, size: 1 }, { group: 1, size: 1 }];
+        const groups = [
+            { group: 0, size: 1 },
+            { group: 1, size: 1 },
+        ];
         const nan = makeStub({ louvain: { groups, graph: { modularity: Number.NaN } } });
         const text = makeStub({ louvain: { groups, graph: { modularity: "0.5" } } });
 
@@ -344,7 +362,9 @@ describe("runCommunityDetection", () => {
     });
 
     it("covers only the elements the run grouped", async () => {
-        const stub = makeStub({ louvain: { groups: [{ group: 0, size: 2 }], measured: 2, graph: { modularity: 0.1 } } });
+        const stub = makeStub({
+            louvain: { groups: [{ group: 0, size: 2 }], measured: 2, graph: { modularity: 0.1 } },
+        });
 
         const result = await runCommunityDetection(stub.session);
 

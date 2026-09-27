@@ -28,7 +28,7 @@ function get2DInputController(graph: Graph):
     | undefined {
     const cameraManager = graph.camera;
     // Access via internal input registry
-     
+
     const anyManager = cameraManager as any;
     if (anyManager.activeInputHandler?.applyKeyboardInertia) {
         return anyManager.activeInputHandler;
@@ -47,7 +47,7 @@ function get2DCameraController(graph: Graph):
       }
     | undefined {
     const controller = graph.camera.getActiveController();
-     
+
     const anyController = controller as any;
     if (anyController.velocity) {
         return anyController;
@@ -69,7 +69,6 @@ function get3DCameraState(graph: Graph): {
         throw new Error("No active camera controller");
     }
 
-     
     const camera = controller.camera as any;
     return {
         alpha: camera.alpha ?? 0,
@@ -251,7 +250,7 @@ describe("Keyboard Controls Integration", () => {
             assert.isDefined(cameraController, "Camera controller should be defined");
 
             // Disable input controller
-             
+
             const anyInput = inputController as any;
             if (anyInput.disable) {
                 anyInput.disable();

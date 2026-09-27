@@ -744,8 +744,14 @@ export class LayoutManager implements Manager {
             // this the new engine would start empty and lay out nothing.
             const known = new Set(nodeArray);
             const knownEdges = new Set(edgeArray);
-            layoutEngineInternals.addNodes(engine, [...this.dataManager.nodes.values()].filter((n) => !known.has(n)));
-            layoutEngineInternals.addEdges(engine, [...this.dataManager.edges.values()].filter((e) => !knownEdges.has(e)));
+            layoutEngineInternals.addNodes(
+                engine,
+                [...this.dataManager.nodes.values()].filter((n) => !known.has(n)),
+            );
+            layoutEngineInternals.addEdges(
+                engine,
+                [...this.dataManager.edges.values()].filter((e) => !knownEdges.has(e)),
+            );
 
             // AFTER init(), and before any step runs. See `replayPins`.
             this.replayPins(engine, nodeArray);
@@ -976,8 +982,7 @@ export class LayoutManager implements Manager {
         generation: number,
     ): Promise<void> {
         const { signal, restoring } = options;
-        const live = (): boolean =>
-            signal?.aborted !== true && (restoring || this.#generation === generation);
+        const live = (): boolean => signal?.aborted !== true && (restoring || this.#generation === generation);
         if (!live()) {
             throw cancelledBuild();
         }

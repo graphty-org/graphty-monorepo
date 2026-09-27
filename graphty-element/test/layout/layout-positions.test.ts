@@ -99,7 +99,11 @@ describe("layout engines and the element-owned position array", () => {
 
         layout.publishPositions();
 
-        assert.strictEqual(layoutEngineInternals.positions(layout), positions, "the engine holds the array it was given");
+        assert.strictEqual(
+            layoutEngineInternals.positions(layout),
+            positions,
+            "the engine holds the array it was given",
+        );
         const out = { x: 0, y: 0, z: 0 };
         positions.read(0, out);
         const reported = layout.getNodePosition(node("a", 0));

@@ -201,7 +201,6 @@ describe("Touch Controls Integration", () => {
             const cameraController = graph.camera.getActiveController();
             assert.isDefined(cameraController, "Camera controller should be defined");
 
-             
             const cameraManager = graph.camera as any;
             const orbitController = cameraManager.activeCameraController;
             const inputController = cameraManager.activeInputHandler;
@@ -245,7 +244,7 @@ describe("Touch Controls Integration", () => {
         test("keyboard zoom in 3D mode (simulating pinch)", () => {
             // Note: In 3D mode, pinch gestures use Hammer.js which is difficult to simulate.
             // However, keyboard W/S keys also control zoom in 3D mode.
-             
+
             const cameraManager = graph.camera as any;
             const orbitController = cameraManager.activeCameraController;
             const inputController = cameraManager.activeInputHandler;
@@ -273,7 +272,7 @@ describe("Touch Controls Integration", () => {
         test("keyboard zoom out 3D mode (simulating pinch)", () => {
             // Note: In 3D mode, pinch gestures use Hammer.js which is difficult to simulate.
             // However, keyboard W/S keys also control zoom in 3D mode.
-             
+
             const cameraManager = graph.camera as any;
             const orbitController = cameraManager.activeCameraController;
             const inputController = cameraManager.activeInputHandler;

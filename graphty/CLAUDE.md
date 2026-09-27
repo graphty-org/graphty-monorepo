@@ -7,6 +7,7 @@ This file provides guidance to Claude Code when working with the @graphty/grapht
 graphty is a React application that wraps `<graphty-element>` with a full-featured UI for graph visualization. It provides controls for styling, layout configuration, data viewing, and AI-powered graph manipulation.
 
 **Key Technologies:**
+
 - **React 19** with TypeScript
 - **Mantine** UI framework
 - **graphty-element** Web Component for graph rendering
@@ -70,6 +71,7 @@ npm run ready:commit     # Build, lint, and test
 ## UI Framework
 
 This project uses **Mantine** for all UI components. When building new UI:
+
 - Use Mantine components (Button, Modal, TextInput, etc.)
 - Follow Mantine theming conventions in `src/theme.ts`
 - Use Mantine hooks for common patterns
@@ -77,21 +79,26 @@ This project uses **Mantine** for all UI components. When building new UI:
 ## Mobile Development
 
 When testing from mobile devices:
+
 - **Always include eruda** in the UI for console access
 - eruda is already integrated - ensure it remains available
 
 ## Component Patterns
 
 ### Sidebar Controls
+
 Controls in `src/components/sidebar/controls/` are reusable across different panels
 and are shared with the app shell's Style panel:
+
 - `StyleColorInput` - Color picker with label
 - `StyleNumberInput` - Number input with constraints
 - `StyleSelect` - Dropdown selection
 - `ControlSection` - Collapsible section wrapper
 
 ### graphty-element Integration
+
 The `Graphty.tsx` component wraps `<graphty-element>`:
+
 - Passes configuration via attributes
 - Handles events from the Web Component
 - Manages React state for UI controls
@@ -131,6 +138,7 @@ The element records each change and owns the history; the app never keeps its ow
 ## graphty-element Feedback
 
 If you encounter bugs or API difficulties with graphty-element while working on this app:
+
 - Document the issue clearly
 - Report it so the graphty-element package can be improved
 - The graphty-element API should be intuitive and easy to use

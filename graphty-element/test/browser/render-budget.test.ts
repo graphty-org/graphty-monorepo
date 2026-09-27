@@ -142,36 +142,40 @@ describe("the cost of drawing a whole graph", () => {
     for (const [nodeCount, edgeCount] of GRAPHS) {
         const name = `${String(nodeCount)} nodes, ${String(edgeCount)} edges`;
 
-        it(`stays within its baseline for ${name}`, async () => {
-            graph = await createTestGraph();
-            await graph.setLayout("fixed");
-            await load(graph, nodeCount, edgeCount);
+        it(
+            `stays within its baseline for ${name}`,
+            async () => {
+                graph = await createTestGraph();
+                await graph.setLayout("fixed");
+                await load(graph, nodeCount, edgeCount);
 
-            const { frameMs, ...counts } = measure(graph);
-            // Printed for trend reading only. A frame's time depends on the machine and on what else
-            // it is doing, so it is never a pass/fail condition.
-            console.log(`render budget, ${name}: ${JSON.stringify(counts)}, frame ${frameMs.toFixed(1)} ms`);
+                const { frameMs, ...counts } = measure(graph);
+                // Printed for trend reading only. A frame's time depends on the machine and on what else
+                // it is doing, so it is never a pass/fail condition.
+                console.log(`render budget, ${name}: ${JSON.stringify(counts)}, frame ${frameMs.toFixed(1)} ms`);
 
-            if (UPDATING) {
-                recorded[name] = counts;
+                if (UPDATING) {
+                    recorded[name] = counts;
 
-                return;
-            }
+                    return;
+                }
 
-            const budget = (baseline as Record<string, Counts | undefined>)[name];
-            assert.isDefined(budget, `render-budget.baseline.json has no entry for "${name}"; rewrite it`);
+                const budget = (baseline as Record<string, Counts | undefined>)[name];
+                assert.isDefined(budget, `render-budget.baseline.json has no entry for "${name}"; rewrite it`);
 
-            for (const key of Object.keys(counts) as (keyof Counts)[]) {
-                const limit = Math.floor(budget[key] * (1 + BUDGET_MARGIN));
-                assert.isAtMost(
-                    counts[key],
-                    limit,
-                    `${name}: ${key} is ${String(counts[key])}, over its baseline of ${String(budget[key])} ` +
-                        `plus ${String(BUDGET_MARGIN * 100)}%. If the cost is intended, rewrite the baseline ` +
-                        "(see the top of this file).",
-                );
-            }
-        }, LARGE_LOAD_TIMEOUT_MS);
+                for (const key of Object.keys(counts) as (keyof Counts)[]) {
+                    const limit = Math.floor(budget[key] * (1 + BUDGET_MARGIN));
+                    assert.isAtMost(
+                        counts[key],
+                        limit,
+                        `${name}: ${key} is ${String(counts[key])}, over its baseline of ${String(budget[key])} ` +
+                            `plus ${String(BUDGET_MARGIN * 100)}%. If the cost is intended, rewrite the baseline ` +
+                            "(see the top of this file).",
+                    );
+                }
+            },
+            LARGE_LOAD_TIMEOUT_MS,
+        );
     }
 
     it.runIf(UPDATING)("writes the baseline", async () => {

@@ -217,9 +217,12 @@ async function settleQuietly(done: () => boolean, deadline: number): Promise<voi
 async function within(work: Promise<unknown>, deadline: number, complaint: string): Promise<void> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const expired = new Promise<"expired">((resolve) => {
-        timer = setTimeout(() => {
-            resolve("expired");
-        }, Math.max(0, deadline - Date.now()));
+        timer = setTimeout(
+            () => {
+                resolve("expired");
+            },
+            Math.max(0, deadline - Date.now()),
+        );
     });
 
     const outcome = await Promise.race([work.then(() => "done" as const), expired]);

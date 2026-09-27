@@ -8,26 +8,26 @@ Graphty uses an event-driven architecture. Subscribe to events for user interact
 
 ## Available Events
 
-| Event                  | Trigger                  | Event Data                 |
-| ---------------------- | ------------------------ | -------------------------- |
-| `graph-settled`        | Layout finished          | `{ settled: boolean }`     |
-| `graph-frame-stable`   | The picture is final: layout converged, camera framed, frame drawn | `{ frames }` |
-| `zoom-to-fit-complete` | Auto-framing moved the camera around the whole graph | `{ boundingBoxMin, boundingBoxMax }` |
-| `data-loaded`          | Initial data loaded      | `{ details: { report, ... }, cause? }` |
-| `data-added`           | Incremental data added   | `{ dataType, count, cause? }` |
-| `selection-changed`    | Node selected/deselected | `{ node, previousNode }`   |
-| `camera-state-changed` | Camera moved             | `{ state }`                |
-| `style-changed`        | Styles updated           | `{ reason, layers, painted, unresolvedPaths }` |
-| `node-click`           | User clicked node        | `{ node, data, event }`    |
-| `node-hover`           | Mouse entered node       | `{ node, data }`           |
-| `node-drag-start`      | Started dragging node    | `{ node, position, pinned }` |
-| `node-drag-end`        | Finished dragging node   | `{ node, position, pinned }` |
-| `elements-removed`     | Nodes and their edges removed | `{ nodes, edges, cause? }` |
-| `data-cleared`         | All data cleared (`clearData()`, a replacing load, or undo back to an empty graph) | none |
-| `data-loading-progress` | A chunk of a load arrived | `{ nodeRecordsLoaded, edgeRecordsLoaded, chunksProcessed, ... }` |
-| `data-loading-complete` | A load finished          | `{ nodesLoaded, edgesLoaded, report, loadId, ... }` |
-| `data-loading-error`   | A load failed            | `{ error, format, loadId, ... }` |
-| `error`                | Error occurred           | `{ error, context }`       |
+| Event                   | Trigger                                                                            | Event Data                                                       |
+| ----------------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `graph-settled`         | Layout finished                                                                    | `{ settled: boolean }`                                           |
+| `graph-frame-stable`    | The picture is final: layout converged, camera framed, frame drawn                 | `{ frames }`                                                     |
+| `zoom-to-fit-complete`  | Auto-framing moved the camera around the whole graph                               | `{ boundingBoxMin, boundingBoxMax }`                             |
+| `data-loaded`           | Initial data loaded                                                                | `{ details: { report, ... }, cause? }`                           |
+| `data-added`            | Incremental data added                                                             | `{ dataType, count, cause? }`                                    |
+| `selection-changed`     | Node selected/deselected                                                           | `{ node, previousNode }`                                         |
+| `camera-state-changed`  | Camera moved                                                                       | `{ state }`                                                      |
+| `style-changed`         | Styles updated                                                                     | `{ reason, layers, painted, unresolvedPaths }`                   |
+| `node-click`            | User clicked node                                                                  | `{ node, data, event }`                                          |
+| `node-hover`            | Mouse entered node                                                                 | `{ node, data }`                                                 |
+| `node-drag-start`       | Started dragging node                                                              | `{ node, position, pinned }`                                     |
+| `node-drag-end`         | Finished dragging node                                                             | `{ node, position, pinned }`                                     |
+| `elements-removed`      | Nodes and their edges removed                                                      | `{ nodes, edges, cause? }`                                       |
+| `data-cleared`          | All data cleared (`clearData()`, a replacing load, or undo back to an empty graph) | none                                                             |
+| `data-loading-progress` | A chunk of a load arrived                                                          | `{ nodeRecordsLoaded, edgeRecordsLoaded, chunksProcessed, ... }` |
+| `data-loading-complete` | A load finished                                                                    | `{ nodesLoaded, edgesLoaded, report, loadId, ... }`              |
+| `data-loading-error`    | A load failed                                                                      | `{ error, format, loadId, ... }`                                 |
+| `error`                 | Error occurred                                                                     | `{ error, context }`                                             |
 
 `cause` on the three data events is set when undo, redo, a restore or a rolled-back change added
 or removed the rows: `"undo"`, `"redo"`, `"restore"` or `"rollback"`. A listener that starts work

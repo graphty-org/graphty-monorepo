@@ -85,7 +85,9 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
             unsubscribe = target.onAiStatusChange((newStatus) => {
                 setStatus(newStatus);
                 setIsProcessing(
-                    newStatus.state === "submitted" || newStatus.state === "streaming" || newStatus.state === "executing",
+                    newStatus.state === "submitted" ||
+                        newStatus.state === "streaming" ||
+                        newStatus.state === "executing",
                 );
 
                 if (newStatus.state === "error" && newStatus.error) {

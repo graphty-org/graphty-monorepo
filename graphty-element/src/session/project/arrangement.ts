@@ -139,7 +139,11 @@ export function mergeRowPatches(older: RowPatch, newer: RowPatch): RowPatch {
  * @returns The patch.
  */
 function rowPatch(ids: NodeId[], rows: readonly number[], values: readonly number[]): RowPatch {
-    const patch = Object.freeze({ ids: Object.freeze(ids), rows: Uint32Array.from(rows), values: Float32Array.from(values) });
+    const patch = Object.freeze({
+        ids: Object.freeze(ids),
+        rows: Uint32Array.from(rows),
+        values: Float32Array.from(values),
+    });
     retainArray(patch.rows, "the arrangement slice's row patch");
     retainArray(patch.values, "the arrangement slice's row patch");
     return patch;
@@ -473,7 +477,8 @@ export class Arrangement {
                 if ("capture" in op) {
                     writeCapture(op.capture, snapshot, lane, this.state.graph.token);
                     (this.state as { arrangement: ArrangementCapture | null }).arrangement = op.capture;
-                    const whole = op.capture.token === this.state.graph.token && op.capture.ids.length === snapshot.nodeCount;
+                    const whole =
+                        op.capture.token === this.state.graph.token && op.capture.ids.length === snapshot.nodeCount;
                     exact = whole ? op.capture : null;
                 } else {
                     writePatch(op.patch, op.forward, snapshot, lane);

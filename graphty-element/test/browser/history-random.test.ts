@@ -24,7 +24,14 @@ import { Graph } from "../../src/Graph";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import type { Scheduler } from "../../src/session/project/Dispatcher";
 import { fakeClock, heldScheduler } from "../session/history/fakes";
-import { baselineModel, COMMANDS, type Model, type ModelLayout, type Real, undoAllRedoAll } from "../session/history/random-model";
+import {
+    baselineModel,
+    COMMANDS,
+    type Model,
+    type ModelLayout,
+    type Real,
+    undoAllRedoAll,
+} from "../session/history/random-model";
 
 /** The seeds CI runs. */
 const SEEDS = [1, 17, 4242];

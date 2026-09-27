@@ -199,9 +199,12 @@ describe("deepFreezeArgs", () => {
         assert.isTrue(Object.isFrozen(stored));
         assert.isTrue(Object.isFrozen(stored.filter.where));
         assert.isTrue(Object.isFrozen(stored.tags));
-        assert.deepEqual(store.state.config.get("filter"), { filter: { where: { path: "degree", gte: 2 } }, tags: ["a"] });
+        assert.deepEqual(store.state.config.get("filter"), {
+            filter: { where: { path: "degree", gte: 2 } },
+            tags: ["a"],
+        });
         assert.throws(() => {
-            (stored.tags).push("c");
+            stored.tags.push("c");
         }, TypeError);
     });
 });

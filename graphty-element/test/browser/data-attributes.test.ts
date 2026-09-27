@@ -116,7 +116,11 @@ describe("the repeat policy, in markup", () => {
                 edge-data='[{"source": "a", "target": "b"}, {"source": "a", "target": "b"}]'></graphty-element>`,
         );
 
-        assert.strictEqual(element.repeatedEdges, "keep", "an unrecognised policy is dropped, and the default stays in effect");
+        assert.strictEqual(
+            element.repeatedEdges,
+            "keep",
+            "an unrecognised policy is dropped, and the default stays in effect",
+        );
         assert.strictEqual(element.getNodeCount(), 2, "and the graph still drew");
         assert.strictEqual(element.getEdgeCount(), 2, "on the default policy it kept");
     });

@@ -198,7 +198,9 @@ export function createRule(loadDoors) {
              * @returns {boolean} True when it should be reported.
              */
             function mutates(declarations, name, written) {
-                const isMethod = declarations.some((each) => ts.isMethodDeclaration(each) || ts.isMethodSignature(each));
+                const isMethod = declarations.some(
+                    (each) => ts.isMethodDeclaration(each) || ts.isMethodSignature(each),
+                );
                 return (
                     (written || isMethod) &&
                     rootsOf(declarations).some((root) => MUTATING.has((root.doors?.[name] ?? root.whole)?.kind ?? ""))

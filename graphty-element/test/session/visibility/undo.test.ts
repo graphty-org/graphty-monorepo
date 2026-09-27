@@ -298,7 +298,11 @@ describe("mask copies", () => {
         await session.undo();
 
         assert.deepEqual(visible(session), ["n0", "n2", "n4"]);
-        assert.strictEqual(evaluations.mock.calls.length, 0, "the hosts step's copy was taken under the same graph token");
+        assert.strictEqual(
+            evaluations.mock.calls.length,
+            0,
+            "the hosts step's copy was taken under the same graph token",
+        );
     });
 
     it("does not use a copy taken under results a later undo has replaced", async () => {

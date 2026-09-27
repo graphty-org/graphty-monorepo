@@ -92,9 +92,7 @@ describe("TopBar", () => {
 
             expect(screen.getByRole("button", { name: "Undo" })).toBeInTheDocument();
             expect(screen.getByRole("button", { name: "History" })).toBeInTheDocument();
-            expect(
-                screen.getByRole("button", { name: "Redo. Nothing to redo yet" }),
-            ).toBeInTheDocument();
+            expect(screen.getByRole("button", { name: "Redo. Nothing to redo yet" })).toBeInTheDocument();
             expect(screen.getByText("Search commands, nodes and edges")).toBeInTheDocument();
         });
 
@@ -205,15 +203,18 @@ describe("TopBar", () => {
         it("states the reason on Export, Share and Compare", () => {
             renderTopBar({ datasetName: null, dataLoaded: false });
 
-            expect(
-                screen.getByRole("button", { name: "Export. Load data first" }),
-            ).toHaveAttribute("aria-disabled", "true");
-            expect(
-                screen.getByRole("button", { name: "Share this view. Load data first" }),
-            ).toHaveAttribute("aria-disabled", "true");
-            expect(
-                screen.getByRole("button", { name: "Compare two views. Load data first" }),
-            ).toHaveAttribute("aria-disabled", "true");
+            expect(screen.getByRole("button", { name: "Export. Load data first" })).toHaveAttribute(
+                "aria-disabled",
+                "true",
+            );
+            expect(screen.getByRole("button", { name: "Share this view. Load data first" })).toHaveAttribute(
+                "aria-disabled",
+                "true",
+            );
+            expect(screen.getByRole("button", { name: "Compare two views. Load data first" })).toHaveAttribute(
+                "aria-disabled",
+                "true",
+            );
         });
 
         it("opens no menu from a disabled Export or Share", () => {

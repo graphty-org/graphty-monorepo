@@ -163,7 +163,11 @@ describe("a pin outlives the engine that was told about it", () => {
         const held = harness.coordsOf(pinned);
         pinned.pin();
 
-        await layoutManagerInternals.apply(harness.layoutManager, { ...circular, dimension: "2d" }, { restoring: false });
+        await layoutManagerInternals.apply(
+            harness.layoutManager,
+            { ...circular, dimension: "2d" },
+            { restoring: false },
+        );
 
         assert.isTrue(pinned.isPinned(), "switching to 2D did not release the reader's pins");
         assert.deepStrictEqual(harness.coordsOf(pinned), held);
@@ -175,14 +179,16 @@ describe("a pin outlives the engine that was told about it", () => {
         harness.add("b");
         harness.add("c");
 
-        await layoutManagerInternals.apply(harness.layoutManager, 
+        await layoutManagerInternals.apply(
+            harness.layoutManager,
             { id: "circular", engine: "circular", options: {}, dimension: "3d" },
             { restoring: false },
         );
         const held = harness.coordsOf(pinned);
         pinned.pin();
 
-        await layoutManagerInternals.apply(harness.layoutManager, 
+        await layoutManagerInternals.apply(
+            harness.layoutManager,
             { id: "spiral", engine: "spiral", options: {}, dimension: "3d" },
             { restoring: false },
         );
@@ -205,7 +211,14 @@ describe("a pin outlives the engine that was told about it", () => {
         const pinned = harness.add("a");
         const other = harness.add("b");
         harness.add("c");
-        const link = { id: "a-b", index: INVALID_INDEX, srcId: pinned.id, dstId: other.id, srcNode: pinned, dstNode: other };
+        const link = {
+            id: "a-b",
+            index: INVALID_INDEX,
+            srcId: pinned.id,
+            dstId: other.id,
+            srcNode: pinned,
+            dstNode: other,
+        };
         dataManagerInternals.adoptEdge(harness.dataManager, link as unknown as Edge);
 
         await layoutManagerInternals.setLayout(harness.layoutManager, "circular", {});

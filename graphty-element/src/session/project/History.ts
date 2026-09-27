@@ -743,7 +743,11 @@ export class History<P> {
         const capture = step.after ?? step.before;
         if (capture !== null) {
             const base = this.baseline;
-            if (base?.owned === true && base.capture.token === capture.token && base.capture.ids.length === capture.ids.length) {
+            if (
+                base?.owned === true &&
+                base.capture.token === capture.token &&
+                base.capture.ids.length === capture.ids.length
+            ) {
                 base.capture.coords.set(capture.coords);
             } else {
                 this.setBaseline(copyCapture(capture), true);
@@ -771,7 +775,7 @@ export class History<P> {
             this.setBaseline(copyCapture(base.capture), true);
         }
 
-        let {capture} = (this.baseline as { capture: ArrangementCapture });
+        let { capture } = this.baseline as { capture: ArrangementCapture };
         const missing = rows.ids.filter((id, at) => coordsIn(capture, id, rows.rows[at]) === null);
         if (missing.length > 0) {
             const coords = new Float32Array(capture.coords.length + POSITION_COMPONENTS * missing.length);
@@ -779,7 +783,12 @@ export class History<P> {
             // ponytail: an appended row starts at the origin and takes its value just below; a
             // baseline that grows row by row reallocates per fold, fine for the few rows a
             // placement names.
-            capture = Object.freeze({ ids: Object.freeze([...capture.ids, ...missing]), token: -1, epoch: capture.epoch, coords });
+            capture = Object.freeze({
+                ids: Object.freeze([...capture.ids, ...missing]),
+                token: -1,
+                epoch: capture.epoch,
+                coords,
+            });
             this.setBaseline(capture, true);
         }
 
@@ -794,7 +803,12 @@ export class History<P> {
      * @returns True when it holds a capture or placed rows, or changed the graph's shape.
      */
     private arranges(step: Step<P>): boolean {
-        return step.reshapes || step.before !== null || step.after !== null || (this.options.rows?.(step.patch) ?? null) !== null;
+        return (
+            step.reshapes ||
+            step.before !== null ||
+            step.after !== null ||
+            (this.options.rows?.(step.patch) ?? null) !== null
+        );
     }
 
     /**
@@ -979,5 +993,10 @@ function afterOps(step: {
  * @returns The copy.
  */
 function copyCapture(capture: ArrangementCapture): ArrangementCapture {
-    return Object.freeze({ ids: capture.ids, token: capture.token, epoch: capture.epoch, coords: capture.coords.slice() });
+    return Object.freeze({
+        ids: capture.ids,
+        token: capture.token,
+        epoch: capture.epoch,
+        coords: capture.coords.slice(),
+    });
 }

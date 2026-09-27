@@ -50,7 +50,12 @@
 import { afterAll, afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { type Binding, type LayerId, PALETTE_DESCRIPTORS, paletteDescriptor, palettesOfKind } from "../../../catalog";
-import { clearRegisteredPalettesForTesting, isGraphtyError, type PaletteDescriptor, registerPalette } from "../../../extend";
+import {
+    clearRegisteredPalettesForTesting,
+    isGraphtyError,
+    type PaletteDescriptor,
+    registerPalette,
+} from "../../../extend";
 import { Graph } from "../../../index.js";
 import type { GraphSession, LayerSpec, StyleDocument } from "../../../session";
 import { operationQueueOf } from "../../../src/Graph";
@@ -403,7 +408,10 @@ describe("a third party's palette, in the catalogue a picker reads", () => {
         const heat = paletteDescriptor("acme-heat");
         const teams = paletteDescriptor("acme-teams");
 
-        assert.deepStrictEqual(heat?.colors.map((color) => color.toUpperCase()), [...HEAT_HEXES]);
+        assert.deepStrictEqual(
+            heat?.colors.map((color) => color.toUpperCase()),
+            [...HEAT_HEXES],
+        );
         assert.deepStrictEqual(
             teams?.colors.map((color) => color.toUpperCase()),
             [...TEAM_HEXES],

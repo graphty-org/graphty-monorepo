@@ -360,11 +360,7 @@ describe("a label a layer asks for, on a graph that is already drawn", () => {
 
         assert.isDefined(label, "a layer that writes words onto a node builds that node a label");
         assert.isNotNull(label.labelMesh, "and the label has a mesh in the scene");
-        assert.isAbove(
-            inkNearNode(after, "alpha"),
-            LEGIBLE,
-            "and the words are actually drawn where the node is",
-        );
+        assert.isAbove(inkNearNode(after, "alpha"), LEGIBLE, "and the words are actually drawn where the node is");
     });
 
     it("draws the words on an edge when a layer adds only edge.label", async () => {

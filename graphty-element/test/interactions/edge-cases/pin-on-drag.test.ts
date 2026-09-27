@@ -29,7 +29,12 @@ describe("pinOnDrag Behavior", () => {
 
             graph = new Graph(container);
             await graph.init();
-            await configureGraph(graph, { viewMode: "3d", layout: "ngraph", layoutOptions: { dim: 3 }, pinOnDrag: true });
+            await configureGraph(graph, {
+                viewMode: "3d",
+                layout: "ngraph",
+                layoutOptions: { dim: 3 },
+                pinOnDrag: true,
+            });
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await operationQueueOf(graph).waitForCompletion();
@@ -102,7 +107,12 @@ describe("pinOnDrag Behavior", () => {
 
             graph = new Graph(container);
             await graph.init();
-            await configureGraph(graph, { viewMode: "3d", layout: "ngraph", layoutOptions: { dim: 3 }, pinOnDrag: false });
+            await configureGraph(graph, {
+                viewMode: "3d",
+                layout: "ngraph",
+                layoutOptions: { dim: 3 },
+                pinOnDrag: false,
+            });
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await operationQueueOf(graph).waitForCompletion();

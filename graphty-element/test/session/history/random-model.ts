@@ -502,7 +502,11 @@ function expectSealed(model: Model, real: Real, when: string): void {
         `${when}: the pending work`,
     );
     if (sealed(model)) {
-        assert.strictEqual(live(real), model.steps[model.position].digest, `${when}: the state at ${String(model.position)}`);
+        assert.strictEqual(
+            live(real),
+            model.steps[model.position].digest,
+            `${when}: the state at ${String(model.position)}`,
+        );
     }
 
     const protectedSteps = (model.position > 0 ? 1 : 0) + (model.position < history.steps.length ? 1 : 0);
@@ -717,7 +721,12 @@ function plan(model: Model, direction: "undo" | "redo", target: number): Pending
  * @param reported - What the history said it cancelled.
  * @param when - What happened, for the message.
  */
-function dropCancelled(model: Model, cancelled: readonly Pending[], reported: readonly { id: string }[], when: string): void {
+function dropCancelled(
+    model: Model,
+    cancelled: readonly Pending[],
+    reported: readonly { id: string }[],
+    when: string,
+): void {
     assert.deepEqual(
         reported.map((each) => each.id),
         cancelled.map((each) => each.id),
@@ -738,11 +747,7 @@ function dropCancelled(model: Model, cancelled: readonly Pending[], reported: re
  * @param item - What the model knows of it.
  * @returns The item, or null.
  */
-function notePending(
-    model: Model,
-    real: Real,
-    item: Omit<Pending, "id" | "seq" | "label">,
-): Pending | null {
+function notePending(model: Model, real: Real, item: Omit<Pending, "id" | "seq" | "label">): Pending | null {
     const known = new Set(model.pending.map((each) => each.id));
     const fresh = real.session.history.pending.filter((each) => !known.has(each.id));
     assert.isAtMost(fresh.length, 1, "one dispatch left one item pending");
@@ -802,7 +807,9 @@ function readerMay(model: Model): boolean {
 class Edit implements Command {
     constructor(
         private readonly label: string,
-        private readonly act: (real: Real) => ({ key: string | null; run: () => PromiseLike<unknown> } & Arranges) | null,
+        private readonly act: (
+            real: Real,
+        ) => ({ key: string | null; run: () => PromiseLike<unknown> } & Arranges) | null,
     ) {}
 
     check(model: Readonly<Model>): boolean {
@@ -956,11 +963,7 @@ class UndoThenSettle implements Command {
  * @param pick - For a restore, the generated target.
  * @returns The pending work it cancels, and the position it lands on.
  */
-function predict(
-    model: Model,
-    kind: "undo" | "redo" | "restore",
-    pick: number,
-): { cancel: Pending[]; to: number } {
+function predict(model: Model, kind: "undo" | "redo" | "restore", pick: number): { cancel: Pending[]; to: number } {
     const from = model.position;
     const last = model.steps.length - 1;
     if (kind === "undo" || kind === "redo") {
@@ -1085,7 +1088,11 @@ class Move implements Command {
         }
 
         expectSealed(model, real, `after ${this.toString()}`);
-        assert.strictEqual(shown(real), model.steps[model.position].visible, `after ${this.toString()}: the visible ids`);
+        assert.strictEqual(
+            shown(real),
+            model.steps[model.position].visible,
+            `after ${this.toString()}: the visible ids`,
+        );
         expectArrangement(model, real, `after ${this.toString()}`, landedAt(model, landing, start));
         if (landing !== start) {
             assert.isFalse(real.layout.running, `${this.toString()} left the layout at rest`);
@@ -1235,42 +1242,47 @@ class Transaction implements Command {
     async run(model: Model, real: Real): Promise<void> {
         const { session } = real;
         const node = `t${String(++model.added)}`;
-        await edit(model, real, this.toString(), { key: null }, () =>
-            session.transaction("Several layers", async (tx) => {
-                for (const [at, color] of this.colors.entries()) {
-                    await Promise.resolve();
-                    const command: SessionCommand = {
-                        op: "style.patch",
-                        action: "add",
-                        spec: layer(`Tx ${color}`, color),
-                    };
-                    if (this.body === "unawaited") {
-                        void tx.execute(command).catch(() => undefined);
-                        continue;
+        await edit(
+            model,
+            real,
+            this.toString(),
+            { key: null },
+            () =>
+                session.transaction("Several layers", async (tx) => {
+                    for (const [at, color] of this.colors.entries()) {
+                        await Promise.resolve();
+                        const command: SessionCommand = {
+                            op: "style.patch",
+                            action: "add",
+                            spec: layer(`Tx ${color}`, color),
+                        };
+                        if (this.body === "unawaited") {
+                            void tx.execute(command).catch(() => undefined);
+                            continue;
+                        }
+
+                        if (this.body === "aborts" && at === 1) {
+                            const self = session.history.pending.at(-1);
+                            assert.isDefined(self, "the transaction is pending");
+                            session.history.cancel(self.id);
+                        }
+
+                        await tx.execute(command);
                     }
 
-                    if (this.body === "aborts" && at === 1) {
-                        const self = session.history.pending.at(-1);
-                        assert.isDefined(self, "the transaction is pending");
-                        session.history.cancel(self.id);
+                    if (this.body === "outside") {
+                        await tx.data.addNodes([{ id: node }]);
+                        const refused = await session.data.updateNodes([{ id: node, values: { t: 1 } }]).then(
+                            () => null,
+                            (error: unknown) => (error as { code?: string }).code,
+                        );
+                        assert.strictEqual(refused, "E_HELD_BY_TRANSACTION", "an outside edit of a held node");
                     }
 
-                    await tx.execute(command);
-                }
-
-                if (this.body === "outside") {
-                    await tx.data.addNodes([{ id: node }]);
-                    const refused = await session.data.updateNodes([{ id: node, values: { t: 1 } }]).then(
-                        () => null,
-                        (error: unknown) => (error as { code?: string }).code,
-                    );
-                    assert.strictEqual(refused, "E_HELD_BY_TRANSACTION", "an outside edit of a held node");
-                }
-
-                if (this.body === "throws") {
-                    throw new Error("The transaction failed on purpose.");
-                }
-            }),
+                    if (this.body === "throws") {
+                        throw new Error("The transaction failed on purpose.");
+                    }
+                }),
             // A transaction's first graph write takes a before-arrangement.
             this.body === "outside" ? { moves: true } : {},
         );
@@ -1361,7 +1373,14 @@ class OpenTransaction implements Command {
             }
         });
         done.catch(() => undefined);
-        const item = notePending(model, real, { family: "tx", after: null, release: null, slot: null, arranges: {}, runs: [] });
+        const item = notePending(model, real, {
+            family: "tx",
+            after: null,
+            release: null,
+            slot: null,
+            arranges: {},
+            runs: [],
+        });
         assert.isNotNull(item, "an open transaction is pending");
         model.tx = { item, wrote: false, wroteAt: -1, before: null, write, written, finish, done };
         return Promise.resolve();
@@ -1786,15 +1805,13 @@ export const COMMANDS = [
             run: () => real.session.styles.removeBySource((source) => source.by === "user"),
         })),
     ),
-    fc
-        .constantFrom("node.color", "node.size")
-        .map(
-            (channel) =>
-                new Edit(`encode ${channel}`, (real) => ({
-                    key: null,
-                    run: () => real.session.styles.encode({ run: "deg", channel }),
-                })),
-        ),
+    fc.constantFrom("node.color", "node.size").map(
+        (channel) =>
+            new Edit(`encode ${channel}`, (real) => ({
+                key: null,
+                run: () => real.session.styles.encode({ run: "deg", channel }),
+            })),
+    ),
     fc.constant(
         new Edit("highlight the route", (real) => ({
             key: null,
@@ -2087,9 +2104,9 @@ export const COMMANDS = [
     // Four times over, so a sequence of thirty commands plays, steps and settles the layout often
     // enough to put an arrangement under most history moves.
     ...Array.from({ length: 4 }, () => fc.constantFrom("play", "frame", "settle").map((kind) => new Layout(kind))),
-    fc.tuple(fc.constantFrom("replace", "merge"), fc.boolean()).map(
-        ([mode, throws]) => new LoadTransaction(mode, throws),
-    ),
+    fc
+        .tuple(fc.constantFrom("replace", "merge"), fc.boolean())
+        .map(([mode, throws]) => new LoadTransaction(mode, throws)),
     // Pending work: dependent data edits queued behind each other, a queued import (twice under
     // one coalesce key, which takes the waiting slot over), slow runs, and a deferred run.
     ...Array.from({ length: 2 }, () =>

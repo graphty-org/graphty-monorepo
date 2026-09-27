@@ -379,8 +379,7 @@ function notAScope(spec: unknown): GraphtyError {
     return new GraphtyError({
         code: "E_BAD_COMMAND",
         message:
-            "A scope is \"visible\", \"graph\", \"selection\", \"largest-component\", { set }, " +
-            "{ where } or { nodes }.",
+            'A scope is "visible", "graph", "selection", "largest-component", { set }, ' + "{ where } or { nodes }.",
         source: "run",
         details: { scope: spec },
     });

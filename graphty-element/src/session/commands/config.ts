@@ -65,7 +65,9 @@ function unwrap(schema: z.ZodType): z.ZodType {
 function leavesOf(shape: Readonly<Record<string, z.ZodType>>, prefix: string): [string, z.ZodType][] {
     return Object.entries(shape).flatMap(([name, schema]): [string, z.ZodType][] => {
         const inner = unwrap(schema);
-        return inner instanceof z.ZodObject ? leavesOf(inner.shape, `${prefix}${name}.`) : [[`${prefix}${name}`, schema]];
+        return inner instanceof z.ZodObject
+            ? leavesOf(inner.shape, `${prefix}${name}.`)
+            : [[`${prefix}${name}`, schema]];
     });
 }
 
@@ -73,7 +75,10 @@ const LAYOUT = unwrap(GraphBehaviorOpts.shape.layout) as z.ZodObject;
 
 /** Every key of the `config` slice, with its group and schema. */
 export const CONFIG_KEYS: ReadonlyMap<string, ConfigKey> = new Map<string, ConfigKey>([
-    ...leavesOf(DataConfig.shape, "data.").map(([path, schema]): [string, ConfigKey] => [path, { group: "data", schema }]),
+    ...leavesOf(DataConfig.shape, "data.").map(([path, schema]): [string, ConfigKey] => [
+        path,
+        { group: "data", schema },
+    ]),
     ["runAlgorithmsOnLoad", { group: "runAlgorithmsOnLoad", schema: z.boolean().default(false) }],
     ["background", { group: "background", schema: GraphStyle.shape.background }],
     ["selectionStyle", { group: "selectionStyle", schema: unwrap(GraphStyle.shape.selection).prefault({}) }],
@@ -190,7 +195,9 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
         for (const [path, value] of configLeaves(command.values)) {
             if (effective !== undefined && value !== undefined && !ctx.state.config.has(path)) {
                 // An unset key already reads as its default: writing that default changes nothing.
-                const current = path.split(".").reduce<unknown>((at, name) => (at as Record<string, unknown> | undefined)?.[name], effective);
+                const current = path
+                    .split(".")
+                    .reduce<unknown>((at, name) => (at as Record<string, unknown> | undefined)?.[name], effective);
                 if (deepEquals(CONFIG_KEYS.get(path)?.schema.parse(value), current)) {
                     continue;
                 }

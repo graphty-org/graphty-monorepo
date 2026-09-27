@@ -213,7 +213,7 @@ describe("LayoutManager", () => {
             // Verify that nodes have positions
             positions.forEach((pos, i) => {
                 assert.isDefined(pos, `Node ${i} should have a position after pre-steps`);
-                 
+
                 if (pos) {
                     assert.isArray(pos);
                     assert.equal(pos.length, 3);
@@ -371,7 +371,7 @@ describe("LayoutManager", () => {
             const node = nodes[0];
 
             // Clear the layout engine to make it return undefined
-             
+
             layoutManagerInternals.setEngine(newManager, undefined);
 
             const position = newManager.getNodePosition(node);
@@ -492,7 +492,7 @@ describe("LayoutManager", () => {
     describe("2D layout dimension support", () => {
         it("should use 2D mode for NGraphEngine when twoD is set in styles", async () => {
             // Configure 2D mode in styles (testing deprecated API for backward compatibility)
-             
+
             // The dimension's one home is the `layout` slice; the deprecated flag is computed from it.
             await graph.setViewMode("2d");
 
@@ -523,7 +523,7 @@ describe("LayoutManager", () => {
             // Verify all nodes have positions with z=0 in 2D mode
             positions.forEach((pos, i) => {
                 assert.isDefined(pos, `Node ${i} should have a position`);
-                 
+
                 if (pos) {
                     assert.equal(pos[2], 0, `Node ${i} Z coordinate should be 0 in 2D mode`);
                 }
@@ -532,7 +532,7 @@ describe("LayoutManager", () => {
 
         it("should use 3D mode for NGraphEngine when twoD is not set", async () => {
             // Ensure 3D mode (testing deprecated API for backward compatibility)
-             
+
             // The dimension's one home is the `layout` slice; the deprecated flag is computed from it.
             await graph.setViewMode("3d");
 

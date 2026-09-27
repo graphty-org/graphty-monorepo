@@ -87,7 +87,10 @@ describe("undo on a real graph at the largest graph it draws", () => {
         const session = graph.getSession();
         const json = JSON.stringify({
             nodes: Array.from({ length: NODES }, (_, at) => ({ id: `v${String(at)}` })),
-            edges: Array.from({ length: EDGES }, (_, at) => ({ src: `v${String(2 * at)}`, dst: `v${String(2 * at + 1)}` })),
+            edges: Array.from({ length: EDGES }, (_, at) => ({
+                src: `v${String(2 * at)}`,
+                dst: `v${String(2 * at + 1)}`,
+            })),
         });
         // The load's own promise settles before the repaint its queue turn triggers; the graph is
         // drawn once the queue is idle, which is what an undo that rebuilds it waits for too.

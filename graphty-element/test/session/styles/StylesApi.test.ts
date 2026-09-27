@@ -1,7 +1,15 @@
 import { assert, describe, it } from "vitest";
 
 import { clearRegisteredPalettesForTesting, registerPalette } from "../../../src/catalog/paletteRegistry";
-import type { Channel, FieldDescriptor, LayerSpec, PaletteDescriptor, Path, RunId, StyleDocument } from "../../../src/catalog/types";
+import type {
+    Channel,
+    FieldDescriptor,
+    LayerSpec,
+    PaletteDescriptor,
+    Path,
+    RunId,
+    StyleDocument,
+} from "../../../src/catalog/types";
 import { EDGE_CONSTANTS } from "../../../src/constants/meshConstants";
 import { isGraphtyError } from "../../../src/errors";
 import type { RunRef } from "../../../src/session/results/types";
@@ -92,7 +100,12 @@ const ELEMENT_BASE: ElementLayerSpec = {
 };
 
 /** One published field, spelled out so a test can say exactly what a run offers. */
-function field(name: string, kind: FieldDescriptor["kind"], type: FieldDescriptor["type"], runId: RunId): FieldDescriptor {
+function field(
+    name: string,
+    kind: FieldDescriptor["kind"],
+    type: FieldDescriptor["type"],
+    runId: RunId,
+): FieldDescriptor {
     return { name, plainName: name, technicalName: name, kind, type, path: `results.${runId}.${name}` };
 }
 
@@ -562,7 +575,9 @@ describe("the stack moves at once, and the picture follows it", () => {
         const controller = new AbortController();
         controller.abort();
 
-        const code = await codeOfRejection(harness.styles.add(layerSpec("Never"), undefined, { signal: controller.signal }));
+        const code = await codeOfRejection(
+            harness.styles.add(layerSpec("Never"), undefined, { signal: controller.signal }),
+        );
         await flush();
 
         assert.strictEqual(code, "AbortError");
@@ -665,7 +680,9 @@ describe("what the repaint is handed", () => {
     it("reports the paths a new layer reads that nothing answers", async () => {
         const harness = makeStyles();
 
-        await harness.styles.add(layerSpec("Waiting", { selector: { match: "has", path: "results.betweenness.score" } }));
+        await harness.styles.add(
+            layerSpec("Waiting", { selector: { match: "has", path: "results.betweenness.score" } }),
+        );
 
         assert.deepStrictEqual(harness.changes[0]?.unresolvedPaths, ["results.betweenness.score"]);
     });
@@ -856,7 +873,9 @@ describe("checking a layer before it is committed", () => {
 
     it("reports a path nothing answers without calling it an error", () => {
         const { styles } = makeStyles();
-        const result = styles.validate(layerSpec("Early", { selector: { match: "has", path: "results.pagerank.score" } }));
+        const result = styles.validate(
+            layerSpec("Early", { selector: { match: "has", path: "results.pagerank.score" } }),
+        );
 
         assert.isTrue(result.ok);
         assert.deepStrictEqual(result.unresolvedPaths, ["results.pagerank.score"]);
@@ -864,7 +883,9 @@ describe("checking a layer before it is committed", () => {
 
     it("reports no unresolved path when the session cannot say", () => {
         const styles = createStylesApi({ elements: ELEMENTS });
-        const result = styles.validate(layerSpec("Early", { selector: { match: "has", path: "results.pagerank.score" } }));
+        const result = styles.validate(
+            layerSpec("Early", { selector: { match: "has", path: "results.pagerank.score" } }),
+        );
 
         assert.isTrue(result.ok);
         assert.deepStrictEqual(result.unresolvedPaths, []);
@@ -1257,7 +1278,10 @@ describe("the legend, and why one element looks the way it does", () => {
     it("refuses an element this session does not hold", () => {
         const { styles } = makeStyles();
 
-        assert.strictEqual(codeOfThrow(() => styles.explain({ node: "n99" })), "E_BAD_COMMAND");
+        assert.strictEqual(
+            codeOfThrow(() => styles.explain({ node: "n99" })),
+            "E_BAD_COMMAND",
+        );
     });
 });
 
@@ -1272,7 +1296,9 @@ describe("resolveToStatic, which makes a rule editable by ending it", () => {
         assert.strictEqual(fixed.id, layer.id);
         assert.isString(fixed.set?.["node.color"]);
         assert.isUndefined(fixed.encode);
-        assert.isTrue(styles.explain({ node: "n1" }).channels.find((entry) => entry.channel === "node.color")?.editable);
+        assert.isTrue(
+            styles.explain({ node: "n1" }).channels.find((entry) => entry.channel === "node.color")?.editable,
+        );
     });
 
     it("takes a value out of the picture when the caller names no element", async () => {
@@ -1295,10 +1321,7 @@ describe("resolveToStatic, which makes a rule editable by ending it", () => {
         const { styles } = makeStyles();
         const base = styles.list()[0];
 
-        assert.strictEqual(
-            await codeOfRejection(styles.resolveToStatic(base?.id ?? "", "node.color")),
-            "E_PROTECTED",
-        );
+        assert.strictEqual(await codeOfRejection(styles.resolveToStatic(base?.id ?? "", "node.color")), "E_PROTECTED");
     });
 });
 
@@ -1392,7 +1415,10 @@ describe("a style document, out and back in", () => {
         const code = await codeOfRejection(
             styles.applyTemplate({
                 version: 1,
-                layers: [{ name: "Fine", selector: { match: "everything" }, set: { "node.color": "#ffffff" } }, { name: "", selector: { match: "everything" } }],
+                layers: [
+                    { name: "Fine", selector: { match: "everything" }, set: { "node.color": "#ffffff" } },
+                    { name: "", selector: { match: "everything" } },
+                ],
             }),
         );
 

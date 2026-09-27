@@ -743,7 +743,9 @@ describe("a third party's log destination", () => {
     });
 
     it("is turned on again from a configuration that was written to storage and read back", async () => {
-        const stored = JSON.stringify({ sinks: [{ use: "acme-collector", options: { name: "restored", capacity: 2 } }] });
+        const stored = JSON.stringify({
+            sinks: [{ use: "acme-collector", options: { name: "restored", capacity: 2 } }],
+        });
         const restored = JSON.parse(stored) as { sinks: { use: string; options: Record<string, unknown> }[] };
 
         await GraphtyLogger.configure(restored);

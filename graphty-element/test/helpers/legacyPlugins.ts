@@ -33,7 +33,9 @@ export class WriteEverywhere extends Algorithm {
             data.algorithmResults = { fixture: { "write-everywhere": { seen: true } } };
         }
 
-        const results: Record<string, unknown> = { fixture: { "write-everywhere": { nodes: graph.getNodes().length } } };
+        const results: Record<string, unknown> = {
+            fixture: { "write-everywhere": { nodes: graph.getNodes().length } },
+        };
         (graph.getDataManager() as { graphResults?: unknown }).graphResults = results;
         return Promise.resolve();
     }

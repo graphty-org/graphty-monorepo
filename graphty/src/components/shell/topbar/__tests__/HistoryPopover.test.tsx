@@ -6,7 +6,7 @@ import { fireEvent, render, screen, within } from "../../../../test/test-utils";
 import { HistoryPopover, type HistoryPopoverProps } from "../HistoryPopover";
 import { historyRows } from "../historyRows";
 import { XR_VOICE_PROVENANCE } from "../topBarStrings";
-import { makeStep,PANEL_TITLES } from "./historyFixtures";
+import { makeStep, PANEL_TITLES } from "./historyFixtures";
 
 const at = (hours: number, minutes: number): number => new Date(2026, 8, 4, hours, minutes).getTime();
 
@@ -108,9 +108,7 @@ describe("HistoryPopover", () => {
         it("marks the current position", () => {
             renderPopover();
 
-            const items = within(screen.getByRole("dialog", { name: "History" })).getAllByRole(
-                "listitem",
-            );
+            const items = within(screen.getByRole("dialog", { name: "History" })).getAllByRole("listitem");
 
             expect(items[1]).toHaveAttribute("aria-current", "true");
             expect(within(items[1]).getByText("Current")).toBeInTheDocument();
@@ -130,9 +128,7 @@ describe("HistoryPopover", () => {
         it("names the owning activity and the time in their own columns", () => {
             renderPopover();
 
-            const items = within(screen.getByRole("dialog", { name: "History" })).getAllByRole(
-                "listitem",
-            );
+            const items = within(screen.getByRole("dialog", { name: "History" })).getAllByRole("listitem");
 
             expect(within(items[2]).getByText("Data")).toBeInTheDocument();
             expect(within(items[2]).getByText("14:02")).toBeInTheDocument();
@@ -161,15 +157,11 @@ describe("HistoryPopover", () => {
 
             renderPopover({ onPreview });
 
-            const items = within(screen.getByRole("dialog", { name: "History" })).getAllByRole(
-                "listitem",
-            );
+            const items = within(screen.getByRole("dialog", { name: "History" })).getAllByRole("listitem");
 
             fireEvent.mouseEnter(items[0]);
 
-            expect(onPreview).toHaveBeenLastCalledWith(
-                expect.objectContaining({ id: "hubs" }),
-            );
+            expect(onPreview).toHaveBeenLastCalledWith(expect.objectContaining({ id: "hubs" }));
 
             fireEvent.mouseLeave(items[0]);
 

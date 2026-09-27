@@ -694,15 +694,15 @@ export class DataManager implements Manager {
         // old rows into the position array, growing it under the snapshot it is lent to.
         for (const edge of this.edges.values()) {
             if (this.layoutEngine) {
-            layoutEngineInternals.removeEdge(this.layoutEngine, edge);
-        }
+                layoutEngineInternals.removeEdge(this.layoutEngine, edge);
+            }
         }
 
         for (const node of this.nodes.values()) {
             placeNodeRow(node, INVALID_INDEX);
             if (this.layoutEngine) {
-            layoutEngineInternals.removeNode(this.layoutEngine, node);
-        }
+                layoutEngineInternals.removeNode(this.layoutEngine, node);
+            }
         }
 
         // Free the per-node and per-edge Babylon resources BEFORE dropping the references to

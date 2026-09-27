@@ -653,9 +653,11 @@ describe("Nested Operations", () => {
                 }, 5000);
             });
 
-            const completionPromise = operationQueueOf(graph).waitForCompletion().then(() => {
-                return true;
-            });
+            const completionPromise = operationQueueOf(graph)
+                .waitForCompletion()
+                .then(() => {
+                    return true;
+                });
 
             const completed = await Promise.race([completionPromise, timeoutPromise]);
 

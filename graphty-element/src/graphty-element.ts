@@ -508,7 +508,7 @@ export class Graphty extends LitElement {
      */
     #setting(path: string): unknown {
         const session = this.#graph.getSession();
-        const {config} = dispatcherOf(session).state;
+        const { config } = dispatcherOf(session).state;
         if (config.has(path)) {
             return config.get(path);
         }
@@ -517,8 +517,10 @@ export class Graphty extends LitElement {
         return (
             path
                 .split(".")
-                .reduce<unknown>((at, name) => (at as Readonly<Record<string, unknown>> | undefined)?.[name], session.config) ??
-            undefined
+                .reduce<unknown>(
+                    (at, name) => (at as Readonly<Record<string, unknown>> | undefined)?.[name],
+                    session.config,
+                ) ?? undefined
         );
     }
 

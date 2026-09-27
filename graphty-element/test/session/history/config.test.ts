@@ -33,7 +33,11 @@ async function refuses(session: GraphSession, values: unknown): Promise<void> {
     const before = stateDigest(dispatcherOf(session).state);
     const steps = session.history.steps.length;
 
-    assert.strictEqual(await codeOf(session.config.set(values as ProjectConfigPatch)), "E_BAD_COMMAND", JSON.stringify(values));
+    assert.strictEqual(
+        await codeOf(session.config.set(values as ProjectConfigPatch)),
+        "E_BAD_COMMAND",
+        JSON.stringify(values),
+    );
     assert.strictEqual(stateDigest(dispatcherOf(session).state), before, "state changed");
     assert.strictEqual(session.history.steps.length, steps, "a step was recorded");
 }
@@ -54,7 +58,10 @@ describe("session.config", () => {
     it("reads a setting live, and undo and redo move it back and forth as one step", async () => {
         const session = createElementSession();
 
-        await session.config.set({ data: { knownFields: { nodeLabelPath: "name" } }, layoutBehavior: { preSteps: 20 } });
+        await session.config.set({
+            data: { knownFields: { nodeLabelPath: "name" } },
+            layoutBehavior: { preSteps: 20 },
+        });
 
         assert.strictEqual(session.config.data.knownFields.nodeLabelPath, "name");
         assert.strictEqual(session.config.layoutBehavior.preSteps, 20);

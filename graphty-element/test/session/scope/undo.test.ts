@@ -42,7 +42,10 @@ describe("saved scopes under undo", () => {
 
         await session.undo();
         assert.deepEqual(session.scope.list(), []);
-        assert.strictEqual(codeOf(() => session.scope.resolve({ set: id })), "E_BAD_COMMAND");
+        assert.strictEqual(
+            codeOf(() => session.scope.resolve({ set: id })),
+            "E_BAD_COMMAND",
+        );
 
         await session.redo();
         assert.deepEqual(
@@ -75,7 +78,10 @@ describe("saved scopes under undo", () => {
         assert.strictEqual(scope.resolveNow({ set: id }).nodeCount, 1);
 
         const undone = session.undo();
-        assert.strictEqual(codeOf(() => scope.resolveNow({ set: id })), "E_BAD_COMMAND");
+        assert.strictEqual(
+            codeOf(() => scope.resolveNow({ set: id })),
+            "E_BAD_COMMAND",
+        );
         await undone;
 
         const redone = session.redo();
@@ -100,7 +106,11 @@ describe("saved scopes under undo", () => {
             session.scope.list().map((saved) => saved.id),
             [first, second],
         );
-        assert.strictEqual(session.history.steps[session.history.position]?.label, 'Removed the scope "First"', "the removal is the step to redo");
+        assert.strictEqual(
+            session.history.steps[session.history.position]?.label,
+            'Removed the scope "First"',
+            "the removal is the step to redo",
+        );
         session.dispose();
     });
 

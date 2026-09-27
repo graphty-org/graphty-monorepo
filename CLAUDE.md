@@ -101,16 +101,16 @@ workarounds available to them and no way to know they are not alone.
 
 **IMPORTANT**: Always use the full package name to avoid confusion:
 
-| Package | Correct Name | DO NOT Use |
-|---------|--------------|------------|
-| `@graphty/graphty-element` | **graphty-element** | "graphty" (ambiguous) |
-| `@graphty/graphty` | **graphty** or **graphty app** | - |
-| `@graphty/algorithms` | **algorithms** | - |
-| `@graphty/layout` | **layout** | - |
-| `@graphty/graph-format` | **graph-format** | "format", "snapshot package" |
-| `@graphty/graph-io` (and `@graphty/graph-io/<format>` subpaths: gexf, graphml, gml, dot, pajek, csv, json, neo4j) | **graph-io** | "io", "importers" |
-| `@graphty/webgpu-graph-algorithms` (and `@graphty/webgpu-graph-algorithms/browser`, `/node` subpaths) | **webgpu-graph-algorithms** | "webgpu", "the GPU package", "the GPU layout" |
-| `@graphty/graph-samples` (and `@graphty/graph-samples/generators`, `/datasets/<name>` subpaths) | **graph-samples** | "generators", "samples", "datasets" |
+| Package                                                                                                           | Correct Name                   | DO NOT Use                                    |
+| ----------------------------------------------------------------------------------------------------------------- | ------------------------------ | --------------------------------------------- |
+| `@graphty/graphty-element`                                                                                        | **graphty-element**            | "graphty" (ambiguous)                         |
+| `@graphty/graphty`                                                                                                | **graphty** or **graphty app** | -                                             |
+| `@graphty/algorithms`                                                                                             | **algorithms**                 | -                                             |
+| `@graphty/layout`                                                                                                 | **layout**                     | -                                             |
+| `@graphty/graph-format`                                                                                           | **graph-format**               | "format", "snapshot package"                  |
+| `@graphty/graph-io` (and `@graphty/graph-io/<format>` subpaths: gexf, graphml, gml, dot, pajek, csv, json, neo4j) | **graph-io**                   | "io", "importers"                             |
+| `@graphty/webgpu-graph-algorithms` (and `@graphty/webgpu-graph-algorithms/browser`, `/node` subpaths)             | **webgpu-graph-algorithms**    | "webgpu", "the GPU package", "the GPU layout" |
+| `@graphty/graph-samples` (and `@graphty/graph-samples/generators`, `/datasets/<name>` subpaths)                   | **graph-samples**              | "generators", "samples", "datasets"           |
 
 - The Web Component library is **graphty-element** (not "graphty")
 - The React application is **graphty** or **graphty app**
@@ -119,16 +119,16 @@ workarounds available to them and no way to know they are not alone.
 
 ## Package Directory
 
-| Package | Location | Version | Description |
-|---------|----------|---------|-------------|
-| `@graphty/graph-format` | `graph-format/` | 1.0.0 | Frozen CSR graph snapshot over typed arrays (builder, id map, attribute columns, views, wire form); zero dependencies |
-| `@graphty/graph-io` | `graph-io/` | 0.2.1 | Importers and exporters (GEXF, GraphML, GML, DOT, Pajek, CSV, JSON, Neo4j) for the graph-format snapshot; subpath exports per format |
-| `@graphty/webgpu-graph-algorithms` | `webgpu-graph-algorithms/` | 0.2.0 | WebGPU-accelerated graph algorithms and layouts (ForceAtlas2 first) over the graph-format snapshot, for Node (Dawn) and browsers; never falls back to the CPU |
-| `@graphty/graph-samples` | `graph-samples/` | 0.1.0 | Seeded, platform-independent graph generators and classic sample datasets as typed arrays for the graph-format snapshot; one subpath per dataset |
-| `@graphty/algorithms` | `algorithms/` | 1.4.0 | 98+ graph algorithms (traversal, pathfinding, centrality, clustering, flow, link prediction) |
-| `@graphty/layout` | `layout/` | 1.3.0 | Graph layout algorithms (NetworkX TypeScript port) |
-| `@graphty/graphty-element` | `graphty-element/` | 1.5.0 | Web Component for 3D/2D graph visualization (Lit + Babylon.js) |
-| `@graphty/graphty` | `graphty/` | 0.1.0 | React wrapper application (private, Mantine UI) |
+| Package                            | Location                   | Version | Description                                                                                                                                                   |
+| ---------------------------------- | -------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@graphty/graph-format`            | `graph-format/`            | 1.0.0   | Frozen CSR graph snapshot over typed arrays (builder, id map, attribute columns, views, wire form); zero dependencies                                         |
+| `@graphty/graph-io`                | `graph-io/`                | 0.2.1   | Importers and exporters (GEXF, GraphML, GML, DOT, Pajek, CSV, JSON, Neo4j) for the graph-format snapshot; subpath exports per format                          |
+| `@graphty/webgpu-graph-algorithms` | `webgpu-graph-algorithms/` | 0.2.0   | WebGPU-accelerated graph algorithms and layouts (ForceAtlas2 first) over the graph-format snapshot, for Node (Dawn) and browsers; never falls back to the CPU |
+| `@graphty/graph-samples`           | `graph-samples/`           | 0.1.0   | Seeded, platform-independent graph generators and classic sample datasets as typed arrays for the graph-format snapshot; one subpath per dataset              |
+| `@graphty/algorithms`              | `algorithms/`              | 1.4.0   | 98+ graph algorithms (traversal, pathfinding, centrality, clustering, flow, link prediction)                                                                  |
+| `@graphty/layout`                  | `layout/`                  | 1.3.0   | Graph layout algorithms (NetworkX TypeScript port)                                                                                                            |
+| `@graphty/graphty-element`         | `graphty-element/`         | 1.5.0   | Web Component for 3D/2D graph visualization (Lit + Babylon.js)                                                                                                |
+| `@graphty/graphty`                 | `graphty/`                 | 0.1.0   | React wrapper application (private, Mantine UI)                                                                                                               |
 
 ## Monorepo Structure
 
@@ -230,33 +230,33 @@ Each package also has its own `npm run coverage:preview`.
 
 The monorepo uses shared configuration files in the root directory:
 
-| File | Purpose |
-|------|---------|
-| `vite.shared.config.ts` | Shared Vite config factory (build formats) |
+| File                      | Purpose                                                         |
+| ------------------------- | --------------------------------------------------------------- |
+| `vite.shared.config.ts`   | Shared Vite config factory (build formats)                      |
 | `vitest.shared.config.ts` | Shared Vitest config factory (coverage thresholds, environment) |
-| `tsconfig.base.json` | Shared TypeScript settings with project references |
-| `eslint.config.js` | Shared ESLint flat config |
+| `tsconfig.base.json`      | Shared TypeScript settings with project references              |
+| `eslint.config.js`        | Shared ESLint flat config                                       |
 
 ## Tools Directory
 
 The `tools/` directory contains build scripts:
 
-| File | Purpose |
-|------|---------|
-| `merge-coverage.sh` | Merges coverage from all packages, supports CI artifacts |
-| `run-tests.sh` | Runs a CI test shard locally with the exact command CI runs, read from `ci-test-matrix.mjs`: `--list`, `<shard>` or `all`. Shards run with coverage, so this also checks the thresholds. Build first |
-| `ci-test-matrix.mjs` | The CI test shards and their commands (ci.yml and `run-tests.sh` both read it) |
-| `validate-outputs.cjs` | Validates build outputs (ES modules, UMD, types, sourcemaps) |
-| `prepush.sh` | The pre-push gate: build, lint, knip and the fast tests. Run by `.husky/pre-push` via `pnpm run prepush:fast` |
-| `commit-changes.sh` | Lands the working tree as a sequence of conventional commits. `--dry-run` first: it stages nothing |
-| `check-links.sh` | Dead-link check (see "Dead Links" under CI/CD). `--offline` for the fast half |
-| `assemble-pages-site.sh` | Builds the graphty.app site from the build outputs; deploy-pages.yml and the link check both run it |
-| `chromatic.sh`, `chromatic-api.sh` | Run Chromatic for one package; read a build's totals with the project token (see `.env.example`) |
-| `chromatic-capture.mjs` | Lists the stories of a Chromatic build and downloads their baseline, head and diff images, using your login cookie `CHROMATIC_SESSION_COOKIE`. Read-only: it never accepts or approves |
-| `diff-stories.mjs` | Renders the same stories from two built Storybooks and saves both screenshots plus camera and node positions |
-| `pixel-diff.mjs` | Per-pixel comparison of two PNGs: changed pixels, bounding box, and whether the change is local or frame-wide |
-| `worktree-new.sh` | `<branch> [base]`: a worktree in `.worktrees/` with the main checkout's `.env` linked in and `pnpm install --frozen-lockfile` done |
-| `worktree-prune.sh` | Lists worktrees whose branch is merged or deleted upstream, with size, uncommitted files and live processes, and removes each on confirmation. `--dry-run` removes nothing |
+| File                               | Purpose                                                                                                                                                                                              |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `merge-coverage.sh`                | Merges coverage from all packages, supports CI artifacts                                                                                                                                             |
+| `run-tests.sh`                     | Runs a CI test shard locally with the exact command CI runs, read from `ci-test-matrix.mjs`: `--list`, `<shard>` or `all`. Shards run with coverage, so this also checks the thresholds. Build first |
+| `ci-test-matrix.mjs`               | The CI test shards and their commands (ci.yml and `run-tests.sh` both read it)                                                                                                                       |
+| `validate-outputs.cjs`             | Validates build outputs (ES modules, UMD, types, sourcemaps)                                                                                                                                         |
+| `prepush.sh`                       | The pre-push gate: build, lint, knip and the fast tests. Run by `.husky/pre-push` via `pnpm run prepush:fast`                                                                                        |
+| `commit-changes.sh`                | Lands the working tree as a sequence of conventional commits. `--dry-run` first: it stages nothing                                                                                                   |
+| `check-links.sh`                   | Dead-link check (see "Dead Links" under CI/CD). `--offline` for the fast half                                                                                                                        |
+| `assemble-pages-site.sh`           | Builds the graphty.app site from the build outputs; deploy-pages.yml and the link check both run it                                                                                                  |
+| `chromatic.sh`, `chromatic-api.sh` | Run Chromatic for one package; read a build's totals with the project token (see `.env.example`)                                                                                                     |
+| `chromatic-capture.mjs`            | Lists the stories of a Chromatic build and downloads their baseline, head and diff images, using your login cookie `CHROMATIC_SESSION_COOKIE`. Read-only: it never accepts or approves               |
+| `diff-stories.mjs`                 | Renders the same stories from two built Storybooks and saves both screenshots plus camera and node positions                                                                                         |
+| `pixel-diff.mjs`                   | Per-pixel comparison of two PNGs: changed pixels, bounding box, and whether the change is local or frame-wide                                                                                        |
+| `worktree-new.sh`                  | `<branch> [base]`: a worktree in `.worktrees/` with the main checkout's `.env` linked in and `pnpm install --frozen-lockfile` done                                                                   |
+| `worktree-prune.sh`                | Lists worktrees whose branch is merged or deleted upstream, with size, uncommitted files and live processes, and removes each on confirmation. `--dry-run` removes nothing                           |
 
 ### Secret Scan and Secret Files
 
@@ -317,31 +317,39 @@ mode picks its own ports). A script run outside servherd needs `PORT` set by han
 ### Test Projects by Package
 
 **algorithms:**
+
 - `default` - Node.js environment
 - `browser` - Playwright browser tests
 
 **layout:**
+
 - Single test project (Node.js)
 
 **graph-format:**
+
 - Single test project (Node.js); `test/types/*.test-d.ts` are compile-only (`npm run typecheck:strict-consumer` after a build)
 
 **graph-io:**
+
 - Single test project (Node.js); resolves `@graphty/graph-format` through `graph-format/dist`, so build graph-format first
 
 **graph-samples:**
+
 - Single test project (Node.js); resolves `@graphty/graph-format` through `graph-format/dist`, so build graph-format first
 
 **webgpu-graph-algorithms:**
+
 - `node` - Node.js on Dawn (`GRAPHTY_GPU_REQUIRE` unset skips without an adapter; CI sets `any` on lavapipe)
 - `node-limits` - the GPU lane only (real device limits)
 - `browser` - Playwright Chromium with the `GRAPHTY_BROWSER_GPU` flag set (swiftshader in CI) through `scripts/run-browser-project.js`
 
 **graphty:**
+
 - `browser` - Browser-based tests (Playwright)
 - `eslint-rules` - Node tests of the app's own lint rules (`graphty/eslint-rules/`)
 
 **graphty-element:**
+
 - `default` - Node.js tests
 - `browser` - Playwright tests (5 CI shards)
 - `storybook` - Component tests (4 CI shards)
@@ -368,15 +376,15 @@ All packages: 80% lines/functions/statements, 75% branches
 
 ### Workflows (`.github/workflows/`)
 
-| Workflow | Trigger | Purpose |
-|----------|---------|---------|
-| `ci.yml` | Push/PR | Build, lint, sharded tests (21 parallel jobs), dead links (the `Links` job) |
-| `coverage.yml` | After CI | Merge coverage reports, publish to Coveralls |
-| `release.yml` | After CI (master) | Semantic release with Nx |
-| `deploy-pages.yml` | After CI | Deploy docs to GitHub Pages |
-| `links-weekly.yml` | Mondays, dispatch | Every external link; files, rewrites or closes one `dead-links` issue. Never fails a pull request |
-| `gpu.yml` | Push to master, dispatch, labelled same-repo PRs (no nightly) | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4 by default); never a job of CI, but `release.yml` waits for it and requires it green |
-| `hosts.yml` | Push/PR touching `webgpu-graph-algorithms/` or `graph-format/`, dispatch | Host matrix: Dawn on Metal + WebKit (macOS), Dawn on D3D12 WARP + Chromium (Windows); `release.yml` waits for it and requires it green when it ran |
+| Workflow           | Trigger                                                                  | Purpose                                                                                                                                            |
+| ------------------ | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ci.yml`           | Push/PR                                                                  | Build, lint, sharded tests (21 parallel jobs), dead links (the `Links` job)                                                                        |
+| `coverage.yml`     | After CI                                                                 | Merge coverage reports, publish to Coveralls                                                                                                       |
+| `release.yml`      | After CI (master)                                                        | Semantic release with Nx                                                                                                                           |
+| `deploy-pages.yml` | After CI                                                                 | Deploy docs to GitHub Pages                                                                                                                        |
+| `links-weekly.yml` | Mondays, dispatch                                                        | Every external link; files, rewrites or closes one `dead-links` issue. Never fails a pull request                                                  |
+| `gpu.yml`          | Push to master, dispatch, labelled same-repo PRs (no nightly)            | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4 by default); never a job of CI, but `release.yml` waits for it and requires it green  |
+| `hosts.yml`        | Push/PR touching `webgpu-graph-algorithms/` or `graph-format/`, dispatch | Host matrix: Dawn on Metal + WebKit (macOS), Dawn on D3D12 WARP + Chromium (Windows); `release.yml` waits for it and requires it green when it ran |
 
 ### Dead Links
 
@@ -406,6 +414,7 @@ package has no guide pages, so its documentation link is the generated API refer
 ### CI Test Shards
 
 The CI runs 21 parallel test jobs on a push to master or a manual dispatch:
+
 - `graph-format`
 - `graph-io`
 - `webgpu-graph-algorithms-node`, `webgpu-graph-algorithms-browser`
@@ -442,10 +451,7 @@ export function algorithmName<TNodeId = unknown>(
 
 ```typescript
 // All layouts in @graphty/layout implement:
-type LayoutFunction = (
-    graph: ReadonlyGraph,
-    options?: LayoutOptions,
-) => PositionMap;
+type LayoutFunction = (graph: ReadonlyGraph, options?: LayoutOptions) => PositionMap;
 ```
 
 ### Web Component Architecture (graphty-element)
@@ -469,30 +475,31 @@ AlgorithmRegistry.register("custom-algo", customAlgorithm);
 
 ### Core Implementation Files
 
-| File | Purpose |
-|------|---------|
-| `graphty-element/src/Graph.ts` | Core orchestration class |
+| File                                     | Purpose                   |
+| ---------------------------------------- | ------------------------- |
+| `graphty-element/src/Graph.ts`           | Core orchestration class  |
 | `graphty-element/src/graphty-element.ts` | Web Component entry point |
-| `graphty-element/src/Node.ts` | Node implementation |
-| `graphty-element/src/Edge.ts` | Edge implementation |
-| `algorithms/src/index.ts` | All algorithm exports |
-| `layout/src/layouts/index.ts` | All layout exports |
-| `graphty/src/App.tsx` | React integration example |
+| `graphty-element/src/Node.ts`            | Node implementation       |
+| `graphty-element/src/Edge.ts`            | Edge implementation       |
+| `algorithms/src/index.ts`                | All algorithm exports     |
+| `layout/src/layouts/index.ts`            | All layout exports        |
+| `graphty/src/App.tsx`                    | React integration example |
 
 ### Configuration Files
 
-| File | Purpose |
-|------|---------|
-| `nx.json` | Nx build system config (caching, plugins, release) |
-| `pnpm-workspace.yaml` | pnpm workspace packages |
-| `tsconfig.base.json` | Shared TypeScript config with project references |
-| `eslint.config.js` | Shared ESLint flat config |
-| `vite.shared.config.ts` | Vite build configuration factory |
-| `vitest.shared.config.ts` | Vitest test configuration factory |
+| File                      | Purpose                                            |
+| ------------------------- | -------------------------------------------------- |
+| `nx.json`                 | Nx build system config (caching, plugins, release) |
+| `pnpm-workspace.yaml`     | pnpm workspace packages                            |
+| `tsconfig.base.json`      | Shared TypeScript config with project references   |
+| `eslint.config.js`        | Shared ESLint flat config                          |
+| `vite.shared.config.ts`   | Vite build configuration factory                   |
+| `vitest.shared.config.ts` | Vitest test configuration factory                  |
 
 ### Package CLAUDE.md Files
 
 Each package has its own CLAUDE.md with package-specific guidance:
+
 - `graph-format/CLAUDE.md` - Snapshot invariants, freeze pipeline, adding a view / a dtype
 - `graph-io/CLAUDE.md` - Importer / exporter contract, adding a format
 - `graph-samples/CLAUDE.md` - The determinism contract, adding a generator or a dataset
@@ -517,10 +524,10 @@ Each package has its own CLAUDE.md with package-specific guidance:
 - Never disable `@typescript-eslint/no-explicit-any`
 - Use type imports: `import type { ... }`
 - Uses TypeScript project references for cross-package dependencies:
-  - `tsconfig.base.json` provides shared compiler options
-  - Each package extends base config and sets `composite: true`
-  - Dependent packages declare `references` array pointing to dependencies
-  - Build order enforced by TypeScript: `graph-format` -> `graph-io` -> `webgpu-graph-algorithms` -> `graph-samples` -> `algorithms` -> `layout` -> `graphty-element` -> `graphty`
+    - `tsconfig.base.json` provides shared compiler options
+    - Each package extends base config and sets `composite: true`
+    - Dependent packages declare `references` array pointing to dependencies
+    - Build order enforced by TypeScript: `graph-format` -> `graph-io` -> `webgpu-graph-algorithms` -> `graph-samples` -> `algorithms` -> `layout` -> `graphty-element` -> `graphty`
 
 ### UI Components
 
@@ -551,15 +558,15 @@ Each package has its own CLAUDE.md with package-specific guidance:
   elements have `isInPath == true`. An element the algorithm has nothing to say about is not
   the algorithm's to paint -- not even to a default, a muted grey, or a full opacity
 - Two ways a layer breaks this, both silent:
-  - an empty `selector: ""` matches EVERY node or edge, so the layer's `calculatedStyle` runs
-    on the whole graph. Calculated values are last-writer-wins, so the write lands whatever the
-    value is -- including the value the expression returns for "not in my result"
-  - a helper with an un-highlighted branch (`blueHighlight(false)` returns `#CCCCCC`) turns
-    "this element is not part of my result" into a paint instruction. So does an input that is
-    `undefined` before the algorithm has even run
-  Scope the layer with a selector that matches only the elements carrying a result
-  (``algorithmResults.graphty.dijkstra.isInPath == `true` ``), so a non-result element is never
-  visited at all
+    - an empty `selector: ""` matches EVERY node or edge, so the layer's `calculatedStyle` runs
+      on the whole graph. Calculated values are last-writer-wins, so the write lands whatever the
+      value is -- including the value the expression returns for "not in my result"
+    - a helper with an un-highlighted branch (`blueHighlight(false)` returns `#CCCCCC`) turns
+      "this element is not part of my result" into a paint instruction. So does an input that is
+      `undefined` before the algorithm has even run
+      Scope the layer with a selector that matches only the elements carrying a result
+      (``algorithmResults.graphty.dijkstra.isInPath == `true` ``), so a non-result element is never
+      visited at all
 - Dimming, fading, greying or hiding what an algorithm did NOT select is a READER's choice, not
   the algorithm's. It belongs to the caller -- a story, the app, a user-added layer -- and MUST
   NOT ship in `suggestedStyles`
@@ -585,6 +592,7 @@ Each package has its own CLAUDE.md with package-specific guidance:
 ### GitHub Pages URLs
 
 **IMPORTANT**: Use `graphty.app` for all documentation and Storybook links (NOT `graphty-org.github.io`):
+
 - Documentation: `https://graphty.app/docs/{package}/`
 - Storybook: `https://graphty.app/storybook/{package}/`
 

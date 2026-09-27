@@ -17,7 +17,7 @@ describe("reading one node or one edge", () => {
         harness.session.dispose();
     });
 
-    it("misses without coercing, so 1 and \"1\" stay two different nodes", () => {
+    it('misses without coercing, so 1 and "1" stay two different nodes', () => {
         const harness = makeSession();
         harness.add([{ id: 1 }]);
 
@@ -121,7 +121,10 @@ describe("what attributes the graph carries", () => {
     it("describes node and edge attributes with their type, completeness and samples", () => {
         const harness = makeSession();
         harness.add(
-            [{ id: "a", label: "Alpha", weightKg: 1.5 }, { id: "b", label: "Beta" }],
+            [
+                { id: "a", label: "Alpha", weightKg: 1.5 },
+                { id: "b", label: "Beta" },
+            ],
             [{ src: "a", dst: "b", kind: "knows" }],
         );
 

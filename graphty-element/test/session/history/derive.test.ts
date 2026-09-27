@@ -122,7 +122,11 @@ describe("derivation lane", () => {
         await lane.settled();
         await lane.settled();
 
-        assert.deepEqual(log, ["config:early", "views:v", "config:late"], "the first pass finished before the late change");
+        assert.deepEqual(
+            log,
+            ["config:early", "views:v", "config:late"],
+            "the first pass finished before the late change",
+        );
     });
 
     it("holds the restoring flag from the call until the arrangement hook has run", async () => {

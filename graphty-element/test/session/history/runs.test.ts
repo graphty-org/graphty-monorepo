@@ -178,7 +178,10 @@ describe("a run is one step", () => {
     it("makes a batch one step: one undo takes every member and the layer they painted", async () => {
         const { session } = await gated();
 
-        await session.runs.batch([{ algorithm: "degree", as: "a" }, { algorithm: "pagerank", as: "b" }]);
+        await session.runs.batch([
+            { algorithm: "degree", as: "a" },
+            { algorithm: "pagerank", as: "b" },
+        ]);
 
         assert.lengthOf(session.history.steps, 1);
         assert.lengthOf(session.runs.list(), 2);
@@ -229,7 +232,12 @@ describe("undo while a run is still going", () => {
         const { session, open } = await gated();
         const run = session.runs.start("betweenness", {}, { as: "bet" });
         await idle(session);
-        await session.styles.add({ name: "Mine", target: "node", selector: { match: "everything" }, set: { "node.color": "#00ff00" } });
+        await session.styles.add({
+            name: "Mine",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#00ff00" },
+        });
 
         const pending = session.history.pending.at(0);
         assert.isDefined(pending);
@@ -250,7 +258,12 @@ describe("undo while a run is still going", () => {
         const { session, open } = await gated();
         const run = session.runs.start("betweenness", {}, { as: "bet" });
         await idle(session);
-        await session.styles.add({ name: "Mine", target: "node", selector: { match: "everything" }, set: { "node.color": "#00ff00" } });
+        await session.styles.add({
+            name: "Mine",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#00ff00" },
+        });
 
         const outcome = await session.undo();
 
@@ -269,7 +282,12 @@ describe("undo while a run is still going", () => {
         const { session, open } = await gated();
         const run = session.runs.start("betweenness", {}, { as: "bet" });
         await idle(session);
-        await session.styles.add({ name: "Mine", target: "node", selector: { match: "everything" }, set: { "node.color": "#00ff00" } });
+        await session.styles.add({
+            name: "Mine",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#00ff00" },
+        });
         await session.undo();
 
         const outcome = await session.redo();

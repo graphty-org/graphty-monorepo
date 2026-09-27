@@ -127,7 +127,12 @@ describe("what the style system says, and what the canvas shows", () => {
             });
         }
 
-        return (await engine.readPixels(0, 0, engine.getRenderWidth(), engine.getRenderHeight())) as unknown as Uint8Array;
+        return (await engine.readPixels(
+            0,
+            0,
+            engine.getRenderWidth(),
+            engine.getRenderHeight(),
+        )) as unknown as Uint8Array;
     }
 
     /**

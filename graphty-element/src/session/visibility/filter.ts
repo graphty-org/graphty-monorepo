@@ -42,7 +42,7 @@ import { type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-form
 
 import type { EdgeId, NodeId, Path, Query } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
-import { type ComponentLabels, edgeSpaceOf,type ElementMask } from "../scope/index";
+import { type ComponentLabels, edgeSpaceOf, type ElementMask } from "../scope/index";
 
 // ---------------------------------------------------------------------------------------------
 // What a consumer asks for
@@ -329,7 +329,7 @@ function assertFilter(filter: Filter): void {
 
     // Kept beside the switch, and typed as a plain string, so the refusal below can name a kind
     // the union does not contain -- which is exactly the case a runtime check exists for.
-    const {kind} = filter;
+    const { kind } = filter;
 
     switch (filter.kind) {
         case "expression":
@@ -625,12 +625,7 @@ function markFor(context: CompileContext, path: Path): PathMark {
  * @param mark - The mark to set when a value is there.
  * @returns The value, or undefined when there is none.
  */
-function readValue(
-    read: (index: number, path: Path) => unknown,
-    index: number,
-    path: Path,
-    mark: PathMark,
-): unknown {
+function readValue(read: (index: number, path: Path) => unknown, index: number, path: Path, mark: PathMark): unknown {
     const value = read(index, path);
 
     if (value === undefined || value === null) {
@@ -1062,16 +1057,19 @@ export function compileVisibility(
         halves.push(compileWindow(window, context));
     }
 
-    const folded = halves.length === 0 ? SILENT : {
-        node: fold(
-            halves.map((half) => half.node),
-            "all",
-        ),
-        edge: fold(
-            halves.map((half) => half.edge),
-            "all",
-        ),
-    };
+    const folded =
+        halves.length === 0
+            ? SILENT
+            : {
+                  node: fold(
+                      halves.map((half) => half.node),
+                      "all",
+                  ),
+                  edge: fold(
+                      halves.map((half) => half.edge),
+                      "all",
+                  ),
+              };
 
     return {
         node: folded.node,
@@ -1185,8 +1183,8 @@ export async function runPassInSlices(
     signal: AbortSignal,
     report: (completed: number, total: number) => void,
 ): Promise<void> {
-    const {nodeCount} = pass.graph;
-    const {edgeCount} = pass.graph;
+    const { nodeCount } = pass.graph;
+    const { edgeCount } = pass.graph;
     const total = nodeCount + edgeCount;
     let deadline = performance.now() + SLICE_MS;
 

@@ -386,7 +386,9 @@ describe("the gate, against the PageRank runs that closed the shell's own model"
         for (const { measuredSeconds } of PAGERANK_MEASUREMENTS) {
             const estimate = metricCostFromEstimate("pagerank", elementEstimate(measuredSeconds));
 
-            expect(VERDICT_RANK[estimate.verdict]).toBeGreaterThanOrEqual(VERDICT_RANK[truthfulVerdict(measuredSeconds)]);
+            expect(VERDICT_RANK[estimate.verdict]).toBeGreaterThanOrEqual(
+                VERDICT_RANK[truthfulVerdict(measuredSeconds)],
+            );
         }
     });
 

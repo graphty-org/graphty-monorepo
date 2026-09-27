@@ -65,7 +65,10 @@ export function edgeBetween(harness: Harness, source: string | number, target: s
     const snapshot = harness.session.data.snapshot();
     const space = edgeSpaceOf(snapshot);
     for (let edge = 0; edge < snapshot.edgeCount; edge++) {
-        if (snapshot.ids.idOf(snapshot.edgeSource(edge)) === source && snapshot.ids.idOf(snapshot.edgeTarget(edge)) === target) {
+        if (
+            snapshot.ids.idOf(snapshot.edgeSource(edge)) === source &&
+            snapshot.ids.idOf(snapshot.edgeTarget(edge)) === target
+        ) {
             return space.idOf(edge);
         }
     }
@@ -193,7 +196,11 @@ export async function loadGexfCorpus(harness: Harness, file: string): Promise<vo
         // harness would read a file that says it is undirected as a digraph, and every count,
         // density and metric availability measured here would be measured on the wrong graph.
         if (source.declaredDirection !== null) {
-            ingestDeclaredDirection(harness.store, source.declaredDirection.directed, source.declaredDirection.statedBy);
+            ingestDeclaredDirection(
+                harness.store,
+                source.declaredDirection.directed,
+                source.declaredDirection.statedBy,
+            );
         }
 
         harness.add(

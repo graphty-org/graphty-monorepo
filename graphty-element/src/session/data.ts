@@ -21,7 +21,13 @@ import { readonlyPositions } from "../data/lane";
 import type { ImportReport } from "../data/report";
 import { GraphtyError } from "../errors";
 import { describeAttributes } from "./attributes";
-import { type DataImportCommand, type DataMutation, type DataService, type ImportSource, SOURCE_VALUE } from "./commands/data";
+import {
+    type DataImportCommand,
+    type DataMutation,
+    type DataService,
+    type ImportSource,
+    SOURCE_VALUE,
+} from "./commands/data";
 import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
 import { Ingest } from "./project/ingest";
@@ -353,7 +359,11 @@ export class SessionData implements SessionDataApi {
      */
     statistics(): GraphStatistics {
         const derived = this.derivedFor(this.current());
-        derived.statistics ??= computeStatistics(derived.snapshot, this.readConfig().directed, this.graphStore.directionSettledBy);
+        derived.statistics ??= computeStatistics(
+            derived.snapshot,
+            this.readConfig().directed,
+            this.graphStore.directionSettledBy,
+        );
         return derived.statistics;
     }
 
@@ -613,7 +623,9 @@ const DETECTION_SAMPLE = 2048;
  * @param value - The `file` option.
  * @returns The file, or null when the option holds none.
  */
-function fileOf(value: unknown): { name: string; size: number; slice(start: number, end: number): { text(): Promise<string> } } | null {
+function fileOf(
+    value: unknown,
+): { name: string; size: number; slice(start: number, end: number): { text(): Promise<string> } } | null {
     if (typeof value !== "object" || value === null) {
         return null;
     }
@@ -644,7 +656,7 @@ function urlTail(url: string): string {
  *     `E_FETCH_FAILED` when the URL cannot be read.
  */
 function resolveImportSource(source: DataSourceInput): ImportSource | Promise<ImportSource> {
-    const {config} = source;
+    const { config } = source;
     const file = fileOf(config.file);
     const url = typeof config.url === "string" ? config.url : undefined;
     const filename = file?.name ?? (url === undefined ? undefined : urlTail(url));
@@ -701,7 +713,12 @@ async function fetchText(url: string): Promise<string> {
     try {
         response = await fetch(url);
     } catch (error) {
-        throw new GraphtyError({ code: "E_FETCH_FAILED", message: `Could not fetch "${url}".`, source: "data", cause: error });
+        throw new GraphtyError({
+            code: "E_FETCH_FAILED",
+            message: `Could not fetch "${url}".`,
+            source: "data",
+            cause: error,
+        });
     }
 
     if (!response.ok) {

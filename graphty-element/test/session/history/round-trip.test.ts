@@ -215,7 +215,13 @@ describe("what the random sequences found, each pinned on its own", () => {
             await turn.release();
         }
 
-        assert.isTrue(await value.then(() => false, () => true), "the add was cancelled");
+        assert.isTrue(
+            await value.then(
+                () => false,
+                () => true,
+            ),
+            "the add was cancelled",
+        );
         assert.notInclude(session.snapshot().ids.toArray(), "late");
         assert.lengthOf(session.history.steps, 0, "and recorded nothing");
         session.dispose();

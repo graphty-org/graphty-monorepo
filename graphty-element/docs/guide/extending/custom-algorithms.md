@@ -245,13 +245,13 @@ you whether your fields match the shape you declared.
 
 ## How it is refused
 
-| What is wrong | Code |
-| --- | --- |
-| A `descriptor.key` that disagrees with `static type`, or no key at all | `E_BAD_COMMAND`, `details.field` naming it |
-| A key the element itself ships | `E_DUPLICATE_PLUGIN` |
-| A key nothing registered | `E_UNKNOWN_ALGORITHM`, with `details.available` |
-| An option the descriptor does not declare | `E_UNKNOWN_OPTION`, with `details.candidates` |
-| An option value outside the declared range | `E_OPTION_RANGE` |
+| What is wrong                                                          | Code                                            |
+| ---------------------------------------------------------------------- | ----------------------------------------------- |
+| A `descriptor.key` that disagrees with `static type`, or no key at all | `E_BAD_COMMAND`, `details.field` naming it      |
+| A key the element itself ships                                         | `E_DUPLICATE_PLUGIN`                            |
+| A key nothing registered                                               | `E_UNKNOWN_ALGORITHM`, with `details.available` |
+| An option the descriptor does not declare                              | `E_UNKNOWN_OPTION`, with `details.candidates`   |
+| An option value outside the declared range                             | `E_OPTION_RANGE`                                |
 
 A coded failure you raise yourself reaches the caller under the code you chose:
 

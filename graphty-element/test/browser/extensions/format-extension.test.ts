@@ -246,8 +246,7 @@ function parseRoster(text: string, scoreScale: number): ParsedRoster {
             );
         } else {
             throw rosterParseFailure(
-                `roster line ${index + 1} begins with "${verb}", which is none of "roster", "person" ` +
-                    'or "knows"',
+                `roster line ${index + 1} begins with "${verb}", which is none of "roster", "person" ` + 'or "knows"',
                 index + 1,
             );
         }
@@ -565,9 +564,11 @@ const ROSTER_DECLARING_UNDIRECTED = `roster undirected\n${ROSTER}`;
 const ROSTER_DECLARING_DIRECTED = `roster directed\n${ROSTER}`;
 
 /** Two people and one link that carries a strength the element reads as the edge's weight. */
-const ROSTER_WITH_A_WEIGHTED_LINK = ["person ada Engineering 9", "person brian Engineering 4", "knows ada brian strong 7"].join(
-    "\n",
-);
+const ROSTER_WITH_A_WEIGHTED_LINK = [
+    "person ada Engineering 9",
+    "person brian Engineering 4",
+    "knows ada brian strong 7",
+].join("\n");
 
 /**
  * A graph in the element's own JSON format, with node ids nothing in the roster shares.
@@ -841,7 +842,11 @@ describe("a third party's file format", () => {
             await element.addDataFromSource("json", { data: BUILT_IN_JSON });
             await operationQueueOf(element.graph).waitForCompletion();
 
-            assert.deepStrictEqual(heldNodeIds(), ["ceres", "pallas"], "and the built-in JSON format still loads its own");
+            assert.deepStrictEqual(
+                heldNodeIds(),
+                ["ceres", "pallas"],
+                "and the built-in JSON format still loads its own",
+            );
         },
         TEST_TIMEOUT_MS,
     );
@@ -1030,7 +1035,10 @@ describe("a third party's file format", () => {
 
             const failure: unknown = await element
                 .addDataFromSource(ROSTER_FORMAT, { data: "person gil\nperson hal\n" })
-                .then(() => null, (error: unknown) => error);
+                .then(
+                    () => null,
+                    (error: unknown) => error,
+                );
 
             assert.isTrue(isGraphtyError(failure) && failure.code === "E_EMPTY_LOAD");
             assert.strictEqual((await summary).totalErrors, 2, "both rejected rows are reported");
@@ -1049,7 +1057,10 @@ describe("a third party's file format", () => {
                     { data: ROSTER_THAT_GOES_BAD_EARLY, chunkSize: 2, errorLimit: 1 },
                     { replace: true },
                 )
-                .then(() => null, (error: unknown) => error);
+                .then(
+                    () => null,
+                    (error: unknown) => error,
+                );
 
             assert.isTrue(isGraphtyError(failure) && failure.code === "E_PARSE_FAILED");
             assert.deepStrictEqual(heldNodeIds(), PEOPLE, "the partial read did not replace the roster");
@@ -1298,7 +1309,11 @@ describe("a third party's format being recognised from a file", () => {
             await element.loadFromFile(new File([ACME_XML], "team.xml", { type: "text/xml" }));
             await operationQueueOf(element.graph).waitForCompletion();
 
-            assert.deepStrictEqual(heldNodeIds(), ACME_PEOPLE, "and the file loaded through the format that claimed it");
+            assert.deepStrictEqual(
+                heldNodeIds(),
+                ACME_PEOPLE,
+                "and the file loaded through the format that claimed it",
+            );
         },
         TEST_TIMEOUT_MS,
     );
@@ -1332,15 +1347,19 @@ describe("a third party's format being recognised from a file", () => {
 });
 
 describe("a third party's format being configured", () => {
-    it("takes the default it declared when the host sets nothing", async () => {
-        await loadRoster({ data: ROSTER });
+    it(
+        "takes the default it declared when the host sets nothing",
+        async () => {
+            await loadRoster({ data: ROSTER });
 
-        assert.strictEqual(
-            element.getDataManager().nodes.get("ada")?.data.score,
-            9,
-            "the declared default of 1 was filled in and multiplied nothing away",
-        );
-    }, TEST_TIMEOUT_MS);
+            assert.strictEqual(
+                element.getDataManager().nodes.get("ada")?.data.score,
+                9,
+                "the declared default of 1 was filled in and multiplied nothing away",
+            );
+        },
+        TEST_TIMEOUT_MS,
+    );
 
     it("refuses a value its published declaration would not accept", () => {
         const refusal = refusalFrom(() => DataSource.get(ROSTER_FORMAT, { data: ROSTER, scoreScale: -5 }));

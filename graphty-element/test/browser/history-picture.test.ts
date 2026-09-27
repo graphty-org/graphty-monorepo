@@ -152,7 +152,12 @@ const CASES: readonly PictureCase[] = [
                 op: "data.import",
                 source: {
                     type: "json",
-                    config: { data: JSON.stringify({ nodes: [{ id: "x1" }, { id: "x2" }], edges: [{ src: "x1", dst: "n1" }] }) },
+                    config: {
+                        data: JSON.stringify({
+                            nodes: [{ id: "x1" }, { id: "x2" }],
+                            edges: [{ src: "x1", dst: "n1" }],
+                        }),
+                    },
                 },
                 mode: "merge",
             });

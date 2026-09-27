@@ -97,14 +97,20 @@ describe("the vocabulary", () => {
             });
         } else {
             it(fixtureTitle, () => {
-                assert.isNull(pending, `${definition.op}: no door dispatches it until issue ${String(pending)} is fixed`);
+                assert.isNull(
+                    pending,
+                    `${definition.op}: no door dispatches it until issue ${String(pending)} is fixed`,
+                );
                 assert.deepEqual(covers("session"), [], `${definition.op}: values with no session fixture`);
             });
         }
 
         if (definition.draws === true) {
             it(`${definition.op} changes what is drawn, so it has a renderer fixture for every value`, () => {
-                assert.isNull(pending, `${definition.op}: no door dispatches it until issue ${String(pending)} is fixed`);
+                assert.isNull(
+                    pending,
+                    `${definition.op}: no door dispatches it until issue ${String(pending)} is fixed`,
+                );
                 assert.deepEqual(covers("renderer"), [], `${definition.op}: values with no renderer fixture`);
             });
         }
@@ -186,12 +192,10 @@ describe("the vocabulary", () => {
         for (const values of outside) {
             const before = stateDigest(dispatcher.state);
             const steps = session.history.steps.length;
-            const code = await session
-                .execute({ op: "config.set", values } as SessionCommand)
-                .then(
-                    () => null,
-                    (error: unknown) => (error as { code?: string }).code,
-                );
+            const code = await session.execute({ op: "config.set", values } as SessionCommand).then(
+                () => null,
+                (error: unknown) => (error as { code?: string }).code,
+            );
 
             assert.strictEqual(code, "E_BAD_COMMAND", JSON.stringify(values));
             assert.strictEqual(stateDigest(dispatcher.state), before, `${JSON.stringify(values)} changed state`);
@@ -287,7 +291,11 @@ describe("the vocabulary", () => {
 
         const graph = sources["../../../src/Graph.ts"];
         const writer = graph.slice(graph.indexOf("private writeSceneDimension("));
-        assert.match(writer.slice(0, writer.indexOf("\n    }\n")), /metadata\.twoD = twoD/, "inside writeSceneDimension");
+        assert.match(
+            writer.slice(0, writer.indexOf("\n    }\n")),
+            /metadata\.twoD = twoD/,
+            "inside writeSceneDimension",
+        );
         assert.notMatch(graph, /settings\.graph\.(viewMode|twoD)\s*=/, "no view setting holds the dimension");
     });
 });

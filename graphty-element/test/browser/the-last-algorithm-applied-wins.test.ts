@@ -142,9 +142,7 @@ describe("the last algorithm named in applySuggestedStyles", () => {
         const { styles } = session;
         const move = styles.move.bind(styles);
 
-        (styles as { move: (...args: Parameters<typeof styles.move>) => PromiseLike<void> }).move = async (
-            ...args
-        ) => {
+        (styles as { move: (...args: Parameters<typeof styles.move>) => PromiseLike<void> }).move = async (...args) => {
             await new Promise((resolve) => setTimeout(resolve, ms));
 
             return move(...args);

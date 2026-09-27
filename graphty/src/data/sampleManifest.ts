@@ -187,10 +187,7 @@ const BYTES_PER_MEGABYTE = 1_000_000;
  * @returns the one size string both surfaces draw.
  */
 export function sampleSizeString(size: SampleSizeFacts): string {
-    const parts = [
-        `${size.nodes.toLocaleString("en-US")} nodes`,
-        `${size.edges.toLocaleString("en-US")} edges`,
-    ];
+    const parts = [`${size.nodes.toLocaleString("en-US")} nodes`, `${size.edges.toLocaleString("en-US")} edges`];
 
     if (size.bytes !== undefined) {
         const megabytes = Math.round(size.bytes / BYTES_PER_MEGABYTE);

@@ -134,7 +134,12 @@ export function historyRows(
 
     for (let index = steps.length - 1; index >= 0; index -= 1) {
         const entry = entryOf(steps[index], titles);
-        const row: HistoryEntryRow = { kind: "entry", entry, undone: index >= position, current: index === position - 1 };
+        const row: HistoryEntryRow = {
+            kind: "entry",
+            entry,
+            undone: index >= position,
+            current: index === position - 1,
+        };
         const { xrSessionId } = entry;
 
         if (xrSessionId === undefined) {
@@ -179,5 +184,7 @@ export function undoVerb(nextUndo: SessionHistory["nextUndo"]): string | undefin
         return undefined;
     }
 
-    return nextUndo.kind === "undo" ? `Undo ${nextUndo.step.label}` : `Cancel ${nextUndo.pending[0]?.label ?? ""}`.trim();
+    return nextUndo.kind === "undo"
+        ? `Undo ${nextUndo.step.label}`
+        : `Cancel ${nextUndo.pending[0]?.label ?? ""}`.trim();
 }

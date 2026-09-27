@@ -31,7 +31,10 @@ describe("Edge 2D Arrows Integration", () => {
         await graph.addNode(asData({ id: "node2", x: 1, y: 0, z: 0 }));
 
         // Add edge with source and target path parameters
-        await graph.addEdge(asData({ id: "edge1", source: "node1", target: "node2" }), { source: "source", target: "target" });
+        await graph.addEdge(asData({ id: "edge1", source: "node1", target: "node2" }), {
+            source: "source",
+            target: "target",
+        });
 
         // Wait for all operations to complete
         await operationQueueOf(graph).waitForCompletion();
@@ -73,7 +76,10 @@ describe("Edge 2D Arrows Integration", () => {
 
         await graph.addNode(asData({ id: "node1", x: 0, y: 0, z: 0 }));
         await graph.addNode(asData({ id: "node2", x: 1, y: 0, z: 0 }));
-        await graph.addEdge(asData({ id: "edge1", source: "node1", target: "node2" }), { source: "source", target: "target" });
+        await graph.addEdge(asData({ id: "edge1", source: "node1", target: "node2" }), {
+            source: "source",
+            target: "target",
+        });
 
         await operationQueueOf(graph).waitForCompletion();
 
@@ -102,7 +108,10 @@ describe("Edge 2D Arrows Integration", () => {
 
         await graph.addNode(asData({ id: "node1", x: 0, y: 0, z: 0 }));
         await graph.addNode(asData({ id: "node2", x: 1, y: 0, z: 0 }));
-        await graph.addEdge(asData({ id: "edge1", source: "node1", target: "node2" }), { source: "source", target: "target" });
+        await graph.addEdge(asData({ id: "edge1", source: "node1", target: "node2" }), {
+            source: "source",
+            target: "target",
+        });
 
         await operationQueueOf(graph).waitForCompletion();
 
@@ -128,7 +137,10 @@ describe("Edge 2D Arrows Integration", () => {
 
         await graph.addNode(asData({ id: "node1", x: 0, y: 0, z: 0 }));
         await graph.addNode(asData({ id: "node2", x: 1, y: 0, z: 0 }));
-        await graph.addEdge(asData({ id: "edge1", source: "node1", target: "node2" }), { source: "source", target: "target" });
+        await graph.addEdge(asData({ id: "edge1", source: "node1", target: "node2" }), {
+            source: "source",
+            target: "target",
+        });
 
         await operationQueueOf(graph).waitForCompletion();
 
@@ -154,7 +166,10 @@ describe("Edge 2D Arrows Integration", () => {
 
         await graph.addNode(asData({ id: "node1", x: 0, y: 0, z: 0 }));
         await graph.addNode(asData({ id: "node2", x: 1, y: 0, z: 0 }));
-        await graph.addEdge(asData({ id: "edge1", source: "node1", target: "node2" }), { source: "source", target: "target" });
+        await graph.addEdge(asData({ id: "edge1", source: "node1", target: "node2" }), {
+            source: "source",
+            target: "target",
+        });
 
         await operationQueueOf(graph).waitForCompletion();
 
@@ -180,7 +195,10 @@ describe("Edge 2D Arrows Integration", () => {
 
         await graph.addNode(asData({ id: "node1", x: 0, y: 0, z: 0 }));
         await graph.addNode(asData({ id: "node2", x: 1, y: 0, z: 0 }));
-        await graph.addEdge(asData({ id: "edge1", source: "node1", target: "node2" }), { source: "source", target: "target" });
+        await graph.addEdge(asData({ id: "edge1", source: "node1", target: "node2" }), {
+            source: "source",
+            target: "target",
+        });
 
         await operationQueueOf(graph).waitForCompletion();
 
@@ -206,7 +224,10 @@ describe("Edge 2D Arrows Integration", () => {
 
         await graph.addNode(asData({ id: "node1", x: 0, y: 0, z: 0 }));
         await graph.addNode(asData({ id: "node2", x: 1, y: 0, z: 0 }));
-        await graph.addEdge(asData({ id: "edge1", source: "node1", target: "node2" }), { source: "source", target: "target" });
+        await graph.addEdge(asData({ id: "edge1", source: "node1", target: "node2" }), {
+            source: "source",
+            target: "target",
+        });
 
         await operationQueueOf(graph).waitForCompletion();
 

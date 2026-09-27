@@ -37,7 +37,9 @@ function fakeRun(harness: () => Harness, context: RunExecutionContext): Promise<
     const result = createRunResult({
         runId: context.runId,
         shape: route ? "path" : "node-metric",
-        fields: [route ? field(context.runId, "onPath", "node", "boolean") : field(context.runId, "value", "node", "number")],
+        fields: [
+            route ? field(context.runId, "onPath", "node", "boolean") : field(context.runId, "value", "node", "number"),
+        ],
         measured: { nodes: snapshot.nodeCount, edges: snapshot.edgeCount },
         nodes: ids.map((id, index) => ({ id, values: route ? { onPath: true } : { value: degrees[index] } })),
         caveats: { exact: true, direction: "as-loaded", precision: "f64", method: context.algorithm, notes: [] },

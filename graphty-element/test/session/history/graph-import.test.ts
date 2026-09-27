@@ -147,7 +147,13 @@ describe("data.import", () => {
         const outcome = await session.undo();
 
         assert.strictEqual(outcome.kind, "cancelled");
-        assert.isTrue(await load.then(() => false, () => true), "the import settles as cancelled");
+        assert.isTrue(
+            await load.then(
+                () => false,
+                () => true,
+            ),
+            "the import settles as cancelled",
+        );
         assert.deepEqual(ids(session), ["n1", "n2", "n3"]);
         assert.lengthOf(session.history.steps, 0);
         session.dispose();

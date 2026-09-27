@@ -83,7 +83,9 @@ was done before it. It no longer holds the operation queue.
 
 ```typescript
 // 2.x: await element.batchOperations(async () => { await element.addNodes(nodes); });
-await element.batchOperations(async (tx) => { await tx.data.addNodes(nodes); });
+await element.batchOperations(async (tx) => {
+    await tx.data.addNodes(nodes);
+});
 ```
 
 A door called on the element during the callback still works, as a step of its own, and logs a
@@ -133,7 +135,9 @@ await ctx.tx.styles.add(spec);
 A host that binds the same keys at the window sees one press twice unless it skips handled keys:
 
 ```typescript
-window.addEventListener("keydown", (e) => { if (e.defaultPrevented) return; /* your binding */ });
+window.addEventListener("keydown", (e) => {
+    if (e.defaultPrevented) return; /* your binding */
+});
 ```
 
 Or turn the element's keys off with `<graphty-element history-keys="false">`.
@@ -146,7 +150,11 @@ Or turn the element's keys off with `<graphty-element history-keys="false">`.
 handles the new cases.
 
 ```typescript
-switch (change.phase) { /* ...existing cases... */ case "removed": case "restored": break; }
+switch (change.phase) {
+    /* ...existing cases... */ case "removed":
+    case "restored":
+        break;
+}
 ```
 
 ## Result records compare by value
@@ -191,7 +199,8 @@ The element's `nodeData` and `edgeData` getters return the graph's records in ro
 array last assigned. The setters are unchanged.
 
 ```typescript
-const mine = nodes; element.nodeData = nodes; // keep your own reference if you need the array again
+const mine = nodes;
+element.nodeData = nodes; // keep your own reference if you need the array again
 ```
 
 ## The layout getter reads the layout that is drawn
@@ -211,7 +220,8 @@ the verb is called still prevents it.
 
 ```typescript
 // 2.x: const run = session.styles.add(spec); run.cancel();
-await session.styles.add(spec); await session.undo();
+await session.styles.add(spec);
+await session.undo();
 ```
 
 ## On-load algorithms run once per command
@@ -221,5 +231,7 @@ once per `data-added` event. Undo and redo fire `data-added` and `elements-remov
 and start no work.
 
 ```typescript
-element.on("data-added", (e) => { if (e.cause !== undefined && e.cause !== "command") return; /* ... */ });
+element.on("data-added", (e) => {
+    if (e.cause !== undefined && e.cause !== "command") return; /* ... */
+});
 ```

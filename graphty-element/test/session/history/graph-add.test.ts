@@ -200,10 +200,7 @@ describe("editing attributes as steps", () => {
 describe("writes that do not come through the dispatcher", () => {
     it("refuses a primitive called with no command, under strict state", async () => {
         const session = await fixtureSession();
-        assert.throws(
-            () => dispatcherOf(session).graph.writer(null, session.data.store as never),
-            /outside a command/,
-        );
+        assert.throws(() => dispatcherOf(session).graph.writer(null, session.data.store as never), /outside a command/);
         session.dispose();
     });
 });

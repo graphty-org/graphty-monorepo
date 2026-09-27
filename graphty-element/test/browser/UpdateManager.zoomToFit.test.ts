@@ -325,7 +325,6 @@ describe("zoom-to-fit framing", () => {
                 assert.closeTo(box.max[axis], measured.max[axis], 1e-6, `max ${axis}`);
             }
         });
-
     });
 
     for (const viewMode of [undefined, "2d"] as const) {

@@ -43,12 +43,7 @@ const CAVEATS: Caveats = {
  * @param type - What its values are.
  * @returns The descriptor.
  */
-function field(
-    runId: string,
-    name: string,
-    kind: "edge" | "node",
-    type: FieldDescriptor["type"],
-): FieldDescriptor {
+function field(runId: string, name: string, kind: "edge" | "node", type: FieldDescriptor["type"]): FieldDescriptor {
     return { name, plainName: name, technicalName: name, kind, type, path: `results.${runId}.${name}` };
 }
 
@@ -146,12 +141,7 @@ function fixture(options: { execute?: (context: RunExecutionContext) => Promise<
     const harness = makeSession(options.execute === undefined ? {} : { runs: { execute: options.execute } });
 
     harness.add(
-        [
-            { id: "a", label: "alpha" },
-            { id: "b", label: "beta" },
-            { id: "c", label: null },
-            { id: "d" },
-        ],
+        [{ id: "a", label: "alpha" }, { id: "b", label: "beta" }, { id: "c", label: null }, { id: "d" }],
         [
             { src: "a", dst: "b" },
             { src: "b", dst: "c" },
@@ -299,8 +289,14 @@ describe("an edge's endpoints", () => {
         const bySource = compileSelector({ match: "expression", where: "data.source == 'b'" }, "edge", source);
         const byTarget = compileSelector({ match: "has", path: "data.target" }, "edge", source);
 
-        assert.deepStrictEqual([0, 1, 2].map((index) => bySource.test?.(index)), [false, true, false]);
-        assert.deepStrictEqual([0, 1, 2].map((index) => byTarget.test?.(index)), [true, true, true]);
+        assert.deepStrictEqual(
+            [0, 1, 2].map((index) => bySource.test?.(index)),
+            [false, true, false],
+        );
+        assert.deepStrictEqual(
+            [0, 1, 2].map((index) => byTarget.test?.(index)),
+            [true, true, true],
+        );
         harness.session.dispose();
     });
 
@@ -600,7 +596,11 @@ describe("a freeze that renumbers the rows", () => {
         harness.store.touch();
 
         assert.strictEqual(source.nodeIdOf(0), "b");
-        assert.strictEqual(source.edgeIdOf(0), edgeBetween(harness, "b", "c"), "the a->b edge died with a, so b->c slid down");
+        assert.strictEqual(
+            source.edgeIdOf(0),
+            edgeBetween(harness, "b", "c"),
+            "the a->b edge died with a, so b->c slid down",
+        );
         harness.session.dispose();
     });
 
@@ -718,12 +718,19 @@ describe("wired to the selector engine it was written for", () => {
         const { harness, source } = fixture();
         const selector = compileSelector({ match: "ids", nodes: ["b", "d"] }, "node", source);
 
-        assert.deepStrictEqual([0, 1, 2, 3].map((index) => selector.test?.(index)), [false, true, false, true]);
+        assert.deepStrictEqual(
+            [0, 1, 2, 3].map((index) => selector.test?.(index)),
+            [false, true, false, true],
+        );
 
         harness.store.builder.removeNode("a");
         harness.store.touch();
 
-        assert.deepStrictEqual([0, 1, 2].map((index) => selector.test?.(index)), [true, false, true], "b and d moved");
+        assert.deepStrictEqual(
+            [0, 1, 2].map((index) => selector.test?.(index)),
+            [true, false, true],
+            "b and d moved",
+        );
         harness.session.dispose();
     });
 

@@ -332,14 +332,17 @@ async function compareStepByStep(
         const expected = published(reference.positions, nodeCount);
         const error = flooredRelError(elementArrangement(rig), expected, FLOOR_FRACTION).max;
         const spread = Math.max(
-            ...nudged.map((oracle) => flooredRelError(published(oracle.positions, nodeCount), expected, FLOOR_FRACTION).max),
+            ...nudged.map(
+                (oracle) => flooredRelError(published(oracle.positions, nodeCount), expected, FLOOR_FRACTION).max,
+            ),
         );
         const f32 = flooredRelError(published(rounded.positions, nodeCount), expected, FLOOR_FRACTION).max;
         const admitted = spread < ADMISSION && f32 < ADMISSION;
         console.log(
             `fr-layout-oracle/element ${String(dim)}D horizon=${String(horizon)} error=${error.toExponential(3)} ` +
-                `spread=${spread.toExponential(3)} f32=${f32.toExponential(3)} ${ 
-                admitted ? "admitted" : "not admitted"}`,
+                `spread=${spread.toExponential(3)} f32=${f32.toExponential(3)} ${
+                    admitted ? "admitted" : "not admitted"
+                }`,
         );
 
         if (asserted.includes(horizon)) {
@@ -358,15 +361,11 @@ async function compareStepByStep(
 }
 
 describe("the simulation bridge against the Fruchterman-Reingold reference", () => {
-    it(
-        "runs the whole cooling schedule in 3D, iteration by iteration, over a graph that arrived after its layout",
-        async () => {
-            const rig = await springOverArrivingData(3);
+    it("runs the whole cooling schedule in 3D, iteration by iteration, over a graph that arrived after its layout", async () => {
+        const rig = await springOverArrivingData(3);
 
-            await compareStepByStep(rig, 3, [1, 5, 10, 20, 50], []);
-        },
-        180_000,
-    );
+        await compareStepByStep(rig, 3, [1, 5, 10, 20, 50], []);
+    }, 180_000);
 
     it("runs the admitted horizons in 2D, where the third axis is held at the centre", async () => {
         const rig = await springOverArrivingData(2);
@@ -400,8 +399,7 @@ describe("the simulation bridge against the Fruchterman-Reingold reference", () 
             "the schedule was spent from its start to its end, not from part-way down it",
         );
         assert.isBelow(
-            flooredRelError(elementArrangement(rig), published(reference.positions, rig.nodeCount), FLOOR_FRACTION)
-                .max,
+            flooredRelError(elementArrangement(rig), published(reference.positions, rig.nodeCount), FLOOR_FRACTION).max,
             CAP,
             "the arrangement the first frame draws is the reference's after the same budget",
         );

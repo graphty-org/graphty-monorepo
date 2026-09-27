@@ -194,9 +194,7 @@ function pixelsMoved(one: Reading, other: Reading): number {
 
 describe("every channel the table says is renderable", () => {
     /** The channels on the table, in a fixed order, so a failure names the same thing twice. */
-    const channels = Object.values(CHANNEL_DESCRIPTORS).sort((one, other) =>
-        one.channel.localeCompare(other.channel),
-    );
+    const channels = Object.values(CHANNEL_DESCRIPTORS).sort((one, other) => one.channel.localeCompare(other.channel));
 
     /** The waivers, by channel, so a test can ask whether one is expected to paint. */
     const waived = new Map(UNPAINTED_CHANNELS.map((entry) => [entry.channel, entry]));

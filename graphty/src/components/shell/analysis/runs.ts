@@ -105,8 +105,6 @@ export interface CommunityRunResult {
     }[];
 }
 
-
-
 /** No degree pass yet: no bar, and an axis that claims no range. */
 export const NO_DEGREE_DISTRIBUTION: MetricDistribution = formatMetricDistribution(
     NODE_METRIC_DEFINITIONS.degree,

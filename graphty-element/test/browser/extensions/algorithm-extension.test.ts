@@ -434,9 +434,21 @@ const ALPHABET_WALK_DESCRIPTOR: AlgorithmDescriptor = {
     // `metricField` is the element's own path builder: it fills in the published
     // `results.$.<name>` address so no extension author retypes one.
     fields: [
-        metricField({ name: "onPath", plainName: "On the walk", technicalName: "onPath", kind: "node", type: "boolean" }),
+        metricField({
+            name: "onPath",
+            plainName: "On the walk",
+            technicalName: "onPath",
+            kind: "node",
+            type: "boolean",
+        }),
         metricField({ name: "order", plainName: "Step", technicalName: "order", kind: "node", type: "integer" }),
-        metricField({ name: "onPath", plainName: "On the walk", technicalName: "onPath", kind: "edge", type: "boolean" }),
+        metricField({
+            name: "onPath",
+            plainName: "On the walk",
+            technicalName: "onPath",
+            kind: "edge",
+            type: "boolean",
+        }),
         metricField({
             name: "length",
             plainName: "Nodes on the walk",
@@ -1119,7 +1131,11 @@ describe("an algorithm written outside this package", () => {
             isGraphtyError(rejection),
             "a bug in a plugin surfaces as the element's own error type rather than escaping raw",
         );
-        assert.strictEqual(codeOf(rejection), "E_INTERNAL", "under the code the element reserves for an unowned failure");
+        assert.strictEqual(
+            codeOf(rejection),
+            "E_INTERNAL",
+            "under the code the element reserves for an unowned failure",
+        );
         assert.instanceOf(
             isGraphtyError(rejection) ? rejection.cause : undefined,
             Error,
@@ -1503,11 +1519,7 @@ describe("an algorithm written outside this package", () => {
             true,
             "the first edge it crossed carries a value",
         );
-        assert.strictEqual(
-            result.edge(byPair.get(pairKey("c", "d")) ?? "")?.onPath,
-            true,
-            "and so does the last",
-        );
+        assert.strictEqual(result.edge(byPair.get(pairKey("c", "d")) ?? "")?.onPath, true, "and so does the last");
         assert.isUndefined(
             result.edge(byPair.get(pairKey("d", "e")) ?? ""),
             "an edge the walk never crossed carries nothing at all",
@@ -1567,7 +1579,9 @@ describe("an algorithm written outside this package", () => {
             "the reader's layer reached an edge the walk crossed",
         );
         assert.isEmpty(
-            session.styles.explain({ edge: untouched ?? "" }).contributions.filter((entry) => entry.layerId === layer.id),
+            session.styles
+                .explain({ edge: untouched ?? "" })
+                .contributions.filter((entry) => entry.layerId === layer.id),
             "and did not reach one it never did",
         );
     });

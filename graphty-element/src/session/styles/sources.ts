@@ -652,7 +652,8 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
         const count = target === "node" ? held.nodeCount : held.edgeCount;
         const read =
             target === "node"
-                ? (index: number): Readonly<Record<string, unknown>> | undefined => result.node(held.graph.ids.idOf(index))
+                ? (index: number): Readonly<Record<string, unknown>> | undefined =>
+                      result.node(held.graph.ids.idOf(index))
                 : (index: number): Readonly<Record<string, unknown>> | undefined => result.edge(edgeIdAt(held, index));
         const found = new Uint32Array(count);
         let kept = 0;

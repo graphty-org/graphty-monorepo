@@ -73,7 +73,10 @@ describe("the door ratchet", () => {
     it("leaves no knownGap or partial row", () => {
         const open = rows()
             .filter(([, door]) => door.kind === "knownGap" || door.kind === "partial")
-            .map(([label, door]) => `${label} (issue #${door.kind === "knownGap" || door.kind === "partial" ? door.issue : 0})`);
+            .map(
+                ([label, door]) =>
+                    `${label} (issue #${door.kind === "knownGap" || door.kind === "partial" ? door.issue : 0})`,
+            );
 
         assert.deepEqual(open, [], "rows that change project state without a step");
     });
@@ -150,7 +153,9 @@ describe("the session's doors", () => {
         }
 
         it(`${root.name}: every called row dispatches what its row says`, async () => {
-            const reach = SESSION_ROOTS[root.name] as ((session: ElementSession) => object | Promise<object>) | undefined;
+            const reach = SESSION_ROOTS[root.name] as
+                | ((session: ElementSession) => object | Promise<object>)
+                | undefined;
             assert.isDefined(reach, `the session half has no way to reach a ${root.name}`);
             for (const [member, door] of called) {
                 const session = createElementSession();

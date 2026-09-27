@@ -142,7 +142,10 @@ describe("session style paint", () => {
         }
 
         for (const node of graph.getNodes()) {
-            assert.isFalse((node.mesh as InstancedMesh).sourceMesh.isDisposed(), "no node lost the mesh it is drawn from");
+            assert.isFalse(
+                (node.mesh as InstancedMesh).sourceMesh.isDisposed(),
+                "no node lost the mesh it is drawn from",
+            );
             assert.strictEqual(node.size, 6);
         }
     });

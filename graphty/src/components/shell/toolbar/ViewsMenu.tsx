@@ -35,7 +35,14 @@
  * own the anchor, the caret, the focus trap, Escape and the outside click.
  */
 
-import { COMPACT_SIZING, PANEL_GRID, PANEL_INK, POPOUT_GAP, UiGlyph, useNumberFormatter } from "@graphty/compact-mantine";
+import {
+    COMPACT_SIZING,
+    PANEL_GRID,
+    PANEL_INK,
+    POPOUT_GAP,
+    UiGlyph,
+    useNumberFormatter,
+} from "@graphty/compact-mantine";
 import type { CameraId } from "@graphty/graphty-element/catalog";
 import { ActionIcon, createScopedKeydownHandler, Menu, Tooltip, UnstyledButton } from "@mantine/core";
 import React from "react";

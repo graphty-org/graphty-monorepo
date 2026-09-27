@@ -618,7 +618,7 @@ afterAll(() => {
 // Accuracy" job on each push to master (ci.yml, `cost-accuracy`), which reports a drift as a red job
 // without blocking a pull request, and by hand with `npm run test:cost`; both set COST_GUARD=1. On
 // CI's runners (4-thread AMD EPYC 7763) the calibration probe reads about 0.5x the reference machine
-// and the held rows land between 1.5 and 3.2, as they do here: the probe carries the rates there.
+// and the held rows land between 1.5 and 3.5, as they do here: the probe carries the rates there.
 describe.runIf(process.env.COST_GUARD === "1")(
     "the cost estimate, against real runs of the algorithm the element runs",
     () => {

@@ -29,7 +29,6 @@ const PERMANENT: Readonly<Record<string, string>> = {
  */
 const TO_MIGRATE: readonly string[] = [
     "BellmanFordAlgorithm.ts",
-    "BFSAlgorithm.ts",
     "BipartiteMatchingAlgorithm.ts",
     "DFSAlgorithm.ts",
     "DijkstraAlgorithm.ts",

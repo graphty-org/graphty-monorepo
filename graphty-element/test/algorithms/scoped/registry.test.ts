@@ -28,7 +28,7 @@ import { assertComputesOverScope, type Build, coveredBy, handBuilt, runScoped, r
 const EXPECTED: Readonly<Record<string, "on" | "off">> = {
     "graphty:bellman-ford": "off",
     "graphty:betweenness": "on",
-    "graphty:bfs": "off",
+    "graphty:bfs": "on",
     "graphty:bipartite-matching": "off",
     "graphty:closeness": "on",
     "graphty:connected-components": "on",

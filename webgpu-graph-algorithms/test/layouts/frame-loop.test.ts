@@ -13,6 +13,10 @@
  * batch, the reheat of D8 visible in the tick series) and the pause run (exactly the in-flight batches land,
  * flush() resolves, no submission for 100 ticks, the later step() continues with iterationsDone and the controller
  * trace bitwise equal to an unpaused run of the same simulation).
+ *
+ * run-twice exempt: the frame-loop cases assert scheduling (submissions, coalescing, holds, the pause window), not a
+ * kernel's numbers; the one numeric comparison, the pause case, already compares its trace bitwise against a second,
+ * unpaused run of the same simulation.
  */
 
 import { type F32, type GraphSnapshot, makeMask, maskSet, type NodeMask } from "@graphty/graph-format";

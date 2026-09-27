@@ -22,7 +22,7 @@ import {
     starEdges,
 } from "../helpers/graphs.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
-import { messyEdges } from "../helpers/structure.js";
+import { messyEdges, withBindingLimit } from "../helpers/structure.js";
 import { simpleSymmetricOracle } from "../oracle/coo.js";
 import { triangleOracle } from "../oracle/structure.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
@@ -178,6 +178,17 @@ describe("triangleCount (GPU, design 8.5)", () => {
         ctx.release(s);
         expect((await triangleCount(ctx, s)).total).toBe(45);
         ctx.release(s);
+    });
+
+    it("a graph whose arcs outgrow one storage binding is refused with E_TOO_LARGE before any upload", async (t) => {
+        const ctx = await context(t);
+        const s = snapshotOf(KARATE_EDGES);
+        const before = ctx.residency.stats().snapshots;
+        await expect(triangleCount(withBindingLimit(ctx, 256), s)).rejects.toMatchObject({
+            code: "E_TOO_LARGE",
+            details: { limit: 256, path: "the simple graph's arc arrays", algorithm: "triangleCount" },
+        });
+        expect(ctx.residency.stats().snapshots).toBe(before);
     });
 
     afterAll(() => {

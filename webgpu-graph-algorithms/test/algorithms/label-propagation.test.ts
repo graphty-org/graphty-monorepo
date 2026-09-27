@@ -11,11 +11,22 @@ import { type GraphSnapshot } from "@graphty/graph-format";
 import { type TestContext } from "vitest";
 
 import { labelPropagation } from "../../src/algorithms/label-propagation.js";
+import { PARALLEL_MERGE_LIMIT } from "../../src/constants.js";
 import { type GpuContext } from "../../src/context.js";
-import { completeEdges, type EdgeSpec, fixture, KARATE_EDGES, pathEdges, snapshotOf } from "../helpers/graphs.js";
+import { planGroupRows } from "../../src/primitives/group-by-key.js";
+import { radixHistBytes } from "../../src/primitives/radix-sort.js";
+import {
+    completeEdges,
+    type EdgeSpec,
+    fixture,
+    KARATE_EDGES,
+    pathEdges,
+    snapshotOf,
+    starEdges,
+} from "../helpers/graphs.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { adjustedRandIndex, plantedPartition } from "../helpers/partitions.js";
-import { messyEdges } from "../helpers/structure.js";
+import { messyEdges, withBindingLimit } from "../helpers/structure.js";
 import { labelPropagationOracle, modularityOf } from "../oracle/community.js";
 import { simpleSymmetricOracle } from "../oracle/coo.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
@@ -159,6 +170,46 @@ describe("labelPropagation (GPU, design 8.6)", () => {
             code: "E_ABORTED",
         });
         ctx.release(s);
+    });
+
+    it("a graph whose arcs or hash region outgrow one storage binding is refused with E_TOO_LARGE before any upload", async (t) => {
+        const ctx = await context(t);
+        const s = track(snapshotOf(starEdges(200)));
+        const before = ctx.residency.stats().snapshots;
+        await expect(labelPropagation(withBindingLimit(ctx, 256), s)).rejects.toMatchObject({
+            code: "E_TOO_LARGE",
+            details: { limit: 256, algorithm: "labelPropagation" },
+        });
+        // the hub's row goes to the workgroup tier, whose hash region (16 bytes per arc) outgrows the build's arrays
+        const arcs = 2 * s.edgeCount;
+        const build = Math.max(4 * (arcs + 1), radixHistBytes(arcs, ctx.workgroupSize));
+        const region = 4 * planGroupRows(s.outDegree()).regionWords;
+        expect(region).toBeGreaterThan(build);
+        await expect(labelPropagation(withBindingLimit(ctx, region - 4), s)).rejects.toMatchObject({
+            code: "E_TOO_LARGE",
+            details: { needed: region, path: "the group-by hash region", algorithm: "labelPropagation" },
+        });
+        expect(ctx.residency.stats().snapshots).toBe(before);
+    });
+
+    it("a weighted run refuses a pair joined by more parallel edges than one merge sums; an unweighted run takes it", async (t) => {
+        const ctx = await context(t);
+        const edges: EdgeSpec[] = [];
+        for (let k = 0; k <= PARALLEL_MERGE_LIMIT; k++) {
+            edges.push([0, 1, 1]);
+        }
+        edges.push([1, 2, 1]);
+        const s = track(snapshotOf(edges, { directed: true, nodeCount: 3 }));
+        await expect(labelPropagation(ctx, s)).rejects.toMatchObject({
+            code: "E_UNSUPPORTED",
+            details: { feature: "labelPropagation.parallelEdges" },
+        });
+        const want = labelPropagationOracle(simpleSymmetricOracle(s), { maxIterations: 100, weighted: false });
+        expectBitwiseEqual((await labelPropagation(ctx, s, { weighted: false })).labels, want.labels, "unweighted");
+        // at the limit the merge is exact
+        const atLimit = track(snapshotOf(edges.slice(1), { directed: true, nodeCount: 3 }));
+        const exact = labelPropagationOracle(simpleSymmetricOracle(atLimit), { maxIterations: 100, weighted: true });
+        expectBitwiseEqual((await labelPropagation(ctx, atLimit)).labels, exact.labels, "at the limit");
     });
 
     afterAll(() => {

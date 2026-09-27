@@ -1,8 +1,8 @@
 /**
  * The result record of triangle counting (design 3.3 line 828, 8.5; design 17 line 5067). Design 3.3 declares
  * `{ perNode, total }`; this package also returns the clustering coefficient and the transitivity, because they are
- * an epilogue over the counts and degrees the call already holds and nothing else in the monorepo computes them
- * (design/decisions/2026-09-23-triangles-carry-the-clustering-coefficient.md). Types only.
+ * an epilogue over the counts and degrees the call already holds and nothing else in the monorepo computes them.
+ * Types only.
  */
 
 import type { F32, U32 } from "@graphty/graph-format";

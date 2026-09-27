@@ -2,8 +2,8 @@
  * The CPU reference of the per-row group-by-key (design 8.6; the P11 plan's P11-T5): a Map per row from key to
  * summed weight, then the key with the largest sum, the lowest on a tie. The sums follow the primitive's documented
  * fixed-point rule -- each weight scaled by the row's power of two `2^s` (`maxWeight x degree x 2^s < 2^30`), rounded
- * to the nearest integer, negatives counted as 0 -- because that rule IS the primitive's contract: it is what makes
- * two tiers and two devices agree bitwise.
+ * to the nearest integer with halves up, negatives counted as 0 -- because that rule IS the primitive's contract: it
+ * is what makes two tiers and two devices agree bitwise.
  */
 
 import { type F32, type U32 } from "@graphty/graph-format";
@@ -22,15 +22,16 @@ function f32Bits(x: number): number {
 }
 
 /**
- * The row's scale `2^s`: the power of two with `maxW x d x 2^s < 2^30`, exponent clamped to [-126, 126].
+ * The row's scale `2^s` from the exponents of `maxW` and `d` alone (no rounded product): `s = 28 - em - ed`, so
+ * `maxW x d x 2^s` lies in [2^28, 2^30); the exponent is clamped to [-126, 126].
  * @param maxW - the row's largest weight (0 when every weight is <= 0)
  * @param d - the row's arc count
  * @returns the scale
  */
 export function rowScale(maxW: number, d: number): number {
-    const t = Math.fround(maxW * d);
-    const e = ((f32Bits(t) >>> 23) & 255) - 127;
-    const s = Math.min(126, Math.max(-126, 29 - e));
+    const em = ((f32Bits(maxW) >>> 23) & 255) - 127;
+    const ed = 31 - Math.clz32(Math.max(d, 1));
+    const s = Math.min(126, Math.max(-126, 28 - em - ed));
     return 2 ** s;
 }
 
@@ -41,8 +42,9 @@ export function rowScale(maxW: number, d: number): number {
  * @returns the integer
  */
 export function quantize(w: number, scale: number): number {
-    const x = Math.fround(Math.fround(w * scale) + 0.5);
-    return x <= 0 ? 0 : Math.floor(x);
+    const x = Math.max(Math.fround(w * scale), 0);
+    const i = Math.floor(x);
+    return x - i >= 0.5 ? i + 1 : i;
 }
 
 /**

@@ -5,10 +5,14 @@
  * are visited in, and so bitwise reproducible. `bestKey[v]` gets the key (`INVALID_INDEX` for an empty row) and
  * `bestScore[v]` the summed weight.
  *
- * The sums are u32 fixed point, because WGSL has no float atomic: every weight is scaled by `2^s`, the power of two
- * that keeps `maxWeight x degree x 2^s` below 2^30, and rounded to the nearest integer. Scaling by a power of two is
- * exact and the rounding is IEEE's, so both tiers and any CPU reference compute identical integers; a weight smaller
- * than `2^-s / 2` contributes nothing, and a negative weight counts as zero. Without WEIGHTED every weight is 1.
+ * The sums are u32 fixed point, because WGSL has no float atomic: every weight is scaled by `2^s`, a power of two
+ * chosen from the exponents of the row's largest weight and of its degree alone so that `maxWeight x degree x 2^s`
+ * lies in [2^28, 2^30), and rounded to the nearest integer, halves up. No step rounds a float: the scale needs no
+ * product, scaling by a power of two is exact, and so are the integer part and the fraction of the scaled weight.
+ * That matters because WGSL lets `x + y` and `x * y` round to EITHER neighbour of an inexact result, so a rounded
+ * step could differ between devices; as written, both tiers, every device and any CPU reference compute identical
+ * integers. A weight smaller than `2^-s / 2` contributes nothing, and a negative weight counts as zero. Without
+ * WEIGHTED every weight is 1.
  *
  * TIER 0: one thread per row (`rows[P.rowsBase + i]`), a pairwise scan in registers -- for short rows, and at most
  * GROUP_ROW_THREAD_LIMIT arcs, since llvmpipe stops an invocation's loops after 65,535 steps. Any other TIER: one
@@ -27,17 +31,21 @@ fn weight_of(a: u32) -> f32 {
     if (WEIGHTED) { return weights[a]; }
     return 1.0;
 }
-fn scale_of(maxW: f32, d: u32) -> f32 {                            // 2^s with maxW x d x 2^s < 2^30
-    let t = maxW * f32(d);
-    let e = i32((bitcast<u32>(t) >> 23u) & 255u) - 127;
-    let s = clamp(29 - e, -126, 126);
+fn scale_of(maxW: f32, d: u32) -> f32 {                            // 2^s, maxW x d x 2^s in [2^28, 2^30), from exponents alone
+    let em = i32((bitcast<u32>(maxW) >> 23u) & 255u) - 127;
+    let ed = i32(firstLeadingBit(max(d, 1u)));
+    let s = clamp(28 - em - ed, -126, 126);
     return bitcast<f32>(u32(s + 127) << 23u);
 }
 fn inverse_of(scale: f32) -> f32 {                                 // 2^-s, exact
     let s = i32((bitcast<u32>(scale) >> 23u) & 255u) - 127;
     return bitcast<f32>(u32(127 - s) << 23u);
 }
-fn quantize(w: f32, scale: f32) -> u32 { return u32(max(w * scale + 0.5, 0.0)); }
+fn quantize(w: f32, scale: f32) -> u32 {                           // nearest integer, halves up; every step exact
+    let x = max(w * scale, 0.0);
+    let i = u32(x);
+    return select(i, i + 1u, x - f32(i) >= 0.5);
+}
 fn better(sum: u32, key: u32, bestSum: u32, bestKey0: u32) -> bool { return sum > bestSum || (sum == bestSum && key < bestKey0); }
 
 fn row_thread(v: u32) {

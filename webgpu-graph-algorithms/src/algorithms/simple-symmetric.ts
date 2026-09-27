@@ -19,12 +19,17 @@
  * records its own first work into the same submit and saves a synchronisation. The caller must check the
  * precondition flag of `cooToCsr` with `assertBuildSorted` after that submit.
  *
- * ponytail: every intermediate array is `2 x edgeCount` words and about nine of them are alive at the peak
- * (72 bytes per logical edge); reuse buffers across the steps if a 1M-node / 10M-edge build needs the room.
+ * Every intermediate array is `2 x edgeCount` words and is bound whole, so a snapshot whose arcs exceed one storage
+ * binding is refused with `E_TOO_LARGE` before any upload. A weighted build refuses, with `E_UNSUPPORTED`, a pair
+ * joined by more than PARALLEL_MERGE_LIMIT parallel edges (see the constant).
+ *
+ * ponytail: about nine of the arrays are alive at the peak (72 bytes per logical edge); reuse buffers across the
+ * steps if a 1M-node / 10M-edge build needs the room.
  */
 
 import { type GraphSnapshot } from "@graphty/graph-format";
 
+import { PARALLEL_MERGE_LIMIT } from "../constants.js";
 import { type GpuContext } from "../context.js";
 import { WebGpuGraphError } from "../errors.js";
 import { CommandBatch, type ReadbackRequest } from "../kernel/batch.js";
@@ -97,6 +102,68 @@ function scratchWords(scope: AlgorithmScope, words: number, label: string): Bind
 }
 
 /**
+ * Throws `E_TOO_LARGE` when a buffer the caller binds whole is larger than one storage binding of the device.
+ * @param ctx - the context whose limit applies
+ * @param needed - the bytes of the largest whole binding
+ * @param path - what does not fit
+ * @param algorithm - the algorithm, for the error
+ */
+export function assertBindable(ctx: GpuContext, needed: number, path: string, algorithm: string): void {
+    const limit = ctx.caps.limits.maxStorageBufferBindingSize;
+    if (needed > limit) {
+        throw new WebGpuGraphError(
+            "E_TOO_LARGE",
+            `${algorithm}: ${path} needs ${needed} bytes in one binding, above the device limit of ${limit}`,
+            { needed, limit, path, algorithm },
+        );
+    }
+}
+
+/**
+ * Throws `E_UNSUPPORTED` when a weighted build would merge more than PARALLEL_MERGE_LIMIT parallel arcs into one: the
+ * edges joining one pair, in either direction. Only a pair of two vertices that each touch more than the limit can,
+ * so the exact count runs over those pairs alone and costs nothing on an ordinary graph.
+ * @param n - the node count
+ * @param src - the edge sources
+ * @param dst - the edge targets
+ * @param algorithm - the algorithm, for the error
+ */
+function assertMergeable(n: number, src: ArrayLike<number>, dst: ArrayLike<number>, algorithm: string): void {
+    const incident = new Uint32Array(n);
+    for (let e = 0; e < src.length; e++) {
+        if (src[e] !== dst[e]) {
+            incident[src[e]]++;
+            incident[dst[e]]++;
+        }
+    }
+    const heavy = new Map<number, number>();
+    for (let v = 0; v < n; v++) {
+        if (incident[v] > PARALLEL_MERGE_LIMIT) {
+            heavy.set(v, heavy.size);
+        }
+    }
+    if (heavy.size < 2) {
+        return;
+    }
+    const pairs = new Uint32Array(heavy.size * heavy.size);
+    for (let e = 0; e < src.length; e++) {
+        const a = heavy.get(src[e]);
+        const b = heavy.get(dst[e]);
+        if (a === undefined || b === undefined || a === b) {
+            continue;
+        }
+        const key = Math.min(a, b) * heavy.size + Math.max(a, b);
+        if (++pairs[key] > PARALLEL_MERGE_LIMIT) {
+            throw new WebGpuGraphError(
+                "E_UNSUPPORTED",
+                `${algorithm}: nodes ${src[e]} and ${dst[e]} are joined by more than ${PARALLEL_MERGE_LIMIT} parallel edges, more than one weighted merge sums`,
+                { feature: `${algorithm}.parallelEdges`, hint: "run it unweighted, or merge the parallel edges first" },
+            );
+        }
+    }
+}
+
+/**
  * Throws `E_VALIDATION` when the device found the build's arcs out of source order, which would mean a bug in the
  * sorts: the rows would be scrambled and every intersection over them wrong.
  * @param bytes - the batch's readback bytes
@@ -161,12 +228,17 @@ export async function buildSimpleSymmetric(
     if (valid === 0) {
         return empty();
     }
+    const arcs = 2 * edgeCount;
+    const tableBytes = Math.max(4, radixHistBytes(arcs, wg));
+    assertBindable(ctx, Math.max(4 * (arcs + 1), tableBytes), "the simple graph's arc arrays", label);
+    if (withWeights) {
+        assertMergeable(n, list.src, list.dst, label);
+    }
     // core() is what records (or re-records, after a release) the snapshot in the residency; the build reads only
     // the edge list, so it asks for rowPtr alone
     ctx.residency.core(s, ["rowPtr"]);
     const edges = ctx.residency.view(s, "edgeList");
     const edgeWeights = edges.bindings.weights ?? null;
-    const arcs = 2 * edgeCount;
     const emitPlan = plan1d(arcs, wg, ctx.caps);
     const emit = new Map<boolean, Kernel>();
     for (const indexed of [false, true]) {
@@ -185,7 +257,6 @@ export async function buildSimpleSymmetric(
     const vals = scratchWords(scope, arcs, "simple/vals");
     const sKeys = scratchWords(scope, arcs, "simple/sortKeys");
     const sVals = scratchWords(scope, arcs, "simple/sortVals");
-    const tableBytes = Math.max(4, radixHistBytes(arcs, wg));
     const hist: Binding = {
         buffer: scope.scratch(tableBytes, "simple/hist"),
         offset: 0,

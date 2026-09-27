@@ -200,6 +200,26 @@ describe("the simple symmetric graph (GPU, the P11 plan's PD-4)", () => {
         ctx.release(s);
     });
 
+    it("parallel weights are summed in edge order: an order-sensitive f32 sum comes out exactly", async (t) => {
+        const ctx = await context(t);
+        // in edge order 2^24 + 1 rounds back to 2^24, then + 2 gives 2^24 + 2; any other order of the three
+        // (1 + 2 first, or 2^24 + 2 then + 1) rounds to 2^24 + 4
+        const s = snapshotOf(
+            [
+                [0, 1, 2 ** 24],
+                [1, 0, 1],
+                [0, 1, 2],
+                [1, 2, 1],
+            ],
+            { directed: true, nodeCount: 3 },
+        );
+        const want = simpleSymmetricOracle(s);
+        expect(Array.from(want.weights ?? [])).toEqual([2 ** 24 + 2, 2 ** 24 + 2, 1, 1]);
+        const got = await runSimpleSymmetric(ctx, s, true);
+        expectBitwiseEqual(got.weights ?? new Float32Array(0), want.weights ?? new Float32Array(0), "weights");
+        ctx.release(s);
+    });
+
     it("directed and undirected forms of one edge set build the same graph; the last vertices may have no arcs", async (t) => {
         const ctx = await context(t);
         const edges = rmatEdges(Math.max(8, Math.round(12 + Math.log2(gpuScale()))), 6, 2);

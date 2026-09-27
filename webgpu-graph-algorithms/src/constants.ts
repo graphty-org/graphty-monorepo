@@ -280,6 +280,12 @@ export const BORUVKA_ROUNDS_PER_SUBMIT = 4;
 export const GROUP_ROW_THREAD_MAX = 32;
 /** The largest row the thread tier accepts when a caller forces the tier: its pairwise scan is about d^2 / 2 loop steps, and llvmpipe stops every loop of an invocation after 65,535 steps in total. */
 export const GROUP_ROW_THREAD_LIMIT = 128;
+/**
+ * The most parallel arcs the simple symmetric graph build merges into one weighted arc. The merge sums each run of
+ * parallel arcs in one invocation, and llvmpipe stops every loop of an invocation after 65,535 steps in total and
+ * then quietly returns a short sum; a weighted build whose pair repeats more often is refused on every adapter.
+ */
+export const PARALLEL_MERGE_LIMIT = 65_000;
 /** The per-row group-by-key (design 8.6): the global open-addressing region of a workgroup-tier row holds this many slots per arc. */
 export const GROUP_HASH_LOAD_FACTOR = 2;
 /** Triangle counting (design 8.5): intersect two oriented rows by merge, but binary-search each element of the shorter row into the longer when their lengths differ by more than this factor. */

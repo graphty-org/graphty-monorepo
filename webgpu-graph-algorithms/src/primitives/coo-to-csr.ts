@@ -18,8 +18,7 @@
  * sorted rows gets a graph whose rows are not sorted and whose triangle intersection is then silently wrong.
  *
  * A planner over a ReduceScope with a synchronous `record` (the shape of every primitive here), not the design's free
- * function: pipelines compile once in `prepareCooToCsr`, and `src/primitives/**` never imports `src/context.ts`
- * (design/decisions/2026-09-23-coo-to-csr-is-a-planner.md).
+ * function: pipelines compile once in `prepareCooToCsr`, and `src/primitives/**` never imports `src/context.ts`.
  */
 
 import { U32_MAX } from "../constants.js";

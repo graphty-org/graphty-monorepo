@@ -15,15 +15,36 @@ import { triangleCountWithSearch } from "../../src/algorithms/triangles.js";
 import { type GpuContext } from "../../src/context.js";
 import { prepareCooToCsr } from "../../src/primitives/coo-to-csr.js";
 import { planGroupRows, prepareGroupByKeyRow } from "../../src/primitives/group-by-key.js";
+import { type PlanCaps } from "../../src/types/context.js";
 import { type Binding } from "../../src/types/memory.js";
 import { labelPropagationOracle } from "../oracle/community.js";
 import { csrOfArcs, type HostCsr, simpleSymmetricOracle } from "../oracle/coo.js";
 import { groupByKeyOracle } from "../oracle/group-by-key.js";
 import { triangleOracle } from "../oracle/structure.js";
+import { fakeCaps } from "./caps-tables.js";
 import { bindingOf, readF32, readU32, uploadBuffer } from "./device.js";
 import { completeEdges, type EdgeSpec, KARATE_EDGES, pathEdges, randomEdgesLoose, snapshotOf } from "./graphs.js";
 import { type CheckReport, mergeReports, ratioOf } from "./sabotage.js";
 import { testReduceScope } from "./segmented-reduce.js";
+
+/**
+ * The context with a faked maxStorageBufferBindingSize, so a refusal for size can be reached with a small graph.
+ * @param ctx - the real context
+ * @param bindingLimit - the faked limit in bytes
+ * @returns a view of the context whose caps carry the limit
+ */
+export function withBindingLimit(ctx: GpuContext, bindingLimit: number): GpuContext {
+    const caps: PlanCaps = fakeCaps(ctx.caps, { maxStorageBufferBindingSize: bindingLimit });
+    return new Proxy(ctx, {
+        get(target, key, receiver): unknown {
+            if (key === "caps") {
+                return caps;
+            }
+            const value: unknown = Reflect.get(target, key, receiver);
+            return typeof value === "function" ? value.bind(target) : value;
+        },
+    });
+}
 
 /** A buffer of words that is never zero-length. */
 function upload(ctx: GpuContext, words: ArrayLike<number>, label: string, float?: boolean): GPUBuffer {

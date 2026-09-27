@@ -40,8 +40,11 @@ describe("groupByKeyOracle (pure)", () => {
     });
 
     it("the scale is the power of two that keeps maxW x d x scale below 2^30; negatives count 0", () => {
-        expect(rowScale(1, 1)).toBe(2 ** 29);
-        expect(rowScale(1, 3)).toBe(2 ** 28);
+        expect(rowScale(1, 1)).toBe(2 ** 28);
+        expect(rowScale(1, 3)).toBe(2 ** 27);
+        // 1082401 x 31 = 2^25 - 1: the f32 product rounds up to 2, so a scale read off the product would depend on
+        // the device's rounding; from the exponents alone it is 2^28 however the product rounds
+        expect(rowScale(1082401 / 2 ** 24, 31)).toBe(2 ** 28);
         expect(rowScale(0, 5)).toBe(2 ** 126);
         for (const [maxW, d] of [
             [1, 1],
@@ -54,6 +57,17 @@ describe("groupByKeyOracle (pure)", () => {
         }
         expect(quantize(-2, 2 ** 20)).toBe(0);
         expect(quantize(0.75, 4)).toBe(3);
+    });
+
+    it("quantize rounds to the nearest integer, halves up, without a rounded float step", () => {
+        expect(quantize(2.5, 1)).toBe(3);
+        expect(quantize(3.5, 1)).toBe(4);
+        expect(quantize(2.49, 1)).toBe(2);
+        // an integer quantizes to itself: adding 0.5 to an odd integer in [2^23, 2^24) is a tie that a device may
+        // round either way, and round-to-nearest-even would make it the next integer
+        expect(quantize(2 ** 23 + 1, 1)).toBe(2 ** 23 + 1);
+        expect(quantize(2 ** 24 - 1, 1)).toBe(2 ** 24 - 1);
+        expect(quantize(2 ** 22 + 0.5, 1)).toBe(2 ** 22 + 1);
     });
 });
 

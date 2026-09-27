@@ -32,7 +32,7 @@ import { type Binding } from "../types/memory.js";
 import { type GpuRunOptions } from "../types/run.js";
 import { labelResult } from "./components.js";
 import { algorithmScope } from "./scope.js";
-import { assertBuildSorted, buildSimpleSymmetric } from "./simple-symmetric.js";
+import { assertBindable, assertBuildSorted, buildSimpleSymmetric } from "./simple-symmetric.js";
 
 const ALGORITHM = "labelPropagation";
 /** The default pass cap, as in `@graphty/algorithms`' labelPropagation. */
@@ -161,6 +161,9 @@ export async function labelPropagation(
         options?.onProgress?.(1, 1);
         return identityResult(n, dest);
     }
+    // the hash region of the workgroup tier is bound whole: refuse a graph it outgrows before any device work
+    const plan = planGroupRows(neighbourBound(s));
+    assertBindable(ctx, 4 * plan.regionWords, "the group-by hash region", ALGORITHM);
     const scope = algorithmScope(ctx, ALGORITHM, RING_SLOTS);
     try {
         const build = await buildSimpleSymmetric(ctx, s, scope, weighted, ALGORITHM);
@@ -179,7 +182,6 @@ export async function labelPropagation(
             const size = 4 * Math.max(1, count);
             return { buffer: scope.scratch(size, label), offset: 0, size, window: null };
         };
-        const plan = planGroupRows(neighbourBound(s));
         const rows = words(plan.words.length, "rows");
         const region = words(plan.regionWords, "hashRegion");
         const labelsA = words(n, "labelsA");

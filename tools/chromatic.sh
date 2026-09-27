@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# Switched off: Chromatic has no spending cap on paid plans and is being replaced by the self-hosted
+# visual review (design/visual-testing/). Turning it back on is an owner decision.
+echo "chromatic.sh: Chromatic is switched off (no spending cap); see design/visual-testing/." >&2
+exit 1
 #
 # Run Chromatic for one package the way CI runs it.
 #

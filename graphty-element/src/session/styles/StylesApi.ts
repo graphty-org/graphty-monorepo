@@ -163,7 +163,8 @@ export interface TemplateReport {
     /** The layers that bound and now paint, bottom first. */
     readonly applied: readonly LayerId[];
     /**
-     * The layers that read nothing this session answers.
+     * The layers that read nothing this session answers, and the layers naming a set this project
+     * does not hold (detached).
      *
      * They are IN the stack and disabled, never dropped: a layer naming a run that has not been
      * started is a correct layer over a session that will answer it later, and the way to make it

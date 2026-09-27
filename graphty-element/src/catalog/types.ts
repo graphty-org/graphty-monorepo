@@ -484,7 +484,11 @@ export type Binding =
 /** Declarative attribute-to-channel bindings. */
 export type Encoding = Partial<Record<Channel, Binding>>;
 
-/** What a layer matches. Spelled out rather than implied, so it is greppable and lintable. */
+/**
+ * What a layer matches. Spelled out rather than implied, so it is greppable and lintable.
+ *
+ * OPEN UNION: kinds may be added in a minor release; handle unknown kinds.
+ */
 export type Selector =
     | { match: "expression"; where: Query }
     | { match: "has"; path: Path }
@@ -495,7 +499,14 @@ export type Selector =
      * See `TopRanking` for the policy.
      */
     | { match: "top"; path: Path; n: number }
-    | { match: "everything" };
+    | { match: "everything" }
+    /**
+     * The members of a scope, usually a kept set: `{ match: "scope", scope: { set: id } }`. The
+     * layer follows the set: a redefinition repaints exactly the elements that moved. A set that
+     * was removed, or a scope that cannot be evaluated, paints nothing and never throws. Spelled
+     * `scope` because {@link LayerSpec.set} already means a layer's static style.
+     */
+    | { match: "scope"; scope: Scope };
 
 /** Who put a layer in the stack. Every layer names its source. */
 export type LayerSource =

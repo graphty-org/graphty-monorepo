@@ -96,6 +96,12 @@ interface SetsDependencies {
      * @returns The token, or undefined when the run has no result.
      */
     readonly executionOf?: (run: RunId) => string | undefined;
+    /**
+     * The live users of sets beyond kept sets and runs (style layers today), each with the scope it
+     * names, for `usedBy`. Absent: none.
+     * @returns The users.
+     */
+    readonly users?: () => Iterable<{ readonly user: SetUser; readonly scope: Scope }>;
 }
 
 /**
@@ -515,6 +521,12 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
                 const { spec } = run.scope;
                 if (run.scope.set?.id === id || (typeof spec === "object" && "set" in spec && spec.set === id)) {
                     users.push(Object.freeze({ kind: "run", id: run.id, label: run.label }));
+                }
+            }
+
+            for (const { user, scope } of dependencies.users?.() ?? []) {
+                if (dependenciesOf(scope).some((dependency) => dependency.kind === "set" && dependency.id === id)) {
+                    users.push(Object.freeze({ ...user }));
                 }
             }
 

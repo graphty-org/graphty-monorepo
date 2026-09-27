@@ -1,9 +1,10 @@
 /**
- * @file What a style layer paints: the four selector kinds, and the one call that turns one into
- * the closure a repaint runs.
+ * @file What a style layer paints: the selector kinds, and the one call that turns one into the
+ * closure a repaint runs.
  *
- * FOUR KINDS, AND THE SPLIT IS THE POINT. Only `{match:"expression"}` reaches an evaluator.
- * `{match:"has"}` is a column presence test, `{match:"ids"}` is a set membership test, and
+ * THE SPLIT IS THE POINT. Only `{match:"expression"}` reaches an evaluator.
+ * `{match:"has"}` is a column presence test, `{match:"ids"}` is a set membership test,
+ * `{match:"scope"}` is one bit test against a scope's live bitmap, and
  * `{match:"everything"}` is no test at all. Measured on this machine, the presence test costs
  * 7.3 ns per element against 1,322 ns for a `jmespath.search()` call, so the kind a layer is
  * written in is a performance decision and not only an ergonomic one. That is why `encode()`
@@ -31,14 +32,16 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { EdgeId, NodeId, Path, Query } from "../../catalog/types";
-import { GraphtyError } from "../../errors";
+import { parseScope } from "../../catalog/sets/parse";
+import type { EdgeId, NodeId, Path, Query, Scope } from "../../catalog/types";
+import { GraphtyError, isGraphtyError } from "../../errors";
 import {
     columnsFor,
     type CompiledSelector,
     compileExpressionPredicate,
     hasPredicate,
     idsPredicate,
+    scopePredicate,
     type SelectorSource,
     type SelectorTarget,
     topPredicate,
@@ -53,6 +56,8 @@ import {
  *
  * Read the file's opening note before adding a kind: the union is small because each member is a
  * different COST, not a different spelling of the same question.
+ *
+ * OPEN UNION: kinds may be added in a minor release; handle unknown kinds.
  */
 export type Selector =
     /** Every element the layer's target names. The only universal match, and it is written out. */
@@ -79,13 +84,18 @@ export type Selector =
      * So a layer never paints more than `n` elements, and paints none on a graph whose highest
      * value is shared by more than `n`. `RunResult.top` is the same cut with its reason.
      */
-    | { readonly match: "top"; readonly path: Path; readonly n: number };
+    | { readonly match: "top"; readonly path: Path; readonly n: number }
+    /**
+     * The members of a scope, usually a kept set. One bit test per element against the scope's
+     * live bitmap, which follows the set; a scope that cannot be resolved paints nothing.
+     */
+    | { readonly match: "scope"; readonly scope: Scope };
 
 /** The path list every selector that reads no column shares. */
 const EMPTY_PATHS: readonly Path[] = Object.freeze([]);
 
 /** Every selector kind, for a refusal that lists what was allowed. */
-const SELECTOR_KINDS = ["everything", "expression", "has", "ids", "top"] as const;
+const SELECTOR_KINDS = ["everything", "expression", "has", "ids", "top", "scope"] as const;
 
 /** The prefix of the only paths a top selector ranks: a run's published fields. */
 const RESULT_PATH_PREFIX = "results.";
@@ -228,6 +238,18 @@ function assertSelector(selector: Selector): void {
             }
 
             return;
+        case "scope":
+            try {
+                parseScope(selector.scope);
+            } catch (error) {
+                if (!isGraphtyError(error)) {
+                    throw error;
+                }
+
+                throw badShape(`A "scope" selector names a scope: ${error.message}`, { scope: selector.scope, reason: error.details });
+            }
+
+            return;
         default:
             throw badShape(`"${String(kind)}" is not a selector kind.`, { match: kind, kinds: SELECTOR_KINDS });
     }
@@ -290,6 +312,26 @@ export function compileSelector(
                 target,
                 test: topPredicate(columns, path, () => topCut(path, target, n)),
                 paths: Object.freeze([path]),
+            };
+        }
+        case "scope": {
+            if (source.scope === undefined) {
+                throw new GraphtyError({
+                    code: "E_UNSUPPORTED",
+                    message: 'This session cannot evaluate a "scope" selector, because it holds no sets to resolve one against.',
+                    source: "style",
+                    details: { match: "scope" },
+                });
+            }
+
+            const live = source.scope(parseScope(selector.scope));
+
+            return {
+                match: "scope",
+                target,
+                test: scopePredicate(live, target),
+                paths: EMPTY_PATHS,
+                problem: () => live.problem(),
             };
         }
         default: {

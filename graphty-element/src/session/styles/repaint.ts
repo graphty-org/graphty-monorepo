@@ -318,6 +318,26 @@ export interface RepaintEngine extends ElementPaint {
      * this: the record is what lets a removed run's layer take its paint back.
      */
     renumbered(): void;
+    /**
+     * Repaint named elements from the whole stack, because what a layer matches moved without the
+     * layer changing: a `{match:"scope"}` layer whose set was redefined repaints exactly the
+     * elements that entered or left it (design/sets 11).
+     *
+     * Indices at or past the element count are skipped, and repeats are painted once.
+     * @param stack - The stack to paint from, bottom first.
+     * @param dirty - The dense indices to repaint, per kind of element.
+     * @param context - The signal to stop on and the progress channel.
+     * @returns How much was painted.
+     */
+    repaintElements(stack: readonly CompiledLayer[], dirty: ElementIndices, context: RepaintContext): Promise<RepaintReport>;
+}
+
+/** Dense indices per kind of element. */
+export interface ElementIndices {
+    /** Node indices. */
+    readonly node: ArrayLike<number>;
+    /** Edge indices. */
+    readonly edge: ArrayLike<number>;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1562,6 +1582,26 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                         for (const store of [stores.node, stores.edge]) {
                             for (let index = 0; index < store.count; index++) {
                                 markDirty(store, index);
+                            }
+                        }
+                    },
+                    null,
+                ),
+            );
+        },
+
+        repaintElements(stack: readonly CompiledLayer[], dirty: ElementIndices, context: RepaintContext): Promise<RepaintReport> {
+            return exclusively(async () =>
+                runPass(
+                    stack,
+                    context,
+                    () => {
+                        for (const store of [stores.node, stores.edge]) {
+                            const indices = dirty[store.target];
+                            for (let at = 0; at < indices.length; at++) {
+                                if (indices[at] < store.count) {
+                                    markDirty(store, indices[at]);
+                                }
                             }
                         }
                     },

@@ -115,14 +115,16 @@ describe("the input tick", () => {
         harness.session.dispose();
     });
 
-    it("advances once per execution token minted", async () => {
+    it("advances once per execution token minted, and once each time the result it stamps is published or cleared", async () => {
         const harness = settled();
         const before = tick(harness);
         const run = harness.session.runs.start("degree", undefined, { style: false });
         await run;
-        assert.strictEqual(tick(harness), before + 1);
-        await run.rerun();
+        // The mint at the start, the publish at the end.
         assert.strictEqual(tick(harness), before + 2);
+        await run.rerun();
+        // Queued for the re-run clears the result, then a mint and a publish.
+        assert.strictEqual(tick(harness), before + 5);
         harness.session.dispose();
     });
 });

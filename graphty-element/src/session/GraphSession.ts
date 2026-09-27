@@ -51,6 +51,7 @@ import {
     type RunsApi,
     type SessionRunsApi,
 } from "./runs";
+import { canonicalize } from "./runs/runId";
 import {
     type ComponentLabels,
     createScopeApi,
@@ -64,10 +65,11 @@ import { createMaterialiser } from "./sets/algebra";
 import { outcomeOf, SetsCache } from "./sets/cache";
 import { captureItem, captureOf, type HeldCaptures, heldItems, nextCaptures } from "./sets/captures";
 import { type DependencySources, referentReading } from "./sets/dependencies";
+import { LayerScopes } from "./sets/layers";
 import { SetsNotifier } from "./sets/notify";
 import { createOffering } from "./sets/offers";
 import { createSetsApi, sessionEdgeMember, setsStoreOf } from "./sets/SetsApi";
-import { identityOf } from "./sets/signature";
+import { identityOf, scopeSignature } from "./sets/signature";
 import type { StatusRun } from "./sets/status";
 import type { SetsApi } from "./sets/types";
 import {
@@ -988,6 +990,7 @@ function repaintAgainstCurrentData(
 ): {
     paint: ElementPaint;
     repaint: RepaintEngine["repaint"];
+    repaintElements: RepaintEngine["repaintElements"];
     encoding: RepaintEngine["encoding"];
     invalidate: () => void;
 } {
@@ -1040,6 +1043,11 @@ function repaintAgainstCurrentData(
             againstCurrentData();
 
             return engine.repaint(request, context);
+        },
+        repaintElements: async (stack, dirty, context) => {
+            againstCurrentData();
+
+            return engine.repaintElements(stack, dirty, context);
         },
         // A READ, so it does NOT re-prepare against current data first. Two reasons, and the
         // second is the load-bearing one. `againstCurrentData` would forget what the pass
@@ -1201,6 +1209,11 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         },
         outcome: (record) => outcomeOf(setsCache, record),
         // Read through calls: the scope resolver and the selection are built below.
+        // Style layers naming a set are its users too; the stack is built below.
+        users: () =>
+            (stack?.list() ?? []).flatMap((layer) =>
+                layer.selector.match === "scope" ? [{ user: { kind: "layer" as const, id: layer.id, label: layer.name }, scope: layer.selector.scope }] : [],
+            ),
         materialise: createMaterialiser({
             snapshot,
             resolve: (spec: Scope) => scope.resolutionOf(spec),
@@ -1301,6 +1314,8 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     });
 
     const defaultScope: Scope = runsOptions.defaultScope ?? "visible";
+    /** The result each run last announced, so the tick advances when one is published or cleared. */
+    const resultsSeen = new Map<RunId, unknown>();
     const runs = createRunsApi({
         queue,
         catalog: SESSION_CATALOG_TABLES,
@@ -1317,19 +1332,18 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         defaultScope,
         onExecution: advanceTick,
         onRemoved: (id: RunId) => {
+            resultsSeen.delete(id);
+            advanceTick();
             notifier.notify({ kind: "run", run: id });
         },
-        // Before a re-run replaces a result, what kept rules hold of it is captured onto the run.
-        // ponytail: kept sets are the only holders; style layers and the visibility filter join
-        // when they name sets (design/sets 5.2).
+        // Before a re-run replaces a result, what kept rules and style layers hold of it is
+        // captured onto the run. ponytail: the visibility filter joins when it follows sets
+        // (design/sets 5.2).
         captureHeld: (runId: RunId, prior: HeldCaptures) => {
             const result = resultSource(runId);
             const graph = snapshot();
             const space = edgeSpaceOf(graph);
-            const held = heldItems(
-                keptSets.list().map((set) => set.definition),
-                runId,
-            );
+            const held = heldItems([...keptSets.list().map((set) => set.definition), ...layerScopesOf(stack)], runId);
 
             return nextCaptures(
                 prior,
@@ -1399,7 +1413,17 @@ function buildSession(options: CreateGraphSessionOptions): Session {
             },
         },
         onChange: (change) => {
-            // Queued for a re-run clears the result; the end publishes the new one.
+            // The token is minted when the work starts, but the result it stamps is published
+            // later (and a re-run clears it when queued). A signature memoised under the tick in
+            // between would go on reading the result as it was, so the tick advances again
+            // whenever the result a run holds is not the one it last held.
+            // Read through the session's run, which a re-run replaces, not the announced object.
+            const result = runs.get(change.run.id)?.result;
+            if (result !== resultsSeen.get(change.run.id)) {
+                resultsSeen.set(change.run.id, result);
+                advanceTick();
+            }
+
             if (change.phase === "queued" || change.phase === "end") {
                 notifier.notify({ kind: "run", run: change.run.id });
             }
@@ -1480,12 +1504,36 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     forgetPreparedBindings = painter.invalidate;
 
     const teardown = new AbortController();
+    // The live scopes `{match:"scope"}` layers test (design/sets 11): each watches its scope and
+    // repaints exactly the elements that moved, or both halves whole after a freeze.
+    const layerScopes = new LayerScopes({
+        snapshot,
+        resolve: (spec: Scope) => scope.resolutionOf(spec),
+        signature: (spec: Scope) => scopeSignature(spec, scope.contextNow()),
+        subscribe: (watch) => notifier.subscribe(watch),
+        pin: (spec: Scope) => {
+            const key = typeof spec === "object" && "set" in spec ? keptSets.get(spec.set)?.definition : canonicalize(spec);
+            return key === undefined ? () => undefined : setsCache.pin(key);
+        },
+        repaint: (dirty) => {
+            if (stack === null || (dirty.node.length === 0 && dirty.edge.length === 0)) {
+                return;
+            }
+
+            painter.repaintElements(stack.compiled(), dirty, { signal: teardown.signal, report: () => undefined }).catch((error: unknown) => {
+                if (!teardown.signal.aborted) {
+                    console.error("[graphty] Could not repaint the layers naming a set that changed.", error);
+                }
+            });
+        },
+    });
     teardown.signal.addEventListener("abort", () => {
         stopHearing();
+        layerScopes.dispose();
         notifier.dispose();
     });
     const styles = createStylesApi({
-        elements,
+        elements: { ...elements, scope: (spec: Scope) => layerScopes.live(spec) },
         base: elementBaseLayers(),
         paths,
         scales,
@@ -1504,6 +1552,8 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         resolveScope: (spec: Scope) => scope.resolveNow(spec),
         engine: runsOptions.engine ?? ENGINE_VERSIONS,
         onChange: (change) => {
+            // Only the scopes the stack names stay live.
+            layerScopes.keep(layerScopesOf(stack));
             publish(watchers, "style:changed", change);
         },
         disposed: teardown.signal,
@@ -1553,6 +1603,15 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     sessionNotifiers.set(session, notifier);
 
     return session;
+}
+
+/**
+ * The scopes a stack's `{match:"scope"}` layers name.
+ * @param stack - The stack, or null before it exists.
+ * @returns The scopes.
+ */
+function layerScopesOf(stack: SessionStylesApi | null): Scope[] {
+    return (stack?.list() ?? []).flatMap((layer) => (layer.selector.match === "scope" ? [layer.selector.scope] : []));
 }
 
 /** Each session's change notifier, for the live users of sets and the element's frame source. */

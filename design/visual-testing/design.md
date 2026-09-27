@@ -292,6 +292,11 @@ Two more measurements run in parallel and never block a seed:
   committed Inter font as "Verdana", deletes the 1,000-pre-step Chromatic decorator, moves
   pre-steps into five Data stories and changes Physics250's stepping.
 - `ai-control--default` is unstable: give it a fixed seed, or exclude it with a reason.
+- compact-mantine's `indicator--default` loaded its avatar from `i.pravatar.cc`, so a capture
+  showed the photo or an empty circle depending on whether the network answered before the
+  screenshot (capture's second pass marked it `unstable`). The story now draws initials and needs no
+  network. A local capture after the fix: 828 images, none unstable, and the 826 untouched images
+  byte-identical to a capture made before it. No other compact-mantine story loads a remote URL.
 - The graphty app (within days): its light mode sets the global `colorScheme` but its preview reads
   `theme`, so both modes render dark; and the eruda debug button is drawn into every story
   (issue #204).

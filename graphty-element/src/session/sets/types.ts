@@ -2,8 +2,7 @@
  * @file The shapes of kept sets as the session hands them out, the change a write produces, and
  * the synchronous half of `session.sets` (design/sets/sets-design.md sections 4.6, 14, 15.2).
  *
- * Internal until `session.sets` is published; the definition types these name already live in
- * `catalog/types.ts`.
+ * `session.sets` publishes these; the definition types they name live in `catalog/types.ts`.
  */
 
 import type { EdgeRef, NodeId, SetCreatedFrom, SetDefinition, SetDefinitionInput, SetId } from "../../catalog/types";
@@ -46,7 +45,7 @@ export interface SetChange {
     readonly cause: "command" | "load";
 }
 
-/** Members to add to or remove from a fixed set. Edges by session id or stable identity. */
+/** Members to add to or remove from a fixed set. Edges by session id or stable identity. Internal name. */
 export interface SetMemberDelta {
     readonly nodes?: readonly NodeId[];
     readonly edges?: readonly EdgeRef[];
@@ -94,14 +93,18 @@ export interface SetsApi {
      * Add members to a fixed set.
      * @param id - The set.
      * @param members - The nodes and edges to add.
+     * @param members.nodes - The node ids.
+     * @param members.edges - The edges, by session id or stable identity.
      */
-    addMembers(id: SetId, members: SetMemberDelta): void;
+    addMembers(id: SetId, members: { readonly nodes?: readonly NodeId[]; readonly edges?: readonly EdgeRef[] }): void;
     /**
      * Remove members from a fixed set. Removing a node also removes its incident edge members.
      * @param id - The set.
      * @param members - The nodes and edges to remove.
+     * @param members.nodes - The node ids.
+     * @param members.edges - The edges, by session id or stable identity.
      */
-    removeMembers(id: SetId, members: SetMemberDelta): void;
+    removeMembers(id: SetId, members: { readonly nodes?: readonly NodeId[]; readonly edges?: readonly EdgeRef[] }): void;
     /**
      * Remove the set itself. Anything that names it becomes detached.
      * @param id - The set.

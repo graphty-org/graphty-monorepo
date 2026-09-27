@@ -45,6 +45,8 @@ import {
     resolveScope,
     scopeLeafIn,
 } from "../sets/resolve";
+import { setsStoreOf } from "../sets/SetsApi";
+import type { SetsApi } from "../sets/types";
 import type { FilterValueSource, ScopeLeaf } from "../visibility/filter";
 import type { ElementMask, MaskIdSpace } from "./ElementMask";
 
@@ -185,7 +187,7 @@ export interface ScopeSources {
     /** The resolution cache. A private one when absent. */
     readonly cache?: SetsCache;
     /** The kept sets `{ set }` and a rule's `scope` leaf may name, beside the saved scopes. */
-    readonly sets?: ResolveContext["sets"];
+    readonly sets?: SetsApi;
     /** The edges a predicate matches. Absent refuses a rule's `edges` leaf. */
     readonly matchEdges?: (where: Query) => Iterable<EdgeId>;
     /** Attribute values. Absent refuses a rule's `range` and `categories` leaves. */
@@ -229,6 +231,10 @@ export interface ScopeCount {
     readonly exact: boolean;
     /** How many edges were looked at, when the answer was estimated from a sample. */
     readonly sampled?: number;
+    /** For a kept fixed or path set: the node ids it names that the graph does not hold. */
+    readonly missingNodes?: number;
+    /** For a kept fixed or path set: the edge members (a path's steps) no edge of the graph matches. */
+    readonly missingEdges?: number;
 }
 
 /** What {@link ScopeApi.count} accepts. */
@@ -415,6 +421,18 @@ function resolvedScopeOf(resolution: Resolution, graph: GraphSnapshot, spec: Sco
 }
 
 /**
+ * An exact count of a resolution, with the missing members of a fixed or path set.
+ * @param resolution - The resolution.
+ * @param kind - The kind of set it resolved, when it resolved one.
+ * @returns The count.
+ */
+function countOf(resolution: Resolution, kind: string | undefined): ScopeCount {
+    const count = { nodes: resolution.nodeCount, edges: resolution.edgeCount, exact: true };
+
+    return kind === "fixed" || kind === "path" ? { ...count, missingNodes: resolution.missingNodes, missingEdges: resolution.missingEdges } : count;
+}
+
+/**
  * Build the scope resolver one session uses.
  *
  * Each specification is resolved through the session's resolution cache
@@ -429,6 +447,7 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
     // Replaced, never mutated, on every write: its identity is part of every signature's epoch.
     let saved = new Map<ScopeId, SavedRecord>();
     const cache = sources.cache ?? new SetsCache();
+    const kept = sources.sets === undefined ? undefined : setsStoreOf(sources.sets);
 
     /**
      * What a resolution reads now.
@@ -448,7 +467,7 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
         ...(sources.edgeRevisions === undefined ? {} : { edgeRevisions: sources.edgeRevisions }),
         ...(sources.executionOf === undefined ? {} : { executionOf: sources.executionOf }),
         ...(sources.tick === undefined ? {} : { tick: sources.tick }),
-        ...(sources.sets === undefined ? {} : { sets: sources.sets }),
+        ...(kept === undefined ? {} : { sets: kept }),
         ...(sources.matchEdges === undefined ? {} : { matchEdges: sources.matchEdges }),
         ...(sources.values === undefined ? {} : { values: sources.values }),
     });
@@ -677,6 +696,22 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
                 });
             }
 
+            // A kept set is counted from its resolution, which says what it names that is gone. A
+            // removed set, or one whose definition cannot be evaluated, counts nothing rather than
+            // throwing, so a panel counting every row never throws; an id never issued refuses.
+            if (typeof spec === "object" && "set" in spec && !saved.has(spec.set)) {
+                const record = kept?.get(spec.set);
+                if (record !== undefined) {
+                    const active = context();
+
+                    return Promise.resolve(countOf(resolveQuietly(() => resolveScope(spec, active), active), record.definition.kind));
+                }
+
+                if (kept?.register().has(spec.set) === true) {
+                    return Promise.resolve({ nodes: 0, edges: 0, exact: true });
+                }
+            }
+
             const graph = sources.snapshot();
 
             // The whole graph is two numbers the snapshot already holds, and a session with
@@ -691,7 +726,7 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
 
             const { resolution } = membershipOf(spec);
 
-            return Promise.resolve({ nodes: resolution.nodeCount, edges: resolution.edgeCount, exact: true });
+            return Promise.resolve(countOf(resolution, undefined));
         },
 
         save(name: string, spec: Scope): ScopeId {

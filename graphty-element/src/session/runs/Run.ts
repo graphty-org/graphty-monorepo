@@ -38,6 +38,7 @@ import {
     type Run,
     type RunPhase,
     type RunRecord,
+    type RunScopeFacts,
     type RunScopeRecord,
     type RunStatus,
     type RunStyle,
@@ -243,6 +244,12 @@ export interface RunSurroundings {
      */
     resolveScope(): ResolvedScope;
     /**
+     * What the run records about the set its scope names, read when the scope is resolved.
+     * Optional: a run with nobody to ask records neither.
+     * @returns The facts.
+     */
+    scopeFacts?(): RunScopeFacts;
+    /**
      * Hand the run's work to the queue.
      * @param body - The work.
      * @returns A handle that can stop it.
@@ -413,6 +420,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
     private readonly surroundings: RunSurroundings;
 
     private scopeValue: ResolvedScope;
+    private scopeFactsValue: RunScopeFacts | undefined;
 
     private statusValue: RunStatus = "queued";
 
@@ -477,6 +485,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
         this.caveatsValue = definition.caveats;
         this.fieldsValue = definition.fields;
         this.scopeValue = surroundings.resolveScope();
+        this.scopeFactsValue = surroundings.scopeFacts?.();
     }
 
     // -- the facts ----------------------------------------------------------------------------
@@ -623,6 +632,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
             nodes: this.scopeValue.nodeCount,
             edges: this.scopeValue.edgeCount,
             digest: this.scopeValue.digest,
+            ...this.scopeFactsValue,
         });
 
         const record: RunRecord = {
@@ -773,6 +783,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
         this.startedAtMs = nowMs();
         this.executionValue = this.surroundings.mintExecution?.() ?? null;
         this.scopeValue = this.surroundings.resolveScope();
+        this.scopeFactsValue = this.surroundings.scopeFacts?.();
 
         const execution = new AbortController();
         this.executionController = execution;

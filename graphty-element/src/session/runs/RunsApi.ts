@@ -28,6 +28,7 @@ import {
     type OptionDescriptor,
     type RunId,
     type Scope,
+    type SetId,
 } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import type { RunResult } from "../results/types";
@@ -64,6 +65,7 @@ import {
     type RunPhase,
     type RunRemoval,
     type RunsApi,
+    type RunScopeFacts,
     type RunSpec,
     type StaleNote,
     type StartOptions,
@@ -160,6 +162,19 @@ export interface RunsApiOptions {
      * @returns What it resolves to now.
      */
     readonly resolveScope: (spec: Scope) => ResolvedScope;
+    /**
+     * What a run records about the set a scope names: its revision and its edge reading. Absent
+     * records neither.
+     * @param spec - The scope.
+     * @returns The facts.
+     */
+    readonly scopeFacts?: (spec: Scope) => RunScopeFacts;
+    /**
+     * The name of a kept set, for a run label.
+     * @param id - The set.
+     * @returns The name, or undefined when no set has the id.
+     */
+    readonly setName?: (id: SetId) => string | undefined;
     /** The thing that actually runs an algorithm. */
     readonly execute: RunExecutor;
     /** Which versions are producing the numbers. */
@@ -250,9 +265,10 @@ function isAbortLike(error: unknown): boolean {
 /**
  * What to call a scope in a run label.
  * @param spec - The scope specification.
+ * @param setName - A kept set's name, when there is one to ask.
  * @returns A short phrase a person reads.
  */
-function describeScope(spec: Scope): string {
+function describeScope(spec: Scope, setName?: (id: SetId) => string | undefined): string {
     if (spec === "visible") {
         return "visible";
     }
@@ -270,7 +286,7 @@ function describeScope(spec: Scope): string {
     }
 
     if ("set" in spec) {
-        return `set ${spec.set}`;
+        return setName?.(spec.set) ?? `set ${spec.set}`;
     }
 
     if ("where" in spec) {
@@ -715,6 +731,7 @@ class Runs implements SessionRunsApi {
             queuePosition: () => this.queuePositionOf(id),
             stale: () => this.staleOf(id),
             resolveScope: () => this.options.resolveScope(spec),
+            ...(this.options.scopeFacts === undefined ? {} : { scopeFacts: () => this.options.scopeFacts?.(spec) ?? {} }),
             enqueue: (body) => (policy === "now" ? enqueueBesideQueue(body, id) : this.enqueueOnQueue(id, body)),
             mintExecution: this.mintExecution,
             notify: (phase) => {
@@ -922,7 +939,7 @@ class Runs implements SessionRunsApi {
         }
 
         if (differing.size === 0) {
-            return describeScope(run.scope.spec);
+            return describeScope(run.scope.spec, this.options.setName);
         }
 
         return [...differing]

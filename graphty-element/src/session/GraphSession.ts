@@ -20,7 +20,8 @@ import {
     type AccelerationPolicy,
     type GraphAccelerator,
 } from "../acceleration";
-import type { EdgeId, EdgeMember, NodeId, Path, Query, RunId, Scope, SetId, StaticStyle } from "../catalog/types";
+import { readingOfScope } from "../catalog/sets/parse";
+import type { EdgeId, EdgeMember, EdgeReading, NodeId, Path, Query, RunId, Scope, SetId, StaticStyle } from "../catalog/types";
 import { DataConfig } from "../config/DataConfig";
 import { defaultEdgeStyle } from "../config/EdgeStyle";
 import { defaultNodeStyle } from "../config/NodeStyle";
@@ -59,7 +60,7 @@ import {
     type ScopeResolver,
 } from "./scope";
 import { createSelectionApi, type SelectionOwner, type SelectionTextMode } from "./selection";
-import type { DependencySources } from "./sets/dependencies";
+import { type DependencySources, referentReading } from "./sets/dependencies";
 import { createSetsApi, sessionEdgeMember, setsStoreOf } from "./sets/SetsApi";
 import { identityOf } from "./sets/signature";
 import type { SetsApi } from "./sets/types";
@@ -167,6 +168,8 @@ interface SessionParts {
     readonly results: ResultsApi;
     /** Turning a scope specification into the elements it names. */
     readonly scope: ScopeApi;
+    /** The kept sets. */
+    readonly sets: SetsApi;
     /** The one selection this session holds. */
     readonly selection: SelectionOwner;
     /** What the filters and the time window have left showing. */
@@ -229,6 +232,7 @@ class Session implements ElementSession {
     readonly runs: RunsApi;
     readonly results: ResultsApi;
     readonly scope: ScopeApi;
+    readonly sets: SetsApi;
     readonly selection: SelectionOwner;
     readonly visibility: SessionVisibilityApi;
     readonly styles: SessionStylesApi;
@@ -269,6 +273,7 @@ class Session implements ElementSession {
         this.runs = parts.runs;
         this.results = parts.results;
         this.scope = parts.scope;
+        this.sets = parts.sets;
         this.selection = parts.selection;
         this.visibility = parts.visibility;
         this.styles = parts.styles;
@@ -1110,7 +1115,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     const runsOptions = options.runs ?? {};
     const snapshot = (): GraphSnapshot => store.store.getSnapshot();
     const components = componentLabelsOf(data);
-    // Kept sets, built here and not yet published as `session.sets`.
+    // Kept sets, published as `session.sets`.
     const edgeMember = (id: EdgeId): EdgeMember | undefined =>
         sessionEdgeMember(snapshot(), id, (row) => options.records?.edgeAttributes(row), readData().knownFields.edgeIdPath);
     // What a `{ set }` reference names -- a saved scope, else a kept set -- and what "visible"
@@ -1123,6 +1128,9 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     };
     const sets = createSetsApi({ edgeMember, dependencies });
     const keptSets = setsStoreOf(sets);
+    keptSets.onChange((change) => {
+        publish(watchers, "set:changed", change);
+    });
     // ONE queue for both, whether the host handed one in or not: a filter pass and an algorithm
     // run both read the whole graph, and two queues would let one start while the other is
     // halfway through. A rendered graph hands in the element's own, so a filter also takes its
@@ -1152,7 +1160,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
             return result === undefined ? undefined : (resultExecutionOf(results, run) ?? `#${identityOf(result)}`);
         },
         tick: inputs.tick,
-        sets: keptSets,
+        sets,
         edgeMember,
         matchEdges: (where: Query) => requireQuery(query).edges(where),
         ...(options.records === undefined ? {} : { values: valueSourceOf(options.records, snapshot) }),
@@ -1181,6 +1189,13 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         queue,
         catalog: SESSION_CATALOG_TABLES,
         resolveScope: (spec: Scope) => scope.resolveNow(spec),
+        scopeFacts: (spec: Scope) => {
+            const reading = readingOfScope(spec, referentReading(dependencies)) as EdgeReading;
+            const kept = typeof spec === "object" && "set" in spec ? sets.get(spec.set) : undefined;
+
+            return kept === undefined ? { reading } : { set: { id: kept.id, revision: kept.revision }, reading };
+        },
+        setName: (id: SetId) => sets.get(id)?.name,
         execute: runsOptions.execute ?? refuseToExecute,
         engine: runsOptions.engine ?? ENGINE_VERSIONS,
         defaultScope,
@@ -1374,6 +1389,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         runs,
         results,
         scope,
+        sets,
         selection,
         visibility,
         styles,
@@ -1385,7 +1401,6 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         watchers,
     });
     sessionInputs.set(session, inputs);
-    sessionSets.set(session, sets);
     sessionScopes.set(session, scope);
 
     return session;
@@ -1413,22 +1428,13 @@ export function scopeResolverOfSession(session: GraphSession): ScopeResolver {
     return scope;
 }
 
-/** Each session's kept sets, beside it until `session.sets` is published. */
-const sessionSets = new WeakMap<GraphSession, SetsApi>();
-
 /**
- * A session's kept sets: the synchronous doors, not yet published on the session. Internal.
- * @param session - a session this module built
+ * A session's kept sets. Internal: the tests' spelling of `session.sets`.
+ * @param session - a session
  * @returns its sets
- * @throws An Error for a session this module did not build.
  */
 export function setsOfSession(session: GraphSession): SetsApi {
-    const sets = sessionSets.get(session);
-    if (sets === undefined) {
-        throw new Error("Not a session built by createGraphSession.");
-    }
-
-    return sets;
+    return session.sets;
 }
 
 /**

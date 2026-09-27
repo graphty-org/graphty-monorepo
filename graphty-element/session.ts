@@ -188,6 +188,12 @@ export type { SavedScope, ScopeApi, ScopeCount, ScopeCountOptions } from "./src/
 export { DEFAULT_SCOPE_SAMPLE } from "./src/session/scope";
 
 // ---------------------------------------------------------------------------------------------
+// Kept sets: named groups, kept selections, communities and paths, as `session.sets`
+// ---------------------------------------------------------------------------------------------
+
+export type { ElementSet, SetChange, SetsApi } from "./src/session/sets/types";
+
+// ---------------------------------------------------------------------------------------------
 // What is selected: two sets, five set operations, one selection per session
 // ---------------------------------------------------------------------------------------------
 

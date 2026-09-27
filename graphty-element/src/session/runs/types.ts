@@ -16,7 +16,7 @@
  * run was started from, which arrives with the command union.
  */
 
-import type { AlgorithmKey, EdgeId, FieldDescriptor, LayerId, NodeId, ResultShape, RunId, Scope } from "../../catalog/types";
+import type { AlgorithmKey, EdgeId, EdgeReading, FieldDescriptor, LayerId, NodeId, ResultShape, RunId, Scope, SetId } from "../../catalog/types";
 import type { GraphtyError } from "../../errors/GraphtyError";
 import type { ResultSummary, RunResult } from "../results/types";
 import type { StyleSuggestion } from "../styles/derive";
@@ -261,7 +261,17 @@ export interface RunScopeRecord {
     readonly edges: number;
     /** The digest the staleness comparison reads. */
     readonly digest: string;
+    /**
+     * The kept set a `{ set }` scope named, and its revision when the run resolved it, so a reader
+     * can tell whether the set has been redefined since. Absent for every other scope.
+     */
+    readonly set?: { readonly id: SetId; readonly revision: string };
+    /** Which edges came with the scope's nodes. OPEN UNION, as {@link EdgeReading}. */
+    readonly reading?: EdgeReading;
 }
+
+/** What a run records about the set its scope named, beside the resolution. */
+export type RunScopeFacts = Pick<RunScopeRecord, "set" | "reading">;
 
 /** Which versions of which packages produced a result. */
 export interface EngineVersions {

@@ -32,13 +32,12 @@ export default tseslint.config(
     // ============================================
     // THE APP CHANGES THE ELEMENT ONLY THROUGH SESSION COMMANDS
     // ============================================
-    // A warning while the app migrates onto the session; an error once it has.
     {
         files: ["src/**/*.ts", "src/**/*.tsx"],
         // Stories are linted without type information (root eslint.config.js), and the rule needs it.
         ignores: ["**/*.stories.ts", "**/*.stories.tsx", "**/stories/**/*.ts"],
         plugins: { graphty: { rules: { "no-element-mutation": noElementMutation } } },
-        rules: { "graphty/no-element-mutation": "warn" },
+        rules: { "graphty/no-element-mutation": "error" },
     },
 
     // ============================================

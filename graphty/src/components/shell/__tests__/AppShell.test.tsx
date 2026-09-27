@@ -28,10 +28,12 @@ import type {
     RunResult,
 } from "@graphty/graphty-element/session";
 
+import { LAYOUT_METADATA } from "../../../data/layoutMetadata";
 import { createFakeSession, type FakeSession } from "../../../test/fakeSession";
 import { ACCELERATION_SETTINGS_STORAGE_KEY } from "../defaults/accelerationSettings";
 import { METRIC_VALUE_FIELD, SHELL_DEFAULTS_TEMPLATE_ID } from "../defaults/styleDescriptors";
 import { SHELL_LAYOUT_STORAGE_KEY } from "../ShellContext";
+import { LAYOUT_MENU_LABEL } from "../statusbar/LayoutChipMenu";
 import { STATUS_BAR_GEOMETRY } from "../statusbar/statusBarGeometry";
 
 /**
@@ -3825,6 +3827,44 @@ describe("AppShell", () => {
 
             expect(session.history.position).toBe(1);
         });
+
+        /* The layout control draws a copy of the element's layout choice, which the shell
+           re-reads whenever the element says the layout changed -- an undo included. */
+        it("puts the layout control back when a layout change is undone", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+            await loadCatSample(container);
+
+            const before = LAYOUT_METADATA.find((entry) => entry.type === "ngraph");
+            const other = LAYOUT_METADATA.slice(0, 4).find((entry) => entry.type !== "ngraph");
+
+            if (before === undefined || other === undefined) {
+                throw new Error("the layout catalogue has no ngraph entry and a second quick pick");
+            }
+
+            const beforeTitle = `${before.label} (${before.type})`;
+            const otherTitle = `${other.label} (${other.type})`;
+
+            expect(screen.getByTitle(beforeTitle)).toBeInTheDocument();
+
+            fireEvent.click(screen.getByRole("button", { name: LAYOUT_MENU_LABEL }));
+            fireEvent.click(await screen.findByTitle(otherTitle));
+            await flushMicrotasks();
+
+            await waitFor(() => {
+                expect(screen.queryByTitle(beforeTitle)).toBeNull();
+            });
+
+            fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+            await flushMicrotasks();
+
+            await waitFor(() => {
+                expect(screen.getByTitle(beforeTitle)).toBeInTheDocument();
+            });
+            expect(screen.queryByTitle(otherTitle)).toBeNull();
+        });
     });
 
     /* ---------------------------------------------------------------------- */
@@ -4590,6 +4630,26 @@ describe("AppShell", () => {
             await waitFor(() => {
                 expect(screen.queryByTestId("node-pinned-badge")).toBeNull();
             });
+        });
+
+        /* The pinned set is the element's; the badge follows it through an undo and a redo. */
+        it("takes the Pinned badge away when the pin is undone, and brings it back on redo", async () => {
+            await selectNumericNode();
+
+            fireEvent.click(screen.getByTestId("inspector-actions-more"));
+            fireEvent.click(await screen.findByRole("menuitem", { name: "Pin" }));
+
+            expect(await screen.findByTestId("node-pinned-badge")).toHaveTextContent("Pinned");
+
+            fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+            await flushMicrotasks();
+
+            expect(screen.queryByTestId("node-pinned-badge")).toBeNull();
+
+            fireEvent.click(screen.getByRole("button", { name: "Redo" }));
+            await flushMicrotasks();
+
+            expect(screen.getByTestId("node-pinned-badge")).toHaveTextContent("Pinned");
         });
 
         it("draws the badge for a node the reader pinned by DRAGGING it, without a second pick", async () => {

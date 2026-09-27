@@ -36,6 +36,9 @@
  *   move the position and publish `history:changed`. A run and the encoding it paints are ONE
  *   step, because they are in the element. Undo moves the position and does not put the
  *   layers back: a board asserts what the shell reads off the history, never the picture.
+ *   The layout choice and the pins are the exception: undo and redo put them back, and every
+ *   step, undo and redo publishes `project:changed` naming its slices, so a board can check
+ *   that the shell's copies follow the element.
  *
  * What it does NOT model is anything about drawing: there is no repaint, no canvas and no
  * element. A board that needs those is a browser board against the real element.
@@ -361,6 +364,8 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
     let historyVersion = 0;
     /* Open transactions. While one is open a verb joins it rather than recording its own step. */
     let transactions = 0;
+    /* How to take back and put back the steps whose state this stand-in really holds. */
+    const reversible = new Map<string, { readonly undo: () => void; readonly redo: () => void }>();
 
     const historyMoved = (reason: string): void => {
         historyVersion += 1;
@@ -372,16 +377,30 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
      * @param label - what the History pop-out prints.
      * @param op - the command the step ran.
      * @param slices - what it changed.
+     * @param change - how undo and redo take it back and put it back, for state this fake holds.
      */
-    const record = (label: string, op: SessionCommand["op"], slices: readonly ProjectSlice[]): void => {
+    const record = (
+        label: string,
+        op: SessionCommand["op"],
+        slices: readonly ProjectSlice[],
+        change?: { readonly undo: () => void; readonly redo: () => void },
+    ): void => {
+        publish("project:changed", { slices, cause: "command" });
+
         if (transactions > 0) {
             return;
+        }
+
+        const id = `step-${String(steps.length + 1)}`;
+
+        if (change !== undefined) {
+            reversible.set(id, change);
         }
 
         steps.splice(position);
         steps.push(
             Object.freeze({
-                id: `step-${String(steps.length + 1)}` as HistoryStep["id"],
+                id: id as HistoryStep["id"],
                 label,
                 at: new Date().toISOString(),
                 ops: [op],
@@ -407,11 +426,63 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
         }
 
         const step = steps[by < 0 ? next : position];
+        const change = reversible.get(step.id);
 
         position = next;
+        change?.[by < 0 ? "undo" : "redo"]();
+        publish("project:changed", { slices: step.slices, cause: by < 0 ? "undo" : "redo" });
         historyMoved(by < 0 ? "undo" : "redo");
 
         return Promise.resolve({ kind: by < 0 ? "undone" : "redone", steps: [step] });
+    };
+
+    /* The layout choice, which undo and redo put back. */
+    let layout: {
+        readonly engine: string;
+        readonly options: Readonly<Record<string, unknown>>;
+        readonly dimension: "2d" | "3d";
+    } = { engine: "ngraph", options: {}, dimension: "3d" };
+
+    /**
+     * Chooses a layout as one reversible step.
+     * @param label - the step's label.
+     * @param next - the choice it makes.
+     */
+    const relayout = (label: string, next: typeof layout): void => {
+        const before = layout;
+
+        layout = next;
+        record(label, "layout.set", ["layout"], {
+            undo: () => {
+                layout = before;
+            },
+            redo: () => {
+                layout = next;
+            },
+        });
+    };
+
+    /**
+     * Replaces the pinned set as one reversible step.
+     * @param label - the step's label.
+     * @param next - the nodes pinned afterwards.
+     */
+    const repin = (label: string, next: readonly NodeId[]): void => {
+        const before = [...pinned];
+        const put = (ids: readonly NodeId[]): void => {
+            pinned.clear();
+            ids.forEach((id) => pinned.add(id));
+        };
+
+        put(next);
+        record(label, "positions.pin", ["pins"], {
+            undo: () => {
+                put(before);
+            },
+            redo: () => {
+                put(next);
+            },
+        });
     };
 
     const history = {
@@ -694,14 +765,15 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
             placedCount: 0,
             pinned,
             pin: (ids: readonly NodeId[]): Promise<void> => {
-                ids.forEach((id) => pinned.add(id));
-                record("Pinned", "positions.pin", ["pins"]);
+                repin("Pinned", [...pinned, ...ids]);
 
                 return Promise.resolve();
             },
             unpin: (ids: readonly NodeId[]): Promise<void> => {
-                ids.forEach((id) => pinned.delete(id));
-                record("Unpinned", "positions.pin", ["pins"]);
+                repin(
+                    "Unpinned",
+                    [...pinned].filter((id) => !ids.includes(id)),
+                );
 
                 return Promise.resolve();
             },
@@ -709,17 +781,26 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
         /* The layout choice and 2D or 3D, one step each; this stand-in draws nothing, so they
            change only what a board reads back. */
         layout: {
-            id: "force",
-            engine: "ngraph",
-            options: {},
-            dimension: "3d",
-            set: (): Promise<void> => {
-                record("Changed the layout", "layout.set", ["layout"]);
+            get id() {
+                return layout.engine === "ngraph" ? "force" : layout.engine;
+            },
+            get engine() {
+                return layout.engine;
+            },
+            get options() {
+                return layout.options;
+            },
+            get dimension() {
+                return layout.dimension;
+            },
+            /* An engine name is read as the layout it draws, as the element reads one. */
+            set: (id: string, choice?: { readonly options?: Readonly<Record<string, unknown>> }): Promise<void> => {
+                relayout("Changed the layout", { ...layout, engine: id, options: choice?.options ?? {} });
 
                 return Promise.resolve();
             },
-            setDimension: (): Promise<void> => {
-                record("Changed the dimension", "layout.set", ["layout"]);
+            setDimension: (dimension: "2d" | "3d"): Promise<void> => {
+                relayout("Changed the dimension", { ...layout, dimension });
 
                 return Promise.resolve();
             },

@@ -1226,6 +1226,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         readonly nodeCount: number;
         /** The edge count the pass was measured over. */
         readonly edgeCount: number;
+        /** The run that measured it, so an undo that takes the run away takes these with it. */
+        readonly runId: RunId;
     } | null>(null);
 
 
@@ -1966,6 +1968,52 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         });
     }, [refreshGraphData, session]);
 
+    /*
+     * The shell's copies of element state are re-read whenever the element says that state
+     * changed -- by a command, an undo, a redo, a restore or a rollback alike -- so the layout
+     * control, the 2D/3D switch, the Pinned badge and the legend follow an undo exactly as they
+     * follow the edit. A result card or the degree readings whose run undo took away go with it,
+     * and a metric run that undo cancelled or removed stops the Run spinner.
+     */
+    useEffect(() => {
+        if (session === null) {
+            return undefined;
+        }
+
+        const unwatchProject = session.on("project:changed", ({ slices }) => {
+            if (slices.includes("layout")) {
+                setLayoutType(session.layout.engine);
+                setLayoutConfig({ ...session.layout.options });
+                setViewMode(session.layout.dimension);
+            }
+
+            if (slices.includes("pins")) {
+                setPinnedNodes(new Set(session.positions.pinned));
+            }
+        });
+        const unwatchStyle = session.on("style:changed", () => {
+            setColourChannel(canvasLegendChannels(session.styles.legend()));
+        });
+        const unwatchRuns = session.on("run:changed", ({ run, phase }) => {
+            if (phase !== "removed" && !(phase === "end" && run.status === "canceled")) {
+                return;
+            }
+
+            setRunningMetric((current) => (current === run.algorithm ? null : current));
+
+            if (phase === "removed") {
+                setActiveResult((current) => (current?.runId === run.id ? null : current));
+                setDegreePass((current) => (current?.runId === run.id ? null : current));
+            }
+        });
+
+        return () => {
+            unwatchProject();
+            unwatchStyle();
+            unwatchRuns();
+        };
+    }, [session]);
+
     /* `runFindGroups` is declared further down; a load reaches it through this ref. */
     const runFindGroupsRef = useRef<(options: { readonly retiresInsightCard: boolean }, via?: TransactionScope) => Promise<void>>(
         () => Promise.resolve(),
@@ -2074,7 +2122,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     /* Stamped with the graph it was measured over. Both counts, not only the
                        nodes: a file that adds edges between nodes that are already here changes
                        every degree in the ranking without changing its length. */
-                    setDegreePass({ results, nodeCount, edgeCount });
+                    setDegreePass({ results, nodeCount, edgeCount, runId: degree.runId });
 
                     /* The layer and this sentence read the same cut, so when a tie across the
                        budget leaves labels out, Settings > Performance says why. */

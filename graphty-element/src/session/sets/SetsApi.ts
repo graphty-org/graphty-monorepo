@@ -18,6 +18,7 @@ import type {
     EdgeMember,
     EdgeReading,
     EdgeRef,
+    NodeId,
     PathKind,
     RunId,
     Scope,
@@ -31,7 +32,7 @@ import { edgeCounterOf, stableEdgeMember } from "../../data/edgeIdentity";
 import { readEndpoint } from "../../data/endpoints";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { SessionAttributes } from "../types";
-import { type Concrete, type Materialiser, SET_COMBINES } from "./algebra";
+import { type Concrete, isOffer, type Materialiser, SET_COMBINES } from "./algebra";
 import {
     type ChainStep,
     dependenciesOf,
@@ -42,6 +43,7 @@ import {
     selectionChain,
     setCycle,
 } from "./dependencies";
+import type { Offering } from "./offers";
 import { pathKind } from "./path";
 import {
     defaultName,
@@ -56,7 +58,7 @@ import {
 import { edgeMemberKey } from "./resolve";
 import { statusOf,type StatusRun, type StatusSources } from "./status";
 import { SetsStore } from "./store";
-import type { ElementSet, SetMemberDelta, SetsApi, SetStatus, SetUser } from "./types";
+import type { ElementSet, Memberships, SetMemberDelta, SetOffer, SetsApi, SetStatus, SetUser } from "./types";
 
 /** What the doors read from the rest of the session. */
 interface SetsDependencies {
@@ -85,6 +87,15 @@ interface SetsDependencies {
      * with `E_UNSUPPORTED`.
      */
     readonly materialise?: Materialiser;
+    /** Offers and Memberships. Absent: `offers` and `containing` refuse with `E_UNSUPPORTED`. */
+    readonly offering?: Pick<Offering, "offers" | "memberships">;
+    /**
+     * The token of a run's current execution, which an offer must still hold. Absent: the
+     * `runs` dependency's, else no execution is current and every offer is stale.
+     * @param run - The run.
+     * @returns The token, or undefined when the run has no result.
+     */
+    readonly executionOf?: (run: RunId) => string | undefined;
 }
 
 /**
@@ -397,6 +408,59 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
     const commit = (concrete: Concrete, name: string | undefined): SetId =>
         createAs(concrete.definition, name, concrete.createdFrom, concrete.refs);
 
+    /**
+     * The offering, or the refusal of a session built without one.
+     * @returns The offering.
+     * @throws `E_UNSUPPORTED` when the session has no results to offer from.
+     */
+    const offering = (): Pick<Offering, "offers" | "memberships"> => {
+        if (dependencies.offering === undefined) {
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message: "These sets cannot read results, because no run registry is attached to them.",
+                source: "data",
+            });
+        }
+
+        return dependencies.offering;
+    };
+
+    /**
+     * Refuse an offer whose execution is no longer its run's current one: keeping it would freeze
+     * the current execution's members under a `createdFrom` that names the old one.
+     * @param offer - The offer.
+     * @throws `E_BAD_COMMAND` with `details.reason: "stale-offer"`.
+     */
+    const requireCurrent = (offer: SetOffer): void => {
+        const { run, execution } = offer.item;
+        const current = dependencies.executionOf === undefined ? dependencies.runs?.get(run)?.execution : dependencies.executionOf(run);
+        if (execution === undefined || execution !== current) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `"${offer.label}" came from an earlier run of "${run}". Ask the run for its offers again.`,
+                source: "data",
+                details: { reason: "stale-offer", run },
+            });
+        }
+    };
+
+    /**
+     * Keep an offer as a rule over its item without the execution, so it follows the run.
+     * @param offer - A current offer.
+     * @param name - The caller's name.
+     * @param reading - The caller's reading; the offer's when absent.
+     * @returns The minted id.
+     * @throws `E_BAD_COMMAND` with `details.reason: "follow-group"` for a partition group.
+     */
+    const follow = (offer: SetOffer, name: string | undefined, reading: EdgeReading = offer.reading): SetId => {
+        const { run, key } = offer.item;
+        if (!offer.followable) {
+            throw followsGroup({ run, key });
+        }
+
+        return createAs({ kind: "rule", where: { kind: "item", item: { run, key } }, reading }, name, { kind: "result", item: offer.item });
+    };
+
     const statusSources: StatusSources = {
         sets: store,
         dependencies: references,
@@ -459,8 +523,31 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
 
         create: (definition: SetDefinitionInput, options: { readonly name?: string } = {}): SetId => createAs(definition, options.name, { kind: "user" }),
 
-        async createFrom(source: ScopeInput, options: { readonly name?: string; readonly reading?: EdgeReading } = {}): Promise<SetId> {
+        offers: (run: RunId, options: { readonly limit?: number } = {}) => offering().offers(run, options.limit),
+
+        containing: async (element: { readonly node: NodeId } | { readonly edge: EdgeId }): Promise<Memberships> => {
+            await Promise.resolve();
+
+            return offering().memberships(element);
+        },
+
+        async createFrom(
+            source: ScopeInput | SetOffer,
+            options: { readonly name?: string; readonly reading?: EdgeReading; readonly follow?: boolean } = {},
+        ): Promise<SetId> {
             const reading = readingOption(options.reading);
+            if (isOffer(source)) {
+                requireCurrent(source);
+                if (options.follow === true) {
+                    return follow(source, options.name, reading);
+                }
+
+                const concrete = await materialiser().from(source, reading);
+                requireCurrent(source);
+
+                return commit(concrete, options.name);
+            }
+
             const concrete = await materialiser().from(readScope(source), reading);
 
             return commit(concrete, options.name);
@@ -491,7 +578,15 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
             return commit(concrete, options.name);
         },
 
-        async createPath(source: "selection", options: { readonly name?: string } = {}): Promise<SetId> {
+        async createPath(source: SetOffer | "selection", options: { readonly name?: string } = {}): Promise<SetId> {
+            if (isOffer(source)) {
+                requireCurrent(source);
+                const concrete = await materialiser().path(source);
+                requireCurrent(source);
+
+                return commit(concrete, options.name);
+            }
+
             if (source !== "selection") {
                 throw new GraphtyError({
                     code: "E_BAD_COMMAND",

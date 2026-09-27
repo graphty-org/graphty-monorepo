@@ -6,10 +6,12 @@
  */
 
 import type {
+    EdgeId,
     EdgeReading,
     EdgeRef,
     NodeId,
     PathKind,
+    ResultItem,
     RunId,
     ScopeInput,
     SetCombine,
@@ -111,6 +113,43 @@ export interface SetUser {
     readonly label: string;
 }
 
+/**
+ * A set a finished run's result offers: community 3, level 2, the path. Using it as a scope,
+ * `{ define: offer.definition }`, writes nothing; `createFrom` or `createPath` keeps it.
+ *
+ * Offers come from the result's shape, never from the algorithm, so a registered algorithm's
+ * result offers what a built-in one of the same shape does.
+ */
+export interface SetOffer {
+    /** The item, with the execution it was read from. */
+    readonly item: ResultItem;
+    /** "Community 3 (1,204 nodes)", "On path", "Level 2". */
+    readonly label: string;
+    /**
+     * How many nodes it holds. Present for an offer read `induced`, counted from the result's own
+     * values. For an offer read `listed` (an edge set, a path), whose nodes include its edges'
+     * endpoints, filled only once the edge-count pass is cached.
+     */
+    readonly nodes?: number;
+    /** Filled only when this execution's edge-count pass is already cached; `offers` never runs it. */
+    readonly edges?: number;
+    readonly reading: EdgeReading;
+    /** A path offer: `createPath` accepts it and keeps its order. */
+    readonly path: boolean;
+    /** The item may be followed across re-runs (not a partition group). */
+    readonly followable: boolean;
+    /** Usable at once as a scope, `{ define: offer.definition }`: a rule over the one held item. */
+    readonly definition: SetDefinition;
+}
+
+/** What holds one element: the inspector's "Memberships". OPEN: may gain members in a minor release. */
+export interface Memberships {
+    /** Kept sets holding the element, in listing order. */
+    readonly sets: readonly SetId[];
+    /** The partition items holding it: "Louvain: community 4 of 212". */
+    readonly items: readonly { readonly item: ResultItem; readonly label: string; readonly of: number }[];
+}
+
 /** Members to add to or remove from a fixed set. Edges by session id or stable identity. Internal name. */
 export interface SetMemberDelta {
     readonly nodes?: readonly NodeId[];
@@ -155,6 +194,30 @@ export interface SetsApi {
      */
     usedBy(id: SetId): readonly SetUser[];
     /**
+     * The sets a finished run's result offers, largest first, from its shape: one per group of a
+     * partition (a components run's first is the largest component), one per level, one per
+     * category, one for a node or edge set, one for a path. Metrics, temporal results and
+     * candidate pairs offer none. Never resolves and never runs the edge-count pass.
+     * @param run - The run.
+     * @param options - How many to return.
+     * @param options.limit - The most offers returned; 100 by default.
+     * @returns The largest `limit` offers and how many were left out.
+     * @throws `E_UNKNOWN_RUN` for a run this session does not hold.
+     */
+    offers(run: RunId, options?: { readonly limit?: number }): { readonly offers: readonly SetOffer[]; readonly more: number };
+    /**
+     * What holds one element: the kept sets, and the partition items of every finished run. A
+     * cached resolution is tested when present; else a fixed set of nodes alone is a binary
+     * search of them, and a rule whose leaves are all element-local is tested at this element.
+     * Anything else is resolved once and cached.
+     * @param element - The node or edge.
+     * @param element.node - A node id.
+     * @param element.edge - A session edge id.
+     * @returns The memberships.
+     * @throws `E_BAD_COMMAND` for an element the graph does not hold.
+     */
+    containing(element: { readonly node: NodeId } | { readonly edge: EdgeId }): Promise<Memberships>;
+    /**
      * Keep a definition as given; created from `user`. Edge members may be given as session edge
      * ids and are stored in stable form.
      * @param definition - The definition.
@@ -175,21 +238,36 @@ export interface SetsApi {
      * are exactly those its nodes induce is stored `induced` with no edges, so it GAINS an edge
      * added later between two of its members; an explicit `listed` never does.
      * `"largest-component"` stores its nodes alone.
-     * @param source - The scope; `"selection"` for the current selection with its edges.
+     *
+     * An offer keeps its own reading and is created from `result`, holding its execution. With
+     * `follow`, it is kept instead as a rule over the item without the execution, so it follows
+     * the run's re-runs; a partition group cannot be followed, because a group number means
+     * nothing in another run.
+     * @param source - The scope; `"selection"` for the current selection with its edges; or an offer.
      * @param options - How to keep it.
      * @param options.name - The name; "Set N" (the smallest free N) when absent.
      * @param options.reading - The reading to store instead of the default.
+     * @param options.follow - Keep an offer as a rule that follows its run.
      * @returns The minted id.
      * @throws `E_SCOPE_EMPTY` when the source holds nothing; `E_BAD_COMMAND` for a malformed scope,
-     * an unknown set or a bad reading; `E_DUPLICATE_ID` for a taken name.
+     * an unknown set or a bad reading; `E_DUPLICATE_ID` for a taken name; `E_BAD_COMMAND` with
+     * `details.reason: "stale-offer"` for an offer whose execution is no longer its run's current
+     * one, checked before resolving and again at commit, and `"follow-group"` for following a
+     * partition group.
      */
-    createFrom(source: ScopeInput, options?: { readonly name?: string; readonly reading?: EdgeReading }): Promise<SetId>;
+    createFrom(
+        source: ScopeInput | SetOffer,
+        options?: { readonly name?: string; readonly reading?: EdgeReading; readonly follow?: boolean },
+    ): Promise<SetId>;
     /**
      * Create path: order the selected edges into a walk, created from `selection`. Parallel and
      * reciprocal edges between one pair become one step. The walk starts at the end from which
      * every step follows a declared edge direction when only one end allows that, else at the end
      * whose id sorts first. One selected node and no edges is a zero-length path.
-     * @param source - `"selection"`.
+     *
+     * A path offer is kept in its result's `order`, each step naming the on-path edges between its
+     * pair, created from `result`; a stale one is refused as `createFrom` refuses it.
+     * @param source - `"selection"`, or a path offer.
      * @param options - How to keep it.
      * @param options.name - The name; "Set N" when absent.
      * @returns The minted id.
@@ -197,7 +275,7 @@ export interface SetsApi {
      * `self-loop`, `branch`, `cycle`, `disconnected`, `off-path-nodes`) when the selection is not
      * one open chain.
      */
-    createPath(source: "selection", options?: { readonly name?: string }): Promise<SetId>;
+    createPath(source: SetOffer | "selection", options?: { readonly name?: string }): Promise<SetId>;
     /**
      * Combine two or more sets into one fixed set of their current members, created from
      * `combine`. `difference` is the first minus the union of the rest; `symmetric-difference`

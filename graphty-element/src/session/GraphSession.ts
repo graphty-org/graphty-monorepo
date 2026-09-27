@@ -64,6 +64,7 @@ import { createMaterialiser } from "./sets/algebra";
 import { outcomeOf, SetsCache } from "./sets/cache";
 import { captureItem, captureOf, type HeldCaptures, heldItems, nextCaptures } from "./sets/captures";
 import { type DependencySources, referentReading } from "./sets/dependencies";
+import { createOffering } from "./sets/offers";
 import { createSetsApi, sessionEdgeMember, setsStoreOf } from "./sets/SetsApi";
 import { identityOf } from "./sets/signature";
 import type { StatusRun } from "./sets/status";
@@ -1173,9 +1174,23 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         scopeMoved: () => run.stale !== null,
         captures: runs.heldOf(run.id),
     });
+    // Offers and Memberships. Read through calls: the runs and the scope resolver are built below.
+    const offerRun = (run: Run): { id: RunId; label: string; result: Run["result"] } => ({ id: run.id, label: run.label, result: run.result });
+    const offering = createOffering({
+        run: (id: RunId) => {
+            const run = runs.get(id);
+            return run === undefined ? undefined : offerRun(run);
+        },
+        runs: () => runs.list().map(offerRun),
+        values: (id: RunId) => resultSource(id),
+        context: () => scope.contextNow(),
+        sets: () => keptSets.list(),
+    });
     const sets = createSetsApi({
         edgeMember,
         dependencies,
+        offering,
+        executionOf: (run: RunId) => executionOf(run),
         runs: {
             get: (id: RunId) => {
                 const run = runs.get(id);
@@ -1191,6 +1206,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
             readingOf: (spec: Scope) => scope.readingOf(spec),
             edgeMember,
             selection: () => ({ nodes: requireSelection(selection).nodeMembers(), edges: requireSelection(selection).edgeMembers() }),
+            offering,
         }),
     });
     const keptSets = setsStoreOf(sets);

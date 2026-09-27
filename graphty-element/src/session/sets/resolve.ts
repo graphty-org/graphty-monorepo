@@ -32,7 +32,7 @@ import { GraphtyError, isGraphtyError } from "../../errors";
 import type { AttributeRevisions, InputTick } from "../attributes";
 import { canonicalize } from "../runs/runId";
 import type { ElementMask } from "../scope/ElementMask";
-import { compileFilter, type FilterSources, type FilterValueSource, type ScopeLeaf } from "../visibility/filter";
+import { type CompiledHalves, compileFilter, type FilterSources, type FilterValueSource, type ScopeLeaf } from "../visibility/filter";
 import type { SetsCache } from "./cache";
 import { referentReading } from "./dependencies";
 import { resolvePath } from "./path";
@@ -510,6 +510,29 @@ function resolveIn(scope: Scope, context: ResolveContext, seen: readonly SetId[]
 }
 
 /**
+ * A rule's compiled halves, before the reading is applied: a node test and an edge test by dense
+ * index, null where the tree is silent.
+ * @param definition - A canonical rule.
+ * @param context - What the tests read.
+ * @param seen - The sets followed so far.
+ * @returns The halves.
+ * @throws A `GraphtyError` when a leaf needs a capability the context lacks.
+ */
+export function ruleHalves(definition: Extract<SetDefinition, { kind: "rule" }>, context: ResolveContext, seen: readonly SetId[] = []): CompiledHalves {
+    const tree: Filter = typeof definition.where === "string" ? { kind: "expression", where: definition.where } : definition.where;
+
+    return compileFilter(context.snapshot, tree, {
+        ...(context.match === undefined ? {} : { match: context.match }),
+        ...(context.matchEdges === undefined ? {} : { matchEdges: context.matchEdges }),
+        ...(context.values === undefined ? {} : { values: context.values }),
+        ...(context.result === undefined ? {} : { result: context.result }),
+        ...(context.captured === undefined ? {} : { captured: context.captured }),
+        ...(context.components === undefined ? {} : { components: context.components }),
+        scope: (scope: Scope) => scopeLeafIn(scope, context, seen),
+    });
+}
+
+/**
  * A rule's two halves, with the reading applied at the root (design 4.3): a silent node half is
  * every node except under `listed`; `induced` derives the edges; `listed` takes the edge half and
  * its endpoints; `clipped` takes the edge half (every edge when silent) between member nodes.
@@ -522,16 +545,7 @@ function resolveIn(scope: Scope, context: ResolveContext, seen: readonly SetId[]
 function resolveRule(definition: Extract<SetDefinition, { kind: "rule" }>, context: ResolveContext, seen: readonly SetId[]): Resolution {
     const { snapshot } = context;
     const { reading } = definition;
-    const tree: Filter = typeof definition.where === "string" ? { kind: "expression", where: definition.where } : definition.where;
-    const halves = compileFilter(snapshot, tree, {
-        ...(context.match === undefined ? {} : { match: context.match }),
-        ...(context.matchEdges === undefined ? {} : { matchEdges: context.matchEdges }),
-        ...(context.values === undefined ? {} : { values: context.values }),
-        ...(context.result === undefined ? {} : { result: context.result }),
-        ...(context.captured === undefined ? {} : { captured: context.captured }),
-        ...(context.components === undefined ? {} : { components: context.components }),
-        scope: (scope: Scope) => scopeLeafIn(scope, context, seen),
-    });
+    const halves = ruleHalves(definition, context, seen);
 
     const n = snapshot.nodeCount;
     const nodes = makeMask(n, halves.node === null && reading !== "listed");

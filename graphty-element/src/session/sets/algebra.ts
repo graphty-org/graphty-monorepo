@@ -41,7 +41,9 @@ import type {
 import { edgeCounterOf, edgeIdOf } from "../../data/edgeIdentity";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { ElementMask } from "../scope/ElementMask";
+import type { Offering } from "./offers";
 import { deriveEdges, type Resolution } from "./resolve";
+import type { SetOffer } from "./types";
 
 /** The four combinations, in the order the doors check them. */
 export const SET_COMBINES: readonly SetCombine[] = ["union", "intersection", "difference", "symmetric-difference"];
@@ -127,12 +129,13 @@ export interface Concrete {
 /** The resolve step of the materialising doors. Injectable, so a test can hold it open. */
 export interface Materialiser {
     /**
-     * A scope's current members as a fixed definition (design 15.2 `createFrom` defaults).
-     * @param source - A canonical scope.
+     * A scope's or an offer's current members as a fixed definition (design 15.2 `createFrom`
+     * defaults; an offer keeps its reading and is created from `result`).
+     * @param source - A canonical scope, or an offer.
      * @param reading - The caller's reading, or undefined for the default.
      * @returns The concrete definition.
      */
-    from(source: Scope, reading: EdgeReading | undefined): Promise<Concrete>;
+    from(source: Scope | SetOffer, reading: EdgeReading | undefined): Promise<Concrete>;
     /**
      * Two or more scopes combined into a fixed definition (design 7).
      * @param op - The combination.
@@ -142,11 +145,11 @@ export interface Materialiser {
      */
     combine(op: SetCombine, of: readonly Scope[], reading: EdgeReading | undefined): Promise<Concrete>;
     /**
-     * The selected edges ordered into a walk.
-     * @param source - `"selection"`.
+     * The selected edges ordered into a walk, or a path offer in its result's order.
+     * @param source - `"selection"`, or a path offer.
      * @returns The concrete path definition.
      */
-    path(source: "selection"): Promise<Concrete>;
+    path(source: "selection" | SetOffer): Promise<Concrete>;
 }
 
 /** What the resolve step reads from the session. */
@@ -174,6 +177,17 @@ interface MaterialiseSources {
     edgeMember(id: EdgeId): EdgeMember | undefined;
     /** The selection's two masks, synced to the current snapshot. Absent refuses `"selection"`. */
     readonly selection?: () => { readonly nodes: ElementMask<NodeId>; readonly edges: ElementMask<EdgeId> };
+    /** The offers' edge-count pass and path order. Absent: an offer resolves, and counts nothing. */
+    readonly offering?: Pick<Offering, "countEdges" | "orderOf">;
+}
+
+/**
+ * Whether a source is an offer rather than a scope.
+ * @param source - A scope or an offer.
+ * @returns True for an offer.
+ */
+export function isOffer(source: unknown): source is SetOffer {
+    return typeof source === "object" && source !== null && "item" in source && "definition" in source;
 }
 
 /**
@@ -360,9 +374,82 @@ export function createMaterialiser(sources: MaterialiseSources): Materialiser {
         };
     };
 
+    /**
+     * A path offer as a walk: its nodes in the result's `order`, each step the on-path edges
+     * between its pair.
+     * @param offer - The offer.
+     * @returns The concrete path definition.
+     * @throws `E_BAD_COMMAND` for an offer that is not a path; `E_SCOPE_EMPTY` for an empty one.
+     */
+    const pathOfOffer = (offer: SetOffer): Concrete => {
+        if (!offer.path) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `"${offer.label}" is not a path, so it has no order to keep. Create a set from it instead.`,
+                source: "data",
+                details: { item: offer.item },
+            });
+        }
+
+        const { resolution, graph } = sources.resolve({ define: offer.definition });
+        sources.offering?.countEdges(offer.item.run);
+        const order = sources.offering?.orderOf(offer.item.run);
+        const indices = Array.from(maskToIndices(resolution.nodes, graph.nodeCount));
+        if (indices.length === 0) {
+            throw emptySource({ define: offer.definition });
+        }
+
+        const position = (index: number): number => {
+            const value = order?.(index);
+
+            return typeof value === "number" && Number.isFinite(value) ? value : Number.POSITIVE_INFINITY;
+        };
+        indices.sort((a, b) => position(a) - position(b) || a - b);
+
+        const between = new Map<string, number[]>();
+        for (const row of maskToIndices(resolution.edges, graph.edgeCount)) {
+            const s = graph.edgeSource(row);
+            const t = graph.edgeTarget(row);
+            const key = s < t ? `${s}:${t}` : `${t}:${s}`;
+            between.set(key, [...(between.get(key) ?? []), row]);
+        }
+
+        const column = edgeIdsOf(graph);
+        const refs: [EdgeId, EdgeMember][] = [];
+        const steps = indices.slice(1).map((node, i) => {
+            const previous = indices[i];
+            const rows = between.get(previous < node ? `${previous}:${node}` : `${node}:${previous}`) ?? [];
+            const members = rows.map((row) => stable(column(row), refs));
+
+            return members.length === 1 ? members[0] : members;
+        });
+
+        return {
+            definition: { kind: "path", nodes: indices.map((index) => graph.ids.idOf(index)), ...(steps.length === 0 ? {} : { edges: steps }) },
+            refs,
+            createdFrom: { kind: "result", item: offer.item },
+        };
+    };
+
     return {
-        from(source: Scope, given: EdgeReading | undefined): Promise<Concrete> {
+        from(source: Scope | SetOffer, given: EdgeReading | undefined): Promise<Concrete> {
             return Promise.resolve().then(() => {
+                if (isOffer(source)) {
+                    const { resolution, graph } = sources.resolve({ define: source.definition });
+                    // The first resolution of an offer runs its execution's edge-count pass.
+                    sources.offering?.countEdges(source.item.run);
+                    if (resolution.nodeCount === 0 && resolution.edgeCount === 0) {
+                        throw emptySource({ define: source.definition });
+                    }
+
+                    const reading = given ?? source.reading;
+
+                    return fixedOf(resolution.nodes, resolution.edges, graph, reading === "induced" ? "induced" : "listed", false, {
+                        kind: "result",
+                        item: source.item,
+                    });
+                }
+
                 if (source === "selection") {
                     return fromSelection(given);
                 }
@@ -397,8 +484,12 @@ export function createMaterialiser(sources: MaterialiseSources): Materialiser {
             });
         },
 
-        path(): Promise<Concrete> {
+        path(source: "selection" | SetOffer): Promise<Concrete> {
             return Promise.resolve().then(() => {
+                if (isOffer(source)) {
+                    return pathOfOffer(source);
+                }
+
                 const { nodes, edges } = selected();
                 const graph = sources.snapshot();
                 const order = chainOf(graph, edges.ids(), nodes.ids());

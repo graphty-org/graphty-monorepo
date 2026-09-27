@@ -352,6 +352,11 @@ export interface ScopeResolver extends ScopeApi {
     readingOf(spec: Scope): EdgeReading;
     /** The kept sets `save`, `list` and `remove` delegate to. */
     readonly sets: SetsApi;
+    /**
+     * What a resolution reads now, for an internal reader that resolves through the cache itself.
+     * @returns The context over the current snapshot.
+     */
+    contextNow(): ResolveContext;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -766,6 +771,8 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
         },
 
         readingOf,
+
+        contextNow: context,
 
         leafOf(spec: Scope): ScopeLeaf {
             const active = context();

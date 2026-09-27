@@ -598,7 +598,7 @@ interface CompileContext {
 }
 
 /** One filter's two halves, before they are folded together. */
-interface CompiledHalves {
+export interface CompiledHalves {
     /** The node test, or null when this filter says nothing about nodes. */
     readonly node: ElementTest | null;
     /** The edge test, or null when this filter says nothing about edges. */

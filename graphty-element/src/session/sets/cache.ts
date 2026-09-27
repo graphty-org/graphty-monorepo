@@ -18,10 +18,14 @@
  * SUMMARIES hold one entry per kept set id: the latest signature and its counts, so a panel
  * counting 200 sets never needs 200 resolutions resident and nothing grows under streaming data.
  *
+ * OFFER COUNTS hold one entry per run: what `./offers` counted of the run's current execution
+ * over one snapshot. They are keyed by the run and valid for exactly one (execution, store,
+ * snapshot serial); anything else misses and replaces the entry.
+ *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { SetDefinition, SetId } from "../../catalog/types";
+import type { RunId, SetDefinition, SetId } from "../../catalog/types";
 import { type Resolution, type ResolveContext, resolveDefinitionIn, resolveQuietly } from "./resolve";
 import { createSignatureMemo, definitionSignature, type SignatureMemo } from "./signature";
 
@@ -69,12 +73,29 @@ function bytesOf(resolution: Resolution): number {
     return resolution.nodes.byteLength + resolution.edges.byteLength;
 }
 
+/**
+ * What `./offers` counted of one run's execution over one snapshot: members per item key, and the
+ * edge-count pass once it has run.
+ */
+export interface OfferCounts {
+    readonly execution: string | undefined;
+    /** Identity of the store the snapshot came from. */
+    readonly store: number;
+    readonly serial: number;
+    /** Item key (`itemKeyOf`) to its value and the nodes whose values name it. */
+    readonly nodes: ReadonlyMap<string, { readonly value: string | number | boolean; readonly count: number }>;
+    /** The edge-count pass: item key to its edges and, read `listed`, its nodes with the edges' endpoints. */
+    pass?: ReadonlyMap<string, { readonly edges: number; readonly nodes: number }>;
+}
+
 /** One session's resolution cache, its summaries and its signature memo. */
 export class SetsCache {
     /** The signature memo every resolution through this cache shares. */
     readonly memo: SignatureMemo = createSignatureMemo();
     /** Summaries by set id. */
     readonly summaries = new Map<SetId, SetSummary>();
+    /** Offer counts by run id. */
+    readonly offers = new Map<RunId, OfferCounts>();
     /** Entries, least recently used first. */
     private readonly entries = new Map<unknown, Entry>();
     /** How many holders pin each key. */
@@ -141,6 +162,19 @@ export class SetsCache {
         this.entries.set(key, entry);
 
         return entry.resolution;
+    }
+
+    /**
+     * The resolution cached for a key under a signature, counting nothing and moving nothing: for
+     * a reader that only uses a resolution when one happens to be there.
+     * @param key - What was resolved.
+     * @param signature - Its input signature now.
+     * @returns The resolution, or undefined when none is cached under that signature.
+     */
+    peek(key: unknown, signature: string): Resolution | undefined {
+        const entry = this.entries.get(key);
+
+        return entry?.signature === signature ? entry.resolution : undefined;
     }
 
     /**

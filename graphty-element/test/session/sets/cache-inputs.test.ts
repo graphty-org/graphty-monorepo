@@ -12,6 +12,8 @@
  * |                 |                                   | seeds, and, through the columns a re-import writes, `edgeIdPath`  |
  * | summary         | set id                            | the resolution's signature                                        |
  * | digest          | the resolution object             | whatever the resolution reads (memoised on it)                    |
+ * | offer counts    | run id                            | the run's execution token, store, snapshot serial; the edge-count |
+ * |                 |                                   | pass is filled into the entry and dropped with it                 |
  */
 
 import { type GraphSnapshot, maskToIndices, type U32 } from "@graphty/graph-format";
@@ -19,8 +21,10 @@ import { assert, describe, it } from "vitest";
 
 import type { NodeId, Query, Scope, ScopeId, SetId } from "../../../src/catalog/types";
 import { AttributeRevisions, InputTick } from "../../../src/session/attributes";
+import type { RunResult } from "../../../src/session/results/types";
 import { edgeSpaceOf, ElementMask, nodeSpaceOf } from "../../../src/session/scope/index";
 import { cacheCounters, countsOf, resolveSet, SetsCache } from "../../../src/session/sets/cache";
+import { createOffering, offerCounters,type Offering } from "../../../src/session/sets/offers";
 import { digestOf, type Resolution, type ResolveContext, resolveCounters, resolveScope } from "../../../src/session/sets/resolve";
 import { scopeSignature, signatureCounters } from "../../../src/session/sets/signature";
 import { type EdgeRecord, TestGraph } from "./graphs";
@@ -566,5 +570,85 @@ describe("byte accounting", () => {
         const arrays = new Set<U32>([direct.nodes, direct.edges, named.nodes, named.edges]);
         assert.strictEqual(arrays.size, 4);
         assert.deepStrictEqual(nodeIds(direct, f.graph.snapshot()), nodeIds(named, f.graph.snapshot()));
+    });
+});
+
+describe("the offer counts, input by input", () => {
+    /**
+     * An offering over the fixture: one partition run, `louv`, putting even node indices in group
+     * 0 and odd ones in group 1, under the fixture's execution token.
+     * @param f - The fixture.
+     * @returns The offering.
+     */
+    function offeringOf(f: Fixture): Offering {
+        const run = { id: "louv", label: "Louvain", result: { shape: "community" } as RunResult };
+
+        return createOffering({
+            run: (id) => (id === "louv" ? run : undefined),
+            runs: () => [run],
+            values: () => ({
+                execution: f.executions.get("louv"),
+                fields: [{ name: "group", kind: "node" }],
+                nodeValue: (index: number) => index % 2,
+                edgeValue: () => undefined,
+            }),
+            context: () => f.context(),
+            sets: () => f.graph.sets.list(),
+        });
+    }
+
+    /**
+     * One audit row for the node counts: offer, change one input, offer again.
+     * @param f - The fixture.
+     * @param offering - Its offering.
+     * @param change - The one input to change.
+     * @returns Whether the second offer read the cached counts.
+     */
+    function countsServed(f: Fixture, offering: Offering, change: () => void): boolean {
+        offering.offers("louv");
+        const scans = offerCounters.nodeScans;
+        offering.offers("louv");
+        assert.strictEqual(offerCounters.nodeScans, scans, "nothing changed: a hit");
+        change();
+        offering.offers("louv");
+
+        return offerCounters.nodeScans === scans;
+    }
+
+    it("misses on the execution token, the snapshot serial and the store", () => {
+        const f = new Fixture();
+        f.executions.set("louv", "n1.1");
+        const offering = offeringOf(f);
+        assert.isFalse(countsServed(f, offering, () => f.executions.set("louv", "n1.2")));
+        assert.isFalse(countsServed(f, offering, () => f.graph.addNode("q")));
+        assert.isFalse(countsServed(f, offering, () => (f.store = {})));
+    });
+
+    it("hits on an attribute revision, a mask version, a set write and another run's token", () => {
+        const f = new Fixture();
+        f.executions.set("louv", "n1.1");
+        const offering = offeringOf(f);
+        assert.isTrue(countsServed(f, offering, () => f.revisions.bump(["group"])));
+        assert.isTrue(countsServed(f, offering, () => f.selected.add(2)));
+        assert.isTrue(countsServed(f, offering, () => f.visibleNodes.delete(1)));
+        assert.isTrue(countsServed(f, offering, () => f.graph.sets.create({ kind: "fixed", nodes: ["b"], reading: "induced" })));
+        assert.isTrue(countsServed(f, offering, () => f.executions.set("pr", "n1.3")));
+    });
+
+    it("keeps the edge-count pass with its entry, and drops it when the execution moves", () => {
+        const f = new Fixture();
+        f.executions.set("louv", "n1.1");
+        const offering = offeringOf(f);
+        const passes = offerCounters.edgePasses;
+
+        offering.countEdges("louv");
+        offering.countEdges("louv");
+        assert.strictEqual(offerCounters.edgePasses, passes + 1, "one pass per entry");
+        assert.isDefined(offering.offers("louv").offers[0].edges);
+
+        f.executions.set("louv", "n1.2");
+        assert.isUndefined(offering.offers("louv").offers[0].edges, "the new execution has no pass yet");
+        offering.countEdges("louv");
+        assert.strictEqual(offerCounters.edgePasses, passes + 2);
     });
 });

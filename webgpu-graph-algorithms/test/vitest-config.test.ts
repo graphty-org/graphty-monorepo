@@ -6,7 +6,7 @@
  * `node` project must not. The config reads process.argv when it is evaluated, so each case sets the argument list
  * and imports a fresh copy.
  */
-import type { UserConfig } from "vitest/config";
+import type { ViteUserConfig } from "vitest/config";
 
 /**
  * Evaluates vitest.config.ts as if vitest had been started with the given arguments.
@@ -19,7 +19,7 @@ async function rootFileParallelism(args: readonly string[]): Promise<boolean | u
     try {
         vi.resetModules();
         // A computed specifier: the config sits outside tsconfig.json's file list, so tsc must not follow it.
-        const mod = (await import(new URL("../vitest.config.ts", import.meta.url).href)) as { default: UserConfig };
+        const mod = (await import(new URL("../vitest.config.ts", import.meta.url).href)) as { default: ViteUserConfig };
         return mod.default.test?.fileParallelism;
     } finally {
         process.argv = saved;

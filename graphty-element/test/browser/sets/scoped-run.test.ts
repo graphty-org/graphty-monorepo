@@ -63,6 +63,28 @@ describe("a run over a set", () => {
         assert.notInclude(run.record.caveats.notes, WHOLE_GRAPH_CAVEAT);
     });
 
+    it("connected components over what is visible after an edge-weight filter: each isolate is its own component", async () => {
+        const session = graph.getSession() as ElementSession;
+        const ids = ["w0", "w1", "w2", "w3"];
+        await graph.addNodes(ids.map((id) => ({ id })));
+        await graph.addEdges([
+            { src: "w0", dst: "w1", weight: 5 },
+            { src: "w1", dst: "w2", weight: 1 },
+            { src: "w2", dst: "w3", weight: 1 },
+        ]);
+        await graph.operationQueue.waitForCompletion();
+        // Every node stays visible; only the edges heavier than 2 do.
+        await session.visibility.set({ kind: "edges", where: "data.weight > `2`" });
+
+        const run = session.runs.start("components");
+        const result = await run;
+        const groups = ids.map((id) => result.node(id)?.group);
+
+        assert.strictEqual(groups[0], groups[1], "w0 and w1 share the heavy edge");
+        assert.strictEqual(new Set(groups).size, 3, "w2 and w3 are each alone");
+        assert.notInclude(run.record.caveats.notes, WHOLE_GRAPH_CAVEAT);
+    });
+
     it("a source outside the set is refused E_OPTION_RANGE with outside-scope", async () => {
         const session = graph.getSession() as ElementSession;
         const id = session.sets.create({ kind: "fixed", nodes: IDS.slice(0, 20), reading: "induced" }, { name: "First half" });

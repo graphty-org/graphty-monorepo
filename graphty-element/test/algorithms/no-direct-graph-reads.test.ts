@@ -31,7 +31,6 @@ const TO_MIGRATE: readonly string[] = [
     "BellmanFordAlgorithm.ts",
     "BFSAlgorithm.ts",
     "BipartiteMatchingAlgorithm.ts",
-    "ConnectedComponentsAlgorithm.ts",
     "DFSAlgorithm.ts",
     "DijkstraAlgorithm.ts",
     "EigenvectorCentralityAlgorithm.ts",

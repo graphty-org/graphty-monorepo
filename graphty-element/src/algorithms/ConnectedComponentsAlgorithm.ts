@@ -1,5 +1,6 @@
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import { scopeNodeIds } from "./input/ScopedInput";
 import {
     type AlgorithmOutput,
     type AlgorithmRunContext,
@@ -10,11 +11,13 @@ import {
 } from "./results";
 
 /**
- *
+ * Connected components: the separate pieces of the graph, or of the run's scope.
  */
 export class ConnectedComponentsAlgorithm extends DeclaredAlgorithm {
     static namespace = "graphty";
     static type = "connected-components";
+    /** Groups over the run's scope: the node list and the graph both come from the input. */
+    static scopeInput = "subgraph" as const;
 
     /**
      * Find the separate pieces of the graph.
@@ -26,7 +29,9 @@ export class ConnectedComponentsAlgorithm extends DeclaredAlgorithm {
      * @returns The community result, or null when there are no nodes to group.
      */
     async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
-        const nodeIds = Array.from(this.graph.getDataManager().nodes.keys());
+        // The nodes of the run's input: its scope's, so a member with no edge in the scope is a
+        // piece of its own.
+        const nodeIds = scopeNodeIds(this.input("undirected"));
 
         if (nodeIds.length === 0) {
             return null;

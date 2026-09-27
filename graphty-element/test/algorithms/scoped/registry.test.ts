@@ -31,7 +31,7 @@ const EXPECTED: Readonly<Record<string, "on" | "off">> = {
     "graphty:bfs": "off",
     "graphty:bipartite-matching": "off",
     "graphty:closeness": "on",
-    "graphty:connected-components": "off",
+    "graphty:connected-components": "on",
     "graphty:degree": "on",
     "graphty:dfs": "off",
     "graphty:dijkstra": "off",

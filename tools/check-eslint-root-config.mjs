@@ -12,6 +12,9 @@
  * compared by identity: both imports resolve to the same module instance, so a spread keeps the
  * very same objects, while a copy, however faithful today, does not.
  *
+ * A package may leave out a root block on purpose only when the block is named and the omission
+ * is listed in OMITTED below with its reason.
+ *
  * Usage: node tools/check-eslint-root-config.mjs
  */
 
@@ -29,11 +32,19 @@ const configs = fs
     .flatMap((d) => ["js", "mjs", "cjs"].map((ext) => path.join(d.name, `eslint.config.${ext}`)))
     .filter((rel) => fs.existsSync(path.join(root, rel)));
 
+/** Named root blocks a package filters out on purpose, keyed by the package config's path. */
+const OMITTED = {
+    // graphty-element's stories are in its tsconfig, so they keep the type-aware rules this root
+    // block turns off for stories that belong to no TypeScript project.
+    "graphty-element/eslint.config.js": ["stories/no-type-information"],
+};
+
 let failed = 0;
 for (const rel of configs) {
     const config = await load(path.join(root, rel));
     const present = new Set(Array.isArray(config) ? config : [config]);
-    const missing = rootConfig.filter((block) => !present.has(block)).length;
+    const allowed = new Set(OMITTED[rel] ?? []);
+    const missing = rootConfig.filter((block) => !present.has(block) && !allowed.has(block.name)).length;
     if (missing > 0) {
         failed++;
         console.error(

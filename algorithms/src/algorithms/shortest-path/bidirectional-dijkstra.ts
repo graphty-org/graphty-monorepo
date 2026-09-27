@@ -200,7 +200,7 @@ export class BidirectionalDijkstra {
     }
 
     private reconstructPath(): NodeId[] {
-        if (!this.meetingNode) {
+        if (this.meetingNode === null) {
             return [];
         }
 

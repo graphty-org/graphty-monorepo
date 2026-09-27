@@ -16,6 +16,7 @@ import { GraphtyError, isGraphtyError } from "../../src/errors";
 import { GraphtyLogger } from "../../src/logging/GraphtyLogger.js";
 import { resetLoggingConfig } from "../../src/logging/LoggerConfig.js";
 import { LogLevel, type LogRecord } from "../../src/logging/types.js";
+import { DEFAULT_LIMITS } from "../../src/session/limits";
 import { createFakeAccelerator } from "../../src/testing/fakeAccelerator";
 
 /** A promise the test resolves when it wants to, for device loss and for work in flight. */
@@ -546,6 +547,20 @@ describe("AccelerationController: the built-in floor of a traversal", () => {
         assert.isTrue(at.accelerated);
         assert.strictEqual(controller.state, "idle");
         controller.dispose();
+    });
+
+    it("says of each floor whether the element can hold a graph that reaches it", () => {
+        // A floor above what the renderer will draw is a capability that never reaches the device,
+        // whatever hardware is attached: `DataManager` refuses a load past `renderCeiling` nodes or
+        // `edgesDrawn` edges with `E_TOO_LARGE`. The 2026-09-27 sweep found that only PageRank beats
+        // the CPU port inside that band, so PageRank is the one floor that has to stay reachable --
+        // lower any of the other three below the ceiling and it starts routing at a size where it
+        // was measured to be one and a half to ten times slower. Raising the ceiling (issue #419) is
+        // what lets the other three be measured through the element and brought under it.
+        assert.isAtMost(floorOf("pageRank"), DEFAULT_LIMITS.renderCeiling);
+        assert.isAbove(floorOf("breadthFirstSearch"), DEFAULT_LIMITS.renderCeiling);
+        assert.isAbove(floorOf("sssp"), DEFAULT_LIMITS.renderCeiling);
+        assert.isAbove(floorOf("connectedComponents"), DEFAULT_LIMITS.renderCeiling);
     });
 
     it("leaves the layout on the accelerator at every size: the zero was measured for it", async () => {

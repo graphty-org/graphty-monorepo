@@ -26,7 +26,7 @@ export function primMST(graph: Graph, startNode?: NodeId): MSTResult {
     }
 
     const start = startNode ?? nodes[0]?.id;
-    if (!start) {
+    if (start === undefined) {
         return {
             edges: [],
             totalWeight: 0,

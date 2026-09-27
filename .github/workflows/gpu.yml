@@ -88,16 +88,6 @@ jobs:
             # global to the host, so this has to run on the host, never inside a job container. Issue #273.
             - name: Write core dumps to a file so the shard's ulimit -c 0 holds
               run: echo "core_pattern was $(cat /proc/sys/kernel/core_pattern)" && sudo sysctl -w kernel.core_pattern=core
-            - name: SCRATCH verify a crash writes no core dump
-              working-directory: ${{ runner.temp }}
-              run: |
-                  crash() { sh -c "ulimit -c $1; exec node -e 'process.kill(process.pid, \"SIGSEGV\")'" && rc=0 || rc=$?; }
-                  crash unlimited; echo "control, ulimit unlimited: exit=$rc"; ls -la core* || true
-                  test -n "$(ls core* 2>/dev/null)" || { echo "::error::control wrote no core file; the pattern did not take"; exit 1; }
-                  rm -f core*
-                  start=$(date +%s); crash 0; end=$(date +%s)
-                  echo "ulimit 0: exit=$rc in $((end - start)) s"; ls -la core* || true
-                  test "$rc" = 139 && test -z "$(ls core* 2>/dev/null)"
             # Every node project goes through scripts/run-node-shard.js: it forwards every argument, exits with
             # vitest's own code, and on a non-zero exit or 90 seconds of silence prints the test files that started
             # but never reported, the process table and a Node diagnostic report per surviving process (G4-F14).

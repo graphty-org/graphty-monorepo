@@ -109,7 +109,7 @@ export function bellmanFord(graph: Graph, source: NodeId, options: BellmanFordOp
         for (const arc of arcs) {
             const u = arc.from;
             const v = arc.to;
-            const {weight} = arc;
+            const { weight } = arc;
 
             const distanceU = distances.get(u);
             const distanceV = distances.get(v);
@@ -123,7 +123,7 @@ export function bellmanFord(graph: Graph, source: NodeId, options: BellmanFordOp
                     updated = true;
 
                     // Early termination if target reached
-                    if (options.target && v === options.target) {
+                    if (options.target !== undefined && v === options.target) {
                         break;
                     }
                 }
@@ -143,7 +143,7 @@ export function bellmanFord(graph: Graph, source: NodeId, options: BellmanFordOp
     for (const arc of arcs) {
         const u = arc.from;
         const v = arc.to;
-        const {weight} = arc;
+        const { weight } = arc;
 
         const distanceU = distances.get(u);
         const distanceV = distances.get(v);

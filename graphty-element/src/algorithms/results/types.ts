@@ -19,6 +19,7 @@
 import type { EdgeId, FieldDescriptor, ResultShape } from "../../catalog/types";
 import type { ResultElementValues } from "../../session/results";
 import type { Caveats, RunDirection, RunProgressReport } from "../../session/runs";
+import type { ScopedInput, ScopedInputOptions } from "../input/ScopedInput";
 
 // ---------------------------------------------------------------------------------------------
 // What a run says it filled
@@ -105,12 +106,34 @@ export function declaredCaveats(init: CaveatsInit): Caveats {
 /**
  * What the element gives an algorithm while it runs.
  *
- * The three members are the whole of it: a signal that says stop, a way to say how far along the
- * work is, and a way to hand the frame back so a long computation does not lock the screen. An
- * algorithm that reports nothing and never yields is indistinguishable, to a reader watching a
- * large graph, from one that has hung.
+ * Four members: a signal that says stop, a way to say how far along the work is, a way to hand
+ * the frame back so a long computation does not lock the screen, and the graph the run computes
+ * over. An algorithm that reports nothing and never yields is indistinguishable, to a reader
+ * watching a large graph, from one that has hung.
  */
-export interface AlgorithmRunContext {
+export interface AlgorithmRunContext extends RunControls {
+    /**
+     * The graph this run computes over, in one orientation.
+     *
+     * A class declaring `static scopeInput = "subgraph"` is handed its run's scope: `subgraph()`
+     * is the compact snapshot of the scope's nodes and edges, and `nodes`/`edges` are its masks
+     * over the full `graph`. Every other class is handed the whole graph, and the element keeps
+     * only the scope's values of what it publishes, with the caveat "Computed on the whole graph;
+     * values kept for the scope only." Publish by element id either way; row numbers of a
+     * subgraph are not the graph's.
+     * @param orientation - `"declared"`, the graph as loaded, or `"undirected"`, with a
+     *   reciprocal pair collapsed into one edge.
+     * @param options - How parallel edges merge in `subgraph()`: `"sum"` by default.
+     * @returns The input.
+     */
+    input(orientation: "declared" | "undirected", options?: ScopedInputOptions): ScopedInput;
+}
+
+/**
+ * The half of a run context that does not depend on which algorithm runs: what a run hands
+ * `publishResult`, which binds `input` to the algorithm it is publishing for.
+ */
+export interface RunControls {
     /** Aborted when the run is cancelled. Throw from it; never swallow it. */
     readonly signal: AbortSignal;
     /**
@@ -162,6 +185,10 @@ export const YIELD_BUDGET_MS = 16;
  */
 export function detachedRunContext(): AlgorithmRunContext {
     return {
+        input: () => {
+            // `computeRun` binds the input to its algorithm; only a direct `compute` call lands here.
+            throw new Error("A detached run context reads no graph: call computeRun, which binds the input.");
+        },
         signal: new AbortController().signal,
         report: () => undefined,
         yieldNow: () =>
@@ -184,7 +211,7 @@ export function detachedRunContext(): AlgorithmRunContext {
  * @returns A promise that settles when every element has been walked.
  */
 export async function forEachChunked<T>(
-    context: AlgorithmRunContext,
+    context: RunControls,
     phase: string,
     items: readonly T[],
     step: (item: T, index: number) => void,

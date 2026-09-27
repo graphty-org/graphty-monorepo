@@ -3,6 +3,7 @@ import { kCoreDecomposition } from "@graphty/algorithms";
 import type { FieldDescriptor, NodeId } from "../catalog/types";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import type { ScopeInputDeclaration } from "./input/ScopedInput";
 import { walkInChunks } from "./metrics/context";
 import { nodeMetricFields } from "./metrics/fields";
 import { MetricAlgorithm } from "./metrics/MetricAlgorithm";
@@ -25,6 +26,8 @@ const K_CORE_FIELDS: readonly FieldDescriptor[] = nodeMetricFields({
 export class KCoreAlgorithm extends MetricAlgorithm {
     static namespace = "graphty";
     static type = "k-core";
+    /** Computes over the run's scope: the node list and the graph both come from the input. */
+    static scopeInput: ScopeInputDeclaration = "subgraph";
 
     /**
      * The fields a k-core result publishes.

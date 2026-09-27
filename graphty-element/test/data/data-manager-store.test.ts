@@ -138,13 +138,19 @@ describe("DataManager owns the graph store", () => {
 
     it("keeps the mirror of a directed pair, which is a different edge", () => {
         const { dm } = makeManager();
-        dm.addEdges([{ src: "a", dst: "b" }, { src: "b", dst: "a" }]);
+        dm.addEdges([
+            { src: "a", dst: "b" },
+            { src: "b", dst: "a" },
+        ]);
         assert.strictEqual(dm.getSnapshot().edgeCount, 2);
     });
 
     it("sizes the positions array to the node count, every row unplaced", () => {
         const { dm } = makeManager();
-        dm.addEdges([{ src: "a", dst: "b" }, { src: "b", dst: "c" }]);
+        dm.addEdges([
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+        ]);
         const snapshot = dm.getSnapshot();
         assert.strictEqual(dm.positions.count, snapshot.nodeCount);
         const out = { x: 0, y: 0, z: 0 };
@@ -217,7 +223,10 @@ describe("DataManager removal reaches the store", () => {
 
     it("takes a removed node AND its incident edges out of the snapshot", () => {
         const { dm } = makeManager();
-        dm.addEdges([{ src: "a", dst: "b" }, { src: "b", dst: "c" }]);
+        dm.addEdges([
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+        ]);
         dm.getSnapshot();
         const removed = nodeStub("a", 0);
         dm.nodes.set("a", removed);
@@ -243,7 +252,10 @@ describe("DataManager removal reaches the store", () => {
 
     it("takes a removed edge out of the snapshot and leaves its endpoints", () => {
         const { dm } = makeManager();
-        dm.addEdges([{ src: "a", dst: "b" }, { src: "b", dst: "c" }]);
+        dm.addEdges([
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+        ]);
         dm.getSnapshot();
         const bc = registerEdgeStub(dm, "b", "c", 1);
 
@@ -258,7 +270,10 @@ describe("DataManager removal reaches the store", () => {
 describe("DataManager walks a compacting freeze", () => {
     it("slides every surviving index down, in the render objects and in edgesByIndex", () => {
         const { dm } = makeManager();
-        dm.addEdges([{ src: "a", dst: "b" }, { src: "b", dst: "c" }]);
+        dm.addEdges([
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+        ]);
         dm.getSnapshot();
         const a = nodeStub("a", 0);
         const b = nodeStub("b", 1);
@@ -282,7 +297,10 @@ describe("DataManager walks a compacting freeze", () => {
 
     it("carries every surviving node's coordinates with it", () => {
         const { dm } = makeManager();
-        dm.addEdges([{ src: "a", dst: "b" }, { src: "b", dst: "c" }]);
+        dm.addEdges([
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+        ]);
         dm.getSnapshot();
         dm.positions.write(0, 10, 0, 0);
         dm.positions.write(1, 20, 0, 0);
@@ -304,7 +322,10 @@ describe("DataManager walks a compacting freeze", () => {
 
     it("drops a pending edge whose store edge died, and frees its pair for a later record", () => {
         const { dm } = makeManager();
-        dm.addEdges([{ src: "a", dst: "b" }, { src: "b", dst: "c" }]);
+        dm.addEdges([
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+        ]);
         dm.getSnapshot();
         const a = nodeStub("a", 0);
         dm.nodes.set("a", a);
@@ -341,7 +362,9 @@ describe("DataManager store lifecycle", () => {
         dm.addEdges([{ src: "x", dst: "y" }]);
         const snapshot = dm.getSnapshot();
         assert.notStrictEqual(snapshot.nodes.byRole("position"), null);
-        assert.strictEqual(snapshot.edges.requireTyped("graphty.edgeId", "u32").data[0], 0);
+        // The counter belongs to the manager, not the store, so the Clear does not rewind it: the
+        // cleared graph's edge took 0, and reissuing 0 would re-point anything still naming it.
+        assert.strictEqual(snapshot.edges.requireTyped("graphty.edgeId", "u32").data[0], 1);
     });
 
     it("forgets a pending edge across clear(), so the pair is accepted again", () => {

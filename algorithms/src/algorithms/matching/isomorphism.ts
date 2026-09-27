@@ -163,7 +163,7 @@ function getCandidatePairs(
     }
 
     // If not found, pick from in1
-    if (!node1) {
+    if (node1 === null) {
         for (const [n] of state.in1) {
             if (!state.core1.has(n)) {
                 node1 = n;
@@ -173,7 +173,7 @@ function getCandidatePairs(
     }
 
     // If still not found, pick any unmapped node
-    if (!node1) {
+    if (node1 === null) {
         for (const n of nodes1) {
             if (!state.core1.has(n)) {
                 node1 = n;
@@ -182,7 +182,7 @@ function getCandidatePairs(
         }
     }
 
-    if (!node1) {
+    if (node1 === null) {
         return pairs;
     }
 

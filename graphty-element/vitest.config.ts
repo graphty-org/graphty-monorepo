@@ -200,6 +200,8 @@ export default defineConfig({
                     name: "bench",
                     setupFiles: ["./test/setup.ts"],
                     include: ["test/**/*.bench.test.ts"],
+                    // One file at a time: a benchmark timed beside another measures the other.
+                    fileParallelism: false,
                     // A browser benchmark needs a page, which this project has not got: it runs in
                     // "bench-browser" below.
                     exclude: ["test/browser/**", "**/node_modules/**"],

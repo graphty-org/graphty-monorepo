@@ -699,13 +699,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             loadFromFile: LOAD_FROM_FILE,
             loadFromUrl: LOAD_FROM_URL,
             ...DATA_DOORS,
-            // Called while the graph holds n1, n2, n3 and the two nodes the rows above added.
+            // Called while the graph holds every node the rows above left: naming them all again removes none.
             setNodes: calls(
-                [[{ id: "n1" }, { id: "n2" }, { id: "n3" }, { id: "door-a" }, { id: "door-b" }]],
-                batchOf(
-                    "Replaced the nodes",
-                    addNodes({ id: "n1" }, { id: "n2" }, { id: "n3" }, { id: "door-a" }, { id: "door-b" }),
-                ),
+                [[{ id: "n1" }, { id: "n2" }, { id: "n3" }, { id: "door-a" }, { id: "door-b" }, { id: "j1" }, { id: "j2" }]],
+                batchOf("Replaced the nodes", addNodes({ id: "n1" }, { id: "n2" }, { id: "n3" }, { id: "door-a" }, { id: "door-b" }, { id: "j1" }, { id: "j2" })),
             ),
             // Called while the graph holds the edges the rows above left.
             setEdges: calls(
@@ -1004,10 +1001,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 batchOf("Replaced the edges", addEdges({ src: "n1", dst: "n2" })),
             ),
             addDataFromSource: ADD_FROM_SOURCE,
-            // Called while n1, n2 and n3 are held: naming them again removes none.
+            // Called while the graph holds every node the rows above left: naming them all again removes none.
             setNodes: calls(
-                [[{ id: "n1" }, { id: "n2" }, { id: "n3" }]],
-                batchOf("Replaced the nodes", addNodes({ id: "n1" }, { id: "n2" }, { id: "n3" })),
+                [[{ id: "n1" }, { id: "n2" }, { id: "n3" }, { id: "door-c" }, { id: "door-d" }, { id: "j1" }, { id: "j2" }]],
+                batchOf("Replaced the nodes", addNodes({ id: "n1" }, { id: "n2" }, { id: "n3" }, { id: "door-c" }, { id: "door-d" }, { id: "j1" }, { id: "j2" })),
             ),
             snapshotStale: READ,
             beginLoad: IN_FLIGHT,

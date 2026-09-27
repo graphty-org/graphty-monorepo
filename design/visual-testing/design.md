@@ -56,9 +56,10 @@ for this milestone", gives the reason for each.
 - **The merge gate blocks.** On pull requests the "All Checks Pass" job runs
   `visual-review/trusted/gate.mjs`. For every project that has baseline PNGs on the base branch it
   reads the newest attempt's `results.json` of this CI run, and fails when that capture holds any
-  item other than `unchanged` or `excluded`, or is missing or unfinished. "Seeded" is read from
-  the base branch, so deleting a project's baselines in the pull request does not switch the gate
-  off; the newest attempt is used, so "Re-run failed jobs" cannot skip it; a `results.json` that
+  item other than `unchanged` or `excluded`, or is missing or unfinished. Both the list of
+  projects and "seeded" are read from the base branch (the directories under `visual-baselines/`
+  holding a PNG), so neither deleting a project's baselines nor editing
+  `visual-review/projects.json` in the pull request switches the gate off; the newest attempt is used, so "Re-run failed jobs" cannot skip it; a `results.json` that
   fails validation counts as missing. The owner's accept commit turns the items `unchanged`,
   which clears it.
 - **The gate also checks review records.** Every baseline PNG, and every settings file that
@@ -69,7 +70,9 @@ for this milestone", gives the reason for each.
   cleared the gate with no review: in a scratch clone a rejected item's PNG, committed by hand,
   turned the next capture all `unchanged` and the old gate passed.
 - **What the gate proves.** That the pull request's captures match its own baselines, and that
-  every baseline change carries a record in Finish's format. It does not prove the owner pressed
+  every baseline change is named, by path and new hash, in some JSON file added under
+  `visual-baselines/reviews/`. Only those two fields are checked: the record need not have
+  Finish's other fields, and its hash need not match any CI capture. It does not prove the owner pressed
   Finish: a record is a plain file anyone who can push can write, including an agent holding the
   owner's credentials, and the gate lives in `ci.yml`, which the pull request controls. Signed
   records (milestone 3) close that. Master pushes are not gated.
@@ -114,6 +117,20 @@ for this milestone", gives the reason for each.
 - **Records are `"unproven": true`.** An agent holding the owner's credentials could press Accept,
   or write a record by hand.
 - **Rejects are one pull request comment** with a machine-readable block; nothing is committed.
+  After Finish a reject stays in the server's local state, keyed by the image's hash, so the next
+  CI run shows an unchanged rejected capture as rejected rather than undecided, and Finish does
+  not post it again. The page cannot show a reject made on another machine.
+- **Finish signs with the server's environment.** The accept commit is signed by whatever git
+  configuration the server process sees. When an agent starts the server through servherd, its
+  `GIT_CONFIG_*` overrides (its own signing key) are inherited, so the commit carries the agent's
+  signature, not the owner's. The targets screen and Finish's confirmation name the key and say
+  when it comes from the environment; start the server from your own shell to sign with yours.
+- **The capture artifact is `visual-<project>-<attempt>`, kept 30 days,** holding `results.json`
+  and the PNGs. There is no separate `visual-results-<project>` artifact kept 90 days (sections 7,
+  8 and 9); after 30 days a run's captures can no longer be reviewed or re-verified.
+- **A local capture hashes only `git diff HEAD --binary`.** Untracked files are not part of the
+  hash (section 9), so two local runs that differ only in an untracked file carry the same
+  `diff` value. Local captures cannot be accepted, so this affects labelling only.
 - **Tests.** The unit tests cover `trusted/lib/`, `trusted/gate.mjs` and `capture/capture.mjs`
   (against a stand-in Storybook) under the 80/75 thresholds. The review page is driven in Chromium
   by `test/page.test.mjs`, but browser code is not counted in coverage, and `trusted/cli.mjs` is
@@ -121,9 +138,9 @@ for this milestone", gives the reason for each.
   as a subprocess. `npm run lint` also type-checks `trusted/` and `capture/` from their JSDoc
   (`tsc --checkJs`, not strict). The CI workflow semantics are proven only by a run of the pull
   request itself (above).
-- **The review page crops.** Thumbnails, side by side and flash show only the box holding
-  everything that differs from the frame's background colour, plus 16 pixels, enlarged up to four
-  times; Z shows the full frame. Most stories are a small component on a 1200 x 900 frame.
+- **The review page crops.** Thumbnails, side by side, flash and highlight show only the box
+  holding everything that differs from the frame's background colour, plus 16 pixels (highlight
+  widens it to hold the changed box), enlarged up to four times; Z shows the full frame. Most stories are a small component on a 1200 x 900 frame.
 - **A local preview (`serve --results`) offers only Reject.** Accept and Exclude are hidden and
   refused by the page's API, because Finish accepts only CI captures.
 

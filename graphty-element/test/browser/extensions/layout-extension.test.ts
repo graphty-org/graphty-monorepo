@@ -74,6 +74,8 @@ import {
     SimpleLayoutEngine,
 } from "../../../extend";
 import { Graph } from "../../../index.js";
+// Not plugin code: the element's own deterministic stand-in for a device.
+import { createFakeAccelerator } from "../../../src/testing/fakeAccelerator";
 
 /** Five nodes, so a ring has five distinct angles and no two nodes sit opposite each other. */
 const NODES = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }, { id: "e" }];
@@ -1382,6 +1384,30 @@ describe("a third party's layout engine", () => {
                 "and the layout that was working is the one still working",
             );
             assert.isAbove(reported().length, 0, "the consumer heard about it through the graph's error event");
+        });
+    });
+
+    describe("with an accelerator attached", () => {
+        it("runs on the CPU: only the element's own simulation layouts are accelerated", async () => {
+            const fake = createFakeAccelerator();
+            graph.acceleration.setMinNodes(0);
+            graph.acceleration.setAccelerator(fake);
+
+            const engine = await useLayout<RingLayout>("test-ring");
+
+            assert.instanceOf(engine, RingLayout, "the element built the plugin's own class, not a GPU stand-in");
+            for (const node of graph.getNodes()) {
+                const onScreen = node.getPosition();
+                assert.closeTo(Math.hypot(onScreen.x, onScreen.y), DEFAULT_RADIUS, 0.5, `node ${node.id} is on the ring`);
+            }
+
+            assert.strictEqual(fake.calls.forceAtlas2 + fake.calls.fruchtermanReingold + fake.calls.springElectrical, 0);
+            assert.strictEqual(fake.calls.step, 0, "and the accelerator was never stepped");
+
+            // The same accelerator is live: a built-in simulation layout on this graph takes it.
+            await graph.setLayout("forceatlas2");
+            await graph.operationQueue.waitForCompletion();
+            assert.strictEqual(fake.calls.forceAtlas2, 1);
         });
     });
 });

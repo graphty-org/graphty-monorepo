@@ -1696,7 +1696,7 @@ behaviour-change commits of section 1.1 named in its description.
 | GPU kernels with an alive mask | 24 (masks on `ScopedInput`) | `scopeInput: "mask"` (open union, 24) |
 | Undo | 6 (store, `prepare`, five operations) | -- |
 | Project file | 2 (validator), 4 (counter resume), 6 (record shape), 7b (embedded-graph rebind), 8 (`toLogicalRecords` / `loadLogicalRecords` and the round trip) | -- |
-| Export, `meta`, `restore`, `compare`, `extendPath`, attribution, `sets` query root, two graphs | -- | not built; each is additive to an open type |
+| Export, `meta`, `compare`, `extendPath`, attribution, two graphs | -- | not built; each is additive to an open type (`restore` is built, and no `sets` root is reserved: design section 15.3, items 33 and 36) |
 
 ## 4. Risks to the schedule
 
@@ -1719,5 +1719,6 @@ behaviour-change commits of section 1.1 named in its description.
    1.1), because a stub or a skipped test would let every gate stay green over a gap.
 5. **Attribute writers.** A cache keyed on an attribute revision is only as sound as the least
    disciplined writer; the phase 5 static test keeps every write going through `writeAttributes`.
-6. **The studio drafts are still moving** (design 19). Names are checked against the glossary in
-   phase 0 and again in phase 28.
+6. **The studio's framework is final** (design 19). Every difference from it is settled in
+   `design/sets/reconciliation.md`, and the code changes those settlements needed, made after this
+   plan's phases, are listed with their tests in design section 24.

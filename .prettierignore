@@ -30,6 +30,10 @@ visual-baselines/
 # Other
 gh-pages/
 
+# The root CLAUDE.md is hand-formatted: prettier re-indents its nested lists and folds the
+# paragraph after a list into the last item, which changes what the rules say.
+/CLAUDE.md
+
 # Conformance fixtures are byte-exact test data; the report is generated
 graph-io/test/conformance/fixtures/
 graph-io/test/conformance/REPORT.md

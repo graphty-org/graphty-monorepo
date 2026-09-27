@@ -88,12 +88,6 @@ export interface CanvasGraphConfig {
     readonly acceleration?: AccelerationPolicy;
     /** The view mode the canvas toolbar's 2D / 3D control sets. */
     readonly viewMode?: "2d" | "3d" | "ar" | "vr";
-    /** The data source format. */
-    readonly dataSource?: string;
-    /** The data source's own configuration. */
-    readonly dataSourceConfig?: Record<string, unknown>;
-    /** Whether loading replaces the graph rather than adding to it. */
-    readonly replaceExisting?: boolean;
     /** The layout engine's name. */
     readonly layout?: string;
     /** The layout engine's own configuration. */
@@ -442,9 +436,6 @@ export function CanvasRegion<TRow extends object = Record<string, unknown>>(
                     layers={graph?.layers ?? NO_LAYERS}
                     acceleration={graph?.acceleration}
                     viewMode={graph?.viewMode}
-                    dataSource={graph?.dataSource}
-                    dataSourceConfig={graph?.dataSourceConfig}
-                    replaceExisting={graph?.replaceExisting}
                     layout={graph?.layout}
                     layoutConfig={graph?.layoutConfig}
                     onSelectionChange={graph?.onSelectionChange}

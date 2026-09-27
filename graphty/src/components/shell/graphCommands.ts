@@ -244,8 +244,8 @@ const DATA_CHANGE_EVENTS = ["data-loaded", "data-added"] as const;
  *
  * The counts are the status bar's own fact (spec 01, One fact one region), so they have
  * to be read when the graph says they moved, never at a moment the shell guesses. The
- * guess is what makes this necessary: `loadData` hands the element a data source and
- * returns, and the load itself runs on graphty-element's operation queue, so a read
+ * guess is what makes this necessary: a load is queued on graphty-element's session and
+ * runs in chunks, so a read
  * taken when that call returns counts an empty graph and the bar prints a confident
  * `0 nodes` over a drawn one. A wrong number is worse than an absent slot.
  *

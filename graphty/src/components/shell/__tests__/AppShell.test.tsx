@@ -14,7 +14,17 @@ import { ACTIVITY_RAIL_WIDTH, NARROW_BREAKPOINT, STATUS_BAR_HEIGHT, TOP_BAR_HEIG
  * too-small message rather than a dialog floating over it.
  */
 const MANTINE_MODAL_Z_INDEX = 200;
-import type { AccelerationStatus, GraphStatistics, Histogram, Layer, LayerSpec, RunId, RunResult } from "@graphty/graphty-element/session";
+import type {
+    AccelerationStatus,
+    DataSourceInput,
+    GraphStatistics,
+    Histogram,
+    ImportOptions,
+    Layer,
+    LayerSpec,
+    RunId,
+    RunResult,
+} from "@graphty/graphty-element/session";
 
 import { createFakeSession, type FakeSession } from "../../../test/fakeSession";
 import { ACCELERATION_SETTINGS_STORAGE_KEY } from "../defaults/accelerationSettings";
@@ -91,14 +101,19 @@ function reportSelection(container: HTMLElement, nodeId: string | number | null)
  * test of the shell's own upward channel rather than of a mock.
  * @param container - the render result's container.
  * @param names - the layers the stack holds beyond the element's own two, bottom first.
+ * @param importer - what a load does; see {@link elementImporter}.
  * @returns the fake session, to assert what the shell did to the stack.
  */
-function installGraph(container: HTMLElement, names: readonly string[]): FakeSession {
+function installGraph(
+    container: HTMLElement,
+    names: readonly string[],
+    importer?: (source: DataSourceInput, options?: ImportOptions) => Promise<void>,
+): FakeSession {
     const element = container.querySelector("graphty-element");
 
     expect(element).not.toBeNull();
 
-    const fake = createFakeSession();
+    const fake = createFakeSession(importer === undefined ? {} : { importer });
 
     for (const name of names) {
         fake.seed({ name, target: "node", selector: { match: "everything" } });
@@ -124,7 +139,7 @@ function installGraph(container: HTMLElement, names: readonly string[]): FakeSes
 /* -------------------------------------------------------------------------- */
 
 /** How many microtask turns a flush walks: enough for the run-then-read-then-paint chain. */
-const FLUSH_TURNS = 10;
+const FLUSH_TURNS = 30;
 
 /**
  * How long a flush waits for the wrapper to find the element's session.
@@ -148,8 +163,6 @@ async function settleSession(): Promise<void> {
     });
 }
 
-/** How many task turns a dropped file's read is given before the board asserts. */
-const FILE_READ_TURNS = 3;
 
 /**
  * Lets the load path's promise chain settle inside `act`.
@@ -197,14 +210,11 @@ async function reportLoadComplete(container: HTMLElement): Promise<void> {
 /**
  * Reports the load FAILED, as graphty-element does when a parse or a fetch throws.
  *
- * This is the only route by which a malformed file EVER reaches the shell.
- * `GraphtyHandle.loadFromFile` ends in a property assignment
- * (`element.dataSourceConfig = {data}`) and the element's setter discards the parse with
- * `void this.#graph.addDataFromSource(...)`, so the shell's own promise chain RESOLVES
- * over a file that never parsed and reports a successful load. What actually says so is
- * `DataManager.addDataFromSource`, which wraps its whole chunk loop in a try and emits
- * exactly one `data-loading-error` from the catch (DataManager.ts:545-566) -- forwarded
- * like every other graph event as a bubbling, composed CustomEvent.
+ * The element emits exactly one `data-loading-error` when a load throws, as a bubbling,
+ * composed CustomEvent, and the load's own promise rejects with the same error. The stand-in
+ * session's importer ({@link elementImporter}) rejects the load it is holding on this event,
+ * so the shell hears the failure the way it hears it from the real element: through the
+ * transaction the load is.
  * @param container - the render result's container.
  * @param message - what the element's `Error` says, or undefined for an error that says
  * nothing at all.
@@ -285,24 +295,31 @@ function fileList(file: File): FileList {
  */
 async function dropFile(zone: HTMLElement, file: File): Promise<void> {
     const drop = new Event("drop", { bubbles: true, cancelable: true });
+    const element = document.querySelector("graphty-element");
+    const loadsBefore = element === null ? 0 : (recordedLoads.get(element)?.length ?? 0);
 
     Object.defineProperty(drop, "dataTransfer", { value: { files: fileList(file) } });
 
-    await act(async () => {
+    act(() => {
         zone.dispatchEvent(drop);
+    });
 
-        /* Waited out as a TASK, not as a handful of microtask turns. `loadFromFile` reads
-           the file (`await file.text()`), which is a real asynchronous read in the
-           browser, and only then assigns the element's data source. A board that ran on
-           microtasks alone told the element its data had failed to parse before the data
-           had reached it -- an order the application cannot produce, and one that hid a
-           `finishLoad` landing AFTER the failure it was supposed to precede. */
-        for (let turn = 0; turn < FILE_READ_TURNS; turn += 1) {
-            await new Promise((resolve) => {
-                window.setTimeout(resolve, 0);
-            });
-        }
+    /* Waited for, not counted out. The shell reads the file (`await file.text()`), a real
+       asynchronous read in the browser, before it hands the source to the session, so the drop
+       has landed once the load has reached the session -- or once the shell has refused it or
+       reported it failed, for a file that never gets that far. A board that reported the
+       element's answer before the load had reached the session would be answering a load
+       nobody had asked for yet. */
+    await waitFor(() => {
+        const reached = element !== null && (recordedLoads.get(element)?.length ?? 0) > loadsBefore;
+        const refused =
+            document.querySelector("[data-welcome-error]") !== null ||
+            document.querySelector("[data-status-float]") !== null;
 
+        expect(reached || refused).toBe(true);
+    });
+
+    await act(async () => {
         for (let turn = 0; turn < FLUSH_TURNS; turn += 1) {
             await Promise.resolve();
         }
@@ -327,23 +344,75 @@ function statusToast(container: HTMLElement): HTMLElement | null {
     return container.querySelector<HTMLElement>("[data-status-float]");
 }
 
-/** One `handle.loadData` or `handle.loadFromUrl` call, as the element received it. */
+/** One `session.data.import` the shell made, as the stand-in session received it. */
 interface RecordedLoad {
     /** The data source type the shell named, e.g. "json" or "gml". */
     readonly dataSource: string | undefined;
     /** Its config: `{data}` for an inline load, `{url}` for a served one. */
     readonly config: unknown;
+    /** Whether it replaced the graph or added to it. */
+    readonly mode: ImportOptions["mode"];
+}
+
+/** The loads each mounted element's stand-in session was asked for, in order. */
+const recordedLoads = new WeakMap<Element, RecordedLoad[]>();
+
+/**
+ * What a stand-in session's `data.import` does: records the load, and settles when the
+ * element says what became of it.
+ *
+ * The element publishes `data-loaded` after the last chunk and `data-loading-error` when the
+ * data did not parse or could not be fetched, both as DOM events; a board says which with
+ * {@link reportLoadComplete} or {@link reportLoadingError}. So the load arrives, or fails,
+ * exactly when the board says it did, and not a turn earlier.
+ * @param element - the mounted `graphty-element`.
+ * @param onReplace - what a replacing load throws away in the stand-in.
+ * @returns the importer.
+ */
+function elementImporter(
+    element: Element,
+    onReplace?: () => void,
+): (source: DataSourceInput, options?: ImportOptions) => Promise<void> {
+    return (source, options) => {
+        recordedLoads.get(element)?.push({ dataSource: source.type, config: source.config, mode: options?.mode });
+
+        if (options?.mode !== "merge") {
+            onReplace?.();
+        }
+
+        return new Promise<void>((resolve, reject) => {
+            const stop = (): void => {
+                element.removeEventListener("data-loaded", onLoaded);
+                element.removeEventListener("data-loading-error", onError);
+            };
+            const onLoaded = (): void => {
+                stop();
+                resolve();
+            };
+            const onError = (event: Event): void => {
+                const { detail } = event as CustomEvent<{ error?: unknown; canContinue?: boolean } | undefined>;
+
+                if (detail?.canContinue === true) {
+                    return;
+                }
+
+                stop();
+                reject(detail?.error instanceof Error ? detail.error : new Error(""));
+            };
+
+            element.addEventListener("data-loaded", onLoaded);
+            element.addEventListener("data-loading-error", onError);
+        });
+    };
 }
 
 /**
- * Records what reaches the element's data source, WITHOUT letting the real element load.
+ * Stands a session on the mounted host that records every load the shell makes, WITHOUT
+ * letting the real element load anything.
  *
- * `GraphtyHandle.loadData` and `loadFromUrl` both end by setting `dataSource` and then
- * `dataSourceConfig` on the element, and the element's own setter kicks off a real load
- * on its own internal graph the moment both are set. Shadowing the two accessors with own
- * properties keeps the shell's route intact -- this IS the ordinary load path, observed at
- * its last step -- while leaving the element itself alone, which is what a shell board
- * should be testing.
+ * The shell loads through `session.data.import`, inside one transaction per load. A board
+ * that installs {@link installNovicePathGraph} afterwards replaces this session with one
+ * that answers the whole novice path; its loads land in the same list.
  * @param container - the render result's container.
  * @returns the loads, in the order the shell issued them.
  */
@@ -353,22 +422,9 @@ function captureLoads(container: HTMLElement): readonly RecordedLoad[] {
     expect(element).not.toBeNull();
 
     const loads: RecordedLoad[] = [];
-    let dataSource: string | undefined;
 
-    Object.defineProperty(element, "dataSource", {
-        configurable: true,
-        get: () => dataSource,
-        set: (value: string | undefined) => {
-            dataSource = value;
-        },
-    });
-    Object.defineProperty(element, "dataSourceConfig", {
-        configurable: true,
-        get: () => undefined,
-        set: (value: unknown) => {
-            loads.push({ dataSource, config: value });
-        },
-    });
+    recordedLoads.set(element as Element, loads);
+    installGraph(container, [], elementImporter(element as Element));
 
     return loads;
 }
@@ -1036,6 +1092,13 @@ function installNovicePathGraph(container: HTMLElement, options: NovicePathOptio
        algorithm again re-serves the run the session holds or re-executes it: a graph that has
        grown under a held pass is a different graph, and the held numbers no longer describe it. */
     const styles = createFakeSession({
+        /* A replacing load throws the runs away with the data: a result describes the graph it
+           measured, so a run held over a dataset boundary would let the next load be served
+           numbers taken from a file nobody is looking at any more. The fixture's own records
+           stay standing, because these boards want a graph to load into. */
+        importer: elementImporter(element as Element, () => {
+            styles.forgetRuns();
+        }),
         result: resultFor,
         scope: () => [...nodes.keys()].join("|"),
         /* Read fresh on every call, because a board can grow the graph under the session
@@ -1148,24 +1211,6 @@ function installNovicePathGraph(container: HTMLElement, options: NovicePathOptio
     };
 
     Object.defineProperty(element, "graph", { configurable: true, value: graph });
-
-    /* The ELEMENT's `clearData`, which is what `GraphtyHandle.clearData` calls: clearing
-       the data has to reset the element's per-load data-source guard, and only the element
-       can reach that, so the handle stopped reaching past it to `graph.dataManager.clear`.
-       The stand-in clears the same records the real one does, so a board sees the graph
-       actually empty rather than only the call recorded.
-
-       THE RUNS GO WITH THE DATA. A result describes the graph it measured, so a run held over
-       a dataset boundary would let the next load be served numbers taken from a file nobody is
-       looking at any more. The fixture's own records stay standing, because these boards want
-       a graph to load into rather than the element's data lifecycle. */
-    Object.defineProperty(element, "clearData", {
-        configurable: true,
-        value: () => {
-            dataManager.clear();
-            styles.forgetRuns();
-        },
-    });
 
     const addNode = (id: string): void => {
         nodes.set(id, { id, data: { id } });
@@ -1811,6 +1856,8 @@ describe("AppShell", () => {
         it("holds what is typed, and still holds it after a panel switch", async () => {
             const { container } = await renderMeasuredShell();
 
+            captureLoads(container);
+
             fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
             await reportLoadComplete(container);
 
@@ -1832,6 +1879,8 @@ describe("AppShell", () => {
 
         it("keeps the scope the reader picked", async () => {
             const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
 
             fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
             await reportLoadComplete(container);
@@ -1855,6 +1904,8 @@ describe("AppShell", () => {
          */
         async function searchableShell(refuse?: string) {
             const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
 
             fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
             await reportLoadComplete(container);
@@ -2510,7 +2561,7 @@ describe("AppShell", () => {
         it("crosses the dataset boundary on a sample load, so a second sample replaces the first", async () => {
             const { container } = await renderMeasuredShell();
 
-            captureLoads(container);
+            const loads = captureLoads(container);
 
             const graph = installNovicePathGraph(container);
 
@@ -2531,10 +2582,9 @@ describe("AppShell", () => {
                go with them. Before this the shell renamed the dataset in the top bar
                while the old graph stayed on the canvas -- asserting a dataset that was
                never loaded -- and stacked a second set of 7.2 layers on the first. */
-            /* Twice, not once: the load from Welcome took the same route, over a graph
-               that held nothing -- one rule for every replacing load (6.12), and a clear
-               of an empty graph costs nothing. */
-            expect(graph.dataManager.clear).toHaveBeenCalledTimes(2);
+            /* Two replacing loads: the load from Welcome took the same route, over a graph
+               that held nothing -- one rule for every replacing load (6.12). */
+            expect(loads.map((load) => load.mode)).toEqual(["replace", "replace"]);
             expect(graph.styles.layers()).toHaveLength(ELEMENT_OWN_LAYER_COUNT + 0);
             expect(screen.getByText("football.gml")).toBeInTheDocument();
 
@@ -3204,11 +3254,16 @@ describe("AppShell", () => {
             fireEvent.click(within(screen.getByRole("region", { name: "Data" })).getByText("College football"));
             await flushMicrotasks();
 
+            // The layers go with the load's own step, before the new data is in.
             expect(metricLayers(graph.styles.layers())).toHaveLength(0);
             expect(graph.styles.layers().map((layer) => layer.name)).toEqual([
                 "default",
                 "selection",
             ]);
+
+            // The shell's own reading of the old dataset goes once the new one has arrived.
+            await reportLoadComplete(container);
+
             expect(screen.queryByLabelText("Legend")).toBeNull();
 
             // The result went with the data it described, so the summary is what is left.
@@ -3732,11 +3787,9 @@ describe("AppShell", () => {
 
     /*
      * The defect these stand on was not a quiet report. It was a WRONG one: on a
-     * malformed file, a 404 URL and unparsable pasted text alike the shell said the load
-     * had succeeded, because `GraphtyHandle.loadFromFile` ends in a property assignment
-     * and the element's setter discards the parse. So every board here drives a load that
-     * the shell's own promise chain resolves, and then has the element say what actually
-     * happened -- which is the only thing that ever did.
+     * malformed file, a 404 URL and unparsable pasted text alike the shell once said the
+     * load had succeeded. So every board here drives a load, and then has the element say
+     * what actually happened.
      */
     describe("the load that did not arrive", () => {
         /** JSON that stops mid-object: detectable as JSON, unparsable as a graph. */
@@ -3747,18 +3800,21 @@ describe("AppShell", () => {
             window.localStorage.clear();
         });
 
-        it("falls back to Empty when a replacing load's data never parses", async () => {
+        it("keeps the previous dataset when a replacing load's data never parses", async () => {
             const { container } = await renderMeasuredShell();
 
             captureLoads(container);
-            installNovicePathGraph(container);
+
+            const graph = installNovicePathGraph(container);
+
             await loadCatSample(container);
 
             expect(screen.getByText(CAT_SOCIAL_NETWORK_NAME)).toBeInTheDocument();
 
-            /* A second sample, from the Data panel: a REPLACING load, which clears the
-               graph before it starts. The shell claims it at once, because nothing on the
-               load path can reject. */
+            const steps = graph.styles.session.history.steps.length;
+
+            /* A second sample, from the Data panel: a REPLACING load. The shell claims it at
+               once, and the element says a moment later that it did not arrive. */
             fireEvent.click(screen.getByRole("button", { name: "Data" }));
             fireEvent.click(within(screen.getByRole("region", { name: "Data" })).getByText("College football"));
             await flushMicrotasks();
@@ -3767,14 +3823,14 @@ describe("AppShell", () => {
 
             await reportLoadingError(container, "Unexpected token 'g' on line 1");
 
-            /* Spec 4105: a failed load is a sub-state of EMPTY. Welcome comes back, which
-               is the reader's route in; the top bar names neither the dataset that failed
-               nor the one the replacing load already threw away; and the status bar stops
-               counting a dataset that is no longer on the canvas. */
-            expect(container.querySelector("[data-canvas-welcome='true']")).not.toBeNull();
+            /* The load was one transaction, so its failure rolled back to the dataset that was
+               drawn and recorded nothing: the top bar names that dataset again, the canvas is
+               not Empty, and the status bar still counts it. */
+            expect(graph.styles.session.history.steps).toHaveLength(steps);
+            expect(container.querySelector("[data-canvas-welcome='true']")).toBeNull();
             expect(screen.queryByText("football.gml")).toBeNull();
-            expect(screen.queryByText(CAT_SOCIAL_NETWORK_NAME)).toBeNull();
-            expect(container.querySelectorAll("[data-status-slot]")).toHaveLength(0);
+            expect(screen.getByText(CAT_SOCIAL_NETWORK_NAME)).toBeInTheDocument();
+            expect(container.querySelectorAll("[data-status-slot]").length).toBeGreaterThan(0);
         });
 
         it("names the file the reader chose first, and keeps the reason the element gave", async () => {
@@ -3820,14 +3876,10 @@ describe("AppShell", () => {
         /* ------------------------------------------------------------------ */
 
         /*
-         * The dialog's own boards supply a rejecting `onLoad` of their own making, and for
-         * the input they use the real `AppShell.handleLoad` used to RESOLVE: pasted text
-         * goes through `GraphtyHandle.loadData`, which is two property assignments and
-         * cannot reject, so the dialog closed and `resetState` wiped the textarea while the
-         * element was still parsing. The reader's only copy of what they typed was gone,
-         * and the board claiming to prevent exactly that stayed green because it was
-         * testing its own stub. Nothing in the suite drove the dialog through the shell at
-         * all, so these two do -- one for each side of the contract.
+         * The dialog's own boards supply a rejecting `onLoad` of their own making. These two
+         * drive the dialog through the shell's real `handleLoad` instead, one for each side
+         * of the contract: the dialog keeps the reader's text when the load fails, and
+         * closes only once the data has arrived.
          */
         it("keeps the reader's pasted text in the dialog when the element refuses the load", async () => {
             const { container } = await renderMeasuredShell();
@@ -3870,11 +3922,10 @@ describe("AppShell", () => {
             ).toBeInTheDocument();
         });
 
-        /* The other side of it: the dialog may not close on ACCEPTANCE either, because
-           acceptance is only the property assignment. It closes when the element reports
-           the data arrived -- the same event that moves the reader to Explore on the
-           session's first load, which is why nothing of the dialog is left on screen
-           afterwards. */
+        /* The other side of it: the dialog may not close on ACCEPTANCE either. It closes when
+           the element reports the data arrived -- the same event that moves the reader to
+           Explore on the session's first load, which is why nothing of the dialog is left on
+           screen afterwards. */
         it("holds the dialog open until the element says the pasted data arrived", async () => {
             const { container } = await renderMeasuredShell();
 
@@ -3905,13 +3956,10 @@ describe("AppShell", () => {
             expect(screen.queryByRole("dialog")).toBeNull();
         });
 
-        /* The additive route, which the element cannot perform and used to report a SUCCESS
-           for: the app's load path ends in a property assignment on the element's
-           dataSource pair, whose initialisation guard is per LOAD and is reset only by
-           clearData(), so a second load that did not replace started nothing, parsed
-           nothing, emitted nothing -- and `finishLoad` renamed the dataset in the top bar
-           over a canvas that had not changed by one node. It is refused before the element
-           is touched, with a sentence naming the route that does work. */
+        /* The additive route, which the shell does not offer yet and once reported a SUCCESS
+           for: `finishLoad` renamed the dataset in the top bar over a canvas that had not
+           changed by one node. It is refused before the element is touched, with a sentence
+           naming the route that does work. */
         it("refuses an additive load rather than claiming one the element cannot perform", async () => {
             const { container } = await renderMeasuredShell();
 
@@ -3930,10 +3978,9 @@ describe("AppShell", () => {
             // Nothing reached the element, so nothing can have been silently swallowed.
             expect(loads).toHaveLength(loadsAfterSample);
 
-            /* Nothing was cleared but the cat sample's own replacing clear, the canvas
-               still holds its graph, and the top bar names the dataset that IS drawn
-               rather than the file that never arrived. */
-            expect(graph.dataManager.clear).toHaveBeenCalledTimes(1);
+            /* The canvas still holds its graph, and the top bar names the dataset that IS
+               drawn rather than the file that never arrived. */
+            expect(graph.styles.session.history.steps).toHaveLength(1);
             expect(container.querySelector("[data-canvas-welcome='true']")).toBeNull();
             expect(screen.getByText(CAT_SOCIAL_NETWORK_NAME)).toBeInTheDocument();
             expect(container.querySelectorAll("[data-status-slot]").length).toBeGreaterThan(0);
@@ -3971,15 +4018,11 @@ describe("AppShell", () => {
             expect(statusToast(container)).not.toBeNull();
         });
 
-        /* The retry the error sentence itself invites, on the zone it is drawn in. The
-           Welcome zone's drop is not a replacing load, so nothing on that route cleared the
-           element -- and graphty-element's data-source guard is per LOAD: the failed load
-           latched it and only `clearData()` resets it (its own regression board,
-           graphty-element/test/browser/element-clear-data.test.ts, states that contract).
-           So the corrected file reached the setters, started no load at all, and the shell
-           -- whose promise chain resolves on a property assignment -- reported a SUCCESS,
-           named the file in the top bar and left the canvas blank. */
-        it("clears the element after a failed load, so the retry the sentence invites can work", async () => {
+        /* The retry the error sentence itself invites, on the zone it is drawn in. A failed
+           load is a transaction that rolled back and recorded nothing, so the shell clears
+           nothing after it -- a clear would be a step of its own -- and the retry is simply
+           the next load. */
+        it("records nothing for a failed load, and the retry the sentence invites works", async () => {
             const { container } = await renderMeasuredShell();
 
             captureLoads(container);
@@ -3991,20 +4034,15 @@ describe("AppShell", () => {
 
             await dropFile(zone, new File(["{oops"], "friends.json"));
 
-            /* The optimistic success first, which is the order the application produces:
-               the shell's chain resolves on a property assignment and the parse throws
-               later. Waited for rather than assumed -- the file read is a real asynchronous
-               read, and a board that reported the failure before the load had claimed
-               anything would be testing an order the application cannot reach. */
+            /* The optimistic claim first, which is the order the application produces: the
+               shell names the file as soon as the load starts, and the parse fails later. */
             await waitFor(() => {
                 expect(screen.getByText("friends.json")).toBeInTheDocument();
             });
 
             await reportLoadingError(container, "Unexpected token o in JSON at position 1");
 
-            /* The element is cleared, which is what releases its per-load guard and drops
-               any records a mid-stream failure had already added. */
-            expect(graph.dataManager.clear).toHaveBeenCalledTimes(1);
+            expect(graph.styles.session.history.steps).toHaveLength(0);
             expect(container.querySelector("[data-canvas-welcome='true']")).not.toBeNull();
 
             /* And the reader is not left on an activity the rail has just disabled.
@@ -4045,9 +4083,8 @@ describe("AppShell", () => {
 
             fireEvent.click(screen.getByRole("button", { name: "Data" }));
 
-            /* This one never reaches the element: `loadFromFile` cannot name a format for
-               it and throws, so it is the `.catch` path -- the one branch that was already
-               reporting something, into the console. */
+            /* This one never reaches the element: the wrapper cannot name a format for it and
+               throws before the load starts. */
             await dropFile(
                 screen.getByTestId("data-drop-zone"),
                 new File(["nothing here that reads like a graph"], "notes.txt"),
@@ -4647,6 +4684,8 @@ describe("AppShell", () => {
         it("lets a failed load win the toast", async () => {
             const { container } = await renderMeasuredShell();
 
+            captureLoads(container);
+            await dropFile(container.querySelector("[data-dragging]") as HTMLElement, new File(["{oops"], "friends.json"));
             await reportLoadingError(container, "bad file");
             await reportAcceleration(container, {
                 state: "error",

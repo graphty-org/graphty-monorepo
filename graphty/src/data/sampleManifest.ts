@@ -59,7 +59,7 @@ export type SampleSource =
           readonly kind: "inline";
           /** The graphty-element DataSource type, e.g. "json". */
           readonly format: string;
-          /** The object the caller JSON.stringifies into `handle.loadData(format, {data})`. */
+          /** The object the caller JSON.stringifies into the inline `data` of the source the shell imports. */
           readonly payload: unknown;
       }
     | {

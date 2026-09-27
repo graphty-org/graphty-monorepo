@@ -29,6 +29,8 @@
  *   stand-in whose listing disagreed with its own estimate would let a board pass over a strip
  *   and a Run button quoting different figures.
  *
+ * - **A load and a clear, one step each.** What a load does is the board's to say (an importer
+ *   that waits for the element's own report); the stand-in records the step.
  * - **An undo history, one step per verb.** Every style verb and every run the session really
  *   executes records one step, exactly as the element's dispatcher does, and `undo` and `redo`
  *   move the position and publish `history:changed`. A run and the encoding it paints are ONE
@@ -43,10 +45,12 @@ import type { MetricAvailability } from "@graphty/graphty-element/catalog";
 import type {
     Channel,
     CostEstimate,
+    DataSourceInput,
     GraphSession,
     GraphStatistics,
     HistoryOutcome,
     HistoryStep,
+    ImportOptions,
     Layer,
     LayerSpec,
     LegendBlock,
@@ -200,6 +204,14 @@ interface FakeSessionOptions {
      * @returns the statistics.
      */
     readonly statistics?: () => GraphStatistics;
+    /**
+     * What `data.import` does: settle when the element would say the load arrived, or reject
+     * when it would say it did not. A caller that supplies none gets a load that arrives at once.
+     * @param source - the data source the shell named.
+     * @param options - how the load replaces or adds to the graph.
+     * @returns settles once the data is in.
+     */
+    readonly importer?: (source: DataSourceInput, options?: ImportOptions) => Promise<void>;
 }
 
 /**
@@ -288,7 +300,7 @@ function fakeSeconds(algorithm: string, statistics: GraphStatistics): number {
  * @returns the session and the doors a board asserts through.
  */
 export function createFakeSession(options: FakeSessionOptions = {}): FakeSession {
-    const watchers = new Map<string, Set<() => void>>();
+    const watchers = new Map<string, Set<(payload?: unknown) => void>>();
     const runs: FakeRun[] = [];
     let minted = 0;
 
@@ -327,9 +339,9 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
         },
     ];
 
-    const publish = (event = "style:changed"): void => {
+    const publish = (event = "style:changed", payload?: unknown): void => {
         for (const watcher of watchers.get(event) ?? []) {
-            watcher();
+            watcher(payload);
         }
     };
 
@@ -340,9 +352,9 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
     /* Open transactions. While one is open a verb joins it rather than recording its own step. */
     let transactions = 0;
 
-    const historyMoved = (): void => {
+    const historyMoved = (reason: string): void => {
         historyVersion += 1;
-        publish("history:changed");
+        publish("history:changed", { reason });
     };
 
     /**
@@ -369,7 +381,7 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
             }),
         );
         position = steps.length;
-        historyMoved();
+        historyMoved("record");
     };
 
     /**
@@ -387,7 +399,7 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
         const step = steps[by < 0 ? next : position];
 
         position = next;
-        historyMoved();
+        historyMoved(by < 0 ? "undo" : "redo");
 
         return Promise.resolve({ kind: by < 0 ? "undone" : "redone", steps: [step] });
     };
@@ -419,7 +431,7 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
             const touched = at < position ? steps.slice(at, position) : steps.slice(position, at);
 
             position = at;
-            historyMoved();
+            historyMoved("restore");
 
             return Promise.resolve({ kind: "restored", steps: touched });
         },
@@ -427,7 +439,7 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
         clear: () => {
             steps.length = 0;
             position = 0;
-            historyMoved();
+            historyMoved("clear");
         },
     };
 
@@ -646,8 +658,19 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
         /* What a host reads before the element has spoken; a board that wants another state
            dispatches the event. */
         capabilities: { acceleration: { state: "probing" } },
+        /* A load and a clear are one step each, as the element's are; this stand-in holds no
+           records of its own, so what they change is what the board's own importer does. */
         data: {
             statistics: statisticsNow,
+            import: async (source: DataSourceInput, importOptions?: ImportOptions): Promise<void> => {
+                await (options.importer?.(source, importOptions) ?? Promise.resolve());
+                record(`Loaded ${source.type}`, "data.import", ["graph"]);
+            },
+            clear: (): Promise<void> => {
+                record("Cleared the graph", "data.apply", ["graph"]);
+
+                return Promise.resolve();
+            },
         },
         catalog: {
             metrics: metricsNow,
@@ -749,7 +772,7 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
 
             return result;
         },
-        on: (event: string, handler: () => void): (() => void) => {
+        on: (event: string, handler: (payload?: unknown) => void): (() => void) => {
             const subscribers = watchers.get(event) ?? new Set();
 
             subscribers.add(handler);

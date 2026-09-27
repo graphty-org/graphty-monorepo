@@ -92,18 +92,20 @@ import {
     PopoutRegion,
     usePopoutManager,
 } from "@graphty/compact-mantine";
-import type { DataLoadingErrorEvent, ScreenshotOptions } from "@graphty/graphty-element";
+import type { ScreenshotOptions } from "@graphty/graphty-element";
 import type { MetricAvailability } from "@graphty/graphty-element/catalog";
 import {
     type AccelerationPolicy,
     type AccelerationStatus,
     type Channel,
+    type DataSourceInput,
     type GraphSession,
     type GraphStatistics,
+    type Layer,
     type LayerSpec,
-    recommendLayout,
     type RunId,
     type SelectionDelta,
+    type TransactionScope,
 } from "@graphty/graphty-element/session";
 import { Box, Button, Group, Modal, Text } from "@mantine/core";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -139,7 +141,7 @@ import {
     type DegreeResults,
     NO_DEGREE_DISTRIBUTION,
     runCommunityDetection,
-    runDegreePass,
+    startDegreePass,
 } from "./analysis/runs";
 import { readPersistedCanvasLayout, resolveCanvasLayout, writePersistedCanvasLayout } from "./canvas/canvasMemory";
 import { CanvasRegion, type CanvasRegionOwnProps, useCanvasBottomStack } from "./canvas/CanvasRegion";
@@ -599,6 +601,21 @@ interface ShellGraphData {
 
 const NO_GRAPH_DATA: ShellGraphData = { nodes: [], edges: [] };
 
+/**
+ * The layers a dataset boundary sweeps: the shell's own defaults, whose selector names a run
+ * over nodes that have left, and every layer a run painted, whose binding reads a column that is
+ * no longer there. Without the sweep a replacing load stacked a second set on top of the first.
+ *
+ * BY SOURCE, never by position, and an element-owned layer is never swept whatever the predicate
+ * says: an index walk once took graphty-element's own base layer, the one carrying every node's
+ * shape type, and the next load died in mesh building and drew nothing at all.
+ * @param source - the layer's source.
+ * @returns whether the layer describes the dataset rather than the reader.
+ */
+function describesDataset(source: Layer["source"]): boolean {
+    return (source.by === "template" && source.templateId === SHELL_DEFAULTS_TEMPLATE_ID) || source.by === "run";
+}
+
 /** What the shell reports as pinned before the element is up to be asked. */
 const EMPTY_PINNED_NODES: ReadonlySet<string | number> = new Set<string | number>();
 
@@ -615,46 +632,6 @@ const EMPTY_PINNED_NODES: ReadonlySet<string | number> = new Set<string | number
 const DATA_LOADED_EVENT = "data-loaded";
 
 /**
- * The event graphty-element publishes when a data source could not be read.
- *
- * This is the producer that catches the reported defect, and the reason the shell needs
- * one at all. `DataManager.addDataFromSource` wraps its whole chunk loop in a try and
- * emits exactly one `data-loading-error` when the parse or the fetch throws
- * (DataManager.ts:545-566); the element forwards every internal graph event as a DOM
- * CustomEvent that bubbles and is composed (graphty-element.ts:96-104), so an ancestor
- * of the canvas hears it. Nothing in graphty-element had to change for this: the element
- * was already saying so, and nobody was listening.
- */
-const DATA_LOADING_ERROR_EVENT = "data-loading-error";
-
-/**
- * What that event carries: graphty-element's own `DataLoadingErrorEvent`, imported.
- *
- * A near-copy of this interface stood here, with a note saying no type export of the
- * package resolved through the application's path alias. It does now -- the element
- * publishes an exports map and real declarations -- so the copy is gone and the shell
- * reads the element's own shape. The `| undefined` is not defensiveness about the
- * FIELDS; it is the one honest thing a DOM listener can say about `detail`, which is
- * whatever the dispatcher put on the event.
- */
-type DataLoadingErrorDetail = DataLoadingErrorEvent;
-
-/**
- * The events graphty-element publishes WHILE a load is still arriving.
- *
- * They are the heartbeat {@link LOAD_REPORT_SILENCE_MS} is measured against, and nothing
- * else reads them here. `DataManager.addDataFromSource` emits `data-added` from
- * `addNodes`/`addEdges` per chunk (DataManager.ts:236, 409) and `data-loading-progress`
- * after each chunk is in (DataManager.ts:489-497), so a load that is merely slow -- a
- * 300 MB edge list arriving over thirty chunks -- is loudly alive, while a load that has
- * genuinely gone silent says nothing at all.
- */
-const DATA_LOADING_PROGRESS_EVENT = "data-loading-progress";
-
-/** The other half of that heartbeat: one per chunk of nodes and one per chunk of edges. */
-const DATA_ADDED_EVENT = "data-added";
-
-/**
  * The event graphty-element publishes when the reader finishes dragging a node.
  *
  * It is the only way a pin the reader made with the POINTER reaches this shell. `pinOnDrag`
@@ -664,81 +641,6 @@ const DATA_ADDED_EVENT = "data-added";
  * composed, so the frame hears this the same way it hears a load completing.
  */
 const NODE_DRAG_END_EVENT = "graphty-node-drag-end";
-
-/**
- * How long the shell waits on a SILENT element before it stops waiting, in milliseconds.
- *
- * This is a silence window, not a load budget: every `data-added` and every
- * `data-loading-progress` pushes it out again, so the clock only runs while the element
- * has said nothing whatsoever. What has to fit inside it is therefore the longest gap a
- * healthy load can have between two events -- the element's own `fetch` of a URL it was
- * handed, plus the first chunk's parse -- and not the load as a whole. Thirty seconds
- * covers a slow fetch of a large file on a bad connection with room to spare, and no
- * successful load can be cut short by it while the element is still emitting anything.
- *
- * What happens when it does expire is deliberately NOT an error: see
- * {@link PendingLoadReport}. The shell cannot tell a hung element from a very slow one,
- * so it says nothing rather than accusing a load that may still be arriving.
- */
-const LOAD_REPORT_SILENCE_MS = 30_000;
-
-/** A load report that says the data did not arrive, carrying what the element threw. */
-interface LoadReportFailure {
-    /** The `Error` the element's `data-loading-error` carried, or whatever it carried. */
-    readonly error: unknown;
-}
-
-/**
- * The shell's wait for graphty-element to say what became of a load it accepted.
- *
- * WHY THIS EXISTS. The app's load path ends in two property assignments on the element
- * (`GraphtyHandle.loadData`/`loadFromFile`, Graphty.tsx:366-401) and the element's setter
- * discards the parse with `void this.#graph.addDataFromSource(...)`
- * (graphty-element.ts:334), so the shell's promise chain used to RESOLVE the moment the
- * element accepted the bytes. The Load data dialog awaits that chain to decide whether to
- * close, and `handleClose` runs `resetState` -- so on the dominant failure, a malformed
- * paste or a malformed file, the dialog closed and destroyed the reader's text a beat
- * BEFORE the element reported the parse failure through `data-loading-error`. The dialog's
- * whole stay-open contract held only for the pre-flight throws (an undetectable format, a
- * fetch on an extensionless URL, a host that is not up), which are the failures it was
- * least needed for. Spec 6.1 asks for the opposite: "Failed load is a sub-state of Empty:
- * the error appears inline in the drop zone, or the Import options dialog stays open with
- * the issues listed."
- *
- * WHAT IT CAN AND CANNOT CORRELATE. Honestly: it cannot. graphty-element's load events
- * carry no load id and no token of any kind -- `data-loaded` carries `{chunksLoaded,
- * dataSourceType}` and `data-loading-error` carries `{error, context, format,
- * canContinue}` (events.ts:43-122) -- and the element runs one data source at a time
- * behind a per-load latch (`#tryInitializeDataSource`), so there is nothing to match a
- * report against beyond the format string, which two loads of the same format share. The
- * contract that IS available is therefore stated plainly rather than dressed up as a
- * correlation: ONE wait at a time, armed before the element is touched, settled by the
- * FIRST report that arrives after that. A second load supersedes the first, and the
- * superseded wait resolves rather than rejects -- an abandoned load's report is not
- * evidence against the load that replaced it.
- *
- * WHY THE TIMEOUT RESOLVES. If the element says nothing for {@link
- * LOAD_REPORT_SILENCE_MS} the wait resolves, exactly as a completion would. It cannot
- * reject: the shell has no way to tell a hung element from a slow one, and rejecting
- * would put a failure sentence on screen for a load that is still arriving AND clear the
- * element underneath it (`reportLoadFailure` calls `clearData`), destroying a good load to
- * report a failure that never happened. Resolving instead falls back to exactly the
- * behaviour this shell had before the wait existed -- the dialog closes on acceptance --
- * and disarms the wait, so a report that turns up later reaches the shell's own failure
- * surfaces through the mount-level listener, as it always did. The timeout is an escape
- * hatch from waiting, not a verdict on the data.
- */
-interface PendingLoadReport {
-    /** Resolves when the element reported the data arrived; rejects when it did not. */
-    readonly settled: Promise<void>;
-    /**
-     * Settles the wait once and disarms it.
-     * @param failure - null to treat the load as arrived, or the element's own failure.
-     */
-    readonly settle: (failure: LoadReportFailure | null) => void;
-    /** Pushes the silence deadline out, on every sign of life from the element. */
-    readonly heartbeat: () => void;
-}
 
 /**
  * What the shell says about a load that did not arrive.
@@ -768,7 +670,7 @@ interface LoadFailure {
 interface PendingLoad {
     /** What the reader called the source (6.10 floor item 7). */
     readonly fileName: string;
-    /** Whether a dataset is still drawn if this load fails: an ADDITIVE load over one. */
+    /** Whether a dataset is still drawn if this load fails: a failed load rolls back to it. */
     readonly survivesFailure: boolean;
     /** The dataset the top bar named before this load began. */
     readonly previousName: string | null;
@@ -783,6 +685,44 @@ interface PendingLoad {
      * section in its empty form for a dataset that is still drawn.
      */
     readonly previousSummary: LoadedDataSummary | undefined;
+}
+
+/** What the top bar and the state axis say about the dataset on screen. */
+interface DrawnDataset {
+    /** Whether a dataset is drawn at all. */
+    readonly loaded: boolean;
+    /** What the top bar names it. */
+    readonly name: string | null;
+    /** What the Loaded data section says about it. */
+    readonly summary: LoadedDataSummary | undefined;
+}
+
+/**
+ * What a load request is called and the data source it names, read without touching the
+ * element: the wrapper detects the format of a file or a URL that does not state one.
+ * @param handle - the wrapper's handle.
+ * @param request - what the dialog or a drop asked for.
+ * @param format - the format the reader chose, or undefined to detect it.
+ * @returns the name the reader knows the data by, and the source to import.
+ */
+async function readSource(
+    handle: GraphtyHandle,
+    request: LoadDataRequest,
+    format: string | undefined,
+): Promise<[string, DataSourceInput]> {
+    if (request.inputMethod === "url" && request.url !== undefined) {
+        return [request.url.split("/").pop() ?? request.url, await handle.sourceFromUrl(request.url, format)];
+    }
+
+    if (request.inputMethod === "file" && request.file !== undefined) {
+        return [request.file.name, await handle.sourceFromFile(request.file, format)];
+    }
+
+    if (request.inputMethod === "paste" && request.data !== undefined) {
+        return [PASTED_DATA_NAME, { type: format ?? "json", config: { data: request.data } }];
+    }
+
+    throw new Error(NO_SOURCE_NAMED);
 }
 
 /** What a pasted graph is called, wherever a load has to name its source. */
@@ -800,21 +740,11 @@ const NO_SOURCE_NAMED = "the load request named no source";
 /**
  * The throw the load path uses for an ADDITIVE load over a dataset that is already drawn.
  *
- * It is refused before it reaches the element, because the element cannot perform it and
- * reports that it did. graphty-element's data-source guard is per LOAD, not per element
- * lifetime: `#tryInitializeDataSource` latches `#dataSourceInitialized` on the first load
- * and only `clearData()` resets it (graphty-element.ts:295-336), and the app's own
- * `GraphtyHandle.loadFromFile` ends in a property assignment on that same pair
- * (Graphty.tsx:366-393). So an additive load assigned the pair, started nothing, resolved
- * anyway, and `finishLoad` renamed the dataset in the top bar over a canvas that had not
- * changed by one node -- a load the shell reported as a success and the reader could not
- * tell from one.
- *
- * Merging a second file needs the element's own merge-capable entry point
- * (`addDataFromSource`), which the React wrapper does not expose, and it needs spec
- * 872-882's "What to do with this file" dialog to ask which merge the reader means. Until
- * both exist the shell says so instead of pretending: a refusal a reader can act on, with
- * the dataset they already have left untouched.
+ * It is refused before it reaches the element. The element can merge
+ * (`session.data.import(source, { mode: "merge" })`), but spec 872-882's "What to do with
+ * this file" dialog, which asks which merge the reader means, does not exist yet. Until it
+ * does the shell says so instead of pretending: a refusal a reader can act on, with the
+ * dataset they already have left untouched.
  */
 const ADDITIVE_LOAD_UNSUPPORTED = "an additive load cannot reach the element";
 
@@ -867,25 +797,6 @@ function thrownMessage(error: unknown): string {
     }
 
     return "";
-}
-
-/**
- * The same value as an `Error`, so a wait can reject with one.
- *
- * A DOM CustomEvent's `detail` is whatever the dispatcher put on it, so the value
- * graphty-element's `data-loading-error` carries is an `unknown` and is occasionally not
- * an `Error` at all -- and a promise rejected with a bare string is a rejection every
- * reader downstream has to re-sniff. An `Error` already here is passed through untouched,
- * because its message is the sentence the reader will see and its stack is what the
- * console line is for; anything else is re-read by {@link thrownMessage}, which means a
- * value that says nothing arrives as an `Error` with an empty message -- exactly what
- * {@link loadFailureReason} and the dialog's own formatter already answer with a sentence
- * of their own.
- * @param error - whatever the element's event carried.
- * @returns the same failure, as an `Error`.
- */
-function asLoadError(error: unknown): Error {
-    return error instanceof Error ? error : new Error(thrownMessage(error));
 }
 
 /**
@@ -1148,35 +1059,16 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     const [pinnedNodes, setPinnedNodes] = useState<ReadonlySet<string | number>>(EMPTY_PINNED_NODES);
     const layerCounter = useRef(1);
     const firstLoadDone = useRef(false);
-    /* Whether the 7.2 defaults have been applied to the dataset now loaded. They are a
-       per-dataset one-shot: re-applying them would fight a layout or a label budget the
-       user has since changed, and the graph's own data events fire more than once per
-       load. `crossDatasetBoundary` clears it. */
-    const loadDefaultsAppliedRef = useRef(false);
     /** graphty-element's sentence for why this load got fewer degree labels than its budget. */
     const [labelShortfall, setLabelShortfall] = useState<string | null>(null);
-    /* The card a sample row's closing hint asked for, consumed once the defaults have
-       landed, so the suggested run happens on a graph that already has its neutral base
-       and its degrees (7.1 item 2: one interaction, in the right order). */
-    const pendingSuggestedRef = useRef<InsightCapability | null>(null);
     /* The load in flight, as its failure will need it. A ref and not state because the
-       producer that catches the reported bug -- the element's own `data-loading-error` --
-       arrives AFTER the optimistic `finishLoad`, so by then nothing in state can say what
-       the reader chose or what was on screen before. */
+       failure arrives AFTER the optimistic `finishLoad`, so by then nothing in state can say
+       what the reader chose or what was on screen before. */
     const pendingLoadRef = useRef<PendingLoad | null>(null);
-    /* The wait for the element's own report on that load, or null when nothing is waiting.
-       One at a time, because the element's events carry nothing to correlate a second one
-       against -- see {@link PendingLoadReport}. A ref and not state for the same reason
-       `pendingLoadRef` is one: its readers are DOM listeners registered once at mount. */
-    const loadReportRef = useRef<PendingLoadReport | null>(null);
     /* What the top bar and the state axis were saying at the last commit, which is what
        was true when a load started from an event handler. The load-failure path restores
        it, and it cannot read the state directly for the reason above. */
-    const drawnDatasetRef = useRef<{
-        loaded: boolean;
-        name: string | null;
-        summary: LoadedDataSummary | undefined;
-    }>({ loaded: false, name: null, summary: undefined });
+    const drawnDatasetRef = useRef<DrawnDataset>({ loaded: false, name: null, summary: undefined });
     const frameRef = useRef<HTMLDivElement>(null);
     /* The id the last `selection-changed` reported, or null when that pick hit nothing.
        It is a ref and not state because its one reader is an event handler in the same
@@ -1593,7 +1485,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     /* ---------------------------------------------------------------------- */
 
     /* The counts are read on the graph's own data events rather than after a load
-       call returns, because `loadData` queues the load and returns before a single
+       call returns, because a load is queued and a call can return before a single
        node exists. This ref carries the current reader into the mount-only effect
        below, which registers once and must not re-run when the reader changes. */
     const refreshGraphDataRef = useRef<() => void>(() => undefined);
@@ -1750,90 +1642,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         refreshGraphDataRef.current = refreshGraphData;
     }, [refreshGraphData]);
 
-    /**
-     * Arms the wait for graphty-element's own report on the load about to start.
-     *
-     * Armed BEFORE the element is touched, never after, and that ordering is the whole
-     * point of the function existing at all. `GraphtyHandle.loadData` assigns the
-     * element's two properties synchronously, the element's setter starts
-     * `addDataFromSource` there and then, and an async generator runs its body up to its
-     * first await inside the very first `next()` call -- so a paste that fails on
-     * `JSON.parse` queues the element's `data-loading-error` continuation BEFORE the
-     * `await` in `handleLoad` gets its turn. A wait armed after the load would miss
-     * exactly the failures it exists for, which is the same defect one microtask later.
-     *
-     * The returned promise is given a no-op `catch` here so that a rejection landing
-     * before `handleLoad` awaits it is not an unhandled rejection; the `await` still sees
-     * it, because attaching a handler to a promise does not consume its result.
-     * @returns the wait, already armed and already registered as the current one.
-     */
-    const armLoadReport = useCallback((): PendingLoadReport => {
-        /* One wait at a time. The superseded one RESOLVES: the element tells nobody which
-           load a report belongs to, so the shell cannot know the next report is about the
-           abandoned load rather than the new one, and it will not reject a load on
-           evidence it cannot attribute. */
-        loadReportRef.current?.settle(null);
-
-        let timer: ReturnType<typeof setTimeout> | undefined;
-        let done = false;
-        let settle: PendingLoadReport["settle"] = () => undefined;
-        let heartbeat: PendingLoadReport["heartbeat"] = () => undefined;
-
-        const settled = new Promise<void>((resolve, reject) => {
-            settle = (failure) => {
-                if (done) {
-                    return;
-                }
-
-                done = true;
-
-                if (timer !== undefined) {
-                    clearTimeout(timer);
-                }
-
-                /* Unconditionally, and safely: a superseded wait clears its own timer as
-                   it settles, so the only wait that can reach here while the ref points
-                   at a NEWER one is one that has already settled -- and the guard above
-                   has already returned for it. */
-                loadReportRef.current = null;
-
-                if (failure === null) {
-                    resolve();
-
-                    return;
-                }
-
-                reject(asLoadError(failure.error));
-            };
-
-            heartbeat = () => {
-                if (done) {
-                    return;
-                }
-
-                if (timer !== undefined) {
-                    clearTimeout(timer);
-                }
-
-                // Resolves, never rejects: see {@link PendingLoadReport}.
-                timer = setTimeout(() => {
-                    settle(null);
-                }, LOAD_REPORT_SILENCE_MS);
-            };
-        });
-
-        const report: PendingLoadReport = { settled, settle, heartbeat };
-
-        settled.catch(() => undefined);
-        loadReportRef.current = report;
-        report.heartbeat();
-
-        return report;
-    }, []);
-
     /*
      * Counts the loads graphty-element has reported COMPLETE, on the frame the event
-     * bubbles to ({@link DATA_LOADED_EVENT}), and settles the wait that load is holding.
+     * bubbles to ({@link DATA_LOADED_EVENT}).
      *
      * The counts are refreshed in the same callback, so the completion and the records
      * it completed reach React in one batch: no reader can see the flag move ahead of
@@ -1850,25 +1661,12 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         const onDataLoaded = (): void => {
             refreshGraphDataRef.current();
             setLoadCompletions((count) => count + 1);
-            loadReportRef.current?.settle(null);
-        };
-
-        /* Every chunk is a sign of life, and the only thing the shell does with one here
-           is refuse to give up on the load: see {@link LOAD_REPORT_SILENCE_MS}. A big
-           file is slow, not silent, so its own progress is what keeps the dialog waiting
-           for it rather than a timer nobody can tune from the outside. */
-        const onLoadProgress = (): void => {
-            loadReportRef.current?.heartbeat();
         };
 
         frame?.addEventListener(DATA_LOADED_EVENT, onDataLoaded);
-        frame?.addEventListener(DATA_LOADING_PROGRESS_EVENT, onLoadProgress);
-        frame?.addEventListener(DATA_ADDED_EVENT, onLoadProgress);
 
         return () => {
             frame?.removeEventListener(DATA_LOADED_EVENT, onDataLoaded);
-            frame?.removeEventListener(DATA_LOADING_PROGRESS_EVENT, onLoadProgress);
-            frame?.removeEventListener(DATA_ADDED_EVENT, onLoadProgress);
         };
     }, []);
 
@@ -1893,15 +1691,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         };
     }, []);
 
-    /* Nothing is waiting for an element that has gone: an unsettled wait holds a timer
-       past the unmount, and its promise never settles for anyone. */
-    useEffect(
-        () => () => {
-            loadReportRef.current?.settle(null);
-        },
-        [],
-    );
-
     useEffect(() => {
         drawnDatasetRef.current = { loaded: dataLoaded, name: datasetName, summary: loadedSummary };
     }, [dataLoaded, datasetName, loadedSummary]);
@@ -1913,60 +1702,17 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     /**
      * Reports a load that did not arrive, and unwinds the success the shell had claimed.
      *
-     * The defect this closes was not that the failure was reported quietly. It was that
-     * on the three routes a reader actually takes -- a malformed file, a 404 URL and
-     * unparsable pasted text -- the shell reported SUCCESS. A malformed file reported
-     * success because the app's own `loadFromFile` ends in a property assignment:
-     * `GraphtyHandle.loadFromFile` and `loadFromUrl` are re-implementations living in the
-     * React wrapper (Graphty.tsx:347-401), and they finish by setting
-     * `graphtyRef.current.dataSourceConfig = {data: content}`, while the element's setter
-     * throws the parse away with `void this.#graph.addDataFromSource(...)`
-     * (graphty-element.ts:334). Nothing downstream of that assignment can reject, so the
-     * promise chain took its `.then` branch, `finishLoad` put the file's name in the top
-     * bar, the state axis went to Loaded, and the whole of the report was one
-     * `console.error` in a log no reader opens. Improving the `.catch` alone would have
-     * left all three reported cases exactly as they were.
+     * A load is one transaction on graphty-element's session, and a transaction that fails
+     * rolls back: the element is left holding exactly what it held before the load began and
+     * records no step. So nothing is cleared here -- clearing would record a step of its own
+     * that wiped the dataset the rollback had just put back. What is unwound is the shell's
+     * own optimistic claim (`finishLoad` named the new file and set the state axis to Loaded):
+     * where a dataset was drawn before, its name and summary come back; where none was, the
+     * shell says Empty, which spec 4105 makes the home of a failed load ("Failed load is a
+     * sub-state of Empty: the error appears inline in the drop zone").
      *
-     * Hence two producers, both of which end here: the `.catch` of the load chain, which
-     * catches the reachable throws (format detection, a failed fetch, a host that is not
-     * up yet), and the element's own `data-loading-error`, which is the one that catches
-     * the reported bug.
-     *
-     * What it unwinds is the claim, not only the silence. Spec 4105 makes a failed load a
-     * SUB-STATE of Empty -- "Failed load is a sub-state of Empty: the error appears inline
-     * in the drop zone" -- so where the graph is left holding nothing the shell says
-     * Empty, Welcome comes back, and the reader has a route in rather than a populated
-     * chrome around a blank canvas. The counts are re-read from the graph rather than
-     * assumed, because `DataManager.clear()` emits no event: the records a replacing load
-     * threw away are still sitting in `graphData` until something asks the graph again,
-     * and without that re-read the status bar, the Data table drawer, `computeGraphShape`,
-     * the graph summary reading and every Insights card would carry on describing the
-     * dataset that left.
-     *
-     * The one case that keeps its dataset is an ADDITIVE load over a live one: only the
-     * records it was adding failed to arrive, the graph on the canvas is still the graph
-     * the reader loaded, and it keeps its own name AND its own summary rather than the
-     * name and the summary of the file that failed. The summary is restored because
-     * `finishLoad` has already overwritten it: without it the Loaded data section read
-     * "GraphML, 12 KB" for a file that never arrived, or -- on the drop route, whose
-     * format is "auto" and whose summary is therefore undefined -- rendered the whole
-     * section in its empty form for a dataset that is still on the canvas.
-     *
-     * Where the graph is left holding nothing, the ELEMENT is cleared too, and that is the
-     * clause the whole retry route stands on. graphty-element's data-source guard is per
-     * LOAD, not per element lifetime: the failed load latched it, and only `clearData()`
-     * resets it (graphty-element.ts:316). Without the clear the reader followed the error
-     * sentence's own invitation, dropped the corrected file on the same zone, and the
-     * element started no load at all -- while the shell, whose promise chain resolves on a
-     * property assignment, reported the load a SUCCESS and named the file in the top bar
-     * over a blank canvas. The clear also drops any records a mid-stream failure had
-     * already added, which is what makes the Empty state the spec asks for true rather
-     * than merely claimed.
-     *
-     * The session's first-load latch is released with it, for the same reason: spec 4107
-     * spends it on "the session's first load", and a load that showed the reader nothing
-     * is not one. Spending it on a failure meant the first dataset that really arrived
-     * never got its switch to Explore.
+     * The session's first-load latch is released on the Empty branch: spec 4107 spends it on
+     * "the session's first load", and a load that showed the reader nothing is not one.
      * @param reason - why the load did not arrive, as a finished sentence.
      */
     const reportLoadFailure = useCallback(
@@ -1978,31 +1724,20 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                is carried here from the top of the load because the element's own message
                never does. */
             setLoadFailure({ fileName: pending?.fileName ?? UNNAMED_LOAD_SOURCE, reason });
-
-            /* The suggested card belonged to the dataset that did not arrive; left armed,
-               the load-defaults effect would run it over whatever is drawn instead. */
-            pendingSuggestedRef.current = null;
+            refreshGraphData();
 
             if (pending?.survivesFailure === true) {
                 setDatasetName(pending.previousName);
                 setLoadedSummary(pending.previousSummary);
-                refreshGraphData();
 
                 return;
             }
 
-            /* Before the state, because it is what makes the state true: the element still
-               holds the latch the failed load set, and the partial records it managed to
-               add. Not on the surviving branch -- there the graph on the canvas is the
-               reader's own and clearing it would destroy the one thing the failure left
-               intact. */
-            graphtyRef.current?.clearData();
             firstLoadDone.current = false;
 
             setDataLoaded(false);
             setDatasetName(null);
             setLoadedSummary(undefined);
-            refreshGraphData();
 
             /* The reader was moved onto Explore by the optimistic `finishLoad` and the rail
                disables Explore in the Empty state, so leaving them there leaves an open
@@ -2016,69 +1751,13 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         [activeActivity, openActivity, refreshGraphData],
     );
 
-    /* The reporter the mount-only listener below calls. Same shape as
-       `refreshGraphDataRef` and for the same reason: the listener must register exactly
-       once, and it must still reach the current reporter. */
+    /* The current reporter, for a load's `catch` that runs seconds after the render that
+       started it. */
     const reportLoadFailureRef = useRef<(reason: string) => void>(() => undefined);
 
     useEffect(() => {
         reportLoadFailureRef.current = reportLoadFailure;
     }, [reportLoadFailure]);
-
-    /*
-     * The producer that hears what the promise chain cannot: graphty-element saying the
-     * data did not parse, on the frame the event bubbles to
-     * ({@link DATA_LOADING_ERROR_EVENT}).
-     *
-     * `canContinue` is honoured rather than ignored. The element publishes it per error
-     * and the only emitter today sets it false for a load that has ended
-     * (DataManager.ts:560-565), but a row-level error that the load survives is a WARNING
-     * in spec 1100-1108's three-severity model -- with its issue-type badge, its "N data
-     * issues" chip and its validation report -- and none of that has a producer in this
-     * build. Reporting one as a failed load would put an error on screen for a load that
-     * completed, which is the same class of lie in the other direction.
-     */
-    useEffect(() => {
-        const frame = frameRef.current;
-
-        const onLoadingError = (event: Event): void => {
-            const { detail } = event as CustomEvent<DataLoadingErrorDetail | undefined>;
-
-            if (detail?.canContinue === true) {
-                /* A survivable error is still a sign of life, so it buys the load more
-                   silence rather than none: a source that reports fifty bad rows and
-                   carries on is working, and a wait that ignored them could give up on a
-                   load that was talking to it the whole time. */
-                loadReportRef.current?.heartbeat();
-
-                return;
-            }
-
-            const report = loadReportRef.current;
-
-            /* Where a load is waiting on this event, the failure travels back up ITS
-               promise instead of being reported straight to the shell's surfaces. That is
-               what keeps the Load data dialog open with the reader's file, URL or pasted
-               text still in it: `handleLoad`'s own `.catch` reports the failure to the
-               same surfaces a beat later and re-throws, so this is one reporter reached by
-               two routes, never two reporters racing to say the same thing twice. Loads
-               that no promise is waiting on -- a sample row, the `?test` fixture -- have no
-               wait armed and are reported here exactly as they always were. */
-            if (report !== null) {
-                report.settle({ error: detail?.error });
-
-                return;
-            }
-
-            reportLoadFailureRef.current(loadFailureReason(detail?.error));
-        };
-
-        frame?.addEventListener(DATA_LOADING_ERROR_EVENT, onLoadingError);
-
-        return () => {
-            frame?.removeEventListener(DATA_LOADING_ERROR_EVENT, onLoadingError);
-        };
-    }, []);
 
     /* The element's acceleration status, as it publishes it: a bubbling, composed DOM event on
        every controller transition, read here on the frame the way the load events are. The one
@@ -2143,14 +1822,10 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
            longer about anything on screen. */
         setLoadFailure(null);
 
-        /* The 7.2 defaults, the degree pass and any result describe the graph that has
-           gone, so they go with it: the latch is cleared so the next load applies its
-           own defaults, the completion count is zeroed so a completion reported for the
-           load that has gone cannot arm them early, and neither a stale degree ranking
-           nor a stale community reading outlives the data it was measured from. */
-        loadDefaultsAppliedRef.current = false;
-        pendingSuggestedRef.current = null;
-        setLoadCompletions(0);
+        /* The degree pass and any result describe the graph that has gone, so they go with
+           it: neither a stale degree ranking nor a stale community reading outlives the data
+           it was measured from. The style layers that encoded that graph are swept by the
+           load or the close itself, inside its transaction (see {@link describesDataset}). */
         setDegreePass(null);
         setLabelShortfall(null);
         setActiveResult(null);
@@ -2161,28 +1836,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
            was painted went with `activeResult` four lines above, which is where it lives. */
         setRunningMetric(null);
         setMetricConfirm(null);
-
-        /* The style layers that describe the graph that has gone go with it: the shell's own
-           7.2 defaults, whose selector names a run over nodes that have left, and every layer
-           a run painted, whose binding reads a column that is no longer there. Without this a
-           replacing load stacked a second set on top of the first, and every later load one
-           more.
-
-           BY SOURCE, never by position. The shell's layers carry its template id and a run's
-           carry the run, so a sweep names a category rather than a set of indices; and an
-           element-owned layer is never swept whatever the predicate says. The index walk this
-           replaces took graphty-element's own base layer with it -- the one carrying every
-           node's shape type -- and the next load then died in mesh building with "shape with
-           type required to create mesh" and drew nothing at all. */
-        const session = elementSession(graphtyRef.current?.graph);
-
-        if (session !== null) {
-            void session.styles.removeBySource(
-                (source) =>
-                    (source.by === "template" && source.templateId === SHELL_DEFAULTS_TEMPLATE_ID) ||
-                    source.by === "run",
-            );
-        }
 
         // Focus cannot move here. The same state change empties the canvas, so any
         // element chosen now is about to be unmounted and focus would fall to the
@@ -2265,6 +1918,187 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         openActivity("explore");
     }, [loadCompletions, openActivity]);
 
+    /* The shell's own name for the dataset after each step that loaded or closed one, by step
+       id, so an undo or a redo can put the right name back in the top bar. The element keeps
+       the data and where it came from; what the reader called it is the shell's. */
+    const datasetAfterStepRef = useRef(new Map<string, DrawnDataset>());
+
+    /**
+     * Remembers what the step just recorded leaves on screen.
+     * @param session - the session the step was recorded on.
+     * @param dataset - the dataset that step leaves drawn.
+     */
+    const recordDatasetStep = useCallback((session: GraphSession, dataset: DrawnDataset) => {
+        const { steps, position } = session.history;
+        const top = steps.at(position - 1);
+
+        if (top !== undefined) {
+            datasetAfterStepRef.current.set(top.id, dataset);
+        }
+    }, []);
+
+    /*
+     * An undo, a redo or a restore can bring a dataset back or take one away, so the shell's
+     * claim about what is drawn follows the history: the dataset named after the latest
+     * applied step that loaded or closed one. With no such step it says Empty only when the
+     * graph really is empty, and otherwise leaves the claim alone.
+     */
+    useEffect(() => {
+        if (session === null) {
+            return undefined;
+        }
+
+        return session.on("history:changed", ({ reason }) => {
+            if (reason !== "undo" && reason !== "redo" && reason !== "restore") {
+                return;
+            }
+
+            const { steps, position } = session.history;
+            let dataset: DrawnDataset | undefined;
+
+            for (let at = position - 1; at >= 0 && dataset === undefined; at -= 1) {
+                dataset = datasetAfterStepRef.current.get(steps[at].id);
+            }
+
+            if (dataset === undefined && session.data.statistics().nodeCount === 0) {
+                dataset = { loaded: false, name: null, summary: undefined };
+            }
+
+            if (dataset !== undefined) {
+                setDataLoaded(dataset.loaded);
+                setDatasetName(dataset.name);
+                setLoadedSummary(dataset.summary);
+            }
+
+            refreshGraphData();
+        });
+    }, [refreshGraphData, session]);
+
+    /* `runFindGroups` is declared further down; a load reaches it through this ref. */
+    const runFindGroupsRef = useRef<(options: { readonly retiresInsightCard: boolean }, via?: TransactionScope) => Promise<void>>(
+        () => Promise.resolve(),
+    );
+
+    /**
+     * Loads a source as ONE undoable step, with the decisions 7.2 makes for a fresh dataset.
+     *
+     * One `session.transaction`, so the first Undo after a load takes the whole load away --
+     * the file, the layout the element chose for it, the label layer -- rather than only the
+     * last thing the load happened to add. Inside it, in order: the import, replacing the
+     * graph and letting graphty-element choose the arrangement (`layout: "recommended"`); the
+     * sweep of the layers that described the previous dataset; the degree pass; and the label
+     * layer, which names the degree run and so selects nothing until the run's results land,
+     * when the element repaints it.
+     *
+     * The degree pass and a sample's suggested Find groups are started through `tx` and NOT
+     * awaited, so they are deferred members of the load's step: the step is recorded as soon as
+     * the file is on screen, their results merge into it when they finish, and an Undo pressed
+     * while one is still running cancels it.
+     *
+     * A load that fails rolls back: the element keeps what it held and records nothing, and
+     * the rejection reaches the caller, which reports it.
+     * @param label - what the history calls the step: the file's name.
+     * @param summary - what the Loaded data section says about the file.
+     * @param source - the data source to import.
+     * @param suggested - the card a sample's hint asked to run once the data is in, or null.
+     * @returns settles once the data is in and the step is recorded.
+     */
+    const loadDataset = useCallback(
+        async (
+            label: string,
+            summary: LoadedDataSummary | undefined,
+            source: DataSourceInput,
+            suggested: InsightCapability | null,
+        ): Promise<void> => {
+            const session = elementSession(graphtyRef.current?.graph);
+
+            if (session === null) {
+                throw new Error(GRAPH_NOT_INITIALISED);
+            }
+
+            const measured: { degree?: ReturnType<typeof startDegreePass>; labelCount: number } = { labelCount: 0 };
+
+            await session.transaction(label, async (tx) => {
+                const imported = tx.data.import(source, { mode: "replace", layout: "recommended" });
+
+                await tx.styles.removeBySource(describesDataset);
+                await imported;
+
+                // The new dataset is in: what the shell held about the old one goes now.
+                crossDatasetBoundary();
+
+                const { nodeCount } = tx.data.statistics();
+
+                if (nodeCount === 0) {
+                    return;
+                }
+
+                /* The layer asks graphty-element for the top `labelCount` nodes of the RUN that
+                   measures the degrees; the element decides where the cut falls and what a tie
+                   across the budget does. A budget of zero is the reader's switch turned off.
+
+                   NO node colour or size layer, a deliberate departure from 7.2: the element's
+                   own `default` layer carries hand-tuned node and edge values, and restoring
+                   them was the product owner's call (2026-09-13). Labels stay, because they
+                   add a channel rather than overriding a tuned value. */
+                measured.labelCount = loadDefaults({ nodeCount }).labelCount;
+                measured.degree = startDegreePass(tx);
+
+                if (measured.labelCount > 0) {
+                    await tx.styles
+                        .add(topDegreeLabelLayer({ degreeRunId: measured.degree.runId, labelCount: measured.labelCount }))
+                        .then(
+                            () => undefined,
+                            (error: unknown) => {
+                                console.error("[shell] the element refused the top-degree label layer:", error);
+                            },
+                        );
+                }
+
+                /* Spec 5643-5648: the hint's click ends "one undoable history entry, that card
+                   retired" -- this one, the load's. The run retires the card on the far side
+                   of the work, so a run that threw has retired nothing. */
+                if (suggested === "community-detection") {
+                    // The hint takes the reader to Analyze, so the first-load switch to Explore stands down.
+                    firstLoadDone.current = true;
+                    runFindGroupsRef.current({ retiresInsightCard: true }, tx).catch((error: unknown) => {
+                        console.error("[shell] could not run the suggested card:", error);
+                    });
+                }
+            });
+
+            recordDatasetStep(session, { loaded: true, name: label, summary });
+
+            const { degree, labelCount } = measured;
+
+            if (degree === undefined) {
+                return;
+            }
+
+            const { nodeCount, edgeCount } = session.data.statistics();
+
+            degree.results.then(
+                (results) => {
+                    /* Stamped with the graph it was measured over. Both counts, not only the
+                       nodes: a file that adds edges between nodes that are already here changes
+                       every degree in the ranking without changing its length. */
+                    setDegreePass({ results, nodeCount, edgeCount });
+
+                    /* The layer and this sentence read the same cut, so when a tie across the
+                       budget leaves labels out, Settings > Performance says why. */
+                    if (labelCount > 0) {
+                        setLabelShortfall(
+                            session.runs.get(degree.runId)?.result?.top(METRIC_VALUE_FIELD, labelCount).reason ?? null,
+                        );
+                    }
+                },
+                // Cancelled by an Undo pressed while it ran, or failed: there is nothing to read.
+                () => undefined,
+            );
+        },
+        [crossDatasetBoundary, recordDatasetStep],
+    );
+
     /* ---------------------------------------------------------------------- */
     /* `?test`: the built-in sample, so a developer can reach a populated shell */
     /* without going through the dialog. The fixture is defined once, in        */
@@ -2282,12 +2116,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             return;
         }
 
-        const handle = graphtyRef.current;
-
-        if (handle === null) {
-            return;
-        }
-
         sampleLoaded.current = true;
 
         // Through the ordinary load path, not around it: the counts are read from the
@@ -2295,9 +2123,16 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         // `pasted-data`, and the first-load switch to Explore fires the way it does for
         // a file. The older shell wrote its counts by hand from the fixture's length,
         // which is the read-too-early bug this shell exists not to have.
-        handle.loadData("json", { data: JSON.stringify(CAT_SOCIAL_NETWORK) });
-        finishLoad(CAT_SOCIAL_NETWORK_NAME, "json", { format: "json", size: undefined });
-    }, [finishLoad, graphReady]);
+        const summary: LoadedDataSummary = { format: "json", size: undefined };
+
+        finishLoad(CAT_SOCIAL_NETWORK_NAME, "json", summary);
+        loadDataset(CAT_SOCIAL_NETWORK_NAME, summary, { type: "json", config: { data: JSON.stringify(CAT_SOCIAL_NETWORK) } }, null).catch(
+            (error: unknown) => {
+                console.error("[shell] failed to load the test fixture:", error);
+                reportLoadFailureRef.current(loadFailureReason(error));
+            },
+        );
+    }, [finishLoad, graphReady, loadDataset]);
 
     /**
      * Loads what the dialog, a drop or a URL asked for, and says so either way.
@@ -2309,32 +2144,15 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * reported to the shell's own surfaces first and then re-thrown, so one rejection
      * serves both places it is needed.
      *
-     * THE DEFECT THIS CLOSES, which is not the one the return type was added for. The
-     * chain used to end at the element's door: `load()` resolved as soon as
-     * `GraphtyHandle` had assigned the element's `dataSource` pair, and the element
-     * reports a parse failure LATER and out of band, through `data-loading-error`, rather
-     * than by rejecting anything (graphty-element.ts:334 discards the load's promise). So
-     * the promise the dialog awaited resolved for a malformed paste and a malformed file
-     * -- the exact failures the stay-open contract was written for -- the dialog closed,
-     * `resetState` wiped the textarea, and only then did the sentence appear somewhere
-     * else entirely. The contract held for the pre-flight throws alone: an undetectable
-     * format, a fetch on an extensionless URL, a host that is not up yet.
+     * The chain resolves only once graphty-element has the whole file: the load is one
+     * transaction on the session ({@link loadDataset}), which resolves after the last chunk
+     * and rejects, rolled back, when the data does not parse or cannot be fetched. So a
+     * malformed paste keeps the dialog open with the reader's text still in it.
      *
-     * So the chain now runs one step further: it waits for the element's own report
-     * ({@link PendingLoadReport}) and rejects on `data-loading-error`, and the wait is
-     * armed BEFORE the element is touched because the element can report the failure
-     * inside the same microtask batch as the assignment that started it. What the wait
-     * cannot do is prove the report belongs to THIS load -- no load event carries an id --
-     * and where it gives up, it gives up quietly rather than inventing a failure; both are
-     * written out in full on {@link PendingLoadReport}.
-     *
-     * `finishLoad` deliberately stays where it was, ahead of the wait. Its optimism is not
-     * this function's to remove: the status bar, the Loading sub-state of 6.1 and the Data
-     * table drawer all describe a load WHILE it arrives, and the failure path already
-     * unwinds every claim it makes (`reportLoadFailure`). Moving it behind the wait would
-     * leave the shell claiming nothing at all for the whole of a large load. What DID move
-     * is the session's first-load switch to Explore, because that one was unmounting the
-     * dialog: see the effect beside `finishLoad`.
+     * `finishLoad` stays ahead of the load. Its optimism is not this function's to remove:
+     * the status bar, the Loading sub-state of 6.1 and the Data table drawer all describe a
+     * load WHILE it arrives, and the failure path unwinds every claim it makes
+     * (`reportLoadFailure`).
      *
      * What it rejects with is the SENTENCE, not the raw throw. The dialog draws whatever
      * reaches it, and the element's own message names the format and never the file
@@ -2344,8 +2162,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * built by the same formatter from the same two facts. One spelling of one fact, in
      * the one place that knows the name the reader chose.
      * @param request - what to load, as the dialog or a drop built it.
-     * @returns a promise that resolves once graphty-element has reported the data arrived,
-     * and rejects when the load was refused or the element reported it did not.
+     * @returns a promise that resolves once the data is in and recorded as one step, and
+     * rejects when the load was refused or did not arrive.
      */
     const handleLoad = useCallback(
         async (request: LoadDataRequest): Promise<void> => {
@@ -2359,19 +2177,18 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                seconds later and the ref belongs to whatever load is most recent by then. */
             const fileName = loadRequestName(request) ?? UNNAMED_LOAD_SOURCE;
 
-            /* Recorded BEFORE the load starts: see {@link PendingLoad}. An ADDITIVE load
-               over a live dataset is the one kind whose failure leaves a graph on the
-               canvas, so it is the one kind that survives its own failure. */
+            /* Recorded BEFORE the load starts: see {@link PendingLoad}. A failed load rolls
+               back, so whatever was drawn before it is still drawn after it. */
             pendingLoadRef.current = {
                 fileName,
-                survivesFailure: !request.replaceExisting && drawn.loaded,
+                survivesFailure: drawn.loaded,
                 previousName: drawn.name,
                 previousSummary: drawn.summary,
             };
 
             const format = request.format === "auto" ? undefined : request.format;
 
-            const load = async (): Promise<string> => {
+            const load = async (): Promise<void> => {
                 const handle = graphtyRef.current;
 
                 /* Inside the chain rather than in front of it, so a host that is not up
@@ -2381,8 +2198,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     throw new Error(GRAPH_NOT_INITIALISED);
                 }
 
-                /* Refused HERE, before the element is touched, because the element cannot
-                   perform it and says nothing when it does not: see
+                /* Refused HERE, before the element is touched: see
                    {@link ADDITIVE_LOAD_UNSUPPORTED}. Both routes that can ask for one --
                    the Data panel's drop on a loaded shell, and the dialog's unticked
                    "Replace existing data" -- come through this one function, so the refusal
@@ -2391,71 +2207,25 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     throw new Error(ADDITIVE_LOAD_UNSUPPORTED);
                 }
 
-                if (request.replaceExisting) {
-                    // A replacing load crosses the same boundary as Close dataset
-                    // (6.12), so it clears the same things by the same route.
-                    handle.clearData();
-                    crossDatasetBoundary();
-                }
-
-                if (request.inputMethod === "url" && request.url !== undefined) {
-                    await handle.loadFromUrl(request.url, format);
-
-                    return request.url.split("/").pop() ?? request.url;
-                }
-
-                if (request.inputMethod === "file" && request.file !== undefined) {
-                    await handle.loadFromFile(request.file, format);
-
-                    return request.file.name;
-                }
-
-                if (request.inputMethod === "paste" && request.data !== undefined) {
-                    handle.loadData(format ?? "json", { data: request.data });
-
-                    return PASTED_DATA_NAME;
-                }
-
-                throw new Error(NO_SOURCE_NAMED);
-            };
-
-            /* Armed before `load()` runs, not after it resolves: the element can publish
-               `data-loading-error` in the same microtask batch as the property assignment
-               that started the load, and a wait armed after that assignment would sleep
-               through it. See {@link armLoadReport}. */
-            const report = armLoadReport();
-
-            try {
-                const name = await load();
+                const [name, source] = await readSource(handle, request, format);
 
                 finishLoad(name, format ?? "auto", loadedDataSummary(request));
+                await loadDataset(name, loadedDataSummary(request), source, null);
+            };
 
-                /* The step that makes the dialog's contract true. Until the element has
-                   said `data-loaded`, nobody knows whether the bytes it accepted were a
-                   graph, so nobody may close a dialog over them. */
-                await report.settled;
+            try {
+                await load();
             } catch (error: unknown) {
-                /* Whatever this rejection was, nothing is waiting on the element for this
-                   load any more. A refusal that never reached the element -- an additive
-                   load, an undetectable format -- would otherwise leave a wait armed to
-                   swallow the NEXT load's report; a failure the element itself reported
-                   has already settled this and is a no-op here. */
-                report.settle(null);
-
                 console.error("[shell] failed to load data:", error);
 
                 const reason = loadFailureReason(error);
 
-                /* Through the ref, not through the captured callback, and that is a
-                   consequence of the wait rather than a style choice. `reportLoadFailure`
-                   closes over `activeActivity`, and this `catch` now runs SECONDS after
-                   the render that captured it -- after `finishLoad` has moved the reader
-                   to Explore on the session's first load, in fact. The captured copy
-                   therefore still believed the reader was on the activity they had left,
-                   and the clause that sends them to Data (the one activity the rail leaves
-                   enabled in Empty) did not fire: the reader was stranded on an open
-                   Explore panel the rail had just disabled. The ref is the same reporter
-                   the element's own listener uses, and it is always the current one. */
+                /* Through the ref, not through the captured callback. `reportLoadFailure`
+                   closes over `activeActivity`, and this `catch` runs SECONDS after the
+                   render that captured it -- after `finishLoad` has moved the reader to
+                   Explore on the session's first load, in fact -- so the captured copy would
+                   send nobody back to Data and strand the reader on a panel the rail had
+                   just disabled. The ref is always the current reporter. */
                 reportLoadFailureRef.current(reason);
 
                 /* The sentence, not the raw throw: the dialog prints what it is handed and
@@ -2465,23 +2235,19 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 throw new Error(loadFailureSentence({ fileName, reason }));
             }
         },
-        [armLoadReport, crossDatasetBoundary, finishLoad],
+        [finishLoad, loadDataset],
     );
 
     /**
      * Loads one row of the sample library, and optionally runs its suggested first card.
      *
-     * It goes through the ordinary load paths rather than around them -- the `?test`
-     * fixture's `loadData` for an inline sample, `handleLoad`'s own `loadFromUrl` for a
-     * served one -- so the counts come from the graph's own data events and the first
-     * load switches the panel to Explore exactly as a file does. It crosses the dataset
-     * boundary first, as `handleLoad` does for a replacing load, because a sample click
-     * IS a replacing load.
+     * It goes through the ordinary load path, {@link loadDataset}, so the counts come from
+     * the graph's own data events and the first load switches the panel to Explore exactly
+     * as a file does.
      *
-     * The suggested card is NOT run here. It is recorded on a ref and run by the
-     * load-defaults effect once the 7.2 defaults have landed, so the grouping colours are
-     * painted over the neutral base rather than under it, and the degrees the labels need
-     * are already read back. That is what makes the hint one interaction instead of two.
+     * The suggested card runs inside the load's own transaction, after the degree pass and
+     * the label layer, so the grouping colours are painted over them and the whole hint is
+     * one interaction and one undoable step.
      * @param record - the manifest row the reader clicked.
      * @param runSuggested - whether the row's closing hint was what was clicked.
      */
@@ -2489,64 +2255,36 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         (record: SampleRecord, runSuggested: boolean) => {
             setLoadFailure(null);
 
-            /* Recorded before the load starts, exactly as `handleLoad` records it and for
-               the same reason: a sample whose file does not parse fails through the
-               element's own event, long after this function has returned. A sample click
-               is a REPLACING load, so nothing of it survives a failure. */
+            /* Recorded before the load starts, exactly as `handleLoad` records it: a failed
+               load rolls back, so whatever was drawn before it is still drawn after it. */
             pendingLoadRef.current = {
                 fileName: record.fileName,
-                survivesFailure: false,
+                survivesFailure: drawnDatasetRef.current.loaded,
                 previousName: drawnDatasetRef.current.name,
                 previousSummary: drawnDatasetRef.current.summary,
             };
 
-            const handle = graphtyRef.current;
-
-            if (handle === null) {
-                console.error("[shell] the graph is not initialised yet");
-                reportLoadFailure(loadFailureReason(new Error(GRAPH_NOT_INITIALISED)));
-
-                return;
-            }
-
-            /* A sample click is a REPLACING load, so it takes `handleLoad`'s route
-               through the 6.12 boundary rather than merging into whatever is drawn: the
-               old records go, and with them the selection, the stale result, the layers
-               that encoded the old graph and the latch that would otherwise deny the new
-               dataset its own 7.2 defaults. Before this, a sample clicked from the Data
-               panel in the Loaded state renamed the dataset in the top bar while the
-               graph kept the old one's nodes -- the shell asserting a dataset that was
-               never loaded. */
-            handle.clearData();
-            crossDatasetBoundary();
-
-            // After the boundary, which clears it: the pending card belongs to the load
-            // that is starting, not to the dataset that has just gone.
-            pendingSuggestedRef.current = runSuggested ? (record.suggestedCapability ?? null) : null;
-
+            /* A sample click is a REPLACING load, so it takes `handleLoad`'s route: one
+               transaction that replaces the graph and sweeps the layers that encoded the old
+               one. Before this, a sample clicked from the Data panel in the Loaded state
+               renamed the dataset in the top bar while the graph kept the old one's nodes --
+               the shell asserting a dataset that was never loaded. */
             const { source } = record;
+            const summary: LoadedDataSummary = { format: source.format, size: undefined };
+            const input: DataSourceInput =
+                source.kind === "inline"
+                    ? { type: source.format, config: { data: JSON.stringify(source.payload) } }
+                    : { type: source.format, config: { url: source.url } };
 
-            if (source.kind === "inline") {
-                handle.loadData(source.format, { data: JSON.stringify(source.payload) });
-                finishLoad(record.fileName, source.format, { format: source.format, size: undefined });
-
-                return;
-            }
-
-            handle
-                .loadFromUrl(source.url, source.format)
-                .then(() => {
-                    finishLoad(record.fileName, source.format, { format: source.format, size: undefined });
-                })
-                .catch((error: unknown) => {
+            finishLoad(record.fileName, source.format, summary);
+            loadDataset(record.fileName, summary, input, runSuggested ? (record.suggestedCapability ?? null) : null).catch(
+                (error: unknown) => {
                     console.error("[shell] failed to load the sample:", error);
-
-                    /* Which also clears the pending suggested card: the hint belonged to
-                       the sample that did not arrive. */
                     reportLoadFailure(loadFailureReason(error));
-                });
+                },
+            );
         },
-        [crossDatasetBoundary, finishLoad, reportLoadFailure],
+        [finishLoad, loadDataset, reportLoadFailure],
     );
 
     /* ---------------------------------------------------------------------- */
@@ -2825,9 +2563,10 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * job), and neither does a run that never happened.
      * @param options - what this route asks of the run.
      * @param options.retiresInsightCard - whether a COMPLETED run retires the Groups card.
+     * @param via - a transaction's `tx` the run joins, or undefined for a step of its own.
      */
     const runFindGroups = useCallback(
-        async (options: { readonly retiresInsightCard: boolean }): Promise<void> => {
+        async (options: { readonly retiresInsightCard: boolean }, via?: TransactionScope): Promise<void> => {
             const graph = asElementGraph(graphtyRef.current?.graph);
 
             if (graph === null) {
@@ -2837,7 +2576,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             }
 
             const session = graph.getSession();
-            const stats = await runCommunityDetection(graph);
+            const stats = await runCommunityDetection(via ?? session);
 
             /* The RUN painted the groups, not the shell. A community result publishes a group
                per node, so the session derives a categorical colour encoding from the result's
@@ -2917,6 +2656,10 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         },
         [openPanelAt],
     );
+
+    useEffect(() => {
+        runFindGroupsRef.current = runFindGroups;
+    }, [runFindGroups]);
 
     /* ---------------------------------------------------------------------- */
     /* The three node metrics (spec 2307), and the size gate in front of them  */
@@ -3236,146 +2979,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         },
         [degreeResults, layers, openPanelAt],
     );
-
-    /* ---------------------------------------------------------------------- */
-    /* 7.2: what a load decides, and the degree pass it runs in the background */
-    /* ---------------------------------------------------------------------- */
-
-    /*
-     * The arrangement and the label budget, applied once per dataset. Nothing else runs
-     * (7.2).
-     *
-     * WHICH ARRANGEMENT IS THE ELEMENT'S ANSWER, not this file's and not the defaults
-     * module's. `recommendLayout` reads the graph's shape and how many nodes already carry
-     * a coordinate, resolves each candidate against the element's own layout catalogue, and
-     * never names one the element cannot serve at this size or without an input nobody has
-     * supplied. What it replaced was the same three cases decided here from a copy of that
-     * catalogue -- a copy that named "grid" as 7.2's first choice for years after the engine
-     * behind it stopped existing.
-     *
-     * The degree pass is awaited because three of the four decisions need it: the size
-     * scale reads `degreePct`, the label selector needs the labelCount-th degree as its
-     * cut, and the Search card's example is the highest-degree node's id.
-     *
-     * It waits for the load to be COMPLETE rather than for its first chunk, which is what
-     * `loadCompletions` counts. graphty-element loads in chunks with an await between
-     * them, so on any file over about a thousand nodes every fact 7.2 branches on -- the
-     * layout, the label budget, the size scale, Most connected, the Search example, and
-     * the above-threshold Performance branch itself -- would otherwise be measured over
-     * whatever arrived first and never corrected. The element says when the last chunk is
-     * in (DATA_LOADED_EVENT), so the one-shot latches on that instead of recomputing per
-     * chunk: the numbers are right the first time, the layers are added once, and the
-     * suggested card of 7.1 item 2 runs once, on the whole graph.
-     */
-    useEffect(() => {
-        if (!dataLoaded || loadCompletions === 0 || loadDefaultsAppliedRef.current) {
-            return;
-        }
-
-        if (graphData.nodes.length === 0) {
-            return;
-        }
-
-        const graph = asElementGraph(graphtyRef.current?.graph);
-
-        if (graph === null) {
-            return;
-        }
-
-        loadDefaultsAppliedRef.current = true;
-
-        const defaults = loadDefaults({ nodeCount: graphStatistics.nodeCount });
-        const session = graph.getSession();
-
-        /* `seededNodeCount`, NOT `positions.placedCount`, and the difference is the whole
-           decision. The position array is written by the importer AND by every running layout,
-           so one animation frame after a file with no coordinates loads, every node carries a
-           position -- the layout put it there. This effect runs after that frame, so reading the
-           live count answered "keep the arrangement the data arrived with" for a file that
-           arrived with none, and froze the graph at whatever the first step of a force layout
-           reached. The seeded count is what the importer itself placed and nothing else writes. */
-        const arrangement = recommendLayout(graphStatistics, { placedNodes: session.seededNodeCount });
-
-        if (arrangement !== undefined) {
-            /* `engine` and not `id`: `id` is the arrangement's public name ("force"), and
-               `setLayout` takes the engine that draws it ("ngraph"). No configuration of the
-               shell's own goes with it -- the element's recommendation is the whole decision,
-               and options belong to the Layout panel, where a reader can see them. */
-            setLayoutType(arrangement.layout.engine);
-            setLayoutConfig({});
-        }
-
-        const apply = async (): Promise<void> => {
-            const degrees = await runDegreePass(graph);
-
-            /* Stamped with the graph it was just measured over. Both counts, not only the
-               nodes: a file that adds edges between nodes that are already here changes
-               every degree in the ranking without changing its length. */
-            setDegreePass({ results: degrees, nodeCount: graphStatistics.nodeCount, edgeCount: graphStatistics.edgeCount });
-
-            /* NO node colour or size layer, which is a deliberate departure from 7.2's
-               "node size by degree on a square-root scale" and "a single neutral node
-               color".
-
-               The element's own `default` layer carries node and edge values that were
-               tuned by hand over a long stretch, and both of ours overrode them from the
-               first frame. The size layer was the worse of the two: `degreePct` is
-               `degree / maxDegree`, so on a graph whose smallest degree is half its
-               largest -- the cat fixture, degrees 2 to 4 -- every node landed between
-               3.12x and 4.00x the base. That is 7.2's 4x ceiling honoured and its point
-               missed, because the spread a reader could actually see was 1.28x while the
-               whole graph grew three-fold. Restoring the tuned defaults is the product
-               owner's call (2026-09-13); re-proposing either layer means fixing the
-               normalisation first, against the observed degree RANGE rather than the
-               maximum alone. Labels stay: they add a channel rather than overriding a
-               tuned value. */
-            const degreeRunId = degrees.runId;
-            const { labelCount } = defaults;
-
-            /* The layer asks graphty-element for the top `labelCount` nodes of the RUN that
-               measured the degrees; the element decides where the cut falls and what a tie
-               across the budget does. A budget of zero is the reader's switch turned off, and
-               no run means nothing for the layer to read. */
-            if (labelCount > 0 && degreeRunId !== undefined) {
-                await session.styles.add(topDegreeLabelLayer({ degreeRunId, labelCount })).then(
-                    () => undefined,
-                    (error: unknown) => {
-                        console.error("[shell] the element refused the top-degree label layer:", error);
-                    },
-                );
-
-                /* The layer and this sentence read the same cut, so when a tie across the budget
-                   leaves labels out, Settings > Performance says why in the element's words. */
-                setLabelShortfall(
-                    session.runs.get(degreeRunId)?.result?.top(METRIC_VALUE_FIELD, labelCount).reason ?? null,
-                );
-            }
-
-            const pending = pendingSuggestedRef.current;
-
-            pendingSuggestedRef.current = null;
-
-            if (pending === "community-detection") {
-                /* Spec 5643-5648: the hint's click ends "one undoable history entry, that
-                   card retired". The reader has been taken where the card was taking
-                   them, so the card has done its job, and the retirement outlives the
-                   session in the insights key. The run itself retires it, on the far side
-                   of the work: a run that threw has retired nothing. */
-                await runFindGroups({ retiresInsightCard: true });
-            }
-        };
-
-        apply().catch((error: unknown) => {
-            console.error("[shell] could not apply the load defaults:", error);
-        });
-    }, [
-        dataLoaded,
-        graphData.nodes.length,
-        graphStatistics.edgeCount,
-        graphStatistics.nodeCount,
-        loadCompletions,
-        runFindGroups,
-    ]);
 
     /* ---------------------------------------------------------------------- */
     /* The canvas's docks and overlays                                        */
@@ -3736,7 +3339,27 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     label: CLOSE_DATASET_ROW,
                     separatorBefore: true,
                     onSelect: () => {
-                        graphtyRef.current?.clearData();
+                        const session = elementSession(graphtyRef.current?.graph);
+
+                        /* One step, so one Undo brings the dataset back with its styles: the
+                           graph is emptied and the layers that described it are swept in the
+                           same transaction. */
+                        if (session !== null) {
+                            session
+                                .transaction(`Closed ${drawnDatasetRef.current.name ?? "the dataset"}`, async (tx) => {
+                                    await tx.styles.removeBySource(describesDataset);
+                                    await tx.data.clear();
+                                })
+                                .then(
+                                    () => {
+                                        recordDatasetStep(session, { loaded: false, name: null, summary: undefined });
+                                    },
+                                    (error: unknown) => {
+                                        console.error("[shell] the element refused to close the dataset:", error);
+                                    },
+                                );
+                        }
+
                         setDataLoaded(false);
                         setDatasetName(null);
                         setGraphData(NO_GRAPH_DATA);
@@ -3782,7 +3405,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         }
 
         return [];
-    }, [activeActivity, crossDatasetBoundary]);
+    }, [activeActivity, crossDatasetBoundary, recordDatasetStep]);
 
     const panelBody = useMemo(() => {
         switch (activeActivity) {

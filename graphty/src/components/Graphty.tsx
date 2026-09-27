@@ -1,5 +1,5 @@
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
-import type { AccelerationPolicy, GraphSession, Layer } from "@graphty/graphty-element/session";
+import type { AccelerationPolicy, DataSourceInput, GraphSession, Layer } from "@graphty/graphty-element/session";
 import { Box } from "@mantine/core";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 
@@ -44,8 +44,6 @@ interface GraphtyElementType
     layoutConfig?: Record<string, unknown>;
     dataSource?: string;
     dataSourceConfig?: Record<string, unknown>;
-    /** Clears the graph AND resets the element's per-load data-source guard. */
-    clearData?: () => void;
     graph?: Graph;
 }
 
@@ -94,9 +92,6 @@ interface GraphtyProps {
     layout2d?: boolean;
     /** View mode: "2d", "3d", "vr", or "ar" */
     viewMode?: ViewMode;
-    dataSource?: string;
-    dataSourceConfig?: Record<string, unknown>;
-    replaceExisting?: boolean;
     layout?: string;
     layoutConfig?: Record<string, unknown>;
     /** Called when a node is selected or deselected */
@@ -215,14 +210,13 @@ export interface GraphtyHandle {
         nodes: Record<string, unknown>[];
         edges: Record<string, unknown>[];
     };
-    /** Load data from a URL */
-    loadFromUrl: (url: string, format?: string) => Promise<void>;
-    /** Load data from a File object */
-    loadFromFile: (file: File, format?: string) => Promise<void>;
-    /** Load data with a specific format and config */
-    loadData: (format: string, config: Record<string, unknown>) => void;
-    /** Clear all data from the graph */
-    clearData: () => void;
+    /**
+     * The data source a URL names, for `session.data.import`: the format from the extension, or
+     * from the content when the extension says nothing. Touches nothing on the element.
+     */
+    sourceFromUrl: (url: string, format?: string) => Promise<DataSourceInput>;
+    /** The data source a file holds, for `session.data.import`, detected the same way. */
+    sourceFromFile: (file: File, format?: string) => Promise<DataSourceInput>;
     /**
      * Pin nodes where they are, so no layout moves them again.
      *
@@ -244,7 +238,7 @@ export interface GraphtyHandle {
 }
 
 export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
-    { layers: _layers, acceleration, viewMode, dataSource, dataSourceConfig, replaceExisting, layout = "d3", layoutConfig, onSelectionChange, onStylesChange, onSession, ...rest },
+    { layers: _layers, acceleration, viewMode, layout = "d3", layoutConfig, onSelectionChange, onStylesChange, onSession, ...rest },
     ref,
 ): React.JSX.Element {
     // Resolve viewMode from props, with backward compatibility for deprecated layout2d prop
@@ -252,9 +246,6 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
     const resolvedViewMode: ViewMode = viewMode ?? (deprecatedLayout2d ? "2d" : "3d");
     const containerRef = useRef<HTMLDivElement>(null);
     const graphtyRef = useRef<GraphtyElementType>(null);
-    const prevDataSourceRef = useRef<{ dataSource?: string; dataSourceConfig?: Record<string, unknown> } | undefined>(
-        undefined,
-    );
 
     useImperativeHandle(
         ref,
@@ -296,79 +287,46 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
 
                 return { nodes, edges };
             },
-            loadFromUrl: async (url: string, format?: string) => {
-                if (!graphtyRef.current) {
-                    throw new Error("Graph element not initialized");
+            sourceFromUrl: async (url: string, format?: string): Promise<DataSourceInput> => {
+                const named = format ?? detectFormatFromFilename(url) ?? undefined;
+
+                if (named !== undefined) {
+                    // The element fetches it.
+                    return { type: named, config: { url } };
                 }
 
-                let detectedFormat = format;
-
-                // If no format provided, try to detect from URL extension
-                detectedFormat ??= detectFormatFromFilename(url) ?? undefined;
-
-                // If still no format, fetch content and detect from content
-                if (!detectedFormat) {
-                    const response = await fetch(url);
-                    if (!response.ok) {
-                        throw new Error(`Failed to fetch URL: ${response.status} ${response.statusText}`);
-                    }
-
-                    const content = await response.text();
-                    const sample = content.slice(0, 2048);
-                    detectedFormat = detectFormatFromContent(sample) ?? undefined;
-
-                    if (!detectedFormat) {
-                        throw new Error(
-                            `Could not detect file format from URL '${url}'. ` +
-                                "Supported formats: JSON, GraphML, GEXF, CSV, GML, DOT, Pajek.",
-                        );
-                    }
-
-                    // Pass content directly to avoid double-fetch
-                    graphtyRef.current.dataSource = detectedFormat;
-                    graphtyRef.current.dataSourceConfig = { data: content };
-                    return;
+                // No extension to go by, so the content decides, and is passed on so it is fetched once.
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch URL: ${response.status} ${response.statusText}`);
                 }
 
-                // Pass URL for graphty-element to fetch
-                graphtyRef.current.dataSource = detectedFormat;
-                graphtyRef.current.dataSourceConfig = { url };
+                const content = await response.text();
+                const detected = detectFormatFromContent(content.slice(0, 2048));
+
+                if (!detected) {
+                    throw new Error(
+                        `Could not detect file format from URL '${url}'. ` +
+                            "Supported formats: JSON, GraphML, GEXF, CSV, GML, DOT, Pajek.",
+                    );
+                }
+
+                return { type: detected, config: { data: content } };
             },
-            loadFromFile: async (file: File, format?: string) => {
-                if (!graphtyRef.current) {
-                    throw new Error("Graph element not initialized");
+            sourceFromFile: async (file: File, format?: string): Promise<DataSourceInput> => {
+                const detected =
+                    format ??
+                    detectFormatFromFilename(file.name) ??
+                    detectFormatFromContent(await file.slice(0, 2048).text());
+
+                if (!detected) {
+                    throw new Error(
+                        `Could not detect file format from '${file.name}'. ` +
+                            "Supported formats: JSON, GraphML, GEXF, CSV, GML, DOT, Pajek.",
+                    );
                 }
 
-                let detectedFormat = format;
-
-                // If no format provided, try to detect from filename
-                detectedFormat ??= detectFormatFromFilename(file.name) ?? undefined;
-
-                // If still no format, read content and detect from content
-                if (!detectedFormat) {
-                    const sample = await file.slice(0, 2048).text();
-                    detectedFormat = detectFormatFromContent(sample) ?? undefined;
-
-                    if (!detectedFormat) {
-                        throw new Error(
-                            `Could not detect file format from '${file.name}'. ` +
-                                "Supported formats: JSON, GraphML, GEXF, CSV, GML, DOT, Pajek.",
-                        );
-                    }
-                }
-
-                // Read full file content
-                const content = await file.text();
-                graphtyRef.current.dataSource = detectedFormat;
-                graphtyRef.current.dataSourceConfig = { data: content };
-            },
-            loadData: (format: string, config: Record<string, unknown>) => {
-                if (!graphtyRef.current) {
-                    throw new Error("Graph element not initialized");
-                }
-
-                graphtyRef.current.dataSource = format;
-                graphtyRef.current.dataSourceConfig = config;
+                return { type: detected, config: { data: await file.text() } };
             },
             pin: (ids: (string | number) | readonly (string | number)[]) => {
                 graphtyRef.current?.pin(ids);
@@ -386,13 +344,6 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
 
                 return graphtyRef.current.captureScreenshot(options);
             },
-            clearData: () => {
-                // The element's own method, not `graph.dataManager.clear()`: clearing the
-                // data has to reset the element's per-load data-source guard as well, and
-                // only the element can reach it. Reaching past it left a second load
-                // setting the new source without ever starting it.
-                graphtyRef.current?.clearData?.();
-            },
             get graph() {
                 return graphtyRef.current?.graph ?? null;
             },
@@ -402,36 +353,6 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
         }),
         [],
     );
-
-    // Handle data source changes from props
-    useEffect(() => {
-        if (!graphtyRef.current || !dataSource) {
-            return;
-        }
-
-        // Check if data source actually changed
-        const prev = prevDataSourceRef.current;
-        if (prev !== undefined) {
-            if (
-                prev.dataSource === dataSource &&
-                JSON.stringify(prev.dataSourceConfig) === JSON.stringify(dataSourceConfig)
-            ) {
-                return;
-            }
-        }
-
-        // Clear existing data if requested
-        if (replaceExisting) {
-            graphtyRef.current.graph?.dataManager.clear();
-        }
-
-        graphtyRef.current.dataSource = dataSource;
-        if (dataSourceConfig) {
-            graphtyRef.current.dataSourceConfig = dataSourceConfig;
-        }
-
-        prevDataSourceRef.current = { dataSource, dataSourceConfig };
-    }, [dataSource, dataSourceConfig, replaceExisting]);
 
     // The app thins out node labels that would be drawn over each other. The element does the
     // work; its default is off so that every other consumer keeps the picture it had.

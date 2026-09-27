@@ -64,9 +64,8 @@ const RUN_A_RECIPE_LABEL = "Run a recipe...";
  *
  * Spec 872-882 gives a second file a "What to do with this file" dialog whose four
  * choices open with Replace current graph and Add to current graph. This build has the
- * first and not the second: the app's load path reaches graphty-element through the
- * `dataSource`/`dataSourceConfig` pair, whose initialisation guard is per LOAD and is
- * reset only by `clearData()`, so a load that does not replace starts nothing at all. The
+ * first and not the second: the element can merge, but the dialog that asks which merge
+ * the reader means does not exist yet. The
  * shell refuses such a load with a sentence rather than performing it silently, and this
  * row is the same fact stated BEFORE the drop instead of after it -- which is what the
  * panel already does for its other two unshipped routes rather than letting a reader find

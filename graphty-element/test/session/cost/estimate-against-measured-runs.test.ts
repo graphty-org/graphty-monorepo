@@ -280,15 +280,25 @@ const ROWS: readonly Row[] = [
             return out;
         },
     },
+    // The estimate prices the whole iteration bound, so the row held to both bounds is one that
+    // runs most of it: 1e-10 is the smallest tolerance the element's schema accepts, and on a
+    // directed path PageRank takes 78 to 83 of its 100 passes to reach it at these sizes. A random
+    // graph converges in about 20 (9 or 10 at the default 1e-6) since pageRank stopped leaking rank
+    // on 2026-09-24, so there the estimate is 17 to 31x over and only its optimism is held.
+    {
+        key: "pagerank",
+        mode: "directed",
+        sizes: [16_000, 32_000],
+        shape: path,
+        shapeName: "path",
+        run: (graph) => pageRank(graph, { dampingFactor: 0.85, maxIterations: 100, tolerance: 1e-10, useDelta: true }),
+    },
     {
         key: "pagerank",
         mode: "directed",
         sizes: [4_000, 8_000],
-        // The estimate prices the whole iteration bound, so the run must use it: at the default
-        // tolerance of 1e-6 some of these graphs converge in a handful of passes (measured 9-11x
-        // under the estimate at n = 4,000) and others do not. 1e-10 is the smallest tolerance the
-        // element's schema accepts, and 0.85^100 is about 1e-7, so all 100 passes run.
         run: (graph) => pageRank(graph, { dampingFactor: 0.85, maxIterations: 100, tolerance: 1e-10, useDelta: true }),
+        optimismOnly: "this graph converges in about 20 of the 100 passes the estimate charges",
     },
     {
         key: "betweenness",
@@ -604,11 +614,11 @@ afterAll(() => {
     }
 });
 
-// A stopwatch test. Its rates were fitted on the reference machine the pre-push gate runs on, and
-// the calibration probe did not carry them to CI's runners: there, degree, pagerank, betweenness
-// and closeness read 9 to 17 times pessimistic while the same rows pass here. So it runs only
-// where the rates were measured, by hand on a quiet machine -- `npm run test:cost` sets
-// COST_GUARD=1; it is not in the pre-push gate -- until the calibration is shown to transfer.
+// A stopwatch test, so it is kept out of every pass/fail gate. It runs in CI's "Cost Estimate
+// Accuracy" job on each push to master (ci.yml, `cost-accuracy`), which reports a drift as a red job
+// without blocking a pull request, and by hand with `npm run test:cost`; both set COST_GUARD=1. On
+// CI's runners (4-thread AMD EPYC 7763) the calibration probe reads about 0.5x the reference machine
+// and the held rows land between 1.5 and 3.2, as they do here: the probe carries the rates there.
 describe.runIf(process.env.COST_GUARD === "1")(
     "the cost estimate, against real runs of the algorithm the element runs",
     () => {

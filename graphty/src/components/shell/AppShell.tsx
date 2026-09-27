@@ -98,6 +98,7 @@ import {
     type AccelerationPolicy,
     type AccelerationStatus,
     type Channel,
+    type GraphSession,
     type GraphStatistics,
     type LayerSpec,
     recommendLayout,
@@ -228,8 +229,9 @@ import { formatCountPair, formatCountsTitle } from "./statusbar/formatCounts";
 import { StatusBar } from "./statusbar/StatusBar";
 import type { LayoutQuickPick, StatusBarCompletion, StatusBarIssuesModel, StatusBarSlotsModel } from "./statusbar/statusBarModel";
 import { CanvasToolbar, type CanvasToolbarComponentProps } from "./toolbar/CanvasToolbar";
+import { historyRows, undoVerb } from "./topbar/historyRows";
 import { TopBar } from "./topbar/TopBar";
-import { historyRows, useUndoStore } from "./topbar/undoStore";
+import { useSessionHistory } from "./topbar/useSessionHistory";
 import type { ActivityId, CanvasViewMode, PrimaryActivityId, SelectionKind, ShellStateAxis } from "./types";
 import { useShellKeyBindings } from "./useShellKeyBindings";
 
@@ -1476,11 +1478,23 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     } | null>(null);
 
     /* ---------------------------------------------------------------------- */
-    /* The one history store (section 3). Producers are not wired yet, so it   */
-    /* stays empty and the pop-out honestly reads "0 entries, 0 undone".       */
+    /* History. graphty-element owns it: Undo, Redo and the History pop-out    */
+    /* read the session's history and call the session, and nothing here       */
+    /* records a step.                                                         */
     /* ---------------------------------------------------------------------- */
 
-    const undoStore = useUndoStore();
+    const [session, setSession] = useState<GraphSession | null>(null);
+    const history = useSessionHistory(session);
+    const undo = useCallback(() => {
+        void session?.undo();
+    }, [session]);
+    const redo = useCallback(() => {
+        void session?.redo();
+    }, [session]);
+    const historyRowList = useMemo(
+        () => historyRows(history.steps, history.position, ACTIVITY_TITLES),
+        [history.steps, history.position],
+    );
 
     /* ---------------------------------------------------------------------- */
     /* AI                                                                      */
@@ -2893,15 +2907,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             });
             setColourChannel(canvasLegendChannels(session.styles.legend()));
             openPanelAt("analyze");
-            undoStore.push({
-                id: `groups-${String(Date.now())}`,
-                category: "algorithmResult",
-                title: "Found groups (Communities, Louvain)",
-                activity: "analyze",
-                activityLabel: ACTIVITY_TITLES.analyze,
-                at: Date.now(),
-                destinationTitle: "Ran Groups (Communities, Louvain). Opens Analyze at its card",
-            });
 
             /* Spec 5643-5648 and 7300: the card is retired once the reader has been taken
                where it was taking them. After the run, never before it -- a run that threw,
@@ -2910,7 +2915,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 setInsightsMemory((current) => withRetiredCapability(current, "community-detection"));
             }
         },
-        [openPanelAt, undoStore],
+        [openPanelAt],
     );
 
     /* ---------------------------------------------------------------------- */
@@ -3212,15 +3217,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 }
 
                 openPanelAt("analyze");
-                undoStore.push({
-                    id: `${metric}-${String(Date.now())}`,
-                    category: "algorithmResult",
-                    title: `Ran ${definition.plainName} (${definition.technicalName})`,
-                    activity: "analyze",
-                    activityLabel: ACTIVITY_TITLES.analyze,
-                    at: Date.now(),
-                    destinationTitle: `Ran ${definition.plainName} (${definition.technicalName}). Opens Analyze at its card`,
-                });
 
                 /* 7.3 conditions the retirement on the capability having been RUN, so it
                    happens here -- after the result is on screen -- and not at the call
@@ -3238,7 +3234,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 setRunningMetric(null);
             }
         },
-        [degreeResults, layers, openPanelAt, undoStore],
+        [degreeResults, layers, openPanelAt],
     );
 
     /* ---------------------------------------------------------------------- */
@@ -3651,13 +3647,13 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             keyboardShortcuts: () => {
                 openFullPanelOverlay("shortcuts");
             },
-            redo: undoStore.redo,
+            redo,
             resetView,
             toggleDataDrawer: toggleDrawer,
             toggleLegend,
             toggleSidebars,
             toggleViewMode,
-            undo: undoStore.undo,
+            undo,
             viewFront,
             viewSide,
             viewTop,
@@ -4961,6 +4957,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             layoutConfig,
             onSelectionChange: handleSelectionChange,
             onStylesChange: handleStylesChange,
+            onSession: setSession,
         },
         drawer: {
             tab: drawerTab,
@@ -5124,10 +5121,11 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             <TopBar
                 datasetName={datasetName}
                 dataLoaded={dataLoaded}
-                canUndo={undoStore.canUndo}
-                canRedo={undoStore.canRedo}
-                onUndo={undoStore.undo}
-                onRedo={undoStore.redo}
+                canUndo={history.canUndo}
+                canRedo={history.canRedo}
+                onUndo={undo}
+                onRedo={redo}
+                undoLabel={undoVerb(history.nextUndo)}
                 onOpenHistory={() => undefined}
                 onOpenCommandPalette={() => {
                     setPaletteOpen(true);
@@ -5145,16 +5143,14 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 sidebarsShown={sidebarsShown}
                 onToggleSidebars={toggleSidebars}
                 history={{
-                    rows: historyRows(undoStore),
-                    entryCount: undoStore.entries.length,
-                    undoneCount: undoStore.undoneCount,
+                    rows: historyRowList,
+                    entryCount: history.steps.length,
+                    undoneCount: history.steps.length - history.position,
                     onRestore: (entry) => {
-                        undoStore.restoreTo(entry.id);
+                        void session?.history.restoreTo(entry.id);
                     },
                     onOpenOwningPanel: (entry) => {
-                        if (entry.activity !== "settings" && entry.activity !== "help") {
-                            openPanelAt(entry.activity);
-                        }
+                        openPanelAt(entry.activity);
                     },
                 }}
             />

@@ -55,7 +55,7 @@
  */
 
 import { type DataTableColumn, PopoutRegion } from "@graphty/compact-mantine";
-import type { AccelerationPolicy } from "@graphty/graphty-element/session";
+import type { AccelerationPolicy, GraphSession } from "@graphty/graphty-element/session";
 import React, { useCallback, useMemo, useRef } from "react";
 
 import { Graphty,type GraphtyHandle, type SelectionChangedDetail, type StylesChangedDetail } from "../../Graphty";
@@ -102,6 +102,8 @@ export interface CanvasGraphConfig {
     readonly onSelectionChange?: (detail: SelectionChangedDetail) => void;
     /** Style layers changed inside graphty-element. */
     readonly onStylesChange?: (detail: StylesChangedDetail) => void;
+    /** The element's session, handed over once as soon as the element has come up. */
+    readonly onSession?: (session: GraphSession) => void;
 }
 
 /**
@@ -447,6 +449,7 @@ export function CanvasRegion<TRow extends object = Record<string, unknown>>(
                     layoutConfig={graph?.layoutConfig}
                     onSelectionChange={graph?.onSelectionChange}
                     onStylesChange={graph?.onStylesChange}
+                    onSession={graph?.onSession}
                 />
             </div>
 

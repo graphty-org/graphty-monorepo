@@ -29,6 +29,12 @@
  *   stand-in whose listing disagreed with its own estimate would let a board pass over a strip
  *   and a Run button quoting different figures.
  *
+ * - **An undo history, one step per verb.** Every style verb and every run the session really
+ *   executes records one step, exactly as the element's dispatcher does, and `undo` and `redo`
+ *   move the position and publish `history:changed`. A run and the encoding it paints are ONE
+ *   step, because they are in the element. Undo moves the position and does not put the
+ *   layers back: a board asserts what the shell reads off the history, never the picture.
+ *
  * What it does NOT model is anything about drawing: there is no repaint, no canvas and no
  * element. A board that needs those is a browser board against the real element.
  */
@@ -39,9 +45,12 @@ import type {
     CostEstimate,
     GraphSession,
     GraphStatistics,
+    HistoryOutcome,
+    HistoryStep,
     Layer,
     LayerSpec,
     LegendBlock,
+    ProjectSlice,
     RunId,
     RunResult,
     SessionCommand,
@@ -279,7 +288,7 @@ function fakeSeconds(algorithm: string, statistics: GraphStatistics): number {
  * @returns the session and the doors a board asserts through.
  */
 export function createFakeSession(options: FakeSessionOptions = {}): FakeSession {
-    const watchers = new Set<() => void>();
+    const watchers = new Map<string, Set<() => void>>();
     const runs: FakeRun[] = [];
     let minted = 0;
 
@@ -318,10 +327,108 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
         },
     ];
 
-    const publish = (): void => {
-        for (const watcher of watchers) {
+    const publish = (event = "style:changed"): void => {
+        for (const watcher of watchers.get(event) ?? []) {
             watcher();
         }
+    };
+
+    /* The history: every step, oldest first, and how many are applied. */
+    const steps: HistoryStep[] = [];
+    let position = 0;
+    let historyVersion = 0;
+    /* Open transactions. While one is open a verb joins it rather than recording its own step. */
+    let transactions = 0;
+
+    const historyMoved = (): void => {
+        historyVersion += 1;
+        publish("history:changed");
+    };
+
+    /**
+     * Records one step, dropping every undone step above the position, as a new action does.
+     * @param label - what the History pop-out prints.
+     * @param op - the command the step ran.
+     * @param slices - what it changed.
+     */
+    const record = (label: string, op: SessionCommand["op"], slices: readonly ProjectSlice[]): void => {
+        if (transactions > 0) {
+            return;
+        }
+
+        steps.splice(position);
+        steps.push(
+            Object.freeze({
+                id: `step-${String(steps.length + 1)}` as HistoryStep["id"],
+                label,
+                at: new Date().toISOString(),
+                ops: [op],
+                slices,
+                bytes: 0,
+                provenance: {},
+            }),
+        );
+        position = steps.length;
+        historyMoved();
+    };
+
+    /**
+     * Moves the position by one step.
+     * @param by - -1 to undo, +1 to redo.
+     * @returns what moved.
+     */
+    const walk = (by: -1 | 1): Promise<HistoryOutcome> => {
+        const next = position + by;
+
+        if (next < 0 || next > steps.length) {
+            return Promise.resolve({ kind: "nothing" });
+        }
+
+        const step = steps[by < 0 ? next : position];
+
+        position = next;
+        historyMoved();
+
+        return Promise.resolve({ kind: by < 0 ? "undone" : "redone", steps: [step] });
+    };
+
+    const history = {
+        get version() {
+            return historyVersion;
+        },
+        get steps() {
+            return [...steps];
+        },
+        get position() {
+            return position;
+        },
+        pending: [],
+        get nextUndo() {
+            return position === 0 ? null : { kind: "undo", step: steps[position - 1] };
+        },
+        bytes: 0,
+        limitBytes: Number.POSITIVE_INFINITY,
+        limitSteps: Number.POSITIVE_INFINITY,
+        restoreTo: (id: string | null): Promise<HistoryOutcome> => {
+            const at = id === null ? 0 : steps.findIndex((step) => step.id === id) + 1;
+
+            if (at === -1 || at === position) {
+                return Promise.resolve({ kind: "nothing" });
+            }
+
+            const touched = at < position ? steps.slice(at, position) : steps.slice(position, at);
+
+            position = at;
+            historyMoved();
+
+            return Promise.resolve({ kind: "restored", steps: touched });
+        },
+        cancel: () => [],
+        clear: () => {
+            steps.length = 0;
+            position = 0;
+            historyMoved();
+        },
     };
 
     const build = (spec: LayerSpec): Layer => {
@@ -362,7 +469,13 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
     const styles = {
         list: (): readonly Layer[] => [...layers],
         get: (id: string): Layer | undefined => layers.find((layer) => layer.id === id),
-        add: (spec: LayerSpec): Promise<Layer> => Promise.resolve(seed(spec)),
+        add: (spec: LayerSpec): Promise<Layer> => {
+            const layer = seed(spec);
+
+            record(`Added layer ${spec.name}`, "style.patch", ["styles"]);
+
+            return Promise.resolve(layer);
+        },
         update: (id: string, patch: Partial<LayerSpec>): Promise<Layer> => {
             const at = indexOf(id);
 
@@ -382,6 +495,7 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
 
             layers[at] = merged as Layer;
             publish();
+            record(`Changed layer ${layers[at].name}`, "style.patch", ["styles"]);
 
             return Promise.resolve(layers[at]);
         },
@@ -392,8 +506,10 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
                 return Promise.reject(new Error("E_PROTECTED"));
             }
 
-            layers.splice(at, 1);
+            const [removed] = layers.splice(at, 1);
+
             publish();
+            record(`Removed layer ${removed.name}`, "style.patch", ["styles"]);
 
             return Promise.resolve();
         },
@@ -409,6 +525,7 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
 
             layers.splice(target === -1 ? layers.length : target, 0, moved);
             publish();
+            record(`Moved layer ${moved.name}`, "style.patch", ["styles"]);
 
             return Promise.resolve();
         },
@@ -424,6 +541,7 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
 
             if (removed.length > 0) {
                 publish();
+                record("Removed layers", "style.patch", ["styles"]);
             }
 
             return Promise.resolve(removed);
@@ -455,6 +573,7 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
             }
 
             publish();
+            record(`Coloured by ${algorithm}`, "style.encode", ["styles"]);
 
             return Promise.resolve(layers[at === -1 ? layers.length - 1 : at]);
         },
@@ -589,21 +708,55 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
                        painted by the layer that is already reading it. */
                     held.result = resultFor(algorithm);
                     held.scope = scopeNow();
+                    record(`Ran ${algorithm}`, "algo.run", ["runs"]);
 
                     return Object.assign(Promise.resolve(held.result), { id: held.id });
                 }
 
                 const id = finishRun(algorithm, startOptions?.style ?? true);
+
+                record(`Ran ${algorithm}`, "algo.run", ["runs", "styles"]);
+
                 const run = runs.find((candidate) => candidate.id === id);
 
                 return Object.assign(Promise.resolve(run?.result), { id });
             },
         },
-        on: (_event: string, handler: () => void): (() => void) => {
-            watchers.add(handler);
+        history,
+        get canUndo() {
+            return position > 0;
+        },
+        get canRedo() {
+            return position < steps.length;
+        },
+        undo: () => walk(-1),
+        redo: () => walk(1),
+        /* The callback works through this same session with recording held, and everything it
+           did becomes one step once it resolves. */
+        transaction: async <T>(label: string, fn: (tx: GraphSession) => Promise<T> | T): Promise<T> => {
+            transactions += 1;
+
+            let result: T;
+
+            try {
+                result = await fn(session);
+            } finally {
+                transactions -= 1;
+            }
+
+            // A callback that threw is rolled back in the element and records nothing.
+            record(label, "batch", ["graph"]);
+
+            return result;
+        },
+        on: (event: string, handler: () => void): (() => void) => {
+            const subscribers = watchers.get(event) ?? new Set();
+
+            subscribers.add(handler);
+            watchers.set(event, subscribers);
 
             return () => {
-                watchers.delete(handler);
+                subscribers.delete(handler);
             };
         },
     } as unknown as GraphSession;

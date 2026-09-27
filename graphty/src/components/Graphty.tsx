@@ -103,6 +103,8 @@ interface GraphtyProps {
     onSelectionChange?: (detail: SelectionChangedDetail) => void;
     /** Called when style layers change in graphty-element */
     onStylesChange?: (detail: StylesChangedDetail) => void;
+    /** Called once with the element's session, as soon as the element has come up */
+    onSession?: (session: GraphSession) => void;
 }
 
 // Format detection utilities
@@ -242,7 +244,7 @@ export interface GraphtyHandle {
 }
 
 export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
-    { layers: _layers, acceleration, viewMode, dataSource, dataSourceConfig, replaceExisting, layout = "d3", layoutConfig, onSelectionChange, onStylesChange, ...rest },
+    { layers: _layers, acceleration, viewMode, dataSource, dataSourceConfig, replaceExisting, layout = "d3", layoutConfig, onSelectionChange, onStylesChange, onSession, ...rest },
     ref,
 ): React.JSX.Element {
     // Resolve viewMode from props, with backward compatibility for deprecated layout2d prop
@@ -504,7 +506,7 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
        this polls for it exactly as the layer sync did before. */
     useEffect(() => {
         const element = graphtyRef.current;
-        if (!element || !onStylesChange) {
+        if (!element || (!onStylesChange && !onSession)) {
             return undefined;
         }
 
@@ -528,10 +530,14 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
 
             const session = graph.getSession();
 
-            unwatch = session.on("style:changed", () => {
+            onSession?.(session);
+
+            if (onStylesChange) {
+                unwatch = session.on("style:changed", () => {
+                    onStylesChange({ layers: session.styles.list() });
+                });
                 onStylesChange({ layers: session.styles.list() });
-            });
-            onStylesChange({ layers: session.styles.list() });
+            }
 
             return true;
         };
@@ -548,7 +554,7 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
             stopPolling();
             unwatch?.();
         };
-    }, [onStylesChange]);
+    }, [onSession, onStylesChange]);
 
     return (
         <Box

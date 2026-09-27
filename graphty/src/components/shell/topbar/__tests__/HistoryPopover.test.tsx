@@ -4,47 +4,19 @@ import { describe, expect, it, vi } from "vitest";
 
 import { fireEvent, render, screen, within } from "../../../../test/test-utils";
 import { HistoryPopover, type HistoryPopoverProps } from "../HistoryPopover";
+import { historyRows } from "../historyRows";
 import { XR_VOICE_PROVENANCE } from "../topBarStrings";
-import { type HistoryEntry, historyRows,type UndoStoreState } from "../undoStore";
+import { makeStep,PANEL_TITLES } from "./historyFixtures";
 
 const at = (hours: number, minutes: number): number => new Date(2026, 8, 4, hours, minutes).getTime();
 
-const makeEntry = (id: string, overrides: Partial<HistoryEntry> = {}): HistoryEntry => ({
-    id,
-    category: "algorithmResult",
-    title: `Step ${id}`,
-    activity: "analyze",
-    activityLabel: "Analyze",
-    at: at(14, 15),
-    ...overrides,
-});
-
-const STATE: UndoStoreState = {
-    entries: [
-        makeEntry("import", {
-            category: "import",
-            title: "Import fraud-ring-synthetic.csv",
-            activity: "data",
-            activityLabel: "Data",
-            destinationTitle: "Open in Data",
-            at: at(14, 2),
-        }),
-        makeEntry("bridges", {
-            title: "Ran Bridges (betweenness)",
-            destinationTitle: "Ran Bridges (betweenness). Opens Analyze at its card",
-            at: at(14, 15),
-        }),
-        makeEntry("hubs", {
-            category: "styleLayerOrEncoding",
-            title: 'Style layer "Hubs" edited',
-            activity: "style",
-            activityLabel: "Style",
-            destinationTitle: "Style layer Hubs edited. Opens Style with the Hubs layer selected",
-            at: at(14, 18),
-        }),
-    ],
-    currentIndex: 1,
-};
+/* Three steps, the newest undone: position 2 applies the first two. */
+const STEPS = [
+    makeStep("import", "Import fraud-ring-synthetic.csv", ["graph"], at(14, 2)),
+    makeStep("bridges", "Ran Bridges (betweenness)", ["runs", "styles"], at(14, 15)),
+    makeStep("hubs", 'Style layer "Hubs" edited', ["styles"], at(14, 18)),
+];
+const POSITION = 2;
 
 type HarnessProps = Omit<HistoryPopoverProps, "anchorRef" | "barRef">;
 
@@ -65,8 +37,8 @@ function Harness(props: HarnessProps): React.JSX.Element {
 const renderPopover = (overrides: Partial<HarnessProps> = {}) => {
     const props: HarnessProps = {
         opened: true,
-        rows: historyRows(STATE),
-        entryCount: STATE.entries.length,
+        rows: historyRows(STEPS, POSITION, PANEL_TITLES),
+        entryCount: STEPS.length,
         undoneCount: 1,
         onOpenChange: vi.fn(),
         onRestore: vi.fn(),
@@ -149,7 +121,7 @@ describe("HistoryPopover", () => {
             renderPopover();
 
             const undoneTitle = screen.getByRole("button", {
-                name: "Style layer Hubs edited. Opens Style with the Hubs layer selected",
+                name: 'Style layer "Hubs" edited. Opens Style',
             });
 
             expect(getComputedStyle(undoneTitle).textDecorationLine).toContain("line-through");
@@ -178,7 +150,7 @@ describe("HistoryPopover", () => {
         it("opens the panel that owns the step when its title is clicked", () => {
             const props = renderPopover();
 
-            fireEvent.click(screen.getByRole("button", { name: "Open in Data" }));
+            fireEvent.click(screen.getByRole("button", { name: "Import fraud-ring-synthetic.csv. Opens Data" }));
 
             expect(props.onOpenOwningPanel).toHaveBeenCalledTimes(1);
             expect(props.onRestore).not.toHaveBeenCalled();
@@ -206,33 +178,16 @@ describe("HistoryPopover", () => {
     });
 
     describe("an XR session", () => {
-        const xrState: UndoStoreState = {
-            entries: [
-                makeEntry("flag", {
-                    title: "Flagged merch-88",
-                    activity: "explore",
-                    activityLabel: "Explore",
-                    destinationTitle: "Open in Explore",
-                    xrSessionId: "vr",
-                    xrSessionLabel: "VR session 14:21 - 14:39",
-                    at: at(14, 26),
-                }),
-                makeEntry("note", {
-                    title: "Note on acct-4471",
-                    activity: "explore",
-                    activityLabel: "Explore",
-                    destinationTitle: "Open in Explore",
-                    provenance: XR_VOICE_PROVENANCE,
-                    xrSessionId: "vr",
-                    xrSessionLabel: "VR session 14:21 - 14:39",
-                    at: at(14, 32),
-                }),
-            ],
-            currentIndex: 1,
-        };
+        /* Two steps taken by voice inside one VR session that started at 14:21. */
+        const xr = { xr: `vr:${new Date(at(14, 21)).toISOString()}` };
+        const xrSteps = [
+            makeStep("flag", "Flagged merch-88", ["visibility"], at(14, 26), xr),
+            makeStep("note", "Note on acct-4471", ["visibility"], at(14, 39), { ...xr, via: "voice" }),
+        ];
+        const xrRows = historyRows(xrSteps, 2, PANEL_TITLES);
 
         it("collapses the session into one group carrying its step count", () => {
-            renderPopover({ rows: historyRows(xrState), entryCount: 2, undoneCount: 0 });
+            renderPopover({ rows: xrRows, entryCount: 2, undoneCount: 0 });
 
             const group = screen.getByRole("button", { expanded: true });
 
@@ -241,13 +196,13 @@ describe("HistoryPopover", () => {
         });
 
         it("carries a voice-taken step's provenance on a second line", () => {
-            renderPopover({ rows: historyRows(xrState), entryCount: 2, undoneCount: 0 });
+            renderPopover({ rows: xrRows, entryCount: 2, undoneCount: 0 });
 
-            expect(screen.getByText("by voice, in VR")).toBeInTheDocument();
+            expect(screen.getByText(XR_VOICE_PROVENANCE)).toBeInTheDocument();
         });
 
         it("hides its steps when the group is collapsed", () => {
-            renderPopover({ rows: historyRows(xrState), entryCount: 2, undoneCount: 0 });
+            renderPopover({ rows: xrRows, entryCount: 2, undoneCount: 0 });
 
             fireEvent.click(screen.getByRole("button", { expanded: true }));
 

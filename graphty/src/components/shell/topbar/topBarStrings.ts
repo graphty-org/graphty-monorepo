@@ -142,10 +142,11 @@ function withChip(verb: string, chip: string | null): string {
  * empty -- the reason it cannot act. Spec 02 section 2.3.
  * @param canUndo - whether there is anything to undo.
  * @param apple - whether to print the Apple spelling of the chip; defaults to the running platform.
+ * @param verb - what the next undo will do, e.g. "Undo Ran Degree"; defaults to the bare verb.
  * @returns the tooltip text, e.g. "Undo (Cmd+Z). Nothing to undo yet".
  */
-export function undoTitle(canUndo: boolean, apple: boolean = isApplePlatform()): string {
-    const base = withChip(UNDO_VERB, keyChipFor("undo", apple));
+export function undoTitle(canUndo: boolean, apple: boolean = isApplePlatform(), verb: string = UNDO_VERB): string {
+    const base = withChip(verb, keyChipFor("undo", apple));
 
     return canUndo ? base : `${base}${NOTHING_TO_UNDO_SUFFIX}`;
 }

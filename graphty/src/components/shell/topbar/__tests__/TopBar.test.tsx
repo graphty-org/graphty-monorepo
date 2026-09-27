@@ -3,8 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import { fireEvent, render, screen } from "../../../../test/test-utils";
 import { keyChipFor } from "../../bindings";
+import { historyRows } from "../historyRows";
 import { TopBar, type TopBarOwnProps } from "../TopBar";
-import { historyRows, type UndoStoreState } from "../undoStore";
+import { makeStep, PANEL_TITLES } from "./historyFixtures";
 
 const baseProps: TopBarOwnProps = {
     datasetName: "cat-social-network.json",
@@ -232,20 +233,9 @@ describe("TopBar", () => {
     });
 
     describe("the History pop-out", () => {
-        const state: UndoStoreState = {
-            entries: [
-                {
-                    id: "import",
-                    category: "import",
-                    title: "Import fraud-ring-synthetic.csv",
-                    activity: "data",
-                    activityLabel: "Data",
-                    at: new Date(2026, 8, 4, 14, 2).getTime(),
-                    destinationTitle: "Open in Data",
-                },
-            ],
-            currentIndex: 0,
-        };
+        const steps = [
+            makeStep("import", "Import fraud-ring-synthetic.csv", ["graph"], new Date(2026, 8, 4, 14, 2).getTime()),
+        ];
 
         it("stays closed until a route opens it", () => {
             renderTopBar();
@@ -256,7 +246,7 @@ describe("TopBar", () => {
         it("opens from the caret half and reports it", () => {
             const props = renderTopBar({
                 history: {
-                    rows: historyRows(state),
+                    rows: historyRows(steps, 1, PANEL_TITLES),
                     entryCount: 1,
                     undoneCount: 0,
                     onRestore: vi.fn(),

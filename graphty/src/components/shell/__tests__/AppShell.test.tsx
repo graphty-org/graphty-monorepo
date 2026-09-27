@@ -2413,21 +2413,27 @@ describe("AppShell", () => {
             const { container } = await renderMeasuredShell();
 
             captureLoads(container);
-            installNovicePathGraph(container);
+
+            const graph = installNovicePathGraph(container);
+
             fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
             await reportLoadComplete(container);
 
+            const { history } = graph.styles.session;
+            const before = history.steps.length;
             const strip = container.querySelector('[data-canvas-overlay="insights"]') as HTMLElement;
 
             fireEvent.click(within(strip).getByText("Find groups"));
             await flushMicrotasks();
 
+            /* Spec 7.1 item 2: ONE step. The run and the encoding it paints are one step in the
+               element, and the shell records nothing of its own. */
+            expect(history.steps.length).toBe(before + 1);
+            expect(history.steps.at(-1)?.label).toBe("Ran louvain");
+
             fireEvent.click(screen.getByRole("button", { name: "History" }));
 
-            /* Spec 7.1 item 2: ONE entry. The encoding does not get a second one, because
-               nothing in this build can undo a style layer independently of the result, and
-               a row whose Undo does nothing is worse than no row. */
-            expect(await screen.findByText("1 entry, 0 undone")).toBeInTheDocument();
+            expect(await screen.findByText(`${String(before + 1)} entries, 0 undone`)).toBeInTheDocument();
             expect(screen.getByRole("button", { name: "Undo" })).toBeEnabled();
         });
 
@@ -3609,14 +3615,114 @@ describe("AppShell", () => {
             const { container } = await renderMeasuredShell();
 
             captureLoads(container);
-            installNovicePathGraph(container);
+
+            const graph = installNovicePathGraph(container);
 
             await loadCatSample(container);
+
+            const { history } = graph.styles.session;
+            const before = history.steps.length;
+
             await runSuggested("Most connected");
+
+            expect(history.steps.length).toBe(before + 1);
 
             fireEvent.click(screen.getByRole("button", { name: "History" }));
 
-            expect(await screen.findByText("1 entry, 0 undone")).toBeInTheDocument();
+            expect(await screen.findByText(`${String(before + 1)} entries, 0 undone`)).toBeInTheDocument();
+        });
+    });
+
+    /* ---------------------------------------------------------------------- */
+    /* Undo, Redo and History are the element's                                */
+    /* ---------------------------------------------------------------------- */
+
+    describe("undo and redo", () => {
+        /**
+         * Mounts the shell over a stand-in session holding two recorded steps.
+         * @returns the session.
+         */
+        async function shellWithTwoSteps() {
+            const { container } = await renderMeasuredShell();
+            const fake = installGraph(container, []);
+
+            await settleSession();
+            await act(async () => {
+                await fake.session.styles.add({ name: "Hubs", selector: { match: "everything" } });
+                await fake.session.styles.add({ name: "Bridges", selector: { match: "everything" } });
+            });
+
+            return { container, session: fake.session };
+        }
+
+        it("undoes and redoes through the session from the top bar", async () => {
+            const { session } = await shellWithTwoSteps();
+
+            fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+            await flushMicrotasks();
+
+            expect(session.history.position).toBe(1);
+            expect(screen.getByRole("button", { name: "Redo" })).toBeEnabled();
+
+            fireEvent.click(screen.getByRole("button", { name: "Redo" }));
+            await flushMicrotasks();
+
+            expect(session.history.position).toBe(2);
+        });
+
+        it("names the step the next undo takes back in the Undo tooltip", async () => {
+            await shellWithTwoSteps();
+
+            fireEvent.mouseEnter(screen.getByRole("button", { name: "Undo" }));
+
+            expect(await screen.findByText(/^Undo Added layer Bridges \(/, {}, { timeout: 3000 })).toBeInTheDocument();
+        });
+
+        it("draws the session's steps in History and restores the one a row names", async () => {
+            const { session } = await shellWithTwoSteps();
+
+            fireEvent.click(screen.getByRole("button", { name: "History" }));
+
+            expect(await screen.findByText("2 entries, 0 undone")).toBeInTheDocument();
+
+            fireEvent.click(screen.getByRole("button", { name: "Added layer Hubs" }));
+            await flushMicrotasks();
+
+            expect(session.history.position).toBe(1);
+            expect(await screen.findByText("2 entries, 1 undone")).toBeInTheDocument();
+        });
+
+        it("undoes once for Ctrl+Z pressed outside the canvas", async () => {
+            const { session } = await shellWithTwoSteps();
+
+            act(() => {
+                window.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true }));
+            });
+            await flushMicrotasks();
+
+            expect(session.history.position).toBe(1);
+        });
+
+        /* The element handles the undo keys itself while its canvas has focus, and marks the
+           press handled. The shell's own binding must then leave it alone, or one press would
+           undo two steps. */
+        it("undoes once for one Ctrl+Z pressed with the canvas focused", async () => {
+            const { container, session } = await shellWithTwoSteps();
+            const element = container.querySelector("graphty-element") as HTMLElement;
+
+            element.addEventListener("keydown", (event) => {
+                event.preventDefault();
+                void session.undo();
+            });
+
+            act(() => {
+                element.dispatchEvent(
+                    new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true, cancelable: true }),
+                );
+            });
+            await flushMicrotasks();
+
+            expect(session.history.position).toBe(1);
         });
     });
 

@@ -22,6 +22,7 @@ import { ActionIcon, Tooltip, VisuallyHidden } from "@mantine/core";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { TOOLTIP_DELAY_MS } from "../constants";
+import type { HistoryEntry, HistoryEntryRow, HistoryRow } from "./historyRows";
 import {
     HISTORY_ACTIVITY_COLUMN,
     HISTORY_BADGE_FONT_SIZE,
@@ -64,7 +65,6 @@ import {
     historyStateLine,
     xrSessionStepCount,
 } from "./topBarStrings";
-import type { HistoryEntry, HistoryEntryRow, HistoryRow } from "./undoStore";
 
 const MONO_COLUMN: React.CSSProperties = {
     fontFamily: "var(--mantine-font-family-monospace)",

@@ -1659,6 +1659,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         baselineWindow: internals.baselineWindow === true,
     });
     const readProject = projectConfigReader(dispatcher, resolveDataConfig(options.config?.data));
+    dispatcher.services.config = readProject;
     const readData = (): SessionDataConfig => readProject().data;
     // A controller handed in is the authority on its own policy: the session does not own it, so
     // it cannot make a configuration value true merely by declaring it.

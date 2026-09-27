@@ -867,6 +867,17 @@ export class Ingest<K extends KnownEdge> {
                     this.host.loadErrors(type, errors);
                 }
 
+                // A source that reported errors and produced no record did not load a graph: it
+                // failed, and its draft rolls back rather than recording an empty graph as a load.
+                if (errors.getErrorCount() > 0 && progress.nodeRecords === 0 && progress.edgeRecords === 0) {
+                    throw new GraphtyError({
+                        code: "E_PARSE_FAILED",
+                        message: `The ${type} source produced no nodes or edges: ${errors.getErrors()[0]?.message ?? "it reported errors"}`,
+                        source: "data",
+                        details: { type, errors: errors.getErrorCount() },
+                    });
+                }
+
                 const duration = Date.now() - startTime;
                 const errorCount = errors.getErrorCount();
 

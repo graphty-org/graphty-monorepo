@@ -5275,7 +5275,8 @@ export class Graph implements GraphContext {
         // Dynamically import to avoid loading AI code when not needed
         const { AiManager } = await import("./ai/AiManager");
 
-        // Create and initialize AI manager
+        // Enabling again replaces the assistant: the previous one is disposed, not leaked.
+        this.aiManager?.dispose();
         this.aiManager = new AiManager();
         this.aiManager.init(this, config);
     }

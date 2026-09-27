@@ -566,6 +566,20 @@ export function restoresNodes(log: readonly OpLogEntry[]): boolean {
     );
 }
 
+/**
+ * Whether an op log added or removed nodes or edges, or changed an edge's weight: what sets a
+ * running layout moving. A record or value edit does not.
+ * @param log - The op log.
+ * @returns True when it changed the graph's shape.
+ */
+export function reshapes(log: readonly OpLogEntry[]): boolean {
+    return log.some(
+        (entry) =>
+            entry instanceof GraphEntry &&
+            entry.ops.some((op) => (op.kind === "node" ? !op.existed : op.kind !== "record" && op.kind !== "value")),
+    );
+}
+
 /** The entry one recorded writer logs, growing as it writes. */
 class GraphEntry implements OpLogEntry {
     readonly slice = "graph";

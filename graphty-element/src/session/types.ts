@@ -760,9 +760,17 @@ export interface SessionHistory {
         | null;
     /** What every step retains, in bytes. */
     readonly bytes: number;
-    /** The byte budget; the oldest steps are dropped past it. Default 256 MiB. */
+    /**
+     * The byte budget. Default 256 MiB. When a record goes past it, or past `limitSteps`, the
+     * oldest steps (then the farthest redo steps) are dropped until the history is within 90% of
+     * both budgets, so the work of dropping is spread over many records. Lowering a budget below
+     * what the history holds trims it the same way at once.
+     */
     limitBytes: number;
-    /** The step budget. Default 1000. */
+    /**
+     * The step budget. Default 1000. Going past it trims the history to 90% of it, rounded down,
+     * as `limitBytes` describes: with a budget of 10, the eleventh step leaves 9.
+     */
     limitSteps: number;
     /**
      * Move to the state just after a step, or to the baseline with `null`, as the equivalent run

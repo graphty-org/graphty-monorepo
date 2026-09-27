@@ -17,7 +17,7 @@ import type { CompiledLayer } from "../../../src/session/styles/Layer";
 
 /** A stand-in layer stack; nothing here looks inside one. */
 export function stack(name: string): readonly CompiledLayer[] {
-    return Object.freeze([{ name } as unknown as CompiledLayer]);
+    return Object.freeze([{ name, layer: { name } } as unknown as CompiledLayer]);
 }
 
 /** The name of the stand-in stack currently in state, or null for an empty stack. */

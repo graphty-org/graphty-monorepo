@@ -124,6 +124,23 @@ describe("data.import", () => {
         session.dispose();
     });
 
+    it("a replacing import of text that yields no records and reports errors fails, recording nothing", async () => {
+        for (const text of ["{ not json", '{"nodes": 5}']) {
+            const session = await fixtureSession();
+            const before = digest(session);
+
+            const code = await session.data.import({ type: "json", config: { data: text } }, { mode: "replace" }).then(
+                () => null,
+                (error: unknown) => (error as { code?: string }).code ?? "no code",
+            );
+
+            assert.strictEqual(code, "E_PARSE_FAILED", text);
+            assert.lengthOf(session.history.steps, 0, text);
+            assert.strictEqual(digest(session), before, text);
+            session.dispose();
+        }
+    });
+
     it("undo while an import waits its turn cancels it, and nothing is recorded", async () => {
         const session = await fixtureSession();
         const load = session.data.import({ type: "json", config: { data: DOCUMENT } });

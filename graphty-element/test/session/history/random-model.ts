@@ -104,6 +104,8 @@ interface Position {
     undoneAt: number;
     /** Whether its step wrote the graph. */
     graph: boolean;
+    /** Whether its step added or removed nodes or edges, which sets a running layout moving. */
+    reshapes: boolean;
 }
 
 /** Work dispatched and not yet committed. */
@@ -252,6 +254,7 @@ function position(real: Real, id: HistoryStepId | null, at: number): Position {
         recordedAt: at,
         undoneAt: -1,
         graph: false,
+        reshapes: false,
     };
 }
 
@@ -387,11 +390,43 @@ function followEviction(model: Model, real: Real, when: string): number {
  */
 function sealModel(model: Model, real: Real): void {
     if (model.moved) {
-        const step = model.steps[model.position];
+        const step = model.steps[sealTarget(model, model.position)];
         step.arr = laneOf(real);
         step.late = null;
         model.moved = false;
     }
+}
+
+/**
+ * Where a rest point seals: the newest position at or below `at` whose step has to do with the
+ * arrangement -- it holds a capture or placed rows, took a before-arrangement, or reshaped the
+ * graph -- or the baseline. A step that moved nothing never takes the capture.
+ * @param model - The model.
+ * @param at - The position to look down from.
+ * @returns The position.
+ */
+function sealTarget(model: Model, at: number): number {
+    let index = at;
+    while (index > 0) {
+        const step = model.steps[index];
+        if (step.reshapes || step.arr !== null || step.rows !== null || step.late !== null || step.before !== null) {
+            return index;
+        }
+
+        index--;
+    }
+
+    return 0;
+}
+
+/**
+ * The graph's shape: its node ids and how many edges it holds.
+ * @param real - The system.
+ * @returns A string that changes when a node or an edge is added or removed.
+ */
+function shapeOf(real: Real): string {
+    const snapshot = real.session.snapshot();
+    return `${[...laneOf(real).keys()].sort().join(",")}|${String(snapshot.edgeCount)}`;
 }
 
 /**
@@ -539,6 +574,7 @@ async function edit(
     const { history } = real.session;
     const top = history.steps[history.position - 1]?.id;
     const held = new Set(laneOf(real).keys());
+    const shape = shapeOf(real);
     const moves = arranges.moves === true || arranges.replaces === true || arranges.rests === true;
     let before: Coords | null = null;
     if (moves) {
@@ -559,7 +595,7 @@ async function edit(
     const recorded = history.position > 0 && history.steps[history.position - 1]?.id !== top;
     if (recorded) {
         assert.isFalse(refused, `${label} was refused and recorded a step`);
-        pushStep(model, real, { fresh: freshSince(real, held), before });
+        pushStep(model, real, { fresh: freshSince(real, held), before, reshapes: shapeOf(real) !== shape });
         model.mergeKey = merges.key;
         model.lastAt = now;
         model.mergeable = true;
@@ -587,8 +623,9 @@ async function edit(
         // Rolled back, the lane is back where the group began; closed with nothing recorded,
         // where it came to rest is the top step's.
         if (!refused) {
-            model.steps[model.position].arr = laneOf(real);
-            model.steps[model.position].late = null;
+            const target = model.steps[sealTarget(model, model.position)];
+            target.arr = laneOf(real);
+            target.late = null;
         }
 
         model.moved = false;
@@ -612,6 +649,7 @@ async function edit(
         step.fresh = new Set([...(step.fresh ?? []), ...freshSince(real, held)]);
         step.recordedAt = model.tick++;
         step.graph ||= history.steps[history.position - 1].slices.includes("graph");
+        step.reshapes ||= shapeOf(real) !== shape;
         if (coalesces) {
             model.lastAt = now;
         }
@@ -1141,8 +1179,8 @@ class UndoFromListener implements Command {
         const above = model.steps[model.position + 1];
         above.undoneAt = model.tick++;
         if (model.moved) {
-            // The undo sealed the lane in flight into the step it left.
-            above.arr = lane;
+            // The undo sealed the lane in flight into the seal target it left.
+            model.steps[sealTarget(model, model.position + 1)].arr = lane;
             model.moved = false;
         }
 

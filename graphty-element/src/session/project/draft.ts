@@ -86,6 +86,72 @@ export function isEmptyPatch(patch: Patch): boolean {
 }
 
 /**
+ * Whether two slice values are the same: equal primitives, the same object, or plain objects and
+ * arrays whose members are the same. Anything else (a map, a typed array, a class instance) is the
+ * same only when it is the same object.
+ * @param left - One value.
+ * @param right - The other.
+ * @returns True when they are the same.
+ */
+function sameValue(left: unknown, right: unknown): boolean {
+    if (Object.is(left, right)) {
+        return true;
+    }
+
+    if (Array.isArray(left) && Array.isArray(right)) {
+        return left.length === right.length && left.every((member, at) => sameValue(member, right[at]));
+    }
+
+    if (!isPlainRecord(left) || !isPlainRecord(right)) {
+        return false;
+    }
+
+    const keys = Object.keys(left);
+    return keys.length === Object.keys(right).length && keys.every((key) => Object.hasOwn(right, key) && sameValue(left[key], right[key]));
+}
+
+/**
+ * Whether a value is a plain object: `{...}` or one made with a null prototype.
+ * @param value - The value.
+ * @returns True when it is.
+ */
+function isPlainRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+    if (typeof value !== "object" || value === null) {
+        return false;
+    }
+
+    const proto: unknown = Object.getPrototypeOf(value);
+    return proto === Object.prototype || proto === null;
+}
+
+/**
+ * Whether a patch entry wrote what was there already. A style stack is compared layer by layer,
+ * as each layer is described, because compiling a layer again makes a new selector predicate.
+ * @param entry - The entry.
+ * @returns True when its next value is the same as its prior one.
+ */
+function wroteNothing(entry: PatchEntry): boolean {
+    if (entry.slice !== "styles") {
+        return sameValue(entry.prior, entry.next);
+    }
+
+    const prior = entry.prior as readonly CompiledLayer[];
+    const next = entry.next as readonly CompiledLayer[];
+    return prior.length === next.length && prior.every((layer, at) => sameValue(layer.layer, next[at].layer));
+}
+
+/**
+ * A patch without the value entries that wrote what was there already, so a command that set
+ * something to its current value records no step.
+ * @param patch - The patch.
+ * @returns It, or a copy without those entries.
+ */
+export function withoutNoOps(patch: Patch): Patch {
+    const entries = patch.entries.filter((entry) => !wroteNothing(entry));
+    return entries.length === patch.entries.length ? patch : Object.freeze({ ...patch, entries: Object.freeze(entries) });
+}
+
+/**
  * What a patch retains, for the history's byte budget.
  * @param patch - The patch.
  * @returns Bytes; value entries are held by reference and count nothing here.

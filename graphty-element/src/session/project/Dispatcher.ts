@@ -36,6 +36,7 @@ import type { ScopeService } from "../commands/scope";
 import type { StyleService } from "../commands/style";
 import type { CameraService } from "../commands/view";
 import type { VisibilityService } from "../commands/visibility";
+import type { ProjectConfig } from "../types";
 import { Arrangement, type ArrangementOp } from "./arrangement";
 import { DerivationLane } from "./derive";
 import {
@@ -50,8 +51,9 @@ import {
     type ProjectStore,
     type Slice,
     touchedBy,
+    withoutNoOps,
 } from "./draft";
-import { GraphOps, nodeKey, restoresNodes, TouchedIds } from "./graphOps";
+import { GraphOps, nodeKey, reshapes, restoresNodes, TouchedIds } from "./graphOps";
 import { History, type HistoryChangeReason, type OpenArrangement } from "./History";
 import { createProjectState, type ProjectState } from "./state";
 import { checkInlineKey, checkSoleHolder, strictStateEnabled, verifyRetainedArrays } from "./strict";
@@ -92,6 +94,8 @@ interface CommandServices {
     layout?: LayoutService;
     /** Which layout suits the graph held now, for an import that asks for one. */
     layoutAdvice?: LayoutAdvice;
+    /** The project settings in effect, with every unset key at its default. */
+    config?: () => ProjectConfig;
 }
 
 /** What the queue hands a queued command when its slot comes up. */
@@ -814,6 +818,7 @@ export class Dispatcher {
             },
             rows: (patch) => patch.rows,
             restoresRows: (id) => this.steps.get(id)?.removedInFlight === true,
+            reshapes: (patch) => reshapes(patch.log),
         });
         this.arrangement = new Arrangement(this.store.state, this.lane, this.history, this.graph);
         this.services.positions = this.arrangement;
@@ -1952,10 +1957,13 @@ export class Dispatcher {
      */
     private seal(group: Group): string | null {
         this.leave(group);
-        const patch = group.draft.seal();
+        const open = group.arrangement;
+        // A group that took a before-arrangement records even when it wrote the value it found: a
+        // `layout.set` of the current layout runs it again, and where it lands is the step.
+        const sealed = group.draft.seal();
+        const patch = open === null ? withoutNoOps(sealed) : sealed;
         this.checkStrict();
         const oplog = [...group.holds.keys()];
-        const open = group.arrangement;
         if (open !== null) {
             this.history.close(open);
         }

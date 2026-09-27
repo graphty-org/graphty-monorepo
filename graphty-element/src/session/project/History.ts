@@ -69,6 +69,11 @@ export interface HistoryOptions<P> {
      * be written over them; without it, a step with no capture and no row patch restores nothing.
      */
     restoresRows?(id: string): boolean;
+    /**
+     * Whether a patch added or removed nodes or edges, or changed an edge's weight: a change that
+     * sets a running layout moving. Where that layout comes to rest belongs to its step.
+     */
+    reshapes?(patch: P): boolean;
 }
 
 /** What one recorded group contributes to a step. */
@@ -138,6 +143,8 @@ interface Step<P> {
     after: ArrangementCapture | null;
     /** Rows a merged `positions.set` wrote after the after-capture was taken, applied over it. */
     afterRows: RowPatch | null;
+    /** Whether the patch changed the graph's shape, so a running layout moves because of it. */
+    reshapes: boolean;
     /**
      * Something kept only to make undoing or redoing the step cheaper (a mask copy): counted in
      * `bytes` on both sides of the cursor, and the first thing dropped when a limit is exceeded.
@@ -303,6 +310,7 @@ export class History<P> {
             before: input.before ?? null,
             after: input.after ?? null,
             afterRows: null,
+            reshapes: this.options.reshapes?.(input.patch) === true,
             cache: null,
             charge: 0,
             view: undefined,
@@ -389,8 +397,10 @@ export class History<P> {
 
     /**
      * Seal a capture of the lane into the seal target: the newest open group's provisional
-     * after-capture, else the top applied step's after-capture, or the baseline when no step is
-     * applied.
+     * after-capture; else the after-capture of the newest applied step that has to do with the
+     * arrangement (it holds a capture or placed rows, or it changed the graph's shape); else the
+     * baseline. A step that moved nothing (a setting, a style) is never the target, so undoing it
+     * never puts back an arrangement older than the one on screen.
      * @param capture - The capture.
      */
     seal(capture: ArrangementCapture): void {
@@ -400,7 +410,12 @@ export class History<P> {
             return;
         }
 
-        const step = this.cursor > 0 ? this.entries[this.cursor - 1] : null;
+        let index = this.cursor - 1;
+        while (index >= 0 && !this.arranges(this.entries[index])) {
+            index--;
+        }
+
+        const step = index >= 0 ? this.entries[index] : null;
         if (step === null) {
             this.setBaseline(capture, false);
         } else {
@@ -533,6 +548,7 @@ export class History<P> {
         const done = input.bytes?.done ?? 0;
         const undone = input.bytes?.undone ?? 0;
         top.patch = this.options.merge(top.patch, input.patch);
+        top.reshapes ||= this.options.reshapes?.(input.patch) === true;
         const rows = this.options.rows?.(input.patch) ?? null;
         if (input.after) {
             this.retake(top, input.after);
@@ -770,6 +786,15 @@ export class History<P> {
         rows.ids.forEach((id, at) => {
             coordsIn(capture, id, rows.rows[at])?.set(rows.values.subarray(6 * at + 3, 6 * at + 6));
         });
+    }
+
+    /**
+     * Whether a step has anything to do with the arrangement, so a rest point may seal into it.
+     * @param step - The step.
+     * @returns True when it holds a capture or placed rows, or changed the graph's shape.
+     */
+    private arranges(step: Step<P>): boolean {
+        return step.reshapes || step.before !== null || step.after !== null || (this.options.rows?.(step.patch) ?? null) !== null;
     }
 
     /**

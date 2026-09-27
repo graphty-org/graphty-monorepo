@@ -23,6 +23,7 @@ import { type GraphBackgroundConfig, type GraphSelectionStyleConfig, GraphStyle 
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { UndoableDefinition } from "../project/Dispatcher";
 import { deepFreeze } from "../project/draft";
+import { deepEquals } from "../styles/predicate";
 import type { ProjectConfig, ProjectConfigPatch, SessionDataConfig } from "../types";
 
 /** `config.set`: write project settings. */
@@ -185,7 +186,16 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
                 .join(",")}`,
     },
     execute: (command, ctx) => {
+        const effective = ctx.services.config?.();
         for (const [path, value] of configLeaves(command.values)) {
+            if (effective !== undefined && value !== undefined && !ctx.state.config.has(path)) {
+                // An unset key already reads as its default: writing that default changes nothing.
+                const current = path.split(".").reduce<unknown>((at, name) => (at as Record<string, unknown> | undefined)?.[name], effective);
+                if (deepEquals(CONFIG_KEYS.get(path)?.schema.parse(value), current)) {
+                    continue;
+                }
+            }
+
             if (value === undefined) {
                 ctx.draft.config.delete(path);
             } else {

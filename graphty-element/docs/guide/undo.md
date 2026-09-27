@@ -284,7 +284,9 @@ session.history.limitBytes = 64 * 1024 * 1024;
 session.history.limitSteps = 200;
 ```
 
-Past either limit the oldest steps are dropped, whole, then the farthest redo steps. The latest
+Past either limit the oldest steps are dropped, whole, then the farthest redo steps, until the
+history is back within 90% of both limits: with `limitSteps = 200`, the 201st step leaves 180. The
+margin spreads the work of dropping steps over many records instead of paying it on every one. The latest
 step is always kept, even when it alone is over the budget, so the last action can always be
 undone. At a million nodes a step that recorded coordinates holds about 12 MB, so a long session
 on a large graph keeps fewer steps than a small one.

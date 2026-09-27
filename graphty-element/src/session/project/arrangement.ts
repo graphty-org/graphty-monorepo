@@ -5,8 +5,9 @@
  * anything goes, so coordinates are not recorded per command. They are recorded as captures of
  * the positions lane, taken when the lane has moved and something needs to know where it is: a
  * rest point (the layout settled or was paused), a history call about to move the cursor, and a
- * `positions.set` about to write. A capture goes into the top applied step, or into the baseline
- * when no step is applied. `positions.set` writes only a few rows, so it records a row patch
+ * `positions.set` about to write. A capture goes into the newest applied step that has to do
+ * with the arrangement (it holds a capture or placed rows, or changed the graph's shape), or into
+ * the baseline when there is none: a step that moved nothing never takes one. `positions.set` writes only a few rows, so it records a row patch
  * instead: the rows written, with their prior and new values.
  *
  * Undo and redo turn what the steps hold into {@link ArrangementOp}s (`History.ts` holds the

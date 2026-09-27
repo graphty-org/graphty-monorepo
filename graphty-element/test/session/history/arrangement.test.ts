@@ -152,19 +152,40 @@ describe("the arrangement under undo and redo", () => {
         session.dispose();
     });
 
-    it("seals the lane before the cursor moves, so an arrangement still in flight is the top step's", async () => {
+    it("never files a layout's movement under a step that moved nothing", async () => {
         const session = await fixtureSession();
         const layout = fakeLayout(session);
-        const start = lane(session);
         await styleEdit(session);
         layout.play();
         layout.step();
         const moving = lane(session);
 
         await session.undo();
-        assert.deepEqual(lane(session), start, "undo goes back to where the nodes were before the edit");
+        assert.deepEqual(lane(session), moving, "undoing the style edit leaves the nodes where the layout had them");
         await session.redo();
-        assert.deepEqual(lane(session), moving, "and redo to where the layout had them when undo was pressed");
+        assert.deepEqual(lane(session), moving, "and so does redoing it");
+        session.dispose();
+    });
+
+    it("files where the layout settles after an add under the add, not under a later setting", async () => {
+        const session = await fixtureSession();
+        const layout = fakeLayout(session);
+        const start = lane(session);
+        await session.data.addNodes([{ id: "n4" }]);
+        layout.play();
+        layout.step();
+        await styleEdit(session);
+        layout.step();
+        layout.settle();
+        const rest = lane(session);
+
+        await session.undo();
+        assert.deepEqual(lane(session), rest, "undoing the style edit moves nothing");
+        await session.undo();
+        const { n4: _gone, ...before } = rest;
+        assert.deepEqual(lane(session), Object.fromEntries(Object.keys(before).map((id) => [id, start[id]])), "undoing the add goes back to before it");
+        await session.redo();
+        assert.deepEqual(lane(session), rest, "redoing the add returns to where it settled");
         session.dispose();
     });
 
@@ -367,11 +388,13 @@ describe("the arrangement under undo and redo", () => {
         const seededB = lane(session);
         layout.play();
         layout.step();
+        const moving = lane(session);
         await styleEdit(session);
 
         await session.undo();
         const restored = lane(session);
-        assert.deepEqual(restored, seededB, "the second dataset where it began");
+        assert.notDeepEqual(moving, seededB, "the layout moved the second dataset");
+        assert.deepEqual(restored, moving, "the second dataset where its layout had it");
         for (const id of ["1", "2", "3"]) {
             assert.notStrictEqual(restored[id], settledA[id], `node ${id} did not take the first dataset's place`);
         }

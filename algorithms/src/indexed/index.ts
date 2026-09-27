@@ -23,6 +23,10 @@ export {
     walkPredArcs,
     walkPredEdges,
 } from "./dijkstra.js";
+export { hits, type HitsOptions, type HitsResult } from "./hits.js";
+export { type CorenessResult, kCoreDecomposition } from "./k-core.js";
+export { katzCentrality, type KatzOptions, type KatzResult } from "./katz.js";
+export { louvain, type LouvainOptions, type LouvainResult } from "./louvain.js";
 export { kruskalMST, type MstOptions, type MstResult } from "./mst.js";
 export { pageRank, type PageRankOptions, type PageRankResult } from "./pagerank.js";
 export { arcSourceIn, IndexedMinHeap, IntUnionFind } from "./structures/index.js";

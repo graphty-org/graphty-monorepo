@@ -109,12 +109,73 @@ describe("accelerated(acc)", () => {
         expect(mst.edges.length).toBe(2);
     });
 
-    it("carries exactly the six methods whose ports exist", () => {
+    it("runs the CPU port for the four ports that arrived with the structure and community family", async () => {
+        const s = cycle();
+        const undirected = s.toUndirected().snapshot;
+        const cpu = accelerated(null);
+        const coreness = await cpu.kCoreDecomposition(undirected);
+        expect([...coreness.coreness]).toEqual([2, 2, 2]);
+        const katz = await cpu.katzCentrality(s, { normalized: false });
+        expect(katz.scores.length).toBe(3);
+        const scores = await cpu.hits(s);
+        expect(scores.hubs.length).toBe(3);
+        expect(scores.authorities.length).toBe(3);
+        const communities = await cpu.louvain(undirected);
+        expect(communities.count).toBe(1);
+        expect(communities.modularity).toBeCloseTo(0, 12);
+    });
+
+    it("delegates the new four to an accelerator that has them", async () => {
+        const s = cycle();
+        const undirected = s.toUndirected().snapshot;
+        const calls: string[] = [];
+        const fake: AlgorithmAccelerator = {
+            kind: "fake",
+            kCoreDecomposition: () => {
+                calls.push("kCoreDecomposition");
+                return Promise.resolve({ coreness: Uint32Array.of(9, 9, 9) });
+            },
+            katzCentrality: () => {
+                calls.push("katzCentrality");
+                return Promise.resolve({ scores: Float32Array.of(1, 1, 1), iterations: 1, converged: true });
+            },
+            hits: () => {
+                calls.push("hits");
+                return Promise.resolve({
+                    hubs: Float32Array.of(1, 0, 0),
+                    authorities: Float32Array.of(0, 1, 0),
+                    iterations: 1,
+                    converged: true,
+                });
+            },
+            louvain: () => {
+                calls.push("louvain");
+                return Promise.resolve({
+                    labels: Uint32Array.of(0, 0, 0),
+                    count: 1,
+                    groups: () => [Uint32Array.of(0, 1, 2)],
+                    modularity: 0,
+                });
+            },
+        };
+        const dispatcher = accelerated(fake);
+        expect((await dispatcher.kCoreDecomposition(undirected)).coreness[0]).toBe(9);
+        expect((await dispatcher.katzCentrality(s)).scores).toBeInstanceOf(Float32Array);
+        expect((await dispatcher.hits(s)).hubs).toBeInstanceOf(Float32Array);
+        expect((await dispatcher.louvain(undirected)).count).toBe(1);
+        expect(calls.sort()).toEqual(["hits", "kCoreDecomposition", "katzCentrality", "louvain"]);
+    });
+
+    it("carries exactly the ten methods whose ports exist", () => {
         const dispatcher = accelerated(null) as unknown as Record<string, unknown>;
         const methods = Object.keys(dispatcher).filter((k) => typeof dispatcher[k] === "function");
         expect(methods.sort()).toEqual([
             "breadthFirstSearch",
             "connectedComponents",
+            "hits",
+            "kCoreDecomposition",
+            "katzCentrality",
+            "louvain",
             "minimumSpanningTree",
             "pageRank",
             "sssp",

@@ -2,7 +2,7 @@ import { type DerivedGraph, type GraphSnapshot, INVALID_INDEX, type U32 } from "
 
 import type { EdgeId } from "../catalog/types";
 import type { AdHocData } from "../config";
-import { edgeCounterOf, edgeIdOf } from "../data/edgeIdentity";
+import { edgeCounterOf } from "../data/edgeIdentity";
 import { GraphStore } from "../data/GraphStore";
 import type { ElementPositions } from "../data/positions";
 import type { ImportReport } from "../data/report";
@@ -155,6 +155,9 @@ export class DataManager implements Manager {
 
     /** The session's dispatcher, once bound: the data doors dispatch through it. */
     private dispatcher: Dispatcher | null = null;
+
+    /** The edges the last removal took out, for the doors that answer with them. */
+    private removedEdges: readonly EdgeId[] = [];
 
     /** Why rows are arriving: set while a dispatched command writes, for the `data-added` event. */
     private cause: HistoryCause | undefined = undefined;
@@ -387,12 +390,83 @@ export class DataManager implements Manager {
             }
         }
 
+        this.disposeRenderNode(node);
+        return removed;
+    }
+
+    /**
+     * Tear down what draws rows a forward removal took out of the store: the edges first, since an
+     * edge reads its endpoints' meshes while it goes, then the nodes. One `elements-removed`.
+     * @param nodes - The node ids removed.
+     * @param edges - The edge ids removed, including every edge attached to a removed node.
+     */
+    private dropRendered(nodes: readonly NodeIdType[], edges: readonly EdgeId[]): void {
+        for (const id of edges) {
+            const edge = this.edges.get(id);
+            if (edge !== undefined) {
+                this.teardownEdge(edge, edge.index);
+                continue;
+            }
+
+            const counter = edgeCounterOf(id);
+            const pending = this.pendingEdges.findIndex((entry) => entry.edgeId === counter);
+            if (pending !== -1) {
+                this.forgetPending(this.pendingEdges[pending]);
+                this.pendingEdges.splice(pending, 1);
+            }
+        }
+
+        for (const id of nodes) {
+            const node = this.nodes.get(id);
+            if (node !== undefined) {
+                this.disposeRenderNode(node);
+            }
+        }
+
+        this.removedEdges = edges;
+        if (nodes.length > 0 || edges.length > 0) {
+            this.eventManager.emitElementsRemoved([...nodes], [...edges], this.cause);
+        }
+    }
+
+    /** Tear down every render object: the graph was emptied. */
+    private dropEverythingRendered(): void {
+        // The dataset boundary. The empty graph is frozen lazily, so no `snapshot-replaced` would
+        // name the snapshot on screen until something read the graph, and a holder of per-snapshot
+        // resources -- an accelerator's device buffers, which no garbage collector can reach --
+        // would keep them for a graph that no longer exists. The store then forgets it, so the
+        // next freeze does not name it a second time.
+        this.eventManager.emitSnapshotDropped();
+        this.store.forgetSnapshot();
+
+        // Free the per-node and per-edge Babylon resources BEFORE dropping the references to
+        // them. See disposeNodesAndEdges: meshCache.clear() below only reaches CACHED meshes,
+        // and arrowheads, patterned lines and labels are not cached.
+        this.disposeNodesAndEdges();
+        this.nodes.clear();
+        this.edges.clear();
+        this.edgeVersion++;
+        this.nodeCache.clear();
+        this.edgeCache.clear();
+        this.edgesByIndex.length = 0;
+        this.pendingEdges = [];
+        this.pendingByPair.clear();
+        this.graphResults = undefined;
+        this.meshCache.clear();
+        // TODO: Notify layout engine to clear
+    }
+
+    /**
+     * Take one node's render object out of every structure that holds it and free it. Its edges
+     * must already be gone.
+     * @param node - The node.
+     */
+    private disposeRenderNode(node: Node): void {
         this.nodes.delete(node.id);
         this.nodeCache.delete(node.id);
         node.index = INVALID_INDEX;
         this.layoutEngine?.removeNode(node);
         node.dispose();
-        return removed;
     }
 
     /**
@@ -414,6 +488,12 @@ export class DataManager implements Manager {
                 } else if (known.pending) {
                     known.pending.record = record;
                 }
+            },
+            rowsRemoved: (nodes, edges) => {
+                this.dropRendered(nodes, edges);
+            },
+            cleared: () => {
+                this.dropEverythingRendered();
             },
             nodeStored: (id, record, index) => {
                 this.buildNode(id, record, index);
@@ -499,9 +579,9 @@ export class DataManager implements Manager {
      * @returns the new store
      */
     private createStore(): GraphStore {
-        const { data } = this.styles.config;
         return new GraphStore({
-            directed: data.directed,
+            // Read again when the graph is emptied, so a clear takes the setting in force then.
+            directed: () => this.styles.config.data.directed,
             positionScale: () => this.styles.config.data.knownFields.positionScale,
             onNodeRemap: (remap) => {
                 this.walkNodeRemap(remap);
@@ -919,7 +999,7 @@ export class DataManager implements Manager {
     }
 
     /**
-     * Remove a node AND every edge attached to it.
+     * Remove a node AND every edge attached to it, as one undoable step.
      *
      * The cascade is what the name says, and it used to be missing: the store side already
      * tombstoned the incident edges, but their render objects survived with their meshes, their
@@ -935,89 +1015,29 @@ export class DataManager implements Manager {
      */
     removeNodeAndIncidentEdges(nodeId: NodeIdType): readonly EdgeId[] | null {
         // Through `getNode`, so an id printed as text still names a node the file supplied as a
-        // number; the collections are then keyed by the id the node actually carries, which is
-        // the only one they hold.
+        // number; the rows are held under the id the node actually carries.
         const node = this.getNode(nodeId);
-        if (!node) {
+        if (node === undefined) {
             return null;
         }
 
-        // Remove from collections
-        this.nodes.delete(node.id);
-        this.nodeCache.delete(node.id);
-
-        // The store tombstones the node AND every live incident edge and hands back their indices,
-        // which is the incident set the cascade tears down. Edges go BEFORE the node is disposed:
-        // an edge reads `srcNode.mesh` and `dstNode.mesh` while tearing itself down.
-        const removedEdges = this.detachNodeFromStore(node);
-        this.graph.dropRecords("DataManager.removeNodeAndIncidentEdges", [node.id], removedEdges);
-
-        // Remove from layout engine
-        this.layoutEngine?.removeNode(node);
-
-        // Dispose AFTER the layout engine has been told, so the engine is never asked to read a
-        // position off a mesh that is already gone.
-        node.dispose();
-
-        return removedEdges;
+        this.removedEdges = [];
+        this.write({ kind: "remove-nodes", ids: [node.id] });
+        return this.removedEdges;
     }
 
     /**
-     * Take a node out of the store and tear down every edge that was attached to it.
-     * @param node - the node being removed
-     * @returns the ids of the edges that went with it
+     * Carry out one mutation: through the session's dispatcher once bound, so it is a step, or
+     * straight through the primitives on a data manager with no session.
+     * @param mutation - The mutation.
      */
-    private detachNodeFromStore(node: Node): readonly EdgeId[] {
-        if (node.index === INVALID_INDEX) {
-            return [];
+    private write(mutation: DataMutation): void {
+        if (this.dispatcher === null) {
+            this.applyMutation(mutation, this.graph.writer(null, this.store));
+            return;
         }
 
-        const removedEdges = this.store.builder.removeNodeByIndex(node.index);
-        this.store.touch();
-        node.index = INVALID_INDEX;
-        if (removedEdges.length === 0) {
-            return [];
-        }
-
-        const dead = new Set<number>(removedEdges);
-        const removedIds: EdgeId[] = [];
-        const tornDown = new Set<number>();
-        for (const edgeIndex of dead) {
-            const edge = this.edgesByIndex[edgeIndex];
-            if (edge) {
-                removedIds.push(edge.id);
-                tornDown.add(edgeIndex);
-                this.teardownEdge(edge, edgeIndex);
-            }
-        }
-
-        if (this.pendingEdges.length === 0) {
-            return removedIds;
-        }
-
-        // One pass over the pending queue for the WHOLE incident set, not one pass per edge: a
-        // node removed during a load can be incident to thousands of edges whose render objects
-        // are all still waiting.
-        const survivors: PendingEdge[] = [];
-        for (const pending of this.pendingEdges) {
-            if (dead.has(pending.edgeIndex)) {
-                // The store edge is gone, so there is nothing left for a render object to be
-                // built FOR. Named in the answer only when no render object already was: an edge
-                // is one thing, so it must appear once in the removal event whichever half of this
-                // method found it.
-                this.forgetPending(pending);
-                if (!tornDown.has(pending.edgeIndex)) {
-                    removedIds.push(edgeIdOf(pending.edgeId));
-                }
-
-                continue;
-            }
-
-            survivors.push(pending);
-        }
-
-        this.pendingEdges = survivors;
-        return removedIds;
+        this.dispatcher.dispatchNow({ op: "data.apply", mutation });
     }
 
     /**
@@ -1198,11 +1218,9 @@ export class DataManager implements Manager {
     setEdges(edges: Record<string | number, unknown>[], options?: AddEdgesOptions): void {
         this.ingest.refuseReplacement(edges, this.edges.size, options);
 
-        for (const id of [...this.edges.keys()]) {
-            this.removeEdge(id);
-        }
-
         this.graph.withUnrecordedWrites("DataManager.setEdges", this.store, (writer) => {
+            const removed = writer.removeEdges([...this.edges.keys()]);
+            this.dropRendered(removed.nodes, removed.edges);
             this.ingest.addEdges(edges, options, writer);
         });
     }
@@ -1213,19 +1231,11 @@ export class DataManager implements Manager {
      * @returns True if the edge was removed, false if not found
      */
     removeEdge(edgeId: string): boolean {
-        const edge = this.edges.get(edgeId);
-        if (!edge) {
+        if (!this.edges.has(edgeId)) {
             return false;
         }
 
-        const { index } = edge;
-        if (index !== INVALID_INDEX) {
-            this.store.builder.removeEdge(index);
-            this.store.touch();
-        }
-
-        this.graph.dropRecords("DataManager.removeEdge", [], [edge.id]);
-        this.teardownEdge(edge, index);
+        this.write({ kind: "remove-edges", ids: [edgeId] });
         return true;
     }
 
@@ -1245,39 +1255,10 @@ export class DataManager implements Manager {
     // Utility methods
 
     /**
-     * Clear all data
+     * Remove every node, edge, record and graph-level value, as one undoable step.
      */
     clear(): void {
-        // Free the per-node and per-edge Babylon resources BEFORE dropping the references to
-        // them. See disposeNodesAndEdges: meshCache.clear() below only reaches CACHED meshes,
-        // and arrowheads, patterned lines and labels are not cached.
-        this.disposeNodesAndEdges();
-
-        // Remove all nodes and edges
-        this.nodes.clear();
-        this.edges.clear();
-        this.edgeVersion++;
-        this.nodeCache.clear();
-        this.edgeCache.clear();
-
-        // The dataset boundary, announced BEFORE the store goes: clearing freezes no replacement,
-        // so `snapshot-replaced` never fires and a holder of per-snapshot resources -- an
-        // accelerator's device buffers, which no garbage collector can reach -- would keep them for
-        // a graph that no longer exists. Emitted while the outgoing store still answers, because a
-        // listener releasing a snapshot may need a derived view of it that only that store has.
-        this.eventManager.emitSnapshotDropped();
-
-        // Drop the graph data itself, not only the render objects built from it.
-        this.resetStore();
-        this.graph.discardAll("DataManager.clear");
-
-        // Clear graph-level results
-        this.graphResults = undefined;
-
-        // Clear mesh cache
-        this.meshCache.clear();
-
-        // TODO: Notify layout engine to clear
+        this.write({ kind: "clear" });
     }
 
     /**

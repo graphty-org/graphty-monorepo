@@ -21,8 +21,8 @@
 import { INVALID_INDEX } from "@graphty/graph-format";
 
 import type { EdgeId, NodeId } from "../../catalog/types";
-import { edgeIdOf } from "../../data/edgeIdentity";
-import type { GraphStore } from "../../data/GraphStore";
+import { edgeCounterOf, edgeIdOf } from "../../data/edgeIdentity";
+import type { GraphStore, KeptGraph, RemovedRows } from "../../data/GraphStore";
 import type { DirectionProvenance } from "../types";
 import type { Draft, OpLogEntry } from "./draft";
 import { createCounter, emptyGraphSlice, type GraphRecord, type GraphSlice } from "./state";
@@ -34,13 +34,7 @@ import { strictViolation } from "./strict";
  * is still a `knownGap` row in `../commands/doors.ts`, so a door ported without leaving this list
  * fails there.
  */
-export const UNRECORDED_DOORS = [
-    "DataManager.addDataFromSource",
-    "DataManager.setEdges",
-    "DataManager.clear",
-    "DataManager.removeNodeAndIncidentEdges",
-    "DataManager.removeEdge",
-] as const;
+export const UNRECORDED_DOORS = ["DataManager.addDataFromSource", "DataManager.setEdges"] as const;
 
 /** A door allowed to write the graph without recording. */
 export type UnrecordedDoor = (typeof UNRECORDED_DOORS)[number];
@@ -138,10 +132,36 @@ type GraphOp =
       }
     | { readonly kind: "value"; readonly name: string; readonly prior: unknown; readonly next: unknown }
     | {
+          /** Rows taken out, with their records; undo puts them back at their rows. */
+          readonly kind: "remove";
+          readonly rows: RemovedRows;
+          readonly nodeRecords: readonly (GraphRecord | undefined)[];
+          readonly edgeRecords: readonly (GraphRecord | undefined)[];
+      }
+    | {
+          /** The whole graph swapped for an empty one; the prior graph and maps are kept by reference. */
+          readonly kind: "replace";
+          readonly kept: KeptGraph;
+          readonly prior: GraphMaps;
+      }
+    | {
           readonly kind: "direction";
           readonly prior: { readonly directed: boolean; readonly provenance: DirectionProvenance };
           readonly next: { readonly directed: boolean; readonly provenance: DirectionProvenance };
       };
+
+/** The three maps of the `graph` slice. */
+interface GraphMaps {
+    readonly nodes: ReadonlyMap<NodeId, GraphRecord>;
+    readonly edges: ReadonlyMap<EdgeId, GraphRecord>;
+    readonly values: ReadonlyMap<string, unknown>;
+}
+
+/** What a removal took out, by id. */
+interface Removed {
+    readonly nodes: readonly NodeId[];
+    readonly edges: readonly EdgeId[];
+}
 
 /**
  * Whether an id is one graph-format stores: a string or a finite number.
@@ -206,6 +226,20 @@ export interface GraphWriter {
      * @returns What happened.
      */
     setDirected(directed: boolean, statedBy: string): DirectionOutcome;
+    /**
+     * Remove nodes and every edge attached to them, keeping everything their undo needs.
+     * @param ids - The node ids; one the graph does not hold is skipped.
+     * @returns What was removed.
+     */
+    removeNodes(ids: readonly NodeId[]): Removed;
+    /**
+     * Remove edges, keeping everything their undo needs.
+     * @param ids - The edge ids; one the graph does not hold is skipped.
+     * @returns What was removed.
+     */
+    removeEdges(ids: readonly EdgeId[]): Removed;
+    /** Empty the graph: every row, record and graph-level value. */
+    clear(): void;
 }
 
 /** Unrecorded writes: their door, and whether the history was already dropped for them. */
@@ -294,42 +328,6 @@ export class GraphOps {
     }
 
     /**
-     * Drop every record and graph value, unrecorded: the store has been emptied. Takes a fresh
-     * token and clears the history.
-     * @param door - The door that emptied it.
-     */
-    discardAll(door: UnrecordedDoor): void {
-        this.checkDoor(door);
-        const slice = this.home.read();
-        (slice.nodes as Map<NodeId, GraphRecord>).clear();
-        (slice.edges as Map<EdgeId, GraphRecord>).clear();
-        (slice.values as Map<string, unknown>).clear();
-        this.retoken();
-        this.home.forget();
-    }
-
-    /**
-     * Forget the records of rows a door removed without recording. The history is kept: the
-     * inverses skip rows that are gone. Temporary, until the removals come through `data.apply`.
-     * @param door - The door that removed them.
-     * @param nodes - The node ids removed.
-     * @param edges - The edge ids removed with them.
-     */
-    dropRecords(door: UnrecordedDoor, nodes: readonly NodeId[], edges: readonly EdgeId[]): void {
-        this.checkDoor(door);
-        const slice = this.home.read();
-        for (const id of nodes) {
-            (slice.nodes as Map<NodeId, GraphRecord>).delete(id);
-        }
-
-        for (const id of edges) {
-            (slice.edges as Map<EdgeId, GraphRecord>).delete(id);
-        }
-
-        this.retoken();
-    }
-
-    /**
      * Take a token never issued before and make it the slice's.
      * @returns The token.
      */
@@ -358,6 +356,14 @@ export class GraphOps {
      */
     touch(key: string): void {
         this.home.touch(key);
+    }
+
+    /**
+     * Swap the slice's three maps, keeping the token.
+     * @param maps - The maps to hold from now on.
+     */
+    swapMaps(maps: GraphMaps): void {
+        this.home.write(Object.freeze({ ...this.home.read(), ...maps }));
     }
 
     /** Drop the history, for an unrecorded write. */
@@ -398,6 +404,18 @@ class GraphEntry implements OpLogEntry {
         this.retained += 48 + (op.kind === "node" || op.kind === "edge" ? recordBytes(op.record) : 0);
         if (op.kind === "record") {
             this.retained += recordBytes(op.prior) + recordBytes(op.next);
+        } else if (op.kind === "remove") {
+            // A removed row keeps its record and a small map of column values.
+            this.retained += 96 * (op.rows.nodes.length + op.rows.edges.length);
+            for (const record of [...op.nodeRecords, ...op.edgeRecords]) {
+                this.retained += recordBytes(record);
+            }
+        } else if (op.kind === "replace") {
+            // ponytail: the kept graph is estimated at its records only; the snapshot's typed
+            // arrays are not counted, which undercounts a large graph with few attributes.
+            for (const record of [...op.prior.nodes.values(), ...op.prior.edges.values()]) {
+                this.retained += recordBytes(record);
+            }
         }
     }
 
@@ -405,11 +423,23 @@ class GraphEntry implements OpLogEntry {
         return this.retained;
     }
 
+    /**
+     * The slice's maps now, writable.
+     * @returns The maps.
+     */
+    private maps(): { nodes: Map<NodeId, GraphRecord>; edges: Map<EdgeId, GraphRecord>; values: Map<string, unknown> } {
+        const { slice } = this.graph;
+        return {
+            nodes: slice.nodes as Map<NodeId, GraphRecord>,
+            edges: slice.edges as Map<EdgeId, GraphRecord>,
+            values: slice.values as Map<string, unknown>,
+        };
+    }
+
     undo(rollback: boolean): void {
         const { store } = this;
-        const nodes = this.graph.slice.nodes as Map<NodeId, GraphRecord>;
-        const edges = this.graph.slice.edges as Map<EdgeId, GraphRecord>;
-        const values = this.graph.slice.values as Map<string, unknown>;
+        // Re-read after a replace, which swaps the maps.
+        let { nodes, edges, values } = this.maps();
         for (let index = this.ops.length - 1; index >= 0; index--) {
             const op = this.ops[index];
             switch (op.kind) {
@@ -456,6 +486,23 @@ class GraphEntry implements OpLogEntry {
                     restore(values, op.name, op.prior);
                     this.graph.touch(`v:${op.name}`);
                     break;
+                case "remove":
+                    op.rows.nodes.forEach((node, at) => {
+                        restore(nodes, node.id, op.nodeRecords[at]);
+                        this.graph.touch(nodeKey(node.id));
+                    });
+                    op.rows.edges.forEach((edge, at) => {
+                        restore(edges, edgeIdOf(edge.edgeId), op.edgeRecords[at]);
+                        this.graph.touch(edgeKey(edgeIdOf(edge.edgeId)));
+                    });
+                    store.insertRows(op.rows);
+                    break;
+                case "replace":
+                    this.graph.swapMaps(op.prior);
+                    ({ nodes, edges, values } = this.maps());
+                    touchAll(this.graph, op.prior);
+                    store.replace(op.kept, true);
+                    break;
                 default:
                     // "direction"
                     if (store.builder.directed !== op.prior.directed && !store.builder.directedLocked) {
@@ -478,9 +525,8 @@ class GraphEntry implements OpLogEntry {
 
     redo(): void {
         const { store } = this;
-        const nodes = this.graph.slice.nodes as Map<NodeId, GraphRecord>;
-        const edges = this.graph.slice.edges as Map<EdgeId, GraphRecord>;
-        const values = this.graph.slice.values as Map<string, unknown>;
+        // Re-read after a replace, which swaps the maps.
+        let { nodes, edges, values } = this.maps();
         const added = new Set<string>();
         for (const op of this.ops) {
             switch (op.kind) {
@@ -523,6 +569,25 @@ class GraphEntry implements OpLogEntry {
                     restore(values, op.name, op.next);
                     this.graph.touch(`v:${op.name}`);
                     break;
+                case "remove":
+                    for (const node of op.rows.nodes) {
+                        nodes.delete(node.id);
+                        this.graph.touch(nodeKey(node.id));
+                    }
+
+                    for (const edge of op.rows.edges) {
+                        edges.delete(edgeIdOf(edge.edgeId));
+                        this.graph.touch(edgeKey(edgeIdOf(edge.edgeId)));
+                    }
+
+                    store.dropRows(op.rows);
+                    break;
+                case "replace":
+                    this.graph.swapMaps(emptyMaps());
+                    ({ nodes, edges, values } = this.maps());
+                    touchAll(this.graph, op.prior);
+                    store.replace(op.kept, false);
+                    break;
                 default:
                     // "direction"
                     if (store.builder.directed !== op.next.directed && !store.builder.directedLocked) {
@@ -555,6 +620,35 @@ function restore<K, V>(map: Map<K, V>, key: K, value: V | undefined): void {
         map.delete(key);
     } else {
         map.set(key, value);
+    }
+}
+
+/**
+ * Three empty maps for the `graph` slice.
+ * @returns The maps.
+ */
+function emptyMaps(): GraphMaps {
+    return { nodes: new Map(), edges: new Map(), values: new Map() };
+}
+
+/**
+ * Mark every key of a whole graph dirty, so the derivation pass builds or tears down each row.
+ * @param graph - The primitives.
+ * @param maps - The graph's maps.
+ */
+function touchAll(graph: GraphOps, maps: GraphMaps): void {
+    // ponytail: O(rows) keys for a replace; a single "everything" key the graph hook diffs by
+    // itself would make this O(1), worth it once a million-row clear is measured.
+    for (const id of maps.nodes.keys()) {
+        graph.touch(nodeKey(id));
+    }
+
+    for (const id of maps.edges.keys()) {
+        graph.touch(edgeKey(id));
+    }
+
+    for (const name of maps.values.keys()) {
+        graph.touch(`v:${name}`);
     }
 }
 
@@ -695,6 +789,83 @@ class Writer implements GraphWriter {
             null,
         );
         return outcome;
+    }
+
+    removeNodes(ids: readonly NodeId[]): Removed {
+        const nodes = this.graph.slice.nodes as Map<NodeId, GraphRecord>;
+        const rowless = ids.filter((id) => nodes.has(id) && !(isStorableId(id) && this.store.builder.hasNode(id)));
+        const stored = ids.filter((id) => isStorableId(id) && this.store.builder.hasNode(id));
+        if (rowless.length === 0 && stored.length === 0) {
+            return { nodes: [], edges: [] };
+        }
+
+        this.begin();
+        // A record whose id graph-format would not store has no row: only the record goes.
+        for (const id of new Set(rowless)) {
+            const prior = nodes.get(id);
+            nodes.delete(id);
+            this.record({ kind: "record", target: "node", id, prior, next: undefined }, nodeKey(id), null);
+        }
+
+        const removed = this.removeRows(stored, []);
+        return { nodes: [...new Set(rowless), ...removed.nodes], edges: removed.edges };
+    }
+
+    removeEdges(ids: readonly EdgeId[]): Removed {
+        const counters = ids.map((id) => edgeCounterOf(id)).filter((counter) => this.store.edgeIndexOf(counter) !== INVALID_INDEX);
+        if (counters.length === 0) {
+            return { nodes: [], edges: [] };
+        }
+
+        this.begin();
+        return this.removeRows([], counters);
+    }
+
+    clear(): void {
+        this.begin();
+        const { slice } = this.graph;
+        const prior: GraphMaps = { nodes: slice.nodes, edges: slice.edges, values: slice.values };
+        const kept = this.store.keep();
+        this.graph.swapMaps(emptyMaps());
+        this.store.replace(kept, false);
+        if (this.entry !== null) {
+            this.entry.push({ kind: "replace", kept, prior });
+            touchAll(this.graph, prior);
+        }
+    }
+
+    /**
+     * Take rows out of the store and their records out of the slice, recording both.
+     * @param nodeIds - The nodes, each with a row.
+     * @param edgeIds - The element-assigned ids of edges, each with a row.
+     * @returns What was removed.
+     */
+    private removeRows(nodeIds: readonly NodeId[], edgeIds: readonly number[]): Removed {
+        const nodes = this.graph.slice.nodes as Map<NodeId, GraphRecord>;
+        const edges = this.graph.slice.edges as Map<EdgeId, GraphRecord>;
+        const rows = this.store.removeRows(nodeIds, edgeIds);
+        const nodeRecords = rows.nodes.map((node) => nodes.get(node.id));
+        const edgeRecords = rows.edges.map((edge) => edges.get(edgeIdOf(edge.edgeId)));
+        for (const node of rows.nodes) {
+            nodes.delete(node.id);
+        }
+
+        for (const edge of rows.edges) {
+            edges.delete(edgeIdOf(edge.edgeId));
+        }
+
+        if (this.entry !== null) {
+            this.entry.push({ kind: "remove", rows, nodeRecords, edgeRecords });
+            for (const node of rows.nodes) {
+                this.graph.touch(nodeKey(node.id));
+            }
+
+            for (const edge of rows.edges) {
+                this.graph.touch(edgeKey(edgeIdOf(edge.edgeId)));
+            }
+        }
+
+        return { nodes: rows.nodes.map((node) => node.id), edges: rows.edges.map((edge) => edgeIdOf(edge.edgeId)) };
     }
 
     /** Before the first write: a fresh token, and the entry or the dropped history. */

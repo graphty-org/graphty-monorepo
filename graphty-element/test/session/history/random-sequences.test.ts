@@ -515,6 +515,26 @@ const COMMANDS = [
                     }),
             })),
     ),
+    fc.subarray(["n1", "n2", "n3", "n4", "n5"], { minLength: 1, maxLength: 2 }).map(
+        (ids) =>
+            new Edit(`remove nodes ${ids.join(", ")}`, (real) => ({
+                key: null,
+                run: () => real.session.data.removeNodes(ids),
+            })),
+    ),
+    fc.subarray(["0", "1", "2", "3", "4"], { minLength: 1, maxLength: 2 }).map(
+        (ids) =>
+            new Edit(`remove edges ${ids.join(", ")}`, (real) => ({
+                key: null,
+                run: () => real.session.data.removeEdges(ids),
+            })),
+    ),
+    fc.constant(
+        new Edit("clear the graph", (real) => ({
+            key: null,
+            run: () => real.session.data.clear(),
+        })),
+    ),
     fc.constant(new Move("undo")),
     fc.constant(new Move("redo")),
     fc.constant(new Move("undo-twice")),

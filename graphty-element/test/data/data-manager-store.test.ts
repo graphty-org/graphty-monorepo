@@ -341,7 +341,8 @@ describe("DataManager store lifecycle", () => {
         dm.addEdges([{ src: "x", dst: "y" }]);
         const snapshot = dm.getSnapshot();
         assert.notStrictEqual(snapshot.nodes.byRole("position"), null);
-        assert.strictEqual(snapshot.edges.requireTyped("graphty.edgeId", "u32").data[0], 0);
+        // The counter is never wound back, so a clear that can be undone never reissues id 0.
+        assert.strictEqual(snapshot.edges.requireTyped("graphty.edgeId", "u32").data[0], 1);
     });
 
     it("forgets a pending edge across clear(), so the pair is accepted again", () => {

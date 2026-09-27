@@ -134,6 +134,24 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "data.apply", mutation: { kind: "update-rows", target: "edge", rows: [{ id: "1", values: { kind: "next" } }] } },
     },
     {
+        name: "data.apply remove-nodes from the middle",
+        variant: "remove-nodes",
+        tags: BOTH,
+        command: { op: "data.apply", mutation: { kind: "remove-nodes", ids: ["n2"] } },
+    },
+    {
+        name: "data.apply remove-edges",
+        variant: "remove-edges",
+        tags: BOTH,
+        command: { op: "data.apply", mutation: { kind: "remove-edges", ids: ["0"] } },
+    },
+    {
+        name: "data.apply clear",
+        variant: "clear",
+        tags: BOTH,
+        command: { op: "data.apply", mutation: { kind: "clear" } },
+    },
+    {
         name: "style.patch add",
         variant: "add",
         tags: BOTH,

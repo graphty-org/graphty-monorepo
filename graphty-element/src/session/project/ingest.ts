@@ -15,6 +15,7 @@ import { type DuplicatePolicy, INVALID_INDEX } from "@graphty/graph-format";
 import jmespath from "jmespath";
 
 import { unknownFormat } from "../../catalog/detect";
+import type { EdgeId } from "../../catalog/types";
 import { DataSource, type DeclaredDirection } from "../../data/DataSource";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints } from "../../data/endpoints";
 import type { ErrorAggregator } from "../../data/ErrorAggregator";
@@ -185,6 +186,10 @@ export interface IngestHost<K extends KnownEdge> {
     nodeStored(id: NodeIdType, record: Record<string | number, unknown>, index: number): void;
     /** An edge the store has just taken. */
     edgeStored(edge: StoredEdge): void;
+    /** Rows have been removed from the store; whatever draws them goes. */
+    rowsRemoved(nodes: readonly NodeIdType[], edges: readonly EdgeId[]): void;
+    /** The graph has been emptied. */
+    cleared(): void;
     /** A non-empty batch of node records has been ingested. */
     nodesArrived(count: number): void;
     /** A non-empty batch of edge records has been ingested. */
@@ -320,11 +325,30 @@ export class Ingest<K extends KnownEdge> {
                 }
 
                 return;
-            default:
-                // "update-rows": values of its own for each row.
+            case "update-rows":
+                // Values of its own for each row.
                 for (const row of mutation.rows) {
                     writer.setAttributes(mutation.target, resolve(mutation.target, row.id), row.values);
                 }
+
+                return;
+            case "remove-nodes": {
+                const removed = writer.removeNodes(mutation.ids.map((id) => resolve("node", id)));
+                this.host.rowsRemoved(removed.nodes, removed.edges);
+                return;
+            }
+
+            case "remove-edges": {
+                const removed = writer.removeEdges(mutation.ids);
+                this.host.rowsRemoved(removed.nodes, removed.edges);
+                return;
+            }
+
+            default:
+                // "clear"
+                writer.clear();
+                this.reset();
+                this.host.cleared();
         }
     }
 

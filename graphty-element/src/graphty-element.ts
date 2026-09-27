@@ -2053,7 +2053,7 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Remove nodes from the graph.
+     * Remove nodes from the graph, and every edge attached to one, as one undoable step.
      * @param nodeIds - Array of node IDs to remove
      * @param options - Queue options for operation ordering
      * @returns Promise that resolves when nodes are removed
@@ -2068,6 +2068,23 @@ export class Graphty extends LitElement {
         options?: import("./utils/queue-migration").QueueableOptions,
     ): Promise<void> {
         return this.#graph.removeNodes(nodeIds, options);
+    }
+
+    /**
+     * Remove edges from the graph, as one undoable step.
+     * @param edgeIds - The element-assigned edge ids
+     * @param options - Queue options for operation ordering
+     * @returns Promise that resolves when the edges are removed
+     * @example
+     * ```typescript
+     * await element.removeEdges(['0', '3']);
+     * ```
+     */
+    async removeEdges(
+        edgeIds: string[],
+        options?: import("./utils/queue-migration").QueueableOptions,
+    ): Promise<void> {
+        return this.#graph.removeEdges(edgeIds, options);
     }
 
     /**

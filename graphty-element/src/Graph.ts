@@ -212,7 +212,10 @@ export class Graph implements GraphContext {
      * instead: the store's `stale` is true both before the first freeze and after a later edit.
      */
     #resident: GraphSnapshot | null = null;
-    /** Queued `data-add` operations dispatching now, whose paint the `data-add` trigger brings. */
+    /**
+     * Queued `data-add` and `data-remove` operations dispatching now, whose paint their queue
+     * trigger brings.
+     */
     #queuedAdds = 0;
 
     // Managers
@@ -2029,7 +2032,8 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Remove nodes from the graph by their IDs, and with them every edge attached to one.
+     * Remove nodes from the graph by their IDs, and with them every edge attached to one, as one
+     * undoable step. Undo puts them back at the rows they held.
      *
      * One `elements-removed` event is emitted per call, naming the nodes and every edge
      * that went with them. A removal used to be silent, so a consumer watching the element saw its
@@ -2037,70 +2041,59 @@ export class Graph implements GraphContext {
      * which is why the notification lands with the cascade rather than after it.
      * @param nodeIds - Array of node IDs to remove
      * @param options - Queue options for operation ordering
+     * @returns Settles once the change is drawn
      */
     async removeNodes(nodeIds: (string | number)[], options?: QueueableOptions): Promise<void> {
-        const removeAll = (): void => {
-            // THE SELECTION IS TOLD FIRST, and that ordering is the whole of it. The session's
-            // masks are keyed by dense index; an id is resolved to an index through the current
-            // snapshot. Once the builder has tombstoned these rows, the next freeze compacts and
-            // every surviving edge slides down -- so a mask still holding the dead indices would
-            // silently be holding the SURVIVORS instead, and a removal would leave two edges the
-            // reader never selected highlighted on screen.
-            const doomedNodes = new Set<string | number>(nodeIds);
-            const doomedEdges: string[] = [];
-            for (const edge of this.dataManager.edges.values()) {
-                if (doomedNodes.has(edge.srcId) || doomedNodes.has(edge.dstId)) {
-                    doomedEdges.push(edge.id);
-                }
-            }
-
-            this.selectionManager.onEdgesRemoved(doomedEdges);
-
-            const removedNodes: NodeIdType[] = [];
-            const removedEdges: string[] = [];
-
-            for (const id of nodeIds) {
-                // Check if the node being removed is selected
-                const node = this.dataManager.getNode(id);
-                if (node) {
-                    this.selectionManager.onNodeRemoved(node);
-                }
-
-                const edges = this.dataManager.removeNodeAndIncidentEdges(id);
-                if (edges === null) {
-                    continue;
-                }
-
-                removedNodes.push(id);
-                removedEdges.push(...edges);
-            }
-
-            if (removedNodes.length > 0 || removedEdges.length > 0) {
-                this.eventManager.emitElementsRemoved(removedNodes, removedEdges);
-            }
-        };
-
-        if (options?.skipQueue) {
-            removeAll();
-            // No queue, so no data-remove trigger: rebuild the index-keyed paint here instead.
-            await this.repaintFromSession();
-            return;
-        }
-
-        await this.operationQueue.queueOperationAsync(
+        await this.applyData(
             "data-remove",
-            (context) => {
-                if (context.signal.aborted) {
-                    throw new Error("Operation cancelled");
+            { kind: "remove-nodes", ids: nodeIds },
+            `Removing ${nodeIds.length} nodes`,
+            options,
+            () => {
+                // THE SELECTION IS TOLD FIRST, and that ordering is the whole of it. The session's
+                // masks are keyed by dense index; an id is resolved to an index through the current
+                // snapshot. Once the builder has tombstoned these rows, the next freeze compacts and
+                // every surviving edge slides down -- so a mask still holding the dead indices would
+                // silently be holding the SURVIVORS instead, and a removal would leave two edges the
+                // reader never selected highlighted on screen.
+                const doomed = new Set<string | number>();
+                for (const id of nodeIds) {
+                    const node = this.dataManager.getNode(id);
+                    if (node) {
+                        doomed.add(node.id);
+                    }
                 }
 
-                removeAll();
-            },
-            {
-                description: `Removing ${nodeIds.length} nodes`,
-                ...options,
+                const doomedEdges: string[] = [];
+                for (const edge of this.dataManager.edges.values()) {
+                    if (doomed.has(edge.srcId) || doomed.has(edge.dstId)) {
+                        doomedEdges.push(edge.id);
+                    }
+                }
+
+                this.selectionManager.onEdgesRemoved(doomedEdges);
+                for (const id of doomed) {
+                    const node = this.dataManager.getNode(id);
+                    if (node) {
+                        this.selectionManager.onNodeRemoved(node);
+                    }
+                }
             },
         );
+    }
+
+    /**
+     * Remove edges from the graph by their ids, as one undoable step. Undo puts them back at the
+     * rows they held, with their weights and ids.
+     * @param edgeIds - The element-assigned edge ids
+     * @param options - Queue options for operation ordering
+     * @returns Settles once the change is drawn
+     */
+    async removeEdges(edgeIds: string[], options?: QueueableOptions): Promise<void> {
+        await this.applyData("data-remove", { kind: "remove-edges", ids: edgeIds }, `Removing ${edgeIds.length} edges`, options, () => {
+            // Told first, for the reason `removeNodes` gives.
+            this.selectionManager.onEdgesRemoved(edgeIds);
+        });
     }
 
     /**
@@ -2144,14 +2137,17 @@ export class Graph implements GraphContext {
      * @param mutation - The mutation.
      * @param description - What the queue shows.
      * @param options - Queue options.
+     * @param before - Run on the turn, just before dispatching.
      */
     private async applyData(
-        category: "data-add" | "data-update",
+        category: "data-add" | "data-update" | "data-remove",
         mutation: DataMutation,
         description: string,
         options?: QueueableOptions,
+        before?: () => void,
     ): Promise<void> {
         const dispatch = async (): Promise<void> => {
+            before?.();
             await dispatcherOf(this.session).dispatch({ op: "data.apply", mutation });
         };
 
@@ -2167,8 +2163,9 @@ export class Graph implements GraphContext {
                     throw new Error("Operation cancelled");
                 }
 
-                // The `data-add` trigger paints after this operation, so the pass does not.
-                const trigger = category === "data-add" ? 1 : 0;
+                // The `data-add` and `data-remove` triggers paint after this operation, so the pass
+                // does not.
+                const trigger = category === "data-update" ? 0 : 1;
                 this.#queuedAdds += trigger;
                 try {
                     await dispatch();
@@ -2364,7 +2361,8 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Remove every node and edge, leaving the graph empty and ready for the next dataset.
+     * Remove every node and edge, leaving the graph empty and ready for the next dataset, as one
+     * undoable step.
      *
      * The verb the data guide has always taught -- as `graph.clear()`, which has never existed.
      * `<graphty-element>` has had `clearData()` throughout; a consumer holding a `Graph` had to

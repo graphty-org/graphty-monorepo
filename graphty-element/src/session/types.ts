@@ -382,6 +382,24 @@ export interface SessionDataApi {
      * @returns Settles once the change is drawn.
      */
     updateEdges(rows: readonly RowUpdate<EdgeId>[]): Promise<void>;
+    /**
+     * Remove nodes, and every edge attached to one, as one undoable step. Undo puts them back at
+     * the rows they held, with their records, weights and edge ids.
+     * @param ids - The node ids; one the graph does not hold is skipped.
+     * @returns Settles once they are gone from the graph and the picture.
+     */
+    removeNodes(ids: readonly NodeId[]): Promise<void>;
+    /**
+     * Remove edges, as one undoable step.
+     * @param ids - The element-assigned edge ids; one the graph does not hold is skipped.
+     * @returns Settles once they are gone from the graph and the picture.
+     */
+    removeEdges(ids: readonly EdgeId[]): Promise<void>;
+    /**
+     * Remove every node, edge, record and graph-level value, as one undoable step.
+     * @returns Settles once the graph and the picture are empty.
+     */
+    clear(): Promise<void>;
 }
 
 /** A node record to add: its id is read through `data.knownFields.nodeIdPath`. */

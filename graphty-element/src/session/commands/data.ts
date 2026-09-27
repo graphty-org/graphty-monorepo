@@ -1,7 +1,7 @@
 /**
  * @file `data.apply`: one change to the graph's rows or records as one undoable step. The kinds
  * that grow or patch the graph are here: `add-nodes`, `add-edges`, `set-attributes` and
- * `update-rows`; the removals and `clear` join in the next phase of design/undo/undo-plan.md.
+ * `update-rows`, and the removals and `clear`: `remove-nodes`, `remove-edges`, `clear`.
  *
  * The command reads its records through ingest (id and endpoint extraction, the repeated-edge
  * policy, weights) and writes through the graph primitives in its draft, which record the
@@ -55,6 +55,20 @@ export type DataMutation =
           readonly kind: "update-rows";
           readonly target: "node" | "edge";
           readonly rows: readonly RowUpdate<NodeId | EdgeId>[];
+      }
+    | {
+          /** Remove nodes, and every edge attached to one. */
+          readonly kind: "remove-nodes";
+          readonly ids: readonly NodeId[];
+      }
+    | {
+          /** Remove edges, by the element-assigned edge id. */
+          readonly kind: "remove-edges";
+          readonly ids: readonly EdgeId[];
+      }
+    | {
+          /** Remove every node, edge, record and graph-level value. */
+          readonly kind: "clear";
       };
 
 /** `data.apply`. */
@@ -93,10 +107,17 @@ function patchedIds(mutation: Extract<DataMutation, { kind: "set-attributes" | "
  * @param mutation - The mutation.
  * @returns The count.
  */
-function sizeOf(mutation: DataMutation): number {
-    return mutation.kind === "add-nodes" || mutation.kind === "add-edges"
-        ? mutation.records.length
-        : patchedIds(mutation).length;
+function sizeOf(mutation: Exclude<DataMutation, { kind: "clear" }>): number {
+    switch (mutation.kind) {
+        case "add-nodes":
+        case "add-edges":
+            return mutation.records.length;
+        case "remove-nodes":
+        case "remove-edges":
+            return mutation.ids.length;
+        default:
+            return patchedIds(mutation).length;
+    }
 }
 
 /**
@@ -105,12 +126,20 @@ function sizeOf(mutation: DataMutation): number {
  * @returns "Added 3 nodes" and the like.
  */
 function labelOf(mutation: DataMutation): string {
+    if (mutation.kind === "clear") {
+        return "Cleared the graph";
+    }
+
     const count = sizeOf(mutation);
     switch (mutation.kind) {
         case "add-nodes":
             return count === 1 ? "Added a node" : `Added ${String(count)} nodes`;
         case "add-edges":
             return count === 1 ? "Added an edge" : `Added ${String(count)} edges`;
+        case "remove-nodes":
+            return count === 1 ? "Removed a node" : `Removed ${String(count)} nodes`;
+        case "remove-edges":
+            return count === 1 ? "Removed an edge" : `Removed ${String(count)} edges`;
         default:
             return `Edited ${String(count)} ${mutation.target}${count === 1 ? "" : "s"}`;
     }
@@ -121,12 +150,13 @@ const dataApply: UndoableDefinition<DataApplyCommand> = {
     undo: { kind: "undoable", label: (command) => labelOf(command.mutation) },
     moves: false,
     draws: true,
-    variants: ["add-nodes", "add-edges", "set-attributes", "update-rows"],
+    variants: ["add-nodes", "add-edges", "set-attributes", "update-rows", "remove-nodes", "remove-edges", "clear"],
     // An add's ids are not known before it runs (an edge's id is assigned, a record's id is read
-    // through a path), so it holds the whole slice; a small patch holds only the ids it names.
+    // through a path), nor are the edges a node removal takes with it, and a removal renumbers
+    // every row after it, so these hold the whole slice; a small patch holds only the ids it names.
     keys: (command) => {
         const { mutation } = command;
-        if (mutation.kind === "add-nodes" || mutation.kind === "add-edges") {
+        if (mutation.kind !== "set-attributes" && mutation.kind !== "update-rows") {
             return ["graph"];
         }
 

@@ -70,7 +70,7 @@ export const PHASES = [
 type PlanPhase = (typeof PHASES)[number];
 
 /** The phase this branch has reached. Each phase's commit raises it. */
-export const PLAN_PHASE: PlanPhase = "12";
+export const PLAN_PHASE: PlanPhase = "13";
 
 /** How the doors tests call a door. */
 export type DoorCall =
@@ -238,6 +238,19 @@ function updateRow(target: "node" | "edge", id: string, values: Readonly<Record<
     return { op: "data.apply", mutation: { kind: "update-rows", target, rows: [{ id, values }] } };
 }
 
+/**
+ * A command removing rows, or emptying the graph.
+ * @param kind - Which removal.
+ * @param ids - The ids.
+ * @returns The command.
+ */
+function removes(kind: "remove-nodes" | "remove-edges", ids: readonly string[]): SessionCommand {
+    return { op: "data.apply", mutation: { kind, ids } };
+}
+
+/** The command emptying the graph. */
+const CLEAR: SessionCommand = { op: "data.apply", mutation: { kind: "clear" } };
+
 /** The data rows the element and `Graph` share. */
 const DATA_DOORS: Readonly<Record<string, Door>> = {
     addNode: calls([{ id: "door-a" }], [addNodes({ id: "door-a" })]),
@@ -246,7 +259,14 @@ const DATA_DOORS: Readonly<Record<string, Door>> = {
     addEdges: calls([[{ src: "n3", dst: "n1" }]], [addEdges({ src: "n3", dst: "n1" })]),
     updateNodes: calls([[{ id: "n1", weight: 2 }]], [updateRow("node", "n1", { weight: 2 })]),
     updateEdges: calls([[{ id: "0", weight: 2 }]], [updateRow("edge", "0", { weight: 2 })]),
+    removeEdges: calls([["0"]], [removes("remove-edges", ["0"])]),
 };
+
+/** The element's and `Graph`'s node removal. */
+const REMOVE_NODES = calls([["n3"]], [removes("remove-nodes", ["n3"])]);
+
+/** The element's and `Graph`'s clear. */
+const CLEAR_DATA = calls([], [CLEAR]);
 
 /** A small graph document the JSON data source reads, for the load doors. */
 const TINY_JSON = JSON.stringify({ nodes: [{ id: "j1" }, { id: "j2" }], edges: [{ src: "j1", dst: "j2" }] });
@@ -452,7 +472,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             edgeData: gapSet("14", "batch", [{ src: "n1", dst: "n2" }]),
             dataSource: gapSet("14", "data.import", "json"),
             dataSourceConfig: gapSet("14", "data.import", { data: TINY_JSON }),
-            clearData: gap("13", "data.apply", []),
+            clearData: CLEAR_DATA,
             nodeIdPath: assigns("id", [{ op: "config.set", values: { data: { knownFields: { nodeIdPath: "id" } } } }]),
             edgeSrcIdPath: assigns("src", [
                 { op: "config.set", values: { data: { knownFields: { edgeSrcIdPath: "src" } } } },
@@ -521,7 +541,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ),
             graph: READ,
             ...DATA_DOORS,
-            removeNodes: gap("13", "data.apply", [["n3"]]),
+            removeNodes: REMOVE_NODES,
             addDataFromSource: gap("14", "data.import", ["json", { data: TINY_JSON }]),
             loadFromUrl: gap("14", "data.import", [TINY_JSON_URL]),
             loadFromFile: gap("14", "data.import", () => [
@@ -653,7 +673,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             run: gap("15", "algo.run", ["degree"]),
             applySuggestedStyles: partial("15", SUGGESTED_STEPS, ["graphty:degree"], [DEGREE_ENCODE]),
             getSuggestedStyles: READ,
-            removeNodes: gap("13", "data.apply", [["n3"]]),
+            removeNodes: REMOVE_NODES,
             setCameraMode: CAMERA,
             setRenderSettings: VIEW_SETTING,
             batchOperations: escape("19a"),
@@ -663,7 +683,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             on: LISTEN,
             addListener: LISTEN,
             removeListener: LISTEN,
-            clearData: gap("13", "data.apply", []),
+            clearData: CLEAR_DATA,
             listenerCount: READ,
             zoomToFit: CAMERA,
             getStyles: READ,
@@ -914,15 +934,16 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             addNode: calls([{ id: "door-c" }], [addNodes({ id: "door-c" })]),
             addNodes: calls([[{ id: "door-d" }]], [addNodes({ id: "door-d" })]),
             getNode: READ,
-            removeNodeAndIncidentEdges: gap("13", "data.apply", ["n2"]),
+            removeNodeAndIncidentEdges: calls(["n2"], [removes("remove-nodes", ["n2"])]),
             addEdge: calls([{ src: "n1", dst: "n3" }], [addEdges({ src: "n1", dst: "n3" })]),
+            // Called while the edge the row above added is drawn: removing one that is not is no call.
+            removeEdge: calls(["2"], [removes("remove-edges", ["2"])]),
             addEdges: calls([[{ src: "n3", dst: "n2" }]], [addEdges({ src: "n3", dst: "n2" })]),
             getEdge: READ,
             getEdgesBetween: READ,
             setEdges: gap("14", "batch", [[{ src: "n1", dst: "n2" }]]),
-            removeEdge: gap("13", "data.apply", ["no-such-edge"]),
             addDataFromSource: gap("14", "data.import", ["json", { data: TINY_JSON }]),
-            clear: gap("13", "data.apply", []),
+            clear: calls([], [CLEAR]),
             startLabelAnimations: RENDER,
             getStats: READ,
         },
@@ -1130,6 +1151,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 [updateRow("node", "door-a", { weight: 2 })],
             ),
             updateEdges: calls([[{ id: "0", values: { weight: 2 } }]], [updateRow("edge", "0", { weight: 2 })]),
+            removeEdges: calls([["0"]], [removes("remove-edges", ["0"])]),
+            removeNodes: calls([["door-b"]], [removes("remove-nodes", ["door-b"])]),
+            clear: calls([], [CLEAR]),
         },
     },
     {

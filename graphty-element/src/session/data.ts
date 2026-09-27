@@ -134,6 +134,35 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Remove nodes, and every edge attached to one, as one undoable step.
+     * @param ids - the node ids; one the graph does not hold is skipped
+     * @returns settles once they are gone from the graph and the picture
+     */
+    async removeNodes(ids: readonly NodeId[]): Promise<void> {
+        this.requireLive("removeNodes");
+        await this.writes.dispatch({ kind: "remove-nodes", ids });
+    }
+
+    /**
+     * Remove edges, as one undoable step.
+     * @param ids - the element-assigned edge ids; one the graph does not hold is skipped
+     * @returns settles once they are gone from the graph and the picture
+     */
+    async removeEdges(ids: readonly EdgeId[]): Promise<void> {
+        this.requireLive("removeEdges");
+        await this.writes.dispatch({ kind: "remove-edges", ids });
+    }
+
+    /**
+     * Remove every node, edge, record and graph-level value, as one undoable step.
+     * @returns settles once the graph and the picture are empty
+     */
+    async clear(): Promise<void> {
+        this.requireLive("clear");
+        await this.writes.dispatch({ kind: "clear" });
+    }
+
+    /**
      * The current snapshot, freezing first when records have arrived since the last freeze.
      * @returns the immutable snapshot
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
@@ -371,6 +400,8 @@ export function headlessDataService(
         },
         edgeAt: (edgeIndex) => (store.builder.hasEdge(edgeIndex) ? { edgeIndex } : null),
         replaceEdgeRecord: () => undefined,
+        rowsRemoved: () => undefined,
+        cleared: () => undefined,
         nodeStored: () => undefined,
         edgeStored: () => undefined,
         nodesArrived: () => undefined,

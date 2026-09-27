@@ -93,6 +93,17 @@ export interface BenchSamples {
 const recorded: BenchSamples[] = [];
 
 /**
+ * Records the timed samples of one row for run.ts --samples-out; bench() calls it, and so does a group that builds its
+ * row from other numbers (the profiler rows of layout-exact.bench.ts's reportedRow).
+ * @param group - the benchmark group
+ * @param name - the row name
+ * @param samples - the measured samples, milliseconds, the warm-up excluded
+ */
+export function recordSamples(group: string, name: string, samples: readonly number[]): void {
+    recorded.push({ group, name, samples });
+}
+
+/**
  * The timed samples of every benchmark this process has measured so far.
  * @returns the samples, in measurement order
  */
@@ -187,7 +198,7 @@ export async function bench<T>(
     if (keepAlive === NEVER) {
         throw new Error("unreachable: runs >= 1 always assigns keepAlive (the read keeps the result live)");
     }
-    recorded.push({ group, name, samples: times });
+    recordSamples(group, name, times);
     const medianMs = median(times);
     const items = options.items ?? null;
     return {

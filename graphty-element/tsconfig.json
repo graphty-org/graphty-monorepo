@@ -13,5 +13,5 @@
         "noUnusedParameters": false
     },
     "include": ["**/*.ts", ".storybook/**/*.ts"],
-    "exclude": ["tmp/**/*", "vitest.config.ts", "vite.config.ts", "stories/**/*"]
+    "exclude": ["tmp/**/*", "vitest.config.ts", "vite.config.ts"]
 }

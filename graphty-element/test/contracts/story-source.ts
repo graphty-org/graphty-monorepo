@@ -100,6 +100,16 @@ export interface StoryDeclaration {
     readonly writesColour: boolean;
     /** Everything in this story's setup the reader could not evaluate, in plain words. */
     readonly unreadable: readonly string[];
+    /**
+     * Every string literal the story's own declaration and its meta's `args` contain, sorted,
+     * following identifiers into this file's top-level constants.
+     *
+     * The declaration is the whole story -- its args, its play function, or the call that builds
+     * it -- so this is where `layout: "kamada-kawai"`, `dataSource: "csv"` and
+     * `createAlgorithmStory("graphty:pagerank", ...)` all turn up. A gate asks whether the
+     * registry key a story's name claims is among them.
+     */
+    readonly strings: readonly string[];
 }
 
 /** One `*.stories.ts` file, as read. */
@@ -697,6 +707,37 @@ function channelShapedNames(source: ts.SourceFile): string[] {
 }
 
 /**
+ * Every string literal inside an expression, following this file's top-level constants.
+ * @param expr - Where to start.
+ * @param values - The file's top-level constants.
+ * @param found - Where to collect the strings.
+ * @param seen - Constants already followed, which is what stops `const a = b, b = a`.
+ */
+function stringLiterals(
+    expr: ts.Node,
+    values: Map<string, ts.Expression>,
+    found: Set<string>,
+    seen = new Set<string>(),
+): void {
+    const visit = (node: ts.Node): void => {
+        if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+            found.add(node.text);
+        } else if (ts.isIdentifier(node) && !seen.has(node.text)) {
+            const target = values.get(node.text);
+
+            if (target !== undefined) {
+                seen.add(node.text);
+                visit(target);
+            }
+        }
+
+        ts.forEachChild(node, visit);
+    };
+
+    visit(expr);
+}
+
+/**
  * Read one story file.
  * @param file - The absolute path to a `*.stories.ts` file.
  * @returns Its title and every story it declares.
@@ -749,11 +790,14 @@ export function readStoryFile(file: string): StoryFileReading {
 
         const declaration = values.get(exportName);
         const out = emptyWriting();
+        const strings = new Set<string>();
         const id = `${title}::${exportName}`;
 
         if (declaration === undefined) {
             out.unreadable.push(`${exportName} is exported from somewhere other than a top-level const`);
         } else {
+            stringLiterals(declaration, values, strings, new Set([exportName]));
+
             const story = resolve(declaration, values);
 
             if (ts.isObjectLiteralExpression(story)) {
@@ -776,6 +820,7 @@ export function readStoryFile(file: string): StoryFileReading {
 
         if (metaArgs !== null) {
             readArgs(metaArgs, values, out, "meta.args");
+            stringLiterals(metaArgs, values, strings);
         }
 
         stories.push({
@@ -788,6 +833,7 @@ export function readStoryFile(file: string): StoryFileReading {
             configPaths: [...out.configPaths].sort(),
             writesColour: out.colour,
             unreadable: out.unreadable,
+            strings: [...strings].sort(),
         });
     }
 

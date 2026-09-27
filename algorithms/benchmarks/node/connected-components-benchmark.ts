@@ -1,12 +1,12 @@
 #!/usr/bin/env tsx
 
 // Node.js Connected Components Performance Benchmark using Benchmark.js
-import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
-import { generateTestGraphs } from "../utils/test-data-generator";
-import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { connectedComponents, stronglyConnectedComponents } from "../../src/algorithms/components/connected";
 import { saveBenchmarkSession } from "../utils/benchmark-result";
+import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
+import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { formatSystemInfo, getSystemInfo } from "../utils/system-info";
+import { generateTestGraphs } from "../utils/test-data-generator";
 
 // Configuration for Node.js benchmarks
 const configs = {
@@ -26,7 +26,7 @@ const configs = {
 
 async function runConnectedComponentsBenchmark(configType: "quick" | "comprehensive") {
     console.log(`🚀 Running ${configType} Connected Components benchmarks in Node.js`);
-    console.log("=" + "=".repeat(50));
+    console.log(`=${  "=".repeat(50)}`);
     console.log(formatSystemInfo(getSystemInfo()));
     console.log("");
 
@@ -138,7 +138,7 @@ async function runConnectedComponentsBenchmark(configType: "quick" | "comprehens
         const session = await benchmark.run();
 
         // Display summary
-        console.log("\n" + "=".repeat(70));
+        console.log(`\n${  "=".repeat(70)}`);
         console.log("BENCHMARK RESULTS SUMMARY");
         console.log("=".repeat(70));
         console.log("Size\tType\t\t\tTime(ms)\tOps/sec\tComponents\tMargin");
@@ -161,7 +161,9 @@ async function runConnectedComponentsBenchmark(configType: "quick" | "comprehens
                         const components = stronglyConnectedComponents(testData.graph);
                         componentCount = components.length.toString();
                     }
-                } catch (e) {}
+                } catch {
+                    // The summary column stays "N/A" when the rerun fails
+                }
             }
 
             console.log(

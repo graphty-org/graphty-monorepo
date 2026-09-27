@@ -142,7 +142,7 @@ describe("package.json (contract 2.1)", () => {
         expect(packageJson.peerDependencies["@graphty/layout"]).toBe("^1.7.0");
         expect(packageJson.devDependencies["@graphty/layout"]).toBe("workspace:^");
         expect(packageJson.devDependencies.webgpu).toBe("0.4.0");
-        expect(packageJson.devDependencies["@vitest/browser"]).toBeTypeOf("string");
+        expect(packageJson.devDependencies["@vitest/browser-playwright"]).toBeTypeOf("string");
         expect(packageJson.devDependencies.playwright).toBeTypeOf("string");
         expect(packageJson.devDependencies["fast-check"]).toBeTypeOf("string");
     });

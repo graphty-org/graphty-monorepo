@@ -1,5 +1,6 @@
-import { describe, it, assert } from "vitest";
-import { bipartiteLayout, bipartiteGraph } from "../src";
+import { assert,describe, it } from "vitest";
+
+import { bipartiteGraph,bipartiteLayout } from "../src";
 
 describe("Bipartite Layout", () => {
     describe("Basic functionality", () => {
@@ -28,7 +29,7 @@ describe("Bipartite Layout", () => {
             const positions = bipartiteLayout(singleNode, ["A"]);
 
             assert.equal(Object.keys(positions).length, 1);
-            assert.deepEqual(positions["A"], [0, 0]);
+            assert.deepEqual(positions.A, [0, 0]);
         });
 
         it("should handle disconnected bipartite graph", () => {
@@ -130,8 +131,8 @@ describe("Bipartite Layout", () => {
             const positions = bipartiteLayout(graph, setA);
 
             // Single node in set A should be positioned
-            assert.isDefined(positions["A0"]);
-            assert.equal(positions["A0"].length, 2);
+            assert.isDefined(positions.A0);
+            assert.equal(positions.A0.length, 2);
 
             // Set B nodes should be evenly distributed
             const bNodes = ["B0", "B1", "B2", "B3", "B4"];

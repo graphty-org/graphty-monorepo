@@ -10,5 +10,9 @@
 # To skip this hook: git push --no-verify
 # To run manually: pnpm run prepush:fast
 
+# Secret scan of every file this branch changes since it left origin/master. It runs here as
+# well as in pre-commit because a commit made with a temporary core.hooksPath skips pre-commit.
+./tools/scan-secrets.sh "$(git merge-base origin/master HEAD)" HEAD || exit 1
+
 # Run the prepush validation script
 pnpm run prepush:fast

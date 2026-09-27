@@ -1,1 +1,4 @@
-exec < /dev/tty && npx cz --hook || true
+# Commitizen wizard only when a terminal can be opened. Without one (an IDE, a script, an
+# agent), `exec < /dev/tty` would abort the commit before `|| true` is reached; skip instead
+# and let commitlint in commit-msg check the message.
+(exec < /dev/tty) 2>/dev/null && exec < /dev/tty && npx cz --hook || true

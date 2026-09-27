@@ -446,16 +446,6 @@ export default defineConfig({
                         "test/interactions/**/*.test.ts",
                         // So do the WebXR tests: see the "xr" project
                         ...XR_BROWSER_TESTS,
-                        // Tests using Node.js-only libraries (pngjs).
-                        //
-                        // This file therefore runs in NO project: "default" excludes all of
-                        // test/browser/**, "browser" excludes it by name here, and it is not in
-                        // "contract". It is not a gap somebody should close by adding it somewhere --
-                        // it drives its own Playwright Chromium against STORYBOOK_URL, which defaults
-                        // to https://localhost:6006, so it needs a Storybook dev server that neither
-                        // this gate nor CI runs. It is a script wearing a test's file extension.
-                        // Either it gets a home that starts that server, or it should be deleted.
-                        "test/browser/dash-spacing-measurement.test.ts",
                         // Exclude experimental/temporary folders ending with ~
                         "**/*~/**",
                         "**/*~",

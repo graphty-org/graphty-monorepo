@@ -11,7 +11,7 @@ import { INVALID_INDEX } from "@graphty/graph-format";
 import type { EdgeId } from "../catalog/types";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
-import { scopeEdges } from "./input/ScopedInput";
+import { scopeEdges, type ScopeInputDeclaration } from "./input/ScopedInput";
 import {
     type AlgorithmOutput,
     type AlgorithmRunContext,
@@ -28,7 +28,7 @@ export class KruskalAlgorithm extends DeclaredAlgorithm {
     static namespace = "graphty";
     static type = "kruskal";
     /** Spans the run's scope: the edge list and the graph both come from the input. */
-    static scopeInput = "subgraph" as const;
+    static scopeInput: ScopeInputDeclaration = "subgraph";
 
     /**
      * Find the cheapest set of edges that still joins every node.

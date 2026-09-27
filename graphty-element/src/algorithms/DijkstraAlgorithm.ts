@@ -5,7 +5,7 @@ import type { EdgeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
-import { scopeEdges, scopeNodeIds } from "./input/ScopedInput";
+import { scopeEdges, type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
     type AlgorithmOutput,
     type AlgorithmRunContext,
@@ -67,7 +67,7 @@ export class DijkstraAlgorithm extends DeclaredAlgorithm<DijkstraOptions> {
     static namespace = "graphty";
     static type = "dijkstra";
     /** Searches the run's scope: the node and edge lists and the graph all come from the input. */
-    static scopeInput = "subgraph" as const;
+    static scopeInput: ScopeInputDeclaration = "subgraph";
 
     static zodOptionsSchema: ZodOptionsSchema = dijkstraOptionsSchema;
 

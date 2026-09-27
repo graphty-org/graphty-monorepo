@@ -1,6 +1,6 @@
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
-import { scopeNodeIds } from "./input/ScopedInput";
+import { type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
     type AlgorithmOutput,
     type AlgorithmRunContext,
@@ -17,7 +17,7 @@ export class ConnectedComponentsAlgorithm extends DeclaredAlgorithm {
     static namespace = "graphty";
     static type = "connected-components";
     /** Groups over the run's scope: the node list and the graph both come from the input. */
-    static scopeInput = "subgraph" as const;
+    static scopeInput: ScopeInputDeclaration = "subgraph";
 
     /**
      * Find the separate pieces of the graph.

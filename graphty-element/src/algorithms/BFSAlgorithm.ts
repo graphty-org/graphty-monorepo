@@ -5,7 +5,7 @@ import { z } from "zod/v4";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
-import { scopeNodeIds } from "./input/ScopedInput";
+import { type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
     type AlgorithmOutput,
     type AlgorithmRunContext,
@@ -58,7 +58,7 @@ export class BFSAlgorithm extends DeclaredAlgorithm<BFSOptions> {
     static namespace = "graphty";
     static type = "bfs";
     /** Walks the run's scope: the node list and the graph both come from the input. */
-    static scopeInput = "subgraph" as const;
+    static scopeInput: ScopeInputDeclaration = "subgraph";
 
     static zodOptionsSchema: ZodOptionsSchema = bfsOptionsSchema;
 

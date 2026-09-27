@@ -7,6 +7,7 @@ import { defineOptions, type InferOptions, parseOptions } from "../config";
 import type { Graph } from "../Graph";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import type { ScopeInputDeclaration } from "./input/ScopedInput";
 import { walkInChunks } from "./metrics/context";
 import { nodeMetricFields } from "./metrics/fields";
 import { MetricAlgorithm } from "./metrics/MetricAlgorithm";
@@ -142,7 +143,7 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
     static namespace = "graphty";
     static type = "pagerank";
     /** Ranks over the run's scope: the node list and the graph both come from the input. */
-    static scopeInput = "subgraph" as const;
+    static scopeInput: ScopeInputDeclaration = "subgraph";
 
     /**
      * NEW: Zod-based options schema for unified validation and UI metadata

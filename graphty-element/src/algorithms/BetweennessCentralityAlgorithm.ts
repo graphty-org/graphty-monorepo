@@ -3,6 +3,7 @@ import { betweennessCentrality } from "@graphty/algorithms";
 import type { FieldDescriptor, NodeId } from "../catalog/types";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import type { ScopeInputDeclaration } from "./input/ScopedInput";
 import { walkInChunks } from "./metrics/context";
 import { nodeMetricFields } from "./metrics/fields";
 import { MetricAlgorithm } from "./metrics/MetricAlgorithm";
@@ -25,7 +26,7 @@ export class BetweennessCentralityAlgorithm extends MetricAlgorithm {
     static namespace = "graphty";
     static type = "betweenness";
     /** Computes over the run's scope: the node list and the graph both come from the input. */
-    static scopeInput = "subgraph" as const;
+    static scopeInput: ScopeInputDeclaration = "subgraph";
 
     /**
      * The fields a betweenness result publishes.

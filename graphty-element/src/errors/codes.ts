@@ -132,6 +132,13 @@ export type GraphtyErrorCode =
      */
     | "E_UNKNOWN_RUN"
     /**
+     * A styles call names a layer id the stack does not hold -- usually one removed a moment
+     * earlier, so the caller's layer list is stale. The call itself is well formed, which is why
+     * this is not `E_BAD_COMMAND`. `details.known` lists the ids the stack does hold. The caller
+     * refreshes its layer list.
+     */
+    | "E_UNKNOWN_LAYER"
+    /**
      * A document being serialised refers to a run whose id was derived rather than author
      * assigned, so the reference would resolve differently on reload. The caller re-runs with an
      * explicit `as:` id and saves again.
@@ -335,6 +342,7 @@ const CODE_TABLE = {
     E_UNKNOWN_CAMERA: "E_UNKNOWN_CAMERA",
     E_UNKNOWN_SINK: "E_UNKNOWN_SINK",
     E_UNKNOWN_RUN: "E_UNKNOWN_RUN",
+    E_UNKNOWN_LAYER: "E_UNKNOWN_LAYER",
     E_UNSTABLE_RUN_ID: "E_UNSTABLE_RUN_ID",
     E_DUPLICATE_ID: "E_DUPLICATE_ID",
     E_DUPLICATE_EDGE: "E_DUPLICATE_EDGE",

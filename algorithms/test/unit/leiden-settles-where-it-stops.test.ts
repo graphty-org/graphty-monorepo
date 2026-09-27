@@ -103,7 +103,7 @@ describe("the partition Leiden returns", () => {
     it("cannot be improved by moving a single node to a neighbour's community", () => {
         const graph = catsAndTails();
         const result = leiden(graph);
-        const communities = new Map([...result.communities].map(([node, community]) => [String(node), community]));
+        const communities = new Map(result.communities);
         const settled = calculateModularity(graph, communities);
         const better = bestSingleMove(graph, communities);
 
@@ -121,7 +121,7 @@ describe("the partition Leiden returns", () => {
         // by a score nothing else in the package agreed with.
         const graph = catsAndTails();
         const result = leiden(graph);
-        const communities = new Map([...result.communities].map(([node, community]) => [String(node), community]));
+        const communities = new Map(result.communities);
 
         expect(result.modularity).toBeCloseTo(calculateModularity(graph, communities), 10);
     });
@@ -197,7 +197,7 @@ function cats(): Graph {
 describe("Leiden on the twenty-cat graph", () => {
     const graph = cats();
     const result = leiden(graph);
-    const communities = new Map([...result.communities].map(([node, community]) => [String(node), community]));
+    const communities = new Map(result.communities);
     const settled = calculateModularity(graph, communities);
 
     it("cannot be improved by moving one node to a neighbour's community or to a community of its own", () => {

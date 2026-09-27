@@ -136,6 +136,52 @@ describe("graphty-element.clearData", () => {
         assert.strictEqual(element.graph?.getDataManager().nodes.size, 0);
     });
 
+    test("announces the clear once, as data-cleared, on the graph and on the element", async () => {
+        const element = await createGraphtyElement();
+        const { graph } = element;
+        assert.isDefined(graph);
+
+        await loadInline(element, FIRST_GRAPH);
+
+        let onGraph = 0;
+        let onDom = 0;
+        graph.on("data-cleared", () => {
+            onGraph++;
+        });
+        element.addEventListener("data-cleared", () => {
+            onDom++;
+        });
+
+        element.clearData();
+
+        assert.strictEqual(onGraph, 1);
+        assert.strictEqual(onDom, 1);
+        assert.strictEqual(graph.getDataManager().nodes.size, 0);
+    });
+
+    test("lays the next load out from scratch, on an engine holding only the new graph", async () => {
+        const element = await createGraphtyElement();
+        const { graph } = element;
+        assert.isDefined(graph);
+
+        await loadInline(element, FIRST_GRAPH);
+        element.clearData();
+
+        const settled = new Promise<void>((resolve) => {
+            const stop = graph.on("graph-settled", () => {
+                stop();
+                resolve();
+            });
+        });
+        await loadInline(element, SECOND_GRAPH);
+        await settled;
+
+        // The old engine kept the first graph's two disposed nodes beside the three new ones.
+        const layoutNodes = [...graph.getLayoutManager().nodes].map((node) => node.id).sort();
+        assert.deepStrictEqual(layoutNodes, ["x", "y", "z"]);
+        assert.isTrue(graph.getLayoutManager().isSettled);
+    });
+
     test("still starts one load per assignment of the pair, not two", async () => {
         const element = await createGraphtyElement();
 

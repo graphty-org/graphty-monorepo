@@ -2,13 +2,14 @@
 
 // Adamic-Adar Link Prediction Benchmark
 import Benchmark from "benchmark";
+
 import { Graph } from "../../src/core/graph.js";
 import { adamicAdarPrediction } from "../../src/link-prediction/adamic-adar.js";
-import { saveBenchmarkResult, initBenchmarkSession } from "../utils/benchmark-result.js";
 import { BenchmarkResult } from "../benchmark-result.js";
+import { initBenchmarkSession,saveBenchmarkResult } from "../utils/benchmark-result.js";
 
 // Make adamicAdarPrediction available globally for Benchmark.js
-(globalThis as any).adamicAdarPrediction = adamicAdarPrediction;
+Object.assign(globalThis, { adamicAdarPrediction });
 
 // Store test data globally for Benchmark.js
 const globalTestData = new Map();
@@ -88,7 +89,7 @@ function createTestGraphs(isQuick: boolean) {
                         // Fallback to random unconnected node
                         const available = [];
                         for (let j = 0; j < i; j++) {
-                            if (!connected.has(j)) available.push(j);
+                            if (!connected.has(j)) {available.push(j);}
                         }
                         if (available.length > 0) {
                             target = available[Math.floor(Math.random() * available.length)];
@@ -126,7 +127,7 @@ function runBenchmarks(config: ReturnType<typeof createTestGraphs>) {
 
     config.sizes.forEach((size) => {
         const testData = globalTestData.get(`adamic-adar-${size}`);
-        if (!testData) return;
+        if (!testData) {return;}
 
         const testName = `Adamic-Adar Link Prediction - ${testData.graphType} (${size} nodes, ${testData.edges} edges)`;
 
@@ -142,7 +143,7 @@ function runBenchmarks(config: ReturnType<typeof createTestGraphs>) {
             },
             {
                 onComplete: (event: Benchmark.Event) => {
-                    const benchmark = event.target as Benchmark;
+                    const benchmark = event.target;
                     const hz = benchmark.hz || 0;
                     const stats = benchmark.stats || {
                         mean: 0,
@@ -180,8 +181,6 @@ function runBenchmarks(config: ReturnType<typeof createTestGraphs>) {
                             marginOfError: stats.rme,
                             standardDeviation: stats.deviation,
                             variance: stats.variance,
-                            platform: config.platform,
-                            testType: config.testType,
                             teps: hz * testData.edges, // Traversed Edges Per Second
                         },
                     };

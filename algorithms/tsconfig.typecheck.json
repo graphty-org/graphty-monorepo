@@ -4,6 +4,6 @@
         "composite": false,
         "noEmit": true
     },
-    "include": ["src/**/*.ts", "algorithms.ts", "test/types/**/*.test-d.ts"],
+    "include": ["src/**/*.ts", "algorithms.ts", "test/types/**/*.test-d.ts", "benchmarks/**/*.ts"],
     "exclude": ["node_modules", "dist", "coverage", "tmp"]
 }

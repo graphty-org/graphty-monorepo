@@ -37,11 +37,13 @@ import type { MetricAvailability } from "@graphty/graphty-element/catalog";
 import type {
     Channel,
     CostEstimate,
+    EdgeRecord,
     GraphSession,
     GraphStatistics,
     Layer,
     LayerSpec,
     LegendBlock,
+    NodeRecord,
     RunId,
     RunResult,
     SessionCommand,
@@ -191,6 +193,13 @@ interface FakeSessionOptions {
      * @returns the statistics.
      */
     readonly statistics?: () => GraphStatistics;
+    /**
+     * The node and edge records the graph holds, read fresh on every call, which is what
+     * `scope.resolve("graph")` and `data.node` / `data.edge` answer from. A caller that
+     * supplies none gets an empty graph.
+     * @returns the records.
+     */
+    readonly records?: () => { readonly nodes: readonly NodeRecord[]; readonly edges: readonly EdgeRecord[] };
 }
 
 /**
@@ -285,6 +294,29 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
 
     /** What the graph a run would measure looks like now. @returns the digest. */
     const scopeNow = (): string => options.scope?.() ?? "one-graph";
+
+    /** The records the graph holds now. @returns the node and edge records. */
+    const recordsNow = (): { readonly nodes: readonly NodeRecord[]; readonly edges: readonly EdgeRecord[] } =>
+        options.records?.() ?? { nodes: [], edges: [] };
+
+    /* Keyed once per listing rather than searched per id: a board's synthetic graph holds tens
+       of thousands of edges, and a search per lookup is quadratic in them. `scope.resolve`
+       rebuilds it, which is the moment the records are read fresh. */
+    let index: { nodes: Map<unknown, NodeRecord>; edges: Map<unknown, EdgeRecord> } | null = null;
+
+    /** The records by id, as of the last listing. @returns the two maps. */
+    const recordIndex = (): { nodes: Map<unknown, NodeRecord>; edges: Map<unknown, EdgeRecord> } => {
+        if (index === null) {
+            const { nodes, edges } = recordsNow();
+
+            index = {
+                nodes: new Map(nodes.map((record) => [record.id, record])),
+                edges: new Map(edges.map((record) => [record.id, record])),
+            };
+        }
+
+        return index;
+    };
 
     /**
      * What a run of this algorithm publishes.
@@ -529,6 +561,17 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
         capabilities: { acceleration: { state: "probing" } },
         data: {
             statistics: statisticsNow,
+            node: (id: unknown): NodeRecord | undefined => recordIndex().nodes.get(id),
+            edge: (id: unknown): EdgeRecord | undefined => recordIndex().edges.get(id),
+        },
+        scope: {
+            resolve: () => {
+                index = null;
+
+                const { nodes, edges } = recordIndex();
+
+                return Promise.resolve({ nodes: new Set(nodes.keys()), edges: new Set(edges.keys()) });
+            },
         },
         catalog: {
             metrics: metricsNow,

@@ -1,12 +1,12 @@
 #!/usr/bin/env tsx
 
 // Node.js Common Neighbors Performance Benchmark using Benchmark.js
-import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
-import { generateTestGraphs } from "../utils/test-data-generator";
-import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { commonNeighborsPrediction } from "../../src/link-prediction/common-neighbors";
 import { saveBenchmarkSession } from "../utils/benchmark-result";
+import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
+import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { formatSystemInfo, getSystemInfo } from "../utils/system-info";
+import { generateTestGraphs } from "../utils/test-data-generator";
 
 // Configuration for Node.js benchmarks
 // Common Neighbors complexity: O(V²*avg_degree)
@@ -27,7 +27,7 @@ const configs = {
 
 async function runCommonNeighborsBenchmark(configType: "quick" | "comprehensive") {
     console.log(`🚀 Running ${configType} Common Neighbors benchmarks in Node.js`);
-    console.log("=" + "=".repeat(50));
+    console.log(`=${  "=".repeat(50)}`);
     console.log(formatSystemInfo(getSystemInfo()));
     console.log("");
 
@@ -63,7 +63,7 @@ async function runCommonNeighborsBenchmark(configType: "quick" | "comprehensive"
 
     // Add benchmark tests
     console.log("\nAdding benchmark tests...");
-    for (const [key, testData] of testGraphs.entries()) {
+    for (const testData of testGraphs.values()) {
         benchmark.addTest(
             `Common Neighbors ${testData.graphSize} vertices (${testData.graphType})`,
             () => {
@@ -89,7 +89,7 @@ async function runCommonNeighborsBenchmark(configType: "quick" | "comprehensive"
         const session = await benchmark.run();
 
         // Display summary
-        console.log("\n" + "=".repeat(60));
+        console.log(`\n${  "=".repeat(60)}`);
         console.log("BENCHMARK RESULTS SUMMARY");
         console.log("=".repeat(60));
         console.log("Size\tType\tTime(ms)\tOps/sec\tComplexity\tMargin");

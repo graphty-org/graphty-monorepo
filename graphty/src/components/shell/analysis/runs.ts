@@ -101,6 +101,7 @@ export interface CommunityRunResult {
     /** Every group, largest first. */
     readonly groups: readonly {
         readonly communityId: number;
+        readonly name: string;
         readonly size: number;
     }[];
 }
@@ -213,13 +214,15 @@ export async function runCommunityDetection(graph: ElementGraph): Promise<Commun
     const summary = result.summary();
 
     /* The element counts the groups while it walks the result, so the sizes and the count come
-       from one reading and cannot disagree -- which is what the shell used to get by counting
-       the grouped nodes itself rather than trusting a graph-level number beside them. Largest
-       first, ties broken by group id, so the card's "largest group" row does not reshuffle
-       between two equally large groups on a re-run. */
-    const groups = [...(summary.groups ?? [])]
-        .map((entry) => ({ communityId: Number(entry.group), size: entry.size }))
-        .sort((a, b) => (b.size === a.size ? a.communityId - b.communityId : b.size - a.size));
+       from one reading and cannot disagree. It also orders them (largest first, equal sizes by
+       id) and names them, and the legend of the run's colours uses the same order and names, so
+       the list is taken as it comes: re-sorting or renaming here is how the result panel once
+       said "Group 1" for the group the legend called "0". */
+    const groups = (summary.groups ?? []).map((entry) => ({
+        communityId: Number(entry.group),
+        name: entry.name ?? String(entry.group),
+        size: entry.size,
+    }));
 
     /* Only a finite number is carried. Modularity is a graph-level field of the grouping shape,
        and a run that did not publish one must degrade to the reading with no banded clause

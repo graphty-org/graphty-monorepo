@@ -3,6 +3,7 @@ import "../../src/layout/index";
 
 import { assert, describe, it } from "vitest";
 
+import { unknownFormat } from "../../src/catalog/detect";
 import { FORMAT_DESCRIPTORS, formatDescriptor, formatsForExtension, UNSERVED_FORMAT_IDS } from "../../src/catalog/formats";
 import {
     LAYOUT_CATALOG,
@@ -319,6 +320,18 @@ describe("format catalogue", () => {
 
     it("answers nothing for a format it does not know", () => {
         assert.isUndefined(formatDescriptor("sif"));
+    });
+
+    it("refuses a deprecated unserved format name with the reason it is unserved", () => {
+        // "sif" and "cx2" are still in FormatId, so autocomplete offers them. A load that names
+        // one must say why it cannot be read, not claim the name is unknown.
+        for (const entry of UNSERVED_FORMAT_IDS) {
+            const error = unknownFormat(entry.id);
+
+            assert.strictEqual(error.code, "E_UNKNOWN_FORMAT");
+            assert.include(error.message, entry.reason);
+            assert.notInclude(error.message, "no format is named");
+        }
     });
 });
 

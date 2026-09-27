@@ -11,10 +11,10 @@ import {
 
 /** The four groups Louvain finds on the cat fixture, largest first. */
 const CAT_GROUPS: readonly CommunityGroupSize[] = [
-    { communityId: 0, size: 7 },
-    { communityId: 1, size: 6 },
-    { communityId: 2, size: 4 },
-    { communityId: 3, size: 3 },
+    { communityId: 0, name: "Group 1", size: 7 },
+    { communityId: 1, name: "Group 2", size: 6 },
+    { communityId: 2, name: "Group 3", size: 4 },
+    { communityId: 3, name: "Group 4", size: 3 },
 ];
 
 /** The cat fixture's community run, as the shell will hand it over. */
@@ -30,17 +30,17 @@ const CAT_STATISTICS: CommunityStatistics = {
 
 /** Eleven groups whose sizes sum to 620,000, so the share reads exactly 62%. */
 const MANY_GROUPS: readonly CommunityGroupSize[] = [
-    { communityId: 0, size: 61208 },
-    { communityId: 1, size: 55881 },
-    { communityId: 2, size: 55879 },
-    { communityId: 3, size: 55879 },
-    { communityId: 4, size: 55879 },
-    { communityId: 5, size: 55879 },
-    { communityId: 6, size: 55879 },
-    { communityId: 7, size: 55879 },
-    { communityId: 8, size: 55879 },
-    { communityId: 9, size: 55879 },
-    { communityId: 10, size: 55879 },
+    { communityId: 0, name: "Group 1", size: 61208 },
+    { communityId: 1, name: "Group 2", size: 55881 },
+    { communityId: 2, name: "Group 3", size: 55879 },
+    { communityId: 3, name: "Group 4", size: 55879 },
+    { communityId: 4, name: "Group 5", size: 55879 },
+    { communityId: 5, name: "Group 6", size: 55879 },
+    { communityId: 6, name: "Group 7", size: 55879 },
+    { communityId: 7, name: "Group 8", size: 55879 },
+    { communityId: 8, name: "Group 9", size: 55879 },
+    { communityId: 9, name: "Group 10", size: 55879 },
+    { communityId: 10, name: "Group 11", size: 55879 },
 ];
 
 describe("communityReading", () => {
@@ -120,7 +120,7 @@ describe("communityReading", () => {
                     groupCount: 1,
                     largestGroupSize: 1,
                     nodeCount: 1,
-                    groups: [{ communityId: 0, size: 1 }],
+                    groups: [{ communityId: 0, name: "Group 1", size: 1 }],
                     colouredGroupCount: 0,
                     encodingApplied: false,
                 }),
@@ -250,7 +250,7 @@ describe("communityHeadline", () => {
                 ...CAT_STATISTICS,
                 groupCount: 1,
                 largestGroupSize: 20,
-                groups: [{ communityId: 0, size: 20 }],
+                groups: [{ communityId: 0, name: "Group 1", size: 20 }],
             }),
         ).toBe("1 group, modularity 0.447");
     });
@@ -300,7 +300,7 @@ describe("communityResultBody", () => {
         expect(
             communityResultBody({
                 ...CAT_STATISTICS,
-                groups: [{ communityId: 9, size: 1 }],
+                groups: [{ communityId: 9, name: "Group 1", size: 1 }],
             }),
         ).toEqual([{ name: "Group 1", value: "1 member" }]);
     });
@@ -308,6 +308,7 @@ describe("communityResultBody", () => {
     it("caps its rows at the many-groups threshold", () => {
         const groups = Array.from({ length: 40 }, (_unused, index) => ({
             communityId: index,
+            name: `Group ${String(index + 1)}`,
             size: 100 - index,
         }));
 

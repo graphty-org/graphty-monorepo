@@ -569,7 +569,7 @@ const SOURCE_OF = {
 
 /** JSON with every non-ASCII character escaped, so the TS source stays plain ASCII. */
 function asciiJson(value) {
-    return JSON.stringify(value).replace(/[^\x00-\x7f]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
+    return JSON.stringify(value).replace(/[\u0080-\uffff]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
 }
 
 async function main() {

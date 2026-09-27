@@ -1,5 +1,6 @@
-import { describe, it, assert } from "vitest";
-import { planarLayout, completeGraph, cycleGraph, starGraph, gridGraph, wheelGraph } from "../src";
+import { assert,describe, it } from "vitest";
+
+import { completeGraph, cycleGraph, gridGraph, planarLayout, starGraph, wheelGraph } from "../src";
 
 describe("Planar Layout", () => {
     describe("Basic functionality", () => {
@@ -29,8 +30,8 @@ describe("Planar Layout", () => {
             const positions = planarLayout(singleNode);
 
             assert.equal(Object.keys(positions).length, 1);
-            assert.isDefined(positions["A"]);
-            assert.equal(positions["A"].length, 2);
+            assert.isDefined(positions.A);
+            assert.equal(positions.A.length, 2);
         });
 
         it("should throw error for non-planar graphs", () => {

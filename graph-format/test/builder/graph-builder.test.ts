@@ -462,7 +462,7 @@ describe("GraphBuilder edges", () => {
         expect(Array.from(b.inEdgesOf(0))).toEqual([0, 1]);
     });
 
-    it("counts mutations for topology and weight changes only", () => {
+    it("counts topology, weight and attribute changes, but not freeze or a repeated addNode", () => {
         const b = new GraphBuilder({ directed: true });
         expect(b.mutationCount).toBe(0);
         expect(b.dirty).toBe(true);
@@ -477,17 +477,17 @@ describe("GraphBuilder edges", () => {
         b.setEdgeValue("y", 0, 2);
         b.setGraphValue("g", 1);
         b.setMeta({ name: "n" });
-        expect(b.mutationCount).toBe(3);
+        expect(b.mutationCount).toBe(8);
         b.setEdgeWeight(0, 2);
-        expect(b.mutationCount).toBe(4);
+        expect(b.mutationCount).toBe(9);
         b.freeze();
-        expect(b.mutationCount).toBe(4);
+        expect(b.mutationCount).toBe(9);
         expect(b.dirty).toBe(false);
         b.setNodeValue("x", 0, 2);
-        expect(b.dirty).toBe(false);
+        expect(b.dirty).toBe(true);
         b.removeEdge(0);
         expect(b.dirty).toBe(true);
-        expect(b.mutationCount).toBe(5);
+        expect(b.mutationCount).toBe(11);
     });
 });
 
@@ -535,7 +535,7 @@ describe("GraphBuilder direction", () => {
         const m = b.mutationCount;
         b.setDirected(true, { expand: true });
         expect(b.directed).toBe(true);
-        expect(b.mutationCount).toBe(m + 1);
+        expect(b.mutationCount).toBeGreaterThan(m);
         expect(b.edgeCount).toBe(5);
         expect(b.edgeBound).toBe(6);
         expect(b.edgeEndpoints(4)).toEqual([1, 0]);
@@ -1252,5 +1252,67 @@ describe("GraphBuilder composition", () => {
         const snapshot = b.freeze();
         expect(snapshot.nodes.value("c0", 0)).toBe(0);
         expect(snapshot.nodes.value(`c${count - 1}`, 0)).toBe(count - 1);
+    });
+});
+
+describe("GraphBuilder mutationCount and dirty count every change the next freeze would show", () => {
+    function frozen(): GraphBuilder {
+        const b = new GraphBuilder({ directed: true });
+        b.addEdge("a", "b", 1);
+        b.declareNodeColumn({ name: "x", dtype: "f32" });
+        b.declareEdgeColumn({ name: "y", dtype: "f32" });
+        b.freeze();
+        return b;
+    }
+
+    const writes: [string, (b: GraphBuilder) => void][] = [
+        ["setNodeValue", (b) => b.setNodeValue("x", 0, 5)],
+        ["setEdgeValue", (b) => b.setEdgeValue("y", 0, 5)],
+        ["setNodeColumn", (b) => b.setNodeColumn("z", new Float32Array(b.nodeBound))],
+        ["setEdgeColumn", (b) => b.setEdgeColumn("z", new Float32Array(b.edgeBound))],
+        ["setGraphValue", (b) => b.setGraphValue("title", "t")],
+        ["setMeta", (b) => b.setMeta({ name: "g" })],
+        ["addNodeRecord on an existing node", (b) => b.addNodeRecord("a", { x: 7 })],
+        ["declareNodeColumn", (b) => b.declareNodeColumn({ name: "w", dtype: "u8" })],
+        ["declareEdgeColumn", (b) => b.declareEdgeColumn({ name: "w", dtype: "u8" })],
+        ["addExtensionTable", (b) => b.addExtensionTable("t", [{ name: "c", dtype: "u8" }])],
+        [
+            "addExtensionRow",
+            (b) => {
+                const t = b.addExtensionTable("t", [{ name: "c", dtype: "u8" }]);
+                b.freeze();
+                b.addExtensionRow(t, [1]);
+            },
+        ],
+        [
+            "addGraph merging attributes onto existing nodes",
+            (b) => {
+                const other = new GraphBuilder({ directed: true });
+                other.addNodeRecord("a", { x: 9 });
+                const snapshot = other.freeze();
+                b.freeze();
+                b.addGraph(snapshot);
+            },
+        ],
+    ];
+
+    for (const [name, write] of writes) {
+        it(name, () => {
+            const b = frozen();
+            const before = b.mutationCount;
+            expect(b.dirty).toBe(false);
+            write(b);
+            expect(b.mutationCount).toBeGreaterThan(before);
+            expect(b.dirty).toBe(true);
+        });
+    }
+
+    it("an unset of an undeclared name and a same-shape redeclare change nothing and do not count", () => {
+        const b = frozen();
+        const before = b.mutationCount;
+        b.setNodeValue("absent", 0, undefined);
+        b.declareNodeColumn({ name: "x", dtype: "f32" });
+        expect(b.mutationCount).toBe(before);
+        expect(b.dirty).toBe(false);
     });
 });

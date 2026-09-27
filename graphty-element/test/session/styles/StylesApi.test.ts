@@ -320,6 +320,21 @@ async function codeOfRejection(awaitable: PromiseLike<unknown>): Promise<string>
     return "resolved";
 }
 
+/**
+ * What a promise rejects with.
+ * @param awaitable - The promise.
+ * @returns The rejection, or undefined when it resolved.
+ */
+async function rejectionOf(awaitable: PromiseLike<unknown>): Promise<unknown> {
+    try {
+        await awaitable;
+    } catch (error) {
+        return error;
+    }
+
+    return undefined;
+}
+
 /** The code a synchronous read refused with, or what it did instead. */
 function codeOfThrow(read: () => unknown): string {
     try {
@@ -418,12 +433,25 @@ describe("addressing a layer by id", () => {
         assert.strictEqual(renamed.name, "After");
     });
 
-    it("rejects a verb that names a layer the stack does not hold", async () => {
+    it.each<[string, (styles: StylesApi, mine: string) => PromiseLike<unknown>]>([
+        ["remove", (styles) => styles.remove("nothing_1")],
+        ["update", (styles) => styles.update("nothing_1", { name: "x" })],
+        ["move", (styles) => styles.move("nothing_1", null)],
+        ["move before a missing layer", (styles, mine) => styles.move(mine, "nothing_1")],
+        ["add above a missing layer", (styles) => styles.add(layerSpec("Stray"), { above: "nothing_1" })],
+        ["resolveToStatic", (styles) => styles.resolveToStatic("nothing_1", "node.color")],
+    ])("rejects %s naming a layer the stack does not hold as E_UNKNOWN_LAYER", async (_verb, call) => {
         const { styles } = makeStyles();
+        const mine = await styles.add(layerSpec("Mine"));
+        const known = styles.list().map((layer) => layer.id);
+        const error = await rejectionOf(call(styles, mine.id));
 
-        assert.strictEqual(await codeOfRejection(styles.remove("nothing_1")), "E_BAD_COMMAND");
-        assert.strictEqual(await codeOfRejection(styles.update("nothing_1", { name: "x" })), "E_BAD_COMMAND");
-        assert.strictEqual(await codeOfRejection(styles.move("nothing_1", null)), "E_BAD_COMMAND");
+        if (!isGraphtyError(error)) {
+            assert.fail(`expected a GraphtyError, got ${String(error)}`);
+        }
+
+        assert.strictEqual(error.code, "E_UNKNOWN_LAYER");
+        assert.deepStrictEqual(error.details.known, known);
     });
 });
 

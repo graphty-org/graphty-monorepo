@@ -114,7 +114,7 @@ function withCaption(element: Graphty): HTMLElement {
  * @param configure - What this story does to the element before it is mounted.
  * @returns The decorator.
  */
-function acceleratedStory(configure: (element: Graphty) => void): Decorator {
+function acceleratedStory(configure: (element: Graphty) => void): Decorator<StoryArgs> {
     return (story) => {
         const rendered = story();
 
@@ -231,11 +231,9 @@ function publishedCaption(canvasElement: HTMLElement): string {
  * The styling all three stories draw with.
  *
  * It sits here and is named in each story's `args` rather than on the meta, and the seed and the
- * settle beside it are written out in every story for the same reason:
- * `test/integration/story-determinism.test.ts` reads one `export const X: Story = {...}` block at
- * a time, and a story on a physics layout has to carry its seed, its `storySetup()` and its
- * `waitForGraphSettled` inside that block. Meta-level defaults are invisible to it -- and to a
- * reader who opens one story to ask whether its picture is reproducible.
+ * settle beside it are written out in every story, so a reader who opens one story to ask whether
+ * its picture is reproducible finds the answer there. (`test/browser/story-determinism.test.ts`
+ * reads each story's composed args, so it would see meta-level defaults too.)
  */
 const STORY_STYLES: Parameters<typeof storySetup>[0] = {
     edge: { "edge.color": "#666666" },

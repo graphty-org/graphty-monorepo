@@ -1,12 +1,12 @@
 #!/usr/bin/env tsx
 
 // Node.js Louvain Community Detection Performance Benchmark using Benchmark.js
-import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
-import { generateTestGraphs } from "../utils/test-data-generator";
-import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { louvain } from "../../src/algorithms/community/louvain";
 import { saveBenchmarkSession } from "../utils/benchmark-result";
+import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
+import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { formatSystemInfo, getSystemInfo } from "../utils/system-info";
+import { generateTestGraphs } from "../utils/test-data-generator";
 
 // Configuration for Node.js benchmarks
 const configs = {
@@ -26,7 +26,7 @@ const configs = {
 
 async function runLouvainBenchmark(configType: "quick" | "comprehensive") {
     console.log(`🚀 Running ${configType} Louvain Community Detection benchmarks in Node.js`);
-    console.log("=" + "=".repeat(50));
+    console.log(`=${  "=".repeat(50)}`);
     console.log(formatSystemInfo(getSystemInfo()));
     console.log("");
 
@@ -38,7 +38,7 @@ async function runLouvainBenchmark(configType: "quick" | "comprehensive") {
     const testGraphs = new Map();
 
     // Test with different graph types that have community structure
-    const graphTypes = ["smallWorld", "rmat"]; // Both have natural community structure
+    const graphTypes = ["smallWorld", "rmat"] as const; // Both have natural community structure
 
     for (const size of config.sizes) {
         for (const graphType of graphTypes) {
@@ -66,13 +66,13 @@ async function runLouvainBenchmark(configType: "quick" | "comprehensive") {
 
     // Add benchmark tests
     console.log("\nAdding benchmark tests...");
-    for (const [key, testData] of testGraphs.entries()) {
+    for (const testData of testGraphs.values()) {
         benchmark.addTest(
             `Louvain ${testData.graphSize} vertices (${testData.graphType})`,
             () => {
                 const result = louvain(testData.graph);
                 // Verify result to prevent dead code elimination
-                if (!result.communities || result.communities.size === 0) {
+                if (!result.communities || result.communities.length === 0) {
                     throw new Error("Louvain returned empty result");
                 }
             },
@@ -92,7 +92,7 @@ async function runLouvainBenchmark(configType: "quick" | "comprehensive") {
         const session = await benchmark.run();
 
         // Display summary
-        console.log("\n" + "=".repeat(70));
+        console.log(`\n${  "=".repeat(70)}`);
         console.log("BENCHMARK RESULTS SUMMARY");
         console.log("=".repeat(70));
         console.log("Size\tType\t\tTime(ms)\tOps/sec\tCommunities\tModularity\tMargin");
@@ -111,7 +111,9 @@ async function runLouvainBenchmark(configType: "quick" | "comprehensive") {
                     const res = louvain(testData.graph);
                     communities = new Set(res.communities.values()).size.toString();
                     modularity = res.modularity.toFixed(3);
-                } catch (e) {}
+                } catch {
+                    // The summary column stays "N/A" when the rerun fails
+                }
             }
 
             console.log(

@@ -2,7 +2,8 @@ import React from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { fireEvent, render, screen } from "../../../../test/test-utils";
-import { collapseFilterChips, type FilterStatusChip, FilterStatusStrip } from "../FilterStatusStrip";
+import { collapseFilterChips, type FilterStatusChip } from "../filterChips";
+import { FilterStatusStrip } from "../FilterStatusStrip";
 
 const chip = (id: string, label: string): FilterStatusChip => ({ id, label });
 

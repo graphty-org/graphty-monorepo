@@ -1,3 +1,15 @@
+## 2.0.6 (2026-09-27)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.0.7
+
+## 2.0.5 (2026-09-27)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.0.6
+
 ## 2.0.4 (2026-09-26)
 
 ### 🚀 Features

@@ -11,13 +11,9 @@ vi.mock("@graphty/graphty-element", () => {
     };
 });
 
-// Mock custom element with graph property that has getLayers method
+// Mock custom element; a board that needs a session defines one on the instance.
 class MockGraphtyElement extends HTMLElement {
     private _layout?: string;
-    /* The element's headless model, which is the one door to the style stack. */
-    graph = {
-        getSession: () => ({ styles: { list: (): unknown[] => [] }, on: () => () => undefined }),
-    };
 
     connectedCallback(): void {
         // React 19 might set properties instead of attributes for custom elements
@@ -87,6 +83,37 @@ describe("Graphty", () => {
         Object.defineProperty(element, "session", { configurable: true, value: session });
 
         expect(ref.current?.session).toBe(session);
+    });
+
+    /* Issue #53: the records are listed the way graphty-element documents -- the "graph"
+       scope for the ids, then `session.data` for each record -- rather than by walking the
+       element's private data manager. */
+    it("lists every node and edge record through the session", async () => {
+        const ref = createRef<GraphtyHandle>();
+        const { container } = render(<Graphty ref={ref} layers={[]} />);
+        const nodes: Record<string, Record<string, unknown>> = { a: { id: "a", label: "Alpha" }, b: { id: "b" } };
+        const edges: Record<string, Record<string, unknown>> = { "e:0": { id: "e:0", source: "a", target: "b" } };
+        const session = {
+            scope: {
+                resolve: vi.fn(() => Promise.resolve({ nodes: new Set(Object.keys(nodes)), edges: new Set(Object.keys(edges)) })),
+            },
+            data: { node: (id: string) => nodes[id], edge: (id: string) => edges[id] },
+        };
+
+        Object.defineProperty(container.querySelector("graphty-element"), "session", { configurable: true, value: session });
+
+        await expect(ref.current?.getData()).resolves.toEqual({
+            nodes: [nodes.a, nodes.b],
+            edges: [edges["e:0"]],
+        });
+        expect(session.scope.resolve).toHaveBeenCalledWith("graph");
+    });
+
+    it("lists nothing before the element has a session", async () => {
+        const ref = createRef<GraphtyHandle>();
+        render(<Graphty ref={ref} layers={[]} />);
+
+        await expect(ref.current?.getData()).resolves.toEqual({ nodes: [], edges: [] });
     });
 
     /* The handle loads through the element's own awaited methods: the element detects the

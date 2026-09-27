@@ -71,7 +71,7 @@ const VIEW_PRESET_FRAME = <rect x="2.5" y="2.5" width="11" height="11" rx="1.5" 
  * without redrawing a shape.
  * @public
  */
-export const TOOLBAR_GLYPHS: Readonly<Record<ToolbarGlyphName, React.JSX.Element>> = {
+const TOOLBAR_GLYPHS: Readonly<Record<ToolbarGlyphName, React.JSX.Element>> = {
     zoomOut: (
         <>
             <circle cx="7" cy="7" r="4.5" />

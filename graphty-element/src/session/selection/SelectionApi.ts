@@ -224,8 +224,8 @@ export interface SelectionApi {
      * The kept set holds the selected nodes and the selected edges. With nodes selected it reads
      * `induced`: every edge between its nodes comes with it, and the selected edges are kept
      * beside them. With edges alone it reads `listed`: those edges and their endpoints.
-     * @deprecated Use `session.sets.createFrom("selection")` once it is available; this verb
-     * keeps working.
+     * @deprecated Use {@link SetsApi.createFrom | session.sets.createFrom("selection")}, which keeps
+     * the same members and also takes a reading; this verb keeps working.
      * @param name - The name to save it under.
      * @returns The minted set id.
      */

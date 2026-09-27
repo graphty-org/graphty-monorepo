@@ -15,7 +15,7 @@
  *   npx tsx benchmarks/run.ts --no-save                # do not append to benchmarks/results
  */
 
-import { fromEdgeArrays, type GraphSnapshot } from "@graphty/graph-format";
+import { fromEdgeArrays, type GraphSnapshot, makeMask } from "@graphty/graph-format";
 import { barabasiAlbertGraph } from "@graphty/graph-samples/generators";
 
 import { revisionOf } from "../src/catalog/sets/hash";
@@ -23,9 +23,13 @@ import type { EdgeMember, NodeId, SetDefinition } from "../src/catalog/types";
 import { EDGE_ID_COLUMN, stableEdgeMember } from "../src/data/edgeIdentity";
 import { GraphStore } from "../src/data/GraphStore";
 import { ingestEdge, ingestNode } from "../src/data/ingest";
+import { createGraphSession, scopeResolverOfSession } from "../src/session/GraphSession";
+import type { GraphSession } from "../src/session/types";
 import { createScopeApi, edgeSpaceOf, ElementMask, nodeSpaceOf } from "../src/session/scope/index";
-import { digestOf, edgeMemberKey, resolveFixed, resolveScope } from "../src/session/sets/resolve";
-import { appendSession, bench, type BenchResult, printTable } from "./harness";
+import { combineMasks, createMaterialiser } from "../src/session/sets/algebra";
+import { addEdgeRow, digestOf, edgeMemberKey, resolveFixed, resolveScope } from "../src/session/sets/resolve";
+import { createSetsApi, sessionEdgeMember } from "../src/session/sets/SetsApi";
+import { appendSession, bench, type BenchResult, benchTimed, printTable } from "./harness";
 
 const LARGE = process.env.GRAPHTY_BENCH_SCALE === "large";
 const NODES = LARGE ? 1_000_000 : 100_000;
@@ -194,10 +198,129 @@ function runListedBenchmarks(): BenchResult[] {
     ];
 }
 
-const GROUPS: Readonly<Record<string, () => BenchResult[]>> = {
+/**
+ * A seeded Barabasi-Albert graph in a store and a session over it, as a session's data layer
+ * would hold it: every edge carries its counter and identity columns.
+ * @returns The session and its snapshot.
+ */
+function sessionOverGraph(): { session: GraphSession; snapshot: GraphSnapshot } {
+    const graph = barabasiAlbertGraph({ n: NODES, m: 5, seed: 1 });
+    const store = new GraphStore({
+        directed: false,
+        positionScale: () => 1,
+        onReplaced: () => undefined,
+        onNodeRemap: () => undefined,
+        onEdgeRemap: () => undefined,
+    });
+    for (let i = 0; i < NODES; i++) {
+        ingestNode(store, i, {});
+    }
+
+    store.openLoad();
+    for (let e = 0; e < graph.src.length; e++) {
+        ingestEdge(store, graph.src[e], graph.dst[e], 1);
+    }
+
+    store.closeLoad();
+    const session = createGraphSession({ store });
+
+    return { session, snapshot: session.data.snapshot() };
+}
+
+/**
+ * The algebra rows (design 6.5, 7): each of the four combinations of two large sets, one read
+ * induced (every other node) and one listed (every third edge), so the edge-first path runs.
+ * @returns The results.
+ */
+function runAlgebraBenchmarks(): BenchResult[] {
+    const graph = barabasiAlbertGraph({ n: NODES, m: 5, seed: 1 });
+    const snapshot = fromEdgeArrays(graph);
+    const induced = resolveFixed({ kind: "fixed", nodes: Array.from({ length: Math.ceil(NODES / 2) }, (_, i) => 2 * i), reading: "induced" }, { snapshot });
+    const listedEdges = makeMask(snapshot.edgeCount);
+    const listedNodes = makeMask(snapshot.nodeCount);
+    for (let e = 0; e < snapshot.edgeCount; e += 3) {
+        addEdgeRow(e, snapshot, listedNodes, listedEdges);
+    }
+
+    const operands = [
+        { nodes: induced.nodes, edges: induced.edges, induced: true },
+        { nodes: listedNodes, edges: listedEdges, induced: false },
+    ];
+    const opts = { items: snapshot.edgeCount, unit: "edges" };
+    const label = `${LABEL} / ${snapshot.edgeCount} edges, 50% induced with 33% listed`;
+
+    return (["union", "intersection", "difference", "symmetric-difference"] as const).map((op) =>
+        bench("algebra", `combineMasks ${op}, ${label}`, { setup: () => operands, run: (of) => combineMasks(op, of, snapshot) }, opts),
+    );
+}
+
+/**
+ * The door rows (design 6.5): `createFrom("visible")` with no filter, which stores induced, and
+ * `createFrom` of a large listed scope, in total and its synchronous commit alone. Each run gets
+ * a fresh session, so no resolution is served from a cache an earlier run filled.
+ * @returns The results.
+ */
+async function runDoorBenchmarks(): Promise<BenchResult[]> {
+    const visible = await benchTimed("doors", `createFrom("visible"), no filter, ${LABEL} (projection at 1M: under 200 ms)`, async () => {
+        const { session } = sessionOverGraph();
+        const start = performance.now();
+        await session.sets.createFrom("visible");
+
+        return performance.now() - start;
+    });
+
+    const commits: number[] = [];
+    const total = await benchTimed("doors", `createFrom of a listed scope of every other edge, ${LABEL}, total`, async () => {
+        const { session, snapshot } = sessionOverGraph();
+        const resolver = scopeResolverOfSession(session);
+        const edgeMember = (id: string): ReturnType<typeof sessionEdgeMember> => sessionEdgeMember(snapshot, id, () => undefined, null);
+        const real = createMaterialiser({
+            snapshot: () => session.data.snapshot(),
+            resolve: (spec) => resolver.resolutionOf(spec),
+            readingOf: (spec) => resolver.readingOf(spec),
+            edgeMember,
+        });
+        let resolved = 0;
+        const sets = createSetsApi({
+            edgeMember,
+            materialise: {
+                ...real,
+                from: async (source, reading) => {
+                    const concrete = await real.from(source, reading);
+                    resolved = performance.now();
+
+                    return concrete;
+                },
+            },
+        });
+        const space = edgeSpaceOf(snapshot);
+        const edges = Array.from({ length: Math.floor(snapshot.edgeCount / 2) }, (_, i) => space.idOf(2 * i));
+        const start = performance.now();
+        await sets.createFrom({ define: { kind: "fixed", nodes: [], edges, reading: "listed" } }, { reading: "listed" });
+        const end = performance.now();
+        commits.push(end - resolved);
+
+        return end - start;
+    });
+    // The first entry is the warm-up's, as in every other row.
+    const measured = commits.slice(1).sort((x, y) => x - y);
+    const commit: BenchResult = {
+        ...total,
+        name: `createFrom of a listed scope of every other edge, ${LABEL}, synchronous commit (projection at 5M edges: under 50 ms)`,
+        medianMs: measured[Math.floor(measured.length / 2)],
+        minMs: measured[0],
+        maxMs: measured[measured.length - 1],
+    };
+
+    return [visible, total, commit];
+}
+
+const GROUPS: Readonly<Record<string, () => BenchResult[] | Promise<BenchResult[]>>> = {
     sets: runSetsBenchmarks,
     resolve: runResolveBenchmarks,
     listed: runListedBenchmarks,
+    algebra: runAlgebraBenchmarks,
+    doors: runDoorBenchmarks,
 };
 
 const args = process.argv.slice(2);
@@ -207,14 +330,14 @@ const names = selected.length === 0 ? Object.keys(GROUPS) : selected;
 
 const all: BenchResult[] = [];
 for (const name of names) {
-    const group = GROUPS[name] as (() => BenchResult[]) | undefined;
+    const group = GROUPS[name] as (() => BenchResult[] | Promise<BenchResult[]>) | undefined;
     if (group === undefined) {
         console.error(`unknown benchmark group "${name}"; known: ${Object.keys(GROUPS).join(", ")}`);
         process.exitCode = 1;
         break;
     }
     console.log(`\n== ${name} (${process.version}, median of 5 runs, ${LABEL} scale)\n`);
-    const results = group();
+    const results = await group();
     printTable(results);
     all.push(...results);
 }

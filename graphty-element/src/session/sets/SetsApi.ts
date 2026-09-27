@@ -12,12 +12,26 @@
 
 import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
-import { inducedEdgeLeaf, parseScope, speaksEdges } from "../../catalog/sets/parse";
-import type { EdgeId, EdgeMember, EdgeRef, PathKind, RunId, Scope, ScopeInput, SetCreatedFrom, SetDefinitionInput, SetId } from "../../catalog/types";
+import { EDGE_READINGS, inducedEdgeLeaf, parseScope, speaksEdges } from "../../catalog/sets/parse";
+import type {
+    EdgeId,
+    EdgeMember,
+    EdgeReading,
+    EdgeRef,
+    PathKind,
+    RunId,
+    Scope,
+    ScopeInput,
+    SetCombine,
+    SetCreatedFrom,
+    SetDefinitionInput,
+    SetId,
+} from "../../catalog/types";
 import { edgeCounterOf, stableEdgeMember } from "../../data/edgeIdentity";
 import { readEndpoint } from "../../data/endpoints";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { SessionAttributes } from "../types";
+import { type Concrete, type Materialiser, SET_COMBINES } from "./algebra";
 import {
     type ChainStep,
     dependenciesOf,
@@ -66,6 +80,11 @@ interface SetsDependencies {
     };
     /** What the last pass over a kept set found. Absent: status reads no pass. */
     readonly outcome?: StatusSources["outcome"];
+    /**
+     * The resolve step of `createFrom`, `combine` and `createPath`. Absent: those doors refuse
+     * with `E_UNSUPPORTED`.
+     */
+    readonly materialise?: Materialiser;
 }
 
 /**
@@ -100,7 +119,12 @@ export function sessionEdgeMember(
 const storesOf = new WeakMap<SetsApi, SetsStore>();
 
 /** `set.create` with what the set was created from, for the element's own doors. */
-type CreateAs = (definition: SetDefinitionInput, name: string | undefined, createdFrom: SetCreatedFrom) => SetId;
+type CreateAs = (
+    definition: SetDefinitionInput,
+    name: string | undefined,
+    createdFrom: SetCreatedFrom,
+    prebuilt?: readonly (readonly [EdgeId, EdgeMember])[],
+) => SetId;
 
 const creatorsOf = new WeakMap<SetsApi, CreateAs>();
 
@@ -199,7 +223,7 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
      * @param prior - Its record before the write.
      * @param refs - The session edges the write named, with their members.
      */
-    const seed = (id: SetId, prior: ElementSet | undefined, refs: readonly [EdgeId, EdgeMember][]): void => {
+    const seed = (id: SetId, prior: ElementSet | undefined, refs: readonly (readonly [EdgeId, EdgeMember])[]): void => {
         const next = store.get(id);
         if (next === undefined || next === prior || refs.length === 0) {
             return;
@@ -313,7 +337,7 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
         }
     };
 
-    const createAs: CreateAs = (definition, given, createdFrom) => {
+    const createAs: CreateAs = (definition, given, createdFrom, prebuilt = []) => {
         const [concrete, refs] = collect(() => stabilise(definition));
         const id = store.transact(() => {
             const name = given ?? defaultName(store);
@@ -322,10 +346,56 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
 
             return minted;
         });
-        seed(id, undefined, refs);
+        seed(id, undefined, [...prebuilt, ...refs]);
 
         return id;
     };
+
+    /**
+     * The resolve step, or the refusal of a session built without one.
+     * @returns The resolve step.
+     * @throws `E_UNSUPPORTED` when the session cannot resolve a source.
+     */
+    const materialiser = (): Materialiser => {
+        if (dependencies.materialise === undefined) {
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message: "These sets cannot resolve a source, because no scope resolver is attached to them.",
+                source: "data",
+            });
+        }
+
+        return dependencies.materialise;
+    };
+
+    /**
+     * Check the options of a materialising door before anything resolves.
+     * @param reading - The reading option.
+     * @returns The reading.
+     * @throws `E_BAD_COMMAND` for a reading that is not an edge reading.
+     */
+    const readingOption = (reading: unknown): EdgeReading | undefined => {
+        if (reading !== undefined && !(EDGE_READINGS as readonly unknown[]).includes(reading)) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `A reading is one of ${EDGE_READINGS.map((value) => `"${value}"`).join(", ")}, not ${JSON.stringify(reading)}.`,
+                source: "data",
+                details: { reading },
+            });
+        }
+
+        return reading as EdgeReading | undefined;
+    };
+
+    /**
+     * The synchronous commit of a materialising door: in one tick, mint, name and dispatch one
+     * `set.create`. Resolves nothing; the definition's edge members are already stable.
+     * @param concrete - What the resolve step produced.
+     * @param name - The caller's name; "Set N" when absent.
+     * @returns The minted id.
+     */
+    const commit = (concrete: Concrete, name: string | undefined): SetId =>
+        createAs(concrete.definition, name, concrete.createdFrom, concrete.refs);
 
     const statusSources: StatusSources = {
         sets: store,
@@ -388,6 +458,53 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
         },
 
         create: (definition: SetDefinitionInput, options: { readonly name?: string } = {}): SetId => createAs(definition, options.name, { kind: "user" }),
+
+        async createFrom(source: ScopeInput, options: { readonly name?: string; readonly reading?: EdgeReading } = {}): Promise<SetId> {
+            const reading = readingOption(options.reading);
+            const concrete = await materialiser().from(readScope(source), reading);
+
+            return commit(concrete, options.name);
+        },
+
+        async combine(op: SetCombine, of: readonly ScopeInput[], options: { readonly name?: string; readonly reading?: EdgeReading } = {}): Promise<SetId> {
+            if (!SET_COMBINES.includes(op)) {
+                throw new GraphtyError({
+                    code: "E_BAD_COMMAND",
+                    message: `A combination is one of ${SET_COMBINES.map((value) => `"${value}"`).join(", ")}, not ${JSON.stringify(op)}.`,
+                    source: "data",
+                    details: { op },
+                });
+            }
+
+            if (!Array.isArray(of) || of.length < 2) {
+                throw new GraphtyError({
+                    code: "E_BAD_COMMAND",
+                    message: "A combination takes two or more sets.",
+                    source: "data",
+                    details: { op, of },
+                });
+            }
+
+            const reading = readingOption(options.reading);
+            const concrete = await materialiser().combine(op, of.map(readScope), reading);
+
+            return commit(concrete, options.name);
+        },
+
+        async createPath(source: "selection", options: { readonly name?: string } = {}): Promise<SetId> {
+            if (source !== "selection") {
+                throw new GraphtyError({
+                    code: "E_BAD_COMMAND",
+                    message: `A path is created from "selection", not ${JSON.stringify(source)}.`,
+                    source: "data",
+                    details: { source },
+                });
+            }
+
+            const concrete = await materialiser().path(source);
+
+            return commit(concrete, options.name);
+        },
 
         rename(id: SetId, name: string): void {
             store.transact(() => {

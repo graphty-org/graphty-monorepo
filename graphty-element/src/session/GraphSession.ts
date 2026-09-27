@@ -60,6 +60,7 @@ import {
     type ScopeResolver,
 } from "./scope";
 import { createSelectionApi, type SelectionOwner, type SelectionTextMode } from "./selection";
+import { createMaterialiser } from "./sets/algebra";
 import { outcomeOf, SetsCache } from "./sets/cache";
 import { captureItem, captureOf, type HeldCaptures, heldItems, nextCaptures } from "./sets/captures";
 import { type DependencySources, referentReading } from "./sets/dependencies";
@@ -1183,6 +1184,14 @@ function buildSession(options: CreateGraphSessionOptions): Session {
             list: () => runs.list().map(statusRun),
         },
         outcome: (record) => outcomeOf(setsCache, record),
+        // Read through calls: the scope resolver and the selection are built below.
+        materialise: createMaterialiser({
+            snapshot,
+            resolve: (spec: Scope) => scope.resolutionOf(spec),
+            readingOf: (spec: Scope) => scope.readingOf(spec),
+            edgeMember,
+            selection: () => ({ nodes: requireSelection(selection).nodeMembers(), edges: requireSelection(selection).edgeMembers() }),
+        }),
     });
     const keptSets = setsStoreOf(sets);
     keptSets.onChange((change) => {

@@ -338,6 +338,18 @@ export interface ScopeResolver extends ScopeApi {
      * @returns The leaf.
      */
     leafOf(spec: Scope): ScopeLeaf;
+    /**
+     * A specification's bitmaps, through the resolution cache, with the snapshot they cover.
+     * @param spec - What to resolve.
+     * @returns The resolution and its snapshot.
+     */
+    resolutionOf(spec: Scope): { readonly resolution: Resolution; readonly graph: GraphSnapshot };
+    /**
+     * How a specification reads, following a `{ set }` to its definition.
+     * @param spec - The specification.
+     * @returns The reading.
+     */
+    readingOf(spec: Scope): EdgeReading;
     /** The kept sets `save`, `list` and `remove` delegate to. */
     readonly sets: SetsApi;
 }
@@ -746,6 +758,14 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
         resolveNow,
 
         sets,
+
+        resolutionOf(spec: Scope): { resolution: Resolution; graph: GraphSnapshot } {
+            assertScope(spec);
+
+            return membershipOf(spec);
+        },
+
+        readingOf,
 
         leafOf(spec: Scope): ScopeLeaf {
             const active = context();

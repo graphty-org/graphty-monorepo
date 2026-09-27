@@ -229,3 +229,36 @@ export function appendSession(results: readonly BenchResult[]): string {
     writeFileSync(file, `${JSON.stringify(sessions, null, 4)}\n`);
     return file;
 }
+
+/**
+ * Measure an asynchronous benchmark: one warm-up run, then `runs` measured runs. The body builds
+ * its own input and returns the milliseconds it measured, so it can time a part of an
+ * asynchronous call (the synchronous commit of a door, say) as well as the whole.
+ * @param group - the benchmark group
+ * @param name - the benchmark name
+ * @param measure - one run; resolves to the milliseconds it measured
+ * @param runs - measured runs (default 5)
+ * @returns the result, with no memory delta
+ */
+export async function benchTimed(group: string, name: string, measure: () => Promise<number>, runs = 5): Promise<BenchResult> {
+    const times: number[] = [];
+    for (let i = 0; i <= runs; i++) {
+        collectGarbage();
+        const elapsed = await measure();
+        if (i > 0) {
+            times.push(elapsed);
+        }
+    }
+
+    return {
+        group,
+        name,
+        medianMs: median(times),
+        minMs: Math.min(...times),
+        maxMs: Math.max(...times),
+        runs,
+        memoryDeltaBytes: 0,
+        rate: null,
+        rateUnit: null,
+    };
+}

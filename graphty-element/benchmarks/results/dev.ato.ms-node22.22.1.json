@@ -186,5 +186,91 @@
                 "rateUnit": "members/s"
             }
         ]
+    },
+    {
+        "date": "2026-09-27T05:26:09.344Z",
+        "host": "dev.ato.ms",
+        "node": "v22.22.1",
+        "cpu": "Intel(R) Core(TM) i9-14900KF",
+        "exposeGc": false,
+        "results": [
+            {
+                "group": "algebra",
+                "name": "combineMasks union, 100k / 499975 edges, 50% induced with 33% listed",
+                "medianMs": 4.289105999999947,
+                "minMs": 3.8444509999999354,
+                "maxMs": 5.3739570000000185,
+                "runs": 5,
+                "memoryDeltaBytes": -6471376,
+                "rate": 116568580.95836432,
+                "rateUnit": "edges/s"
+            },
+            {
+                "group": "algebra",
+                "name": "combineMasks intersection, 100k / 499975 edges, 50% induced with 33% listed",
+                "medianMs": 1.3201630000000932,
+                "minMs": 1.2786630000000514,
+                "maxMs": 1.5406209999999874,
+                "runs": 5,
+                "memoryDeltaBytes": 1914780,
+                "rate": 378722172.94376886,
+                "rateUnit": "edges/s"
+            },
+            {
+                "group": "algebra",
+                "name": "combineMasks difference, 100k / 499975 edges, 50% induced with 33% listed",
+                "medianMs": 2.1538209999999935,
+                "minMs": 2.1157100000000355,
+                "maxMs": 2.5923289999999497,
+                "runs": 5,
+                "memoryDeltaBytes": 3816980,
+                "rate": 232133960.99304515,
+                "rateUnit": "edges/s"
+            },
+            {
+                "group": "algebra",
+                "name": "combineMasks symmetric-difference, 100k / 499975 edges, 50% induced with 33% listed",
+                "medianMs": 4.080920999999989,
+                "minMs": 3.9149099999999635,
+                "maxMs": 4.407599000000005,
+                "runs": 5,
+                "memoryDeltaBytes": 9237060,
+                "rate": 122515236.1439982,
+                "rateUnit": "edges/s"
+            },
+            {
+                "group": "doors",
+                "name": "createFrom(\"visible\"), no filter, 100k (projection at 1M: under 200 ms)",
+                "medianMs": 14.817144999999982,
+                "minMs": 13.701430000000073,
+                "maxMs": 23.229687000000013,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": null,
+                "rateUnit": null
+            },
+            {
+                "group": "doors",
+                "name": "createFrom of a listed scope of every other edge, 100k, total",
+                "medianMs": 1373.090607,
+                "minMs": 1319.3969699999998,
+                "maxMs": 1460.0752639999992,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": null,
+                "rateUnit": null
+            },
+            {
+                "group": "doors",
+                "name": "createFrom of a listed scope of every other edge, 100k, synchronous commit (projection at 5M edges: under 50 ms)",
+                "medianMs": 413.1627559999979,
+                "minMs": 401.64940800000113,
+                "maxMs": 452.5199620000003,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": null,
+                "rateUnit": null
+            }
+        ]
     }
 ]

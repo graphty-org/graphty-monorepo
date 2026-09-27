@@ -37,6 +37,12 @@ import type { ElementSet } from "./types";
  */
 export const MAX_EDGE_MEMBER_EDIT = 1_000_000;
 
+/**
+ * Invocation counts the complexity tests read (design/sets plan 1.4). Internal; never reset here.
+ * - `interns`: ids looked up in or added to an edge-column id table, three or fewer a member.
+ */
+export const prepareCounters = { interns: 0 };
+
 /** What the prepare functions read: the live records. */
 export interface RecordView {
     /**
@@ -159,6 +165,7 @@ class Interner {
      * @returns Its slot.
      */
     intern(value: string | number): number {
+        prepareCounters.interns++;
         let slot = this.index.get(value);
         if (slot === undefined) {
             slot = this.values.length;

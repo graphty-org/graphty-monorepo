@@ -5,7 +5,19 @@
  * `session.sets` publishes these; the definition types they name live in `catalog/types.ts`.
  */
 
-import type { EdgeRef, NodeId, PathKind, RunId, ScopeInput, SetCreatedFrom, SetDefinition, SetDefinitionInput, SetId } from "../../catalog/types";
+import type {
+    EdgeReading,
+    EdgeRef,
+    NodeId,
+    PathKind,
+    RunId,
+    ScopeInput,
+    SetCombine,
+    SetCreatedFrom,
+    SetDefinition,
+    SetDefinitionInput,
+    SetId,
+} from "../../catalog/types";
 
 /**
  * A kept set as the session hands it out: plain, frozen, structured-cloneable.
@@ -151,6 +163,56 @@ export interface SetsApi {
      * @returns The minted id.
      */
     create(definition: SetDefinitionInput, options?: { readonly name?: string }): SetId;
+    /**
+     * Create set: keep a scope's current members as a fixed set, created from `selection` or from
+     * the scope. Resolves first, then mints the id and names the set in one step, so two calls in
+     * flight never share an id: the second with a taken name is refused `E_DUPLICATE_ID`.
+     *
+     * The reading, unless `options.reading` says otherwise: a selection holding nodes keeps the
+     * selected nodes and edges and reads `induced`; a selection of edges alone reads `listed`;
+     * any other scope keeps the reading it resolves with, and `clipped` (such as `"visible"`)
+     * freezes to `listed`, which holds the same members. A defaulted `listed` result whose edges
+     * are exactly those its nodes induce is stored `induced` with no edges, so it GAINS an edge
+     * added later between two of its members; an explicit `listed` never does.
+     * `"largest-component"` stores its nodes alone.
+     * @param source - The scope; `"selection"` for the current selection with its edges.
+     * @param options - How to keep it.
+     * @param options.name - The name; "Set N" (the smallest free N) when absent.
+     * @param options.reading - The reading to store instead of the default.
+     * @returns The minted id.
+     * @throws `E_SCOPE_EMPTY` when the source holds nothing; `E_BAD_COMMAND` for a malformed scope,
+     * an unknown set or a bad reading; `E_DUPLICATE_ID` for a taken name.
+     */
+    createFrom(source: ScopeInput, options?: { readonly name?: string; readonly reading?: EdgeReading }): Promise<SetId>;
+    /**
+     * Create path: order the selected edges into a walk, created from `selection`. Parallel and
+     * reciprocal edges between one pair become one step. The walk starts at the end from which
+     * every step follows a declared edge direction when only one end allows that, else at the end
+     * whose id sorts first. One selected node and no edges is a zero-length path.
+     * @param source - `"selection"`.
+     * @param options - How to keep it.
+     * @param options.name - The name; "Set N" when absent.
+     * @returns The minted id.
+     * @throws `E_BAD_COMMAND` with `details.reason: "ambiguous-path"` and `details.why` (`no-edges`,
+     * `self-loop`, `branch`, `cycle`, `disconnected`, `off-path-nodes`) when the selection is not
+     * one open chain.
+     */
+    createPath(source: "selection", options?: { readonly name?: string }): Promise<SetId>;
+    /**
+     * Combine two or more sets into one fixed set of their current members, created from
+     * `combine`. `difference` is the first minus the union of the rest; `symmetric-difference`
+     * keeps what an odd number of them hold. Every operand read `induced` gives an induced result;
+     * otherwise edges are combined first and the result keeps their endpoints, so "edges in the
+     * Kruskal tree but not the Prim tree" keeps the differing edges and the nodes they join. An
+     * empty result is kept.
+     * @param op - The combination.
+     * @param of - Two or more scopes.
+     * @param options - How to keep it.
+     * @param options.name - The name; "Set N" when absent.
+     * @param options.reading - The reading to store instead of the default.
+     * @returns The minted id.
+     */
+    combine(op: SetCombine, of: readonly ScopeInput[], options?: { readonly name?: string; readonly reading?: EdgeReading }): Promise<SetId>;
     /**
      * Rename a set. Keeps its id and its revision.
      * @param id - The set.

@@ -27,7 +27,7 @@
  */
 
 import { GraphtyError } from "../../errors/GraphtyError";
-import type { Scope, SetDefinition } from "../types";
+import type { EdgeReading, Scope, SetDefinition } from "../types";
 import { canonicalSetDefinition, DEFINITION_FIELDS, EDGE_MEMBER_FIELDS, runIdOfRef } from "./canonical";
 
 type Loose = Readonly<Record<string, unknown>>;
@@ -53,7 +53,8 @@ const RESERVED = new Set([
 /** The scope keywords this element defines. */
 const KEYWORDS = ["visible", "graph", "selection", "largest-component"];
 
-const READINGS = ["induced", "listed", "clipped"];
+/** Every edge reading this element knows. */
+export const EDGE_READINGS: readonly EdgeReading[] = ["induced", "listed", "clipped"];
 const DIRECTIONS = ["in", "out", "all"];
 
 /**
@@ -549,7 +550,7 @@ function checkScope(value: unknown, walker: Walker): void {
  * @param value - The candidate reading.
  */
 function checkReading(value: unknown): void {
-    if (!READINGS.includes(value as string)) {
+    if (!(EDGE_READINGS as readonly unknown[]).includes(value)) {
         throw bad(`A set's reading is "induced", "listed" or "clipped".`, { reading: value });
     }
 }

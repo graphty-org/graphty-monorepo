@@ -206,7 +206,7 @@ export type { GraphContext, GraphContextConfig } from "./src/managers/index";
 // =============================================================================
 // Operation Queue Types
 // =============================================================================
-export type { QueueableOptions, RunAlgorithmOptions } from "./src/utils/queue-migration";
+export type { QueueableOptions, RunAlgorithmOptions, SetLayoutOptions } from "./src/utils/queue-migration";
 
 // =============================================================================
 // Constants

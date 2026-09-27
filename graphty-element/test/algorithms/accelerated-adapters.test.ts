@@ -88,11 +88,7 @@ const TWO_PIECES: MockGraphOpts = {
  * @param policy - The acceleration policy, when the case wants one other than `"auto"`.
  * @returns The graph.
  */
-async function graphWith(
-    opts: MockGraphOpts,
-    fake?: FakeAccelerator,
-    policy?: "off" | "required",
-): Promise<Graph> {
+async function graphWith(opts: MockGraphOpts, fake?: FakeAccelerator, policy?: "off" | "required"): Promise<Graph> {
     const graph = await createMockGraph(opts);
 
     if (policy !== undefined) {
@@ -406,7 +402,10 @@ describe("the adapters that run through accelerated()", () => {
            reader can see unstyled. */
         const values = valuesOf(output.edges);
         assert.strictEqual(values.size, 3);
-        assert.deepStrictEqual([...values.values()].map((value) => value.in), [true, true, true]);
+        assert.deepStrictEqual(
+            [...values.values()].map((value) => value.in),
+            [true, true, true],
+        );
     });
 
     it("dijkstra flags both edges of a reciprocal pair the undirected view merged into one", async () => {
@@ -423,20 +422,27 @@ describe("the adapters that run through accelerated()", () => {
         // The route crosses the merged A-B edge, and both records the reader declared are on it.
         const values = valuesOf(output.edges);
         assert.strictEqual(values.size, 3);
-        assert.deepStrictEqual([...values.values()].map((value) => value.onPath), [true, true, true]);
+        assert.deepStrictEqual(
+            [...values.values()].map((value) => value.onPath),
+            [true, true, true],
+        );
     });
 
-    describe("over a multigraph, a parallel group is one edge of the summed weight", () => {
-        it("dijkstra costs the merged weight and flags every member of the group", async () => {
+    describe("over a multigraph, a parallel group is one edge", () => {
+        it("dijkstra costs the cheapest edge of the group and flags only the edge the route took", async () => {
             const graph = await graphWith(PARALLEL);
             const output = await computed(new DijkstraAlgorithm(graph, { source: "A", target: "C" }));
 
-            const reference = dijkstra(toAlgorithmGraph(graph.getDataManager(), "undirected"), "A");
-            assert.strictEqual(output.graph?.cost, reference.get("C")?.distance);
-            assert.strictEqual(output.graph?.cost, 3);
+            // A route takes one of the parallel edges, the cheapest: A-B at 1, then B-C at 1.
+            assert.strictEqual(output.graph?.cost, 2);
 
+            // The two A-B edges tie, so the route took the first; the other is off the route, and a
+            // path set made from the run names one edge per step (design/sets 4.4).
             const values = valuesOf(output.edges);
-            assert.deepStrictEqual([...values.values()].map((value) => value.onPath), [true, true, true]);
+            assert.deepStrictEqual(
+                [...values.values()].map((value) => value.onPath),
+                [true, false, true],
+            );
         });
 
         it("kruskal costs the merged weight and flags every member of the group", async () => {
@@ -448,7 +454,10 @@ describe("the adapters that run through accelerated()", () => {
             assert.strictEqual(output.graph?.totalWeight, 3);
 
             const values = valuesOf(output.edges);
-            assert.deepStrictEqual([...values.values()].map((value) => value.in), [true, true, true]);
+            assert.deepStrictEqual(
+                [...values.values()].map((value) => value.in),
+                [true, true, true],
+            );
         });
     });
 

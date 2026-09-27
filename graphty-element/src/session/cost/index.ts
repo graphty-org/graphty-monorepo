@@ -29,6 +29,7 @@ export type {
     CostInput,
     CostMeasurement,
     MachineCalibration,
+    ScopeCandidate,
 } from "./estimate";
 export {
     ASSUMED_ITERATION_BOUND,

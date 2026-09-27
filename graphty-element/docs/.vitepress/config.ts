@@ -66,6 +66,7 @@ export default defineConfig({
                         { text: "Layouts", link: "/guide/layouts" },
                         { text: "Acceleration", link: "/guide/acceleration" },
                         { text: "Algorithms", link: "/guide/algorithms" },
+                        { text: "Sets", link: "/guide/sets" },
                         { text: "Data Sources", link: "/guide/data-sources" },
                         { text: "Events", link: "/guide/events" },
                         { text: "Camera", link: "/guide/camera" },

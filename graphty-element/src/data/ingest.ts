@@ -146,6 +146,8 @@ export function resolveEdgeWeight(
  * @param srcId - source node id, already extracted with JMESPath
  * @param dstId - destination node id
  * @param weight - the resolved weight
+ * @param fileId - the edge's id read at the configured `edgeIdPath`, when there is one: its stable
+ *     identity (design/sets/sets-design.md 12.3)
  * @returns the logical edge index and the counter stamped into the edge's id column, or
  *     `INVALID_INDEX` for both when either id is not one graph-format accepts
  */
@@ -154,6 +156,7 @@ export function ingestEdge(
     srcId: unknown,
     dstId: unknown,
     weight: number,
+    fileId?: string | number,
 ): { index: number; edgeId: number } {
     if (!isStorableId(srcId) || !isStorableId(dstId)) {
         return { index: INVALID_INDEX, edgeId: INVALID_INDEX };
@@ -162,6 +165,7 @@ export function ingestEdge(
     const index = store.builder.addEdge(srcId, dstId, weight);
     const edgeId = store.nextEdgeId();
     store.builder.setEdgeValue(store.edgeIdColumn, index, edgeId);
+    store.recordIngestedEdge(index, edgeId, fileId);
     store.touch();
     return { index, edgeId };
 }

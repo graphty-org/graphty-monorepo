@@ -89,6 +89,11 @@ interface FakeAcceleratorCalls {
     dispose: number;
     /** The snapshots handed to `release()`, in call order. */
     release: GraphSnapshot[];
+    /**
+     * The snapshots handed to an algorithm member, in call order: what a real accelerator would
+     * have uploaded and keeps resident until it is released. A release test compares the two.
+     */
+    uploaded: GraphSnapshot[];
     /** How many times a simulation was loaded. */
     load: number;
     /** How many batches were SUBMITTED; a coalesced `step()` does not count. */
@@ -606,6 +611,7 @@ export function createFakeAccelerator(options: FakeAcceleratorOptions = {}): Fak
         weaklyConnectedComponents: 0,
         dispose: 0,
         release: [],
+        uploaded: [],
         load: 0,
         step: 0,
         resolved: 0,
@@ -652,16 +658,19 @@ export function createFakeAccelerator(options: FakeAcceleratorOptions = {}): Fak
         },
         pageRank(snapshot: GraphSnapshot): Promise<PageRankResultLike> {
             calls.pageRank += 1;
+            calls.uploaded.push(snapshot);
             const scores = new Float32Array(snapshot.nodeCount);
             scores.fill(snapshot.nodeCount === 0 ? 0 : 1 / snapshot.nodeCount);
             return Promise.resolve({ scores, iterations: 1, converged: true, danglingMass: 0 });
         },
         connectedComponents(snapshot: GraphSnapshot): Promise<LabelResultLike> {
             calls.connectedComponents += 1;
+            calls.uploaded.push(snapshot);
             return Promise.resolve(onePartition(snapshot));
         },
         weaklyConnectedComponents(snapshot: GraphSnapshot): Promise<LabelResultLike> {
             calls.weaklyConnectedComponents += 1;
+            calls.uploaded.push(snapshot);
             return Promise.resolve(onePartition(snapshot));
         },
         release(snapshot: GraphSnapshot): void {

@@ -11,6 +11,7 @@ import { bipartitePartition, maximumBipartiteMatching } from "@graphty/algorithm
 import type { EdgeId } from "../catalog/types";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import { scopeEdges, type ScopeInputDeclaration } from "./input/ScopedInput";
 import {
     type AlgorithmOutput,
     type AlgorithmRunContext,
@@ -31,6 +32,8 @@ import { edgePairKey } from "./utils/graphUtils";
 export class BipartiteMatchingAlgorithm extends DeclaredAlgorithm {
     static namespace = "graphty";
     static type = "bipartite-matching";
+    /** Pairs within the run's scope: the edge list and the graph both come from the input. */
+    static scopeInput: ScopeInputDeclaration = "subgraph";
 
     /**
      * Pair up the two sides of a two-sided graph so that as many nodes as possible get a partner.
@@ -43,7 +46,8 @@ export class BipartiteMatchingAlgorithm extends DeclaredAlgorithm {
      * @returns The edge set, or null when there are no edges to pair.
      */
     async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
-        const graphEdges = Array.from(this.graph.getDataManager().edges.values());
+        // The declared edges of the run's input: its scope's, or every edge of the graph.
+        const graphEdges = scopeEdges(this.input("undirected"));
 
         if (graphEdges.length === 0) {
             return null;
@@ -96,7 +100,7 @@ export class BipartiteMatchingAlgorithm extends DeclaredAlgorithm {
         const edges: ResultElementValues<EdgeId>[] = [];
         await forEachChunked(context, "Marking the pairing", graphEdges, (edge) => {
             // The pair key looks the matching up; the element's own id is what is published.
-            edges.push({ id: edge.id, values: { in: paired.has(edgePairKey(edge.srcId, edge.dstId)) } });
+            edges.push({ id: edge.id, values: { in: paired.has(edgePairKey(edge.source, edge.target)) } });
         });
 
         // A right-hand node is matched when it is somebody's partner, which is what makes the

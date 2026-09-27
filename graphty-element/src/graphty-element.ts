@@ -2037,6 +2037,42 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Move the camera one step nearer or further, the way a Zoom in or Zoom out button does.
+     * One step is a factor of 1.25 on the 3D camera's distance or the 2D camera's zoom. Not an
+     * undoable step: the camera is view state.
+     * @param direction - `"in"` to approach, `"out"` to withdraw.
+     * @param options - Animation options
+     * @returns Promise that resolves when the camera has moved
+     * @since 3.0.0
+     * @example
+     * ```typescript
+     * await element.zoomStep("out");
+     * ```
+     */
+    async zoomStep(
+        direction: "in" | "out",
+        options?: import("./screenshot/types.js").CameraAnimationOptions,
+    ): Promise<void> {
+        return this.#graph.zoomStep(direction, options);
+    }
+
+    /**
+     * Centre the camera on the selected nodes, keeping where it stands. With nothing selected
+     * the camera does not move. Not an undoable step: the camera is view state.
+     * @param options - Animation options
+     * @returns Promise that resolves when the camera has moved
+     * @since 3.0.0
+     * @example
+     * ```typescript
+     * await element.session.selection.apply({ nodes: ["n1"] });
+     * await element.zoomToSelection();
+     * ```
+     */
+    async zoomToSelection(options?: import("./screenshot/types.js").CameraAnimationOptions): Promise<void> {
+        return this.#graph.zoomToSelection(options);
+    }
+
+    /**
      * Save the current camera state as a named preset. One undoable step.
      * @param name - Name for the preset
      * @param camera - The camera state to save instead of where the camera is now

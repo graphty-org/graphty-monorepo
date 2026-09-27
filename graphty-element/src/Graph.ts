@@ -39,6 +39,12 @@ const graphLogger: Logger = GraphtyLogger.getLogger(["graphty", "graph"]);
  * name that failure out loud instead of handing back a moving picture.
  */
 const DEFAULT_STABLE_FRAME_TIMEOUT_MS = 30000;
+
+/**
+ * How much one `zoomStep` moves the camera: a fifth nearer or further, the smallest change that
+ * reads as a change on a graph of any size.
+ */
+const ZOOM_STEP_FACTOR = 1.25;
 import { measureBounds } from "./camera/bounds.js";
 import { orbitAnglesToPosition } from "./camera/builtins.js";
 import { type CameraViewContext, cameraViewIds, isCameraViewName, resolveCameraView } from "./camera/resolve.js";
@@ -4898,6 +4904,61 @@ export class Graph implements GraphContext {
         // Get default camera state from current controller
         const defaultState = this.getDefaultCameraState();
         return this.setCameraState(defaultState, options);
+    }
+
+    /**
+     * Move the camera one step nearer or further, the way a Zoom in or Zoom out button does.
+     *
+     * One step is a factor of 1.25: the 3D orbit camera's distance from its pivot is divided or
+     * multiplied by it, and the 2D camera's zoom multiplied or divided. The
+     * camera is view state, so this is not an undoable step.
+     * @param direction - `"in"` to approach, `"out"` to withdraw.
+     * @param options - Optional animation configuration.
+     * @returns Promise that resolves when the camera has moved.
+     * @since 3.0.0
+     * @example
+     * ```typescript
+     * await graph.zoomStep("in");
+     * ```
+     */
+    async zoomStep(
+        direction: "in" | "out",
+        options?: import("./screenshot/types.js").CameraAnimationOptions,
+    ): Promise<void> {
+        const factor = direction === "in" ? 1 / ZOOM_STEP_FACTOR : ZOOM_STEP_FACTOR;
+        const state = this.getCameraState();
+        if (state.zoom !== undefined) {
+            return this.setCameraZoom(state.zoom / factor, options);
+        }
+
+        if (state.cameraDistance !== undefined) {
+            return this.setCameraState({ cameraDistance: state.cameraDistance * factor }, options);
+        }
+
+        return undefined;
+    }
+
+    /**
+     * Centre the camera on the selected nodes, keeping where it stands.
+     *
+     * The camera turns to look at the centre of the box around the selected nodes; with nothing
+     * selected it does not move. The camera is view state, so this is not an undoable step.
+     * @param options - Optional animation configuration.
+     * @returns Promise that resolves when the camera has moved.
+     * @since 3.0.0
+     * @example
+     * ```typescript
+     * await graph.select({ nodes: ["n1"] });
+     * await graph.zoomToSelection();
+     * ```
+     */
+    async zoomToSelection(options?: import("./screenshot/types.js").CameraAnimationOptions): Promise<void> {
+        const bounds = this.boundsToFrame(this.session.selection.nodes);
+        if (bounds.measured === 0) {
+            return undefined;
+        }
+
+        return this.setCameraTarget(bounds.center, options);
     }
 
     /**

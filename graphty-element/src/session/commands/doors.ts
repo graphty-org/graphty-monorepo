@@ -71,7 +71,7 @@ export const PHASES = [
 type PlanPhase = (typeof PHASES)[number];
 
 /** The phase this branch has reached. Each phase's commit raises it. */
-export const PLAN_PHASE: PlanPhase = "19a";
+export const PLAN_PHASE: PlanPhase = "19b";
 
 /** How the doors tests call a door. */
 export type DoorCall =
@@ -594,6 +594,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             setCameraZoom: CAMERA,
             setCameraPan: CAMERA,
             resetCamera: CAMERA,
+            zoomStep: CAMERA,
+            zoomToSelection: CAMERA,
             saveCameraPreset: calls(
                 ["door view", { zoom: 2 }],
                 [{ op: "view.save", views: [{ name: "door view", camera: { zoom: 2 } }] }],
@@ -820,6 +822,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             setCameraZoom: CAMERA,
             setCameraPan: CAMERA,
             resetCamera: CAMERA,
+            zoomStep: CAMERA,
+            zoomToSelection: CAMERA,
             resolveCameraPreset: READ,
             applyCameraView: CAMERA,
             saveCameraPreset: calls(

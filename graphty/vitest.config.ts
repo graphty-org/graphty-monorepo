@@ -1,16 +1,15 @@
 import react from "@vitejs/plugin-react";
-import { resolve } from "path";
 import { defineConfig } from "vitest/config";
+
+import { aliases } from "./vite.aliases";
 
 export default defineConfig({
     plugins: [react()],
-    resolve: {
-        alias: {
-            "@": resolve(__dirname, "./src"),
-        },
-    },
+    // The same aliases as the dev server, so tests run graphty-element from source rather
+    // than a prebundled copy of its dist that Vite's dependency cache never refreshes.
+    resolve: { alias: aliases },
     optimizeDeps: {
-        include: ["@mantine/hooks", "@graphty/graphty-element"],
+        include: ["@mantine/hooks"],
     },
     test: {
         globals: true,

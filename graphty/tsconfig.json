@@ -25,7 +25,7 @@
            editor sees element changes without a rebuild. Its exports map names one file per
            entry point at the package root (index.ts, schema.ts, catalog.ts, extend.ts,
            format.ts, logging.ts, session.ts, commands.ts, ai.ts, webgpu.ts, react.ts), so a
-           subpath maps to the file of the same name. vite.config.ts carries the same two rules; change
+           subpath maps to the file of the same name. vite.aliases.ts carries the same two rules; change
            them together or the editor and the bundler will disagree about what
            @graphty/graphty-element/schema means. */
         "baseUrl": ".",

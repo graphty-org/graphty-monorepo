@@ -7,7 +7,11 @@
         "moduleResolution": "bundler",
         "allowSyntheticDefaultImports": true,
         "strict": true,
-        "types": ["node"]
+        "types": ["node"],
+        // tsc -b builds this referenced project with emit on. Keep what it writes out of the
+        // package directory, where the emitted .js configs would shadow the .ts ones.
+        "outDir": "./node_modules/.tmp/tsconfig.node",
+        "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo"
     },
-    "include": ["vite.config.ts", "vitest.config.ts", "test/**/*.ts"]
+    "include": ["vite.config.ts", "vitest.config.ts", "vite.aliases.ts", "test/**/*.ts"]
 }

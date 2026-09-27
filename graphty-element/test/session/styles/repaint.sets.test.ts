@@ -210,7 +210,11 @@ describe("a layer naming a set repaints only what moved", () => {
         const seen = passes(h);
 
         await run.rerun();
-        await drain();
+        // Wait for the two passes themselves, not a tick: a pass that outruns its time slice
+        // hands the thread back and finishes on a later task.
+        while (seen.log.length < 2) {
+            await seen.next();
+        }
 
         // Queued for the re-run the result is cleared (the members leave, with the two edges they
         // induce), and its end publishes the same values again (they return).

@@ -295,7 +295,7 @@ function engineForLayout(type: string): string {
 /**
  * What a layout manager reads of the session to scope a layout. `Graph` hands its session's in.
  */
-export interface LayoutScopeSource {
+interface LayoutScopeSource {
     /**
      * A write position's scope in canonical form.
      * @param input - The scope as a consumer gave it.

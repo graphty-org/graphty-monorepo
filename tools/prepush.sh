@@ -116,6 +116,21 @@ run_step "Knip (production dependencies)" "pnpm run lint:knip:prod"
 # WebGPU peer fell four breaking releases behind. Needs the build above. About 3 seconds (2026-09-24).
 run_step "Published dependencies" "pnpm run check:published-deps -- $DIR_LIST"
 
+# Every package that has its own eslint.config.js is linted with that file alone, so it must spread
+# the root config; a stale copy silently drops every rule the root gained since. Run for every push,
+# not per affected package: the check is about the configs, and it takes about a second.
+run_step "ESLint root config" "pnpm run lint:eslint-root"
+
+# Prettier on the files this branch adds or modifies. The tree is not formatted as a whole yet
+# (issue #239), so this stops new drift without asking a branch to reformat what it never touched.
+run_step "Formatting (changed files)" "pnpm run format:check:changed"
+
+# The gzip budget of each graphty-element entry point (graphty-element/size-budgets.json), counted
+# over the entry file and every chunk it statically imports. Needs the build above.
+if affected graphty-element; then
+    run_step "Bundle size (graphty-element)" "pnpm run check:bundle-size"
+fi
+
 # Dead relative links and #anchors in the Markdown, MDX and HTML, and links to this repository's own
 # files on GitHub, resolved against the working tree. Offline: the network half of the check
 # (github.com/graphty-org, and graphty.app against the assembled site) runs in CI's "Links" job,

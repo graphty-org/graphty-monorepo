@@ -28,6 +28,7 @@
 
 import type { LayerSpec } from "../../catalog/types";
 import type { SessionCommand } from "../planning";
+import type { ImportSource } from "./data";
 
 /** The phases of the undo plan, in order. */
 export const PHASES = [
@@ -70,7 +71,7 @@ export const PHASES = [
 type PlanPhase = (typeof PHASES)[number];
 
 /** The phase this branch has reached. Each phase's commit raises it. */
-export const PLAN_PHASE: PlanPhase = "13";
+export const PLAN_PHASE: PlanPhase = "14";
 
 /** How the doors tests call a door. */
 export type DoorCall =
@@ -158,11 +159,12 @@ function gapSet(phase: PlanPhase, op: string, value: unknown): Door {
 
 /**
  * A door that dispatches, called as a method.
- * @param args - The arguments to call it with.
+ * @param args - The arguments to call it with, or a function building them where they cannot be
+ *     plain data.
  * @param expect - The commands the call must dispatch, in order; the first names its op.
  * @returns The door.
  */
-function calls(args: readonly unknown[], expect: readonly SessionCommand[]): Door {
+function calls(args: readonly unknown[] | (() => readonly unknown[]), expect: readonly SessionCommand[]): Door {
     return { kind: "dispatches", op: expect[0]?.op ?? "", call: { kind: "call", args }, expect };
 }
 
@@ -186,18 +188,6 @@ function assigns(value: unknown, expect: readonly SessionCommand[]): Door {
  */
 function partial(phase: PlanPhase, reason: string, args: readonly unknown[], expect: readonly SessionCommand[]): Door {
     return { kind: "partial", phase, reason, op: expect[0]?.op ?? "", call: { kind: "call", args }, expect };
-}
-
-/**
- * A property door that dispatches, but whose one assignment is not yet one step, until `phase`.
- * @param phase - The phase that makes one assignment one step.
- * @param reason - What is still split, and why.
- * @param value - The value to assign.
- * @param expect - The commands the assignment dispatches today, in order.
- * @returns The door.
- */
-function partialSet(phase: PlanPhase, reason: string, value: unknown, expect: readonly SessionCommand[]): Door {
-    return { kind: "partial", phase, reason, op: expect[0]?.op ?? "", call: { kind: "set", value }, expect };
 }
 
 /**
@@ -251,6 +241,32 @@ function removes(kind: "remove-nodes" | "remove-edges", ids: readonly string[]):
 /** The command emptying the graph. */
 const CLEAR: SessionCommand = { op: "data.apply", mutation: { kind: "clear" } };
 
+/**
+ * A batch, followed by its members as each is dispatched.
+ * @param label - The batch's label.
+ * @param steps - Its members.
+ * @returns What a door dispatching it dispatches, in order.
+ */
+function batchOf(label: string, ...steps: SessionCommand[]): SessionCommand[] {
+    return [{ op: "batch", label, steps }, ...steps];
+}
+
+/** What the element's pair adds to an import: the key its two assignments coalesce under. */
+interface ImportExtra {
+    readonly coalesce?: string;
+}
+
+/**
+ * An import through a data source, as a door dispatches it.
+ * @param mode - Replace or merge.
+ * @param source - The data source's name and options.
+ * @param extra - The element's coalesce key, when it is the element's pair.
+ * @returns The command.
+ */
+function imports(mode: "replace" | "merge", source: ImportSource, extra: ImportExtra = {}): SessionCommand {
+    return { op: "data.import", source, mode, ...extra };
+}
+
 /** The data rows the element and `Graph` share. */
 const DATA_DOORS: Readonly<Record<string, Door>> = {
     addNode: calls([{ id: "door-a" }], [addNodes({ id: "door-a" })]),
@@ -273,6 +289,38 @@ const TINY_JSON = JSON.stringify({ nodes: [{ id: "j1" }, { id: "j2" }], edges: [
 
 /** The same document as a URL. */
 const TINY_JSON_URL = `data:application/json,${encodeURIComponent(TINY_JSON)}`;
+
+/** Adding a graph from a data source: merged into the graph, as the door always has. */
+const ADD_FROM_SOURCE = calls(
+    ["json", { data: TINY_JSON }],
+    [imports("merge", { type: "json", config: { data: TINY_JSON } })],
+);
+
+/** Loading from a URL: the text fetched, and the id path the element reads. */
+const LOAD_FROM_URL = calls(
+    [TINY_JSON_URL],
+    [imports("merge", { type: "json", config: { data: TINY_JSON, nodeIdPath: "id" } })],
+);
+
+/**
+ * Loading from a URL on the element, whose rows above set the edge id paths to `src` and `dst`,
+ * which the load names as the endpoints to read.
+ */
+const LOAD_FROM_URL_ELEMENT = calls(
+    [TINY_JSON_URL],
+    [
+        imports("merge", {
+            type: "json",
+            config: { data: TINY_JSON, nodeIdPath: "id", edgeSource: "src", edgeTarget: "dst" },
+        }),
+    ],
+);
+
+/** Loading from a file: its text, its name and its size. */
+const LOAD_FROM_FILE = calls(
+    () => [new File([TINY_JSON], "door.json", { type: "application/json" })],
+    [imports("merge", { type: "json", config: { data: TINY_JSON, filename: "door.json", size: TINY_JSON.length } })],
+);
 
 const CAMERA = exempt("The camera is view state, not saved in a project file.");
 const XR = exempt("An XR device session is view state, not saved in a project file.");
@@ -463,15 +511,19 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             asyncFirstUpdated: LIFECYCLE,
             render: LIFECYCLE,
             disconnectedCallback: LIFECYCLE,
-            nodeData: partialSet(
-                "14",
-                "Adds the records as one step; replacing the nodes the element held, in the same step, is the batch phase 14 builds.",
+            // Called while the element holds n1, n2 and n3: the ones not named again go.
+            nodeData: assigns(
                 [{ id: "x1" }],
-                [addNodes({ id: "x1" })],
+                batchOf("Replaced the nodes", removes("remove-nodes", ["n1", "n2", "n3"]), addNodes({ id: "x1" })),
             ),
-            edgeData: gapSet("14", "batch", [{ src: "n1", dst: "n2" }]),
-            dataSource: gapSet("14", "data.import", "json"),
-            dataSourceConfig: gapSet("14", "data.import", { data: TINY_JSON }),
+            // The row above took every edge with the nodes, so there is nothing to remove.
+            edgeData: assigns([{ src: "n1", dst: "n2" }], batchOf("Replaced the edges", addEdges({ src: "n1", dst: "n2" }))),
+            dataSource: assigns("json", [imports("replace", { type: "json" }, { coalesce: "element-source" })]),
+            // A URL rather than inline text, so the getter reads back exactly the value set: the
+            // graph keeps where it was loaded from, never the text itself.
+            dataSourceConfig: assigns({ url: TINY_JSON_URL }, [
+                imports("replace", { type: "json", config: { url: TINY_JSON_URL } }, { coalesce: "element-source" }),
+            ]),
             clearData: CLEAR_DATA,
             nodeIdPath: assigns("id", [{ op: "config.set", values: { data: { knownFields: { nodeIdPath: "id" } } } }]),
             edgeSrcIdPath: assigns("src", [
@@ -542,11 +594,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             graph: READ,
             ...DATA_DOORS,
             removeNodes: REMOVE_NODES,
-            addDataFromSource: gap("14", "data.import", ["json", { data: TINY_JSON }]),
-            loadFromUrl: gap("14", "data.import", [TINY_JSON_URL]),
-            loadFromFile: gap("14", "data.import", () => [
-                new File([TINY_JSON], "door.json", { type: "application/json" }),
-            ]),
+            addDataFromSource: ADD_FROM_SOURCE,
+            loadFromUrl: LOAD_FROM_URL_ELEMENT,
+            loadFromFile: LOAD_FROM_FILE,
             pin: gap("16a", "positions.pin", [["n1"]]),
             unpin: gap("16a", "positions.pin", [["n1"]]),
             isPinned: READ,
@@ -583,12 +633,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             setRunning: IN_FLIGHT,
             worldToScreen: READ,
             screenToWorld: READ,
-            setData: partial(
-                "14",
-                "Adds each node and each edge as a step of its own; one batch for the whole call is phase 14.",
-                [{ nodes: [{ id: "d1" }], edges: [] }],
-                [addNodes({ id: "d1" })],
-            ),
+            setData: calls([{ nodes: [{ id: "d1" }], edges: [] }], batchOf("Set the graph data", addNodes({ id: "d1" }))),
             getStyles: READ,
             getDataManager: READ,
             getLayoutManager: READ,
@@ -661,13 +706,19 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 [{ op: "config.set", values: { layoutBehavior: { preSteps: 0 } } }],
             ),
             getLayoutBehavior: READ,
-            addDataFromSource: gap("14", "data.import", ["json", { data: TINY_JSON }]),
-            loadFromFile: gap("14", "data.import", () => [
-                new File([TINY_JSON], "door.json", { type: "application/json" }),
-            ]),
-            loadFromUrl: gap("14", "data.import", [TINY_JSON_URL]),
+            addDataFromSource: ADD_FROM_SOURCE,
+            loadFromFile: LOAD_FROM_FILE,
+            loadFromUrl: LOAD_FROM_URL,
             ...DATA_DOORS,
-            setEdges: gap("14", "batch", [[{ src: "n1", dst: "n2" }]]),
+            // Called while the graph holds the edges the rows above left.
+            setEdges: calls(
+                [[{ src: "n1", dst: "n2" }]],
+                batchOf(
+                    "Replaced the edges",
+                    removes("remove-edges", ["1", "2", "3", "4", "5", "6"]),
+                    addEdges({ src: "n1", dst: "n2" }),
+                ),
+            ),
             setLayout: gap("17", "layout.set", ["circular"]),
             runAlgorithm: partial("15", RUN_PAINTS, ["graphty", "degree"], [DEGREE_ENCODE]),
             run: gap("15", "algo.run", ["degree"]),
@@ -753,12 +804,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 [{ "door import": { zoom: 3 } }],
                 [{ op: "view.save", views: [{ name: "door import", camera: { zoom: 3 } }] }],
             ),
-            setData: partial(
-                "14",
-                "Adds each node and each edge as a step of its own; one batch for the whole call is phase 14.",
-                [{ nodes: [{ id: "d1" }], edges: [] }],
-                [addNodes({ id: "d1" })],
-            ),
+            setData: calls([{ nodes: [{ id: "d1" }], edges: [] }], batchOf("Set the graph data", addNodes({ id: "d1" }))),
             getNode: READ,
             getNodes: READ,
             render: RENDER,
@@ -941,8 +987,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             addEdges: calls([[{ src: "n3", dst: "n2" }]], [addEdges({ src: "n3", dst: "n2" })]),
             getEdge: READ,
             getEdgesBetween: READ,
-            setEdges: gap("14", "batch", [[{ src: "n1", dst: "n2" }]]),
-            addDataFromSource: gap("14", "data.import", ["json", { data: TINY_JSON }]),
+            // Called while no edge is drawn: the one the row above added waits for its endpoint.
+            setEdges: calls([[{ src: "n1", dst: "n2" }]], batchOf("Replaced the edges", addEdges({ src: "n1", dst: "n2" }))),
+            addDataFromSource: ADD_FROM_SOURCE,
             clear: calls([], [CLEAR]),
             startLabelAnimations: RENDER,
             getStats: READ,
@@ -1154,6 +1201,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             removeEdges: calls([["0"]], [removes("remove-edges", ["0"])]),
             removeNodes: calls([["door-b"]], [removes("remove-nodes", ["door-b"])]),
             clear: calls([], [CLEAR]),
+            import: calls(
+                [{ type: "json", config: { data: TINY_JSON } }],
+                [imports("replace", { type: "json", config: { data: TINY_JSON } })],
+            ),
         },
     },
     {
@@ -1546,3 +1597,14 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         whole: LIFECYCLE,
     },
 ];
+
+/**
+ * The ops a gesture the element handles itself dispatches, with no public member of its own: the
+ * gesture is the door. Each names where it is handled; the browser test of that gesture checks
+ * that it dispatches the op.
+ */
+export const GESTURE_DOORS: Readonly<Record<string, string>> = {
+    "data.expand":
+        "Double-clicking a node when the layout behaviour supplies fetchNodes and fetchEdges (src/NodeBehavior.ts); " +
+        "checked by test/browser/expansion-through-behaviour.test.ts.",
+};

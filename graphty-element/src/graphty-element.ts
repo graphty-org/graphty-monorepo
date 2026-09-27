@@ -11,7 +11,17 @@ import { isDomForwardableEvent, NODE_EVENT_DOM_NAMES, nodeEventDetail } from "./
 import { Graph } from "./Graph";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
+import {
+    describeSource,
+    type ImportSource,
+    replaceEdgesCommand,
+    replaceNodesCommand,
+    SOURCE_VALUE,
+} from "./session/commands/data";
+import type { BatchCommand } from "./session/commands/index";
+import { recordsInRowOrder } from "./session/data";
 import { dispatcherOf } from "./session/GraphSession";
+import type { GraphSlice } from "./session/project/state";
 import type { Run, RunChange, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionTarget, SetOp } from "./session/selection";
 import type { ProjectConfigPatch } from "./session/types";
@@ -27,6 +37,9 @@ import type { VisibilityChange } from "./session/visibility";
  * on rather than a number it displays.
  */
 const RUN_PROGRESS_INTERVAL_MS = 100;
+
+/** The queued coalesce key of the `dataSource` / `dataSourceConfig` pair: one tick, one load. */
+const ELEMENT_SOURCE = "element-source";
 
 /**
  * The properties that take an object or an array, and so cannot survive being written as an
@@ -332,6 +345,8 @@ export class Graphty extends LitElement {
      * @param changedProperties - Map of changed property names to their previous values
      */
     firstUpdated(changedProperties: Map<string, unknown>): void {
+        // What the page declared is in: data assigned from here on is the reader's, and undoable.
+        this.#settingUp = false;
         super.firstUpdated(changedProperties);
 
         this.asyncFirstUpdated().catch((e: unknown) => {
@@ -435,10 +450,6 @@ export class Graphty extends LitElement {
     }
 
     // Private backing fields for reactive properties
-    #nodeData?: Record<string, unknown>[];
-    #edgeData?: Record<string, unknown>[];
-    #dataSource?: string;
-    #dataSourceConfig?: Record<string, unknown>;
     #layout?: string;
     #layoutConfig?: Record<string, unknown>;
     #viewMode?: ViewMode;
@@ -557,20 +568,18 @@ export class Graphty extends LitElement {
         },
     })
     get nodeData(): Record<string, unknown>[] | undefined {
-        return this.#nodeData;
+        const records = this.#records("node");
+        return records.length === 0 ? undefined : (records as Record<string, unknown>[]);
     }
     /**
-     * Sets the node data array. Triggers addition of nodes to the graph.
+     * Replaces the graph's nodes with these, as one undoable step: a node the array names again
+     * keeps its row and its edges, and one it no longer names goes, with its edges.
      */
     set nodeData(value: Record<string, unknown>[] | undefined) {
-        const oldValue = this.#nodeData;
-        this.#nodeData = value;
-
-        // Forward to Graph method (which queues operation)
+        const oldValue = this.nodeData;
         if (value && Array.isArray(value)) {
-            this.#graph.addNodes(value).catch((error: unknown) => {
-                this.#reportLoadFailure(error);
-            });
+            const { nodeIdPath } = this.#graph.getStyles().config.data.knownFields;
+            this.#replaceData((state, setup) => replaceNodesCommand([...state.nodes.keys()], value, nodeIdPath, setup));
         }
 
         this.requestUpdate("nodeData", oldValue);
@@ -646,21 +655,19 @@ export class Graphty extends LitElement {
         },
     })
     get edgeData(): Record<string, unknown>[] | undefined {
-        return this.#edgeData;
+        const records = this.#records("edge");
+        return records.length === 0 ? undefined : (records as Record<string, unknown>[]);
     }
     /**
-     * Sets the edge data array. Triggers addition of edges to the graph.
+     * Replaces the graph's edges with these, as one undoable step.
      */
     set edgeData(value: Record<string, unknown>[] | undefined) {
-        const oldValue = this.#edgeData;
-        this.#edgeData = value;
+        const oldValue = this.edgeData;
 
         // REPLACE, not append. Two edges between one pair are now two edges, so an additive
         // setter would double every edge each time a host re-assigned the property.
         if (value && Array.isArray(value)) {
-            this.#graph.setEdges(value).catch((error: unknown) => {
-                this.#reportLoadFailure(error);
-            });
+            this.#replaceData((state, setup) => replaceEdgesCommand([...state.edges.keys()], value, {}, setup));
         }
 
         this.requestUpdate("edgeData", oldValue);
@@ -673,17 +680,17 @@ export class Graphty extends LitElement {
      */
     @property({ attribute: "data-source" })
     get dataSource(): string | undefined {
-        return this.#dataSource;
+        return this.#source().type;
     }
     /**
-     * Sets the data source type. Initializes data loading when combined with dataSourceConfig.
+     * Sets the data source type. Loads the graph from it, replacing what the graph held, once the
+     * configuration is set too.
      */
     set dataSource(value: string | undefined) {
-        const oldValue = this.#dataSource;
-        this.#dataSource = value;
-
-        // Try to initialize data source if both dataSource and dataSourceConfig are set
-        this.#tryInitializeDataSource();
+        const oldValue = this.dataSource;
+        if (typeof value === "string" && value !== "") {
+            this.#importSource({ type: value, config: this.#source().config });
+        }
 
         this.requestUpdate("dataSource", oldValue);
     }
@@ -695,47 +702,115 @@ export class Graphty extends LitElement {
      */
     @property({ attribute: "data-source-config" })
     get dataSourceConfig(): Record<string, unknown> | undefined {
-        return this.#dataSourceConfig;
+        const { config } = this.#source();
+        // Reported without the inline text or the file: the graph keeps where it came from, not
+        // a second copy of what it holds.
+        return config === undefined ? undefined : (describeSource({ config }).config as Record<string, unknown>);
     }
     /**
-     * Sets the data source configuration. Initializes data loading when combined with dataSource.
+     * Sets the data source configuration. Loads the graph from it, replacing what the graph
+     * held, once the type is set too.
      */
     set dataSourceConfig(value: Record<string, unknown> | undefined) {
-        const oldValue = this.#dataSourceConfig;
-        this.#dataSourceConfig = value;
-
-        // Try to initialize data source if both dataSource and dataSourceConfig are set
-        this.#tryInitializeDataSource();
+        const oldValue = this.dataSourceConfig;
+        if (value !== undefined && value !== null) {
+            this.#importSource({ type: this.#source().type, config: value });
+        }
 
         this.requestUpdate("dataSourceConfig", oldValue);
     }
 
     /**
-     * Removes every node and edge, and lets a later data source load.
-     *
-     * The guard below is per LOAD, not per element lifetime. Latching it for the
-     * element's whole life refused every dataset after the first: a second
-     * `dataSource` / `dataSourceConfig` assignment set both properties and started no
-     * load, so a host that loaded a second file saw the element report the new source
-     * while the old graph stayed on screen. Clearing the data is the statement that the
-     * previous load is over, so it is where the guard resets.
-     *
-     * The two properties are reset with it, and deliberately through the private fields
-     * rather than the setters: a setter would call `#tryInitializeDataSource` again, and
-     * leaving the old pair in place would let the next half-assignment load the NEW
-     * source against the OLD config.
+     * Removes every node and edge, as one undoable step. The data source goes with them, so the
+     * next `dataSource` / `dataSourceConfig` assignment loads afresh.
      */
     clearData(): void {
-        const oldDataSource = this.#dataSource;
-        const oldDataSourceConfig = this.#dataSourceConfig;
+        const oldDataSource = this.dataSource;
+        const oldDataSourceConfig = this.dataSourceConfig;
 
         this.#graph.getDataManager().clear();
-        this.#dataSourceInitialized = false;
-        this.#dataSource = undefined;
-        this.#dataSourceConfig = undefined;
 
         this.requestUpdate("dataSource", oldDataSource);
         this.requestUpdate("dataSourceConfig", oldDataSourceConfig);
+    }
+
+    /** Until the first update: what is assigned now was declared by the page, and is baseline. */
+    #settingUp = true;
+
+    /** The records `nodeData` and `edgeData` last read, for the graph they were read from. */
+    #rowRecords: { token: number; node?: readonly unknown[]; edge?: readonly unknown[] } | null = null;
+
+    /**
+     * The graph's records in row order, built once per graph.
+     * @param target - Nodes or edges.
+     * @returns The records.
+     */
+    #records(target: "node" | "edge"): readonly unknown[] {
+        const session = this.#graph.getSession();
+        const { graph } = dispatcherOf(session).state;
+        if (this.#rowRecords?.token !== graph.token) {
+            this.#rowRecords = { token: graph.token };
+        }
+
+        this.#rowRecords[target] ??= recordsInRowOrder(graph, session.snapshot(), target);
+        return this.#rowRecords[target];
+    }
+
+    /**
+     * The data source as assigned: the import waiting its turn, or the one the graph was loaded
+     * from.
+     * @returns The source; empty when neither is set.
+     */
+    #source(): ImportSource {
+        const dispatcher = dispatcherOf(this.#graph.getSession());
+        const pending = dispatcher.pendingCommand(ELEMENT_SOURCE) as { source: ImportSource } | undefined;
+        return pending?.source ?? (dispatcher.state.graph.values.get(SOURCE_VALUE) as ImportSource | undefined) ?? {};
+    }
+
+    /**
+     * Load from the pair as it now stands, replacing the graph. Two assignments in one tick
+     * coalesce into one load and one step while the first waits its turn.
+     * @param source - The pair.
+     */
+    #importSource(source: ImportSource): void {
+        void dispatcherOf(this.#graph.getSession())
+            .dispatch({
+                op: "data.import",
+                source: {
+                    ...(source.type === undefined ? {} : { type: source.type }),
+                    ...(source.config === undefined ? {} : { config: source.config }),
+                },
+                mode: "replace",
+                coalesce: ELEMENT_SOURCE,
+                ...(this.#settingUp ? { setup: true } : {}),
+            })
+            // A failed load is published on the data-loading channel by the load itself, before
+            // it rejects; a caller who wants the throw calls `loadFromUrl` and awaits it.
+            .catch(() => undefined);
+    }
+
+    /**
+     * Replace nodes or edges as one step: now, once the graph is up, so the getter reads the new
+     * records as soon as the assignment returns; before that, on the operation queue's turn, after
+     * the layout the graph starts with, which the new nodes join.
+     * @param build - The step, built from the graph as it stands when it runs.
+     */
+    #replaceData(build: (state: GraphSlice, setup: boolean) => BatchCommand): void {
+        const setup = this.#settingUp;
+        const dispatcher = dispatcherOf(this.#graph.getSession());
+        const dispatch = (): Promise<unknown> => dispatcher.dispatch(build(dispatcher.state.graph, setup));
+        const done = this.#graph.initialized
+            ? dispatch()
+            : this.#graph.operationQueue.queueOperationAsync("data-add", async (context) => {
+                  if (context.signal.aborted) {
+                      throw new Error("Operation cancelled");
+                  }
+
+                  await dispatch();
+              });
+        done.catch((error: unknown) => {
+            this.#reportLoadFailure(error);
+        });
     }
 
     /**
@@ -760,31 +835,6 @@ export class Graphty extends LitElement {
             "records",
             { canContinue: false },
         );
-    }
-
-    /**
-     * Helper method to initialize data source only when both properties are set
-     */
-    #dataSourceInitialized = false;
-    #tryInitializeDataSource(): void {
-        // Only initialize once per load -- see `clearData` -- and only if both
-        // dataSource and dataSourceConfig are set. Both setters call this, so the guard
-        // is what stops one assignment of the pair from starting two loads.
-        if (!this.#dataSourceInitialized && this.#dataSource && this.#dataSourceConfig) {
-            this.#dataSourceInitialized = true;
-            // A load started by an attribute or a property assignment hands the caller no promise,
-            // so a rejection here reaches the page as an UNHANDLED rejection: it trips the host's
-            // global error handler, and a Vite dev server puts its error overlay over the whole
-            // application, for a file the element has already reported through its own channel.
-            // That became reachable the moment a file naming no endpoint column started failing
-            // instead of quietly loading zero edges, which is the point of this release.
-            //
-            // The failure is not swallowed. `addDataFromSource` emits `data-loading-error`
-            // carrying the coded error and a `graph-error` beside it, and logs the whole thing,
-            // all before it throws; those are the channels the declarative path publishes on. A
-            // caller who wants the promise calls `element.addDataFromSource` and gets the throw.
-            this.#graph.addDataFromSource(this.#dataSource, this.#dataSourceConfig).catch(() => undefined);
-        }
     }
 
     /**

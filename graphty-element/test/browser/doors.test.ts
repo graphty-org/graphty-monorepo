@@ -12,7 +12,7 @@
 
 import "../../src/graphty-element";
 
-import { afterEach, assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { Graph } from "../../src/Graph";
@@ -174,6 +174,10 @@ describe("the element's properties read back across undo and redo", () => {
                     const before = object[member];
 
                     object[member] = value;
+                    // A setter whose command waits its turn on the queue is recorded once it has run.
+                    await vi.waitFor(() => {
+                        assert.lengthOf(target.session.history.pending, 0, "the assignment is recorded");
+                    });
                     await target.session.history.restoreTo(target.session.history.steps.at(-1)?.id ?? null);
                     assert.deepEqual(object[member], value, "the getter reads the value set");
 

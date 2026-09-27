@@ -103,8 +103,10 @@ import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js"
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
 import { readProjectConfig } from "./session/commands/config";
 import type { DataMutation } from "./session/commands/data";
+import type { BatchCommand } from "./session/commands/index";
 import { assertViewName } from "./session/commands/view";
 import { dispatcherOf } from "./session/GraphSession";
+import { queueScheduler } from "./session/project/Dispatcher";
 import { deepFreeze } from "./session/project/draft";
 import { EDGES_ADDED, NODES_ADDED } from "./session/project/graphOps";
 import type { Run, StartOptions } from "./session/runs";
@@ -217,6 +219,9 @@ export class Graph implements GraphContext {
      * trigger brings.
      */
     #queuedAdds = 0;
+
+    /** The on-load algorithms have been asked for in this turn, and will start at its end. */
+    #onLoadRunsDue = false;
 
     // Managers
     /** Event manager for adding/removing event listeners */
@@ -360,13 +365,35 @@ export class Graph implements GraphContext {
                 // ever calls this once a run reaches the front of the queue.
                 execute: (context) => this.algorithmManager.execute(context, algorithmByKey(context.algorithm)),
             },
+        }, {
+            // An import takes its turn on the element's queue, among the loads, layouts and runs.
+            scheduler: queueScheduler(this.operationQueue),
+            // What the page declares before the graph first holds data is where history starts.
+            baselineWindow: true,
         });
 
         // Every data door dispatches through the session from here on, and the session's
-        // `data.apply` is carried out by the data manager's ingest. A command that adds rows starts
-        // the on-load algorithms once; undo and redo never do.
-        this.dataManager.bindSession(dispatcherOf(this.session), () => {
-            this.startOnLoadRuns();
+        // `data.apply` and `data.import` are carried out by the data manager's ingest. A command
+        // that adds rows starts the on-load algorithms once -- a batch of an add of nodes and one
+        // of edges too, since both land in one turn -- and undo and redo never do. While an import
+        // reads, the pass after each chunk builds what arrived but does not paint; one more pass,
+        // once the last chunk is in, paints the whole graph before the import's promise settles.
+        this.dataManager.bindSession(dispatcherOf(this.session), {
+            rowsAdded: () => {
+                if (!this.#onLoadRunsDue) {
+                    this.#onLoadRunsDue = true;
+                    queueMicrotask(() => {
+                        this.#onLoadRunsDue = false;
+                        this.startOnLoadRuns();
+                    });
+                }
+            },
+            loading: (active) => {
+                this.#queuedAdds += active ? 1 : -1;
+                if (!active) {
+                    dispatcherOf(this.session).graph.touch("import:settled");
+                }
+            },
         });
 
         // The `graph` hook: the render objects follow the slice, forward and on undo, redo and
@@ -661,30 +688,6 @@ export class Graph implements GraphContext {
                 layoutType: "ngraph",
                 isDefault: true,
             });
-        });
-
-        // Note: Algorithm running is handled in the data-added event listener below
-        // rather than through operation queue triggers, because data sources bypass
-        // the operation queue when adding data
-
-        // A load that does not come through the session's history yet (a data source, a file, a
-        // URL) starts the layout, frames the camera and runs the on-load algorithms from here. Rows
-        // a command added are answered by the `graph` hook and the command instead, and rows undo,
-        // redo or a rollback brought back start nothing at all.
-        this.eventManager.addListener("data-added", (event) => {
-            if (event.type === "data-added" && event.cause === undefined) {
-                if (event.shouldStartLayout) {
-                    this.layoutManager.running = true;
-                    // Start tracking layout session performance
-                    this.statsManager.startLayoutSession();
-                }
-
-                if (event.shouldZoomToFit) {
-                    this.autoFrame();
-                }
-
-                this.startOnLoadRuns();
-            }
         });
 
         // Listen for layout-initialized events to handle zoom to fit
@@ -1259,44 +1262,19 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Adds graph data from a registered data source.
+     * Adds graph data from a registered data source, as one undoable step.
      *
-     * PAINTS WHAT IT LOADED, and that is not incidental. Data reaches the element two ways and a
-     * consumer chooses between them by which method they call: records handed in through
-     * `addNodes`/`setEdges`, which are queued operations, or a file, string or URL read by a data
-     * source, which is this method and which deliberately bypasses the queue (`DataManager`
-     * streams chunks straight into the store so a large file does not queue an operation per
-     * chunk). The element's whole-graph repaint hangs off the QUEUED path, so a graph
-     * loaded this way was never painted from the style stack at all: every node and edge kept the
-     * bootstrap appearance `DataManager` gives it at construction, `styleOf` answered `{}`, and
-     * `styles.explain(...)` truthfully reported that no layer -- not even the element's own
-     * defaults -- had painted anything. The picture happened to resemble the default layer's
-     * colour, so it read as success until a story asked for something else.
-     *
-     * The repaint is here, once per load, rather than on the `data-added` event, which fires per
-     * chunk and per kind and would put a whole-graph pass behind each one.
-     *
-     * A load that fails part-way still paints: the rows that did arrive are in the store and on
-     * screen, so leaving them unpainted would be the same defect with a smaller blast radius.
+     * The load takes its turn on the operation queue behind the loads and layouts asked for
+     * before it, and is added to what the graph holds. It paints what it loaded before the promise
+     * settles: the pass that follows its last chunk repaints the graph from the style stack, so a
+     * graph loaded this way is painted exactly as one built from records is. A load that fails
+     * part way records nothing and takes back the rows that did arrive.
      * @param type - Type/name of the registered data source
      * @param opts - Options to pass to the data source
      * @returns Promise that resolves when data is loaded
      */
     async addDataFromSource(type: string, opts: object = {}): Promise<void> {
-        try {
-            await this.dataManager.addDataFromSource(type, opts);
-        } finally {
-            // The load's own failure is the one a caller is told about, so a repaint that throws
-            // is reported on the error channel rather than replacing it.
-            await this.repaintFromSession().catch((error: unknown) => {
-                this.eventManager.emitGraphError(
-                    this,
-                    error instanceof Error ? error : new Error(String(error)),
-                    "other",
-                    { component: "Graph.addDataFromSource", dataSourceType: type },
-                );
-            });
-        }
+        await this.dataManager.addDataFromSource(type, opts);
     }
 
     /**
@@ -2131,24 +2109,24 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Dispatch one `data.apply` on its turn in the operation queue, or at once with `skipQueue`.
-     * The turn keeps an add ordered against the loads and layouts queued before it.
+     * Dispatch one `data.apply`, or a batch of them, on its turn in the operation queue, or at once
+     * with `skipQueue`. The turn keeps an add ordered against the loads and layouts queued before it.
      * @param category - The queue category.
-     * @param mutation - The mutation.
+     * @param mutation - The mutation, or the batch.
      * @param description - What the queue shows.
      * @param options - Queue options.
      * @param before - Run on the turn, just before dispatching.
      */
     private async applyData(
         category: "data-add" | "data-update" | "data-remove",
-        mutation: DataMutation,
+        mutation: DataMutation | BatchCommand,
         description: string,
         options?: QueueableOptions,
         before?: () => void,
     ): Promise<void> {
         const dispatch = async (): Promise<void> => {
             before?.();
-            await dispatcherOf(this.session).dispatch({ op: "data.apply", mutation });
+            await dispatcherOf(this.session).dispatch("op" in mutation ? mutation : { op: "data.apply", mutation });
         };
 
         if (options?.skipQueue) {
@@ -4916,19 +4894,31 @@ export class Graph implements GraphContext {
      * @param data.edges - Array of edge data objects
      */
     setData(data: { nodes: Record<string, unknown>[]; edges: Record<string, unknown>[] }): void {
-        // Add nodes
-        for (const nodeData of data.nodes) {
-            this.addNode(nodeData as AdHocData).catch((e: unknown) => {
-                console.error("Error adding node:", e);
-            });
+        // One step: the nodes and the edges are added, and undone, together.
+        const steps: DataMutation[] = [];
+        if (data.nodes.length > 0) {
+            steps.push({ kind: "add-nodes", records: data.nodes });
         }
 
-        // Add edges
-        for (const edgeData of data.edges) {
-            this.addEdge(edgeData as AdHocData).catch((e: unknown) => {
-                console.error("Error adding edge:", e);
-            });
+        if (data.edges.length > 0) {
+            steps.push({ kind: "add-edges", records: data.edges });
         }
+
+        if (steps.length === 0) {
+            return;
+        }
+
+        this.applyData(
+            "data-add",
+            {
+                op: "batch",
+                label: "Set the graph data",
+                steps: steps.map((mutation) => ({ op: "data.apply", mutation })),
+            },
+            `Setting ${data.nodes.length} nodes and ${data.edges.length} edges`,
+        ).catch((e: unknown) => {
+            console.error("Error setting data:", e);
+        });
     }
 
     /**

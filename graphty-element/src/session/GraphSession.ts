@@ -42,7 +42,12 @@ import {
     type PlanningContext,
     type SessionCommand,
 } from "./planning";
-import { Dispatcher, type Scheduler, type TransactionScope as DispatchScope } from "./project/Dispatcher";
+import {
+    Dispatcher,
+    runQueueScheduler,
+    type Scheduler,
+    type TransactionScope as DispatchScope,
+} from "./project/Dispatcher";
 import type { GraphSlice } from "./project/state";
 import { createQueryEngine, type QueryEngine } from "./query";
 import { createResultsApi, type ResultsApi, type ResultsRunEntry, type RunRef } from "./results";
@@ -204,6 +209,8 @@ interface SessionParts {
 interface SessionInternals {
     readonly now?: () => number;
     readonly scheduler?: Scheduler;
+    /** Open the baseline window: what the page declared at construction is not undoable. */
+    readonly baselineWindow?: boolean;
 }
 
 /**
@@ -1349,13 +1356,22 @@ export function createElementSession(
  * @returns The session.
  */
 function buildSession(options: CreateGraphSessionOptions, internals: SessionInternals = {}): Session {
+    const runsOptions = options.runs ?? {};
+    // ONE queue for both, whether the host handed one in or not: a filter pass and an algorithm
+    // run both read the whole graph, and two queues would let one start while the other is
+    // halfway through. A rendered graph hands in the element's own, so a filter also takes its
+    // turn among the loads, the layouts and the style passes. A queued command (an import) takes
+    // its turn there too, unless the host hands in a scheduler of its own.
+    const queue = runsOptions.queue ?? createLocalRunQueue();
+
     // Built first: the project settings, which the store and the data surface read, live in its
     // `config` slice, and the scope resolver, the visibility model and the style stack live in its
     // other slices and write through it.
     const dispatcher = new Dispatcher({
         definitions: DEFINITIONS,
         ...(internals.now === undefined ? {} : { now: internals.now }),
-        ...(internals.scheduler === undefined ? {} : { scheduler: internals.scheduler }),
+        scheduler: internals.scheduler ?? runQueueScheduler(queue),
+        baselineWindow: internals.baselineWindow === true,
     });
     const readProject = projectConfigReader(dispatcher, resolveDataConfig(options.config?.data));
     const readData = (): SessionDataConfig => readProject().data;
@@ -1398,6 +1414,7 @@ function buildSession(options: CreateGraphSessionOptions, internals: SessionInte
     );
     const data = new SessionData(store.store, records, readData, {
         dispatch: (mutation) => dispatcher.dispatch({ op: "data.apply", mutation }),
+        import: (command) => dispatcher.dispatch(command),
         slice,
     });
     // A session that holds a store of its own kind writes it through its own ingest; the element
@@ -1406,13 +1423,7 @@ function buildSession(options: CreateGraphSessionOptions, internals: SessionInte
         dispatcher.services.data = headlessDataService(store.store, dispatcher, readData);
     }
 
-    const runsOptions = options.runs ?? {};
     const components = componentLabelsOf(data);
-    // ONE queue for both, whether the host handed one in or not: a filter pass and an algorithm
-    // run both read the whole graph, and two queues would let one start while the other is
-    // halfway through. A rendered graph hands in the element's own, so a filter also takes its
-    // turn among the loads, the layouts and the style passes.
-    const queue = runsOptions.queue ?? createLocalRunQueue();
 
     const scope: ScopeResolver = createScopeApi({
         snapshot,

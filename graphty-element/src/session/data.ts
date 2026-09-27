@@ -8,6 +8,9 @@
  * else in the same revision reads a field.
  */
 
+// The built-in readers, so `import` reads every format the element does with no renderer loaded.
+import "../data/index";
+
 import { type DerivedGraph, type GraphSnapshot, INVALID_INDEX, type NodeId } from "@graphty/graph-format";
 
 import type { AttributeDescriptor, EdgeId } from "../catalog/types";
@@ -16,15 +19,17 @@ import type { GraphStore } from "../data/GraphStore";
 import type { ImportReport } from "../data/report";
 import { GraphtyError } from "../errors";
 import { describeAttributes } from "./attributes";
-import type { DataMutation, DataService } from "./commands/data";
+import type { DataImportCommand, DataMutation, DataService } from "./commands/data";
 import type { Dispatcher } from "./project/Dispatcher";
 import { Ingest } from "./project/ingest";
 import type { GraphSlice } from "./project/state";
 import { computeFingerprint, computeStatistics } from "./statistics";
 import type {
+    DataSourceInput,
     EdgeRecord,
     EdgeRecordInput,
     GraphStatistics,
+    ImportOptions,
     NodeRecord,
     NodeRecordInput,
     RowUpdate,
@@ -39,6 +44,8 @@ import type {
 interface DataWrites {
     /** Dispatch `data.apply`. */
     dispatch(mutation: DataMutation): Promise<unknown>;
+    /** Dispatch `data.import`. */
+    import(command: DataImportCommand): Promise<unknown>;
     /** The `graph` slice now. */
     slice(): GraphSlice;
 }
@@ -160,6 +167,22 @@ export class SessionData implements SessionDataApi {
     async clear(): Promise<void> {
         this.requireLive("clear");
         await this.writes.dispatch({ kind: "clear" });
+    }
+
+    /**
+     * Load a file, a URL or inline text through a registered data source, as one undoable step.
+     * @param source - The data source's name and its options.
+     * @param options - Whether to replace the graph (the default) or add to it.
+     * @returns Settles once the last chunk is in the graph; rejects, recording nothing, when the
+     *     load fails.
+     */
+    async import(source: DataSourceInput, options: ImportOptions = {}): Promise<void> {
+        this.requireLive("import");
+        await this.writes.import({
+            op: "data.import",
+            source: { type: source.type, config: source.config },
+            mode: options.mode ?? "replace",
+        });
     }
 
     /**
@@ -348,6 +371,48 @@ export function sliceRecords(
 /** The element-assigned edge id column. */
 const EDGE_ID_COLUMN = "graphty.edgeId";
 
+/**
+ * The graph's records in row order: what the element's `nodeData` and `edgeData` read. A node
+ * record whose id the graph could not store, and so has no row, follows the rows.
+ * @param slice - The `graph` slice.
+ * @param snapshot - The snapshot of the same graph.
+ * @param target - Nodes or edges.
+ * @returns The records, frozen.
+ */
+export function recordsInRowOrder(
+    slice: GraphSlice,
+    snapshot: GraphSnapshot,
+    target: "node" | "edge",
+): readonly SessionAttributes[] {
+    const out: SessionAttributes[] = [];
+    if (target === "node") {
+        const ids = snapshot.ids.toArray();
+        for (const id of ids) {
+            const record = slice.nodes.get(id);
+            if (record !== undefined) {
+                out.push(record);
+            }
+        }
+
+        const rowed = new Set<unknown>(ids);
+        for (const [id, record] of slice.nodes) {
+            if (!rowed.has(id)) {
+                out.push(record);
+            }
+        }
+    } else {
+        for (let row = 0; row < snapshot.edgeCount; row++) {
+            const counter = snapshot.edges.value(EDGE_ID_COLUMN, row);
+            const record = typeof counter === "number" ? slice.edges.get(edgeIdOf(counter)) : undefined;
+            if (record !== undefined) {
+                out.push(record);
+            }
+        }
+    }
+
+    return Object.freeze(out);
+}
+
 /** A JMESPath expression that is nothing but a top-level property name. */
 const PLAIN_KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
@@ -416,5 +481,6 @@ export function headlessDataService(
         apply: (mutation, draft) => {
             ingest.apply(mutation, dispatcher.graph.writer(draft, store));
         },
+        import: (command, draft, signal) => ingest.importSource(command, dispatcher.graph.writer(draft, store), signal),
     };
 }

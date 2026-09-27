@@ -9,11 +9,9 @@
  * design/undo/undo-design.md section 3.4, "The `graph` slice is an op-log".
  *
  * A {@link GraphWriter} is what ingest writes through. One bound to a command's draft records one
- * op-log entry per writer. The loads that do not come through the dispatcher yet run inside
- * {@link GraphOps.withUnrecordedWrites}, naming the door they came from: their writes record
- * nothing and clear the history, because steps recorded against the graph before the load cannot
- * be undone to any state that still exists. A writer with neither is a write outside the
- * dispatcher: strict state throws, and production logs it once.
+ * op-log entry per writer. A writer with no draft is a write outside the dispatcher: strict state
+ * throws, and production logs it once. Only a data manager built without a session, which has no
+ * history to bypass, writes with no draft.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
@@ -27,17 +25,6 @@ import type { DirectionProvenance } from "../types";
 import type { Draft, OpLogEntry } from "./draft";
 import { createCounter, emptyGraphSlice, type GraphRecord, type GraphSlice } from "./state";
 import { strictViolation } from "./strict";
-
-/**
- * The doors whose loads still write the graph without the dispatcher, each until the phase of
- * design/undo/undo-plan.md that ports it. `test/session/history/graph-add.test.ts` checks that each
- * is still a `knownGap` row in `../commands/doors.ts`, so a door ported without leaving this list
- * fails there.
- */
-export const UNRECORDED_DOORS = ["DataManager.addDataFromSource", "DataManager.setEdges"] as const;
-
-/** A door allowed to write the graph without recording. */
-export type UnrecordedDoor = (typeof UNRECORDED_DOORS)[number];
 
 /** Which kind of element a record belongs to. */
 type RecordTarget = "node" | "edge";
@@ -53,8 +40,6 @@ interface GraphHome {
     write(slice: GraphSlice): void;
     /** A key of the slice changed; the derivation lane marks it. */
     touch(key: string): void;
-    /** Unrecorded writes happened: drop the history. */
-    forget(): void;
     /** Whether strict state is on for this home. */
     readonly strict: boolean;
     /** Whether a history lives here: false for a data manager built without a session. */
@@ -173,7 +158,7 @@ function isStorableId(id: unknown): id is string | number {
 }
 
 /**
- * What ingest writes through: one command's writes, or one legacy load's.
+ * What ingest writes through: one command's writes.
  *
  * Every method writes live state before it returns, so a getter reads the write at once.
  */
@@ -242,11 +227,6 @@ export interface GraphWriter {
     clear(): void;
 }
 
-/** Unrecorded writes: their door, and whether the history was already dropped for them. */
-interface UnrecordedScope {
-    readonly door: UnrecordedDoor;
-}
-
 /** The graph primitives of one session (or of one data manager with no session). */
 export class GraphOps {
     private readonly home: GraphHome;
@@ -274,7 +254,6 @@ export class GraphOps {
                 slice = next;
             },
             touch: () => undefined,
-            forget: () => undefined,
             strict: false,
             session: false,
         });
@@ -298,10 +277,7 @@ export class GraphOps {
     writer(draft: Draft | null, store: GraphStore): GraphWriter {
         if (draft === null && this.home.session) {
             if (this.home.strict) {
-                throw strictViolation(
-                    "a graph primitive was called outside a command and outside withUnrecordedWrites; " +
-                        "dispatch data.apply, or name the legacy door",
-                );
+                throw strictViolation("a graph primitive was called outside a command; dispatch data.apply or data.import");
             }
 
             if (!this.warned) {
@@ -310,21 +286,7 @@ export class GraphOps {
             }
         }
 
-        return new Writer(this, store, draft, null);
-    }
-
-    /**
-     * Run a load that does not come through the dispatcher yet. Its writes record nothing, take a
-     * fresh graph token and clear the history. Temporary: each door leaves
-     * {@link UNRECORDED_DOORS} in the phase that ports it.
-     * @param door - The door the load came through.
-     * @param store - The store it writes.
-     * @param fn - The load, handed the writer to write through.
-     * @returns What `fn` returns.
-     */
-    withUnrecordedWrites<T>(door: UnrecordedDoor, store: GraphStore, fn: (writer: GraphWriter) => T): T {
-        this.checkDoor(door);
-        return fn(new Writer(this, store, null, { door }));
+        return new Writer(this, store, draft);
     }
 
     /**
@@ -366,20 +328,6 @@ export class GraphOps {
         this.home.write(Object.freeze({ ...this.home.read(), ...maps }));
     }
 
-    /** Drop the history, for an unrecorded write. */
-    forget(): void {
-        this.home.forget();
-    }
-
-    /**
-     * Strict: only a door still waiting for its port may write without recording.
-     * @param door - The door.
-     */
-    private checkDoor(door: string): void {
-        if (this.home.strict && !(UNRECORDED_DOORS as readonly string[]).includes(door)) {
-            throw strictViolation(`${door} wrote the graph without the dispatcher but is not a known gap`);
-        }
-    }
 }
 
 /** The entry one recorded writer logs, growing as it writes. */
@@ -661,7 +609,6 @@ class Writer implements GraphWriter {
         private readonly graph: GraphOps,
         readonly store: GraphStore,
         private readonly draft: Draft | null,
-        private readonly unrecorded: UnrecordedScope | null,
     ) {}
 
     addNode(
@@ -868,7 +815,7 @@ class Writer implements GraphWriter {
         return { nodes: rows.nodes.map((node) => node.id), edges: rows.edges.map((edge) => edgeIdOf(edge.edgeId)) };
     }
 
-    /** Before the first write: a fresh token, and the entry or the dropped history. */
+    /** Before the first write: a fresh token, and the entry a recorded writer logs into. */
     private begin(): void {
         if (this.begun) {
             return;
@@ -880,8 +827,6 @@ class Writer implements GraphWriter {
         if (this.draft !== null) {
             this.entry = new GraphEntry(this.graph, this.store, before, after);
             this.draft.log(this.entry);
-        } else if (this.unrecorded !== null) {
-            this.graph.forget();
         }
     }
 

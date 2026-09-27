@@ -36,7 +36,10 @@ export type CommandMeta =
  */
 export const COMMANDS = Object.freeze({
     "algo.run": { undo: "undoable" },
+    batch: { undo: "undoable" },
     "data.apply": { undo: "undoable" },
+    "data.import": { undo: "undoable" },
+    "data.expand": { undo: "undoable" },
     "style.patch": { undo: "undoable" },
     "style.encode": { undo: "undoable" },
     "style.template": { undo: "undoable" },

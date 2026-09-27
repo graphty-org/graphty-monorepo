@@ -45,15 +45,19 @@ export function fakeClock(): FakeClock {
 }
 
 /**
- * A queue whose every turn is a promise fast-check's scheduler releases.
+ * A queue whose every turn is a promise fast-check's scheduler releases, except for the
+ * categories named, whose turn comes at the next microtask: a command can then await its own
+ * dispatch of one of them.
  * @param s - The scheduler of the property run.
+ * @param immediate - The queue categories whose turn is not left to fast-check.
  * @returns The queue, as the dispatcher takes it.
  */
-export function fakeScheduler(s: fc.Scheduler): Scheduler {
+export function fakeScheduler(s: fc.Scheduler, immediate: ReadonlySet<string> = new Set()): Scheduler {
     return {
         enqueue(category, onTurn) {
             const controller = new AbortController();
-            void s.schedule(Promise.resolve(), `turn:${category}`).then(async () => {
+            const turn = immediate.has(category) ? Promise.resolve() : s.schedule(Promise.resolve(), `turn:${category}`);
+            void turn.then(async () => {
                 if (!controller.signal.aborted) {
                     await onTurn();
                 }

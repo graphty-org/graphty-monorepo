@@ -25,7 +25,7 @@ import { GraphtyError, isGraphtyError } from "../../errors";
 import { GraphtyLogger, type Logger } from "../../logging/GraphtyLogger.js";
 import type { NodeIdType } from "../../Node";
 import type { Styles } from "../../Styles";
-import type { DataMutation } from "../commands/data";
+import { type DataImportCommand, type DataMutation, describeSource, SOURCE_VALUE } from "../commands/data";
 import { DEFAULT_LIMITS } from "../limits";
 import type { DirectionOutcome, GraphWriter } from "./graphOps";
 
@@ -349,6 +349,28 @@ export class Ingest<K extends KnownEdge> {
                 writer.clear();
                 this.reset();
                 this.host.cleared();
+        }
+    }
+
+    /**
+     * Carry out one `data.import`: empty the graph first unless it merges, record where the rows
+     * came from, and load them. A source missing its name or its options is recorded and nothing
+     * is loaded.
+     * @param command - The import.
+     * @param writer - The command's writer.
+     * @param signal - Fires when the import is cancelled; it stops before the next chunk.
+     * @returns Settles once the last chunk is written.
+     */
+    async importSource(command: DataImportCommand, writer: GraphWriter, signal?: AbortSignal): Promise<void> {
+        const { type, config } = command.source;
+        const loads = type !== undefined && config !== undefined;
+        if (loads && command.mode !== "merge") {
+            this.apply({ kind: "clear" }, writer);
+        }
+
+        writer.setGraphValues({ [SOURCE_VALUE]: describeSource(command.source) });
+        if (loads) {
+            await this.addDataFromSource(type, config, writer, signal);
         }
     }
 
@@ -770,8 +792,9 @@ export class Ingest<K extends KnownEdge> {
      * @param type - Data source type identifier
      * @param opts - Options to pass to the data source
      * @param writer - the graph primitives to write through
+     * @param signal - Fires when the load is cancelled; it stops before the next chunk
      */
-    async addDataFromSource(type: string, opts: object, writer: GraphWriter): Promise<void> {
+    async addDataFromSource(type: string, opts: object, writer: GraphWriter, signal?: AbortSignal): Promise<void> {
         this.logger.info("Loading data source", { type, options: opts });
 
         const startTime = Date.now();
@@ -809,6 +832,9 @@ export class Ingest<K extends KnownEdge> {
                 let directionSettled = false;
 
                 for await (const chunk of source.getData()) {
+                    // Nothing is written once the load has been cancelled: its writes are being
+                    // taken back, and a chunk written after that would outlive them.
+                    signal?.throwIfAborted();
                     // BEFORE this chunk's edges, every time: the builder accepts a direction only
                     // while it holds none. Read per chunk rather than once before the loop because
                     // a source parses nothing until its first chunk is pulled, so before the loop
@@ -859,6 +885,11 @@ export class Ingest<K extends KnownEdge> {
 
                 this.host.loadComplete(type, report, progress, duration, errorCount);
             } catch (error) {
+                // A cancelled load did not fail: whoever cancelled it says why.
+                if (signal?.aborted === true) {
+                    throw error;
+                }
+
                 const failure = error instanceof Error ? error : new Error(String(error));
                 this.logger.error("Data source loading failed", failure, {
                     type,
@@ -883,7 +914,7 @@ export class Ingest<K extends KnownEdge> {
             }
         } catch (error) {
             // Same rule one level out: a coded failure is the answer, not something to re-word.
-            if (isGraphtyError(error)) {
+            if (isGraphtyError(error) || signal?.aborted === true) {
                 throw error;
             }
 

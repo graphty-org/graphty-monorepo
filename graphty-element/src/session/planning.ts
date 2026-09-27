@@ -20,6 +20,7 @@ import type { AlgorithmDescriptor, AlgorithmKey, FieldDescriptor, RunId, Scope }
 import type { GraphtyErrorCode } from "../errors";
 import type { ConfigSetCommand } from "./commands/config";
 import type { DataCommand } from "./commands/data";
+import type { BatchCommand } from "./commands/index";
 import type { ScopeCommand } from "./commands/scope";
 import type { StyleCommand } from "./commands/style";
 import type { ViewCommand } from "./commands/view";
@@ -81,7 +82,8 @@ export type SessionCommand =
     | VisibilityCommand
     | ScopeCommand
     | ViewCommand
-    | ConfigSetCommand;
+    | ConfigSetCommand
+    | BatchCommand;
 
 /**
  * Tell whether a value is the command that starts an algorithm.

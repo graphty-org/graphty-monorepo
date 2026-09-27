@@ -3,18 +3,15 @@
  *
  * Undo and redo write the values an add resolved when it ran -- ids, endpoints, weights, the
  * element-assigned edge ids, the file coordinates -- straight back into the builder and the
- * `graph` slice, and never read records through ingest again. The loads that do not come through
- * the dispatcher yet write without recording and clear the history; a write with neither a command
- * nor a named legacy door is refused under strict state. The renderer half (events, layout and
- * camera) is `test/browser/history-graph-add.test.ts`.
+ * `graph` slice, and never read records through ingest again. A write with no command is refused
+ * under strict state. The renderer half (events, layout and camera) is
+ * `test/browser/history-graph-add.test.ts`.
  */
 
 import { assert, describe, it, vi } from "vitest";
 
-import { DOOR_ROOTS } from "../../../src/session/commands/doors";
 import { dispatcherOf } from "../../../src/session/GraphSession";
 import { stateDigest } from "../../../src/session/project/digest";
-import { UNRECORDED_DOORS, type UnrecordedDoor } from "../../../src/session/project/graphOps";
 import { Ingest } from "../../../src/session/project/ingest";
 import type { GraphSession } from "../../../src/session/types";
 import { makeSession } from "../helpers";
@@ -201,58 +198,12 @@ describe("editing attributes as steps", () => {
 });
 
 describe("writes that do not come through the dispatcher", () => {
-    it("clears the history when a legacy load writes: nothing below it can be undone", async () => {
-        const session = await fixtureSession();
-        await session.data.addNodes([{ id: "n4" }]);
-        assert.isTrue(session.canUndo);
-
-        const dispatcher = dispatcherOf(session);
-        dispatcher.graph.withUnrecordedWrites("DataManager.addDataFromSource", session.data.store as never, (writer) => {
-            writer.addNode("loaded", { id: "loaded" }, null);
-        });
-
-        assert.isFalse(session.canUndo);
-        assert.deepEqual(session.history.steps, []);
-        assert.strictEqual(session.data.node("loaded")?.id, "loaded");
-        session.dispose();
-    });
-
-    it("refuses a primitive called with no command and no legacy door, under strict state", async () => {
+    it("refuses a primitive called with no command, under strict state", async () => {
         const session = await fixtureSession();
         assert.throws(
             () => dispatcherOf(session).graph.writer(null, session.data.store as never),
             /outside a command/,
         );
         session.dispose();
-    });
-
-    it("refuses a legacy door that is not a known gap, naming it", async () => {
-        const session = await fixtureSession();
-        assert.throws(
-            () =>
-                dispatcherOf(session).graph.withUnrecordedWrites(
-                    "Graph.addNodes" as UnrecordedDoor,
-                    session.data.store as never,
-                    () => undefined,
-                ),
-            /Graph\.addNodes/,
-        );
-        session.dispose();
-    });
-
-    it("names only doors that are still known gaps in the door list", () => {
-        const gaps = new Set(
-            DOOR_ROOTS.flatMap((root) =>
-                Object.entries(root.doors ?? {})
-                    .filter(([, door]) => door.kind === "knownGap")
-                    .map(([member]) => `${root.name}.${member}`),
-            ),
-        );
-
-        assert.deepEqual(
-            UNRECORDED_DOORS.filter((door) => !gaps.has(door)),
-            [],
-            "a door ported off the gap list must leave UNRECORDED_DOORS too",
-        );
     });
 });

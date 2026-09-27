@@ -36,9 +36,39 @@ const algoRun: UndoableDefinition<AlgorithmRunCommand> = {
     },
 };
 
+/** `batch`: commands that are one step, as data. A serialisable transaction. */
+export interface BatchCommand {
+    readonly op: "batch";
+    /** The commands, dispatched in order; each takes its own lane. */
+    readonly steps: readonly SessionCommand[];
+    /** What the step is called; the first member's name by default. */
+    readonly label?: string;
+    /** Declared at construction: while the baseline window is open it becomes the baseline. */
+    readonly setup?: boolean;
+}
+
+/**
+ * `batch`: its members run as one transaction, so they are one step and roll back together. The
+ * dispatcher runs it through `members`; `execute` is never reached.
+ */
+const batch: UndoableDefinition<BatchCommand> = {
+    op: "batch",
+    undo: { kind: "undoable", label: (command) => command.label ?? `${String(command.steps.length)} changes` },
+    moves: false,
+    keys: () => [],
+    lane: { kind: "immediate" },
+    // Its members' own arguments, kept as their definitions keep them.
+    byReference: ["records", "config", "nodes", "edges"],
+    members: (command) => ({ label: command.label ?? `${String(command.steps.length)} changes`, steps: command.steps }),
+    execute: () => {
+        throw new GraphtyError({ code: "E_INTERNAL", message: "A batch runs as a transaction of its members.", source: "history" });
+    },
+};
+
 /** Every op's definition, one per op. */
 export const DEFINITIONS: readonly CommandDefinition<SessionCommand>[] = [
     algoRun,
+    batch,
     ...DATA_DEFINITIONS,
     ...STYLE_DEFINITIONS,
     ...VISIBILITY_DEFINITIONS,

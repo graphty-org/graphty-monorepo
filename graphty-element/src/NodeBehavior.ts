@@ -18,6 +18,7 @@ import type { Graph } from "./Graph";
 import { SimulationLayoutEngine } from "./layout/SimulationLayoutEngine";
 import type { GraphContext } from "./managers/GraphContext";
 import type { Node as GraphNode, NodeIdType } from "./Node";
+import { dispatcherOf } from "./session/GraphSession";
 
 interface NodeBehaviorOptions {
     pinOnDrag?: boolean;
@@ -640,22 +641,22 @@ export class NodeBehavior {
                     // fetch all nodes from associated edges
                     const nodes = fetchNodes(nodeIds, graph);
 
-                    // add all the nodes and edges we collected
-                    //
-                    // `repeated: "first"` because expanding a node's neighbourhood
-                    // LEGITIMATELY re-supplies edges the graph already holds -- the edge the
-                    // reader followed to get here is in every one of its endpoints'
-                    // neighbourhoods. The element defaults to keeping a repeated edge, which
-                    // is right for a file that really does carry two, and would double every
-                    // known edge on every expand. Only the call site knows which of the two
-                    // this is, and this one knows.
-                    const dataManager = context.getDataManager();
-                    dataManager.addNodes([...nodes]);
-                    dataManager.addEdges([...edges], {
-                        repeated: "first",
-                        source: endpoints.source,
-                        target: endpoints.target,
-                    });
+                    // Add what was fetched as one step. The records ride in the command, so a
+                    // redo puts them back without asking the consumer again; the command adds
+                    // the edges under `repeated: "first"`, because a neighbourhood legitimately
+                    // names edges the graph already holds.
+                    void dispatcherOf(graph.getSession())
+                        .dispatch({
+                            op: "data.expand",
+                            seed: node.id,
+                            nodes: [...nodes],
+                            edges,
+                            source: endpoints.source,
+                            target: endpoints.target,
+                        })
+                        .catch((error: unknown) => {
+                            console.error("[graphty] Expanding a node failed:", error);
+                        });
 
                     // TODO: fetch and add secondary edges
                 },

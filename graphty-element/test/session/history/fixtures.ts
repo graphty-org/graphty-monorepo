@@ -89,6 +89,12 @@ async function labelledThenLayer(session: GraphSession): Promise<void> {
     await session.styles.add(nodeLayer("Fixture A", "#ff0000"));
 }
 
+/** A small graph document the JSON data source reads, for the import fixtures. */
+const IMPORTED = JSON.stringify({
+    nodes: [{ id: "a", label: "A" }, { id: "b" }],
+    edges: [{ src: "a", dst: "b" }],
+});
+
 /** Every fixture. */
 export const FIXTURES: readonly RoundTripFixture[] = [
     {
@@ -144,6 +150,43 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         variant: "remove-edges",
         tags: BOTH,
         command: { op: "data.apply", mutation: { kind: "remove-edges", ids: ["0"] } },
+    },
+    {
+        name: "data.import replacing the graph",
+        variant: "replace",
+        tags: BOTH,
+        command: { op: "data.import", source: { type: "json", config: { data: IMPORTED } }, mode: "replace" },
+    },
+    {
+        name: "data.import merging into the graph",
+        variant: "merge",
+        tags: BOTH,
+        command: { op: "data.import", source: { type: "json", config: { data: IMPORTED } }, mode: "merge" },
+    },
+    {
+        name: "data.expand: a fetched neighbourhood, one edge of it already held",
+        tags: BOTH,
+        command: {
+            op: "data.expand",
+            seed: "n3",
+            nodes: [{ id: "n5", name: "five" }],
+            edges: [
+                { src: "n3", dst: "n5" },
+                { src: "n2", dst: "n3" },
+            ],
+        },
+    },
+    {
+        name: "batch: nodes and edges as one step",
+        tags: BOTH,
+        command: {
+            op: "batch",
+            label: "Grew the graph",
+            steps: [
+                { op: "data.apply", mutation: { kind: "add-nodes", records: [{ id: "n4" }] } },
+                { op: "data.apply", mutation: { kind: "add-edges", records: [{ src: "n3", dst: "n4" }] } },
+            ],
+        },
     },
     {
         name: "data.apply clear",

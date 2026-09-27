@@ -10,7 +10,7 @@ import { Edge, EdgeMap } from "../Edge";
 import type { LayoutEngine } from "../layout/LayoutEngine";
 import { MeshCache } from "../meshes/MeshCache";
 import { Node, NodeIdType } from "../Node";
-import type { DataMutation } from "../session/commands/data";
+import { type DataMutation, replaceEdgesCommand } from "../session/commands/data";
 import type { Dispatcher } from "../session/project/Dispatcher";
 import { GraphOps, type GraphWriter } from "../session/project/graphOps";
 import { type AddEdgesOptions, Ingest, type IngestHost, type StoredEdge } from "../session/project/ingest";
@@ -244,19 +244,38 @@ export class DataManager implements Manager {
     }
 
     /**
-     * Write through the session from here on: the data doors dispatch `data.apply`, and the
-     * session's `data.apply` is carried out by this manager's ingest, over this manager's store.
+     * Write through the session from here on: the data doors dispatch `data.apply` and
+     * `data.import`, and the session carries both out through this manager's ingest, over this
+     * manager's store.
      * @param dispatcher - The session's dispatcher.
-     * @param rowsAdded - Called once by each command that adds rows, after it wrote them.
+     * @param hooks - What the graph does around a write.
+     * @param hooks.rowsAdded - Called by each command that adds rows, after it wrote them.
+     * @param hooks.loading - Called with true when an import starts reading and false when it stops.
      */
-    bindSession(dispatcher: Dispatcher, rowsAdded: () => void): void {
+    bindSession(dispatcher: Dispatcher, hooks: { rowsAdded(): void; loading(active: boolean): void }): void {
         this.dispatcher = dispatcher;
         this.graph = dispatcher.graph;
         dispatcher.services.data = {
             apply: (mutation, draft) => {
                 this.applyMutation(mutation, this.graph.writer(draft, this.store));
                 if (mutation.kind === "add-nodes" || mutation.kind === "add-edges") {
-                    rowsAdded();
+                    hooks.rowsAdded();
+                }
+            },
+            import: async (command, draft, signal) => {
+                const writer = this.graph.writer(draft, this.store);
+                const { cause } = this;
+                this.cause = "command";
+                hooks.loading(true);
+                try {
+                    await this.ingest.importSource(command, writer, signal);
+                } finally {
+                    this.cause = cause;
+                    hooks.loading(false);
+                }
+
+                if (command.source.type !== undefined && command.source.config !== undefined) {
+                    hooks.rowsAdded();
                 }
             },
         };
@@ -1218,11 +1237,16 @@ export class DataManager implements Manager {
     setEdges(edges: Record<string | number, unknown>[], options?: AddEdgesOptions): void {
         this.ingest.refuseReplacement(edges, this.edges.size, options);
 
-        this.graph.withUnrecordedWrites("DataManager.setEdges", this.store, (writer) => {
+        if (this.dispatcher === null) {
+            const writer = this.graph.writer(null, this.store);
             const removed = writer.removeEdges([...this.edges.keys()]);
             this.dropRendered(removed.nodes, removed.edges);
             this.ingest.addEdges(edges, options, writer);
-        });
+            return;
+        }
+
+        // One step: the removal and the new edges roll back together.
+        this.dispatcher.dispatchNow(replaceEdgesCommand([...this.edges.keys()], edges, options));
     }
 
     /**
@@ -1247,9 +1271,17 @@ export class DataManager implements Manager {
      * @param opts - Options to pass to the data source
      */
     async addDataFromSource(type: string, opts: object = {}): Promise<void> {
-        await this.graph.withUnrecordedWrites("DataManager.addDataFromSource", this.store, (writer) =>
-            this.ingest.addDataFromSource(type, opts, writer),
-        );
+        if (this.dispatcher === null) {
+            await this.ingest.addDataFromSource(type, opts, this.graph.writer(null, this.store));
+            return;
+        }
+
+        // Added to the graph, as this door always has; one step, on its turn in the queue.
+        await this.dispatcher.dispatch({
+            op: "data.import",
+            source: { type, config: opts as Readonly<Record<string, unknown>> },
+            mode: "merge",
+        });
     }
 
     // Utility methods

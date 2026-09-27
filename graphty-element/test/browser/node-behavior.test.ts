@@ -4,7 +4,21 @@ import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import type { AdHocData } from "../../src/config/common";
 import { Graph } from "../../src/Graph";
+import { dispatcherOf } from "../../src/session/GraphSession";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
+
+/**
+ * Record every command the graph's session dispatches from here on.
+ * @param graph - The graph.
+ * @returns The commands, as they arrive.
+ */
+function watchDispatches(graph: Graph): Readonly<Record<string, unknown>>[] {
+    const seen: Readonly<Record<string, unknown>>[] = [];
+    dispatcherOf(graph.getSession()).events.dispatched = (command) => {
+        seen.push(command as unknown as Readonly<Record<string, unknown>>);
+    };
+    return seen;
+}
 
 describe("Node Behavior Tests", () => {
     let graph: Graph;
@@ -152,9 +166,7 @@ describe("Node Behavior Tests", () => {
         const node = dataManager.getNode("test-node-5");
         assert.isDefined(node);
 
-        // Mock dataManager methods
-        const addNodesSpy = vi.spyOn(dataManager, "addNodes").mockImplementation(() => undefined);
-        const addEdgesSpy = vi.spyOn(dataManager, "addEdges").mockImplementation(() => undefined);
+        const dispatched = watchDispatches(graph);
 
         assert.isDefined(node.mesh.actionManager);
 
@@ -186,9 +198,11 @@ describe("Node Behavior Tests", () => {
         assert.isTrue(nodeIds.has("node3"));
         assert.isFalse(nodeIds.has("test-node-5")); // Should exclude current node
 
-        // Verify data manager methods were called
-        assert.equal(addNodesSpy.mock.calls.length, 1);
-        assert.equal(addEdgesSpy.mock.calls.length, 1);
+        // What was fetched is added as one step
+        assert.deepEqual(
+            dispatched.map((command) => command.op),
+            ["data.expand"],
+        );
     });
 
     test("double-click expansion reads the endpoints a canonical fetchEdges returns", () => {
@@ -215,8 +229,7 @@ describe("Node Behavior Tests", () => {
         const node = dataManager.getNode("test-node-7");
         assert.isDefined(node);
 
-        const addNodesSpy = vi.spyOn(dataManager, "addNodes").mockImplementation(() => undefined);
-        const addEdgesSpy = vi.spyOn(dataManager, "addEdges").mockImplementation(() => undefined);
+        const dispatched = watchDispatches(graph);
 
         const { actions } = node.mesh.actionManager ?? { actions: [] };
         const doubleClickAction = actions.find((action) => action.trigger === ActionManager.OnDoublePickTrigger);
@@ -232,13 +245,13 @@ describe("Node Behavior Tests", () => {
 
         const nodeIds = fetchNodes.mock.calls[0][0];
         assert.deepStrictEqual([...nodeIds].sort(), ["node2", "node3"], "the handler found the neighbours to fetch");
-        assert.equal(addNodesSpy.mock.calls.length, 1);
-        assert.equal(addEdgesSpy.mock.calls.length, 1);
 
-        // The spelling the handler resolved is passed on, so `addEdges` reads the same columns
-        // rather than probing the batch a second time and possibly answering differently.
-        assert.deepStrictEqual(addEdgesSpy.mock.calls[0][1], {
-            repeated: "first",
+        // The spelling the handler resolved is passed on, so the edges are read by the same columns
+        // rather than probed a second time and possibly answered differently.
+        assert.lengthOf(dispatched, 1);
+        assert.deepInclude(dispatched[0], {
+            op: "data.expand",
+            seed: "test-node-7",
             source: "source",
             target: "target",
         });

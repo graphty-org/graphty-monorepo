@@ -3,8 +3,8 @@
  *
  * A command that adds rows starts the layout, frames the camera and runs the on-load algorithms,
  * once. Undo and redo move the rows and the render objects and announce it, with the cause, but
- * start nothing: no layout, no run, no camera move. A load that does not come through the history
- * yet (a data source) behaves as it always has and records no step. The session half is
+ * start nothing: no layout, no run, no camera move. A load through a data source is the same: one
+ * step, with the same forward effects once. The session half is
  * `test/session/history/graph-add.test.ts`.
  */
 
@@ -175,12 +175,15 @@ describe("graph additions on a renderer", () => {
     );
 
     it(
-        "a data-source load still starts the layout, frames and runs on-load algorithms, and records no step",
+        "a data-source load is one step: it starts the layout, frames and runs the on-load algorithms once, and its undo starts nothing",
         async () => {
             const graph = await loadedGraph();
             await graph.getSession().config.set({ runAlgorithmsOnLoad: true, data: { algorithms: ["degree"] } });
             await graph.addNodes([{ id: "before" }]);
-            assert.isTrue(graph.getSession().canUndo);
+            await new Promise((resolve) => {
+                setTimeout(resolve, 0);
+            });
+            const steps = graph.getSession().history.steps.length;
             const spies = watch(graph);
             const seen = events(graph);
 
@@ -189,12 +192,19 @@ describe("graph additions on a renderer", () => {
             });
 
             assert.isDefined(graph.getDataManager().getNode("j1"));
+            assert.isDefined(graph.getDataManager().getNode("before"), "added to the graph, not replacing it");
             assert.isAbove(spies.layout.mock.calls.length, 0);
             assert.isAbove(spies.frame.mock.calls.length, 0);
-            assert.isAbove(spies.run.mock.calls.length, 0);
-            assert.isTrue(seen.added.every((event) => event.cause === undefined));
-            assert.isFalse(graph.getSession().canUndo, "the load cleared the history below it");
-            assert.deepEqual(graph.getSession().history.steps, []);
+            assert.strictEqual(spies.run.mock.calls.length, 1, "the on-load algorithm ran once");
+            assert.isTrue(seen.added.every((event) => event.cause === "command"));
+            assert.lengthOf(graph.getSession().history.steps, steps + 1, "the load is one step");
+
+            const started = spies.layout.mock.calls.length + spies.frame.mock.calls.length;
+            await graph.getSession().undo();
+            assert.isUndefined(graph.getDataManager().getNode("j1"));
+            assert.isDefined(graph.getDataManager().getNode("before"));
+            assert.strictEqual(spies.layout.mock.calls.length + spies.frame.mock.calls.length, started);
+            assert.strictEqual(spies.run.mock.calls.length, 1, "undo runs nothing");
         },
         TEST_TIMEOUT_MS,
     );

@@ -7,7 +7,8 @@
  * The session runs on a fake clock and a fake queue (`./fakes.ts`), so fast-check decides when
  * time passes and when every scheduled promise settles, and a failure replays from its seed. The
  * model grows with every op a phase ports (design/undo/undo-plan.md, "How to read this plan",
- * rule 3); today it covers the style, visibility, saved-scope, saved-view, settings and data ops.
+ * rule 3); today it covers the style, visibility, saved-scope, saved-view, settings and data ops,
+ * imports, expansions and batches included.
  *
  * Checked around every action: before it, the live state digest equals the digest recorded for
  * the current position, so a change that records no step fails at the next action; after every
@@ -335,6 +336,9 @@ class Clear implements Command {
 }
 
 const color = fc.constantFrom("#ff0000", "#00ff00", "#0000ff", "#ffff00");
+
+/** What the import edits load: two nodes, one of them new, and an edge. */
+const IMPORTED = JSON.stringify({ nodes: [{ id: "n1", t: 2 }, { id: "n6" }], edges: [{ src: "n1", dst: "n6" }] });
 const pick = fc.nat({ max: 7 });
 
 /** Every command the model generates. */
@@ -535,6 +539,50 @@ const COMMANDS = [
             run: () => real.session.data.clear(),
         })),
     ),
+    fc.constantFrom("replace", "merge").map(
+        (mode) =>
+            new Edit(`import, ${mode}`, (real) => ({
+                key: null,
+                run: () => real.session.data.import({ type: "json", config: { data: IMPORTED } }, { mode }),
+            })),
+    ),
+    fc.constantFrom("n1", "n2", "n6").map(
+        (seed) =>
+            new Edit(`expand ${seed}`, (real) => ({
+                key: null,
+                run: () =>
+                    real.session.execute({
+                        op: "data.expand",
+                        seed,
+                        nodes: [{ id: "n7" }],
+                        edges: [
+                            { src: seed, dst: "n7" },
+                            { src: "n1", dst: "n2" },
+                        ],
+                    }),
+            })),
+    ),
+    fc.boolean().map(
+        (fails) =>
+            new Edit(`batch${fails ? " that fails" : ""}`, (real) => ({
+                key: null,
+                run: () =>
+                    real.session.execute({
+                        op: "batch",
+                        steps: [
+                            { op: "data.apply", mutation: { kind: "add-nodes", records: [{ id: "n8" }] } },
+                            {
+                                op: "data.apply",
+                                mutation: {
+                                    kind: "add-edges",
+                                    records: [{ src: "n8", dst: "n1" }, ...(fails ? [{ src: "n8", dst: "n1" }] : [])],
+                                    repeated: "error",
+                                },
+                            },
+                        ],
+                    }),
+            })),
+    ),
     fc.constant(new Move("undo")),
     fc.constant(new Move("redo")),
     fc.constant(new Move("undo-twice")),
@@ -557,7 +605,12 @@ async function runSeed(seed: number, numRuns: number): Promise<void> {
                 s,
                 async () => {
                     const clock = fakeClock();
-                    const session = await fixtureSession({ now: clock.now, scheduler: fakeScheduler(s) });
+                    // An import's turn comes at once, so an edit can await it; interleaving it with
+                    // other queued work is phase 21's (design/undo/undo-plan.md).
+                    const session = await fixtureSession({
+                        now: clock.now,
+                        scheduler: fakeScheduler(s, new Set(["data-add"])),
+                    });
                     await session.runs.start("degree", {}, { as: "deg", style: false });
                     await session.runs.start("shortest-path", { source: "n1", target: "n3" }, { as: "route", style: false });
                     real = { session, clock };

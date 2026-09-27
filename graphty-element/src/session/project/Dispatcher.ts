@@ -126,6 +126,13 @@ interface DefinitionBase<C extends CommandLike> {
      * frozen (a style layer's `userData`). Everything else is copied and frozen at dispatch.
      */
     readonly byReference?: readonly string[];
+    /**
+     * For a compound op (`batch`): the commands it is made of. It runs as a transaction of
+     * them, one step, and its own `execute` is never called.
+     */
+    members?(command: C): { readonly label: string; readonly steps: readonly CommandLike[] };
+    /** Settling, whether it commits or fails, closes the baseline window (an import). */
+    readonly closesBaseline?: boolean;
 }
 
 /** A command that changes project state: one step, labelled. */
@@ -171,6 +178,13 @@ type TransactionBody<T> = (tx: TransactionScope, signal: AbortSignal) => T | Pro
 interface TransactionOptions {
     /** Stamped on the recorded step, e.g. `{ via: "assistant" }`. */
     readonly provenance?: Readonly<Record<string, string>>;
+    /** Declared at construction: while the baseline window is open it commits into the baseline. */
+    readonly setup?: boolean;
+    /**
+     * A batch's transaction: its members are known when it opens and it settles by itself, so a
+     * command needing a key it holds waits for it instead of being refused.
+     */
+    readonly compound?: boolean;
 }
 
 /** What moved live project state. */
@@ -247,6 +261,44 @@ export function queueScheduler(queue: OperationQueue): Scheduler {
     };
 }
 
+/** The part of a session's run queue a scheduler needs. */
+interface RunQueueLike {
+    queueOperation(category: "algorithm-run", execute: (context: { signal: AbortSignal }) => Promise<void> | void): string;
+    cancelOperation(operationId: string): boolean;
+}
+
+/**
+ * The scheduler over a headless session's run queue, which has no categories and no
+ * obsolescence: a queued command takes its turn among the runs, in the order it was dispatched.
+ * @param queue - The queue.
+ * @returns The scheduler.
+ */
+export function runQueueScheduler(queue: RunQueueLike): Scheduler {
+    return {
+        enqueue(_category, onTurn) {
+            const controller = new AbortController();
+            const id = queue.queueOperation("algorithm-run", (context) => {
+                context.signal.addEventListener(
+                    "abort",
+                    () => {
+                        controller.abort(context.signal.reason);
+                    },
+                    { once: true },
+                );
+                return onTurn();
+            });
+
+            return {
+                signal: controller.signal,
+                cancel: () => {
+                    controller.abort();
+                    queue.cancelOperation(id);
+                },
+            };
+        },
+    };
+}
+
 /**
  * The scheduler of a dispatcher handed none: every queued command fails, naming what is missing.
  */
@@ -299,6 +351,12 @@ interface DispatcherOptions {
     readonly events?: DispatcherEvents;
     /** The queue of queued commands: the session's, through {@link queueScheduler}. */
     readonly scheduler?: Scheduler;
+    /**
+     * Open the baseline window (design section 3.3): until the first graph write records or the
+     * first import settles, what commits becomes the baseline instead of a step. A renderer's
+     * session opens it, so what the page declared is not undoable.
+     */
+    readonly baselineWindow?: boolean;
 }
 
 /** One execution of one undoable command. */
@@ -351,6 +409,10 @@ interface Group {
     /** Sealed or rolled back. */
     done: boolean;
     view: PendingStep | undefined;
+    /** Declared at construction: commits into the baseline while the window is open. */
+    readonly setup: boolean;
+    /** A batch's transaction, which a command needing its keys waits for. */
+    readonly compound: boolean;
 }
 
 /** When a step was recorded and undone, and the op-log keys its group held. */
@@ -466,6 +528,25 @@ function heldError(op: string, key: SliceKey, holder: Group): GraphtyError {
 }
 
 /**
+ * Whether a group refuses a command needing a key it holds, rather than making it wait: an open
+ * transaction whose caller is still dispatching into it. A batch settles by itself, so it waits.
+ * @param group - The holder.
+ * @returns True when the command fails at once with `E_HELD_BY_TRANSACTION`.
+ */
+function refuses(group: Group): boolean {
+    return group.tx !== null && !group.compound;
+}
+
+/**
+ * Whether a command was declared at construction: `setup: true` among its arguments.
+ * @param command - The command.
+ * @returns True for a setup command.
+ */
+function isSetup(command: CommandLike): boolean {
+    return (command as { readonly setup?: unknown }).setup === true;
+}
+
+/**
  * Run `work` now and hand back a promise of its result, rejected when it throws.
  * @param work - The synchronous work.
  * @returns Its result, or its throw as a rejection.
@@ -524,6 +605,8 @@ export class Dispatcher {
     private emitting = 0;
     /** What an immediate command threw synchronously, for {@link Dispatcher.dispatchNow}. */
     private syncFailure: { error: unknown } | null = null;
+    /** Whether commits still become the baseline rather than steps (design section 3.3). */
+    private baselineOpen: boolean;
 
     /**
      * Create a dispatcher over a state it alone will write.
@@ -547,14 +630,12 @@ export class Dispatcher {
             touch: (key) => {
                 this.lane.touch("graph", key);
             },
-            forget: () => {
-                this.forget();
-            },
             strict: this.strict,
             session: true,
         });
         this.events = { ...options.events };
         this.scheduler = options.scheduler ?? NO_SCHEDULER;
+        this.baselineOpen = options.baselineWindow === true;
         this.history = new History<Patch>({
             forward: (patch) => {
                 this.store.applyForward(patch);
@@ -652,10 +733,19 @@ export class Dispatcher {
      */
     transaction<T>(label: string, fn: TransactionBody<T>, options: TransactionOptions = {}): Promise<T> {
         const controller = new AbortController();
-        const group = this.group(label, null, options.provenance ?? {}, null, this.tick++, {
-            status: "open",
-            controller,
-        });
+        const group = this.group(
+            label,
+            null,
+            options.provenance ?? {},
+            null,
+            this.tick++,
+            {
+                status: "open",
+                controller,
+            },
+            options.setup === true,
+            options.compound === true,
+        );
         this.enter(group);
         const tx = this.scope(group);
         const { signal } = controller;
@@ -775,16 +865,22 @@ export class Dispatcher {
     }
 
     /**
-     * Drop every step without cancelling pending work: something wrote project state without
-     * recording, so no step below it can be undone to a state that still exists.
+     * The command of the newest pending work queued under a queued coalesce key, until it
+     * commits: what a door assigned and its getter reads back while the slot waits.
+     * @param key - The queued coalesce key.
+     * @returns The command, or undefined when nothing under that key is pending.
      */
-    forget(): void {
-        if (this.history.steps.length === 0) {
-            return;
+    pendingCommand(key: string): CommandLike | undefined {
+        let found: Job | undefined;
+        for (const group of this.open) {
+            for (const job of group.jobs) {
+                if (job.queuedKey === key && (found === undefined || job.seq > found.seq)) {
+                    found = job;
+                }
+            }
         }
 
-        this.history.clear();
-        this.steps.clear();
+        return found?.command;
     }
 
     /**
@@ -799,6 +895,11 @@ export class Dispatcher {
         const failure = this.syncFailure as { error: unknown } | null;
         this.syncFailure = null;
         if (failure !== null) {
+            // Thrown here instead; the same failure must not also surface as an unhandled rejection.
+            if (isThenable(promise)) {
+                promise.then(undefined, () => undefined);
+            }
+
             throw failure.error;
         }
 
@@ -1056,6 +1157,11 @@ export class Dispatcher {
             return (definition as ExemptDefinition<CommandLike>).execute(concrete, { state, services: this.services });
         }
 
+        const compound = definition.members?.(concrete);
+        if (compound !== undefined) {
+            return this.compound(compound.label, compound.steps, tx, isSetup(concrete));
+        }
+
         const undoable = definition as UndoableDefinition<CommandLike>;
         const keys = undoable.keys(concrete, state);
         const { lane } = undoable;
@@ -1079,7 +1185,7 @@ export class Dispatcher {
         if (lane.kind === "immediate") {
             // A key held by a transaction fails before anything is opened.
             const blocker = this.blocker(opLogKeys(keys), tx);
-            if (blocker !== null && blocker.group.tx !== null) {
+            if (blocker !== null && refuses(blocker.group)) {
                 throw heldError(concrete.op, blocker.key, blocker.group);
             }
         }
@@ -1093,6 +1199,7 @@ export class Dispatcher {
                 null,
                 this.tick,
                 null,
+                isSetup(concrete),
             );
         const job = this.job(concrete, keys, undoable, group, queuedKey);
         for (const key of keys) {
@@ -1116,6 +1223,30 @@ export class Dispatcher {
         }
 
         return job.promise;
+    }
+
+    /**
+     * Run a compound command's members as one transaction, or inside the one dispatching it.
+     * Every member is dispatched before any is awaited, so immediate members run now, in order.
+     * @param label - The step's label.
+     * @param steps - The members.
+     * @param tx - The transaction it was dispatched in, or null.
+     * @param setup - Whether it was declared at construction.
+     * @returns Settles when every member has.
+     */
+    private compound(label: string, steps: readonly CommandLike[], tx: Group | null, setup: boolean): Promise<unknown> {
+        if (tx !== null) {
+            return Promise.all(steps.map((step) => settle(() => this.submit(step, tx))));
+        }
+
+        const done = this.transaction(label, (scope) => Promise.all(steps.map((step) => scope.dispatch(step))), {
+            setup,
+            compound: true,
+        });
+        // As a single command's promise is: a batch nobody awaited, cancelled, is not an unhandled
+        // rejection.
+        done.catch(() => undefined);
+        return done;
     }
 
     /**
@@ -1168,7 +1299,7 @@ export class Dispatcher {
             return "started";
         }
 
-        if (blocker.group.tx !== null) {
+        if (refuses(blocker.group)) {
             this.fail(job, heldError(job.command.op, blocker.key, blocker.group));
             return "failed";
         }
@@ -1258,6 +1389,10 @@ export class Dispatcher {
             this.seal(group);
         }
 
+        if (job.definition.closesBaseline === true) {
+            this.baselineOpen = false;
+        }
+
         job.resolve(value);
     }
 
@@ -1280,6 +1415,10 @@ export class Dispatcher {
             this.rollback(group);
         } else {
             this.reverted(job.revert?.() ?? []);
+        }
+
+        if (job.definition.closesBaseline === true) {
+            this.baselineOpen = false;
         }
 
         job.reject(error);
@@ -1361,6 +1500,13 @@ export class Dispatcher {
         const patch = group.draft.seal();
         const oplog = [...group.holds.keys()];
         let id: string | null = null;
+        if (!isEmptyPatch(patch) && this.intoBaseline(group, slicesOf(patch))) {
+            const change = { slices: slicesOf(patch), cause: "command" as const };
+            this.emit(change, [change]);
+            this.release(group, true);
+            return null;
+        }
+
         if (!isEmptyPatch(patch)) {
             const slices = slicesOf(patch);
             const bytes = patchBytes(patch);
@@ -1396,6 +1542,30 @@ export class Dispatcher {
 
         this.release(group, true);
         return id;
+    }
+
+    /**
+     * Whether a group's writes become the baseline rather than a step (design section 3.3), and
+     * close the baseline window at the first graph write. What the page declared at construction
+     * is baseline for as long as nothing has been recorded; anything else is while the window is
+     * open and it does not write the graph. The first graph write that is not declared is the
+     * first step.
+     * @param group - The group sealing.
+     * @param slices - The slices it wrote.
+     * @returns True when it records no step.
+     */
+    private intoBaseline(group: Group, slices: readonly string[]): boolean {
+        const graph = slices.includes("graph");
+        const open = this.baselineOpen;
+        if (graph) {
+            this.baselineOpen = false;
+        }
+
+        if (group.setup) {
+            return this.history.steps.length === 0;
+        }
+
+        return open && !graph;
     }
 
     /**
@@ -1662,6 +1832,8 @@ export class Dispatcher {
      * @param after - The step it is a deferred member of, or null.
      * @param seq - Its dispatch order.
      * @param tx - Its transaction state, for a transaction's group.
+     * @param setup - Declared at construction.
+     * @param compound - A batch's transaction.
      * @returns The group.
      */
     private group(
@@ -1671,6 +1843,8 @@ export class Dispatcher {
         after: string | null,
         seq: number,
         tx: Group["tx"],
+        setup = false,
+        compound = false,
     ): Group {
         return {
             seq,
@@ -1688,6 +1862,8 @@ export class Dispatcher {
             tx,
             done: false,
             view: undefined,
+            setup,
+            compound,
         };
     }
 

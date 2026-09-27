@@ -400,6 +400,34 @@ export interface SessionDataApi {
      * @returns Settles once the graph and the picture are empty.
      */
     clear(): Promise<void>;
+    /**
+     * Load a file, a URL or inline text through a registered data source, as one undoable step.
+     * It waits its turn behind loads and layouts already asked for. What was loaded, and from
+     * where, is kept: `lastImport()` reports it, and undo and redo never read the source again.
+     * @param source - The data source's name and its options: inline `data`, a `url` or a `file`.
+     * @param options - Whether to replace the graph (the default) or add to it.
+     * @returns Settles once the last chunk is in the graph; rejects, recording nothing, when the
+     *     load fails.
+     */
+    import(source: DataSourceInput, options?: ImportOptions): Promise<void>;
+}
+
+/**
+ * A source to import: the pair the element takes as `dataSource` and `dataSourceConfig`. `type`
+ * is a registered data source ("json", "csv", "graphml", ...), and `config` its options: inline
+ * `data`, a `url` or a `file`, and what the source reads besides.
+ */
+export interface DataSourceInput {
+    /** The data source's name. */
+    readonly type: string;
+    /** Its options. */
+    readonly config: Readonly<Record<string, unknown>>;
+}
+
+/** How an import treats the graph already there. */
+export interface ImportOptions {
+    /** `"replace"` (the default) empties the graph first, in the same step; `"merge"` adds to it. */
+    readonly mode?: "replace" | "merge";
 }
 
 /** A node record to add: its id is read through `data.knownFields.nodeIdPath`. */
@@ -699,8 +727,14 @@ export type TransactionScope = Omit<GraphSession, "undo" | "redo" | "history" | 
 export interface CommandOutcomeMap {
     /** The run's handle; awaiting it yields the result. */
     "algo.run": Run;
+    /** Settles once every member is recorded as one step and the pass that draws it has run. */
+    batch: Promise<void>;
     /** Settles once the change is recorded and the pass that draws it has run. */
     "data.apply": Promise<void>;
+    /** Settles once the last chunk is recorded and the pass that draws it has run. */
+    "data.import": Promise<void>;
+    /** Settles once the neighbourhood is recorded and the pass that draws it has run. */
+    "data.expand": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */
     "style.patch": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */

@@ -35,6 +35,7 @@ import type {
     NodeId,
     Path,
     Query,
+    ResultItem,
     RunId,
     Scope,
     ScopeId,
@@ -46,7 +47,8 @@ import { edgeCounterOf, edgeIdOf } from "../../data/edgeIdentity";
 import { GraphtyError, isGraphtyError } from "../../errors";
 import type { AttributeRevisions, InputTick } from "../attributes";
 import type { ResolvedScope } from "../runs/types";
-import { SetsCache } from "../sets/cache";
+import { resolveSet, SetsCache } from "../sets/cache";
+import { type Capture,capturedHalves } from "../sets/captures";
 import { referentReading } from "../sets/dependencies";
 import {
     type ComponentLabels,
@@ -57,7 +59,6 @@ import {
     type ResolveContext,
     resolveCounters,
     resolveNodeHalf,
-    resolveQuietly,
     resolveScope,
     scopeLeafIn,
 } from "../sets/resolve";
@@ -210,6 +211,12 @@ export interface ScopeSources {
     readonly values?: FilterValueSource;
     /** A run's current result. Absent refuses a rule's `item` leaf and a `threshold` over `results.*`. */
     readonly result?: FilterSources["result"];
+    /**
+     * What a held item's re-run captured (design/sets 5.2). Absent: nothing was captured.
+     * @param item - The item, with its execution.
+     * @returns The capture, or undefined.
+     */
+    readonly captured?: (item: ResultItem) => Capture | undefined;
     /**
      * A session edge's stable identity, so an inline `{ define }` may name edges by session id.
      * Absent refuses a session edge id inside `{ define }`.
@@ -475,7 +482,27 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
      * What a resolution reads now.
      * @returns The context over the current snapshot.
      */
-    const context = (): ResolveContext => ({
+    const context = (): ResolveContext => {
+        const active: ResolveContext = {
+            ...base(),
+            ...(sources.captured === undefined
+                ? {}
+                : {
+                      captured: (item: ResultItem) => {
+                          const capture = sources.captured?.(item);
+                          return capture === undefined ? undefined : capturedHalves(capture, active);
+                      },
+                  }),
+        };
+
+        return active;
+    };
+
+    /**
+     * What a resolution reads now, but the captures.
+     * @returns The context over the current snapshot.
+     */
+    const base = (): ResolveContext => ({
         snapshot: sources.snapshot(),
         store: sources.store ?? null,
         cache,
@@ -558,9 +585,26 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
      */
     const membershipOf = (spec: Scope): { resolution: Resolution; graph: GraphSnapshot } => {
         const active = context();
+        const record = keptRecordOf(spec);
+        if (record === undefined) {
+            return { resolution: resolveScope(spec, active), graph: active.snapshot };
+        }
 
-        return { resolution: resolveScope(spec, active), graph: active.snapshot };
+        // A kept set resolves through its own entry, which records the pass's outcome for status.
+        const resolution = resolveSet(record, active);
+        if (resolution.problem !== undefined) {
+            throw resolution.problem;
+        }
+
+        return { resolution, graph: active.snapshot };
     };
+
+    /**
+     * The live kept set a `{ set }` scope names.
+     * @param spec - The scope.
+     * @returns The record, or undefined for any other scope.
+     */
+    const keptRecordOf = (spec: Scope): ElementSet | undefined => (typeof spec === "object" && "set" in spec ? kept.get(spec.set) : undefined);
 
     /**
      * Whether one edge is in scope: both endpoints in the node half, and allowed by the
@@ -618,8 +662,7 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
      * @returns True when resolving it would answer rather than throw or come back empty.
      */
     const bound = (record: ElementSet): boolean => {
-        const active = context();
-        const resolution = resolveQuietly(() => resolveScope({ set: record.id }, active), active);
+        const resolution = resolveSet(record, context());
 
         return resolution.problem === undefined && (record.definition.kind === "rule" || resolution.nodeCount > 0);
     };
@@ -748,9 +791,7 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
             if (typeof spec === "object" && "set" in spec) {
                 const record = kept.get(spec.set);
                 if (record !== undefined) {
-                    const active = context();
-
-                    return Promise.resolve(countOf(resolveQuietly(() => resolveScope(spec, active), active), record.definition.kind));
+                    return Promise.resolve(countOf(resolveSet(record, context()), record.definition.kind));
                 }
 
                 if (kept.register().has(spec.set)) {

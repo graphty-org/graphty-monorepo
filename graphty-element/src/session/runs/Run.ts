@@ -27,6 +27,7 @@
 import type { AlgorithmKey, FieldDescriptor, ResultShape, RunId } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import type { ResultSummary, RunResult } from "../results/types";
+import type { HeldCaptures } from "../sets/captures";
 import { type StyleSuggestion, suggestStyles } from "../styles/derive";
 import {
     type Caveats,
@@ -271,6 +272,14 @@ export interface RunSurroundings {
      * @returns The token.
      */
     mintExecution?(): string;
+    /**
+     * Capture what live references hold of the result about to be replaced (design/sets 5.2).
+     * Called when a finished run re-executes in place, before its result goes. Optional for the
+     * same reason as `notify`.
+     * @param prior - The captures the run keeps now.
+     * @returns The captures the run keeps from now on.
+     */
+    captureHeld?(prior: HeldCaptures): HeldCaptures;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -437,6 +446,9 @@ export class ManagedRun<T = RunResult> implements Run<T> {
 
     /** The token of the execution that produced {@link resultValue}, written with it. */
     private resultExecutionValue: string | undefined = undefined;
+
+    /** What held references keep of earlier executions: run state, written only by a re-run. */
+    private heldValue: HeldCaptures = new Map();
 
     private summaryValue: ResultSummary | undefined = undefined;
 
@@ -615,6 +627,15 @@ export class ManagedRun<T = RunResult> implements Run<T> {
     }
 
     /**
+     * The members of earlier executions' items that live references hold, by execution and item
+     * key. Internal: not on the published `Run` interface.
+     * @returns The captures.
+     */
+    get held(): HeldCaptures {
+        return this.heldValue;
+    }
+
+    /**
      * Why the run failed.
      * @returns The error, or undefined when it did not.
      */
@@ -747,6 +768,8 @@ export class ManagedRun<T = RunResult> implements Run<T> {
             return this;
         }
 
+        // Before the result goes: what held references keep of it is captured now.
+        this.heldValue = this.surroundings.captureHeld?.(this.heldValue) ?? this.heldValue;
         this.resetForRerun();
         this.start();
 

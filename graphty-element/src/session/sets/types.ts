@@ -5,7 +5,7 @@
  * `session.sets` publishes these; the definition types they name live in `catalog/types.ts`.
  */
 
-import type { EdgeRef, NodeId, SetCreatedFrom, SetDefinition, SetDefinitionInput, SetId } from "../../catalog/types";
+import type { EdgeRef, NodeId, PathKind, RunId, ScopeInput, SetCreatedFrom, SetDefinition, SetDefinitionInput, SetId } from "../../catalog/types";
 
 /**
  * A kept set as the session hands it out: plain, frozen, structured-cloneable.
@@ -45,6 +45,60 @@ export interface SetChange {
     readonly cause: "command" | "load";
 }
 
+/**
+ * Whether a set still means what it meant, derived on read from what its definition reads and the
+ * last pass over it. Never resolves.
+ */
+export interface SetStatus {
+    /**
+     * OPEN UNION: values may be added in a minor release; handle unknown values. The screen never
+     * says "stale". `out-of-date`: a run it reads has inputs that changed (verb "Re-run").
+     * `cannot-rerun`: the same, but the run's algorithm is no longer registered. `detached`: a
+     * referent was removed (verb "Restore"). `unresolvable`: nothing was removed, but the
+     * definition cannot be evaluated -- a cycle, a failed compile, a capability this element lacks
+     * (verbs "Edit rule" or "Update graphty-element").
+     */
+    readonly freshness: "current" | "out-of-date" | "cannot-rerun" | "detached" | "unresolvable";
+    /**
+     * Why it is not current, or why it resolves to less than its definition names. May be
+     * non-empty when current: render reasons whatever the freshness.
+     */
+    readonly reasons: readonly SetStatusReason[];
+    /**
+     * Runs whose held execution (in the definition or in what the set was created from) is no
+     * longer the run's current one: "Earlier run". Empty otherwise.
+     */
+    readonly earlierRuns: readonly RunId[];
+}
+
+/** Why a set is not current. OPEN UNION on `kind`: kinds may be added in a minor release. */
+export type SetStatusReason =
+    | { readonly kind: "run-out-of-date"; readonly run: RunId }
+    | { readonly kind: "missing-run"; readonly run: RunId }
+    | { readonly kind: "missing-set"; readonly id: SetId; readonly name: string }
+    | { readonly kind: "cycle"; readonly through: readonly string[] }
+    /** `name` is a kind, field or algorithm; a plugin's is spelled `<package>:<kind>`, naming what to install. */
+    | { readonly kind: "missing-capability"; readonly name: string }
+    /** A held execution's values were not kept: the set resolves to nothing. */
+    | { readonly kind: "values-not-kept"; readonly run: RunId }
+    /** Edge members more than one edge carries, which bind neither. */
+    | { readonly kind: "ambiguous-parallel-edge"; readonly count: number }
+    | { readonly kind: "invalid"; readonly message: string }
+    /** A run recorded a revision of another scheme version; its freshness is unknown until re-run. */
+    | { readonly kind: "revision-unknown"; readonly run: RunId }
+    /** A set this one reads is not current. */
+    | { readonly kind: "input"; readonly id: SetId; readonly freshness: Exclude<SetStatus["freshness"], "current"> };
+
+/**
+ * One thing that names a set: "Used by". OPEN UNION on `kind`: kinds may be added in a minor
+ * release; render `label` for a kind you do not know.
+ */
+export interface SetUser {
+    readonly kind: "set" | "layer" | "filter" | "layout" | "run";
+    readonly id?: string;
+    readonly label: string;
+}
+
 /** Members to add to or remove from a fixed set. Edges by session id or stable identity. Internal name. */
 export interface SetMemberDelta {
     readonly nodes?: readonly NodeId[];
@@ -68,6 +122,26 @@ export interface SetsApi {
      * @returns The record, or undefined when no live set has that id.
      */
     get(id: SetId): ElementSet | undefined;
+    /**
+     * Whether a set, or any scope, still means what it meant: from what it reads and the last pass
+     * over it. Never resolves, so a panel may call it for every row.
+     * @param ref - The set, as `{ set: id }`, or any scope.
+     * @returns The status.
+     * @throws `E_BAD_COMMAND` for a malformed scope or an id that was never issued.
+     */
+    status(ref: ScopeInput): SetStatus;
+    /**
+     * A path set's kind. Derived from its definition; never resolves.
+     * @param id - The set.
+     * @returns The kind, or undefined for a set that is not a path or not live.
+     */
+    pathKind(id: SetId): PathKind | undefined;
+    /**
+     * What names a set: the kept sets whose definitions name it and the runs whose scope names it.
+     * @param id - The set.
+     * @returns The users, sets first, each group in listing order.
+     */
+    usedBy(id: SetId): readonly SetUser[];
     /**
      * Keep a definition as given; created from `user`. Edge members may be given as session edge
      * ids and are stored in stable form.

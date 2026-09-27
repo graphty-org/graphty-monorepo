@@ -158,6 +158,20 @@ export interface FilterSources {
      * @returns The result, or undefined when the run has none.
      */
     readonly result?: (run: RunId) => FilterRunResult | undefined;
+    /**
+     * What a held item's execution held, captured when its run re-executed, as bitmaps over the
+     * snapshot (design/sets 5.2). Absent, or undefined for an item: nothing was captured, and a
+     * held execution that is no longer current holds nothing.
+     * @param item - The item, with its execution.
+     * @returns Its node bitmap when its field lives on nodes, its edge bitmap when on edges.
+     */
+    readonly captured?: (item: ResultItem) => CapturedHalves | undefined;
+}
+
+/** A captured item's members over the snapshot: null for a half the item's field does not live on. */
+export interface CapturedHalves {
+    readonly nodes: U32 | null;
+    readonly edges: U32 | null;
 }
 
 /** A run's current result, as the compiler reads it. */
@@ -948,9 +962,24 @@ function compileItem(context: CompileContext, item: ResultItem): CompiledHalves 
     const result = resultOf(context, "item", run);
     const mark = markFor(context, `results.${run}.${field}`);
 
-    // ponytail: a held execution that is no longer current reads nothing until captures of held
-    // items exist; then it reads the capture.
-    if (result === undefined || (item.execution !== undefined && item.execution !== result.execution)) {
+    // A held execution that is no longer current reads what its run's re-run captured, and
+    // nothing when no capture was kept.
+    if (item.execution !== undefined && item.execution !== result?.execution) {
+        const held = context.sources.captured?.(item);
+        if (held === undefined || (held.nodes === null && held.edges === null)) {
+            return NOTHING;
+        }
+
+        mark.seen = true;
+        const { nodes, edges } = held;
+
+        return {
+            node: nodes === null ? null : (index) => maskTest(nodes, index),
+            edge: edges === null ? null : (index) => maskTest(edges, index),
+        };
+    }
+
+    if (result === undefined) {
         return NOTHING;
     }
 

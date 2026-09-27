@@ -30,6 +30,9 @@ const RESOLUTION_BYTES = 64 * 1024 * 1024;
 /** The bytes always left to unpinned resolutions, however much the pins hold. */
 const UNPINNED_RESERVE_BYTES = 16 * 1024 * 1024;
 
+/** The summary signature of a definition whose inputs cannot be enumerated: never matches a lookup. */
+const UNSIGNED = "";
+
 /** Counts the cache tests read. */
 export const cacheCounters = { hits: 0, misses: 0, evictions: 0 };
 
@@ -40,13 +43,21 @@ interface Entry {
     readonly bytes: number;
 }
 
-/** A kept set's counts under one signature. */
+/**
+ * A kept set's counts under one signature, and the outcome of the pass that produced them, which
+ * status reads without resolving.
+ */
 interface SetSummary {
     readonly signature: string;
+    /** The definition the pass resolved, so an outcome is never read for a later definition. */
+    readonly definition: SetDefinition;
     readonly nodeCount: number;
     readonly edgeCount: number;
     readonly missingNodes: number;
     readonly missingEdges: number;
+    readonly ambiguousEdges: number;
+    /** Why the pass resolved nothing, when it could not evaluate the definition. */
+    readonly problem?: Resolution["problem"];
 }
 
 /**
@@ -251,8 +262,16 @@ function resolveDefinition(id: SetId, definition: SetDefinition, context: Resolv
 export function resolveSet(record: { readonly id: SetId; readonly definition: SetDefinition }, context: ResolveContext): Resolution {
     const { cache } = context;
     const signature = cache === undefined ? null : definitionSignature(record.id, record.definition, context, cache.memo);
-    if (cache === undefined || signature === null) {
+    if (cache === undefined) {
         return resolveDefinition(record.id, record.definition, context);
+    }
+
+    if (signature === null) {
+        // Never cached, but its outcome is still what status reads of the last pass.
+        const resolution = resolveDefinition(record.id, record.definition, context);
+        summarise(cache, record.id, record.definition, UNSIGNED, resolution, context);
+
+        return resolution;
     }
 
     let resolution = cache.lookup(record.definition, signature);
@@ -263,7 +282,7 @@ export function resolveSet(record: { readonly id: SetId; readonly definition: Se
         }
     }
 
-    summarise(cache, record.id, signature, resolution, context);
+    summarise(cache, record.id, record.definition, signature, resolution, context);
 
     return resolution;
 }
@@ -273,20 +292,25 @@ export function resolveSet(record: { readonly id: SetId; readonly definition: Se
  * outnumber the live sets, so churn cannot grow the map.
  * @param cache - The cache.
  * @param id - The set.
+ * @param definition - The definition resolved.
  * @param signature - The signature.
  * @param resolution - Its resolution.
  * @param context - What was resolved against.
  */
-function summarise(cache: SetsCache, id: SetId, signature: string, resolution: Resolution, context: ResolveContext): void {
-    if (cache.summaries.get(id)?.signature !== signature) {
+function summarise(cache: SetsCache, id: SetId, definition: SetDefinition, signature: string, resolution: Resolution, context: ResolveContext): void {
+    const known = cache.summaries.get(id);
+    if (known?.signature !== signature || known.definition !== definition) {
         cache.summaries.set(
             id,
             Object.freeze({
                 signature,
+                definition,
                 nodeCount: resolution.nodeCount,
                 edgeCount: resolution.edgeCount,
                 missingNodes: resolution.missingNodes,
                 missingEdges: resolution.missingEdges,
+                ambiguousEdges: resolution.ambiguousEdges,
+                ...(resolution.problem === undefined ? {} : { problem: resolution.problem }),
             }),
         );
     }
@@ -309,15 +333,36 @@ function summarise(cache: SetsCache, id: SetId, signature: string, resolution: R
  * @param context - What the resolution reads; needs `context.cache`.
  * @returns The counts.
  */
-export function countsOf(record: { readonly id: SetId; readonly definition: SetDefinition }, context: ResolveContext): Omit<SetSummary, "signature"> {
+export function countsOf(
+    record: { readonly id: SetId; readonly definition: SetDefinition },
+    context: ResolveContext,
+): Pick<SetSummary, "nodeCount" | "edgeCount" | "missingNodes" | "missingEdges"> {
     const { cache } = context;
     const signature = cache === undefined ? null : definitionSignature(record.id, record.definition, context, cache.memo);
     const known = signature === null ? undefined : cache?.summaries.get(record.id);
-    if (known?.signature === signature && known !== undefined) {
+    if (known?.signature === signature && known.definition === record.definition) {
         return known;
     }
 
     const { nodeCount, edgeCount, missingNodes, missingEdges } = resolveSet(record, context);
 
     return { nodeCount, edgeCount, missingNodes, missingEdges };
+}
+
+/**
+ * What the last pass over a kept set found, when that pass resolved its current definition: why it
+ * resolved nothing, and how many edge members more than one edge carries. Never resolves.
+ * @param cache - The cache.
+ * @param record - The set.
+ * @param record.id - Its id.
+ * @param record.definition - Its definition.
+ * @returns The outcome, or undefined when no pass has resolved this definition.
+ */
+export function outcomeOf(
+    cache: SetsCache,
+    record: { readonly id: SetId; readonly definition: SetDefinition },
+): Pick<SetSummary, "problem" | "ambiguousEdges"> | undefined {
+    const known = cache.summaries.get(record.id);
+
+    return known?.definition === record.definition ? known : undefined;
 }

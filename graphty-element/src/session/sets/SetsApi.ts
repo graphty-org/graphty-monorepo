@@ -12,14 +12,15 @@
 
 import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
-import { inducedEdgeLeaf, speaksEdges } from "../../catalog/sets/parse";
-import type { EdgeId, EdgeMember, EdgeRef, SetCreatedFrom, SetDefinitionInput, SetId } from "../../catalog/types";
+import { inducedEdgeLeaf, parseScope, speaksEdges } from "../../catalog/sets/parse";
+import type { EdgeId, EdgeMember, EdgeRef, PathKind, RunId, Scope, ScopeInput, SetCreatedFrom, SetDefinitionInput, SetId } from "../../catalog/types";
 import { edgeCounterOf, stableEdgeMember } from "../../data/edgeIdentity";
 import { readEndpoint } from "../../data/endpoints";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { SessionAttributes } from "../types";
 import {
     type ChainStep,
+    dependenciesOf,
     type DependencySources,
     followedGroup,
     followsGroup,
@@ -27,6 +28,7 @@ import {
     selectionChain,
     setCycle,
 } from "./dependencies";
+import { pathKind } from "./path";
 import {
     defaultName,
     holdsEdgeMember,
@@ -38,8 +40,9 @@ import {
     prepareRename,
 } from "./prepare";
 import { edgeMemberKey } from "./resolve";
+import { statusOf,type StatusRun, type StatusSources } from "./status";
 import { SetsStore } from "./store";
-import type { ElementSet, SetMemberDelta, SetsApi } from "./types";
+import type { ElementSet, SetMemberDelta, SetsApi, SetStatus, SetUser } from "./types";
 
 /** What the doors read from the rest of the session. */
 interface SetsDependencies {
@@ -56,6 +59,13 @@ interface SetsDependencies {
      * filter), so a write that would make a cycle is refused. Absent: the kept sets alone.
      */
     readonly dependencies?: DependencySources;
+    /** The runs, for status and "Used by". Absent: no run exists. */
+    readonly runs?: {
+        get(id: RunId): StatusRun | undefined;
+        list(): readonly StatusRun[];
+    };
+    /** What the last pass over a kept set found. Absent: status reads no pass. */
+    readonly outcome?: StatusSources["outcome"];
 }
 
 /**
@@ -317,10 +327,65 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
         return id;
     };
 
+    const statusSources: StatusSources = {
+        sets: store,
+        dependencies: references,
+        run: (id: RunId) => dependencies.runs?.get(id),
+        ...(dependencies.outcome === undefined ? {} : { outcome: dependencies.outcome }),
+    };
+
+    /**
+     * A read position's scope, canonical: session edge ids in `{ define }` made stable.
+     * @param ref - The scope as given.
+     * @returns The scope.
+     * @throws `E_BAD_COMMAND` for a malformed scope or a `{ set }` id never issued.
+     */
+    const readScope = (ref: ScopeInput): Scope => {
+        const inline = typeof ref === "object" && "define" in ref;
+        const scope = parseScope(inline ? { define: collect(() => stabilise(ref.define))[0] } : ref);
+        if (typeof scope === "object" && "set" in scope && store.get(scope.set) === undefined && !store.register().has(scope.set)) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `No set was ever called "${scope.set}".`,
+                source: "data",
+                target: { kind: "scope", id: scope.set },
+                details: { id: scope.set },
+            });
+        }
+
+        return scope;
+    };
+
     const api: SetsApi = {
         list: () => store.list(),
 
         get: (id: SetId) => store.get(id),
+
+        status: (ref: ScopeInput): SetStatus => statusOf(readScope(ref), statusSources),
+
+        pathKind(id: SetId): PathKind | undefined {
+            const definition = store.get(id)?.definition;
+
+            return definition?.kind === "path" ? pathKind(definition) : undefined;
+        },
+
+        usedBy(id: SetId): readonly SetUser[] {
+            const users: SetUser[] = [];
+            for (const set of store.list()) {
+                if (set.id !== id && dependenciesOf(set.definition).some((dependency) => dependency.kind === "set" && dependency.id === id)) {
+                    users.push(Object.freeze({ kind: "set", id: set.id, label: set.name }));
+                }
+            }
+
+            for (const run of dependencies.runs?.list() ?? []) {
+                const { spec } = run.scope;
+                if (run.scope.set?.id === id || (typeof spec === "object" && "set" in spec && spec.set === id)) {
+                    users.push(Object.freeze({ kind: "run", id: run.id, label: run.label }));
+                }
+            }
+
+            return Object.freeze(users);
+        },
 
         create: (definition: SetDefinitionInput, options: { readonly name?: string } = {}): SetId => createAs(definition, options.name, { kind: "user" }),
 

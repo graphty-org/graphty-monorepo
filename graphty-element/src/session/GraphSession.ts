@@ -21,7 +21,7 @@ import {
     type GraphAccelerator,
 } from "../acceleration";
 import { readingOfScope } from "../catalog/sets/parse";
-import type { EdgeId, EdgeMember, EdgeReading, NodeId, Path, Query, RunId, Scope, SetId, StaticStyle } from "../catalog/types";
+import type { EdgeId, EdgeMember, EdgeReading, NodeId, Path, Query, ResultItem, RunId, Scope, SetId, StaticStyle } from "../catalog/types";
 import { DataConfig } from "../config/DataConfig";
 import { defaultEdgeStyle } from "../config/EdgeStyle";
 import { defaultNodeStyle } from "../config/NodeStyle";
@@ -60,9 +60,12 @@ import {
     type ScopeResolver,
 } from "./scope";
 import { createSelectionApi, type SelectionOwner, type SelectionTextMode } from "./selection";
+import { outcomeOf, SetsCache } from "./sets/cache";
+import { captureItem, captureOf, type HeldCaptures, heldItems, nextCaptures } from "./sets/captures";
 import { type DependencySources, referentReading } from "./sets/dependencies";
 import { createSetsApi, sessionEdgeMember, setsStoreOf } from "./sets/SetsApi";
 import { identityOf } from "./sets/signature";
+import type { StatusRun } from "./sets/status";
 import type { SetsApi } from "./sets/types";
 import {
     createAutoApplyPolicy,
@@ -1156,7 +1159,31 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         shapeOf: (run: RunId) => runs.get(run)?.result?.shape,
         fieldKinds: (path: Path) => fieldKindsOf(path, data, (run) => runs.get(run)?.result?.fields),
     };
-    const sets = createSetsApi({ edgeMember, dependencies });
+    // One resolution cache for the scope resolver and the status reads of its last passes.
+    const setsCache = new SetsCache();
+    // What status and "Used by" read of a run. Late-bound: the runs are built below.
+    const statusRun = (run: Run): StatusRun => ({
+        id: run.id,
+        label: run.label,
+        algorithm: run.algorithm,
+        registered: SESSION_CATALOG_TABLES.algorithms().some((descriptor) => descriptor.key === run.algorithm),
+        execution: executionOf(run.id),
+        scope: run.record.scope,
+        scopeMoved: () => run.stale !== null,
+        captures: runs.heldOf(run.id),
+    });
+    const sets = createSetsApi({
+        edgeMember,
+        dependencies,
+        runs: {
+            get: (id: RunId) => {
+                const run = runs.get(id);
+                return run === undefined ? undefined : statusRun(run);
+            },
+            list: () => runs.list().map(statusRun),
+        },
+        outcome: (record) => outcomeOf(setsCache, record),
+    });
     const keptSets = setsStoreOf(sets);
     keptSets.onChange((change) => {
         publish(watchers, "set:changed", change);
@@ -1209,6 +1236,8 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         edgeRevisions: inputs.edges,
         executionOf,
         result: resultSource,
+        captured: (item: ResultItem) => captureOf(runs.heldOf(item.run), item),
+        cache: setsCache,
         tick: inputs.tick,
         sets,
         edgeMember,
@@ -1251,6 +1280,25 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         engine: runsOptions.engine ?? ENGINE_VERSIONS,
         defaultScope,
         onExecution: advanceTick,
+        // Before a re-run replaces a result, what kept rules hold of it is captured onto the run.
+        // ponytail: kept sets are the only holders; style layers and the visibility filter join
+        // when they name sets (design/sets 5.2).
+        captureHeld: (runId: RunId, prior: HeldCaptures) => {
+            const result = resultSource(runId);
+            const graph = snapshot();
+            const space = edgeSpaceOf(graph);
+            const held = heldItems(
+                keptSets.list().map((set) => set.definition),
+                runId,
+            );
+
+            return nextCaptures(
+                prior,
+                held,
+                executionOf(runId),
+                result === undefined ? undefined : (key) => captureItem(result, key, graph, (row) => edgeMember(space.idOf(row))),
+            );
+        },
         ...(runsOptions.defaultCaveats === undefined ? {} : { defaultCaveats: runsOptions.defaultCaveats }),
         // ONE POLICY, EVERY ROUTE. A run paints itself on its first completion, from the encoding
         // its own shape derives -- see `./styles/autoApply` for the six rules and `./styles/derive`

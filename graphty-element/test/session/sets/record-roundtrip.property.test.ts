@@ -260,6 +260,11 @@ describe("a stored set survives JSON into a fresh session", () => {
                     const one = asIds(source, resolveSet(record, { snapshot: source.snapshot(), sets: source.setsStore, match: matcherOf(source) }));
                     const two = asIds(target, resolveSet(after[i], { snapshot: target.snapshot(), sets: target.setsStore, match: matcherOf(target) }));
                     assert.deepStrictEqual(two, one, `${record.id} resolves to the same ids`);
+                    assert.deepStrictEqual(target.sets.status({ set: after[i].id }), source.sets.status({ set: record.id }), `${record.id} has the same status`);
+                }
+
+                for (const { id } of source.setsStore.toLogicalRecords().tombstones) {
+                    assert.deepStrictEqual(target.sets.status({ set: id }), source.sets.status({ set: id }), `removed ${id} reads detached alike`);
                 }
 
                 // The order high-water mark survives: a new set orders after every stored one.
@@ -290,6 +295,12 @@ describe("a stored set survives JSON into a fresh session", () => {
         const [leaf, field] = opaque;
         for (const record of [leaf, field]) {
             assert.strictEqual(resolveSet(record, { snapshot: target.snapshot() }).nodeCount, 0);
+            const status = target.sets.status({ set: record.id });
+            assert.strictEqual(status.freshness, "unresolvable");
+            assert.deepStrictEqual(
+                status.reasons.map((reason) => reason.kind),
+                ["missing-capability"],
+            );
             assert.throws(() => target.sets.redefine(record.id, { kind: "fixed", nodes: ["a"], reading: "induced" }), /does not know/);
         }
     });

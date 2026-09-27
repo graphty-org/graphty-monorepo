@@ -128,6 +128,8 @@ export interface ResolveContext {
     readonly values?: FilterValueSource;
     /** A run's current result. Absent refuses a rule's `item` leaf and a `threshold` over `results.*`. */
     readonly result?: FilterSources["result"];
+    /** What a held item's re-run captured (`./captures`). Absent: nothing was captured. */
+    readonly captured?: FilterSources["captured"];
     /**
      * The saved scopes `{ set }` names. Absent: no scope is saved. Replaced, never mutated, on
      * every write, so its identity says whether it moved.
@@ -526,6 +528,7 @@ function resolveRule(definition: Extract<SetDefinition, { kind: "rule" }>, conte
         ...(context.matchEdges === undefined ? {} : { matchEdges: context.matchEdges }),
         ...(context.values === undefined ? {} : { values: context.values }),
         ...(context.result === undefined ? {} : { result: context.result }),
+        ...(context.captured === undefined ? {} : { captured: context.captured }),
         ...(context.components === undefined ? {} : { components: context.components }),
         scope: (scope: Scope) => scopeLeafIn(scope, context, seen),
     });

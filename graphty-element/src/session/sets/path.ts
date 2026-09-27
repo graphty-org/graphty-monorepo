@@ -12,11 +12,12 @@
 
 import { INVALID_INDEX, makeMask } from "@graphty/graph-format";
 
-import type { EdgeMember, NodeId, SetDefinition } from "../../catalog/types";
+import type { EdgeMember, NodeId, PathKind, SetDefinition } from "../../catalog/types";
 import {
     addEdgeRow,
     bindEdgeMembers,
     EDGE_AMBIGUOUS,
+    edgeMemberKey,
     type EdgeSeeds,
     type Resolution,
     resolutionOf,
@@ -145,4 +146,58 @@ export function resolvePath(definition: PathDefinition, context: ResolveContext,
     }
 
     return resolutionOf({ nodes, constraint: null, all: false, missingNodes: absent.size }, edges, context, missingSteps, ambiguous);
+}
+
+/**
+ * One node id as a key that keeps `1` and `"1"` apart.
+ * @param id - The node id.
+ * @returns The key.
+ */
+function nodeKey(id: NodeId): string {
+    return `${typeof id === "number" ? "n" : "s"}${String(id)}`;
+}
+
+/**
+ * What kind of walk a path is (design 4.4). Each step is one logical edge, keyed on the group of
+ * edges it names, or on its end pair for a `null` step (unordered unless `directed`). `trail`: no
+ * logical edge repeats; `simple`: no node repeats; `cycle`: a closed trail of at least one step
+ * whose only repeated node is the first, equal to the last; `walk`: anything else. The most
+ * specific kind is returned. Derived from the definition alone: never resolves.
+ * @param definition - A canonical path definition.
+ * @returns The kind.
+ */
+export function pathKind(definition: PathDefinition): PathKind {
+    const nodes = definition.nodes.map(nodeKey);
+    const steps = Math.max(0, nodes.length - 1);
+    const directed = definition.directed === true;
+    const logical = new Set<string>();
+    let trail = true;
+    for (let step = 0; step < steps; step++) {
+        const named = definition.edges?.[step] ?? null;
+        let key: string;
+        if (named === null) {
+            const [a, b] = directed || nodes[step] <= nodes[step + 1] ? [nodes[step], nodes[step + 1]] : [nodes[step + 1], nodes[step]];
+            key = `p${JSON.stringify([a, b])}`;
+        } else {
+            const members = Array.isArray(named) ? (named as readonly EdgeMember[]) : [named as EdgeMember];
+            key = `e${JSON.stringify(members.map(edgeMemberKey).sort())}`;
+        }
+
+        if (logical.has(key)) {
+            trail = false;
+        }
+
+        logical.add(key);
+    }
+
+    const distinct = (keys: readonly string[]): boolean => new Set(keys).size === keys.length;
+    if (trail && steps >= 1 && nodes[0] === nodes[steps] && distinct(nodes.slice(0, steps))) {
+        return "cycle";
+    }
+
+    if (distinct(nodes)) {
+        return "simple";
+    }
+
+    return trail ? "trail" : "walk";
 }

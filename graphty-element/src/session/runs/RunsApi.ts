@@ -32,6 +32,7 @@ import {
 } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import type { RunResult } from "../results/types";
+import type { HeldCaptures } from "../sets/captures";
 import type { AutoApplyPolicy } from "../styles/autoApply";
 import {
     ManagedRun,
@@ -206,6 +207,14 @@ export interface RunsApiOptions {
     readonly onChange?: (change: RunChange) => void;
     /** Called once per execution token minted, which is what advances the session input tick. */
     readonly onExecution?: () => void;
+    /**
+     * Capture what live references hold of a run's result before a re-run replaces it
+     * (design/sets 5.2). Absent: nothing is captured.
+     * @param run - The run about to re-execute in place, its result still in place.
+     * @param prior - The captures it keeps now.
+     * @returns The captures it keeps from now on.
+     */
+    readonly captureHeld?: (run: RunId, prior: HeldCaptures) => HeldCaptures;
 }
 
 /** The runs API, plus the two things a session needs and a consumer never calls. */
@@ -221,6 +230,12 @@ export interface SessionRunsApi extends RunsApi {
      * @returns True when the element derived the id.
      */
     isDerivedId(id: RunId): boolean;
+    /**
+     * What a run keeps of earlier executions' items that live references hold (design/sets 5.2).
+     * @param id - The run id.
+     * @returns The captures; empty for a run this session does not hold.
+     */
+    heldOf(id: RunId): HeldCaptures;
     /** Cancel everything still running and forget every run this session held. */
     dispose(): void;
 }
@@ -230,6 +245,9 @@ export interface SessionRunsApi extends RunsApi {
 // ---------------------------------------------------------------------------------------------
 
 /** What a run's numbers are qualified by before the work has said anything about them. */
+/** What a run with no captures keeps. */
+const NO_HELD: HeldCaptures = new Map();
+
 const DEFAULT_CAVEATS: Caveats = Object.freeze({
     exact: true,
     seed: null,
@@ -645,6 +663,10 @@ class Runs implements SessionRunsApi {
         return this.derivedIds.has(id);
     }
 
+    heldOf(id: RunId): HeldCaptures {
+        return this.runs.get(id)?.held ?? NO_HELD;
+    }
+
     /**
      * The runs waiting to start, in queue order.
      * @returns One entry per waiting run, each carrying its position and the total.
@@ -734,6 +756,7 @@ class Runs implements SessionRunsApi {
             ...(this.options.scopeFacts === undefined ? {} : { scopeFacts: () => this.options.scopeFacts?.(spec) ?? {} }),
             enqueue: (body) => (policy === "now" ? enqueueBesideQueue(body, id) : this.enqueueOnQueue(id, body)),
             mintExecution: this.mintExecution,
+            ...(this.options.captureHeld === undefined ? {} : { captureHeld: (prior: HeldCaptures) => this.options.captureHeld?.(id, prior) ?? prior }),
             notify: (phase) => {
                 this.announce(run, phase);
 

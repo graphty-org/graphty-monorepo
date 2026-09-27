@@ -75,7 +75,7 @@ import type { AlgorithmOnLoad } from "./config/DataConfig";
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
 import { Edge } from "./Edge";
 import { GraphtyError } from "./errors";
-import { EventCallbackType, EventType } from "./events";
+import { EventCallbackType, EventOfType, EventType } from "./events";
 import {
     type AddEdgesOptions,
     AlgorithmManager,
@@ -2318,7 +2318,7 @@ export class Graph implements GraphContext {
      * stop();
      * ```
      */
-    on(type: EventType, cb: EventCallbackType): () => void {
+    on<K extends EventType>(type: K, cb: (evt: EventOfType<K>) => void): () => void {
         const id = this.addListener(type, cb);
 
         return () => {
@@ -2333,9 +2333,10 @@ export class Graph implements GraphContext {
      * @returns The listener's id, which `removeListener` takes. It used to be dropped here, so
      *     nothing a consumer could reach was able to undo an `addListener`.
      */
-    addListener(type: EventType, cb: EventCallbackType): symbol {
-        // Delegate to EventManager
-        return this.eventManager.addListener(type, cb);
+    addListener<K extends EventType>(type: K, cb: (evt: EventOfType<K>) => void): symbol {
+        // The manager only ever calls a callback with an event whose `type` is `type`, which is
+        // exactly the narrowing the signature promises.
+        return this.eventManager.addListener(type, cb as EventCallbackType);
     }
 
     /**

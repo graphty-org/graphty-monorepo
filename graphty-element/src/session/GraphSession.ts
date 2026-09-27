@@ -35,6 +35,7 @@ import { SessionData } from "./data";
 import { estimateCommand, type Plan, planCommand, type PlanningContext, type SessionCommand } from "./planning";
 import { createQueryEngine, type QueryEngine } from "./query";
 import { createResultsApi, type ResultsApi, type ResultsRunEntry, type RunRef } from "./results";
+import { resultExecutionOf } from "./results/ResultsApi";
 import {
     type Caveats,
     createLocalRunQueue,
@@ -59,6 +60,7 @@ import {
 } from "./scope";
 import { createSelectionApi, type SelectionOwner, type SelectionTextMode } from "./selection";
 import { createSetsApi, sessionEdgeMember } from "./sets/SetsApi";
+import { identityOf } from "./sets/signature";
 import type { SetsApi } from "./sets/types";
 import {
     createAutoApplyPolicy,
@@ -1135,6 +1137,16 @@ function buildSession(options: CreateGraphSessionOptions): Session {
             edges: () => visibility.masks.edges(),
         },
         match: (where: Query) => requireQuery(query).nodes(where),
+        pathsOf: (where: Query) => requireQuery(query).pathsOf(where),
+        revisions: inputs.nodes,
+        // The token of the result a predicate reads; a result published with none (an executor
+        // outside the runs API) stands for itself, so a new result is never read as the old one.
+        executionOf: (run: RunId) => {
+            const result = runs.get(run)?.result;
+
+            return result === undefined ? undefined : (resultExecutionOf(results, run) ?? `#${identityOf(result)}`);
+        },
+        tick: inputs.tick,
     });
 
     const visibility = createVisibilityApi({

@@ -101,6 +101,14 @@ export class TestGraph {
     }
 
     /**
+     * The store resolutions are tagged with.
+     * @returns The current store.
+     */
+    storeTag(): object {
+        return this.store;
+    }
+
+    /**
      * The record an edge carries now.
      * @param counter - The edge.
      * @returns Its fields.

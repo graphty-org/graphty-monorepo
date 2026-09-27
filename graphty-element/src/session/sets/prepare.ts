@@ -432,7 +432,7 @@ const NO_MEMBERS: MemberSummary = { count: 0, sum: EMPTY_SUM };
  * @param definition - The definition.
  * @returns The name, or null.
  */
-function opaqueName(definition: SetDefinition): string | null {
+export function opaqueName(definition: SetDefinition): string | null {
     let name = opacityOf.get(definition);
     if (name === undefined) {
         name = loadSetDefinition(definition).opaque?.first ?? null;

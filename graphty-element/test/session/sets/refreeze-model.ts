@@ -21,6 +21,7 @@ import { addToSum, EMPTY_SUM, hashEdgeMember, hashNodeId, membershipDigestOf } f
 import type { EdgeId, EdgeMember, NodeId, SetDefinition, SetDefinitionInput, SetId } from "../../../src/catalog/types";
 import { mintedEdgeId, pairsOrdered } from "../../../src/data/edgeIdentity";
 import { isGraphtyError } from "../../../src/errors";
+import { resolveSet, SetsCache } from "../../../src/session/sets/cache";
 import { resolvePath } from "../../../src/session/sets/path";
 import { digestOf, edgeMemberKey, type Resolution, resolveFixed } from "../../../src/session/sets/resolve";
 import type { SetsStore } from "../../../src/session/sets/store";
@@ -38,6 +39,8 @@ export interface Driver {
     /** The record each edge the last load created came from, aligned with what it returned. */
     readonly lastLoadSources: readonly number[];
     snapshot(): GraphSnapshot;
+    /** The store instance resolutions are tagged with: what a Clear or a replacing import replaces or keeps. */
+    storeTag(): object;
     counterAt(row: number): number;
     rowOf(counter: number): number;
     counters(): number[];
@@ -89,6 +92,8 @@ export class Model {
     readonly sets = new Map<SetId, ModelSet>();
     /** The loads the current store took, so a re-import can replay them. */
     loads: { records: EdgeRecord[]; policy: (typeof POLICIES)[number]; chunks: number }[] = [];
+    /** The resolution cache the real side is read through, across the whole sequence. */
+    readonly cache = new SetsCache();
 }
 
 /** A set definition as a command draws it: node picks and edge picks, resolved at run time. */
@@ -870,6 +875,15 @@ function verify(model: Model, real: Driver): void {
             definition.kind === "fixed"
                 ? resolveFixed(definition, { snapshot }, seeds)
                 : resolvePath(definition as Extract<SetDefinition, { kind: "path" }>, { snapshot }, seeds);
+        // Served through the cache, it equals the fresh resolution, and is of this snapshot.
+        const served = resolveSet({ id, definition }, { snapshot, store: real.storeTag(), sets: real.setsStore, cache: model.cache });
+        assert.strictEqual(served.serial, snapshot.serial, `${id} served from this serial`);
+        assert.deepStrictEqual([served.nodes, served.edges], [resolution.nodes, resolution.edges], `${id} served equals fresh`);
+        assert.deepStrictEqual(
+            [served.missingNodes, served.missingEdges, served.ambiguousEdges],
+            [resolution.missingNodes, resolution.missingEdges, resolution.ambiguousEdges],
+            `${id} served counts`,
+        );
         const expected = expect(model, real, set);
         const nodes = new Set(Array.from(maskToIndices(resolution.nodes, snapshot.nodeCount), (i) => snapshot.ids.idOf(i)));
         const edges = new Set(Array.from(maskToIndices(resolution.edges, snapshot.edgeCount), (e) => real.counterAt(e)));

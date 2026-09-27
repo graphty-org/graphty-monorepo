@@ -42,8 +42,8 @@ export interface SetChange {
     readonly fields: readonly ("name" | "definition" | "order")[];
     /** The frozen record after the change; null after removal. */
     readonly set: ElementSet | null;
-    /** What caused it. OPEN UNION: `command` for now; undo, redo and load are added later. */
-    readonly cause: "command";
+    /** What caused it. OPEN UNION: `command`, or `load` for a stored slice; undo and redo are added later. */
+    readonly cause: "command" | "load";
 }
 
 /** Members to add to or remove from a fixed set. Edges by session id or stable identity. */

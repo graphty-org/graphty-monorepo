@@ -28,7 +28,7 @@
 
 import { compareIds } from "../../catalog/sets/canonical";
 import type { SetId } from "../../catalog/types";
-import { recordBytes, type RecordView } from "./prepare";
+import { loadRecord, recordBytes, type RecordView } from "./prepare";
 import type { EdgeSeeds } from "./resolve";
 import type { ElementSet, SetChange } from "./types";
 
@@ -37,6 +37,22 @@ interface Tombstone {
     readonly id: SetId;
     readonly name: string;
     readonly record?: ElementSet;
+}
+
+/**
+ * The slice and what sits beside it, as stored: the one serialised form a project file or an undo
+ * slice uses (design 12, 12.4). Plain JSON once stringified: a record's `revision` is not an own
+ * enumerable field, a fixed set's edge members are, and unknown top-level fields are kept. Seeds
+ * and every derived value are left out; the order high-water mark is recovered from the records
+ * and the tombstones.
+ */
+interface LogicalSets {
+    /** The live records, by order. */
+    readonly records: readonly ElementSet[];
+    /** Every id ever issued. */
+    readonly register: readonly SetId[];
+    /** Removed ids, oldest first, with their last name and, while the byte cap allowed, record. */
+    readonly tombstones: readonly Tombstone[];
 }
 
 /** The default byte cap on tombstoned records. */
@@ -67,13 +83,14 @@ interface Savepoint {
 }
 
 /**
- * The open write group: each touched key's value before the group, the ids it minted, and the
- * savepoints of the writes open inside it, innermost last.
+ * The open write group: each touched key's value before the group, the ids it minted, the
+ * savepoints of the writes open inside it, innermost last, and what caused it.
  */
 interface Group {
     readonly before: Map<SetId, ElementSet | undefined>;
     readonly minted: SetId[];
     readonly saves: Savepoint[];
+    readonly cause: SetChange["cause"];
 }
 
 /** The kept-set slice and the state beside it. */
@@ -230,11 +247,12 @@ export class SetsStore implements RecordView {
      * `write` throws, none of them does. A nested call joins the open group as a savepoint: when
      * it throws, its own writes and mints are undone and the group goes on.
      * @param write - The writes.
+     * @param cause - What the listeners are told caused it, for an outermost group.
      * @returns What `write` returned.
      */
-    transact<T>(write: () => T): T {
+    transact<T>(write: () => T, cause: SetChange["cause"] = "command"): T {
         const outer = this.group;
-        const group: Group = outer ?? { before: new Map(), minted: [], saves: [] };
+        const group: Group = outer ?? { before: new Map(), minted: [], saves: [], cause };
         // A nested call is a savepoint: when it throws, only its own writes and mints are undone
         // and the outer group carries on, so a refused door inside a group leaves no trace.
         const save = { values: new Map<SetId, ElementSet | undefined>(), minted: group.minted.length, order: this.highestOrder };
@@ -275,6 +293,70 @@ export class SetsStore implements RecordView {
         }
 
         return result;
+    }
+
+    /**
+     * The slice as stored. Internal: the one serialiser a project file or an undo slice uses.
+     * @returns The records, the register and the tombstones.
+     */
+    toLogicalRecords(): LogicalSets {
+        return Object.freeze({
+            records: this.list(),
+            register: Object.freeze([...this.issued]),
+            tombstones: Object.freeze([...this.tombstones.values()]),
+        });
+    }
+
+    /**
+     * Load a stored slice into this empty store: every record validated in load mode and `put`,
+     * the register and the tombstones restored. One write group, told as `load`. Internal.
+     * @param stored - What {@link toLogicalRecords} returned, after any JSON round trip.
+     * @throws `E_BAD_COMMAND` for a malformed record; an Error for a non-empty store or a malformed
+     *     register or tombstone.
+     */
+    loadLogicalRecords(stored: unknown): void {
+        const value = stored as { records?: unknown; register?: unknown; tombstones?: unknown } | null;
+        if (this.records.size > 0 || this.issued.size > 0 || this.tombstones.size > 0) {
+            throw new Error("Stored sets load only into an empty store.");
+        }
+
+        if (
+            typeof value !== "object" ||
+            value === null ||
+            !Array.isArray(value.records) ||
+            !Array.isArray(value.register) ||
+            !value.register.every((id) => typeof id === "string") ||
+            !Array.isArray(value.tombstones)
+        ) {
+            throw new Error("Stored sets are { records, register, tombstones }.");
+        }
+
+        const records = value.records.map((record) => loadRecord(record));
+        const tombstones = value.tombstones.map((entry: unknown): Tombstone => {
+            const t = entry as { id?: unknown; name?: unknown; record?: unknown } | null;
+            if (typeof t !== "object" || t === null || typeof t.id !== "string" || typeof t.name !== "string") {
+                throw new Error("A stored tombstone is { id, name, record? }.");
+            }
+
+            return Object.freeze({ id: t.id, name: t.name, ...(t.record === undefined ? {} : { record: loadRecord(t.record) }) });
+        });
+
+        this.transact(() => {
+            for (const record of records) {
+                this.put(record);
+            }
+        }, "load");
+        for (const id of [...(value.register), ...records.map((record) => record.id), ...tombstones.map((t) => t.id)]) {
+            this.issued.add(id);
+        }
+
+        for (const tombstone of tombstones) {
+            this.tombstones.set(tombstone.id, tombstone);
+            if (tombstone.record !== undefined) {
+                this.tombstoneBytes += recordBytes(tombstone.record);
+                this.highestOrder = Math.max(this.highestOrder, tombstone.record.order);
+            }
+        }
     }
 
     /**
@@ -341,9 +423,9 @@ export class SetsStore implements RecordView {
 
             if (after === undefined) {
                 this.bury(before as ElementSet);
-                changes.push({ id, change: "removed", fields: [], set: null, cause: "command" });
+                changes.push({ id, change: "removed", fields: [], set: null, cause: group.cause });
             } else if (before === undefined) {
-                changes.push({ id, change: "created", fields: [], set: after, cause: "command" });
+                changes.push({ id, change: "created", fields: [], set: after, cause: group.cause });
             } else {
                 const fields: ("name" | "definition" | "order")[] = [];
                 if (before.name !== after.name) {
@@ -358,7 +440,7 @@ export class SetsStore implements RecordView {
                     fields.push("order");
                 }
 
-                changes.push({ id, change: "updated", fields, set: after, cause: "command" });
+                changes.push({ id, change: "updated", fields, set: after, cause: group.cause });
             }
         }
 

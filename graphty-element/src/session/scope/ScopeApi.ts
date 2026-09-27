@@ -26,11 +26,12 @@
 
 import { type GraphSnapshot, INVALID_INDEX, maskCount, maskTest, maskToIndices, type U32 } from "@graphty/graph-format";
 
-import type { EdgeId, NodeId, Query, Scope, ScopeId } from "../../catalog/types";
+import type { EdgeId, NodeId, Path, Query, RunId, Scope, ScopeId } from "../../catalog/types";
 import { edgeCounterOf, edgeIdOf } from "../../data/edgeIdentity";
 import { GraphtyError } from "../../errors";
-import { canonicalize } from "../runs/runId";
+import type { AttributeRevisions, InputTick } from "../attributes";
 import type { ResolvedScope } from "../runs/types";
+import { SetsCache } from "../sets/cache";
 import {
     type ComponentLabels,
     digestOf,
@@ -156,6 +157,27 @@ export interface ScopeSources {
      * @returns The matching node ids; ones the graph no longer holds are ignored.
      */
     readonly match?: (where: Query) => Iterable<NodeId>;
+    /**
+     * The paths a predicate's compiled expression reads. With {@link revisions} and
+     * {@link executionOf}, what lets a `{ where }` answer be cached: absent, it is resolved on
+     * every read.
+     * @param where - The predicate.
+     * @returns The paths.
+     */
+    readonly pathsOf?: (where: Query) => readonly Path[];
+    /** The node attribute revisions a predicate's cached answer is keyed on. */
+    readonly revisions?: AttributeRevisions;
+    /**
+     * The execution token of a run's current result, which a predicate over its results is keyed
+     * on.
+     * @param run - The run.
+     * @returns The token, or undefined when the run has no result.
+     */
+    readonly executionOf?: (run: RunId) => string | undefined;
+    /** The session input tick; saving or removing a scope advances it. */
+    readonly tick?: InputTick;
+    /** The resolution cache. A private one when absent. */
+    readonly cache?: SetsCache;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -275,21 +297,6 @@ function notAScope(spec: unknown): GraphtyError {
 }
 
 /**
- * Whether a specification is a predicate, whose answer is never cached.
- *
- * A predicate can read a run's results, and those change without the snapshot or any other input
- * the resolver's frame tracks moving. A cached answer would go on naming the elements the
- * expression matched before the run finished.
- * @param spec - The specification.
- * @returns True for `{ where }`.
- */
-// ponytail: a saved set wrapping a predicate is still cached; key the frame on a results
-// revision if that ever matters.
-function isPredicate(spec: Scope): boolean {
-    return typeof spec === "object" && "where" in spec;
-}
-
-/**
  * Tell whether a value is one of the scope specifications.
  * @param value - The value to test.
  * @returns True when it is a scope.
@@ -328,25 +335,6 @@ function assertScope(spec: Scope): void {
 // ---------------------------------------------------------------------------------------------
 // The resolver
 // ---------------------------------------------------------------------------------------------
-
-/**
- * Everything one set of inputs resolves against: the snapshot, the resolution context over it,
- * and the answers already resolved from them.
- *
- * It is one object rather than several variables so that replacing it is atomic. A resolver
- * holding the new snapshot and a resolution of the previous one would address elements by
- * indices that have moved, and would do it silently.
- */
-interface ScopeFrame {
-    /** The snapshot every answer in this frame was resolved against. */
-    readonly graph: GraphSnapshot;
-    /** What every resolution in this frame reads. */
-    readonly context: ResolveContext;
-    /** The node half of each specification already resolved, by canonical specification. */
-    readonly halves: Map<string, NodeHalf>;
-    /** Each specification already resolved in full, by canonical specification. */
-    readonly resolved: Map<string, Resolution>;
-}
 
 /** A saved scope as the resolver holds it, before `bound` is worked out. */
 interface SavedRecord {
@@ -440,114 +428,64 @@ function resolvedScopeOf(resolution: Resolution, graph: GraphSnapshot, spec: Sco
 /**
  * Build the scope resolver one session uses.
  *
- * Each specification is resolved once per set of inputs -- the snapshot, the visibility and
- * selection masks, and the saved list -- because the reader that asks most often is the
- * staleness check on a finished run, and that is read by every progress event. Nothing is cached
- * across a change to any of those, and the digest is memoised on the resolution, so a staleness
- * read over unchanged inputs sums nothing.
+ * Each specification is resolved through the session's resolution cache
+ * (`session/sets/cache.ts`), keyed by its input signature: exactly the inputs it reads -- the
+ * snapshot, a mask version, a saved scope's record, the attribute revisions and run results a
+ * predicate reads. The reader that asks most often is the staleness check on a finished run, and
+ * the digest is memoised on the resolution, so a staleness read over unchanged inputs sums nothing.
  * @param sources - Where to read the graph and the capabilities a narrowing scope needs.
  * @returns The resolver.
  */
 export function createScopeApi(sources: ScopeSources): ScopeResolver {
-    const saved = new Map<ScopeId, SavedRecord>();
-    let savedRevision = 0;
-    let frame: ScopeFrame | null = null;
-    let signature = "";
+    // Replaced, never mutated, on every write: its identity is part of every signature's epoch.
+    let saved = new Map<ScopeId, SavedRecord>();
+    const cache = sources.cache ?? new SetsCache();
 
     /**
-     * What the caches are valid for: the snapshot, plus every producer that can move without the
-     * snapshot moving.
-     * @returns The signature.
+     * What a resolution reads now.
+     * @returns The context over the current snapshot.
      */
-    const inputSignature = (): string => {
-        const parts = [`saved:${savedRevision}`];
+    const context = (): ResolveContext => ({
+        snapshot: sources.snapshot(),
+        store: sources.store ?? null,
+        saved,
+        cache,
+        ...(sources.visibility === undefined ? {} : { visibility: sources.visibility }),
+        ...(sources.selection === undefined ? {} : { selection: sources.selection }),
+        ...(sources.components === undefined ? {} : { components: sources.components }),
+        ...(sources.match === undefined ? {} : { match: sources.match }),
+        ...(sources.pathsOf === undefined ? {} : { pathsOf: sources.pathsOf }),
+        ...(sources.revisions === undefined ? {} : { revisions: sources.revisions }),
+        ...(sources.executionOf === undefined ? {} : { executionOf: sources.executionOf }),
+        ...(sources.tick === undefined ? {} : { tick: sources.tick }),
+    });
 
-        if (sources.visibility !== undefined) {
-            parts.push(`visible:${sources.visibility.nodes().version}.${sources.visibility.edges().version}`);
-        }
-
-        if (sources.selection !== undefined) {
-            parts.push(`selected:${sources.selection.nodes().version}`);
-        }
-
-        return parts.join("|");
+    /**
+     * Replace the saved map after a write.
+     * @param next - The new map.
+     */
+    const commit = (next: Map<ScopeId, SavedRecord>): void => {
+        saved = next;
+        sources.tick?.advance();
     };
 
     /**
-     * The frame to resolve against, rebuilt when the snapshot or any producer behind it moved.
-     * @returns The current frame.
-     */
-    const current = (): ScopeFrame => {
-        const graph = sources.snapshot();
-        const nextSignature = inputSignature();
-
-        if (frame === null || frame.graph !== graph || nextSignature !== signature) {
-            signature = nextSignature;
-            frame = {
-                graph,
-                context: {
-                    snapshot: graph,
-                    store: sources.store ?? null,
-                    saved,
-                    ...(sources.visibility === undefined ? {} : { visibility: sources.visibility }),
-                    ...(sources.selection === undefined ? {} : { selection: sources.selection }),
-                    ...(sources.components === undefined ? {} : { components: sources.components }),
-                    ...(sources.match === undefined ? {} : { match: sources.match }),
-                },
-                halves: new Map<string, NodeHalf>(),
-                resolved: new Map<string, Resolution>(),
-            };
-        }
-
-        return frame;
-    };
-
-    /**
-     * The nodes one specification covers, and the edge constraint it came with.
+     * The nodes one specification covers, and the edge constraint it came with. Uncached: only an
+     * approximate count reads it, and it costs a node pass, not an edge pass.
      * @param spec - The specification.
      * @returns The node half of the resolution.
      */
-    const nodesOf = (spec: Scope): NodeHalf => {
-        // A literal node list pays a canonical key as long as the list, which is the price of a
-        // cache that cannot confuse two different lists for one another.
-        const key = canonicalize(spec);
-        const active = current();
-        const cached = active.halves.get(key);
-
-        if (cached !== undefined) {
-            return cached;
-        }
-
-        const computed = resolveNodeHalf(spec, active.context);
-
-        if (!isPredicate(spec)) {
-            active.halves.set(key, computed);
-        }
-
-        return computed;
-    };
+    const nodesOf = (spec: Scope): NodeHalf => resolveNodeHalf(spec, context());
 
     /**
-     * Everything one specification resolves to, once per set of inputs.
+     * Everything one specification resolves to, through the cache.
      * @param spec - The specification.
      * @returns The resolution, and the snapshot it was resolved against.
      */
     const membershipOf = (spec: Scope): { resolution: Resolution; graph: GraphSnapshot } => {
-        const key = canonicalize(spec);
-        const active = current();
-        const cached = active.resolved.get(key);
+        const active = context();
 
-        if (cached !== undefined) {
-            return { resolution: cached, graph: active.graph };
-        }
-
-        const computed = resolveScope(spec, active.context);
-
-        if (!isPredicate(spec)) {
-            active.resolved.set(key, computed);
-        }
-
-        return { resolution: computed, graph: active.graph };
+        return { resolution: resolveScope(spec, active), graph: active.snapshot };
     };
 
     /**
@@ -634,7 +572,7 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
             return sources.match !== undefined;
         }
 
-        const { graph } = current();
+        const graph = sources.snapshot();
 
         return spec.nodes.some((id) => graph.ids.indexOf(id) !== INVALID_INDEX);
     };
@@ -678,7 +616,7 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
                 });
             }
 
-            const { graph } = current();
+            const graph = sources.snapshot();
 
             // The whole graph is two numbers the snapshot already holds, and a session with
             // nothing hidden reaches the same two numbers through "visible".
@@ -741,8 +679,7 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
                 suffix += 1;
             }
 
-            saved.set(id, { id, name: trimmed, spec });
-            savedRevision += 1;
+            commit(new Map(saved).set(id, { id, name: trimmed, spec }));
 
             return id;
         },
@@ -761,7 +698,8 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
         },
 
         remove(id: ScopeId): void {
-            if (!saved.delete(id)) {
+            const next = new Map(saved);
+            if (!next.delete(id)) {
                 throw new GraphtyError({
                     code: "E_BAD_COMMAND",
                     message: `No saved scope is called "${id}", so there is nothing to remove.`,
@@ -771,7 +709,7 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
                 });
             }
 
-            savedRevision += 1;
+            commit(next);
         },
     };
 }

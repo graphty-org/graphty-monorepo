@@ -25,11 +25,14 @@ import {
 } from "@graphty/graph-format";
 
 import { EMPTY_SUM, hashEdgeMember, type LanePair, membershipDigestOf } from "../../catalog/sets/hash";
-import type { EdgeId, EdgeMember, NodeId, Query, Scope, ScopeId, SetDefinition } from "../../catalog/types";
+import type { EdgeId, EdgeMember, NodeId, Path, Query, RunId, Scope, ScopeId, SetDefinition, SetId } from "../../catalog/types";
 import { EDGE_ID_COLUMN, identityColumnsOf, pairsOrdered } from "../../data/edgeIdentity";
 import { GraphtyError } from "../../errors";
+import type { AttributeRevisions, InputTick } from "../attributes";
 import { canonicalize } from "../runs/runId";
 import type { ElementMask } from "../scope/ElementMask";
+import type { SetsCache } from "./cache";
+import { scopeSignature } from "./signature";
 
 /**
  * Invocation counts the complexity tests read (design/sets plan 1.4). Internal; never reset here.
@@ -108,8 +111,36 @@ export interface ResolveContext {
     readonly components?: () => ComponentLabels;
     /** The nodes a predicate matches. Absent refuses `{ where }`. */
     readonly match?: (where: Query) => Iterable<NodeId>;
-    /** The saved scopes `{ set }` names. Absent: no scope is saved. */
+    /**
+     * The saved scopes `{ set }` names. Absent: no scope is saved. Replaced, never mutated, on
+     * every write, so its identity says whether it moved.
+     */
     readonly saved?: ReadonlyMap<ScopeId, { readonly spec: Scope }>;
+    /** The kept sets, and the seeds their edge members bind through. */
+    readonly sets?: {
+        list(): readonly unknown[];
+        get(id: SetId): unknown;
+        seedsOf(id: SetId): EdgeSeeds | undefined;
+    };
+    // What an input signature reads (./signature). Without them a query is resolved, never cached.
+    /**
+     * The paths a query's compiled expression reads.
+     * @param where - The query.
+     * @returns The paths.
+     */
+    readonly pathsOf?: (where: Query) => readonly Path[];
+    /** The node attribute revisions. */
+    readonly revisions?: AttributeRevisions;
+    /**
+     * The token of a run's current result, or undefined when it has none.
+     * @param run - The run.
+     * @returns The token.
+     */
+    readonly executionOf?: (run: RunId) => string | undefined;
+    /** The session input tick, which scopes the signature memo. Absent: nothing is memoised. */
+    readonly tick?: InputTick;
+    /** The resolution cache. Absent: every resolution is computed. */
+    readonly cache?: SetsCache;
 }
 
 /** The node half of a resolution, before the root applies the reading. */
@@ -240,7 +271,8 @@ export function resolveNodeHalf(scope: Scope, context: ResolveContext, seen: Set
         }
 
         return {
-            nodes: packMask(visibility.nodes(), n),
+            // A copy: a resolution owns its bitmaps, so the cache can count and drop them.
+            nodes: packMask(visibility.nodes(), n).slice(),
             constraint: packMask(visibility.edges(), context.snapshot.edgeCount),
             all: false,
             missingNodes: 0,
@@ -252,7 +284,7 @@ export function resolveNodeHalf(scope: Scope, context: ResolveContext, seen: Set
             throw unsupported(scope, "a selection");
         }
 
-        return { nodes: packMask(context.selection.nodes(), n), constraint: null, all: false, missingNodes: 0 };
+        return { nodes: packMask(context.selection.nodes(), n).slice(), constraint: null, all: false, missingNodes: 0 };
     }
 
     if (scope === "largest-component") {
@@ -311,7 +343,7 @@ export function resolveNodeHalf(scope: Scope, context: ResolveContext, seen: Set
  * @param snapshot - The context snapshot.
  * @returns The edge bitmap.
  */
-function deriveEdges(half: NodeHalf, snapshot: GraphSnapshot): U32 {
+export function deriveEdges(half: NodeHalf, snapshot: GraphSnapshot): U32 {
     const count = snapshot.edgeCount;
     if (half.all) {
         return makeMask(count, true);
@@ -364,16 +396,29 @@ export function resolutionOf(half: NodeHalf, edges: U32, context: ResolveContext
 
 /**
  * What one `Scope` covers, synchronously. Its edges are the ones with both endpoints in its
- * nodes, narrowed by the visible edges for `"visible"` (the clipped reading).
+ * nodes, narrowed by the visible edges for `"visible"` (the clipped reading). Served from
+ * `context.cache` while the scope's input signature holds.
  * @param scope - The specification.
  * @param context - What the resolution reads.
  * @returns The resolution.
  * @throws A `GraphtyError` as {@link resolveNodeHalf} does.
  */
 export function resolveScope(scope: Scope, context: ResolveContext): Resolution {
-    const half = resolveNodeHalf(scope, context);
+    const { cache } = context;
+    const signature = cache === undefined ? null : scopeSignature(scope, context, cache.memo);
+    const key = signature === null ? "" : canonicalize(scope);
+    const cached = signature === null ? undefined : cache?.lookup(key, signature);
+    if (cached !== undefined) {
+        return cached;
+    }
 
-    return resolutionOf(half, deriveEdges(half, context.snapshot), context, 0);
+    const half = resolveNodeHalf(scope, context);
+    const resolution = resolutionOf(half, deriveEdges(half, context.snapshot), context, 0);
+    if (signature !== null) {
+        cache?.store(key, signature, resolution);
+    }
+
+    return resolution;
 }
 
 // ---------------------------------------------------------------------------------------------

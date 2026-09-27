@@ -75,6 +75,10 @@ class DataManagerDriver implements Driver {
         return this.data.getSnapshot();
     }
 
+    storeTag(): object {
+        return this.data;
+    }
+
     counterAt(row: number): number {
         return this.snapshot().edges.requireTyped(EDGE_ID_COLUMN, "u32").data[row];
     }

@@ -4107,12 +4107,11 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             acceleration: {
                 ...text,
                 onClick: () => {
-                    setSettingsSection("performance");
-                    setSettingsOpen(true);
+                    openFullPanelOverlay("settings", "performance");
                 },
             },
         };
-    }, [acceleration]);
+    }, [acceleration, openFullPanelOverlay]);
 
     const slots = useMemo<StatusBarSlotsModel>(() => {
         if (!dataLoaded) {
@@ -4206,11 +4205,10 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             severity: "error",
             actionLabel: OPEN_SETTINGS_ACTION,
             onDetails: () => {
-                setSettingsSection("performance");
-                setSettingsOpen(true);
+                openFullPanelOverlay("settings", "performance");
             },
         };
-    }, [acceleration, loadFailure, openPanelAt]);
+    }, [acceleration, loadFailure, openFullPanelOverlay, openPanelAt]);
 
     /* ---------------------------------------------------------------------- */
     /* The command palette's rows: the full-text twin of every icon control    */

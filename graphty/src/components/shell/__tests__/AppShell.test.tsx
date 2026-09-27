@@ -4631,6 +4631,52 @@ describe("AppShell", () => {
             expect(screen.getByTestId("settings-acceleration")).toBeInTheDocument();
         });
 
+        /* The chip and the device-lost toast both open Settings, so both go through the
+           shell's one opener: a shortcuts sheet or a pop-out left open would be drawn beside
+           or over Settings (issue #184). */
+        it("closes the shortcuts sheet and an open pop-out when the chip opens Settings", async () => {
+            const { container } = await renderMeasuredShell();
+
+            await reportAcceleration(container, { policy: "auto", state: "idle", backend: "webgpu" });
+            fireEvent.click(screen.getByRole("button", { name: "History" }));
+            expect(await screen.findByText(/entries|entry/)).toBeInTheDocument();
+            fireEvent.click(screen.getByRole("button", { name: "Help and keyboard shortcuts" }));
+            fireEvent.click(await screen.findByRole("menuitem", { name: /Keyboard shortcuts/ }));
+            expect(screen.getByTestId("keyboard-shortcuts")).toBeInTheDocument();
+
+            fireEvent.click(screen.getByText("GPU acceleration: on"));
+
+            expect(screen.getByTestId("settings-acceleration")).toBeInTheDocument();
+            expect(screen.queryByTestId("keyboard-shortcuts")).toBeNull();
+            await waitFor(() => {
+                expect(screen.queryByText(/entries|entry/)).toBeNull();
+            });
+        });
+
+        it("closes the shortcuts sheet and an open pop-out when the device-lost toast opens Settings", async () => {
+            const { container } = await renderMeasuredShell();
+
+            await reportAcceleration(container, {
+                policy: "auto",
+                state: "error",
+                code: "E_DEVICE_LOST",
+                reason: "the accelerator's device was lost: reset",
+            });
+            fireEvent.click(screen.getByRole("button", { name: "History" }));
+            expect(await screen.findByText(/entries|entry/)).toBeInTheDocument();
+            fireEvent.click(screen.getByRole("button", { name: "Help and keyboard shortcuts" }));
+            fireEvent.click(await screen.findByRole("menuitem", { name: /Keyboard shortcuts/ }));
+            expect(screen.getByTestId("keyboard-shortcuts")).toBeInTheDocument();
+
+            fireEvent.click(within(statusToast(container) as HTMLElement).getByText("Open Settings"));
+
+            expect(screen.getByTestId("settings-acceleration")).toBeInTheDocument();
+            expect(screen.queryByTestId("keyboard-shortcuts")).toBeNull();
+            await waitFor(() => {
+                expect(screen.queryByText(/entries|entry/)).toBeNull();
+            });
+        });
+
         it("reports a lost device through the toast and flips the chip, without dismissing itself", async () => {
             const { container } = await renderMeasuredShell();
 

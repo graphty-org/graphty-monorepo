@@ -425,29 +425,31 @@ export const ACCELERATION_MIN_NODES_MEASUREMENT = "RTX 4070 SUPER, headless Chro
  * rejected rather than counted.
  *
  * Medians of fifteen passes after one discarded pass of each arm, in ms, with the minimum of the
- * fifteen beside it because the box was shared: the one-minute load average was 55 at the start
- * and 74 at the end on 32 hardware threads, and a contended pass reads several times its own
- * cost. Node counts above 10,000 carry 100,000 edges rather than ten per node, because 100,000
- * edges is the most the element will hold (see below):
+ * fifteen beside it. Measured on a quiet box: the one-minute load average was 5.3 at the start and
+ * 3.2 at the end on 32 hardware threads, and a capability's fastest and slowest pass were usually
+ * within 10 percent of each other. An earlier sweep of the same code at load 55 to 74 read up to
+ * three times these absolute costs and landed on the same crossovers, because interleaving the
+ * arms put both under the same interference -- which is why a busy-box RATIO can be trusted where
+ * a busy-box millisecond cannot. Node counts above 10,000 carry 100,000 edges rather than ten per
+ * node, because 100,000 edges is the most the element will hold (see below):
  *
  * | nodes / edges     | BFS cpu | BFS gpu | sssp cpu | sssp gpu | pageRank cpu | pageRank gpu | components cpu | components gpu |
  * | ----------------- | ------: | ------: | -------: | -------: | -----------: | -----------: | -------------: | -------------: |
- * | 1,000 / 10,000    |     9.7 |    24.1 |     12.7 |     20.9 |          4.8 |         15.0 |            9.0 |           19.3 |
- * | 5,000 / 50,000    |     3.9 |    24.6 |     20.1 |     46.6 |         11.8 |         19.2 |            3.6 |           31.6 |
- * | 10,000 / 100,000  |    11.2 |    43.9 |     35.4 |     71.8 |         30.6 |         35.2 |            9.1 |           22.4 |
- * | 20,000 / 100,000  |    17.8 |    40.3 |     49.7 |     72.0 |         53.4 |         61.8 |           12.4 |           37.0 |
- * | 50,000 / 100,000  |    48.2 |    61.8 |     55.7 |     79.7 |        197.3 |        160.7 |           37.9 |           74.4 |
+ * | 1,000 / 10,000    |     4.7 |    11.3 |      5.5 |     11.6 |          5.3 |          7.8 |            4.4 |            9.5 |
+ * | 5,000 / 50,000    |     2.1 |    17.1 |      6.9 |     21.9 |          5.3 |         13.2 |            1.4 |           26.5 |
+ * | 10,000 / 100,000  |     3.9 |    18.0 |     14.6 |     32.8 |         11.3 |         19.4 |            2.6 |           23.9 |
+ * | 20,000 / 100,000  |     7.5 |    20.4 |     26.7 |     36.2 |         22.4 |         27.6 |            4.5 |           27.4 |
+ * | 50,000 / 100,000  |    22.5 |    41.7 |     27.7 |     40.4 |         73.6 |         59.3 |            9.5 |           35.3 |
  *
- * The same sizes by the minimum of the fifteen passes, which is the figure least disturbed by
- * what else the box was doing:
+ * The same sizes by the minimum of the fifteen passes:
  *
  * | nodes / edges     | BFS cpu | BFS gpu | sssp cpu | sssp gpu | pageRank cpu | pageRank gpu | components cpu | components gpu |
  * | ----------------- | ------: | ------: | -------: | -------: | -----------: | -----------: | -------------: | -------------: |
- * | 1,000 / 10,000    |     1.2 |    17.2 |     10.7 |     17.6 |          2.3 |         12.0 |            8.1 |           13.3 |
- * | 5,000 / 50,000    |     3.0 |    17.8 |     17.1 |     31.9 |         10.3 |         17.4 |            2.9 |           24.7 |
- * | 10,000 / 100,000  |     7.8 |    23.5 |     31.3 |     60.0 |         22.7 |         22.8 |            6.3 |           15.8 |
- * | 20,000 / 100,000  |    15.4 |    30.0 |     37.3 |     56.1 |         41.6 |         51.5 |            8.9 |           23.0 |
- * | 50,000 / 100,000  |    36.4 |    51.5 |     41.3 |     58.2 |        168.6 |        138.9 |           22.3 |           32.7 |
+ * | 1,000 / 10,000    |     4.4 |    10.9 |      5.1 |     11.1 |          5.0 |          7.5 |            4.3 |            5.5 |
+ * | 5,000 / 50,000    |     1.8 |    14.0 |      6.4 |     20.4 |          4.6 |         11.7 |            1.3 |           25.2 |
+ * | 10,000 / 100,000  |     3.4 |    15.9 |     13.0 |     27.1 |         11.2 |         16.3 |            2.5 |           22.9 |
+ * | 20,000 / 100,000  |     7.0 |    19.0 |     17.2 |     27.7 |         22.0 |         24.4 |            4.2 |           24.5 |
+ * | 50,000 / 100,000  |    19.6 |    31.4 |     24.8 |     35.6 |         70.5 |         55.8 |            8.7 |           32.2 |
  *
  * WHAT THE ELEMENT CAN HOLD IS THE BINDING CONSTRAINT, and it is why four of the five rows above
  * stop at 100,000 edges. `DEFAULT_LIMITS.renderCeiling` is 50,000 nodes and
@@ -457,21 +459,21 @@ export const ACCELERATION_MIN_NODES_MEASUREMENT = "RTX 4070 SUPER, headless Chro
  * edges per node the sweep above uses for its smaller sizes. Sizes beyond that cannot be
  * measured through the element, only through the package underneath it.
  *
- * ONLY PAGERANK CROSSES INSIDE WHAT THE ELEMENT CAN HOLD. It wins at 50,000 nodes by 1.23x on the
- * medians and 1.21x on the minima, ties at 10,000 on the minima (22.7 against 22.8) and loses at
- * every smaller size. Two further runs of the same sweep -- one interleaving the arms as above,
- * one running all the processor passes and then all the device passes, to prove the alternation
- * was not costing the device a fresh upload -- disagreed at 20,000 nodes (1.09x, 0.94x, 0.86x), so
- * 20,000 is below the floor and 50,000 is the floor. Breadth-first search, shortest paths and
- * connected components lose at EVERY size the element can hold: the device's best showing is
- * 0.78x for breadth-first search and 0.70x for shortest paths at 50,000 / 100,000, and connected
- * components never gets past 0.51x because the processor implementation finishes a 50,000-node
- * graph in 22 to 38 ms.
+ * ONLY PAGERANK CROSSES INSIDE WHAT THE ELEMENT CAN HOLD. It wins at 50,000 nodes by 1.24x on the
+ * medians and 1.26x on the minima, and loses at every smaller size, 20,000 included, where it
+ * reads 0.81x and 0.90x. That settles 20,000, which the busy-box sweep could not: three runs there
+ * disagreed at 1.09x, 0.94x and 0.86x, and the same sweep reported a tie at 10,000 on the minima
+ * that the quiet run shows was interference (0.69x). So 20,000 is below the floor and 50,000 is
+ * the floor. Breadth-first search, shortest paths and connected components lose at EVERY size the
+ * element can hold: the device's best showing is 0.54x for breadth-first search and 0.69x for
+ * shortest paths at 50,000 / 100,000, and connected components never gets past 0.46x on the
+ * medians because the processor implementation finishes a 50,000-node graph in 8.7 to 15.8 ms.
  *
  * The reason is a fixed cost, not a slow kernel. An accelerated call through the element never
- * came back in less than about 12 ms at any size, because each level of a traversal and each
- * convergence test of an iterative algorithm is a readback, and a readback in Chromium is about
- * 2 ms of round trip. The processor path pays no such floor: it answered in 1.2 ms at 1,000 nodes.
+ * came back in less than about 5.5 ms at any size, and took 7.5 to 11 ms at the smallest, because
+ * each level of a traversal and each convergence test of an iterative algorithm is a readback, and
+ * a readback in Chromium is about 2 ms of round trip. The processor path pays no such floor: it
+ * answered in 1.3 ms at 5,000 nodes.
  * Below the point where the processor's own work exceeds the device's round trips, the device
  * cannot win however fast its arithmetic is.
  *

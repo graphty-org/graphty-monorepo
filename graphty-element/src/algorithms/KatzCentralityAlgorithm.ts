@@ -109,6 +109,8 @@ const KATZ_FIELDS: readonly FieldDescriptor[] = nodeMetricFields({
 export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptions> {
     static namespace = "graphty";
     static type = "katz";
+    /** Computes over the run's scope: the node list and the graph both come from the input. */
+    static scopeInput = "subgraph" as const;
 
     static zodOptionsSchema: ZodOptionsSchema = katzCentralityOptionsSchema;
 

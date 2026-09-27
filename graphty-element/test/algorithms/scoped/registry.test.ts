@@ -40,7 +40,7 @@ const EXPECTED: Readonly<Record<string, "on" | "off">> = {
     "graphty:girvan-newman": "off",
     "graphty:hits": "on",
     "graphty:k-core": "off",
-    "graphty:katz": "off",
+    "graphty:katz": "on",
     "graphty:kruskal": "off",
     "graphty:label-propagation": "off",
     "graphty:leiden": "off",

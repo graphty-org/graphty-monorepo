@@ -11,7 +11,7 @@
 
 import { Graph } from "../../../src/core/graph.js";
 
-export interface Fixture {
+interface Fixture {
     readonly name: string;
     readonly graph: Graph;
 }

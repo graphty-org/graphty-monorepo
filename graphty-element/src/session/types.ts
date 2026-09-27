@@ -373,6 +373,13 @@ export interface SessionDataApi {
      */
     lastImport(): ImportReport | null;
     /**
+     * Where the graph was loaded from: the format, the name the reader knows the data by, the
+     * URL, and the file's size. It follows undo and redo like the graph does, so a top bar that
+     * names the dataset reads it again after either.
+     * @returns the source, or null when the graph was not loaded by an import, or was cleared
+     */
+    source(): DataSourceDescriptor | null;
+    /**
      * Every attribute the graph's records carry, with its type, how complete it is and a few
      * sample values. Walked once per snapshot and cached.
      * @returns the descriptors, node attributes first, each kind in first-seen order
@@ -437,8 +444,15 @@ export interface SessionDataApi {
     /**
      * Load a file, a URL or inline text through a registered data source, as one undoable step.
      * It waits its turn behind loads and layouts already asked for. What was loaded, and from
-     * where, is kept: `lastImport()` reports it, and undo and redo never read the source again.
-     * @param source - The data source's name and its options: inline `data`, a `url` or a `file`.
+     * where, is kept: `lastImport()` and `source()` report it, and undo and redo never read the
+     * source again.
+     *
+     * Without a `type`, the format is detected the way `loadFromUrl` and `loadFromFile` detect
+     * it: from the file name or the URL's extension, then from the first bytes, fetching the URL
+     * once when its name says nothing. A format nothing recognises rejects with
+     * `E_UNKNOWN_FORMAT`, naming the formats this element reads.
+     * @param source - The data source's name, or none to detect it, and its options: inline
+     *     `data`, a `url` or a `file`.
      * @param options - Whether to replace the graph (the default) or add to it.
      * @returns Settles once the last chunk is in the graph; rejects, recording nothing, when the
      *     load fails.
@@ -452,10 +466,30 @@ export interface SessionDataApi {
  * `data`, a `url` or a `file`, and what the source reads besides.
  */
 export interface DataSourceInput {
-    /** The data source's name. */
-    readonly type: string;
+    /** The data source's name; detected from the file name, the URL or the content when absent. */
+    readonly type?: string;
     /** Its options. */
     readonly config: Readonly<Record<string, unknown>>;
+    /**
+     * What the reader calls the data, kept with the graph for `data.source()`. The file's name,
+     * or the last part of the URL, when absent.
+     */
+    readonly name?: string;
+}
+
+/**
+ * Where a graph was loaded from, as the graph keeps it: never the inline text or the file itself,
+ * which the loaded rows already hold.
+ */
+export interface DataSourceDescriptor {
+    /** The data source that read it: the format named, or the one detected. */
+    readonly type?: string;
+    /** What the reader calls the data. */
+    readonly name?: string;
+    /** The file's size in bytes, when a file was read. */
+    readonly size?: number;
+    /** The source's options, without `data` and `file`: the `url`, and what the source reads besides. */
+    readonly config?: Readonly<Record<string, unknown>>;
 }
 
 /** How an import treats the graph already there. */

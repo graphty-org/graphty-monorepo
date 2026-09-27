@@ -333,7 +333,7 @@ export class D3GraphEngine extends LayoutEngine {
      * @param n - The node to set position for
      * @param newPos - The new position coordinates
      */
-    setNodePosition(n: Node, newPos: Position): void {
+    protected setNodePosition(n: Node, newPos: Position): void {
         const d3node = this._getMappedNode(n);
         d3node.x = newPos.x;
         d3node.y = newPos.y;
@@ -373,7 +373,7 @@ export class D3GraphEngine extends LayoutEngine {
      * Pin a node to its current position
      * @param n - The node to pin
      */
-    pin(n: Node): void {
+    protected pin(n: Node): void {
         const d3node = this._getMappedNode(n);
 
         d3node.fx = d3node.x;
@@ -388,7 +388,7 @@ export class D3GraphEngine extends LayoutEngine {
      * Unpin a node to allow it to move freely
      * @param n - The node to unpin
      */
-    unpin(n: Node): void {
+    protected unpin(n: Node): void {
         const d3node = this._getMappedNode(n);
 
         d3node.fx = undefined;

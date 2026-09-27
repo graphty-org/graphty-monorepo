@@ -63,6 +63,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 // can be reached from a browser: see the file header.
 import { flooredRelError } from "../../../webgpu-graph-algorithms/test/helpers/matchers.js";
 import { FruchtermanReingoldOracle } from "../../../webgpu-graph-algorithms/test/oracle/fruchterman-reingold.js";
+import { WRITABLE_LANE } from "../../src/data/lane";
 import type { Graph } from "../../src/Graph";
 import { measureEnvelope, SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
 import { cleanupE2EGraph, createE2EGraph } from "../helpers/e2e-graph-setup";
@@ -269,7 +270,7 @@ async function springOverArrivingData(dim: 2 | 3, preSteps = 0): Promise<Rig> {
 function elementArrangement(rig: Rig): F32 {
     rig.engine.publishPositions();
 
-    return rig.graph.getDataManager().positions.view(rig.nodeCount).slice();
+    return rig.graph.getDataManager()[WRITABLE_LANE].view(rig.nodeCount).slice();
 }
 
 /**

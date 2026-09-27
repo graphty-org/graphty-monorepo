@@ -272,7 +272,7 @@ function isTruthy(value: unknown): boolean {
  * @param right - The other.
  * @returns Whether JMESPath considers them equal.
  */
-function deepEquals(left: unknown, right: unknown): boolean {
+export function deepEquals(left: unknown, right: unknown): boolean {
     if (left === right) {
         return true;
     }

@@ -168,10 +168,10 @@ describe("strict state: the resident snapshot", () => {
     });
 
     it("finds a column of the resident snapshot written in place, naming the column", async () => {
-        const { session } = makeSession();
+        const { session, store } = makeSession();
         await session.data.addNodes([{ id: "n1" }, { id: "n2" }]);
         await session.data.addEdges([{ src: "n1", dst: "n2" }]);
-        const column = session.snapshot().edges.get("graphty.edgeId") as unknown as { data: Uint32Array };
+        const column = store.getSnapshot().edges.get("graphty.edgeId") as unknown as { data: Uint32Array };
         const was = column.data[0];
 
         column.data[0] = was + 7;
@@ -182,6 +182,22 @@ describe("strict state: the resident snapshot", () => {
         }
 
         verifyRetainedArrays();
+    });
+
+    it("finds the resident topology written in place at the next dispatch, however old it is", async () => {
+        const { session, store } = makeSession();
+        await session.data.addNodes([{ id: "n1" }, { id: "n2" }]);
+        await session.data.addEdges([{ src: "n1", dst: "n2" }]);
+        const { colIdx } = store.getSnapshot();
+        await session.positions.set([{ id: "n1", x: 1, y: 2, z: 3 }]);
+        const was = colIdx[0];
+
+        colIdx[0] = was + 1;
+        try {
+            await rejectsNaming(session.data.addNodes([{ id: "n3" }]), "colIdx");
+        } finally {
+            colIdx[0] = was;
+        }
     });
 
     it("leaves the lane-backed position column out, because a layout writes it every frame", async () => {
@@ -264,6 +280,73 @@ describe("strict state: the narrowed public surface", () => {
         assert.strictEqual(at.x, 1, "the lane is untouched");
         assert.isFalse(harness.store.positions.isPinned(0), "and so are the pins");
         await session.data.addNodes([{ id: "n2" }]);
+    });
+
+    it("hands a consumer copies of the topology and every column, so a write there changes no state", async () => {
+        const { session, store } = makeSession();
+        await session.data.addNodes([{ id: "n1" }, { id: "n2" }, { id: "n3" }]);
+        await session.data.addEdges([
+            { src: "n1", dst: "n2" },
+            { src: "n1", dst: "n3" },
+        ]);
+        /**
+         * Every byte of a snapshot's topology and edge columns, as plain numbers.
+         * @param snapshot - The snapshot.
+         * @returns The bytes.
+         */
+        const bytesOf = (snapshot: ReturnType<typeof store.getSnapshot>): number[][] => [
+            [...snapshot.colIdx],
+            [...(snapshot.weights ?? [])],
+            ...[...snapshot.edges].flatMap((column) =>
+                "data" in column && ArrayBuffer.isView(column.data)
+                    ? [[...new Uint8Array(column.data.buffer, column.data.byteOffset, column.data.byteLength)]]
+                    : [],
+            ),
+        ];
+        const before = bytesOf(store.getSnapshot());
+        const handed = session.snapshot();
+
+        handed.colIdx[0] = 2;
+        if (handed.weights !== null) {
+            handed.weights[0] = 7;
+        }
+        for (const column of handed.edges) {
+            if ("data" in column && ArrayBuffer.isView(column.data)) {
+                new Uint8Array(column.data.buffer, column.data.byteOffset, column.data.byteLength)[0] ^= 0xff;
+            }
+        }
+
+        assert.notDeepEqual(bytesOf(handed), before, "the consumer's copy took the writes");
+        assert.deepEqual(bytesOf(store.getSnapshot()), before, "the resident graph is untouched");
+        assert.deepEqual(bytesOf(session.snapshot()), before, "and so is the next consumer's copy");
+        await session.data.addNodes([{ id: "n4" }]);
+    });
+
+    it("hands out sealed sets for the pins and for a resolved scope", async () => {
+        const { session } = makeSession();
+        await session.data.addNodes([{ id: "n1" }, { id: "n2" }, { id: "n3" }]);
+        await session.positions.pin(["n1"]);
+        const saved = session.scope.save("A", { nodes: ["n1"] });
+        const sets: [string, ReadonlySet<unknown>][] = [["positions.pinned", session.positions.pinned]];
+        const resolved = await session.scope.resolve({ set: saved });
+        sets.push(["scope nodes", resolved.nodes], ["scope edges", resolved.edges]);
+
+        for (const [label, set] of sets) {
+            const writable = set as Set<unknown>;
+            for (const write of [() => writable.add("n3"), () => writable.delete("n1"), () => writable.clear()]) {
+                let caught: unknown;
+                try {
+                    write();
+                } catch (error) {
+                    caught = error;
+                }
+                assert.strictEqual((caught as { code?: string } | undefined)?.code, "E_READONLY", label);
+            }
+        }
+
+        assert.deepEqual([...session.positions.pinned], ["n1"]);
+        const again = await session.scope.resolve({ set: saved });
+        assert.deepEqual([...again.nodes], ["n1"]);
     });
 
     it("ignores a store or record source handed to the published factory by a caller the types did not check", () => {

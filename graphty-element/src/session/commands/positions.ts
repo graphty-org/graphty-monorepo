@@ -68,7 +68,9 @@ const positionsSet: UndoableDefinition<PositionsSetCommand> = {
     undo: {
         kind: "undoable",
         label: (command) => `Moved ${nodes(command.entries.length)}`,
-        coalesce: () => "positions",
+        // Placing the same nodes again is one gesture (a nudge, a typed coordinate retyped);
+        // placing other nodes is another.
+        coalesce: (command) => `positions:${JSON.stringify(command.entries.map((entry) => entry.id).sort())}`,
     },
     execute: (command, ctx) => {
         arrangementOf(ctx).set(command.entries, ctx.draft);

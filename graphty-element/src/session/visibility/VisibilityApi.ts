@@ -80,6 +80,7 @@ import {
 } from "../scope/index";
 // The explicit `/index` matters: `src/session/scope.ts` still exists beside the directory and
 // wins a bare `../scope`. It goes when the resolver behind it is retired.
+import { sealedSet } from "../sealed";
 import type { HistoryCause } from "../types";
 import {
     assertEvaluable,
@@ -408,39 +409,8 @@ function sameTag(a: MaskTag, b: MaskTag): boolean {
     return a.token === b.token && a.filter === b.filter && a.window === b.window && sameInputs(a.inputs, b.inputs);
 }
 
-/**
- * A set that cannot be written to.
- *
- * `Object.freeze` alone does NOT stop `Set.prototype.add`: a frozen set that silently accepts an
- * `add()` would hand a consumer a mutation the visibility model never saw and would go on
- * answering as though the element were hidden. So the three mutators are replaced on the instance
- * before it is frozen, and a caller that reaches for one is told rather than ignored.
- * @param values - The ids to put in it.
- * @returns The sealed set.
- */
-function sealedSet<TId>(values: readonly TId[]): ReadonlySet<TId> {
-    const set = new Set<TId>(values);
-
-    for (const verb of ["add", "delete", "clear"] as const) {
-        Object.defineProperty(set, verb, {
-            configurable: false,
-            enumerable: false,
-            writable: false,
-            value: (): never => {
-                throw new GraphtyError({
-                    code: "E_READONLY",
-                    message:
-                        `The visible ids are a materialisation of the visibility mask, so "${verb}" ` +
-                        "on them would change nothing. Call visibility.set() to change what is visible.",
-                    source: "data",
-                    details: { verb },
-                });
-            },
-        });
-    }
-
-    return Object.freeze(set);
-}
+/** What a caller writing into a visible-id set is told to do instead. */
+const VISIBLE_HINT = "The visible ids are a materialisation of the visibility mask; call visibility.set() to change what is visible.";
 
 /**
  * What to call an edit, on its run.
@@ -953,7 +923,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
             if (cachedNodeSet === null || cachedNodeIds !== ids) {
                 cachedNodeIds = ids;
-                cachedNodeSet = sealedSet(ids);
+                cachedNodeSet = sealedSet(ids, VISIBLE_HINT);
             }
 
             return cachedNodeSet;
@@ -965,7 +935,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
             if (cachedEdgeSet === null || cachedEdgeIds !== ids) {
                 cachedEdgeIds = ids;
-                cachedEdgeSet = sealedSet(ids);
+                cachedEdgeSet = sealedSet(ids, VISIBLE_HINT);
             }
 
             return cachedEdgeSet;

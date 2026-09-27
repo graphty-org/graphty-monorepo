@@ -1889,11 +1889,11 @@ code; the app's tests pass; lint, knip, build green.
   there is a document the element refuses (a GEXF file with no graph element): malformed JSON is
   not a failure in the element, whose JSON source recovers it as an empty graph with a parse-error
   summary, so a malformed paste is recorded as a load of an empty graph.
-- The wrapper's `loadFromUrl`, `loadFromFile`, `loadData` and `clearData` became `sourceFromUrl` /
-  `sourceFromFile`, which only resolve the data source (format sniffing is still the app's, filed
-  in phase 26); the unused `dataSource` / `dataSourceConfig` / `replaceExisting` props went.
-- The shell's own dataset name follows undo, redo and restore: it is remembered per step id for the
-  steps that load or close a dataset.
+- The wrapper's `loadFromUrl`, `loadFromFile`, `loadData` and `clearData` went: the shell hands
+  `session.data.import` a file or a URL with no format, and the element detects it. The unused
+  `dataSource` / `dataSourceConfig` / `replaceExisting` props went too.
+- The shell's dataset name follows undo, redo and restore by reading `session.data.source()`,
+  which the element keeps in the `graph` slice beside the rows.
 - The app's vitest prebundle of graphty-element is cached in `graphty/node_modules/.vite/vitest`
   and is not invalidated when the element is rebuilt locally; delete it after an element change
   or the app's tests run the old element.
@@ -2007,10 +2007,11 @@ major version (design sections 10.3, 15.3).
 - `graphty-element/CLAUDE.md`: a short section on the dispatcher rule (a new mutating door
   dispatches a command; a new op declares undoable or exempt with a reason).
 - File an element issue for the app's own file-format sniffing (`graphty/src/components/
-  Graphty.tsx:108-186`), labelled per the repository's issue labels. Filed as #539: the gap is
-  that `session.data.import` requires a format name, which master's fix for #47 (the app calling
+  Graphty.tsx:108-186`), labelled per the repository's issue labels. Filed as #539: the gap was
+  that `session.data.import` required a format name, which master's fix for #47 (the app calling
   the element's `loadFromUrl` / `loadFromFile`) does not cover, because those are not the undoable
-  path.
+  path. `session.data.import` now detects the format when none is named, and the app's detectors
+  are deleted.
 - The owner's approval of design section 15 (asked for when phase 1 started). A name or a break
   the owner changed is applied here if it has not been already; the pull request is not merged
   without that approval.

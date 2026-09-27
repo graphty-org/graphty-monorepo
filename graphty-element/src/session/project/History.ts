@@ -35,6 +35,12 @@ export const STEP_OVERHEAD_BYTES = 512;
 const DEFAULT_LIMIT_BYTES = 256 * 1024 * 1024;
 const DEFAULT_LIMIT_STEPS = 1000;
 const DEFAULT_COALESCE_MS = 1000;
+/**
+ * The longest a chain of merged edits may run, from its first edit to its last. The window slides
+ * with every merge, so without this a steady stream of edits each under a second apart would
+ * merge without end and one undo would take back a minute of deliberate work.
+ */
+const COALESCE_SPAN_MS = 5000;
 /** Eviction runs down to this share of both limits, so its work is amortised over many records. */
 const EVICT_TO = 0.9;
 
@@ -113,10 +119,12 @@ interface HistoryStepView {
 /** A step as the history keeps it. */
 interface Step<P> {
     readonly id: string;
-    readonly label: string;
+    label: string;
     readonly key: string | null;
     patch: P;
     at: string;
+    /** `now()` of the record that started the step, for the span a merge chain may cover. */
+    readonly started: number;
     /** `now()` of the last record or merge, for the coalescing window. */
     lastMerge: number;
     ops: readonly string[];
@@ -265,8 +273,11 @@ export class History<P> {
             this.mergeable &&
             top?.key === key &&
             this.cursor === this.entries.length &&
-            time - top.lastMerge < this.coalesceMs
+            time - top.lastMerge < this.coalesceMs &&
+            time - top.started < COALESCE_SPAN_MS
         ) {
+            // The step now ends where the newest edit left it, so it is named for that edit.
+            top.label = input.label;
             this.mergeInto(top, input, time, at);
             return top.id;
         }
@@ -282,6 +293,7 @@ export class History<P> {
             key,
             patch: input.patch,
             at,
+            started: time,
             lastMerge: time,
             ops: [...(input.ops ?? [])],
             slices: [...(input.slices ?? [])],

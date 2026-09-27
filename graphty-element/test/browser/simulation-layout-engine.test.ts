@@ -23,6 +23,7 @@ import { afterEach, assert, describe, it } from "vitest";
 import { type GraphtyError, isGraphtyError } from "../../src/errors";
 import type { GraphErrorEvent } from "../../src/events";
 import { Graph } from "../../src/Graph";
+import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
 import { createFakeAccelerator, type FakeAccelerator, type FakeSimulation } from "../../src/testing/fakeAccelerator";
 import { cleanupE2EGraph, createE2EGraph } from "../helpers/e2e-graph-setup";
@@ -865,7 +866,7 @@ describe("the simulation layout bridge", () => {
         // simulation's own units -- is invisible from here, because a held row is not published
         // over, and it is pinned two cases down against the array the simulation runs in.
         rig.engine.beginDrag(held);
-        rig.engine.setNodePosition(held, { x: 41, y: -17, z: 5 });
+        layoutEngineInternals.setNodePosition(rig.engine, held, { x: 41, y: -17, z: 5 });
 
         const landed = rig.at(held.index);
         assert.closeTo(landed.x, 41, 1e-3, "the node is where the pointer put it");
@@ -918,7 +919,7 @@ describe("the simulation layout bridge", () => {
         const before = spread(rig, others);
         assert.closeTo(before, 100, 0.5, "the 39 rows the layout still owns fill the configured radius");
 
-        rig.engine.setNodePosition(dragged, { x: 400, y: 0, z: 0 });
+        layoutEngineInternals.setNodePosition(rig.engine, dragged, { x: 400, y: 0, z: 0 });
 
         // The defect this pins took them from 99.993 to 25.626: the refit was fitting every row
         // it published inside a radius set by the one row it does not publish, so the graph
@@ -930,7 +931,7 @@ describe("the simulation layout bridge", () => {
         // divided by whatever scale the last publish left behind, so a pointer moving back in to
         // x 150 after x 400 reached the simulation further out still and took the other 39 to
         // 17.227.
-        rig.engine.setNodePosition(dragged, { x: 150, y: 0, z: 0 });
+        layoutEngineInternals.setNodePosition(rig.engine, dragged, { x: 150, y: 0, z: 0 });
         assert.closeTo(spread(rig, others), before, 1e-4, "and nor did dragging it back in");
     });
 
@@ -975,7 +976,7 @@ describe("the simulation layout bridge", () => {
         assert.isAbove(Math.abs(ratio - 1), 0.05, "and scaled against each other, not only offset");
 
         rig.engine.beginDrag(moved);
-        rig.engine.setNodePosition(moved, scene);
+        layoutEngineInternals.setNodePosition(rig.engine, moved, scene);
 
         // The same scene point the element drew `target` at, so it must reach the simulation as
         // the same coordinate the element published `target` from.

@@ -31,7 +31,7 @@ import { ElementPositions } from "../../src/data/positions";
 import type { Edge } from "../../src/Edge";
 import { CircularLayout } from "../../src/layout/CircularLayoutEngine";
 import { D3GraphEngine } from "../../src/layout/D3GraphLayoutEngine";
-import { SimpleLayoutEngine } from "../../src/layout/LayoutEngine";
+import { layoutEngineInternals, SimpleLayoutEngine } from "../../src/layout/LayoutEngine";
 import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
 import type { Node } from "../../src/Node";
 
@@ -290,7 +290,7 @@ describe("layout engines and the element-owned position array", () => {
             d3.addNodes([a]);
             d3.step();
 
-            d3.setNodePosition(a, { x: 11, y: 22, z: 33 });
+            layoutEngineInternals.setNodePosition(d3, a, { x: 11, y: 22, z: 33 });
 
             const out = { x: 0, y: 0, z: 0 };
             assert.isTrue(d3.readNodePosition(a, out));

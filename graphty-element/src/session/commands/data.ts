@@ -94,6 +94,10 @@ interface DataApplyCommand {
 export interface ImportSource {
     readonly type?: string;
     readonly config?: Readonly<Record<string, unknown>>;
+    /** What the reader calls the data; see `DataSourceInput.name`. */
+    readonly name?: string;
+    /** The file's size in bytes, when a file was read. */
+    readonly size?: number;
 }
 
 /** `data.import`. */
@@ -173,6 +177,8 @@ export function describeSource(source: ImportSource): ImportSource {
 
     return Object.freeze({
         ...(source.type === undefined ? {} : { type: source.type }),
+        ...(source.name === undefined ? {} : { name: source.name }),
+        ...(source.size === undefined ? {} : { size: source.size }),
         ...(config === undefined ? {} : { config }),
     });
 }

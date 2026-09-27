@@ -4,20 +4,23 @@ import type { EdgeId } from "../catalog/types";
 import type { AdHocData } from "../config";
 import { edgeCounterOf } from "../data/edgeIdentity";
 import { GraphStore } from "../data/GraphStore";
+import { readonlyPositions, WRITABLE_LANE } from "../data/lane";
 import type { ElementPositions } from "../data/positions";
 import type { ImportReport } from "../data/report";
-import { Edge, EdgeMap, placeEdgeRow, type ReadonlyEdgeMap } from "../Edge";
+import { adoptEdgeRecord, Edge, EdgeMap, placeEdgeRow, type ReadonlyEdgeMap } from "../Edge";
 import { GraphtyError } from "../errors/GraphtyError";
 import type { LayoutEngine } from "../layout/LayoutEngine";
 import { MeshCache } from "../meshes/MeshCache";
-import { Node, NodeIdType, placeNodeRow } from "../Node";
+import { adoptNodeRecord, Node, NodeIdType, placeNodeRow } from "../Node";
 import { legacyScopeOf } from "../session/commands/algo";
 import { type DataMutation, replaceEdgesCommand } from "../session/commands/data";
+import type { LaneStore } from "../session/GraphSession";
 import type { Dispatcher, UndoableContext } from "../session/project/Dispatcher";
 import { GraphOps, type GraphWriter } from "../session/project/graphOps";
 import { type AddEdgesOptions, Ingest, type IngestHost, type StoredEdge } from "../session/project/ingest";
 import type { GraphSlice } from "../session/project/state";
-import type { DirectionProvenance, HistoryCause } from "../session/types";
+import { readonlyMapView } from "../session/sealed";
+import type { DirectionProvenance, HistoryCause, ReadonlyElementPositions } from "../session/types";
 import type { Styles } from "../Styles";
 import type { EventManager } from "./EventManager";
 import type { GraphContext } from "./GraphContext";
@@ -50,6 +53,32 @@ interface PendingEdge {
     edgeIndex: number;
     /** The counter the store stamped into this edge's id column; becomes `Edge.id`. */
     readonly edgeId: number;
+}
+
+/**
+ * A data manager as its own session reads it: every store member, with the writable lane under
+ * `positions`, which the session's dispatcher writes when it places, pins or restores nodes. No
+ * entry point exports it; the manager's own `positions` is read-only.
+ * @param manager - The data manager.
+ * @returns The store the session is handed.
+ */
+export function laneStoreOf(manager: DataManager): LaneStore {
+    return {
+        getSnapshot: () => manager.getSnapshot(),
+        undirected: (snapshot) => manager.undirected(snapshot),
+        get positions() {
+            return manager[WRITABLE_LANE];
+        },
+        get seededNodeCount() {
+            return manager.seededNodeCount;
+        },
+        get directionSettledBy() {
+            return manager.directionSettledBy;
+        },
+        get lastImport() {
+            return manager.lastImport;
+        },
+    };
 }
 
 /**
@@ -134,8 +163,11 @@ export class DataManager implements Manager {
      * @returns The nodes.
      */
     get nodes(): ReadonlyMap<string | number, Node> {
-        return this.nodeMap;
+        return this.nodeView;
     }
+
+    /** {@link DataManager.nodes}: the node map with no writer. */
+    private readonly nodeView = readonlyMapView(this.nodeMap);
 
     /**
      * Every edge the graph holds, keyed by `Edge.id`.
@@ -146,8 +178,11 @@ export class DataManager implements Manager {
      * @returns The edges.
      */
     get edges(): ReadonlyMap<string, Edge> {
-        return this.edgeMap;
+        return this.edgeView;
     }
+
+    /** {@link DataManager.edges}: the edge map with no writer. */
+    private readonly edgeView = readonlyMapView(this.edgeMap);
 
     /** Goes up on every edge added or removed, so a cache over the edge set knows it is stale. */
     edgeVersion = 0;
@@ -158,8 +193,19 @@ export class DataManager implements Manager {
      * @returns The edges by endpoint pair.
      */
     get edgeCache(): ReadonlyEdgeMap {
-        return this.edgePairs;
+        return this.edgePairView;
     }
+
+    /** {@link DataManager.edgeCache}: the pair index with no writer, handing out copies of its lists. */
+    private readonly edgePairView: ReadonlyEdgeMap = ((pairs: EdgeMap) =>
+        Object.freeze({
+            has: (srcId: NodeIdType, dstId: NodeIdType) => pairs.has(srcId, dstId),
+            get: (srcId: NodeIdType, dstId: NodeIdType) => pairs.get(srcId, dstId).slice(),
+            first: (srcId: NodeIdType, dstId: NodeIdType) => pairs.first(srcId, dstId),
+            get size() {
+                return pairs.size;
+            },
+        }))(this.edgePairs);
 
     /**
      * Render objects by their store edge index, so a freeze report's `edgeRemap` -- and a removal,
@@ -294,9 +340,24 @@ export class DataManager implements Manager {
      * in one place and nothing is lost when the graph is frozen again. A row that no layout has
      * placed reads as NaN, never as the origin: zero is a real coordinate and "not placed yet" is
      * not.
+     *
+     * Read-only here: a write would move nodes with no step. The element's own engines reach the
+     * writable lane through `writableLane`; a consumer places nodes through
+     * `session.positions.set`.
+     * @returns the coordinates, read-only
+     */
+    get positions(): ReadonlyElementPositions {
+        return this.readonlyLane;
+    }
+
+    /** The coordinates, read-only; reads whichever lane the store holds now. */
+    private readonly readonlyLane = readonlyPositions(() => this.store.positions);
+
+    /**
+     * The writable lane, for the element's own engines and nodes. See `writableLane`.
      * @returns the live position array
      */
-    get positions(): ElementPositions {
+    get [WRITABLE_LANE](): ElementPositions {
         return this.store.positions;
     }
 
@@ -444,7 +505,7 @@ export class DataManager implements Manager {
                     this.buildNode(id, record as Record<string, unknown>, this.store.builder.indexOf(id));
                     addedNodes++;
                 } else if (record !== undefined && node !== undefined) {
-                    node.adoptRecord(record as AdHocData<string | number>);
+                    adoptNodeRecord(node, record as AdHocData<string | number>);
                 }
             }
         }
@@ -472,7 +533,7 @@ export class DataManager implements Manager {
                     removedEdges.push(id);
                 }
             } else if (edge !== undefined) {
-                edge.adoptRecord(record as AdHocData);
+                adoptEdgeRecord(edge, record as AdHocData);
             } else if (pending !== undefined) {
                 pending.record = record as Record<string, unknown>;
             } else {
@@ -631,7 +692,7 @@ export class DataManager implements Manager {
             edgeAt: (edgeIndex) => this.existingAt(edgeIndex),
             replaceEdgeRecord: (known, record) => {
                 if (known.edge) {
-                    known.edge.adoptRecord(record as AdHocData);
+                    adoptEdgeRecord(known.edge, record as AdHocData);
                 } else if (known.pending) {
                     known.pending.record = record;
                 }

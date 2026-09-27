@@ -1,6 +1,7 @@
 import { INVALID_INDEX } from "@graphty/graph-format";
 import { assert, describe, it } from "vitest";
 
+import { WRITABLE_LANE } from "../../src/data/lane";
 import type { Edge } from "../../src/Edge";
 import type { GraphEvent } from "../../src/events";
 import { DataManager, dataManagerInternals } from "../../src/managers/DataManager";
@@ -158,7 +159,7 @@ describe("DataManager owns the graph store", () => {
         dm.addEdges([{ src: "a", dst: "b" }]);
         const snapshot = dm.getSnapshot();
         const column = snapshot.nodes.requireTyped("position", "f32");
-        dm.positions.write(0, 7, 8, 9);
+        dm[WRITABLE_LANE].write(0, 7, 8, 9);
         assert.strictEqual(column.data[0], 7);
         assert.strictEqual(column.data[1], 8);
         assert.strictEqual(column.data[2], 9);
@@ -282,9 +283,9 @@ describe("DataManager walks a compacting freeze", () => {
         const { dm } = makeManager();
         dm.addEdges([{ src: "a", dst: "b" }, { src: "b", dst: "c" }]);
         dm.getSnapshot();
-        dm.positions.write(0, 10, 0, 0);
-        dm.positions.write(1, 20, 0, 0);
-        dm.positions.write(2, 30, 0, 0);
+        dm[WRITABLE_LANE].write(0, 10, 0, 0);
+        dm[WRITABLE_LANE].write(1, 20, 0, 0);
+        dm[WRITABLE_LANE].write(2, 30, 0, 0);
 
         const a = nodeStub("a", 0);
         dataManagerInternals.adoptNode(dm, a);

@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 import { publishLayoutDescriptor } from "../catalog/layoutRegistry";
 import type { AuthoredLayoutDescriptor } from "../catalog/types";
 import type { OptionsSchema } from "../config";
+import { writableLane } from "../data/lane";
 import { ElementPositions, isStorableCoordinate } from "../data/positions";
 import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
@@ -629,8 +630,8 @@ export abstract class LayoutEngine {
         if (!this.positionArrayAttached) {
             // A node built by hand for a unit test, or one belonging to a host that keeps no
             // position array, answers nothing here and the engine keeps its own.
-            const owned: unknown = n.parentGraph?.getDataManager?.()?.positions;
-            if (owned instanceof ElementPositions) {
+            const owned = writableLane(n.parentGraph?.getDataManager?.());
+            if (owned !== undefined) {
                 this.positionArray = owned;
             }
         }
@@ -919,7 +920,7 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
      * @param n - the node that moved
      * @param p - where it moved to
      */
-    setNodePosition(n: Node, p: Position): void {
+    protected setNodePosition(n: Node, p: Position): void {
         const z = p.z ?? 0;
         this.writeNodePosition(n, p.x, p.y, z, "placement");
         this.positions[n.id] = [p.x / this.scalingFactor, p.y / this.scalingFactor, z / this.scalingFactor];
@@ -1009,7 +1010,7 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
      * `writeNodePosition` refuses to move a pinned row. That is what makes a
      * pin mean something under all fourteen of these engines, none of which could hold one.
      */
-    pin(): void {
+    protected pin(): void {
         // See the doc comment: the element's position array holds the pin, not this engine.
     }
 
@@ -1018,7 +1019,7 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
      *
      * The element's position array holds the pin; see {@link SimpleLayoutEngine.pin}.
      */
-    unpin(): void {
+    protected unpin(): void {
         // See the doc comment: the element's position array holds the pin, not this engine.
     }
 

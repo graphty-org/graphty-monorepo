@@ -54,7 +54,7 @@ import {
 import { GraphOps, nodeKey, restoresNodes, TouchedIds } from "./graphOps";
 import { History, type HistoryChangeReason, type OpenArrangement } from "./History";
 import { createProjectState, type ProjectState } from "./state";
-import { checkInlineKey, checkSoleHolder, strictStateEnabled, verifyFreshArrays } from "./strict";
+import { checkInlineKey, checkSoleHolder, strictStateEnabled, verifyRetainedArrays } from "./strict";
 
 /** The part of a command the dispatcher reads: its op. */
 interface CommandLike {
@@ -883,6 +883,17 @@ export class Dispatcher {
         }
 
         return settle(() => this.submit(command, null, options));
+    }
+
+    /**
+     * A dispatch that goes where one made now would -- to the transaction or running command a
+     * routed verb is inside, or to this dispatcher -- for a verb that dispatches after an await,
+     * when the routing, which lasts for the synchronous part of the call only, has ended.
+     * @returns The dispatch.
+     */
+    capturedDispatch(): <C extends CommandLike>(command: Dispatchable<C>) => Promise<unknown> {
+        const via = this.route;
+        return via === null ? (command) => this.dispatch(command) : (command) => via(command, {});
     }
 
     /**
@@ -1924,12 +1935,12 @@ export class Dispatcher {
 
     /**
      * Strict: nothing wrote state around the dispatcher since the last check -- the builder
-     * behind the `graph` slice, and the typed arrays retained since then (design section 12.1).
+     * behind the `graph` slice, and every typed array state still keeps (design section 12.1).
      */
     private checkStrict(): void {
         if (this.strict) {
             this.graph.checkStore();
-            verifyFreshArrays();
+            verifyRetainedArrays();
         }
     }
 

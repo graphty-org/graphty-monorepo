@@ -43,6 +43,24 @@ export interface VisibilityService {
     check(filter: Filter | null, window: TimeWindow | null): void;
 }
 
+/**
+ * The coalesce key of a filter edit: what a slider or a chip list drags over, so a drag of one
+ * filter's bounds merges, and a different filter, a different attribute or a clear does not.
+ * @param filter - The filter the edit leaves in force.
+ * @returns The key, or null for an edit that is its own step.
+ */
+function filterKey(filter: VisibilitySetCommand["filter"]): string | null {
+    switch (filter?.kind) {
+        case "range":
+        case "categories":
+            return `filter:${filter.kind}:${filter.attribute}`;
+        case "degree":
+            return `filter:degree:${filter.direction ?? ""}`;
+        default:
+            return null;
+    }
+}
+
 /** Shared by the three ops. */
 const COMMON = { moves: false, draws: true, lane: { kind: "immediate" } } as const;
 
@@ -53,8 +71,8 @@ const visibilitySet: UndoableDefinition<VisibilitySetCommand> = {
     undo: {
         kind: "undoable",
         label: (command) => (command.filter === null ? "Cleared the filter" : `Filtered (${command.filter.kind})`),
-        // A slider drag is one step: filter edits recorded close together merge.
-        coalesce: () => "filter",
+        // A slider drag is one step: edits of the same filter recorded close together merge.
+        coalesce: (command) => filterKey(command.filter),
     },
     execute: (command, ctx) => {
         (ctx.services.visibility?.check ?? assertVisibility)(command.filter, null);

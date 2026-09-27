@@ -114,6 +114,7 @@ import {
     type RunSurroundings,
     type RunTicket,
 } from "../runs";
+import { sealedSet } from "../sealed";
 import type { HistoryCause } from "../types";
 import { isChannel } from "./channels";
 import type { PreparedBinding } from "./encoding";
@@ -739,9 +740,9 @@ function emptyScope(): ResolvedScope {
     return Object.freeze({
         digest: "",
         edgeCount: 0,
-        edges: new Set<never>(),
+        edges: sealedSet<never>([], "A resolved scope is an answer, not a place to write."),
         nodeCount: 0,
-        nodes: new Set<never>(),
+        nodes: sealedSet<never>([], "A resolved scope is an answer, not a place to write."),
         resolvedAt: new Date().toISOString(),
         spec: WHOLE_GRAPH,
     });

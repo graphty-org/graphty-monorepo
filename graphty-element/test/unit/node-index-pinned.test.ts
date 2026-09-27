@@ -25,6 +25,7 @@ import { INVALID_INDEX } from "@graphty/graph-format";
 import { afterEach, assert, describe, it } from "vitest";
 
 import type { AdHocData, NodeStyleConfig } from "../../src/config";
+import { WRITABLE_LANE } from "../../src/data/lane";
 import { SimpleLayoutEngine } from "../../src/layout/LayoutEngine";
 import { DataManager, dataManagerInternals } from "../../src/managers/DataManager";
 import { EventManager } from "../../src/managers/EventManager";
@@ -171,7 +172,7 @@ function addNode(harness: Harness, id: string, pinOnDrag = true): Node {
     // separately below, and not the state a pin test should be run in.
     placeNodeRow(node, harness.rows);
     harness.rows += 1;
-    harness.dataManager.positions.grow(harness.rows);
+    harness.dataManager[WRITABLE_LANE].grow(harness.rows);
     dataManagerInternals.adoptNode(harness.dataManager, node);
     harness.dataManager.nodeCache.set(id, node);
     harness.layoutEngine.addNode(node);

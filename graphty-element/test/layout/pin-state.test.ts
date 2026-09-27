@@ -31,6 +31,7 @@ import { INVALID_INDEX } from "@graphty/graph-format";
 import { afterEach, assert, describe, it } from "vitest";
 
 import type { AdHocData, NodeStyleConfig } from "../../src/config";
+import { WRITABLE_LANE } from "../../src/data/lane";
 import type { Edge } from "../../src/Edge";
 import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import { DataManager, dataManagerInternals } from "../../src/managers/DataManager";
@@ -97,7 +98,7 @@ function createHarness(): Harness {
         add(id: string): Node {
             const node = new Node(context, id, NODE_PAINT, { id } as unknown as AdHocData, { pinOnDrag: true });
             placeNodeRow(node, nextIndex++);
-            dataManager.positions.grow(nextIndex);
+            dataManager[WRITABLE_LANE].grow(nextIndex);
             dataManagerInternals.adoptNode(dataManager, node);
             dataManager.nodeCache.set(id, node);
             return node;
@@ -344,9 +345,9 @@ describe("a pin survives the freeze that renumbers every node", () => {
         });
         const [a, , c] = stubs;
 
-        dm.positions.grow(3);
-        dm.positions.write(c.index, 11, 22, 33);
-        assert.isTrue(dm.positions.setPinned(c.index, true), "c is pinned at row 2");
+        dm[WRITABLE_LANE].grow(3);
+        dm[WRITABLE_LANE].write(c.index, 11, 22, 33);
+        assert.isTrue(dm[WRITABLE_LANE].setPinned(c.index, true), "c is pinned at row 2");
 
         // Removing a re-numbers everything above it, which is the whole point of the case.
         dm.removeNodeAndIncidentEdges(a.id);

@@ -71,7 +71,7 @@ export const PHASES = [
 type PlanPhase = (typeof PHASES)[number];
 
 /** The phase this branch has reached. Each phase's commit raises it. */
-export const PLAN_PHASE: PlanPhase = "25b";
+export const PLAN_PHASE: PlanPhase = "26";
 
 /** How the doors tests call a door. */
 export type DoorCall =
@@ -874,7 +874,6 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             id: READ,
             index: READ,
             data: READ,
-            adoptRecord: RENDER,
             mesh: RENDER,
             label: RENDER,
             tooltip: RENDER,
@@ -916,7 +915,6 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             dstNode: RENDER,
             srcNode: RENDER,
             data: READ,
-            adoptRecord: RENDER,
             mesh: RENDER,
             arrowMesh: RENDER,
             arrowTailMesh: RENDER,
@@ -1238,6 +1236,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             nodes: READ,
             edges: READ,
             lastImport: READ,
+            source: READ,
             attributes: READ,
             statistics: READ,
             fingerprint: READ,

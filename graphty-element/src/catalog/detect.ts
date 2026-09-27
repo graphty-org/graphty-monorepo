@@ -79,8 +79,10 @@ function isXmlDocument(sample: string): boolean {
 }
 
 const BUILT_IN_DETECTORS: readonly { id: FormatId; detect: (sample: string) => boolean }[] = [
-    { id: "graphml", detect: (sample) => sample.includes('xmlns="http://graphml.graphdrawing.org') },
-    { id: "gexf", detect: (sample) => sample.includes('xmlns="http://gexf.net') },
+    // The root element names the format, whatever namespace it declares: GEXF 1.2 declares
+    // "http://www.gexf.net/1.2draft" and 1.3 "http://gexf.net/1.3".
+    { id: "graphml", detect: (sample) => isXmlDocument(sample) && /<graphml[\s>]/.test(sample) },
+    { id: "gexf", detect: (sample) => isXmlDocument(sample) && /<gexf[\s>]/.test(sample) },
     { id: "json", detect: (sample) => sample.startsWith("{") || sample.startsWith("[") },
     { id: "gml", detect: (sample) => !isXmlDocument(sample) && /graph\s*\[/i.test(sample) },
     { id: "pajek", detect: (sample) => /^\*vertices/i.test(sample) },

@@ -321,3 +321,53 @@ describe("the baseline window", () => {
         session.dispose();
     });
 });
+
+describe("data.import without a named format", () => {
+    it("detects the format from inline text, and keeps the name it was given with the graph", async () => {
+        const session = await fixtureSession();
+        await session.data.import({ name: "cats.json", config: { data: DOCUMENT } });
+
+        assert.deepEqual(ids(session), ["a", "b"]);
+        assert.deepEqual(session.data.source(), { type: "json", name: "cats.json", config: {} });
+        session.dispose();
+    });
+
+    it("detects the format from a file's name, and names the source after the file", async () => {
+        const session = await fixtureSession();
+        const file = new File([DOCUMENT], "graph.json");
+        await session.data.import({ config: { file } });
+
+        assert.deepEqual(session.data.source(), { type: "json", name: "graph.json", size: file.size, config: {} });
+        session.dispose();
+    });
+
+    it("rejects data nothing recognises with E_UNKNOWN_FORMAT, recording nothing", async () => {
+        const session = await fixtureSession();
+        let code: unknown;
+        try {
+            await session.data.import({ config: { data: "no format reads this" } });
+        } catch (error) {
+            ({ code } = error as { code?: unknown });
+        }
+
+        assert.strictEqual(code, "E_UNKNOWN_FORMAT");
+        assert.lengthOf(session.history.steps, 0);
+        session.dispose();
+    });
+
+    it("moves the source with undo and redo, and clearing the graph takes it away", async () => {
+        const session = await fixtureSession();
+        await session.data.import({ name: "first", config: { data: DOCUMENT } });
+        await session.data.import({ type: "json", name: "second", config: { data: DOCUMENT } });
+        await session.data.clear();
+        assert.isNull(session.data.source());
+
+        await session.undo();
+        assert.strictEqual(session.data.source()?.name, "second");
+        await session.undo();
+        assert.strictEqual(session.data.source()?.name, "first");
+        await session.redo();
+        assert.strictEqual(session.data.source()?.name, "second");
+        session.dispose();
+    });
+});

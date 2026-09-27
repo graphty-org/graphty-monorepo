@@ -24,6 +24,7 @@ import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 import type { EdgeId, NodeId } from "../../catalog/types";
 import { edgeCounterOf, edgeIdOf } from "../../data/edgeIdentity";
 import type { GraphStore, KeptGraph, RemovedRows } from "../../data/GraphStore";
+import { deepEquals } from "../styles/predicate";
 import type { DirectionProvenance } from "../types";
 import { type Draft, frozenRecord, type OpLogEntry } from "./draft";
 import { createCounter, emptyGraphSlice, type GraphRecord, type GraphSlice } from "./state";
@@ -988,6 +989,12 @@ class Writer implements GraphWriter {
         const prior = map.get(key);
         if (prior === undefined) {
             return false;
+        }
+
+        // Writing what the record already holds changes nothing, so it records nothing: a second
+        // identical edit is not a step of its own.
+        if (Object.entries(values).every(([name, value]) => Object.hasOwn(prior, name) && deepEquals(prior[name], value))) {
+            return true;
         }
 
         this.begin();

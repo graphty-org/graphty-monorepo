@@ -9,7 +9,7 @@ import { createElementSession, dispatcherOf } from "../../../src/session/GraphSe
 import { stateDigest } from "../../../src/session/project/digest";
 import type { GraphSession } from "../../../src/session/types";
 import { fakeLayout, heldScheduler } from "./fakes";
-import { blankHarness, blankSession, fixtureSession } from "./fixture-session";
+import { blankHarness, blankSession, fixtureSession, paintBaseline } from "./fixture-session";
 import { FIXTURES } from "./fixtures";
 import { pictureDigest, roundTrip } from "./round-trip-harness";
 
@@ -17,7 +17,12 @@ describe("round trip per command", () => {
     for (const fixture of FIXTURES.filter((each) => each.tags.includes("session"))) {
         it(fixture.name, async () => {
             const session = await fixtureSession();
-            await roundTrip(session, fixture);
+            // An undo that puts rows back mid-graph leaves them to be rebuilt at the next read,
+            // and a session with no renderer does not read the graph to repaint until then; a data
+            // command's picture is read after a repaint of the settled graph. Every other op is
+            // read as its own pass painted it.
+            const settle = fixture.command.op.startsWith("data.") ? () => paintBaseline(session) : undefined;
+            await roundTrip(session, fixture, undefined, settle);
             session.dispose();
         });
     }

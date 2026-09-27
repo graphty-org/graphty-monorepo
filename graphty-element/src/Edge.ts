@@ -92,6 +92,20 @@ export function placeEdgeRow(edge: Edge, row: number): void {
     writeEdgeRow(edge, row);
 }
 
+/** Writes an edge's record; see {@link adoptEdgeRecord}. */
+let writeRecord: (edge: Edge, record: AdHocData) => void;
+
+/**
+ * Hand an edge the record the graph now holds for it. Only the data manager calls it, from the
+ * render half of the graph's derivation, when a command, an undo or a redo changed the record;
+ * no entry point exports it, so `edge.data` is always the graph's record.
+ * @param edge - The edge.
+ * @param record - The record.
+ */
+export function adoptEdgeRecord(edge: Edge, record: AdHocData): void {
+    writeRecord(edge, record);
+}
+
 /**
  * Represents a directed edge between two nodes in the graph visualization.
  * Handles rendering of edge lines, arrow heads/tails, and labels with support for various styles.
@@ -135,6 +149,9 @@ export class Edge {
     static {
         writeEdgeRow = (edge, row) => {
             edge.index = row;
+        };
+        writeRecord = (edge, record) => {
+            edge.#record = frozenRecord(record);
         };
     }
     dstNode: Node;
@@ -828,15 +845,6 @@ export class Edge {
         if (rebuilt) {
             this.invalidatePositionCache();
         }
-    }
-
-    /**
-     * Take the record the graph now holds for this element. Called by the render half of the
-     * graph's derivation when a command, an undo or a redo changed it; nothing else calls it.
-     * @param record - The record.
-     */
-    adoptRecord(record: AdHocData): void {
-        this.#record = frozenRecord(record);
     }
 
     /**

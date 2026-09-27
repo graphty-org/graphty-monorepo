@@ -252,11 +252,17 @@ describe("the arrangement under undo and redo", () => {
         }
 
         assert.isAtMost(captures, frames, "one capture per frame the layout moved the lane");
-        assert.lengthOf(session.history.steps, 1, "and the calls coalesce into one step");
+        // Placing a different node is a different gesture, so each call is a step of its own.
+        const steps = session.history.steps.length;
+        assert.strictEqual(steps, frames * 3, "one step per placement");
         const end = lane(session);
-        await session.undo();
+        for (let step = 0; step < steps; step++) {
+            await session.undo();
+        }
         assert.deepEqual(lane(session), start, "undone, where the script started");
-        await session.redo();
+        for (let step = 0; step < steps; step++) {
+            await session.redo();
+        }
         assert.deepEqual(lane(session), end, "redone, where it finished");
         session.dispose();
     });

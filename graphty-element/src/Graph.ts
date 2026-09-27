@@ -89,6 +89,7 @@ import {
     type GraphContextConfig,
     InputManager,
     type InputManagerConfig,
+    laneStoreOf,
     LayoutManager,
     LifecycleManager,
     type Manager,
@@ -114,7 +115,7 @@ import type { DataMutation } from "./session/commands/data";
 import type { BatchCommand } from "./session/commands/index";
 import { DEFAULT_LAYOUT } from "./session/commands/layout";
 import { assertViewName } from "./session/commands/view";
-import { dispatcherOf, sessionRunsOf } from "./session/GraphSession";
+import { dispatcherOf, handGraphPaintToRenderer, sessionRunsOf } from "./session/GraphSession";
 import type { SessionCommand } from "./session/planning";
 import { cancelReasonOf, type DispatchFunction, queueScheduler } from "./session/project/Dispatcher";
 import { deepFreeze } from "./session/project/draft";
@@ -228,8 +229,14 @@ export class Graph implements GraphContext {
     /**
      * The element's configuration document, read-only: its `config` is the frozen merged view.
      * Change a setting through `getSession().config.set`, which is an undoable step.
+     * @returns The configuration document.
      */
-    readonly styles: Styles;
+    get styles(): Styles {
+        return this.#styles;
+    }
+
+    /** {@link Graph.styles}; a getter so that assigning it throws rather than replacing it. */
+    readonly #styles: Styles;
     // babylon
     element: Element;
     canvas: HTMLCanvasElement;
@@ -358,7 +365,7 @@ export class Graph implements GraphContext {
         // The element's configuration document: id paths, view mode, background, layout and its
         // options, the run-on-load algorithms and the behaviour settings. It carries no style
         // layers -- those are `session.styles`.
-        this.styles = new Styles(() => this.configDocument());
+        this.#styles = new Styles(() => this.configDocument());
 
         this.stylePainter = new StylePainter();
 
@@ -427,7 +434,7 @@ export class Graph implements GraphContext {
         this.session = createElementSession(
             {
                 acceleration: this.acceleration,
-                store: this.dataManager,
+                store: laneStoreOf(this.dataManager),
                 runs: {
                     // The element's own queue, so a run takes its turn among the loads, the layouts
                     // and the style passes rather than interleaving with them.
@@ -474,6 +481,7 @@ export class Graph implements GraphContext {
         // rollback. Only a forward add starts the layout and frames the camera; the paint is
         // brought up to date either way, since a layer can select on any value that moved.
         const { lane } = dispatcherOf(this.session);
+        handGraphPaintToRenderer(this.session);
         lane.register("graph", async (_rendered, target, dirty) => {
             const { cause } = lane;
             this.dataManager.reconcile(target.graph, dirty, cause);

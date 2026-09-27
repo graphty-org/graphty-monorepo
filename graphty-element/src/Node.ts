@@ -14,6 +14,7 @@ import _ from "lodash";
 
 import type { Rgba } from "./catalog/types";
 import { AdHocData, DEFAULT_SELECTION_STYLE, type GraphSelectionStyleConfig, NodeStyleConfig } from "./config";
+import { writableLane } from "./data/lane";
 import type { ElementPositions } from "./data/positions";
 import type { Graph } from "./Graph";
 import { GraphtyLogger } from "./logging/GraphtyLogger.js";
@@ -85,6 +86,20 @@ export function placeNodeRow(node: Node, row: number): void {
     writeNodeRow(node, row);
 }
 
+/** Writes an node's record; see {@link adoptNodeRecord}. */
+let writeRecord: (node: Node, record: AdHocData<string | number>) => void;
+
+/**
+ * Hand an node the record the graph now holds for it. Only the data manager calls it, from the
+ * render half of the graph's derivation, when a command, an undo or a redo changed the record;
+ * no entry point exports it, so `node.data` is always the graph's record.
+ * @param node - The node.
+ * @param record - The record.
+ */
+export function adoptNodeRecord(node: Node, record: AdHocData<string | number>): void {
+    writeRecord(node, record);
+}
+
 /**
  * Represents a node in the graph visualization with its mesh, label, and associated data.
  * Manages node rendering, styling, drag behavior, and interactions with the layout engine.
@@ -99,6 +114,9 @@ export class Node {
     static {
         writeNodeRow = (node, row) => {
             node.index = row;
+        };
+        writeRecord = (node, record) => {
+            node.#record = frozenRecord(record);
         };
     }
 
@@ -679,15 +697,6 @@ export class Node {
     }
 
     /**
-     * Take the record the graph now holds for this element. Called by the render half of the
-     * graph's derivation when a command, an undo or a redo changed it; nothing else calls it.
-     * @param record - The record.
-     */
-    adoptRecord(record: AdHocData<string | number>): void {
-        this.#record = frozenRecord(record);
-    }
-
-    /**
      * Tears down every Babylon resource this node owns.
      *
      * THE DEFECT THIS CLOSES: no Node.dispose existed at all. `DataManager.clear()` emptied its
@@ -1176,7 +1185,7 @@ export class Node {
      * @returns the array, or undefined for a node built outside a graph
      */
     private get positionsLane(): ElementPositions | undefined {
-        return this.context.getDataManager?.()?.positions;
+        return writableLane(this.context.getDataManager?.());
     }
 
     /**

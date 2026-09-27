@@ -72,8 +72,8 @@ interface Retained {
     readonly sum: number;
 }
 
-/** Every array retained, and those retained since the last dispatch checked them. */
-const retained = { all: new Set<Retained>(), fresh: [] as Retained[], seen: new WeakSet<ArrayBufferView>() };
+/** Every array retained. */
+const retained = { all: new Set<Retained>(), seen: new WeakSet<ArrayBufferView>() };
 
 /**
  * A checksum of an array's bytes (FNV-1a), or -1 for one whose buffer was detached.
@@ -109,7 +109,6 @@ export function retainArray(array: ArrayBufferView, what: string): void {
     retained.seen.add(array);
     const entry = { array: new WeakRef(array), what, sum: checksum(array) };
     retained.all.add(entry);
-    retained.fresh.push(entry);
 }
 
 /**
@@ -131,18 +130,11 @@ function verify(entry: Retained): boolean {
     return true;
 }
 
-/** Strict: check the arrays retained since the last check, as each dispatch does. */
-export function verifyFreshArrays(): void {
-    const { fresh } = retained;
-    retained.fresh = [];
-    for (const entry of fresh) {
-        verify(entry);
-    }
-}
-
-/** Strict: check every retained array still alive, as the test setup does after each test. */
+/**
+ * Strict: check every retained array still alive, as each dispatch does and the test setup does
+ * after each test.
+ */
 export function verifyRetainedArrays(): void {
-    retained.fresh = [];
     for (const entry of retained.all) {
         if (!verify(entry)) {
             retained.all.delete(entry);

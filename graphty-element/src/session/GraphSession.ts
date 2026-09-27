@@ -26,6 +26,7 @@ import { DataConfig } from "../config/DataConfig";
 import { defaultEdgeStyle } from "../config/EdgeStyle";
 import { defaultNodeStyle } from "../config/NodeStyle";
 import { GraphStore } from "../data/GraphStore";
+import { readonlyPositions } from "../data/lane";
 import type { ElementPositions } from "../data/positions";
 import type { ImportReport } from "../data/report";
 import { GraphtyError, isGraphtyError } from "../errors";
@@ -34,7 +35,7 @@ import { DEFINITIONS } from "./commands";
 import { readProjectConfig } from "./commands/config";
 import { DEFAULT_LAYOUT } from "./commands/layout";
 import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
-import { headlessDataService, readonlyPositions, SessionData, sliceRecords } from "./data";
+import { headlessDataService, SessionData, sliceRecords } from "./data";
 import { recommendLayout } from "./layout";
 import {
     type AlgorithmRunCommand,
@@ -77,6 +78,7 @@ import {
     type ScopeApi,
     type ScopeResolver,
 } from "./scope";
+import { sealedSet } from "./sealed";
 import { createSelectionApi, type SelectionOwner, type SelectionTextMode } from "./selection";
 import {
     createAutoApplyPolicy,
@@ -129,6 +131,8 @@ import { createVisibilityApi, type FilterValueSource, type SessionVisibilityApi 
 export interface LaneStore extends Omit<SessionGraphStore, "positions"> {
     /** The lane itself. */
     readonly positions: ElementPositions;
+    /** Whether structural changes wait for the next read of the graph; see `GraphStore.deferring`. */
+    readonly deferring?: boolean;
 }
 
 /**
@@ -792,6 +796,21 @@ export function sessionRunsOf(session: GraphSession): SessionRunsApi {
     return runs;
 }
 
+/** Each headless session's `graph` repaint hook, by dispatcher, to unregister. */
+const HEADLESS_GRAPH_PAINT = new WeakMap<Dispatcher, () => void>();
+
+/**
+ * Hand a session's repaint after a data change to the renderer drawing it, which repaints once
+ * it has reconciled its own objects. Only the element calls it, before registering its own
+ * `graph` hook; without it a session repaints by itself.
+ * @param session - A session this module built.
+ */
+export function handGraphPaintToRenderer(session: GraphSession): void {
+    const dispatcher = dispatcherOf(session);
+    HEADLESS_GRAPH_PAINT.get(dispatcher)?.();
+    HEADLESS_GRAPH_PAINT.delete(dispatcher);
+}
+
 /** Each session's dispatcher, for the element's own tests; see {@link dispatcherOf}. */
 const DISPATCHERS = new WeakMap<GraphSession, Dispatcher>();
 
@@ -830,6 +849,17 @@ export function dispatcherOf(session: GraphSession): Dispatcher {
 }
 
 /**
+ * The pinned ids as a consumer reads them: a sealed copy, because the slice itself is project
+ * state that only the dispatcher writes.
+ * @param pins - The pins slice.
+ * @returns The copy.
+ */
+function pinnedOf(pins: ReadonlySet<NodeId>): ReadonlySet<NodeId> {
+    // ponytail: copies per read (O(pins)); cache per pins revision if a caller reads it per frame.
+    return sealedSet(pins, "Call session.positions.pin() or unpin() to change what is pinned.");
+}
+
+/**
  * The coordinates, read-only, with the verbs that place and pin nodes as steps beside them.
  * @param store - The store whose lane it reads.
  * @param dispatcher - The dispatcher the verbs dispatch through.
@@ -837,7 +867,7 @@ export function dispatcherOf(session: GraphSession): Dispatcher {
  */
 function positionsOf(store: SessionGraphStore, dispatcher: Dispatcher): SessionPositions {
     return Object.defineProperties(readonlyPositions(() => store.positions), {
-        pinned: { get: () => dispatcher.state.pins, enumerable: true },
+        pinned: { get: () => pinnedOf(dispatcher.state.pins), enumerable: true },
         set: {
             value: async (entries: readonly PositionEntry[]) => {
                 await dispatcher.dispatch({ op: "positions.set", entries });
@@ -1673,7 +1703,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     );
     const data = new SessionData(store.store, records, readData, {
         dispatch: (mutation) => dispatcher.dispatch({ op: "data.apply", mutation }),
-        import: (command) => dispatcher.dispatch(command),
+        importer: () => dispatcher.capturedDispatch(),
         slice,
     });
     // A session that holds a store of its own kind writes it through its own ingest; the element
@@ -1879,6 +1909,29 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             await painter.repaint({ reason: "update", edits, stack: target.styles, fromIndex: 0 }, RUNS_PASS);
         }
     });
+
+    // The `graph` hook of a session with no renderer: a layer may select on any value a data
+    // command wrote, and a node a command added has no paint until a pass reaches it, so every
+    // layer is repainted, forward and on undo and redo alike. A renderer that reconciles its own
+    // objects and repaints from there takes this over; see `handGraphPaintToRenderer`.
+    HEADLESS_GRAPH_PAINT.set(
+        dispatcher,
+        dispatcher.lane.register("graph", async (_rendered, target) => {
+            // Undone rows wait to be rebuilt until something reads the graph, so a run of undos
+            // rebuilds it once; painting now would read it. The picture catches up at the next
+            // pass over a settled graph.
+            // ponytail: no pass is owed for it; repaint on the store's next rebuild if a headless
+            // reader needs the picture current between an unawaited undo and its next edit.
+            if (target.styles.length === 0 || store.store.deferring === true) {
+                return;
+            }
+
+            painter.invalidate();
+            // ponytail: repaints every layer on every data change; name the readers if it shows.
+            const edits = target.styles.map((entry) => ({ previous: entry, next: entry }));
+            await painter.repaint({ reason: "update", edits, stack: target.styles, fromIndex: 0 }, RUNS_PASS);
+        }),
+    );
 
     const planning = planningContext(
         runsOptions,

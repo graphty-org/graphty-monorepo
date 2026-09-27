@@ -53,6 +53,32 @@ fileInput.addEventListener("change", async (e) => {
 });
 ```
 
+## Loading as One Undoable Step
+
+`session.data.import` loads a file, a URL or inline text as one step that undo takes back whole.
+Name the format with `type`, or leave it out and the element detects it the same way
+`loadFromUrl` and `loadFromFile` do: from the file name or the URL's extension first, then from
+the first bytes, fetching a URL once when its name says nothing. Data no format recognises
+rejects with `E_UNKNOWN_FORMAT`, and the error lists the formats the element reads.
+
+```typescript
+const { session } = element;
+await session.data.import({ config: { file } }); // detected from the file name
+await session.data.import({ name: "Flights", config: { url: "/api/graph" } }); // from the content
+await session.data.import({ type: "csv", config: { data: text } }); // named
+```
+
+The element keeps where the graph came from, and undo and redo move it with the graph:
+
+```typescript
+session.data.source(); // { type: "json", name: "Flights", config: { url: "/api/graph" } }
+```
+
+`name` is what the reader knows the data by: the file's name or the last part of the URL unless
+you give one. A file read also records its `size` in bytes. The inline text and the file itself
+are never kept; the loaded rows already hold them. After `session.data.clear()`, `source()`
+answers `null`.
+
 ## Supported Formats
 
 | Format  | Extension  | Description                           |

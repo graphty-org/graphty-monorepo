@@ -10,6 +10,7 @@ import { resolveOptionValues } from "../catalog/options";
 import type { AuthoredLayoutDescriptor } from "../catalog/types";
 import type { GraphLayoutBehavior } from "../config/GraphBehavior";
 import { type OptionsSchema, toZodSchema } from "../config/OptionsSchema";
+import { WRITABLE_LANE } from "../data/lane";
 import type { Edge } from "../Edge";
 import { GraphtyError, isGraphtyError } from "../errors";
 import type { GraphSnapshotReplacedEvent } from "../events";
@@ -508,7 +509,7 @@ export class LayoutManager implements Manager {
         }
 
         try {
-            engine.reload(event.next, this.dataManager.positions.view(event.next.nodeCount));
+            engine.reload(event.next, this.dataManager[WRITABLE_LANE].view(event.next.nodeCount));
             if (!this.restoring()) {
                 this.running = true;
             }

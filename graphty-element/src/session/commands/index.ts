@@ -30,18 +30,27 @@ export interface BatchCommand {
 }
 
 /**
+ * What to call a batch nobody named.
+ * @param count - How many commands it holds.
+ * @returns The label.
+ */
+function batchLabel(count: number): string {
+    return count === 1 ? "1 change" : `${String(count)} changes`;
+}
+
+/**
  * `batch`: its members run as one transaction, so they are one step and roll back together. The
  * dispatcher runs it through `members`; `execute` is never reached.
  */
 const batch: UndoableDefinition<BatchCommand> = {
     op: "batch",
-    undo: { kind: "undoable", label: (command) => command.label ?? `${String(command.steps.length)} changes` },
+    undo: { kind: "undoable", label: (command) => command.label ?? batchLabel(command.steps.length) },
     moves: false,
     keys: () => [],
     lane: { kind: "immediate" },
     // Its members' own arguments, kept as their definitions keep them.
     byReference: ["records", "config", "nodes", "edges"],
-    members: (command) => ({ label: command.label ?? `${String(command.steps.length)} changes`, steps: command.steps }),
+    members: (command) => ({ label: command.label ?? batchLabel(command.steps.length), steps: command.steps }),
     execute: () => {
         throw new GraphtyError({
             code: "E_INTERNAL",

@@ -61,7 +61,7 @@ const EDGE_ID_COLUMN = "graphty.edgeId";
  * the snapshot, exactly as the position column is, so anything that reads or serialises a snapshot
  * carries the pins with the coordinates they pin rather than losing them at the freeze.
  */
-export const PINNED_COLUMN = "graphty.pinned";
+const PINNED_COLUMN = "graphty.pinned";
 
 /**
  * A freeze already committed to the store whose consumer callbacks have not all returned yet.
@@ -1426,13 +1426,22 @@ export class GraphStore {
 const LANE_COLUMNS: ReadonlySet<string> = new Set(["position", PINNED_COLUMN]);
 
 /**
- * Seal a snapshot's column set, and under strict state sum the typed arrays its columns hold, the
- * lane columns excepted, so a write to one in place is found (design/undo/undo-design.md 12.1).
+ * Seal a snapshot's column set, and under strict state sum its topology arrays and the typed arrays
+ * its columns hold, the lane columns excepted, so a write to one in place is found (design/undo/undo-design.md 12.1).
  * @param snapshot - The snapshot.
  * @param what - What holds it, for the message.
  */
 function seal(snapshot: GraphSnapshot, what: string): void {
     snapshot.seal();
+    for (const [name, data] of [
+        ["rowPtr", snapshot.rowPtr],
+        ["colIdx", snapshot.colIdx],
+        ["weights", snapshot.weights],
+    ] as const) {
+        if (data !== null) {
+            retainArray(data, `the graph slice's ${what} ${name}`);
+        }
+    }
     for (const [domain, table] of [
         ["node", snapshot.nodes],
         ["edge", snapshot.edges],

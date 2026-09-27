@@ -191,6 +191,25 @@ describe("History: coalescing", () => {
         assert.lengthOf(history.steps, 2);
     });
 
+    it("ends a merge chain once it spans five seconds, however close together its edits are", () => {
+        const { store, history, time } = setup();
+        for (let edit = 0; edit < 12; edit++) {
+            history.record({ label: "drag", key: "k", patch: store.write({ c: edit }) });
+            time.advance(900);
+        }
+
+        assert.lengthOf(history.steps, 2, "the first 5 s is one step, the rest another");
+    });
+
+    it("names a merged step for the newest edit it took", () => {
+        const { store, history } = setup();
+        history.record({ label: "Filtered (degree)", key: "k", patch: store.write({ c: 1 }) });
+        history.record({ label: "Cleared the filter", key: "k", patch: store.write({ c: 2 }) });
+
+        assert.lengthOf(history.steps, 1);
+        assert.strictEqual(history.steps[0].label, "Cleared the filter");
+    });
+
     it("does not merge across an undo", () => {
         const { store, history } = setup();
         history.record({ label: "a", key: "k", patch: store.write({ c: 1 }) });

@@ -22,6 +22,7 @@ export type {
     CommandOutcomeMap,
     ComponentStatistics,
     CreateGraphSessionOptions,
+    DataSourceDescriptor,
     DataSourceInput,
     EdgeRecord,
     EdgeRecordInput,

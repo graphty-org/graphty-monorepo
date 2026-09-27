@@ -11,21 +11,17 @@
 // The built-in readers, so `import` reads every format the element does with no renderer loaded.
 import "../data/index";
 
-import {
-    type ColumnInput,
-    type DerivedGraph,
-    type GraphSnapshot,
-    INVALID_INDEX,
-    type NodeId,
-} from "@graphty/graph-format";
+import { type DerivedGraph, fromBytes, type GraphSnapshot, INVALID_INDEX, type NodeId } from "@graphty/graph-format";
 
+import { detectFormat, undetectedFormat } from "../catalog/detect";
 import type { AttributeDescriptor, EdgeId } from "../catalog/types";
 import { edgeCounterOf, edgeIdOf } from "../data/edgeIdentity";
-import { type GraphStore, PINNED_COLUMN } from "../data/GraphStore";
+import type { GraphStore } from "../data/GraphStore";
+import { readonlyPositions } from "../data/lane";
 import type { ImportReport } from "../data/report";
 import { GraphtyError } from "../errors";
 import { describeAttributes } from "./attributes";
-import type { DataImportCommand, DataMutation, DataService } from "./commands/data";
+import { type DataImportCommand, type DataMutation, type DataService, type ImportSource, SOURCE_VALUE } from "./commands/data";
 import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
 import { Ingest } from "./project/ingest";
@@ -33,6 +29,7 @@ import type { GraphSlice } from "./project/state";
 import { edgeSpaceOf } from "./scope/ScopeApi";
 import { computeFingerprint, computeStatistics } from "./statistics";
 import type {
+    DataSourceDescriptor,
     DataSourceInput,
     EdgeRecord,
     EdgeRecordInput,
@@ -40,7 +37,6 @@ import type {
     ImportOptions,
     NodeRecord,
     NodeRecordInput,
-    ReadonlyElementPositions,
     RowUpdate,
     SessionAttributes,
     SessionDataApi,
@@ -53,8 +49,11 @@ import type {
 interface DataWrites {
     /** Dispatch `data.apply`. */
     dispatch(mutation: DataMutation): Promise<unknown>;
-    /** Dispatch `data.import`. */
-    import(command: DataImportCommand): Promise<unknown>;
+    /**
+     * Where a `data.import` made now would go -- the session, or the transaction a routed verb
+     * runs in -- held for a verb that dispatches it after an await.
+     */
+    importer(): (command: DataImportCommand) => Promise<unknown>;
     /** The `graph` slice now. */
     slice(): GraphSlice;
 }
@@ -84,7 +83,7 @@ export class SessionData implements SessionDataApi {
     readonly store: SessionGraphStore;
 
     /** The store itself, which the session's own readers read. */
-    private readonly source: SessionGraphStore;
+    private readonly graphStore: SessionGraphStore;
     private readonly records: SessionRecordSource | null;
     private readonly readConfig: () => SessionDataConfig;
     private readonly writes: DataWrites;
@@ -106,7 +105,7 @@ export class SessionData implements SessionDataApi {
         readConfig: () => SessionDataConfig,
         writes: DataWrites,
     ) {
-        this.source = store;
+        this.graphStore = store;
         this.store = readonlyStore(store);
         this.records = records;
         this.readConfig = readConfig;
@@ -191,12 +190,19 @@ export class SessionData implements SessionDataApi {
      */
     async import(source: DataSourceInput, options: ImportOptions = {}): Promise<void> {
         this.requireLive("import");
-        await this.writes.import({
+        // Taken before the first await: a transaction routes only what a verb dispatches
+        // synchronously, and detecting the format may have to read the file or fetch the URL.
+        const send = this.writes.importer();
+        const command = (resolved: ImportSource): DataImportCommand => ({
             op: "data.import",
-            source: { type: source.type, config: source.config },
+            source: resolved,
             mode: options.mode ?? "replace",
             ...(options.layout === undefined ? {} : { layout: options.layout }),
         });
+        // Dispatched at once whenever nothing has to be read to settle the format, so the load
+        // takes its turn in the order it was asked for.
+        const resolved = resolveImportSource(source);
+        await send(command(resolved instanceof Promise ? await resolved : resolved));
     }
 
     /**
@@ -207,7 +213,7 @@ export class SessionData implements SessionDataApi {
      */
     snapshot(): GraphSnapshot {
         this.requireLive("snapshot");
-        return consumerSnapshot(this.source.getSnapshot());
+        return consumerSnapshot(this.graphStore.getSnapshot());
     }
 
     /**
@@ -220,7 +226,7 @@ export class SessionData implements SessionDataApi {
         this.requireLive("undirected");
         // Derived from the consumer's snapshot, because a derived graph shares the node table of
         // the one it came from, and the store's own holds the live coordinates.
-        return this.source.undirected(snapshot ?? this.snapshot());
+        return this.graphStore.undirected(snapshot ?? this.snapshot());
     }
 
     /**
@@ -229,7 +235,7 @@ export class SessionData implements SessionDataApi {
      */
     private current(): GraphSnapshot {
         this.requireLive("snapshot");
-        return this.source.getSnapshot();
+        return this.graphStore.getSnapshot();
     }
 
     /**
@@ -309,6 +315,16 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Where the graph was loaded from, as the `graph` slice keeps it, so undo and redo move it.
+     * @returns the source, or null when no import loaded the graph
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     */
+    source(): DataSourceDescriptor | null {
+        this.requireLive("source");
+        return (this.writes.slice().values.get(SOURCE_VALUE) as DataSourceDescriptor | undefined) ?? null;
+    }
+
+    /**
      * What the last load did.
      * @returns the report, or null when nothing has been loaded into this graph
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
@@ -316,7 +332,7 @@ export class SessionData implements SessionDataApi {
     lastImport(): ImportReport | null {
         this.requireLive("lastImport");
         const recorded = this.writes.slice().values.get("importReport") as ImportReport | undefined;
-        return recorded ?? this.source.lastImport ?? null;
+        return recorded ?? this.graphStore.lastImport ?? null;
     }
 
     /**
@@ -337,7 +353,7 @@ export class SessionData implements SessionDataApi {
      */
     statistics(): GraphStatistics {
         const derived = this.derivedFor(this.current());
-        derived.statistics ??= computeStatistics(derived.snapshot, this.readConfig().directed, this.source.directionSettledBy);
+        derived.statistics ??= computeStatistics(derived.snapshot, this.readConfig().directed, this.graphStore.directionSettledBy);
         return derived.statistics;
     }
 
@@ -545,37 +561,6 @@ export function headlessDataService(
 }
 
 /**
- * The read half of a coordinate lane, as a plain object: a caller holding it can read every row
- * and reach no writer, not even through a cast.
- * @param lane - Reads the lane now; a store may replace its lane object.
- * @returns The read-only coordinates.
- */
-export function readonlyPositions(lane: () => ReadonlyElementPositions): ReadonlyElementPositions {
-    return {
-        get capacity() {
-            return lane().capacity;
-        },
-        get count() {
-            return lane().count;
-        },
-        get placedCount() {
-            return lane().placedCount;
-        },
-        get pinnedCount() {
-            return lane().pinnedCount;
-        },
-        get generation() {
-            return lane().generation;
-        },
-        isPlaced: (index) => lane().isPlaced(index),
-        isPinned: (index) => lane().isPinned(index),
-        read: (index, out) => {
-            lane().read(index, out);
-        },
-    };
-}
-
-/**
  * A store as a consumer reads it: its snapshot is {@link consumerSnapshot}'s, and its coordinates
  * are read-only.
  * @param store - The store.
@@ -600,38 +585,133 @@ function readonlyStore(store: SessionGraphStore): SessionGraphStore {
 }
 
 /**
- * The snapshot a consumer is handed: the store's own, sharing its structure, ids and columns, but
- * with copies of the `position` and `graphty.pinned` columns, sealed.
+ * The snapshot a consumer is handed: a copy of the store's own, sealed.
  *
- * The store's two columns are its coordinate lane, which a layout writes every frame; a write
- * into them would place or pin nodes with no step, and be sealed into whatever step is on top at
- * the next rest point. A copy keeps the published type, so an exporter reading
- * `byRole("position").data` works unchanged.
+ * Typed arrays cannot be frozen, so anything the resident snapshot shares with a consumer is
+ * writable: the topology (`rowPtr`, `colIdx`, `weights`), every attribute column, and the
+ * `position` and `graphty.pinned` columns, which are the store's coordinate lane. A write into any
+ * of them would change what compute runs over, or place and pin nodes, with no step and nothing
+ * for undo to restore. A copy keeps the published type, so an exporter reading
+ * `byRole("position").data` works unchanged, and whatever the consumer writes stays theirs.
  * @param resident - The store's snapshot.
  * @returns The consumer's snapshot.
  */
 function consumerSnapshot(resident: GraphSnapshot): GraphSnapshot {
-    // ponytail: copies the lane per call (O(nodes)); cache per lane generation if a consumer
-    // calls this every frame.
-    const columns: Record<string, ColumnInput> = {};
-    const position = resident.nodes.typed("position", "f32");
-    if (position !== null) {
-        columns.position = {
-            data: position.data.slice(),
-            decl: { dtype: "f32", components: position.meta.components, role: "position" },
-        };
+    // ponytail: copies the whole snapshot per call (O(nodes + edges)); cache a copy per freeze and
+    // lane generation, handed out as read-only views, if a consumer calls this every frame.
+    const copy = fromBytes(resident.toBytes(), { validate: "none" });
+    copy.seal();
+    return copy;
+}
+
+/** How many leading characters of a file a format is detected from. */
+const DETECTION_SAMPLE = 2048;
+
+/**
+ * The file an import names, read structurally: a `File` in a browser, or anything with a name, a
+ * size and a way to read its text.
+ * @param value - The `file` option.
+ * @returns The file, or null when the option holds none.
+ */
+function fileOf(value: unknown): { name: string; size: number; slice(start: number, end: number): { text(): Promise<string> } } | null {
+    if (typeof value !== "object" || value === null) {
+        return null;
     }
 
-    const pinned = resident.nodes.typed(PINNED_COLUMN, "u8");
-    if (pinned !== null) {
-        columns[PINNED_COLUMN] = { data: pinned.data.slice(), decl: { dtype: "u8" } };
+    const file = value as { name?: unknown; size?: unknown; slice?: unknown };
+    return typeof file.name === "string" && typeof file.size === "number" && typeof file.slice === "function"
+        ? (value as ReturnType<typeof fileOf>)
+        : null;
+}
+
+/**
+ * The last part of a URL's path, which is what its extension and its name are read from.
+ * @param url - The URL.
+ * @returns The part, or "" when the path ends in a slash.
+ */
+function urlTail(url: string): string {
+    const path = url.split(/[?#]/)[0] ?? "";
+    return path.split("/").pop() ?? "";
+}
+
+/**
+ * Settle what an import will read: the format, detected when it was not named, and the name and
+ * size the graph keeps beside it. A URL whose name says nothing is fetched once here and its text
+ * handed on, so the data source does not fetch it again.
+ * @param source - The source as the caller named it.
+ * @returns The source the `data.import` command carries.
+ * @throws A `GraphtyError` with `E_UNKNOWN_FORMAT` when nothing recognises the data, and
+ *     `E_FETCH_FAILED` when the URL cannot be read.
+ */
+function resolveImportSource(source: DataSourceInput): ImportSource | Promise<ImportSource> {
+    const {config} = source;
+    const file = fileOf(config.file);
+    const url = typeof config.url === "string" ? config.url : undefined;
+    const filename = file?.name ?? (url === undefined ? undefined : urlTail(url));
+    const name = source.name ?? (filename === "" ? undefined : filename);
+    const described = {
+        ...(name === undefined ? {} : { name }),
+        ...(file === null ? {} : { size: file.size }),
+    };
+
+    if (source.type !== undefined) {
+        return { type: source.type, config, ...described };
     }
 
-    if (Object.keys(columns).length === 0) {
-        return resident;
+    const byName = filename === undefined ? null : detectFormat({ filename });
+    if (byName !== null) {
+        return { type: byName, config, ...described };
     }
 
-    const view = resident.withColumns(columns);
-    view.seal();
-    return view;
+    const detect = (sample: string | undefined, fetched?: string): ImportSource => {
+        const detected = sample === undefined ? null : detectFormat({ filename, sample });
+        if (detected === null) {
+            throw undetectedFormat(name ?? url ?? "the data", 'session.data.import({ type: "graphml", config })');
+        }
+
+        return { type: detected, config: fetched === undefined ? config : { ...config, data: fetched }, ...described };
+    };
+
+    if (typeof config.data === "string") {
+        return detect(config.data.slice(0, DETECTION_SAMPLE));
+    }
+
+    if (file !== null) {
+        return file
+            .slice(0, DETECTION_SAMPLE)
+            .text()
+            .then((sample) => detect(sample));
+    }
+
+    if (url !== undefined) {
+        return fetchText(url).then((text) => detect(text.slice(0, DETECTION_SAMPLE), text));
+    }
+
+    return detect(undefined);
+}
+
+/**
+ * Read a URL's text, once.
+ * @param url - The URL.
+ * @returns The text.
+ * @throws A `GraphtyError` with `E_FETCH_FAILED` when it cannot be read.
+ */
+async function fetchText(url: string): Promise<string> {
+    let response: Response;
+    try {
+        response = await fetch(url);
+    } catch (error) {
+        throw new GraphtyError({ code: "E_FETCH_FAILED", message: `Could not fetch "${url}".`, source: "data", cause: error });
+    }
+
+    if (!response.ok) {
+        throw new GraphtyError({
+            code: "E_FETCH_FAILED",
+            message: `Could not fetch "${url}": ${String(response.status)} ${response.statusText}`,
+            source: "data",
+            details: { url, status: response.status },
+        });
+    }
+
+    return response.text();
 }

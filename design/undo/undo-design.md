@@ -367,7 +367,10 @@ not a copy of every pinned id.
 
 Records are a plain `Map` of frozen record objects, one per node and one per edge. That is the
 same number of objects `Node.data` holds today. `Node.data` and `Edge.data` become getters that
-return the slice's record (`graphty-element/src/Node.ts:89`, `Edge.ts:113`). The map keeps a
+return the slice's record (`graphty-element/src/Node.ts:89`, `Edge.ts:113`): the render half of
+the derivation hands each node and edge the record the slice holds whenever a command, an undo or
+a redo changes it, through a writer inside the module that no entry point exports, so nothing
+else can make `data` answer differently from the slice. The map keeps a
 running byte estimate, updated by each primitive as it runs (64 bytes per record plus 32 per key,
 plus string lengths), so sizing a `replace` step reads one number instead of walking six million
 records. The estimate is approximate and documented as such.
@@ -1877,7 +1880,6 @@ Op names follow `element-api-design.md` section 4.11.1. New ops are marked.
 
 | Op | Reason |
 |---|---|
-| `select` | Selection is not a step |
 | `view.camera` | Camera is view state |
 | `view.immersive` (new) | `{ mode: "vr" \| "ar" \| null }`; a device session. Replaces the VR/AR half of `view.mode`. Entering from 2D is one transaction with a `view.dimension` that rolls back if entry fails (section 6.4). A failed entry no longer writes `config.graph.viewMode = "3d"` (`Graph.ts:2822`, `:2833`) |
 | `layout.transport` | In-flight computation. Where the layout comes to rest is sealed into the top step (section 6.4) |
@@ -1886,9 +1888,9 @@ Section 4.11.1 lists further ops (`data.inspect`, `data.export`, `view.capture`,
 that do not exist in code. `COMMANDS` lists only implemented ops; each future op declares itself
 when it lands.
 
-Session verbs that are not commands (`acceleration =`, `setAccelerator`, `Run.cancel`,
-`selection.apply` / `clear`, `history.cancel`, `on`, `dispose`) are listed as exempt doors, with
-reasons, in the doors test (section 12.3).
+Selection has no op: it is not a step. Session verbs that are not commands (`acceleration =`,
+`setAccelerator`, `Run.cancel`, `selection.apply` / `clear`, `history.cancel`, `on`, `dispose`)
+are listed as exempt doors, with reasons, in the doors test (section 12.3).
 
 ---
 

@@ -53,6 +53,7 @@ import {
 import type { AccelerationController } from "../acceleration/AccelerationController";
 import { narrowLayout } from "../acceleration/narrow";
 import { type AccelerationPrecision, CPU_PRECISION, type GraphAccelerator } from "../acceleration/types";
+import { WRITABLE_LANE } from "../data/lane";
 import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
 import type { DataManager } from "../managers/DataManager";
@@ -568,7 +569,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      */
     init(): Promise<void> {
         const snapshot = this.#dataManager.getSnapshot();
-        this.load(snapshot, this.#dataManager.positions.view(snapshot.nodeCount));
+        this.load(snapshot, this.#dataManager[WRITABLE_LANE].view(snapshot.nodeCount));
         return Promise.resolve();
     }
 
@@ -773,7 +774,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         }
 
         const snapshot = this.#dataManager.getSnapshot();
-        this.reload(snapshot, this.#dataManager.positions.view(snapshot.nodeCount));
+        this.reload(snapshot, this.#dataManager[WRITABLE_LANE].view(snapshot.nodeCount));
     }
 
     /**
@@ -808,7 +809,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * Fixes a pinned node in the simulation. The store already holds the pin.
      * @param n - The node that was pinned.
      */
-    pin(n: Node): void {
+    protected pin(n: Node): void {
         this.#setFixed(n.index, true);
     }
 
@@ -816,7 +817,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * Releases a node the simulation was holding fixed.
      * @param n - The node that was unpinned.
      */
-    unpin(n: Node): void {
+    protected unpin(n: Node): void {
         this.#setFixed(n.index, false);
     }
 
@@ -825,7 +826,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * @param n - The node that moved.
      * @param p - Where it moved to.
      */
-    setNodePosition(n: Node, p: Position): void {
+    protected setNodePosition(n: Node, p: Position): void {
         const z = p.z ?? 0;
 
         // The simulations THROW for a row outside [0, nodeCount) or a coordinate that is not
@@ -985,7 +986,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
             return;
         }
 
-        const store = this.#dataManager.positions;
+        const store = this.#dataManager[WRITABLE_LANE];
 
         // MEASURED OVER THE ROWS THIS PUBLISH WILL WRITE, and over no others. A held row's
         // simulation coordinate is wherever the pointer last put it, divided back out, so a node
@@ -1097,7 +1098,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         }
 
         const { nodeCount } = snapshot;
-        const pins = this.#dataManager.positions.pinnedView(nodeCount);
+        const pins = this.#dataManager[WRITABLE_LANE].pinnedView(nodeCount);
         const mask = makeMask(nodeCount);
         const rows = new Set<number>();
         for (let i = 0; i < nodeCount; i += 1) {

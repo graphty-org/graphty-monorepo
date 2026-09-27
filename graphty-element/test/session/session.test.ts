@@ -52,8 +52,8 @@ describe("createGraphSession", () => {
         assert.strictEqual(harness.session.status.counts.edges, 1);
         const resident = harness.store.getSnapshot();
         const handed = harness.session.snapshot();
-        assert.strictEqual(handed.serial, resident.serial, "one store, one snapshot");
-        assert.strictEqual(handed.rowPtr, resident.rowPtr, "sharing its structure");
+        assert.strictEqual(handed.contentHash(), resident.contentHash(), "one store, one graph");
+        assert.notStrictEqual(handed.rowPtr, resident.rowPtr, "handed as a copy, so a write there changes nothing");
         harness.session.dispose();
     });
 

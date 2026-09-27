@@ -33,6 +33,7 @@ import { SCOPE_DEFINITIONS, unknownScopeError } from "../commands/scope";
 import { Dispatcher } from "../project/Dispatcher";
 import { canonicalize } from "../runs/runId";
 import type { ResolvedScope } from "../runs/types";
+import { sealedSet } from "../sealed";
 import { ElementMask, type MaskIdSpace } from "./ElementMask";
 
 /** How many edges {@link ScopeApi.count} looks at when it is allowed to answer approximately. */
@@ -435,6 +436,9 @@ function assertScope(spec: Scope): void {
         throw notAScope(spec);
     }
 }
+
+/** What a caller writing into a resolved scope is told to do instead. */
+const SCOPE_HINT = "A resolved scope is an answer; call scope.save() to change what a saved scope holds.";
 
 // ---------------------------------------------------------------------------------------------
 // The resolver
@@ -860,8 +864,8 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
         const nodeIds = nodes.mask.ids();
         const edgeIds = edges.ids();
         const computed: ScopeMembership = {
-            nodes: new Set(nodeIds),
-            edges: new Set(edgeIds),
+            nodes: sealedSet(nodeIds, SCOPE_HINT),
+            edges: sealedSet(edgeIds, SCOPE_HINT),
             digest: membershipDigest(nodeIds, edgeIds),
         };
         if (!isPredicate(spec)) {

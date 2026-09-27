@@ -5,12 +5,21 @@ import { narrowAlgorithms } from "../acceleration/narrow";
 import { type AccelerationPrecision, CPU_PRECISION } from "../acceleration/types";
 import { SharedImplementationMap } from "../catalog/pluginRegistry";
 import { publishAlgorithmDescriptor } from "../catalog/registry";
-import type { AlgorithmDescriptor, FieldDescriptor, NodeId } from "../catalog/types";
+import type { AlgorithmDescriptor, EdgeId, FieldDescriptor, NodeId } from "../catalog/types";
 import { type OptionsSchema as ZodOptionsSchema } from "../config";
 import { GraphtyError } from "../errors";
 import { Graph } from "../Graph";
 import type { RunResult } from "../session/results";
-import type { AlgorithmRunContext } from "./results/types";
+import type { InputOrientation, SimplifyPolicy } from "./input/derivedInputs";
+import {
+    createScopedInput,
+    type ElementScopedInput,
+    orientationOf,
+    runInputOf,
+    type ScopedInputOptions,
+    type ScopeInputDeclaration,
+} from "./input/ScopedInput";
+import type { RunControls } from "./results/types";
 import { type OptionsFromSchema, type OptionsSchema, resolveOptions } from "./types/OptionSchema";
 import { type AlgorithmGraphMode, toAlgorithmGraph } from "./utils/snapshotGraph";
 
@@ -81,6 +90,11 @@ export interface AlgorithmStatics {
      * and nothing at all identifying the code that actually did the work.
      */
     version?: string;
+    /**
+     * What a run over a scope computes on. See {@link Algorithm.scopeInput}; `register` publishes
+     * it as the descriptor's `scopeInput`.
+     */
+    scopeInput?: ScopeInputDeclaration;
     optionsSchema: OptionsSchema;
     /** @deprecated Use getZodOptionsSchema() instead */
     getOptionsSchema(): OptionsSchema;
@@ -97,6 +111,55 @@ export interface AlgorithmStatics {
 // Shared with every other copy of graphty-element on the page, so a plugin registered through one
 // reaches them all.
 const algorithmRegistry = new SharedImplementationMap<AlgorithmClass>("algorithm");
+
+/** Each authored descriptor's published copies, one per declaration, so a re-registration hands the registry the same object. */
+const publishedDescriptors = new WeakMap<AlgorithmDescriptor, Map<ScopeInputDeclaration, AlgorithmDescriptor>>();
+
+/**
+ * The descriptor the catalogue publishes: the authored one with `scopeInput` taken from the class.
+ * @param authored - What the plugin wrote.
+ * @param declared - The class's `static scopeInput`, `"none"` when absent.
+ * @param address - The class's registry address, for the refusal.
+ * @returns The published descriptor.
+ * @throws A `GraphtyError` with `E_BAD_COMMAND` when the authored descriptor states a different
+ *   `scopeInput` from the class: the run would compute over one thing and the planner price another.
+ */
+function withScopeInput(
+    authored: AlgorithmDescriptor,
+    declared: ScopeInputDeclaration,
+    address: string,
+): AlgorithmDescriptor {
+    if (authored.scopeInput !== undefined && authored.scopeInput !== declared) {
+        throw new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message:
+                `the algorithm registered as "${address}" publishes scopeInput "${authored.scopeInput}" and its class declares ` +
+                `"${declared}". Declare it once, as "static scopeInput", and leave it out of the descriptor.`,
+            source: "registry",
+            details: {
+                kind: "algorithm",
+                field: "descriptor.scopeInput",
+                key: authored.key,
+                declared,
+                published: authored.scopeInput,
+            },
+        });
+    }
+
+    let copies = publishedDescriptors.get(authored);
+    if (copies === undefined) {
+        copies = new Map();
+        publishedDescriptors.set(authored, copies);
+    }
+
+    let published = copies.get(declared);
+    if (published === undefined) {
+        published = { ...authored, scopeInput: declared };
+        copies.set(declared, published);
+    }
+
+    return published;
+}
 
 /**
  * One piece of accelerable work, with the decision "accelerator or CPU" already taken.
@@ -117,7 +180,8 @@ export interface AcceleratedAlgorithmRun {
      * The snapshot the work runs over: the declared one for `"directed"`, the undirected view for
      * `"undirected"`, in either case with every group of parallel edges collapsed to one edge
      * carrying the group's summed weight. Its `ids` map is how a node id becomes the index every
-     * result is keyed by, and the node space is the declared one either way.
+     * result is keyed by: the declared node space for the whole graph, the scope's compact one
+     * for an algorithm that declares a scoped input.
      */
     readonly snapshot: GraphSnapshot;
     /**
@@ -142,9 +206,7 @@ export interface AcceleratedAlgorithmRun {
      * @throws Whatever the accelerator threw, with its code. A failure after the work started is
      * the run's failure: nothing is recomputed on the CPU.
      */
-    readonly run: <T>(
-        fn: (dispatch: AcceleratedAlgorithms, snapshot: GraphSnapshot) => Promise<T>,
-    ) => Promise<{
+    readonly run: <T>(fn: (dispatch: AcceleratedAlgorithms, snapshot: GraphSnapshot) => Promise<T>) => Promise<{
         /** What `fn` returned. */
         readonly value: T;
         /** The arithmetic it was computed in. */
@@ -180,38 +242,6 @@ export interface AcceleratedAlgorithmRun {
 //         }
 //     }
 // }
-
-/**
- * One map from the declared edge space onto the space a run's result is keyed by.
- *
- * Two derivations can stand between the two -- the undirected view, which collapses a reciprocal
- * pair, and the simplification, which collapses a group of parallel edges -- and each publishes a
- * map from ITS input. An adapter has one edge index to look up, `Edge.index`, so the two are
- * composed here rather than at every call site. A step that changed nothing publishes no map,
- * which is why either argument may be null.
- * @param first - Declared edge index -> index in the undirected view, or null.
- * @param second - Index in that view -> index in the simplified snapshot, or null.
- * @returns The composed map, or null when neither step renumbered anything.
- */
-function composeEdgeRemap(first: U32 | null, second: U32 | null): U32 | null {
-    if (second === null) {
-        return first;
-    }
-
-    if (first === null) {
-        return second;
-    }
-
-    const composed = new Uint32Array(first.length);
-    for (let edge = 0; edge < first.length; edge++) {
-        const middle = first[edge];
-        // A dropped edge has nowhere to land in the second space, and INVALID_INDEX is how it says
-        // so -- indexing with it would read a neighbour's answer.
-        composed[edge] = middle === INVALID_INDEX ? INVALID_INDEX : second[middle];
-    }
-
-    return composed;
-}
 
 /**
  * Base class for all graph algorithms
@@ -257,6 +287,28 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      * This is the new unified system that provides both validation and UI metadata.
      */
     static zodOptionsSchema?: ZodOptionsSchema;
+
+    /**
+     * Whether this algorithm computes over its run's scope. `"subgraph"`: the run context's
+     * `input` hands the algorithm its scope (the compact snapshot, and the scope's masks over the
+     * full graph), and the planner estimates the run over the scope. Absent or `"none"`: the whole
+     * graph, of whose values the element keeps the scope's, with a caveat saying so; the planner
+     * estimates and refuses the run as a whole-graph one.
+     *
+     * THE ONE DECLARATION: the input, the caveat and the published `descriptor.scopeInput` all
+     * read it. Declare it only once every node list, edge read and count the class takes comes
+     * from the input, because an algorithm that lists its nodes some other way would compute over
+     * a scoped topology while reporting every node.
+     */
+    static scopeInput?: ScopeInputDeclaration;
+
+    /**
+     * How this class's input merges a group of parallel edges into one: `"sum"` when absent, the
+     * element's reading of a repeated edge as more connection. A shortest path wants `"min"`, the
+     * cheapest of the group. Both seams read it, and the run's caveat names it.
+     * @internal
+     */
+    static parallelEdges?: SimplifyPolicy;
 
     protected graph: Graph;
 
@@ -306,7 +358,36 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      * @returns a freshly built Graph for the algorithm package
      */
     protected algorithmGraph(mode: AlgorithmGraphMode): AlgorithmGraph {
-        return toAlgorithmGraph(this.graph.getDataManager(), mode);
+        return toAlgorithmGraph(this.graph.getDataManager(), mode, this.input(orientationOf(mode)));
+    }
+
+    /**
+     * The graph this run computes over, in one orientation: its scope's compact snapshot when the
+     * class declares {@link Algorithm.scopeInput} and runs as a run, else the whole graph. Both
+     * seams below read through it.
+     * @param orientation - `"declared"` or `"undirected"`.
+     * @param options - How parallel edges merge; the class's {@link Algorithm.parallelEdges} by
+     *   default, else `"sum"`.
+     * @returns The input.
+     * @internal
+     */
+    protected input(orientation: InputOrientation, options?: ScopedInputOptions): ElementScopedInput {
+        const simplify = options?.simplify ?? (this.constructor as typeof Algorithm).parallelEdges;
+        const merged = simplify === undefined ? options : { ...options, simplify };
+
+        return createScopedInput(this.graph.getDataManager(), orientation, merged, runInputOf(this));
+    }
+
+    /**
+     * One edge's record, by the id an input named it by: for an attribute the snapshot does not
+     * carry yet, such as a flow capacity. It is not a topology read -- the ids come from the input
+     * -- and it goes away once the store carries attribute columns.
+     * @param id - The edge's session id, from `scopeEdges`.
+     * @returns The record the edge was loaded from, or undefined.
+     * @internal
+     */
+    protected edgeRecord(id: EdgeId): Readonly<Record<string, unknown>> | undefined {
+        return this.graph.getDataManager().getEdge(id)?.data;
     }
 
     /**
@@ -336,31 +417,30 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      * ```
      */
     protected accelerated(capability: string, mode: AlgorithmGraphMode): AcceleratedAlgorithmRun {
-        const data = this.graph.getDataManager();
-        const declared = data.getSnapshot();
-        /* The undirected view is derived once per snapshot and cached by the store, and it leaves
-           the NODE space alone -- so a node result indexes the declared snapshot's nodes directly
-           and only an EDGE result needs the map. */
-        const derived = mode === "undirected" ? data.undirected(declared) : null;
-        const oriented = derived === null ? declared : derived.snapshot;
-        /* THE ELEMENT SIMPLIFIES BEFORE IT DISPATCHES, the same step `toAlgorithmGraph` takes for
+        /* The input accessor derives the snapshot: the declared one or the store's cached
+           undirected view, over the run's scope when the class declares one. It leaves the NODE
+           space of the whole graph alone -- so a node result indexes the declared snapshot's nodes
+           directly -- and only an EDGE result needs the map.
+
+           THE ELEMENT SIMPLIFIES BEFORE IT DISPATCHES, the same step `toAlgorithmGraph` takes for
            the object-graph route, and for a reason that outlives that route's inability to hold
            two edges between one pair: a group of parallel edges becomes ONE edge carrying the
            group's summed weight, because a repeated edge between two nodes is MORE connection
            rather than the same connection -- the reading a weighted layout gives the same data.
+           A class that reads a repeat differently says so in `parallelEdges`: a shortest path
+           takes the cheapest edge of the group.
            Two things depend on it. The run agrees with the caveat `AlgorithmManager` appends over
            a multigraph ("N parallel edges were merged, with weights summed"), and EVERY member of
            a merged group carries the merged value, because they all map to the survivor through
-           the remap below. Without it a spanning tree or a route would flag one of two coincident
+           the remap. Without it a spanning tree or a route would flag one of two coincident
            edges and leave its twin unpainted, which reads as a rendering glitch. */
-        const collapsed = oriented.flags.multigraph ? oriented.simplified({ weights: "sum" }) : null;
-        const snapshot = collapsed === null ? oriented : collapsed.snapshot;
+        const { snapshot, edgeRemap } = this.input(orientationOf(mode)).derived();
         const controller = this.graph.acceleration;
         const work = { capability, nodeCount: snapshot.nodeCount };
 
         return {
             snapshot,
-            edgeRemap: composeEdgeRemap(derived?.edgeRemap ?? null, collapsed?.edgeRemap ?? null),
+            edgeRemap,
             run: async <T>(
                 fn: (dispatch: AcceleratedAlgorithms, s: GraphSnapshot) => Promise<T>,
             ): Promise<{ value: T; precision: AccelerationPrecision }> => {
@@ -463,7 +543,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      *   publish.
      */
     publishResult(
-        _context: AlgorithmRunContext,
+        _context: RunControls,
         runId: string,
         _fields?: readonly FieldDescriptor[],
     ): Promise<RunResult | undefined> {
@@ -501,7 +581,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
 
         if (descriptor !== undefined) {
             publishAlgorithmDescriptor({
-                descriptor,
+                descriptor: withScopeInput(descriptor, statics.scopeInput ?? "none", `${ns}:${t}`),
                 namespace: ns,
                 type: t,
                 ...(cost === undefined ? {} : { cost }),

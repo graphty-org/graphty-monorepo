@@ -4,7 +4,7 @@ import { property } from "lit/decorators.js";
 import { set as setDeep } from "lodash";
 
 import { type AccelerationController, type AccelerationPolicy, isAccelerationPolicy } from "./acceleration";
-import type { AlgorithmKey, Scope } from "./catalog/types";
+import type { AlgorithmKey, Scope, ScopeInput } from "./catalog/types";
 import type { GraphBackgroundConfig, GraphBehaviorConfig, GraphSelectionStyleInput, ViewMode } from "./config";
 import { type AlgorithmOnLoad, parseAlgorithmsOnLoad, REPEATED_EDGE_POLICIES } from "./config/DataConfig";
 import type { PartialXRConfig } from "./config/xr-config-schema";
@@ -13,7 +13,7 @@ import { Graph } from "./Graph";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
 import type { Run, RunChange, StartOptions } from "./session/runs";
-import type { SelectionDelta, SelectionTarget, SetOp } from "./session/selection";
+import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
 import type { VisibilityChange } from "./session/visibility";
 
 /**
@@ -37,6 +37,7 @@ const RICH_PROPERTIES = [
     "edgeData",
     "dataSourceConfig",
     "layoutConfig",
+    "layoutScope",
     "layoutBehavior",
     "selectionStyle",
     "algorithmsOnLoad",
@@ -164,7 +165,7 @@ export class Graphty extends LitElement {
      * </script>
      * ```
      */
-    select(target: SelectionTarget, op?: SetOp): Promise<SelectionDelta> {
+    select(target: SelectionTarget, op?: SelectionOp): Promise<SelectionDelta> {
         return this.#graph.select(target, op);
     }
 
@@ -1226,6 +1227,74 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * What the layout runs over: a set, a query, a list of nodes -- any scope.
+     * @remarks
+     * The scope's nodes move and every other node is held where it is. The members are the ones
+     * the scope had when the layout started, so a later click, filter change or attribute edit
+     * does not move what the layout holds, and a node added afterwards is held too.
+     *
+     * CARRIED across `layout` and `layoutConfig` changes, so changing one force setting never
+     * un-scopes the layout. Setting it restarts the running layout. Only a live simulation --
+     * whose catalogue entry reads `scoped: true` -- lays out a scope; under any other layout, or
+     * when the set it names is removed, the scope is inactive and the whole graph is laid out.
+     * Nothing here throws: a value that is not a scope is reported and dropped.
+     *
+     * Reads `undefined` when layouts run over the whole graph, never `"graph"`.
+     * @since 2.5.0
+     * @example JavaScript property
+     * ```typescript
+     * const id = element.session.sets.create({ kind: "fixed", nodes: ["a", "b", "c"], reading: "induced" });
+     * element.layout = "ngraph";
+     * element.layoutScope = { set: id };
+     * ```
+     * @example HTML attribute (JSON)
+     * ```html
+     * <graphty-element layout="ngraph" layout-scope='{"nodes":["a","b","c"]}'></graphty-element>
+     * ```
+     * @returns The scope, or undefined for the whole graph
+     */
+    @property({
+        attribute: "layout-scope",
+        // JSON, because a scope is an object or a keyword and Lit's default converter hands the
+        // setter the attribute's raw text.
+        converter: {
+            fromAttribute: (value: string | null): ScopeInput | undefined => {
+                if (value === null) {
+                    return undefined;
+                }
+
+                try {
+                    return JSON.parse(value) as ScopeInput;
+                } catch {
+                    console.error(
+                        `<graphty-element>: the layout-scope attribute must be JSON, such as '"graph"' or ` +
+                            `'{"set":"s1"}', not "${value}". Laying out the whole graph.`,
+                    );
+
+                    return undefined;
+                }
+            },
+            toAttribute: (value: Scope | undefined): string | null =>
+                value === undefined ? null : JSON.stringify(value),
+        },
+    })
+    get layoutScope(): Scope | undefined {
+        return this.#graph.getLayoutScope();
+    }
+    /**
+     * Sets what the layout runs over, and restarts the running layout over it. A value that is
+     * not a scope is reported and dropped, never thrown: this setter is reached from
+     * `attributeChangedCallback`, where a throw would reach nobody.
+     */
+    set layoutScope(value: ScopeInput | undefined) {
+        const oldValue = this.#graph.getLayoutScope();
+        void this.#graph.setLayoutScope(value).catch((error: unknown) => {
+            console.error("<graphty-element>: the layout scope was refused. Keeping the one already set.", error);
+        });
+        this.requestUpdate("layoutScope", oldValue);
+    }
+
+    /**
      * How the element DRIVES the layout, as distinct from what the layout engine is configured
      * with.
      * @remarks
@@ -1506,10 +1575,7 @@ export class Graphty extends LitElement {
             try {
                 this.#graph.setBackground(value);
             } catch (error: unknown) {
-                console.error(
-                    "<graphty-element>: the background was refused. Keeping the one already set.",
-                    error,
-                );
+                console.error("<graphty-element>: the background was refused. Keeping the one already set.", error);
 
                 return;
             }
@@ -2543,7 +2609,9 @@ export class Graphty extends LitElement {
      * default engine, or a registered engine name (such as `"ngraph"`).
      * @param type - Layout id or engine name
      * @param opts - Layout-specific options
-     * @param options - Queue options
+     * @param options - Queue options, and `scope`: what the layout runs over. A live simulation
+     *   moves the scope's nodes and holds the rest; absent keeps the scope already set, and
+     *   `"graph"` clears it. See {@link Graphty.layoutScope}.
      * @returns Promise that resolves when layout is initialized
      * @since 1.5.0
      * @example
@@ -2556,7 +2624,7 @@ export class Graphty extends LitElement {
     async setLayout(
         type: string,
         opts?: object,
-        options?: import("./utils/queue-migration").QueueableOptions,
+        options?: import("./utils/queue-migration").SetLayoutOptions,
     ): Promise<void> {
         return this.#graph.setLayout(type, opts ?? {}, options);
     }
@@ -2804,7 +2872,7 @@ export class Graphty extends LitElement {
     async applyCameraView(
         id: string,
         options?: {
-            scope?: Scope;
+            scope?: ScopeInput;
             params?: Readonly<Record<string, unknown>>;
         } & import("./screenshot/types.js").CameraAnimationOptions,
     ): Promise<void> {

@@ -93,9 +93,7 @@ function heldExecutor(): HeldExecutor {
     return {
         execute,
         started: (count) =>
-            count <= releases.length
-                ? Promise.resolve()
-                : new Promise((resolve) => waiters.push({ count, resolve })),
+            count <= releases.length ? Promise.resolve() : new Promise((resolve) => waiters.push({ count, resolve })),
         release: (index) => {
             releases[index]();
         },
@@ -188,6 +186,21 @@ describe("starting a run", () => {
         } catch (error) {
             assert.strictEqual(isGraphtyError(error) ? error.code : "", "E_UNSUPPORTED");
         }
+    });
+
+    it("refuses the reserved scopeAs option before any work, so accepting it later is additive", () => {
+        const { runs } = harness();
+
+        try {
+            runs.start("degree", {}, { scopeAs: "population" } as never);
+            assert.fail("scopeAs is reserved");
+        } catch (error) {
+            assert.isTrue(isGraphtyError(error));
+            assert.strictEqual(isGraphtyError(error) ? error.code : "", "E_BAD_COMMAND");
+            assert.strictEqual(isGraphtyError(error) ? error.details.reason : "", "reserved");
+        }
+
+        assert.lengthOf(runs.list(), 0, "no run was created");
     });
 
     it("takes an author-assigned id and refuses one that does not match the pattern", () => {
@@ -292,7 +305,7 @@ describe("the same work started twice", () => {
         runs.start("degree", {}, { as: "mine" });
 
         try {
-            runs.start("degree", { weighted: true }, { as: "mine" });
+            runs.start("degree", {}, { as: "mine", scope: "largest-component" });
             assert.fail("an id must not quietly change what it names");
         } catch (error) {
             assert.strictEqual(isGraphtyError(error) ? error.code : "", "E_DUPLICATE_ID");
@@ -309,12 +322,85 @@ describe("the same work started twice", () => {
         assert.isFalse(runs.isDerivedId("never-started"));
     });
 
-    it("makes different parameters different runs", () => {
-        const { runs } = harness();
+    it("re-runs one result with new parameters, keeping its id so a bound layer repaints", async () => {
+        const { runs, queue, calls } = harness();
         const one = runs.start("k-core", { k: 2 });
-        const two = runs.start("k-core", { k: 3 });
+        await queue.drain();
+        await one;
 
-        assert.notStrictEqual(one.id, two.id);
+        const two = runs.start("k-core", { k: 3 });
+        await queue.drain();
+        await two;
+
+        assert.strictEqual(two, one, "parameters belong to the run, not to the result's id");
+        assert.strictEqual(one.params.k, 3);
+        assert.strictEqual(calls(), 2);
+        assert.strictEqual(runs.list().length, 1);
+    });
+
+    it("re-runs one result with a new seed", async () => {
+        const { runs, queue, calls } = harness();
+        const one = runs.start("degree", {}, { seed: 1 });
+        await queue.drain();
+        await one;
+
+        const two = runs.start("degree", {}, { seed: 2 });
+        await queue.drain();
+        await two;
+
+        assert.strictEqual(two, one);
+        assert.strictEqual(one.record.seed, 2);
+        assert.strictEqual(one.caveats.seed, 2);
+        assert.strictEqual(calls(), 2);
+    });
+
+    it("drops the answer of parameters replaced while they were still running", async () => {
+        // An executor that ignores its abort signal, so the replaced execution still answers.
+        const pending: { answer: () => void }[] = [];
+        const answers = new Map<unknown, ReturnType<typeof stubResult>>();
+        const { runs } = harness(
+            (context) =>
+                new Promise((resolve) => {
+                    const result = stubResult(context.runId);
+                    answers.set(context.params.k, result);
+                    pending.push({ answer: () => resolve({ result }) });
+                }),
+        );
+        const run = runs.start("k-core", { k: 2 }, { queue: "now" });
+        await Promise.resolve();
+        assert.strictEqual(pending.length, 1, "the first execution started");
+
+        runs.start("k-core", { k: 3 }, { queue: "now" });
+        await Promise.resolve();
+        assert.strictEqual(pending.length, 2, "the retuned execution started");
+
+        // The replaced execution answers first: its answer must not become the result.
+        pending[0].answer();
+        await Promise.resolve();
+        assert.strictEqual(run.status, "running", "the k 2 answer settled nothing");
+        pending[1].answer();
+        await run;
+
+        assert.strictEqual(run.params.k, 3);
+        assert.strictEqual(run.status, "succeeded");
+        assert.strictEqual(run.result, answers.get(3));
+    });
+
+    it("makes a sampled result a sibling of the exact one, never its current run", () => {
+        const { runs } = harness();
+        const exact = runs.start("degree");
+        const sampled = runs.start("degree", {}, { sample: 10 });
+
+        assert.notStrictEqual(sampled.id, exact.id);
+        assert.strictEqual(runs.list().length, 2);
+    });
+
+    it("makes different scopes different results", () => {
+        const { runs } = harness();
+        const whole = runs.start("degree", {}, { scope: "graph" });
+        const largest = runs.start("degree", {}, { scope: "largest-component" });
+
+        assert.notStrictEqual(whole.id, largest.id);
         assert.strictEqual(runs.list().length, 2);
     });
 });
@@ -324,9 +410,9 @@ describe("the queue a consumer shows", () => {
         const { runs, queue } = harness();
         queue.paused = true;
 
-        const first = runs.start("k-core", { k: 1 });
-        const second = runs.start("k-core", { k: 2 });
-        const third = runs.start("k-core", { k: 3 });
+        const first = runs.start("k-core", { k: 1 }, { as: "k1" });
+        const second = runs.start("k-core", { k: 2 }, { as: "k2" });
+        const third = runs.start("k-core", { k: 3 }, { as: "k3" });
 
         assert.deepStrictEqual(
             runs.queue.map((entry) => ({ runId: entry.runId, index: entry.index, of: entry.of })),
@@ -336,7 +422,7 @@ describe("the queue a consumer shows", () => {
                 { runId: third.id, index: 2, of: 3 },
             ],
         );
-        assert.strictEqual(second.queuePosition, 1, "a UI renders this as \"Queued (2 of 3)\"");
+        assert.strictEqual(second.queuePosition, 1, 'a UI renders this as "Queued (2 of 3)"');
 
         await queue.drain();
         assert.deepStrictEqual(runs.queue, []);
@@ -346,8 +432,8 @@ describe("the queue a consumer shows", () => {
         const { runs, queue } = harness();
         queue.paused = true;
 
-        const first = runs.start("k-core", { k: 1 });
-        const second = runs.start("k-core", { k: 2 });
+        const first = runs.start("k-core", { k: 1 }, { as: "k1" });
+        const second = runs.start("k-core", { k: 2 }, { as: "k2" });
         second.cancel();
 
         assert.strictEqual(runs.queue.length, 1);
@@ -364,13 +450,13 @@ describe("the queue a consumer shows", () => {
         await queue.drain();
     });
 
-    it("cancels the runs it replaces under the \"replace\" policy", async () => {
+    it('cancels the runs it replaces under the "replace" policy', async () => {
         const held = heldExecutor();
         const { runs, queue } = harness(held.execute);
         queue.paused = true;
 
-        const first = runs.start("k-core", { k: 1 });
-        const second = runs.start("k-core", { k: 2 }, { queue: "replace" });
+        const first = runs.start("k-core", { k: 1 }, { as: "k1" });
+        const second = runs.start("k-core", { k: 2 }, { as: "k2", queue: "replace" });
 
         assert.strictEqual(first.status, "canceled");
         assert.strictEqual(second.status, "queued");
@@ -388,7 +474,7 @@ describe("the queue a consumer shows", () => {
         await drained;
     });
 
-    it("runs beside the queue under the \"now\" policy", async () => {
+    it('runs beside the queue under the "now" policy', async () => {
         const { runs, queue } = harness();
         queue.paused = true;
 
@@ -409,11 +495,11 @@ describe("labels", () => {
 
     it("gains the parameter that differs the moment a sibling exists", () => {
         const { runs } = harness();
-        const two = runs.start("k-core", { k: 2 });
+        const two = runs.start("k-core", { k: 2 }, { as: "k2" });
 
         assert.strictEqual(two.label, "Core");
 
-        const three = runs.start("k-core", { k: 3 });
+        const three = runs.start("k-core", { k: 3 }, { as: "k3" });
 
         assert.strictEqual(two.label, "Core (k 2)");
         assert.strictEqual(three.label, "Core (k 3)");
@@ -485,8 +571,8 @@ describe("batches", () => {
         const { runs } = harness();
         const batch = runs.batch(
             [
-                { algorithm: "k-core", params: { k: 1 } },
-                { algorithm: "k-core", params: { k: 2 } },
+                { algorithm: "k-core", params: { k: 1 }, as: "k1" },
+                { algorithm: "k-core", params: { k: 2 }, as: "k2" },
                 { algorithm: "degree" },
             ],
             { label: "Node rankings", onProgress: (update) => seen.push(update.completed) },
@@ -531,9 +617,9 @@ describe("batches", () => {
         const held = heldExecutor();
         const { runs } = harness(held.execute);
         const batch = runs.batch([
-            { algorithm: "k-core", params: { k: 1 } },
-            { algorithm: "k-core", params: { k: 2 } },
-            { algorithm: "k-core", params: { k: 3 } },
+            { algorithm: "k-core", params: { k: 1 }, as: "k1" },
+            { algorithm: "k-core", params: { k: 2 }, as: "k2" },
+            { algorithm: "k-core", params: { k: 3 }, as: "k3" },
         ]);
 
         await held.started(1);

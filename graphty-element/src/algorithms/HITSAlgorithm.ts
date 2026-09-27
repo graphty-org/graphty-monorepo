@@ -5,6 +5,7 @@ import type { FieldDescriptor, NodeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import type { ScopeInputDeclaration } from "./input/ScopedInput";
 import { walkInChunks } from "./metrics/context";
 import { metricField, nodeMetricFields } from "./metrics/fields";
 import { MetricAlgorithm } from "./metrics/MetricAlgorithm";
@@ -100,6 +101,8 @@ const HITS_FIELDS: readonly FieldDescriptor[] = [
 export class HITSAlgorithm extends MetricAlgorithm<HITSOptions> {
     static namespace = "graphty";
     static type = "hits";
+    /** Computes over the run's scope: the node list and the graph both come from the input. */
+    static scopeInput: ScopeInputDeclaration = "subgraph";
 
     static zodOptionsSchema: ZodOptionsSchema = hitsOptionsSchema;
 

@@ -207,6 +207,21 @@ describe("NodeInspector", () => {
             expect(screen.getByRole("tab", { name: "All 37" })).toBeInTheDocument();
         });
 
+        /* Issue #382: an edge with no label read "9 - edge - ", an invented type and an
+           empty trailing slot. A row shows only the parts it has. */
+        it("names only the neighbour when the edge has no type and the row no value", () => {
+            renderNode({ neighbors: [{ id: "9", label: "9", value: "" }] });
+
+            expect(screen.getByText("9")).toBeInTheDocument();
+            expect(screen.queryByText(/ - /)).toBeNull();
+        });
+
+        it("names the neighbour, the edge type and the value when the row has them", () => {
+            renderNode({ neighbors: [{ id: "2", label: "The_Vet", edgeType: "medical", value: "4" }] });
+
+            expect(screen.getByText("The_Vet - medical - 4")).toBeInTheDocument();
+        });
+
         it("offers See all N and the two list verbs", () => {
             renderNode();
 

@@ -160,8 +160,8 @@ export interface NeighborRow {
     readonly id: string;
     /** The neighbour's own label. */
     readonly label: string;
-    /** The type of the edge that reaches it. */
-    readonly edgeType: string;
+    /** The type of the edge that reaches it, when the edge has one. */
+    readonly edgeType?: string;
     /** Which way the edge runs, on a directed graph. Left out on an undirected one. */
     readonly direction?: "in" | "out";
     /** The trailing figure -- edge weight, then neighbour degree. */
@@ -694,7 +694,7 @@ export function NodeInspector(props: NodeInspectorProps): React.JSX.Element {
                 {shownNeighbors.map((row) => (
                     <ActionRow
                         key={row.id}
-                        state={`${row.label} - ${row.edgeType} - ${row.value}`}
+                        state={[row.label, row.edgeType, row.value].filter(Boolean).join(" - ")}
                         onClick={() => {
                             onSelectNeighbor(row.id);
                         }}

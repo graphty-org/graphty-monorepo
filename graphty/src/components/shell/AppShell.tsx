@@ -3676,7 +3676,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 rows.push({
                     id: other,
                     label: other,
-                    edgeType: typeof edge.label === "string" ? edge.label : "edge",
+                    edgeType: typeof edge.label === "string" ? edge.label : undefined,
                     direction: source === nodeId ? "out" : "in",
                     value: "",
                 });

@@ -323,6 +323,12 @@ const CAPABILITIES_CHANGE_EVENT = "graphty-capabilities-change";
 /** The device-lost toast's link: it says where it goes, because there is no mapping line to scroll to. */
 const OPEN_SETTINGS_ACTION = "Open Settings";
 
+/** The link on a toast that reports a refused edit: there is nowhere further to go. */
+const DISMISS_ACTION = "Dismiss";
+
+/** The colour a new style layer paints until the reader changes it; any valid colour would do. */
+const NEW_LAYER_COLOR = "#F59E0B";
+
 /** The Style panel's own overflow row (spec 03 section 2.4). */
 const RESET_STYLES_ROW = "Reset styles to defaults";
 
@@ -996,6 +1002,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      */
     const [pinnedNodes, setPinnedNodes] = useState<ReadonlySet<string | number>>(EMPTY_PINNED_NODES);
     const layerCounter = useRef(1);
+    /* Why graphty-element refused the last new style layer, in its own words, or null. */
+    const [styleRefusal, setStyleRefusal] = useState<string | null>(null);
     const firstLoadDone = useRef(false);
     /* Whether the 7.2 defaults have been applied to the dataset now loaded. They are a
        per-dataset one-shot: re-applying them would fight a layout or a label budget the
@@ -2281,12 +2289,17 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
         layerCounter.current += 1;
 
-        void session.styles.add({ name, target: "node", selector: { match: "everything" } }).then(
-            () => undefined,
-            (error: unknown) => {
-                console.error("[shell] the element refused the new layer:", error);
-            },
-        );
+        /* One channel set, because the element refuses a layer that paints nothing. The
+           reader edits the colour, the selector and the rest in the inspector afterwards. */
+        void session.styles
+            .add({ name, target: "node", selector: { match: "everything" }, set: { "node.color": NEW_LAYER_COLOR } })
+            .then(
+                () => undefined,
+                (error: unknown) => {
+                    console.error("[shell] the element refused the new layer:", error);
+                    setStyleRefusal(error instanceof Error ? error.message : String(error));
+                },
+            );
     }, []);
 
     const handleApplyLayout = useCallback((type: string, config: Record<string, unknown>) => {
@@ -4196,6 +4209,20 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             };
         }
 
+        if (styleRefusal !== null) {
+            const dismiss = (): void => {
+                setStyleRefusal(null);
+            };
+
+            return {
+                message: styleRefusal,
+                severity: "error",
+                actionLabel: DISMISS_ACTION,
+                onDetails: dismiss,
+                onDismiss: dismiss,
+            };
+        }
+
         if (acceleration === null || acceleration.state !== "error") {
             return undefined;
         }
@@ -4208,7 +4235,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 openFullPanelOverlay("settings", "performance");
             },
         };
-    }, [acceleration, loadFailure, openFullPanelOverlay, openPanelAt]);
+    }, [acceleration, loadFailure, openFullPanelOverlay, openPanelAt, styleRefusal]);
 
     /* ---------------------------------------------------------------------- */
     /* The command palette's rows: the full-text twin of every icon control    */

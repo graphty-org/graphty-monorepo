@@ -2086,6 +2086,36 @@ describe("AppShell", () => {
             return result;
         }
 
+        /* graphty-element refuses a layer that writes no channel, so "+" asked for one it would
+           always refuse and swallowed the refusal: nothing appeared and nothing said why
+           (issue #380). */
+        it("adds a layer that paints one channel, so the element accepts it", async () => {
+            const { container } = await renderStylePanel();
+            const fake = installGraph(container, []);
+
+            await settleSession();
+            fireEvent.click(screen.getByRole("button", { name: "Add a style layer" }));
+            await settleSession();
+
+            const added = fake.layers().find((layer) => layer.name === "New Layer 1");
+
+            expect(added).toBeDefined();
+            expect(Object.keys(added?.set ?? {})).toHaveLength(1);
+            expect(within(screen.getByTestId("style-layers")).getByText("New Layer 1")).toBeInTheDocument();
+        });
+
+        it("tells the reader why the element refused a new layer", async () => {
+            const { container } = await renderStylePanel();
+            const fake = installGraph(container, []);
+
+            vi.spyOn(fake.session.styles, "add").mockRejectedValueOnce(new Error("the element said no"));
+            await settleSession();
+            fireEvent.click(screen.getByRole("button", { name: "Add a style layer" }));
+            await settleSession();
+
+            expect(statusToast(container)).toHaveTextContent("the element said no");
+        });
+
         it("commits an inline rename to graphty-element, which owns the names", async () => {
             const { container } = await renderStylePanel();
             const fake = installGraph(container, ["New Layer 1"]);

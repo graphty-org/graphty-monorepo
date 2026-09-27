@@ -1151,7 +1151,7 @@ export const Animation: Story = {
             await holds(
                 moved.scale > 0.01,
                 `Styles/Label Animation: every label is asked to pulse and the largest change in scale over ` +
-                    `four hundred milliseconds was ${moved.scale.toFixed(4)}`,
+                    `twenty frames was ${moved.scale.toFixed(4)}`,
             );
         }
 

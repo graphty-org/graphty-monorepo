@@ -28,7 +28,7 @@ import { type GraphImporter, type ImportInput } from "../../src/types.js";
 import { charactersExamined } from "../helpers/work-meter.js";
 
 const BENCH = process.env.IO_BENCH === "1";
-const LONG = { timeout: 300_000 };
+const LONG = 300_000;
 
 /** The most a doubling of the input may multiply the work by and still count as linear. */
 const DOUBLING_BOUND = 2.5;

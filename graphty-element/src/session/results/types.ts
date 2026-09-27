@@ -64,6 +64,39 @@ export function resultPath(runId: RunId, field?: string): Path {
 }
 
 /**
+ * The name a grouping result gives one of its groups, from its place in the size order.
+ *
+ * The summary and the legend both print this, so one group is called the same thing in the list
+ * of groups and in the key to the colours -- rather than "Group 1" in one and its raw id "0" in the
+ * other.
+ * @param rank - The group's 1-based place, largest group first.
+ * @returns The name, such as "Group 1".
+ */
+export function groupName(rank: number): string {
+    return `Group ${String(rank)}`;
+}
+
+/**
+ * Order two keys of equally large groups, so they come back in the same order every time.
+ *
+ * Keys that are both numbers, or the canonical spelling of one, compare as numbers, so group 2
+ * comes before group 10 whether the key arrived as a number or as the string a category column
+ * turns it into. Anything else compares as text.
+ * @param left - One key.
+ * @param right - The other.
+ * @returns The usual negative, zero or positive ordering.
+ */
+export function compareGroupKeys(left: string | number, right: string | number): number {
+    const a = Number(left);
+    const b = Number(right);
+    if (Number.isFinite(a) && Number.isFinite(b) && String(a) === String(left) && String(b) === String(right)) {
+        return a - b;
+    }
+
+    return String(left).localeCompare(String(right));
+}
+
+/**
  * Replace the run-id placeholder in a catalogue descriptor's static path with a real run id.
  * @param path - The path as a descriptor declares it, such as "results.$.value".
  * @param runId - The run to bind it to.
@@ -727,6 +760,11 @@ export interface SummaryGroup {
     readonly group: string | number;
     /** How many elements are in it. */
     readonly size: number;
+    /**
+     * What to call it, such as "Group 1", for a result that partitions into groups. The legend
+     * of a colour encoding over the same groups labels its swatches with the same names.
+     */
+    readonly name?: string;
 }
 
 /**

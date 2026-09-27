@@ -9,9 +9,9 @@
 import { fromEdgeArrays } from "../src/populate/from-edge-arrays.js";
 import { type GraphSnapshot } from "../src/snapshot/graph-snapshot.js";
 import { type ValidationLevel } from "../src/types/index.js";
+import { makeMask, maskSet } from "../src/util/mask.js";
 import { fromBytes } from "../src/wire/bytes.js";
 import { fromWire } from "../src/wire/from-wire.js";
-import { makeMask, maskSet } from "../src/util/mask.js";
 import { randomEdges } from "./datasets.js";
 import { bench, type BenchResult, makeRandom } from "./harness.js";
 

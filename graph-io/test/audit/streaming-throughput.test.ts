@@ -36,7 +36,7 @@ import { pajekExporter, pajekImporter } from "../../src/formats/pajek/index.js";
 import { type GraphExporter } from "../../src/types.js";
 
 const BENCH = process.env.IO_BENCH === "1";
-const LONG = { timeout: 300_000 };
+const LONG = 300_000;
 const CHUNK = 64 * 1024;
 
 interface Row {

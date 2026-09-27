@@ -1,5 +1,6 @@
-import { describe, it, assert } from "vitest";
-import { rescaleLayout, rescaleLayoutDict, circularLayout, randomLayout, completeGraph, starGraph } from "../src";
+import { assert,describe, it } from "vitest";
+
+import { circularLayout, completeGraph, randomLayout, rescaleLayout, rescaleLayoutDict, starGraph } from "../src";
 
 describe("Rescale Layout", () => {
     describe("Dictionary format (rescaleLayout)", () => {
@@ -33,8 +34,8 @@ describe("Rescale Layout", () => {
 
             // The max distance is sqrt(2), scale is 1/sqrt(2)
             const scale = 1 / Math.sqrt(2);
-            assert.approximately(rescaled["A"][0], 10 + scale, 0.01);
-            assert.approximately(rescaled["A"][1], 5 + scale, 0.01);
+            assert.approximately(rescaled.A[0], 10 + scale, 0.01);
+            assert.approximately(rescaled.A[1], 5 + scale, 0.01);
         });
 
         it("should handle empty positions", () => {
@@ -49,7 +50,7 @@ describe("Rescale Layout", () => {
             const rescaled = rescaleLayout(positions, 2, [0, 0]);
 
             // Single node should be placed at center
-            assert.deepEqual(rescaled["node1"], [0, 0]);
+            assert.deepEqual(rescaled.node1, [0, 0]);
         });
 
         it("should scale and center combined", () => {
@@ -170,12 +171,11 @@ describe("Rescale Layout", () => {
 
             // Check that relative positions are maintained
             // A-C should still be horizontal, B-D vertical
-            assert.approximately(rescaled["A"][1], rescaled["C"][1], 0.001); // Same Y
-            assert.approximately(rescaled["B"][0], rescaled["D"][0], 0.001); // Same X
+            assert.approximately(rescaled.A[1], rescaled.C[1], 0.001); // Same Y
+            assert.approximately(rescaled.B[0], rescaled.D[0], 0.001); // Same X
 
             // Check distance is scaled properly
-            const originalMaxDist = 1; // from center to any point
-            const newMaxDist = Math.sqrt((rescaled["A"][0] - 10) ** 2 + (rescaled["A"][1] - 10) ** 2);
+            const newMaxDist = Math.sqrt((rescaled.A[0] - 10) ** 2 + (rescaled.A[1] - 10) ** 2);
             assert.approximately(newMaxDist, 2.5, 0.01);
         });
     });
@@ -223,9 +223,9 @@ describe("Rescale Layout", () => {
             const rescaled = rescaleLayout(positions, 0, [7, 7]);
 
             // All nodes should collapse to center
-            assert.deepEqual(rescaled["A"], [7, 7]);
-            assert.deepEqual(rescaled["B"], [7, 7]);
-            assert.deepEqual(rescaled["C"], [7, 7]);
+            assert.deepEqual(rescaled.A, [7, 7]);
+            assert.deepEqual(rescaled.B, [7, 7]);
+            assert.deepEqual(rescaled.C, [7, 7]);
         });
 
         it("should handle negative scale", () => {
@@ -260,7 +260,7 @@ describe("Rescale Layout", () => {
             assert.deepEqual(positions, original);
 
             // Rescaled should be different
-            assert.notDeepEqual(rescaled["A"], positions["A"]);
+            assert.notDeepEqual(rescaled.A, positions.A);
         });
 
         it("should handle positions with different dimensions", () => {
@@ -274,10 +274,10 @@ describe("Rescale Layout", () => {
 
             // rescaleLayout uses dimension of first position (A has 2D)
             // But when center has more dimensions, the result extends to match center
-            assert.equal(rescaled["A"].length, 3);
-            assert.equal(rescaled["A"][2], 0); // Third dimension from center
-            assert.equal(rescaled["B"].length, 3);
-            assert.equal(rescaled["C"].length, 3);
+            assert.equal(rescaled.A.length, 3);
+            assert.equal(rescaled.A[2], 0); // Third dimension from center
+            assert.equal(rescaled.B.length, 3);
+            assert.equal(rescaled.C.length, 3);
         });
 
         it("should handle very large scale factors", () => {
@@ -307,7 +307,7 @@ describe("Rescale Layout", () => {
             // Max distance = sqrt((2/3)^2 + (2/3)^2) = sqrt(8/9) = 0.9428...
             // Scale factor = 3 / 0.9428 = 3.182...
             // B after scaling = [2/3 * 3.182, -1/3 * 3.182] + [10, 10] = [12.12, 8.94]
-            const dist = Math.sqrt((rescaled["B"][0] - 10) ** 2 + (rescaled["B"][1] - 10) ** 2);
+            const dist = Math.sqrt((rescaled.B[0] - 10) ** 2 + (rescaled.B[1] - 10) ** 2);
             assert.approximately(dist, 3, 0.1);
         });
     });
@@ -347,16 +347,16 @@ describe("Rescale Layout", () => {
             };
 
             // Scale second layout and offset it
-            const rescaled2 = rescaleLayout(layout2, 2, [5, 0]);
+            const rescaled2 = rescaleLayout(layout2, 2, [5, 0]) as Record<string, number[]>;
 
             // Combine layouts
             const combined = { ...layout1, ...rescaled2 };
 
             assert.equal(Object.keys(combined).length, 4);
-            assert.deepEqual(combined["A"], [1, 1]);
+            assert.deepEqual(combined.A, [1, 1]);
 
             // Check rescaled layout is positioned correctly
-            const centerX = (rescaled2["C"][0] + rescaled2["D"][0]) / 2;
+            const centerX = (rescaled2.C[0] + rescaled2.D[0]) / 2;
             assert.approximately(centerX, 5, 0.1);
         });
     });

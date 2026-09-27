@@ -179,7 +179,7 @@ export function extractMetricsFromSnapshot(
         frameTimeP95: 0, // Would need to track in StatsManager
         renderTimeAvg: snapshot.scene?.renderTime.avg ?? 0,
         interFrameTimeAvg: snapshot.scene?.interFrameTime.avg ?? 0,
-        drawCallsCount: snapshot.scene?.drawCalls.count ?? 0,
+        drawCallsCount: snapshot.scene?.drawCalls.current ?? 0,
         activeMeshesEvalTime: snapshot.scene?.activeMeshesEvaluation.total ?? 0,
 
         // GPU metrics

@@ -180,7 +180,7 @@ describe("ForceAtlas2Simulation", () => {
                 strongGravity: f.options.strong_gravity,
                 linlog: f.options.linlog,
                 dissuadeHubs: f.options.dissuade_hubs,
-                weight: f.options.weight === null ? false : true,
+                weight: f.options.weight !== null,
                 dim,
                 settleThreshold: 0,
                 compat: "networkx",

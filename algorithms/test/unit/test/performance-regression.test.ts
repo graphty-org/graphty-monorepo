@@ -2,8 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PerformanceRegressionTest } from "../../helpers/performance-regression.js";
 
-// Mock fs module
-vi.mock("fs");
+// Mock the two fs functions the helper uses. Under Vitest 4 a bare vi.mock("fs") automock
+// leaves this Node builtin unmocked, and the helper's named imports read the module's default
+// export, so the same two mocks go on both the named exports and the default.
+vi.mock("fs", () => {
+    const readFileSync = vi.fn();
+    const writeFileSync = vi.fn();
+    return { readFileSync, writeFileSync, default: { readFileSync, writeFileSync } };
+});
 
 // Mock console methods
 const originalConsole = {
@@ -183,12 +189,14 @@ describe("PerformanceRegressionTest", () => {
             const generateSmallWorldGraph = (
                 test as unknown as { generateSmallWorldGraph: (size: number) => Graph }
             ).generateSmallWorldGraph.bind(test);
-            const Graph = vi.fn().mockImplementation(() => ({
-                addNode: vi.fn(),
-                addEdge: vi.fn(),
-                hasEdge: vi.fn().mockReturnValue(false),
-                removeEdge: vi.fn(),
-            }));
+            const Graph = vi.fn().mockImplementation(function () {
+                return {
+                    addNode: vi.fn(),
+                    addEdge: vi.fn(),
+                    hasEdge: vi.fn().mockReturnValue(false),
+                    removeEdge: vi.fn(),
+                };
+            });
 
             const mockGraph = new Graph();
             const result = generateSmallWorldGraph(mockGraph, 100);
@@ -202,11 +210,13 @@ describe("PerformanceRegressionTest", () => {
             const generateScaleFreeGraph = (
                 test as unknown as { generateScaleFreeGraph: (size: number) => Graph }
             ).generateScaleFreeGraph.bind(test);
-            const Graph = vi.fn().mockImplementation(() => ({
-                addNode: vi.fn(),
-                addEdge: vi.fn(),
-                neighbors: vi.fn().mockReturnValue([]),
-            }));
+            const Graph = vi.fn().mockImplementation(function () {
+                return {
+                    addNode: vi.fn(),
+                    addEdge: vi.fn(),
+                    neighbors: vi.fn().mockReturnValue([]),
+                };
+            });
 
             const mockGraph = new Graph();
             const result = generateScaleFreeGraph(mockGraph, 100);
@@ -220,10 +230,12 @@ describe("PerformanceRegressionTest", () => {
             const generateRandomGraph = (
                 test as unknown as { generateRandomGraph: (size: number, density: number) => Graph }
             ).generateRandomGraph.bind(test);
-            const Graph = vi.fn().mockImplementation(() => ({
-                addNode: vi.fn(),
-                addEdge: vi.fn(),
-            }));
+            const Graph = vi.fn().mockImplementation(function () {
+                return {
+                    addNode: vi.fn(),
+                    addEdge: vi.fn(),
+                };
+            });
 
             const mockGraph = new Graph();
             const result = generateRandomGraph(mockGraph, 100);
@@ -237,10 +249,12 @@ describe("PerformanceRegressionTest", () => {
             const generateCompleteGraph = (
                 test as unknown as { generateCompleteGraph: (size: number) => Graph }
             ).generateCompleteGraph.bind(test);
-            const Graph = vi.fn().mockImplementation(() => ({
-                addNode: vi.fn(),
-                addEdge: vi.fn(),
-            }));
+            const Graph = vi.fn().mockImplementation(function () {
+                return {
+                    addNode: vi.fn(),
+                    addEdge: vi.fn(),
+                };
+            });
 
             const mockGraph = new Graph();
             const result = generateCompleteGraph(mockGraph, 5);

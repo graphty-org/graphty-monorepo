@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { forceatlas2Layout } from "../src";
-import { completeGraph } from "../src";
+import { describe, expect,it } from "vitest";
+
+import { completeGraph, forceatlas2Layout } from "../src";
 
 describe("ForceAtlas2 NPM Package Bug", () => {
     it("should return valid Z coordinates when dim=3 (bug report test)", () => {
@@ -35,7 +35,7 @@ describe("ForceAtlas2 NPM Package Bug", () => {
         );
 
         // Check that all nodes have 3D positions
-        for (const [node, pos] of Object.entries(positions)) {
+        for (const pos of Object.values(positions)) {
             expect(pos).toHaveLength(3);
             expect(pos[0]).toBeTypeOf("number");
             expect(pos[1]).toBeTypeOf("number");
@@ -109,7 +109,7 @@ describe("ForceAtlas2 NPM Package Bug", () => {
             3,
         );
 
-        for (const [node, pos] of Object.entries(positions)) {
+        for (const pos of Object.values(positions)) {
             expect(pos).toHaveLength(3);
             expect(isNaN(pos[0])).toBe(false);
             expect(isNaN(pos[1])).toBe(false);

@@ -24,7 +24,7 @@ import {
     runHistogram,
 } from "../helpers/histogram.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
-import { adapterClass, writeNoiseFixture } from "../helpers/noise-floor.js";
+import { adapterClass, sampleStrided, writeNoiseFixture } from "../helpers/noise-floor.js";
 import { assertCheckPasses } from "../helpers/sabotage.js";
 import { testReduceScope } from "../helpers/segmented-reduce.js";
 import { countingSortOracle, histogramOracle } from "../oracle/histogram.js";
@@ -36,8 +36,8 @@ const BINS = 4096;
 /** The hot-bucket bin counts: one bin, a radix digit range, BINS, and the 2D grid's cells + 2 at G = 512. */
 const HOT_BINS: readonly number[] = [1, 256, 4096, 262146];
 
-/** Every 1024th word of the 2^20 key sequence: the committed fixture (the whole sequence would be megabytes of JSON, the scan precedent). */
-const FIXTURE_STRIDE = 1024;
+/** Every 1025th word (odd, issue #267) of the 2^20 key sequence: the committed fixture (the whole sequence would be megabytes of JSON, the scan precedent). */
+const FIXTURE_STRIDE = 1025;
 
 /** The scaled key count of the seeded cases. */
 function keyCount(): number {
@@ -182,7 +182,7 @@ describe("histogram and countingSortByKey (spec 6 row 5; P4-T3): equal their ora
         }
     });
 
-    it("records the random1m-4096 u32 fixtures of this adapter: the histogram and every 1024th word of the sorted key sequence (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {
+    it("records the random1m-4096 u32 fixtures of this adapter: the histogram and every 1025th word of the sorted key sequence (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {
         requireGpu(t);
         const ctx = await acquire({ label: "histogram-noise" });
         try {
@@ -197,10 +197,7 @@ describe("histogram and countingSortByKey (spec 6 row 5; P4-T3): equal their ora
                 keySequence(keys, countingSortOracle(keys, BINS).outIndex),
                 "key sequence vs oracle",
             );
-            const sample = new Uint32Array(count / FIXTURE_STRIDE);
-            for (let i = 0; i < sample.length; i++) {
-                sample[i] = seq[i * FIXTURE_STRIDE];
-            }
+            const sample = sampleStrided(seq, FIXTURE_STRIDE);
             const cls = adapterClass(ctx.caps);
             writeNoiseFixture("histogram", "random1m-4096", cls, hist.hist, "u32");
             writeNoiseFixture("counting-scatter", "random1m-4096-keys", cls, sample, "u32");

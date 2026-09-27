@@ -39,6 +39,7 @@
  */
 
 import type { Binding, Channel, LayerId, PaletteId, Path, RunId } from "../../catalog/types";
+import { groupName, RESULT_ROOT } from "../results/types";
 import type { EncodedValue, PreparedBinding } from "./encoding";
 import type { Layer } from "./Layer";
 import type { SelectorTarget } from "./predicate";
@@ -412,13 +413,28 @@ function sweepRuns(prepared: PreparedBinding, domain: readonly [number, number])
 }
 
 /**
+ * Whether a path reads the groups a run partitioned its elements into.
+ *
+ * Those swatches are labelled with the names the run's summary gives the same groups, so a reader
+ * sees "Group 1" in the key and in the list of groups rather than a raw id in one of them.
+ * @param path - The column path.
+ * @returns True for `results.<run>.group`.
+ */
+function readsGroups(path: Path | null): boolean {
+    const parts = path?.split(".") ?? [];
+
+    return parts.length === 3 && parts[0] === RESULT_ROOT && parts[2] === "group";
+}
+
+/**
  * The swatches of an encoding that names categories.
  * @param prepared - The prepared binding.
  * @returns One swatch per category, largest group first, before the cap is applied.
  */
 function categorySwatches(prepared: PreparedBinding): readonly LegendSwatch[] {
-    const swatches: LegendSwatch[] = prepared.categories.map((category) => ({
-        label: category,
+    const groups = readsGroups(prepared.path);
+    const swatches: LegendSwatch[] = prepared.categories.map((category, index) => ({
+        label: groups ? groupName(index + 1) : category,
         value: category,
         ...swatchPaint(prepared.paint(category)),
     }));

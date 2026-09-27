@@ -34,6 +34,8 @@ const CONFIG = {
         PHASE2: [500],
         PHASE3: [500],
         PHASE4: [1000],
+        // Each doubles the last, so a linear load shows a ratio of 2 between neighbours
+        LOAD_SCALING: [500, 1000, 2000],
     },
 
     // Line styles to test (baseline to most complex)
@@ -48,7 +50,13 @@ const CONFIG = {
 
     // Node count calculation: edgeCount / EDGE_TO_NODE_RATIO
     EDGE_TO_NODE_RATIO: 50,
+
+    // Loads of each size in the load scaling phase; the report takes their median
+    LOAD_SCALING_ROUNDS: 3,
 };
+
+/** Arrow types the load scaling phase compares: one mesh per edge, and one more per arrowhead. */
+const LOAD_SCALING_ARROWS = ["none", "normal"] as const;
 
 // ============================================================================
 // TYPES
@@ -86,6 +94,9 @@ interface PhaseResults {
 
 const allResults: PhaseResults[] = [];
 let currentGraph: Graph | null = null;
+
+/** Time from `setData` to the first finished frame, per edge count and arrow type. */
+const loadResults: { edgeCount: number; arrowType: string; loadMs: number }[] = [];
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -246,7 +257,12 @@ async function animateZoom(graph: Graph, durationMs: number): Promise<number[]> 
 // BENCHMARK RUNNER
 // ============================================================================
 
-async function runBenchmark(config: TestConfig): Promise<TestResult> {
+/**
+ * Create a graph, hand it the benchmark's nodes and edges, and wait for its first finished frame.
+ * @param config - The edge count, line and arrow styles and mode to load.
+ * @returns The loaded graph and the time from `setData` to the first finished frame, in ms.
+ */
+async function loadGraph(config: TestConfig): Promise<{ graph: Graph; loadMs: number }> {
     // Calculate node count (sparser graph as requested)
     const nodeCount = Math.max(10, Math.ceil(config.edgeCount / CONFIG.EDGE_TO_NODE_RATIO));
 
@@ -298,11 +314,18 @@ async function runBenchmark(config: TestConfig): Promise<TestResult> {
         })),
     };
 
+    const loadStart = performance.now();
     (graph as Graph & { setData: (data: unknown) => void }).setData(graphData);
 
     // Warm up until the graph is fully drawn -- every mesh has its shader -- so the measured
     // frames are steady-state ones. A fixed sleep here was a timer too, and was starved the same way.
     await graph.waitForStableFrame();
+
+    return { graph, loadMs: performance.now() - loadStart };
+}
+
+async function runBenchmark(config: TestConfig): Promise<TestResult> {
+    const { graph } = await loadGraph(config);
 
     // Get initial draw calls
     const statsManager = graph.getStatsManager();
@@ -440,6 +463,31 @@ Generated: ${timestamp}
         }
     }
 
+    // Load time scaling: a ratio near 2 means the load grows linearly with the edge count
+    if (loadResults.length > 0) {
+        report += `\n### Load Time Scaling (median time to first finished frame of ${CONFIG.LOAD_SCALING_ROUNDS} loads, 3D, solid lines)\n\n`;
+        report += `| Arrow | ${CONFIG.EDGE_COUNTS.LOAD_SCALING.map((n) => `${n} edges`).join(" | ")} | Ratios |\n`;
+        report += `|-------|${CONFIG.EDGE_COUNTS.LOAD_SCALING.map(() => "------").join("|")}|--------|\n`;
+
+        for (const arrowType of LOAD_SCALING_ARROWS) {
+            const times = CONFIG.EDGE_COUNTS.LOAD_SCALING.map((n) => {
+                const samples = loadResults.filter((r) => r.edgeCount === n && r.arrowType === arrowType);
+                return samples.length > 0
+                    ? calculatePercentile(
+                          samples.map((r) => r.loadMs),
+                          50,
+                      )
+                    : undefined;
+            });
+            const ratios = CONFIG.EDGE_COUNTS.LOAD_SCALING.slice(1).map((n, i) => {
+                const [prev, cur] = [times[i], times[i + 1]];
+                const ratio = prev && cur ? (cur / prev).toFixed(2) : "-";
+                return `${n}/${CONFIG.EDGE_COUNTS.LOAD_SCALING[i]}: ${ratio}`;
+            });
+            report += `| ${arrowType} | ${times.map((t) => (t === undefined ? "-" : `${t.toFixed(0)}ms`)).join(" | ")} | ${ratios.join(", ")} |\n`;
+        }
+    }
+
     // Feature cost analysis
     report += "\n## Feature Cost Analysis\n\n";
 
@@ -507,9 +555,9 @@ describe("Edge Performance Report", () => {
 
         // In browser environment, just log the report
         // File writing is only available in Node.js environment
-         
+
         console.log("\n📊 Edge Performance Report:\n");
-         
+
         console.log(report);
 
         // Try to save file if running in Node.js (not browser)
@@ -521,7 +569,7 @@ describe("Edge Performance Report", () => {
             }
 
             fs.writeFileSync(reportPath, report, "utf-8");
-             
+
             console.log(`Report saved to: ${reportPath}`);
         } catch {
             // Silently ignore file write errors in browser
@@ -560,7 +608,6 @@ describe("Edge Performance Report", () => {
 
                     phaseResults.push(result);
 
-                     
                     console.log(
                         `[${cfg.line}/${cfg.arrow}] ${edgeCount} edges: ${result.avgFps.toFixed(1)} FPS, ${result.jankPercent.toFixed(1)}% jank`,
                     );
@@ -600,7 +647,6 @@ describe("Edge Performance Report", () => {
 
                     phaseResults.push(result);
 
-                     
                     console.log(`[ZOOM ${cfg.line}/${cfg.arrow}] ${edgeCount} edges: ${result.avgFps.toFixed(1)} FPS`);
 
                     assert.isAbove(result.totalFrames, 10);
@@ -638,7 +684,6 @@ describe("Edge Performance Report", () => {
 
                     phaseResults.push(result);
 
-                     
                     console.log(`[2D ${cfg.line}/${cfg.arrow}] ${edgeCount} edges: ${result.avgFps.toFixed(1)} FPS`);
 
                     assert.isAbove(result.totalFrames, 10);
@@ -670,7 +715,6 @@ describe("Edge Performance Report", () => {
 
                 phaseResults.push(result);
 
-                 
                 console.log(
                     `[EXTREME] ${edgeCount} edges: ${result.avgFps.toFixed(1)} FPS, ${result.jankPercent.toFixed(1)}% jank`,
                 );
@@ -708,7 +752,6 @@ describe("Edge Performance Report", () => {
 
                 phaseResults.push(result);
 
-                 
                 console.log(`[VAR ${lineStyle}/none] 1000 edges: ${result.avgFps.toFixed(1)} FPS`);
 
                 assert.isAbove(result.totalFrames, 10);
@@ -727,11 +770,42 @@ describe("Edge Performance Report", () => {
 
                 phaseResults.push(result);
 
-                 
                 console.log(`[VAR solid/${arrowType}] 1000 edges: ${result.avgFps.toFixed(1)} FPS`);
 
                 assert.isAbove(result.totalFrames, 10);
             });
+        }
+    });
+
+    // ========================================================================
+    // PHASE 6: Load Time Scaling
+    // ========================================================================
+
+    // Records how the time to the first finished frame grows as the edge count doubles (#27).
+    // The ratios go in the report and are never asserted: they are wall-clock derived.
+    // One load varies by up to 2x from the next, so each size is loaded in several rounds, the
+    // sizes interleaved within a round, and the report takes the median.
+    describe("Phase 6: Load Time Scaling", () => {
+        for (let round = 1; round <= CONFIG.LOAD_SCALING_ROUNDS; round++) {
+            for (const arrowType of LOAD_SCALING_ARROWS) {
+                for (const edgeCount of CONFIG.EDGE_COUNTS.LOAD_SCALING) {
+                    test(`${edgeCount} edges - solid/${arrowType} - load to first finished frame (round ${round})`, async () => {
+                        const { graph, loadMs } = await loadGraph({
+                            edgeCount,
+                            lineStyle: "solid",
+                            arrowType,
+                            mode: "3d",
+                            scenario: "rotation",
+                        });
+
+                        loadResults.push({ edgeCount, arrowType, loadMs });
+
+                        console.log(`[LOAD solid/${arrowType}] ${edgeCount} edges: ${loadMs.toFixed(0)}ms`);
+
+                        assert.strictEqual(graph.getDataManager().edges.size, edgeCount);
+                    });
+                }
+            }
         }
     });
 });

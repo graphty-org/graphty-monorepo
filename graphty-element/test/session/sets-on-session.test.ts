@@ -6,8 +6,9 @@
 
 import { assert, describe, it } from "vitest";
 
-import type { SetDefinitionInput } from "../../src/catalog/types";
+import type { NodeId, Scope, SetDefinition, SetDefinitionInput } from "../../src/catalog/types";
 import { isGraphtyError } from "../../src/errors";
+import { createScopeApi } from "../../src/session/scope/ScopeApi";
 import type { SetChange } from "../../src/session/sets/types";
 import { edgeBetween, type Harness, makeSession } from "./helpers";
 import { finishAtOnce } from "./runs/harness";
@@ -228,6 +229,100 @@ describe("scope.save freezes the live keywords", () => {
 
         assert.deepStrictEqual(h.session.scope.list()[0]?.spec, { nodes: ["a", "b", "c", "d", "e"] });
         assert.strictEqual((await h.session.scope.count({ set: id })).edges, 4);
+        h.session.dispose();
+    });
+});
+
+describe("scope.save, list and remove keep sets", () => {
+    it("keeps each specification form as the definition design section 16 names, created from user", async () => {
+        const h = harnessOf();
+        const { scope, sets } = h.session;
+        const base = scope.save("Base", { nodes: ["b", "a"] });
+        await h.session.selection.apply({ nodes: ["c"] });
+        const forms: [string, Scope, SetDefinition][] = [
+            ["graph", "graph", { kind: "rule", where: { kind: "scope", scope: "graph" }, reading: "induced" }],
+            ["largest", "largest-component", { kind: "rule", where: { kind: "scope", scope: "largest-component" }, reading: "induced" }],
+            ["named", { set: base }, { kind: "rule", where: { kind: "scope", scope: { set: base } }, reading: "induced" }],
+            ["matched", { where: "id == 'a'" }, { kind: "rule", where: "id == 'a'", reading: "induced" }],
+            ["path", { define: { kind: "path", nodes: ["a", "b"] } }, { kind: "path", nodes: ["a", "b"] }],
+            ["picked", "selection", { kind: "fixed", nodes: ["c"], reading: "induced" }],
+            ["shown", "visible", { kind: "fixed", nodes: ["a", "b", "c", "d", "e"], reading: "induced" }],
+        ];
+
+        assert.deepStrictEqual(sets.get(base)?.definition, { kind: "fixed", nodes: ["a", "b"], reading: "induced" });
+        for (const [name, spec, expected] of forms) {
+            const id = scope.save(name, spec);
+            assert.deepStrictEqual(sets.get(id)?.definition, expected, name);
+            assert.deepStrictEqual(sets.get(id)?.createdFrom, { kind: "user" }, name);
+        }
+
+        h.session.dispose();
+    });
+
+    it("mints the id it always minted for a first save, and keeps a copy of what it was given", () => {
+        const h = harnessOf();
+        const nodes: NodeId[] = ["a", "b"];
+
+        const id = h.session.scope.save("Core hosts", { nodes });
+        nodes.push("c");
+
+        assert.strictEqual(id, "set_core-hosts");
+        assert.deepStrictEqual(h.session.sets.get(id)?.definition, { kind: "fixed", nodes: ["a", "b"], reading: "induced" });
+        assert.isTrue(Object.isFrozen(h.session.sets.get(id)?.definition));
+        h.session.dispose();
+    });
+
+    it("lists each kept set as the specification it was saved as, with whether it is bound", () => {
+        const h = harnessOf();
+        const { scope, sets } = h.session;
+        const base = scope.save("Base", { nodes: ["a", "gone"] });
+        scope.save("All", "graph");
+        scope.save("Named", { set: base });
+        scope.save("Matched", { where: "id == 'a'" });
+        scope.save("Path", { define: { kind: "path", nodes: ["a", "b"] } });
+        sets.create({ kind: "fixed", nodes: ["gone"], reading: "induced" }, { name: "Departed" });
+
+        assert.deepStrictEqual(
+            scope.list().map(({ name, spec, bound }) => ({ name, spec, bound })),
+            [
+                { name: "Base", spec: { nodes: ["a", "gone"] }, bound: true },
+                { name: "All", spec: "graph", bound: true },
+                { name: "Named", spec: { set: base }, bound: true },
+                { name: "Matched", spec: { where: "id == 'a'" }, bound: true },
+                { name: "Path", spec: { define: { kind: "path", nodes: ["a", "b"] } }, bound: true },
+                { name: "Departed", spec: { nodes: ["gone"] }, bound: false },
+            ],
+        );
+
+        scope.remove(base);
+        assert.isUndefined(sets.get(base));
+        assert.deepStrictEqual(
+            scope.list().filter((entry) => entry.name === "Named").map((entry) => entry.bound),
+            [false],
+            "a set naming a removed one is unbound",
+        );
+        h.session.dispose();
+    });
+
+    it("gives a resolver built on its own a store of its own", () => {
+        const h = harnessOf();
+        const one = createScopeApi({ snapshot: () => h.store.getSnapshot() });
+        const two = createScopeApi({ snapshot: () => h.store.getSnapshot() });
+
+        assert.strictEqual(one.save("Mine", "graph"), "set_mine");
+        assert.strictEqual(two.save("Mine", "graph"), "set_mine");
+        assert.lengthOf(one.sets.list(), 1);
+        assert.lengthOf(h.session.sets.list(), 0, "neither wrote to the session's sets");
+        h.session.dispose();
+    });
+
+    it("keeps a promoted selection as a set created from the selection", async () => {
+        const h = harnessOf();
+        await h.session.selection.apply({ nodes: ["a", "b"] });
+
+        const id = h.session.selection.promote("Picks");
+
+        assert.deepStrictEqual(h.session.sets.get(id)?.createdFrom, { kind: "selection" });
         h.session.dispose();
     });
 });

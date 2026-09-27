@@ -7,13 +7,13 @@
  * store write group, it prepares one operation and writes the result. A no-op writes nothing and
  * emits nothing.
  *
- * Built by the session, not yet published on it.
+ * Built by the session and published on it as `session.sets`.
  */
 
 import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
 import { inducedEdgeLeaf, speaksEdges } from "../../catalog/sets/parse";
-import type { EdgeId, EdgeMember, EdgeRef, SetDefinitionInput, SetId } from "../../catalog/types";
+import type { EdgeId, EdgeMember, EdgeRef, SetCreatedFrom, SetDefinitionInput, SetId } from "../../catalog/types";
 import { edgeCounterOf, stableEdgeMember } from "../../data/edgeIdentity";
 import { readEndpoint } from "../../data/endpoints";
 import { GraphtyError } from "../../errors/GraphtyError";
@@ -80,6 +80,31 @@ export function sessionEdgeMember(
 }
 
 const storesOf = new WeakMap<SetsApi, SetsStore>();
+
+/** `set.create` with what the set was created from, for the element's own doors. */
+type CreateAs = (definition: SetDefinitionInput, name: string | undefined, createdFrom: SetCreatedFrom) => SetId;
+
+const creatorsOf = new WeakMap<SetsApi, CreateAs>();
+
+/**
+ * Keep a definition, recording what it was created from: the door the element's own verbs (a
+ * promoted selection) dispatch through, since the published `create` always records `user`.
+ * Internal.
+ * @param api - Doors {@link createSetsApi} built.
+ * @param definition - The definition.
+ * @param name - The name; "Set N" when absent.
+ * @param createdFrom - What the set was created from.
+ * @returns The minted id.
+ * @throws An Error for doors it did not build; otherwise as `create` refuses.
+ */
+export function createSetAs(api: SetsApi, definition: SetDefinitionInput, name: string | undefined, createdFrom: SetCreatedFrom): SetId {
+    const create = creatorsOf.get(api);
+    if (create === undefined) {
+        throw new Error("Not a SetsApi built by createSetsApi.");
+    }
+
+    return create(definition, name, createdFrom);
+}
 
 /**
  * The store behind a set of doors, for the internal readers that resolve kept sets. Internal.
@@ -263,24 +288,26 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
         }
     };
 
+    const createAs: CreateAs = (definition, given, createdFrom) => {
+        const [concrete, refs] = collect(() => stabilise(definition));
+        const id = store.transact(() => {
+            const name = given ?? defaultName(store);
+            const minted = store.mint(typeof name === "string" ? name.trim() : "");
+            write(prepareCreate(store, { id: minted, name, order: store.nextOrder(), definition: concrete, createdFrom }));
+
+            return minted;
+        });
+        seed(id, undefined, refs);
+
+        return id;
+    };
+
     const api: SetsApi = {
         list: () => store.list(),
 
         get: (id: SetId) => store.get(id),
 
-        create(definition: SetDefinitionInput, options: { readonly name?: string } = {}): SetId {
-            const [concrete, refs] = collect(() => stabilise(definition));
-            const id = store.transact(() => {
-                const name = options.name ?? defaultName(store);
-                const minted = store.mint(typeof name === "string" ? name.trim() : "");
-                write(prepareCreate(store, { id: minted, name, order: store.nextOrder(), definition: concrete, createdFrom: { kind: "user" } }));
-
-                return minted;
-            });
-            seed(id, undefined, refs);
-
-            return id;
-        },
+        create: (definition: SetDefinitionInput, options: { readonly name?: string } = {}): SetId => createAs(definition, options.name, { kind: "user" }),
 
         rename(id: SetId, name: string): void {
             store.transact(() => {
@@ -320,6 +347,7 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
         },
     };
     storesOf.set(api, store);
+    creatorsOf.set(api, createAs);
 
     return api;
 }

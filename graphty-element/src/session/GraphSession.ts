@@ -1118,11 +1118,11 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     // Kept sets, published as `session.sets`.
     const edgeMember = (id: EdgeId): EdgeMember | undefined =>
         sessionEdgeMember(snapshot(), id, (row) => options.records?.edgeAttributes(row), readData().knownFields.edgeIdPath);
-    // What a `{ set }` reference names -- a saved scope, else a kept set -- and what "visible"
-    // reads, so a door can refuse a chain of references that loops (design/sets 5.2). Read
-    // through calls: the scope and visibility APIs are built below.
+    // What a `{ set }` reference names and what "visible" reads, so a door can refuse a chain of
+    // references that loops (design/sets 5.2). Read through calls: the sets and the visibility
+    // API are built below.
     const dependencies: DependencySources = {
-        referent: (id: SetId) => scope.specOf(id) ?? setsStoreOf(sets).get(id)?.definition,
+        referent: (id: SetId) => setsStoreOf(sets).get(id)?.definition,
         visibility: () => visibility.filter,
         pathsOf: (where: Query) => requireQuery(query).pathsOf(where),
     };

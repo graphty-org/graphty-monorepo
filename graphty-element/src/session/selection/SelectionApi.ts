@@ -40,6 +40,7 @@ import { arrayColumn, computeColumnStatistics } from "../results/statistics";
 import type { ResultsApi } from "../results/types";
 import { ElementMask, type MaskIdSpace } from "../scope/ElementMask";
 import { edgeSpaceOf, nodeSpaceOf, type ScopeResolver } from "../scope/ScopeApi";
+import { createSetAs } from "../sets/SetsApi";
 import { ATTRIBUTE_UNIQUE_CAP, type SessionRecordSource } from "../types";
 import {
     resolveTarget,
@@ -217,13 +218,15 @@ export interface SelectionApi {
      */
     clear(): SelectionDelta;
     /**
-     * Keep this selection under a name, so it can be named as a scope later.
+     * Keep this selection under a name, as a kept set created from the selection, so it can be
+     * named as `{ set: id }` later.
      *
-     * The saved scope holds the selected NODES: a scope's edges are induced from its nodes, so a
-     * selected edge whose endpoints are not selected is not an edge any work over that scope
-     * could follow.
+     * The kept set holds the selected NODES: its edges are induced from its nodes, so a selected
+     * edge whose endpoints are not selected is not an edge any work over that set could follow.
+     * @deprecated Use `session.sets.createFrom("selection")` once it is available; this verb
+     * keeps working.
      * @param name - The name to save it under.
-     * @returns The minted scope id.
+     * @returns The minted set id.
      */
     promote(name: string): ScopeId;
     /**
@@ -697,9 +700,9 @@ class Selection implements SelectionOwner {
     }
 
     /**
-     * Keep this selection under a name, as a saved scope over its nodes.
+     * Keep this selection under a name, as a kept set over its nodes, created from the selection.
      * @param name - The name to save it under.
-     * @returns The minted scope id.
+     * @returns The minted set id.
      * @throws A `GraphtyError` coded `E_UNSUPPORTED` when no scope resolver is attached, or
      *   `E_SCOPE_EMPTY` when no node is selected.
      */
@@ -725,7 +728,7 @@ class Selection implements SelectionOwner {
             });
         }
 
-        return scope.save(name, { nodes: this.#nodes.ids() });
+        return createSetAs(scope.sets, { kind: "fixed", nodes: this.#nodes.ids(), reading: "induced" }, name, { kind: "selection" });
     }
 
     /**

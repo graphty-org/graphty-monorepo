@@ -519,17 +519,18 @@ describe("saving a scope under a name", () => {
         const scope = createScopeApi({ snapshot: () => harness.store.getSnapshot() });
         const first = scope.save("first", "graph");
         const second = scope.save("second", { set: first });
-        // Removing the first and saving a new scope under the same name mints the same id, which
-        // is what closes the ring: first -> second -> first.
+        // A removed id is never issued again, so the ring can only be closed by redefining the
+        // first to name the second: first -> second -> first. That write is refused.
+        assert.strictEqual(
+            codeOf(() => scope.sets.redefine(first, { kind: "rule", where: { kind: "scope", scope: { set: second } }, reading: "induced" })),
+            "E_BAD_COMMAND",
+        );
         scope.remove(first);
-        const reused = scope.save("first", { set: second });
-
-        assert.strictEqual(reused, first);
-        assert.strictEqual(codeOf(() => scope.resolveNow({ set: first })), "E_BAD_COMMAND");
+        assert.notStrictEqual(scope.save("first", { set: second }), first, "a removed id is never issued again");
         assert.deepStrictEqual(
             scope.list().map((entry) => entry.bound),
             [false, false],
-            "neither end of the ring refers to anything",
+            "the second names a removed set, and the new first names the second",
         );
         harness.session.dispose();
     });

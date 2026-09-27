@@ -26,13 +26,28 @@
 
 import { type GraphSnapshot, INVALID_INDEX, makeMask, maskCount, maskTest, maskToIndices, type U32 } from "@graphty/graph-format";
 
-import { parseScope } from "../../catalog/sets/parse";
-import type { EdgeId, EdgeMember, EdgeRef, NodeId, Path, Query, RunId, Scope, ScopeId, ScopeInput, SetDefinitionInput } from "../../catalog/types";
+import { parseScope, readingOfScope } from "../../catalog/sets/parse";
+import type {
+    EdgeId,
+    EdgeMember,
+    EdgeReading,
+    EdgeRef,
+    NodeId,
+    Path,
+    Query,
+    RunId,
+    Scope,
+    ScopeId,
+    ScopeInput,
+    SetDefinition,
+    SetDefinitionInput,
+} from "../../catalog/types";
 import { edgeCounterOf, edgeIdOf } from "../../data/edgeIdentity";
 import { GraphtyError, isGraphtyError } from "../../errors";
 import type { AttributeRevisions, InputTick } from "../attributes";
 import type { ResolvedScope } from "../runs/types";
 import { SetsCache } from "../sets/cache";
+import { referentReading } from "../sets/dependencies";
 import {
     type ComponentLabels,
     deriveEdges,
@@ -46,8 +61,8 @@ import {
     resolveScope,
     scopeLeafIn,
 } from "../sets/resolve";
-import { sessionEdgeMember, setsStoreOf } from "../sets/SetsApi";
-import type { SetsApi } from "../sets/types";
+import { createSetsApi, sessionEdgeMember, setsStoreOf } from "../sets/SetsApi";
+import type { ElementSet, SetsApi } from "../sets/types";
 import type { FilterValueSource, ScopeLeaf } from "../visibility/filter";
 import type { ElementMask, MaskIdSpace } from "./ElementMask";
 
@@ -263,19 +278,26 @@ export interface ScopeApi {
     count(spec: ScopeInput, options?: ScopeCountOptions): Promise<ScopeCount>;
     /**
      * Keep a specification under a name, so `{ set: id }` can name it later.
-     * @param name - The name, unique within the session.
+     *
+     * It is kept as a set, created from `user`: `{ where }` as a rule, `{ nodes }` as a fixed
+     * set, `{ define }` as its definition, `"graph"`, `"largest-component"` and `{ set }` as a
+     * rule naming them. `"selection"` and `"visible"` are kept as their current members.
+     * @deprecated Use {@link SetsApi.create | session.sets.create}, which takes a definition.
+     * @param name - The name, unique among kept sets.
      * @param spec - The specification to keep.
-     * @returns The minted id.
+     * @returns The minted id, never one issued before.
      */
     save(name: string, spec: Scope): ScopeId;
     /**
-     * Every saved scope, with whether it still refers to anything.
-     * @returns The saved scopes, in the order they were saved.
+     * Every kept set, as the specification it holds and whether it still refers to anything.
+     * @deprecated Use {@link SetsApi.list | session.sets.list}, which returns the definitions.
+     * @returns The kept sets, in the order they were created.
      */
     list(): readonly SavedScope[];
     /**
-     * Forget a saved scope. Anything that named it becomes unbound rather than silently empty.
-     * @param id - The id to forget.
+     * Remove a kept set. Anything that named it becomes unbound rather than silently empty.
+     * @deprecated Use {@link SetsApi.remove | session.sets.remove}.
+     * @param id - The id to remove.
      */
     remove(id: ScopeId): void;
 }
@@ -307,12 +329,8 @@ export interface ScopeResolver extends ScopeApi {
      * @returns The leaf.
      */
     leafOf(spec: Scope): ScopeLeaf;
-    /**
-     * What a saved scope holds.
-     * @param id - Its id.
-     * @returns The specification, or undefined when no scope is saved under the id.
-     */
-    specOf(id: ScopeId): Scope | undefined;
+    /** The kept sets `save`, `list` and `remove` delegate to. */
+    readonly sets: SetsApi;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -331,31 +349,6 @@ function assertScope(spec: Scope): void {
 // ---------------------------------------------------------------------------------------------
 // The resolver
 // ---------------------------------------------------------------------------------------------
-
-/** A saved scope as the resolver holds it, before `bound` is worked out. */
-interface SavedRecord {
-    /** The minted id. */
-    readonly id: ScopeId;
-    /** The name it was saved under. */
-    readonly name: string;
-    /** The specification. */
-    readonly spec: Scope;
-}
-
-/**
- * The name a minted scope id is built from.
- * @param name - The name the caller saved under.
- * @returns A slug of lower-case letters, digits and hyphens.
- */
-function slugOf(name: string): string {
-    const slug = name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+/, "")
-        .replace(/-+$/, "");
-
-    return slug === "" ? "set" : slug;
-}
 
 /**
  * The ids a bitmap holds, as a frozen `Set`.
@@ -466,10 +459,15 @@ function countOf(resolution: Resolution, kind: string | undefined): ScopeCount {
  * @returns The resolver.
  */
 export function createScopeApi(sources: ScopeSources): ScopeResolver {
-    // Replaced, never mutated, on every write: its identity is part of every signature's epoch.
-    let saved = new Map<ScopeId, SavedRecord>();
     const cache = sources.cache ?? new SetsCache();
-    const kept = sources.sets === undefined ? undefined : setsStoreOf(sources.sets);
+    // A resolver built on its own keeps its own sets, reading edges off the snapshot alone.
+    const sets =
+        sources.sets ??
+        createSetsApi({
+            edgeMember: (id: EdgeId) =>
+                sources.edgeMember === undefined ? sessionEdgeMember(sources.snapshot(), id, () => undefined, null) : sources.edgeMember(id),
+        });
+    const kept = setsStoreOf(sets);
 
     /**
      * What a resolution reads now.
@@ -478,7 +476,6 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
     const context = (): ResolveContext => ({
         snapshot: sources.snapshot(),
         store: sources.store ?? null,
-        saved,
         cache,
         ...(sources.visibility === undefined ? {} : { visibility: sources.visibility }),
         ...(sources.selection === undefined ? {} : { selection: sources.selection }),
@@ -489,7 +486,7 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
         ...(sources.edgeRevisions === undefined ? {} : { edgeRevisions: sources.edgeRevisions }),
         ...(sources.executionOf === undefined ? {} : { executionOf: sources.executionOf }),
         ...(sources.tick === undefined ? {} : { tick: sources.tick }),
-        ...(kept === undefined ? {} : { sets: kept }),
+        sets: kept,
         ...(sources.matchEdges === undefined ? {} : { matchEdges: sources.matchEdges }),
         ...(sources.values === undefined ? {} : { values: sources.values }),
     });
@@ -541,15 +538,6 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
         });
 
         return parseScope({ define: { ...define, edges } });
-    };
-
-    /**
-     * Replace the saved map after a write.
-     * @param next - The new map.
-     */
-    const commit = (next: Map<ScopeId, SavedRecord>): void => {
-        saved = next;
-        sources.tick?.advance();
     };
 
     /**
@@ -621,47 +609,79 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
     };
 
     /**
-     * Whether a saved specification still refers to anything this session can resolve.
-     * @param spec - The specification.
-     * @param seen - The saved ids already followed.
+     * Whether a kept set still refers to anything: it resolves without a problem, and a fixed or
+     * path set still has at least one member in the graph.
+     * @param record - The set.
      * @returns True when resolving it would answer rather than throw or come back empty.
      */
-    const canBind = (spec: Scope, seen: Set<ScopeId>): boolean => {
-        if (spec === "graph" || spec === "visible") {
-            return true;
+    const bound = (record: ElementSet): boolean => {
+        const active = context();
+        const resolution = resolveQuietly(() => resolveScope({ set: record.id }, active), active);
+
+        return resolution.problem === undefined && (record.definition.kind === "rule" || resolution.nodeCount > 0);
+    };
+
+    /**
+     * How a scope reads, following the set it names.
+     * @param spec - The scope.
+     * @returns The reading.
+     */
+    const readingOf = (spec: Scope): EdgeReading =>
+        readingOfScope(spec, referentReading({ referent: (id) => kept.get(id)?.definition })) as EdgeReading;
+
+    /**
+     * The definition `save` keeps a specification as (design/sets 16). The live keywords are
+     * frozen into their current members: a kept set that followed the selection would change on
+     * every click.
+     * @param spec - A checked specification.
+     * @returns The definition.
+     */
+    const definitionOf = (spec: Scope): SetDefinitionInput => {
+        if (spec === "selection" || spec === "visible") {
+            const { resolution, graph } = membershipOf(spec);
+
+            return frozenDefinition(resolution, graph);
         }
 
-        if (spec === "selection") {
-            return sources.selection !== undefined;
-        }
-
-        if (spec === "largest-component") {
-            return sources.components !== undefined;
-        }
-
-        if ("set" in spec) {
-            const record = saved.get(spec.set);
-
-            if (record === undefined || seen.has(spec.set)) {
-                return false;
-            }
-
-            seen.add(spec.set);
-
-            return canBind(record.spec, seen);
+        if (spec === "graph" || spec === "largest-component" || "set" in spec) {
+            return { kind: "rule", where: { kind: "scope", scope: spec }, reading: readingOf(spec) };
         }
 
         if ("where" in spec) {
-            return sources.match !== undefined;
+            return { kind: "rule", where: spec.where, reading: "induced" };
         }
 
         if ("define" in spec) {
-            return resolveQuietly(() => resolveScope(spec, context()), context()).problem === undefined;
+            return spec.define;
         }
 
-        const graph = sources.snapshot();
+        return { kind: "fixed", nodes: spec.nodes, reading: "induced" };
+    };
 
-        return spec.nodes.some((id) => graph.ids.indexOf(id) !== INVALID_INDEX);
+    /**
+     * The specification `list` shows for a definition: the form `save` keeps it as, else
+     * `{ define }`.
+     * @param definition - A kept definition.
+     * @returns The specification.
+     */
+    const projectionOf = (definition: SetDefinition): Scope => {
+        if (definition.kind === "fixed" && definition.reading === "induced" && definition.edges === undefined) {
+            return { nodes: definition.nodes };
+        }
+
+        if (definition.kind === "rule" && definition.reading === "induced" && typeof definition.where === "string") {
+            return { where: definition.where };
+        }
+
+        if (definition.kind === "rule" && typeof definition.where === "object" && definition.where.kind === "scope") {
+            const { scope } = definition.where;
+            const named = scope === "graph" || scope === "largest-component" || (typeof scope === "object" && "set" in scope);
+            if (named && definition.reading === readingOf(scope)) {
+                return scope;
+            }
+        }
+
+        return { define: definition };
     };
 
     /**
@@ -679,7 +699,7 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
     return {
         resolveNow,
 
-        specOf: (id: ScopeId) => saved.get(id)?.spec,
+        sets,
 
         leafOf(spec: Scope): ScopeLeaf {
             const active = context();
@@ -722,15 +742,15 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
             // A kept set is counted from its resolution, which says what it names that is gone. A
             // removed set, or one whose definition cannot be evaluated, counts nothing rather than
             // throwing, so a panel counting every row never throws; an id never issued refuses.
-            if (typeof spec === "object" && "set" in spec && !saved.has(spec.set)) {
-                const record = kept?.get(spec.set);
+            if (typeof spec === "object" && "set" in spec) {
+                const record = kept.get(spec.set);
                 if (record !== undefined) {
                     const active = context();
 
                     return Promise.resolve(countOf(resolveQuietly(() => resolveScope(spec, active), active), record.definition.kind));
                 }
 
-                if (kept?.register().has(spec.set) === true) {
+                if (kept.register().has(spec.set)) {
                     return Promise.resolve({ nodes: 0, edges: 0, exact: true });
                 }
             }
@@ -765,7 +785,7 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
                 });
             }
 
-            for (const record of saved.values()) {
+            for (const record of kept.values()) {
                 if (record.name === trimmed) {
                     throw new GraphtyError({
                         code: "E_DUPLICATE_ID",
@@ -779,64 +799,29 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
 
             // A saved set that names a set nothing holds can only be a mistake, and it is one the
             // caller can still fix at this point.
-            if (typeof spec === "object" && "set" in spec && !saved.has(spec.set)) {
+            if (typeof spec === "object" && "set" in spec && kept.get(spec.set) === undefined) {
                 throw new GraphtyError({
                     code: "E_BAD_COMMAND",
                     message: `No saved scope is called "${spec.set}".`,
                     source: "run",
                     target: { kind: "scope", id: spec.set },
-                    details: { scope: spec, available: [...saved.keys()] },
+                    details: { scope: spec, available: kept.list().map((record) => record.id) },
                 });
             }
 
-            // The live keywords are frozen into their current members: a kept set that followed
-            // the selection would change on every click.
-            if (spec === "selection" || spec === "visible") {
-                const { resolution, graph } = membershipOf(spec);
-                const frozen = frozenDefinition(resolution, graph);
-                spec = frozen.reading === "induced" ? { nodes: frozen.nodes } : scopeOf({ define: frozen });
-            }
-
-            const base = `set_${slugOf(trimmed)}`;
-            let id = base;
-            let suffix = 2;
-
-            while (saved.has(id)) {
-                id = `${base}_${suffix}`;
-                suffix += 1;
-            }
-
-            commit(new Map(saved).set(id, { id, name: trimmed, spec }));
-
-            return id;
+            return sets.create(definitionOf(spec), { name: trimmed });
         },
 
         list(): readonly SavedScope[] {
             return Object.freeze(
-                [...saved.values()].map((record) =>
-                    Object.freeze({
-                        id: record.id,
-                        name: record.name,
-                        spec: record.spec,
-                        bound: canBind(record.spec, new Set<ScopeId>()),
-                    }),
+                kept.list().map((record) =>
+                    Object.freeze({ id: record.id, name: record.name, spec: projectionOf(record.definition), bound: bound(record) }),
                 ),
             );
         },
 
         remove(id: ScopeId): void {
-            const next = new Map(saved);
-            if (!next.delete(id)) {
-                throw new GraphtyError({
-                    code: "E_BAD_COMMAND",
-                    message: `No saved scope is called "${id}", so there is nothing to remove.`,
-                    source: "run",
-                    target: { kind: "scope", id },
-                    details: { available: [...saved.keys()] },
-                });
-            }
-
-            commit(next);
+            sets.remove(id);
         },
     };
 }

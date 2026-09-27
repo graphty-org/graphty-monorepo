@@ -387,7 +387,7 @@ export function scopeNodeIds(input: ScopedInput): NodeId[] {
 }
 
 /** One declared edge an input covers: its session id, and its row in the declared graph. */
-export interface ScopeEdge {
+interface ScopeEdge {
     readonly id: EdgeId;
     /** The row in `ScopedInput.graph`, which is what an edge remap is indexed by. */
     readonly row: number;

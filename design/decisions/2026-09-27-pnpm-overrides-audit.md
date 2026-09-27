@@ -54,7 +54,7 @@ Mantine 8.3.18, and the XR tests fail under Playwright 1.63's Chromium, which ex
 `navigator.xr`, so the IWER emulator declines to install. Those upgrades, their fixes and their
 Chromatic review belong in their own change rather than inside a Vitest and pnpm upgrade, so the
 committed lockfile keeps the previous resolution and changes only what this work requires. The
-follow-up issue linked from the pull request carries the fresh resolution and both failures.
+follow-up, issue #526, carries the fresh resolution and both failures.
 
 ## What the audit leaves open
 

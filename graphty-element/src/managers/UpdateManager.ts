@@ -1064,7 +1064,7 @@ export class UpdateManager implements Manager {
         // neighbour's slot behind. Read off the array's own length -- COUNTING BY ITERATING would
         // be the million-edge walk this method exists to avoid. A layout engine that hands back
         // something that is not an array cannot be counted cheaply, so it always walks.
-        const {edges} = this.layoutManager;
+        const { edges } = this.layoutManager;
         const edgeCount = Array.isArray(edges) ? edges.length : -1;
 
         if (edgeCount < 0 || edgeCount !== this.lastWalkedEdgeCount) {
@@ -1096,7 +1096,7 @@ export class UpdateManager implements Manager {
         let highest = -1;
 
         for (const node of this.layoutManager.nodes) {
-            const {index} = node;
+            const { index } = node;
 
             if (index < 0) {
                 moved = true;
@@ -1136,7 +1136,7 @@ export class UpdateManager implements Manager {
         }
 
         for (const node of this.layoutManager.nodes) {
-            const {index} = node;
+            const { index } = node;
 
             if (index < 0) {
                 continue;

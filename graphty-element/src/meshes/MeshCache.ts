@@ -138,7 +138,7 @@ export class MeshCache {
      * @param mesh - The cached source mesh
      */
     private static disposeSource(mesh: Mesh): void {
-        const {material} = mesh;
+        const { material } = mesh;
         mesh.dispose();
         material?.dispose(false, false);
     }

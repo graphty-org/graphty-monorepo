@@ -716,7 +716,9 @@ function distanceFromSegment(point: Coords, from: Coords, to: Coords): number {
     const lengthSquared = dx * dx + dy * dy + dz * dz;
 
     const projection =
-        lengthSquared === 0 ? 0 : ((point.x - from.x) * dx + (point.y - from.y) * dy + (point.z - from.z) * dz) / lengthSquared;
+        lengthSquared === 0
+            ? 0
+            : ((point.x - from.x) * dx + (point.y - from.y) * dy + (point.z - from.z) * dz) / lengthSquared;
     const clamped = Math.min(1, Math.max(0, projection));
 
     return Math.hypot(
@@ -1339,11 +1341,7 @@ describe("a third party's layout engine", () => {
             await waitForRedraw("the ring to take in the new node");
 
             assert.isAbove(engine.incrementalUpdates.length, 0, "the element used the engine's own method");
-            assert.include(
-                engine.incrementalUpdates.flat(),
-                "f",
-                "and named the node that had just arrived",
-            );
+            assert.include(engine.incrementalUpdates.flat(), "f", "and named the node that had just arrived");
         });
     });
 
@@ -1401,10 +1399,18 @@ describe("a third party's layout engine", () => {
             assert.instanceOf(engine, RingLayout, "the element built the plugin's own class, not a GPU stand-in");
             for (const node of graph.getNodes()) {
                 const onScreen = node.getPosition();
-                assert.closeTo(Math.hypot(onScreen.x, onScreen.y), DEFAULT_RADIUS, 0.5, `node ${node.id} is on the ring`);
+                assert.closeTo(
+                    Math.hypot(onScreen.x, onScreen.y),
+                    DEFAULT_RADIUS,
+                    0.5,
+                    `node ${node.id} is on the ring`,
+                );
             }
 
-            assert.strictEqual(fake.calls.forceAtlas2 + fake.calls.fruchtermanReingold + fake.calls.springElectrical, 0);
+            assert.strictEqual(
+                fake.calls.forceAtlas2 + fake.calls.fruchtermanReingold + fake.calls.springElectrical,
+                0,
+            );
             assert.strictEqual(fake.calls.step, 0, "and the accelerator was never stepped");
 
             // The same accelerator is live: a built-in simulation layout on this graph takes it.

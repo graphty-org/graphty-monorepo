@@ -1355,8 +1355,16 @@ export class Edge {
                 const uy = dy / span;
                 const uz = dz / span;
 
-                srcPoint = new Vector3(srcCentre.x + ux * srcRadius, srcCentre.y + uy * srcRadius, srcCentre.z + uz * srcRadius);
-                dstPoint = new Vector3(dstCentre.x - ux * dstRadius, dstCentre.y - uy * dstRadius, dstCentre.z - uz * dstRadius);
+                srcPoint = new Vector3(
+                    srcCentre.x + ux * srcRadius,
+                    srcCentre.y + uy * srcRadius,
+                    srcCentre.z + uz * srcRadius,
+                );
+                dstPoint = new Vector3(
+                    dstCentre.x - ux * dstRadius,
+                    dstCentre.y - uy * dstRadius,
+                    dstCentre.z - uz * dstRadius,
+                );
             }
         } else {
             // AIMED HERE, BY THE ONE EDGE THAT IS ABOUT TO FIRE IT. A pass over every edge in the

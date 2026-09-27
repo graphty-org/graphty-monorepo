@@ -23,6 +23,8 @@ const CLOSENESS_FIELDS: readonly FieldDescriptor[] = nodeMetricFields({
 export class ClosenessCentralityAlgorithm extends MetricAlgorithm {
     static namespace = "graphty";
     static type = "closeness";
+    /** Computes over the run's scope: the node list and the graph both come from the input. */
+    static scopeInput = "subgraph" as const;
 
     /**
      * The fields a closeness result publishes.

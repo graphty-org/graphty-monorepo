@@ -34,7 +34,8 @@ await session.positions.set([{ id: "a", x: 0, y: 10, z: 0 }]);
 await session.positions.pin(["a"]); // unpin(["a"]) releases; session.positions.pinned lists them
 ```
 
-`SessionGraphStore.positions` is read-only in the same way. The `position` and `graphty.pinned`
+`SessionGraphStore.positions`, `DataManager.positions` and a layout engine's `nodePositions` are
+read-only in the same way. The `position` and `graphty.pinned`
 columns of a snapshot are copies taken when the snapshot is read; read a new snapshot to see nodes
 that moved since.
 
@@ -49,6 +50,30 @@ await element.session.config.set({ background: { backgroundType: "color", color:
 ```
 
 Read through the session instead: `session.data`, `session.layout`, `session.config`.
+
+## A layout engine's membership is the element's
+
+`LayoutEngine`'s `addNode`, `addEdge`, `addNodes`, `addEdges`, `removeNode`, `removeEdge` and
+`attachPositions` are protected. A custom engine still implements `addNode`, `addEdge` and, when it
+keeps a node list, `removeNode` and `removeEdge`, and the element calls them as the graph changes.
+Calling them on the element's engine from outside would leave it out of step with the graph.
+
+```typescript
+// 2.x: graph.getLayoutManager().layoutEngine.addNode(node);
+await element.session.data.addNodes([{ id: "a" }]); // the engine follows the graph
+```
+
+## Setting getters read the value in effect
+
+A settings getter such as `nodeIdPath`, `repeatedEdges`, `edgeWeightPath`, `directed`,
+`runAlgorithmsOnLoad`, `background` or `selectionStyle` returns the value set on the element, or
+the value in effect when none was set, instead of `undefined`. Assigning a setting its default
+reads back and records no undo step, because nothing changed. `layoutBehavior` always includes
+`preSteps`, `stepMultiplier` and `minDelta`.
+
+```typescript
+element.nodeIdPath; // "id" on a fresh element, not undefined
+```
 
 ## batchOperations groups what goes through tx
 

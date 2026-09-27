@@ -15,13 +15,21 @@ import type { Node } from "../../src/Node";
 import { Styles } from "../../src/Styles";
 import type { OperationMetadata } from "../../src/types/operations";
 
+/** The mock engine: the public face of an engine, with the membership methods it spies on. */
+interface MockLayoutEngine extends Omit<LayoutEngine, never> {
+    addNode(n: Node): void;
+    addEdge(e: Edge): void;
+}
+
 describe("Automatic Layout Updates", () => {
     let operationQueue: OperationQueueManager;
     let layoutManager: LayoutManager;
     let dataManager: DataManager;
     let eventManager: EventManager;
     let styles: Styles;
-    let mockLayoutEngine: LayoutEngine;
+    // The membership methods are the element's to call, protected on LayoutEngine; the mock spies on
+    // them, so its type names them in the open.
+    let mockLayoutEngine: MockLayoutEngine;
 
     beforeEach(() => {
         eventManager = new EventManager();
@@ -95,14 +103,14 @@ describe("Automatic Layout Updates", () => {
             addEdge: vi.fn(),
             removeEdge: vi.fn(),
             updateNodePosition: vi.fn(),
-        } as unknown as LayoutEngine;
+        } as unknown as MockLayoutEngine;
     });
 
     it("should update layout when nodes added to existing layout", async () => {
         const operations: string[] = [];
 
         // Set up layout engine
-        layoutManagerInternals.setEngine(layoutManager, mockLayoutEngine);
+        layoutManagerInternals.setEngine(layoutManager, mockLayoutEngine as unknown as LayoutEngine);
         layoutManager.running = true;
 
         // Track when layout update is triggered
@@ -190,7 +198,7 @@ describe("Automatic Layout Updates", () => {
         let layoutUpdateCount = 0;
 
         // Set up layout engine
-        layoutManagerInternals.setEngine(layoutManager, mockLayoutEngine);
+        layoutManagerInternals.setEngine(layoutManager, mockLayoutEngine as unknown as LayoutEngine);
         layoutManager.running = true;
 
         // Track layout updates
@@ -261,7 +269,7 @@ describe("Automatic Layout Updates", () => {
             originalAddNode.call(mockLayoutEngine, node);
         });
 
-        layoutManagerInternals.setEngine(layoutManager, mockLayoutEngine);
+        layoutManagerInternals.setEngine(layoutManager, mockLayoutEngine as unknown as LayoutEngine);
         layoutManager.running = true;
 
         // Mock hasLayoutEngine on layoutManager
@@ -327,7 +335,7 @@ describe("Automatic Layout Updates", () => {
         const operations: string[] = [];
 
         // Set up layout engine
-        layoutManagerInternals.setEngine(layoutManager, mockLayoutEngine);
+        layoutManagerInternals.setEngine(layoutManager, mockLayoutEngine as unknown as LayoutEngine);
         layoutManager.running = true;
 
         // Track layout updates
@@ -377,7 +385,7 @@ describe("Automatic Layout Updates", () => {
         const operations: string[] = [];
 
         // Set up layout engine
-        layoutManagerInternals.setEngine(layoutManager, mockLayoutEngine);
+        layoutManagerInternals.setEngine(layoutManager, mockLayoutEngine as unknown as LayoutEngine);
         layoutManager.running = true;
 
         // Track layout updates

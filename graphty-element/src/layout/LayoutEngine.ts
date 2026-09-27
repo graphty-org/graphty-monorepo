@@ -187,6 +187,20 @@ export const layoutEngineInternals = {} as {
     unpin(engine: LayoutEngine, n: Node): void;
     /** The engine's writable coordinate array; `LayoutEngine.nodePositions` is its read-only view. */
     positions(engine: LayoutEngine): ElementPositions;
+    /** See `LayoutEngine.addNode`. */
+    addNode(engine: LayoutEngine, n: Node): void;
+    /** See `LayoutEngine.addEdge`. */
+    addEdge(engine: LayoutEngine, e: Edge): void;
+    /** See `LayoutEngine.addNodes`. */
+    addNodes(engine: LayoutEngine, nodes: Node[]): void;
+    /** See `LayoutEngine.addEdges`. */
+    addEdges(engine: LayoutEngine, edges: Edge[]): void;
+    /** See `LayoutEngine.removeNode`. */
+    removeNode(engine: LayoutEngine, n: Node): void;
+    /** See `LayoutEngine.removeEdge`. */
+    removeEdge(engine: LayoutEngine, e: Edge): void;
+    /** See `LayoutEngine.attachPositions`. */
+    attachPositions(engine: LayoutEngine, positions: ElementPositions): void;
 };
 
 /**
@@ -222,6 +236,27 @@ export abstract class LayoutEngine {
             engine.unpin(n);
         };
         layoutEngineInternals.positions = (engine) => engine.writablePositions;
+        layoutEngineInternals.addNode = (engine, n) => {
+            engine.addNode(n);
+        };
+        layoutEngineInternals.addEdge = (engine, e) => {
+            engine.addEdge(e);
+        };
+        layoutEngineInternals.addNodes = (engine, nodes) => {
+            engine.addNodes(nodes);
+        };
+        layoutEngineInternals.addEdges = (engine, edges) => {
+            engine.addEdges(edges);
+        };
+        layoutEngineInternals.removeNode = (engine, n) => {
+            engine.removeNode(n);
+        };
+        layoutEngineInternals.removeEdge = (engine, e) => {
+            engine.removeEdge(e);
+        };
+        layoutEngineInternals.attachPositions = (engine, positions) => {
+            engine.attachPositions(positions);
+        };
     }
 
     static type: string;
@@ -281,8 +316,11 @@ export abstract class LayoutEngine {
 
     // basic functionality
     abstract init(): Promise<void>;
-    abstract addNode(n: Node): void;
-    abstract addEdge(e: Edge): void;
+    // The element's to call: the engine follows the graph slice, and a consumer who added or removed
+    // an element here would leave the engine out of step with the graph, with no step to undo.
+    // The element calls these through `layoutEngineInternals`; an engine author implements them.
+    protected abstract addNode(n: Node): void;
+    protected abstract addEdge(e: Edge): void;
     abstract getNodePosition(n: Node): Position;
     /**
      * Place one node, as a drag or a restore does. Protected: the element reaches it through
@@ -306,7 +344,7 @@ export abstract class LayoutEngine {
      * Add multiple nodes to the layout engine
      * @param nodes - Array of nodes to add
      */
-    addNodes(nodes: Node[]): void {
+    protected addNodes(nodes: Node[]): void {
         for (const n of nodes) {
             this.addNode(n);
         }
@@ -316,7 +354,7 @@ export abstract class LayoutEngine {
      * Add multiple edges to the layout engine
      * @param edges - Array of edges to add
      */
-    addEdges(edges: Edge[]): void {
+    protected addEdges(edges: Edge[]): void {
         for (const e of edges) {
             this.addEdge(e);
         }
@@ -332,7 +370,7 @@ export abstract class LayoutEngine {
      * and everything that node references -- for as long as the engine lives.
      * @param _n - the node leaving the graph
      */
-    removeNode(_n: Node): void {
+    protected removeNode(_n: Node): void {
         // An engine that keeps no list of its own has nothing to forget.
     }
 
@@ -340,7 +378,7 @@ export abstract class LayoutEngine {
      * The edge half of {@link LayoutEngine.removeNode}, with the same default and the same reason.
      * @param _e - the edge leaving the graph
      */
-    removeEdge(_e: Edge): void {
+    protected removeEdge(_e: Edge): void {
         // An engine that keeps no list of its own has nothing to forget.
     }
 
@@ -412,7 +450,7 @@ export abstract class LayoutEngine {
      * one place and a re-freeze loses none of them.
      * @param positions - the element-owned array
      */
-    attachPositions(positions: ElementPositions): void {
+    protected attachPositions(positions: ElementPositions): void {
         this.positionArray = positions;
         this.positionArrayAttached = true;
     }

@@ -265,7 +265,9 @@ describe("a pin outlives the engine that was told about it", () => {
         // A fourth node re-seats the whole ring, so every node free to move has somewhere new to
         // be and standing still means something.
         const arrival = harness.add("d");
-        harness.layoutManager.layoutEngine?.addNode(arrival);
+        const engine = harness.layoutManager.layoutEngine;
+        assert.isDefined(engine);
+        layoutEngineInternals.addNode(engine, arrival);
         await harness.layoutManager.updatePositions([arrival]);
 
         assert.deepStrictEqual(harness.coordsOf(pinned), heldBefore, "the pinned node did not move");
@@ -294,7 +296,7 @@ describe("a pin outlives the engine that was told about it", () => {
 
         // And it stays there: the next recompute must not undo the drag either.
         const arrival = harness.add("d");
-        harness.layoutManager.layoutEngine?.addNode(arrival);
+        layoutEngineInternals.addNode(engine, arrival);
         await harness.layoutManager.updatePositions([arrival]);
 
         assert.deepStrictEqual(harness.coordsOf(pinned), after, "the layout did not take the placement back");

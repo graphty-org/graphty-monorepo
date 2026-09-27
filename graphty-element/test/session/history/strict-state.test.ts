@@ -414,3 +414,19 @@ export function narrowedAtCompileTime(parts: {
     // @ts-expect-error and so are the session's
     session.positions.setPinned(0, true);
 }
+
+describe("strict state: pins", () => {
+    it("catches a pin byte written outside a command after a history call and at any commit", async () => {
+        const harness = makeSession();
+        const { session } = harness;
+        await session.data.addNodes([{ id: "n1" }, { id: "n2" }]);
+        await session.config.set({ runAlgorithmsOnLoad: true });
+
+        // Neither the undo nor the commit below writes the pins slice.
+        harness.store.positions.setPinned(1, true);
+        await rejectsNaming(session.undo(), "pin byte");
+
+        // The undo took the setting back, so setting it again is a step.
+        await rejectsNaming(session.config.set({ runAlgorithmsOnLoad: true }), "pin byte");
+    });
+});

@@ -671,8 +671,8 @@ export class LayoutManager implements Manager {
             // Add all existing nodes and edges to the new engine
             const nodeArray = [...this.dataManager.nodes.values()];
             const edgeArray = [...this.dataManager.edges.values()];
-            engine.addNodes(nodeArray);
-            engine.addEdges(edgeArray);
+            layoutEngineInternals.addNodes(engine, nodeArray);
+            layoutEngineInternals.addEdges(engine, edgeArray);
 
             this.engine = engine;
             this.engineDimension = dimension;

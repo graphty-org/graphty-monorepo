@@ -9,7 +9,7 @@ import type { ElementPositions } from "../data/positions";
 import type { ImportReport } from "../data/report";
 import { adoptEdgeRecord, Edge, EdgeMap, placeEdgeRow, type ReadonlyEdgeMap } from "../Edge";
 import { GraphtyError } from "../errors/GraphtyError";
-import type { LayoutEngine } from "../layout/LayoutEngine";
+import { type LayoutEngine, layoutEngineInternals } from "../layout/LayoutEngine";
 import { MeshCache } from "../meshes/MeshCache";
 import { adoptNodeRecord, Node, NodeIdType, placeNodeRow } from "../Node";
 import { legacyScopeOf } from "../session/commands/algo";
@@ -641,12 +641,16 @@ export class DataManager implements Manager {
         // still holding the old nodes would lay out a graph that no longer exists and write their
         // old rows into the position array, growing it under the snapshot it is lent to.
         for (const edge of this.edges.values()) {
-            this.layoutEngine?.removeEdge(edge);
+            if (this.layoutEngine) {
+            layoutEngineInternals.removeEdge(this.layoutEngine, edge);
+        }
         }
 
         for (const node of this.nodes.values()) {
             placeNodeRow(node, INVALID_INDEX);
-            this.layoutEngine?.removeNode(node);
+            if (this.layoutEngine) {
+            layoutEngineInternals.removeNode(this.layoutEngine, node);
+        }
         }
 
         // Free the per-node and per-edge Babylon resources BEFORE dropping the references to
@@ -673,7 +677,9 @@ export class DataManager implements Manager {
         this.nodeMap.delete(node.id);
         this.nodeCache.delete(node.id);
         placeNodeRow(node, INVALID_INDEX);
-        this.layoutEngine?.removeNode(node);
+        if (this.layoutEngine) {
+            layoutEngineInternals.removeNode(this.layoutEngine, node);
+        }
         node.dispose();
     }
 
@@ -1079,7 +1085,7 @@ export class DataManager implements Manager {
 
         // Add to layout engine if it exists
         if (this.layoutEngine) {
-            this.layoutEngine.addNode(n);
+            layoutEngineInternals.addNode(this.layoutEngine, n);
         }
 
         // Emit node added event
@@ -1143,7 +1149,7 @@ export class DataManager implements Manager {
 
             // Add to layout engine if it exists
             if (this.layoutEngine) {
-                this.layoutEngine.addEdge(e);
+                layoutEngineInternals.addEdge(this.layoutEngine, e);
             }
 
             // Emit edge added event
@@ -1262,7 +1268,9 @@ export class DataManager implements Manager {
 
         // Told BEFORE the meshes go, so the engine is never asked to read a position off geometry
         // that is already disposed.
-        this.layoutEngine?.removeEdge(edge);
+        if (this.layoutEngine) {
+            layoutEngineInternals.removeEdge(this.layoutEngine, edge);
+        }
 
         // This is what frees the edge's arrowheads and label, none of which live in the mesh
         // cache -- see Edge.dispose.
@@ -1364,7 +1372,7 @@ export class DataManager implements Manager {
 
         // Add to layout engine if it exists
         if (this.layoutEngine) {
-            this.layoutEngine.addEdge(e);
+            layoutEngineInternals.addEdge(this.layoutEngine, e);
         }
 
         // Emit edge added event

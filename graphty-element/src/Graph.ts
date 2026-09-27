@@ -1365,17 +1365,14 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * The layout behaviour as it has been set, on this graph and in its project settings: only
-     * the fields somebody set, so an untouched graph answers undefined.
-     * @returns The behaviour settings, or undefined when none are set.
+     * The layout behaviour: the view preferences somebody set on this graph, and the pacing
+     * settings saved with the project (`preSteps`, `stepMultiplier`, `minDelta`) as they are in
+     * effect. Those three always read their value, so assigning one its default reads back even
+     * though it records no step.
+     * @returns The behaviour settings.
      */
     getLayoutBehavior(): GraphBehaviorConfig | undefined {
-        const { config } = dispatcherOf(this.session).state;
-        const project = Object.fromEntries(
-            PROJECT_LAYOUT_KEYS.flatMap((key) =>
-                config.has(`layoutBehavior.${key}`) ? [[key, config.get(`layoutBehavior.${key}`)]] : [],
-            ),
-        );
+        const project = this.session.config.layoutBehavior;
         const merged: Record<string, unknown> = {
             ...this.viewSettings.behavior,
             layout: { ...this.viewSettings.behavior.layout, ...project },

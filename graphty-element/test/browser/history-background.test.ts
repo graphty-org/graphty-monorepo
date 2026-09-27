@@ -186,7 +186,7 @@ describe("the configuration document", () => {
             assert.deepEqual(graph.getLayoutBehavior(), {
                 labels: { declutter: true },
                 node: { pinOnDrag: false },
-                layout: { maxInFlight: 3, iterationsPerStep: 4, zoomStepInterval: 2, preSteps: 7 },
+                layout: { maxInFlight: 3, iterationsPerStep: 4, zoomStepInterval: 2, preSteps: 7, stepMultiplier: 1, minDelta: 0 },
             });
 
             await session.undo();

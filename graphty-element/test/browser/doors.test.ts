@@ -16,7 +16,7 @@ import "../../src/graphty-element";
 // read as dispatching nothing.
 import "../../src/data/format-detection";
 
-import { afterEach, assert, describe, it, vi } from "vitest";
+import { afterEach, assert, describe, expectTypeOf, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { Graph, operationQueueOf } from "../../src/Graph";
@@ -219,11 +219,46 @@ describe("the coordinate lane is read-only everywhere a consumer reaches it", ()
                 ["DataManager.positions", graph.getDataManager().positions],
                 ["LayoutEngine.nodePositions", engine.nodePositions],
             ];
+            // The types hand out no writer either, so a write does not compile.
+            expectTypeOf(engine.nodePositions).not.toHaveProperty("write");
+            expectTypeOf(engine.nodePositions).not.toHaveProperty("setPinned");
+            expectTypeOf(graph.getDataManager().positions).not.toHaveProperty("write");
+            expectTypeOf(graph.getDataManager().positions).not.toHaveProperty("setPinned");
             for (const [name, view] of views) {
                 for (const writer of ["write", "fillUnplaced", "grow", "remap", "setPinned", "pinnedView", "view"]) {
                     assert.notProperty(view, writer, `${name} has no ${writer}`);
                 }
             }
+        },
+        ROOT_TIMEOUT_MS,
+    );
+});
+
+describe("an assignment of a setting's default reads back", () => {
+    const DEFAULTS: readonly [string, unknown][] = [
+        ["nodeIdPath", "id"],
+        ["repeatedEdges", "keep"],
+        ["edgeWeightPath", "weight"],
+        ["runAlgorithmsOnLoad", false],
+        ["directed", "auto"],
+        ["layoutBehavior", { layout: { preSteps: 0, stepMultiplier: 1, minDelta: 0 } }],
+    ];
+
+    it(
+        "reads the value assigned, and records no step because nothing changed",
+        async () => {
+            const element = await mountedElement();
+            const object = element as unknown as Record<string, unknown>;
+            const steps = element.session.history.steps.length;
+            for (const [member, value] of DEFAULTS) {
+                object[member] = value;
+                await vi.waitFor(() => {
+                    assert.lengthOf(element.session.history.pending, 0);
+                });
+                assert.deepEqual(object[member], value, `${member} reads back`);
+            }
+
+            assert.lengthOf(element.session.history.steps, steps, "assigning a default records no step");
         },
         ROOT_TIMEOUT_MS,
     );

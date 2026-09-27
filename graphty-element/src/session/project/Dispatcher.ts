@@ -1201,7 +1201,12 @@ export class Dispatcher {
             return Promise.reject(error as Error);
         }
 
-        return this.lane.settled().then(() => outcome);
+        return this.lane.settled().then(() => {
+            // Strict state: once the picture has caught up, the pin bytes are what the pins slice
+            // at this history position says.
+            this.arrangement.checkPins();
+            return outcome;
+        });
     }
 
     /**
@@ -2033,9 +2038,9 @@ export class Dispatcher {
             }
 
             this.prune();
-            if (slices.includes("pins")) {
-                this.arrangement.checkPins();
-            }
+            // Every commit, not only one that wrote the pins slice: a pin byte changed by anything
+            // else is a pin no step records.
+            this.arrangement.checkPins();
 
             const change = { slices, cause: "command" as const };
             this.emit(change, [change]);

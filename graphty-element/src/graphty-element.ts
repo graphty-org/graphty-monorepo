@@ -494,14 +494,28 @@ export class Graphty extends LitElement {
     #xr?: PartialXRConfig;
 
     /**
-     * A project setting as it was set on this element, or undefined when it is at its default.
-     * The project settings live in the session's `config` slice, so undo and redo move what these
-     * properties read.
+     * A project setting: the value as it was set on this element, or the value in effect when it
+     * has not been set. The project settings live in the session's `config` slice, so undo and redo
+     * move what these properties read. Assigning a setting its default records no step and leaves
+     * the key unset, so the value in effect is what makes that assignment read back.
      * @param path - The setting's key, such as `data.knownFields.nodeIdPath`.
-     * @returns The value as it was set.
+     * @returns The value as it was set, else the value in effect (undefined for a setting whose
+     *     default is null, such as the edge endpoint paths).
      */
     #setting(path: string): unknown {
-        return dispatcherOf(this.#graph.getSession()).state.config.get(path);
+        const session = this.#graph.getSession();
+        const {config} = dispatcherOf(session).state;
+        if (config.has(path)) {
+            return config.get(path);
+        }
+
+        // A setting whose default is null, such as the edge endpoint paths, reads as undefined.
+        return (
+            path
+                .split(".")
+                .reduce<unknown>((at, name) => (at as Readonly<Record<string, unknown>> | undefined)?.[name], session.config) ??
+            undefined
+        );
     }
 
     /**
@@ -881,7 +895,7 @@ export class Graphty extends LitElement {
      * A jmespath string that can be used to select the unique node identifier
      * for each node. Defaults to "id", as in `{id: 42}` is the identifier of
      * the node.
-     * @returns JMESPath string or undefined if not set
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
      */
     @property({ attribute: "node-id-path" })
     get nodeIdPath(): string | undefined {
@@ -902,7 +916,7 @@ export class Graphty extends LitElement {
      * then `from`/`to`, deciding once per batch of edge records. Setting this settles the question
      * and turns the probe off, and a record that does not answer it is then a rejected record
      * rather than a reason to guess again.
-     * @returns JMESPath string or undefined if not set
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
      */
     @property({ attribute: "edge-src-id-path" })
     get edgeSrcIdPath(): string | undefined {
@@ -920,7 +934,7 @@ export class Graphty extends LitElement {
      * jmespath that describes where to find the destination node identifier for this edge.
      *
      * Unset by default, which means PROBE; see {@link edgeSrcIdPath}.
-     * @returns JMESPath string or undefined if not set
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
      */
     @property({ attribute: "edge-dst-id-path" })
     get edgeDstIdPath(): string | undefined {
@@ -948,7 +962,7 @@ export class Graphty extends LitElement {
      * ```html
      * <graphty-element edge-id-path="edgeId"></graphty-element>
      * ```
-     * @returns JMESPath string or undefined if not set
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
      */
     @property({ attribute: "edge-id-path" })
     get edgeIdPath(): string | undefined {
@@ -977,7 +991,7 @@ export class Graphty extends LitElement {
      * ```html
      * <graphty-element repeated-edges="sum"></graphty-element>
      * ```
-     * @returns The policy, or undefined when none has been set on this element
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
      */
     @property({ attribute: "repeated-edges" })
     get repeatedEdges(): DuplicatePolicy | undefined {
@@ -1012,7 +1026,7 @@ export class Graphty extends LitElement {
      * ```html
      * <graphty-element node-label-path="name"></graphty-element>
      * ```
-     * @returns JMESPath string or undefined if not set
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
      */
     @property({ attribute: "node-label-path" })
     get nodeLabelPath(): string | undefined {
@@ -1036,7 +1050,7 @@ export class Graphty extends LitElement {
      * ```html
      * <graphty-element edge-weight-path="cost"></graphty-element>
      * ```
-     * @returns JMESPath string or undefined if not set
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
      */
     @property({ attribute: "edge-weight-path" })
     get edgeWeightPath(): string | undefined {
@@ -1066,7 +1080,7 @@ export class Graphty extends LitElement {
      * ```html
      * <graphty-element position-scale="0.01"></graphty-element>
      * ```
-     * @returns The multiplier, or undefined when none has been set on this element
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
      */
     @property({ attribute: "position-scale", type: Number })
     get positionScale(): number | undefined {
@@ -1102,7 +1116,7 @@ export class Graphty extends LitElement {
      * ```html
      * <graphty-element directed="true"></graphty-element>
      * ```
-     * @returns The setting, or undefined when none has been set on this element
+     * @returns The value set on this element, else the value in effect ("auto" by default)
      */
     @property({
         attribute: "directed",
@@ -1289,7 +1303,8 @@ export class Graphty extends LitElement {
      * element.layoutBehavior = { layout: { preSteps: 1000 } };
      * element.layoutBehavior = { labels: { declutter: true } };
      * ```
-     * @returns The behaviour settings, or undefined when none have been set on this element
+     * @returns The view preferences set on this element, with the pacing settings saved in the
+     *     project (`preSteps`, `stepMultiplier`, `minDelta`) as they are in effect
      */
     @property({ attribute: false })
     get layoutBehavior(): GraphBehaviorConfig | undefined {
@@ -1338,7 +1353,7 @@ export class Graphty extends LitElement {
      * ```typescript
      * element.selectionStyle = { color: "#00BCD4", scale: 1.8 };
      * ```
-     * @returns The highlight settings, or undefined when none have been set on this element
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
      */
     @property({ attribute: false })
     get selectionStyle(): GraphSelectionStyleInput | undefined {
@@ -1389,7 +1404,7 @@ export class Graphty extends LitElement {
      * element.algorithmsOnLoad = ["degree", { algorithm: "pagerank", style: { size: [1, 5] } }];
      * element.runAlgorithmsOnLoad = true;
      * ```
-     * @returns The entries, or undefined when none have been set on this element
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
      */
     @property({ attribute: false })
     get algorithmsOnLoad(): readonly AlgorithmOnLoad[] | undefined {
@@ -1499,7 +1514,7 @@ export class Graphty extends LitElement {
      * ```html
      * <graphty-element background='{"backgroundType":"color","color":"black"}'></graphty-element>
      * ```
-     * @returns The background, or undefined when none has been set on this element
+     * @returns The background set on this element, else the one in effect
      */
     @property({
         /*
@@ -1605,7 +1620,7 @@ export class Graphty extends LitElement {
      * A boolean attribute: its presence turns it on, as `hidden` does. It was read as a string,
      * so `<graphty-element run-algorithms-on-load>` handed the setter "" -- which is false -- and
      * the documented HTML form ran nothing.
-     * @returns Boolean flag or undefined if not set
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
      */
     @property({ attribute: "run-algorithms-on-load", type: Boolean })
     get runAlgorithmsOnLoad(): boolean | undefined {

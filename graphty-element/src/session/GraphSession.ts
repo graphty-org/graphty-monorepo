@@ -1692,6 +1692,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             return store.store.positions;
         },
         holdsNoRows: () => (store.store instanceof GraphStore ? store.store.holdsNoRows : true),
+        get deferring() {
+            return store.store instanceof GraphStore && store.store.deferring;
+        },
     });
     const slice = (): GraphSlice => dispatcher.state.graph;
     // What the records say, from the `graph` slice every primitive fills, then from a host's own

@@ -55,6 +55,8 @@ interface LaneSource {
     readonly positions: ElementPositions;
     /** Whether the graph holds no node rows, answered without freezing; absent, records decide. */
     holdsNoRows?(): boolean;
+    /** Whether structural changes wait for the next read, which a check must not force. */
+    readonly deferring?: boolean;
 }
 
 /** What moves the lane besides history: the layout engine, as the renderer hands it in. */
@@ -419,12 +421,13 @@ export class Arrangement {
     }
 
     /**
-     * Strict state: the lane's pin bytes agree with the `pins` slice. Asked at a commit that wrote
-     * the slice, and not while a restore is on its way to the lane.
+     * Strict state: the lane's pin bytes agree with the `pins` slice. Asked at every commit and
+     * once each history call's pass has run, and not while a restore is on its way to the lane.
      */
     checkPins(): void {
         const { source } = this;
-        if (!this.strict || source === null || this.lane.restoring) {
+        // A deferred rebuild waits for a reader; the check is not one, and the next check sees it.
+        if (!this.strict || source === null || this.lane.restoring || source.deferring === true) {
             return;
         }
 

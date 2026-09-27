@@ -19,6 +19,7 @@ import { assert, describe, it } from "vitest";
 import type { Edge } from "../../src/Edge";
 import { CircularLayout } from "../../src/layout/CircularLayoutEngine";
 import { D3GraphEngine } from "../../src/layout/D3GraphLayoutEngine";
+import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
 import type { Node } from "../../src/Node";
 
@@ -48,9 +49,9 @@ describe("a layout engine gives back a node the graph has removed", () => {
         const b = node("b", 1);
         const c = node("c", 2);
         const layout = new CircularLayout({});
-        layout.addNodes([a, b, c]);
+        layoutEngineInternals.addNodes(layout, [a, b, c]);
         const link = edge(b, c);
-        layout.addEdges([edge(a, b), link]);
+        layoutEngineInternals.addEdges(layout, [edge(a, b), link]);
 
         layout.removeEdge(link);
         layout.removeNode(c);
@@ -68,8 +69,8 @@ describe("a layout engine gives back a node the graph has removed", () => {
         const a = node("a", 0);
         const b = node("b", 1);
         const simulation = new D3GraphEngine({});
-        simulation.addNodes([a, b]);
-        simulation.addEdges([edge(a, b)]);
+        layoutEngineInternals.addNodes(simulation, [a, b]);
+        layoutEngineInternals.addEdges(simulation, [edge(a, b)]);
         simulation.step();
 
         assert.deepStrictEqual([...simulation.nodes], [a, b], "both nodes are in the simulation to begin with");
@@ -89,8 +90,8 @@ describe("a layout engine gives back a node the graph has removed", () => {
         const a = node("a", 0);
         const b = node("b", 1);
         const simulation = new NGraphEngine({});
-        simulation.addNodes([a, b]);
-        simulation.addEdges([edge(a, b)]);
+        layoutEngineInternals.addNodes(simulation, [a, b]);
+        layoutEngineInternals.addEdges(simulation, [edge(a, b)]);
 
         simulation.removeNode(b);
 
@@ -107,7 +108,7 @@ describe("a layout engine gives back a node the graph has removed", () => {
         const a = node("a", 0);
         const stranger = node("z", 9);
         const simulation = new NGraphEngine({});
-        simulation.addNodes([a]);
+        layoutEngineInternals.addNodes(simulation, [a]);
 
         assert.doesNotThrow(() => {
             simulation.removeNode(stranger);

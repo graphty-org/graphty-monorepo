@@ -495,8 +495,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 imports("replace", { type: "json", config: { url: TINY_JSON_URL } }, { coalesce: "element-source" }),
             ]),
             clearData: CLEAR_DATA,
-            // Each property row assigns a value other than its default: assigning the default leaves the
-            // setting unset, so its getter goes on reading undefined and no step is recorded.
+            // Each property row assigns a value other than its default, so the assignment is a step undo
+            // can take back. Assigning the default records no step and reads back as the value in
+            // effect; test/browser/doors.test.ts checks that separately.
             nodeIdPath: assigns("key", [{ op: "config.set", values: { data: { knownFields: { nodeIdPath: "key" } } } }]),
             edgeSrcIdPath: assigns("src", [
                 { op: "config.set", values: { data: { knownFields: { edgeSrcIdPath: "src" } } } },
@@ -523,8 +524,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             layoutConfig: assigns({}, [
                 { op: "layout.set", id: "circular", engine: "circular", options: {}, coalesce: "element-layout" },
             ]),
-            layoutBehavior: assigns({ layout: { preSteps: 5 } }, [
-                { op: "config.set", values: { layoutBehavior: { preSteps: 5 } } },
+            // The getter reads all three pacing settings as they are in effect, so the row names them all.
+            layoutBehavior: assigns({ layout: { preSteps: 5, stepMultiplier: 1, minDelta: 0 } }, [
+                { op: "config.set", values: { layoutBehavior: { preSteps: 5, stepMultiplier: 1, minDelta: 0 } } },
             ]),
             selectionStyle: assigns({ color: "#ff0000" }, [
                 { op: "config.set", values: { selectionStyle: { color: "#ff0000" } } },
@@ -1424,28 +1426,23 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         whole: READ,
     },
     {
+        // Adding and removing nodes and edges, and attaching a coordinate array, are protected: the
+        // engine follows the graph slice and the element drives it through layoutEngineInternals.
         name: "LayoutEngine",
         file: "src/layout/LayoutEngine.ts",
         half: "renderer",
         doors: {
             init: LIFECYCLE,
-            addNode: DERIVED,
-            addEdge: DERIVED,
             getNodePosition: READ,
             getEdgePosition: READ,
             step: TRANSPORT,
             nodes: READ,
             edges: READ,
             isSettled: READ,
-            addNodes: DERIVED,
-            addEdges: DERIVED,
-            removeNode: DERIVED,
-            removeEdge: DERIVED,
             updatePositions: TRANSPORT,
             dispose: LIFECYCLE,
             // A read-only view; the engine's writable array is reached through layoutEngineInternals.
             nodePositions: READ,
-            attachPositions: TRANSPORT,
             publishPositions: TRANSPORT,
             readNodePosition: READ,
             loadArrangement: RENDER,

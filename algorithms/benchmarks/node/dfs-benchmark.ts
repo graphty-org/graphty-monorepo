@@ -1,12 +1,12 @@
 #!/usr/bin/env tsx
 
 // Node.js DFS Performance Benchmark using Benchmark.js
-import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
-import { generateTestGraphs } from "../utils/test-data-generator";
-import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { depthFirstSearch } from "../../src/algorithms/traversal/dfs";
 import { saveBenchmarkSession } from "../utils/benchmark-result";
+import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
+import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { formatSystemInfo, getSystemInfo } from "../utils/system-info";
+import { generateTestGraphs } from "../utils/test-data-generator";
 
 // Configuration for Node.js benchmarks
 const configs = {
@@ -26,7 +26,7 @@ const configs = {
 
 async function runDFSBenchmark(configType: "quick" | "comprehensive") {
     console.log(`🚀 Running ${configType} DFS benchmarks in Node.js`);
-    console.log("=" + "=".repeat(50));
+    console.log(`=${  "=".repeat(50)}`);
     console.log(formatSystemInfo(getSystemInfo()));
     console.log("");
 
@@ -125,7 +125,7 @@ async function runDFSBenchmark(configType: "quick" | "comprehensive") {
         const session = await benchmark.run();
 
         // Display summary
-        console.log("\n" + "=".repeat(60));
+        console.log(`\n${  "=".repeat(60)}`);
         console.log("BENCHMARK RESULTS SUMMARY");
         console.log("=".repeat(60));
         console.log("Size\tImpl\t\tTime(ms)\tOps/sec\tTEPS\t\tMargin");

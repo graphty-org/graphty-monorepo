@@ -444,7 +444,7 @@ function edgeLineAppearance(mesh: AbstractMesh): string | null {
     // edge of the same appearance, so this one visible mesh stands for however many edges are in
     // it -- counting it here would report one line for a thousand. Those edges are read off the
     // edges themselves, in `drawn()` below.
-    if (mesh.thinInstanceCount > 0) {
+    if (mesh.hasThinInstances) {
         return null;
     }
 
@@ -698,7 +698,7 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
             ...graph.scene.meshes
                 .filter(
                     (mesh) =>
-                        (mesh.name.startsWith("edge-style-") && mesh.thinInstanceCount === 0) ||
+                        (mesh.name.startsWith("edge-style-") && !mesh.hasThinInstances) ||
                         mesh.name.startsWith("pattern-") ||
                         mesh.name.startsWith("custom-line"),
                 )

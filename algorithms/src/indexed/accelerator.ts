@@ -15,7 +15,10 @@ import type { F32, F64, GraphSnapshot, NumericVector, U32 } from "@graphty/graph
 
 import type { BfsOptions } from "./bfs.js";
 import { type SsspOptions, type SsspResult, walkPredArcs, walkPredEdges } from "./dijkstra.js";
+import type { HitsOptions } from "./hits.js";
 import * as indexed from "./index.js";
+import type { KatzOptions } from "./katz.js";
+import type { LouvainOptions } from "./louvain.js";
 import type { MstOptions } from "./mst.js";
 import type { PageRankOptions } from "./pagerank.js";
 
@@ -157,8 +160,13 @@ export interface BetweennessAcceleratorOptions {
  * accelerator when it has the method and runs the CPU port otherwise, wrapped in `Promise.resolve`
  * so both paths are async and graphty-element's `async run()` adapters treat them alike.
  *
- * The list GROWS with the A2 ports -- each port PR adds its method. Today it carries the six whose
- * ports exist (plan departure DEP-8A-E).
+ * The list GROWS with the A2 ports -- each port PR adds its method (plan departure DEP-8A-E).
+ *
+ * The four newest methods take their port's own option type, which is WIDER than the
+ * `HitsOptionsLike` the accelerator side still declares: an accelerator therefore never sees Katz's
+ * `alpha` / `beta` or Louvain's `resolution`, and one that is handed them would answer a different
+ * question than the CPU port. Narrowing `AlgorithmAccelerator` is a change to the interface the GPU
+ * package implements, so it belongs to the pull request that lands a GPU Louvain or Katz.
  * @public
  */
 export interface AcceleratedAlgorithms {
@@ -169,6 +177,10 @@ export interface AcceleratedAlgorithms {
     connectedComponents(s: GraphSnapshot): Promise<LabelResultLike>;
     weaklyConnectedComponents(s: GraphSnapshot): Promise<LabelResultLike>;
     minimumSpanningTree(s: GraphSnapshot, options?: MstOptions): Promise<MstResultLike>;
+    kCoreDecomposition(s: GraphSnapshot): Promise<CorenessResultLike>;
+    katzCentrality(s: GraphSnapshot, options?: KatzOptions): Promise<ScoresResultLike>;
+    hits(s: GraphSnapshot, options?: HitsOptions): Promise<HitsResultLike>;
+    louvain(s: GraphSnapshot, options?: LouvainOptions): Promise<CommunityResultLike>;
 }
 
 /**
@@ -221,5 +233,17 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
             acc?.minimumSpanningTree !== undefined
                 ? acc.minimumSpanningTree(s, options)
                 : Promise.resolve(indexed.kruskalMST(s, options)),
+        kCoreDecomposition: (s) =>
+            acc?.kCoreDecomposition !== undefined
+                ? acc.kCoreDecomposition(s)
+                : Promise.resolve(indexed.kCoreDecomposition(s)),
+        katzCentrality: (s, options) =>
+            acc?.katzCentrality !== undefined
+                ? acc.katzCentrality(s, options)
+                : Promise.resolve(indexed.katzCentrality(s, options)),
+        hits: (s, options) =>
+            acc?.hits !== undefined ? acc.hits(s, options) : Promise.resolve(indexed.hits(s, options)),
+        louvain: (s, options) =>
+            acc?.louvain !== undefined ? acc.louvain(s, options) : Promise.resolve(indexed.louvain(s, options)),
     };
 }

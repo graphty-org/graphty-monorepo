@@ -164,6 +164,11 @@ export class Arrangement {
     engine: ArrangementEngine | null = null;
     private source: LaneSource | null = null;
     private captured = 0;
+    /**
+     * The capture the lane holds row for row, while nothing has written it since: what a group's
+     * before-arrangement shares instead of copying the lane. Null after a row write.
+     */
+    private exact: ArrangementCapture | null = null;
     private readonly ops: ArrangementOp[] = [];
     private readonly strict = strictStateEnabled();
 
@@ -196,6 +201,7 @@ export class Arrangement {
     bind(source: LaneSource | null): void {
         this.source = source;
         this.captured = source?.positions.generation ?? 0;
+        this.exact = null;
     }
 
     /**
@@ -216,12 +222,15 @@ export class Arrangement {
             return null;
         }
 
-        const snapshot = source.snapshot();
+        // A cleared graph is captured as empty rather than by freezing a snapshot nothing draws:
+        // every row a session holds has a node record or an edge record naming it.
+        const { graph } = this.state;
+        const snapshot = graph.nodes.size === 0 && graph.edges.size === 0 ? null : source.snapshot();
         const capture: ArrangementCapture = Object.freeze({
-            ids: Object.freeze(snapshot.ids.toArray()),
+            ids: Object.freeze(snapshot === null ? [] : snapshot.ids.toArray()),
             token: this.state.graph.token,
             epoch: this.state.graph.epoch,
-            coords: source.positions.view(snapshot.nodeCount).slice(),
+            coords: snapshot === null ? new Float32Array(0) : source.positions.view(snapshot.nodeCount).slice(),
         });
         this.current(capture);
         return capture;
@@ -238,6 +247,34 @@ export class Arrangement {
                 this.history.seal(capture);
             }
         }
+    }
+
+    /**
+     * The arrangement a group begins from (design section 6.4, "Which groups take a
+     * before-arrangement"): the current capture, shared, when nothing has moved the lane since it
+     * was taken; otherwise the lane is captured, and that capture is sealed into the seal target
+     * first, because it is where the step below the group came to rest.
+     * @returns The capture, or null when there is no lane.
+     */
+    before(): ArrangementCapture | null {
+        this.flush();
+        this.seal();
+        const { exact } = this;
+        if (exact !== null && !this.moved && exact.token === this.state.graph.token) {
+            return exact;
+        }
+
+        return this.capture();
+    }
+
+    /**
+     * Copy the lane now, with every restore still queued written into it first: the capture a
+     * group seals at its commit.
+     * @returns The capture, or null when there is no lane.
+     */
+    settledCapture(): ArrangementCapture | null {
+        this.flush();
+        return this.capture();
     }
 
     /** A rest point: the layout settled, was paused, or finished a placement pass. */
@@ -318,6 +355,7 @@ export class Arrangement {
             Object.freeze({ ids: Object.freeze(ids), rows: Uint32Array.from(rows), values: Float32Array.from(values) }),
         );
         this.captured = lane.generation;
+        this.exact = null;
         // The engine takes the new rows as its own at the next pass.
         this.lane.touch("arrangement", "");
     }
@@ -384,6 +422,7 @@ export class Arrangement {
     private current(capture: ArrangementCapture): void {
         (this.state as { arrangement: ArrangementCapture | null }).arrangement = capture;
         this.captured = this.source?.positions.generation ?? 0;
+        this.exact = capture;
     }
 
     /**
@@ -402,17 +441,22 @@ export class Arrangement {
                 from--;
             }
 
+            let exact: ArrangementCapture | null = null;
             for (const op of ops.slice(from)) {
                 if ("capture" in op) {
                     writeCapture(op.capture, snapshot, lane, this.state.graph.token);
                     (this.state as { arrangement: ArrangementCapture | null }).arrangement = op.capture;
+                    const whole = op.capture.token === this.state.graph.token && op.capture.ids.length === snapshot.nodeCount;
+                    exact = whole ? op.capture : null;
                 } else {
                     writePatch(op.patch, op.forward, snapshot, lane);
+                    exact = null;
                 }
             }
 
             source.positions.moved();
             this.captured = source.positions.generation;
+            this.exact = exact;
         }
 
         // The engine taking the lane may write it back unchanged; that is not a move. A layout

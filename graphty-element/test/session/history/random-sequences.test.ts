@@ -18,7 +18,11 @@
  * told to. The model keeps the arrangement the way design section 6.4 defines it -- a capture
  * sealed into a position at each rest point and before each history move, and the rows each
  * placement wrote -- and after every history move the lane must hold A(position): after(k) when
- * the step has a capture, otherwise A(k-1) with the step's placed rows over it.
+ * the step has a capture, otherwise before(k) or A(k-1) with the step's placed rows over it; and
+ * an undo of step k restores before(k) when the step took one. Imports, expansions, clears and
+ * batches take a before-arrangement as they start; a replacing import and a clear end at the new
+ * dataset's own coordinates; a load transaction brings the layout to rest while it is open; and a
+ * step limit set low evicts the oldest steps, folding their arrangement into the baseline.
  *
  * A fixed list of seeds runs in CI, one test per seed. `FC_SEED` runs one seed instead, and
  * `FC_NUM_RUNS` changes how many sequences each seed tries, for a local soak.
@@ -73,12 +77,10 @@ interface Model {
      * added says nothing about where the new one is, even when an earlier node had its id.
      */
     fresh: (ReadonlySet<string> | null)[];
-    /**
-     * Whether each position's step replaced the whole graph. Where the nodes of one dataset are
-     * restored onto another's is the business of graph epochs (design/undo/undo-plan.md, phase
-     * 16b), so the model checks no arrangement while its history holds such a step.
-     */
-    replaces: boolean[];
+    /** The arrangement each position's step began from, when it took one. */
+    before: (Coords | null)[];
+    /** The history's step limit. */
+    limit: number;
 }
 
 /** Coordinates by node id, as `x,y,z`. */
@@ -130,37 +132,90 @@ function laneOf(real: Real): Map<string, string> {
 }
 
 /**
- * A(position): the arrangement the model says the lane holds there.
+ * A(position): the arrangement the model says the lane holds there. A capture, or else the step's
+ * before-arrangement or A(position - 1), says nothing about the nodes the step brought in.
  * @param model - The model.
  * @param position - The position.
  * @returns The coordinates it knows, by id.
  */
 function arrangementAt(model: Model, position: number): Map<string, string> {
-    const patches: Coords[] = [];
-    let at = position;
-    while (at > 0 && model.arr[at] === null) {
-        const rows = model.rows[at];
-        if (rows !== null) {
-            patches.push(rows);
-        }
-
-        at--;
+    const captured = model.arr[position];
+    if (position === 0 || captured !== null) {
+        return overlay(new Map(captured ?? []), model.late[position]);
     }
 
-    const out = new Map(model.arr[at] ?? []);
-    for (let later = at + 1; later <= position; later++) {
-        for (const id of model.fresh[later] ?? []) {
-            out.delete(id);
-        }
+    const before = model.before[position];
+    const out = before === null ? arrangementAt(model, position - 1) : new Map(before);
+    for (const id of model.fresh[position] ?? []) {
+        out.delete(id);
     }
 
-    for (const patch of [model.late[at], ...patches.reverse()]) {
-        for (const [id, value] of patch ?? []) {
-            out.set(id, value);
-        }
+    return overlay(out, model.rows[position]);
+}
+
+/**
+ * Write rows over coordinates.
+ * @param out - The coordinates, written in place.
+ * @param rows - The rows, or null.
+ * @returns `out`.
+ */
+function overlay(out: Map<string, string>, rows: Coords | null): Map<string, string> {
+    for (const [id, value] of rows ?? []) {
+        out.set(id, value);
     }
 
     return out;
+}
+
+/**
+ * What the lane holds after a history move lands on `position`: an undo of the step above
+ * restores the arrangement that step began from, when it took one, and A(position) otherwise.
+ * @param model - The model.
+ * @param position - Where the move landed.
+ * @param from - Where it started.
+ * @returns The coordinates it knows, by id.
+ */
+function landedAt(model: Model, position: number, from: number): Map<string, string> {
+    const before = from > position ? model.before[position + 1] : null;
+    return before === null ? arrangementAt(model, position) : new Map(before);
+}
+
+/**
+ * Evict as the history does when it holds more steps than its limit: the oldest done steps down
+ * to 90% of the limit, never the latest done one, folding each into the baseline; then the
+ * farthest redo steps, never the next one.
+ * @param model - The model.
+ */
+function evictModel(model: Model): void {
+    const count = (): number => model.digests.length - 1;
+    if (count() <= model.limit) {
+        return;
+    }
+
+    const target = Math.floor(model.limit * 0.9);
+    let drop = 0;
+    while (count() - drop > target && drop < model.position - 1) {
+        drop++;
+    }
+
+    if (drop > 0) {
+        const baseline = arrangementAt(model, drop);
+        const shift = <T>(list: T[], first: T): T[] => [first, ...list.slice(drop + 1)];
+        model.digests = model.digests.slice(drop);
+        model.visible = model.visible.slice(drop);
+        model.arr = shift<Coords | null>(model.arr, baseline);
+        model.rows = shift(model.rows, null);
+        model.late = shift(model.late, null);
+        model.fresh = shift(model.fresh, null);
+        model.before = shift(model.before, null);
+        model.position -= drop;
+    }
+
+    while (count() > target && count() > model.position + 1) {
+        for (const list of [model.digests, model.visible, model.arr, model.rows, model.late, model.fresh, model.before]) {
+            list.pop();
+        }
+    }
 }
 
 /**
@@ -193,15 +248,20 @@ function freshSince(real: Real, before: ReadonlySet<string>): ReadonlySet<string
  * @param real - The system.
  * @param when - What just happened, for the message.
  */
-function expectArrangement(model: Model, real: Real, when: string): void {
-    if (model.moved || model.replaces.some(Boolean)) {
+function expectArrangement(
+    model: Model,
+    real: Real,
+    when: string,
+    expected: Map<string, string> = arrangementAt(model, model.position),
+): void {
+    if (model.moved) {
         // The layout has moved the lane since the last capture and nothing has restored it: it
         // is in flight, and the next rest point or history move seals it.
         return;
     }
 
     const lane = laneOf(real);
-    for (const [id, value] of arrangementAt(model, model.position)) {
+    for (const [id, value] of expected) {
         if (lane.has(id)) {
             assert.strictEqual(lane.get(id), value, `${when}: node ${id} at position ${String(model.position)}`);
         }
@@ -254,6 +314,16 @@ function choose<T>(list: readonly T[], pick: number): T | undefined {
     return list.length === 0 ? undefined : list[pick % list.length];
 }
 
+/** How an edit touches the arrangement. */
+interface Arranges {
+    /** It takes a before-arrangement as it starts: an import, an expansion, a clear, a batch. */
+    readonly moves?: boolean;
+    /** It begins a new dataset, and its step ends at the new graph's own coordinates. */
+    readonly replaces?: boolean;
+    /** It brings the layout to rest while its group is open. */
+    readonly rests?: boolean;
+}
+
 /**
  * Follow one edit: it either recorded a step, merged into the top one, changed nothing, or was
  * refused -- and the history must say which, and agree with the coalescing rule.
@@ -262,6 +332,8 @@ function choose<T>(list: readonly T[], pick: number): T | undefined {
  * @param label - The edit, for messages.
  * @param key - Its coalesce key, or null.
  * @param act - The edit.
+ * @param arranges - How it touches the arrangement.
+ * @returns What it did.
  */
 async function edit(
     model: Model,
@@ -269,12 +341,22 @@ async function edit(
     label: string,
     key: string | null,
     act: () => PromiseLike<unknown>,
-    replaces = false,
+    arranges: Arranges = {},
 ): Promise<"record" | "merge" | "none"> {
     expectSealed(model, real, `before ${label}`);
     const { history } = real.session;
     const steps = history.steps.length;
+    const top = history.steps[history.position - 1]?.id;
     const held = new Set(laneOf(real).keys());
+    const moves = arranges.moves === true || arranges.replaces === true || arranges.rests === true;
+    let before: Coords | null = null;
+    if (moves) {
+        // Where the lane is when the group begins is sealed into the step below, and is the
+        // group's before-arrangement.
+        sealModel(model, real);
+        before = laneOf(real);
+    }
+
     let refused = false;
     try {
         await act();
@@ -283,21 +365,41 @@ async function edit(
     }
 
     const now = real.clock.now();
-    if (history.position === model.position + 1) {
+    const recorded = history.position > 0 && history.steps[history.position - 1]?.id !== top;
+    if (recorded) {
         assert.isFalse(refused, `${label} was refused and recorded a step`);
-        assert.lengthOf(history.steps, model.position + 1, `${label}: recording empties the redo tail`);
         model.digests = [...model.digests.slice(0, model.position + 1), live(real)];
         model.visible = [...model.visible.slice(0, model.position + 1), shown(real)];
         model.arr = [...model.arr.slice(0, model.position + 1), null];
         model.rows = [...model.rows.slice(0, model.position + 1), null];
         model.late = [...model.late.slice(0, model.position + 1), null];
         model.fresh = [...model.fresh.slice(0, model.position + 1), freshSince(real, held)];
-        model.replaces = [...model.replaces.slice(0, model.position + 1), replaces];
+        model.before = [...model.before.slice(0, model.position + 1), before];
         model.position++;
         model.mergeKey = key;
         model.lastAt = now;
         model.mergeable = true;
+        if (arranges.replaces === true || arranges.rests === true) {
+            // Sealed at its commit, or where the layout came to rest while it was open.
+            model.arr[model.position] = laneOf(real);
+            model.moved = false;
+        }
+
+        evictModel(model);
+        assert.strictEqual(history.position, model.position, `${label}: the cursor after recording`);
+        assert.lengthOf(history.steps, model.digests.length - 1, `${label}: recording empties the redo tail`);
         return "record";
+    }
+
+    if (arranges.rests === true) {
+        // Rolled back, the lane is back where the group began; closed with nothing recorded,
+        // where it came to rest is the top step's.
+        if (!refused) {
+            model.arr[model.position] = laneOf(real);
+            model.late[model.position] = null;
+        }
+
+        model.moved = false;
     }
 
     assert.strictEqual(history.position, model.position, `${label} moved the cursor by more than one`);
@@ -320,9 +422,7 @@ async function edit(
 class Edit implements Command {
     constructor(
         private readonly label: string,
-        private readonly act: (
-            real: Real,
-        ) => { key: string | null; run: () => PromiseLike<unknown>; replaces?: boolean } | null,
+        private readonly act: (real: Real) => ({ key: string | null; run: () => PromiseLike<unknown> } & Arranges) | null,
     ) {}
 
     check(): boolean {
@@ -336,7 +436,7 @@ class Edit implements Command {
             return;
         }
 
-        await edit(model, real, this.label, planned.key, planned.run, planned.replaces);
+        await edit(model, real, this.label, planned.key, planned.run, planned);
     }
 
     toString(): string {
@@ -455,7 +555,7 @@ class UndoThenSettle implements Command {
         model.mergeable = false;
         assert.strictEqual(real.session.history.position, model.position, "undo then settle moved the cursor");
         expectSealed(model, real, "after undo then settle");
-        expectArrangement(model, real, "after undo then settle");
+        expectArrangement(model, real, "after undo then settle", landedAt(model, model.position, model.position + 1));
     }
 
     toString(): string {
@@ -528,7 +628,7 @@ class Move implements Command {
         assert.strictEqual(session.history.position, model.position, `${this.toString()} moved the cursor`);
         expectSealed(model, real, `after ${this.toString()}`);
         assert.strictEqual(shown(real), model.visible[model.position], `after ${this.toString()}: the visible ids`);
-        expectArrangement(model, real, `after ${this.toString()}`);
+        expectArrangement(model, real, `after ${this.toString()}`, landedAt(model, model.position, from));
         if (moves) {
             assert.isFalse(real.layout.running, `${this.toString()} left the layout at rest`);
         }
@@ -600,6 +700,75 @@ class Transaction implements Command {
     }
 }
 
+/**
+ * A load transaction, as an application opening a project writes one: an import through `tx`, and
+ * the layout playing and coming to rest while the transaction is still open, then maybe a throw.
+ * The rest point is the transaction's, never the step below it.
+ */
+class LoadTransaction implements Command {
+    constructor(
+        private readonly mode: "replace" | "merge",
+        private readonly throws: boolean,
+    ) {}
+
+    check(): boolean {
+        return true;
+    }
+
+    async run(model: Model, real: Real): Promise<void> {
+        await edit(
+            model,
+            real,
+            this.toString(),
+            null,
+            () =>
+                real.session.transaction("Loaded a project", async (tx) => {
+                    await tx.execute({
+                        op: "data.import",
+                        source: { type: "json", config: { data: IMPORTED } },
+                        mode: this.mode,
+                    });
+                    real.layout.play();
+                    real.layout.step();
+                    real.layout.settle();
+                    if (this.throws) {
+                        throw new Error("The load failed on purpose.");
+                    }
+                }),
+            { rests: true },
+        );
+        expectArrangement(model, real, `after ${this.toString()}`);
+    }
+
+    toString(): string {
+        return `load transaction, ${this.mode}${this.throws ? ", throws" : ""}`;
+    }
+}
+
+/** Set the history's step limit, which evicts at once when it is exceeded. */
+class Limit implements Command {
+    constructor(private readonly steps: number) {}
+
+    check(): boolean {
+        return true;
+    }
+
+    run(model: Model, real: Real): Promise<void> {
+        expectSealed(model, real, `before limiting to ${String(this.steps)} steps`);
+        real.session.history.limitSteps = this.steps;
+        model.limit = this.steps;
+        evictModel(model);
+        assert.strictEqual(real.session.history.position, model.position, "eviction moved the cursor");
+        assert.lengthOf(real.session.history.steps, model.digests.length - 1, "eviction kept these steps");
+        expectSealed(model, real, `after limiting to ${String(this.steps)} steps`);
+        return Promise.resolve();
+    }
+
+    toString(): string {
+        return `limit ${String(this.steps)}`;
+    }
+}
+
 /** Clear the history: the state now is the new baseline. */
 class Clear implements Command {
     check(): boolean {
@@ -615,7 +784,7 @@ class Clear implements Command {
         model.rows = [null];
         model.late = [null];
         model.fresh = [null];
-        model.replaces = [false];
+        model.before = [null];
         model.moved = false;
         model.position = 0;
         model.mergeable = false;
@@ -870,6 +1039,7 @@ const COMMANDS = [
             new Edit(`import, ${mode}`, (real) => ({
                 key: null,
                 run: () => real.session.data.import({ type: "json", config: { data: IMPORTED } }, { mode }),
+                moves: true,
                 replaces: mode === "replace",
             })),
     ),
@@ -877,6 +1047,7 @@ const COMMANDS = [
         (seed) =>
             new Edit(`expand ${seed}`, (real) => ({
                 key: null,
+                moves: true,
                 run: () =>
                     real.session.execute({
                         op: "data.expand",
@@ -893,6 +1064,7 @@ const COMMANDS = [
         (fails) =>
             new Edit(`batch${fails ? " that fails" : ""}`, (real) => ({
                 key: null,
+                moves: true,
                 run: () =>
                     real.session.execute({
                         op: "batch",
@@ -955,6 +1127,10 @@ const COMMANDS = [
     // Four times over, so a sequence of thirty commands plays, steps and settles the layout often
     // enough to put an arrangement under most history moves.
     ...Array.from({ length: 4 }, () => fc.constantFrom("play", "frame", "settle").map((kind) => new Layout(kind))),
+    fc.tuple(fc.constantFrom("replace", "merge"), fc.boolean()).map(
+        ([mode, throws]) => new LoadTransaction(mode, throws),
+    ),
+    fc.integer({ min: 2, max: 6 }).map((steps) => new Limit(steps)),
     fc.constant(new UndoThenSettle()),
     fc.constant(new Move("undo")),
     fc.constant(new Move("redo")),
@@ -1006,7 +1182,8 @@ async function runSeed(seed: number, numRuns: number): Promise<void> {
                         late: [null],
                         moved: false,
                         fresh: [null],
-                        replaces: [false],
+                        before: [null],
+                        limit: session.history.limitSteps,
                     };
                     return { model, real };
                 },
@@ -1020,10 +1197,11 @@ async function runSeed(seed: number, numRuns: number): Promise<void> {
                 sealModel(model, real);
             }
 
+            const from = model.position;
             await session.history.restoreTo(null);
             assert.strictEqual(live(real), model.digests[0], "undoing everything returns to the start");
             model.position = 0;
-            expectArrangement(model, real, "undoing everything");
+            expectArrangement(model, real, "undoing everything", landedAt(model, 0, from));
             const top = session.history.steps.at(-1);
             if (top !== undefined) {
                 sealModel(model, real);
@@ -1044,4 +1222,34 @@ describe("random sequences of style, visibility, scope, view, settings and data 
     for (const seed of only === undefined ? SEEDS : [Number(only)]) {
         it(`holds for seed ${String(seed)}`, () => runSeed(seed, NUM_RUNS), SEED_TIMEOUT_MS);
     }
+});
+
+describe("eviction folds the arrangement of every evicted step into the baseline", () => {
+    it("2000 placements with coalescing off and a limit of 1000 steps, all undone, leave every evicted placement in place", async () => {
+        const clock = fakeClock();
+        const session = await fixtureSession({ now: clock.now });
+        const real: Real = { session, clock, layout: fakeLayout(session) };
+        session.history.limitSteps = 1000;
+        const expected = laneOf(real);
+        const ids = ["n1", "n2", "n3"];
+        const placed: [string, string][] = [];
+        for (let step = 1; step <= 2000; step++) {
+            const id = ids[step % ids.length];
+            await session.positions.set([{ id, x: step, y: step, z: -step }]);
+            placed.push([id, `${String(step)},${String(step)},${String(-step)}`]);
+            // Past the coalescing window, so every placement is a step of its own.
+            clock.advance(COALESCE_MS + 1);
+        }
+
+        const kept = session.history.steps.length;
+        assert.isAtMost(kept, 1000);
+        assert.isAbove(2000 - kept, 1000, "most placements were evicted");
+        for (const [id, value] of placed.slice(0, 2000 - kept)) {
+            expected.set(id, value);
+        }
+
+        await session.history.restoreTo(null);
+        assert.deepEqual(laneOf(real), expected, "the baseline, with every evicted placement applied");
+        session.dispose();
+    }, SEED_TIMEOUT_MS);
 });

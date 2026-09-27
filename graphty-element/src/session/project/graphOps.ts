@@ -142,6 +142,8 @@ type GraphOp =
           readonly kind: "replace";
           readonly kept: KeptGraph;
           readonly prior: GraphMaps;
+          /** The graph epoch before the swap, and the fresh one the empty graph took. */
+          readonly epochs: { readonly prior: number; readonly next: number };
       }
     | {
           readonly kind: "direction";
@@ -249,6 +251,7 @@ export interface GraphWriter {
 export class GraphOps {
     private readonly home: GraphHome;
     private readonly tokens = createCounter();
+    private readonly epochs = createCounter();
     private warned = false;
 
     /**
@@ -333,6 +336,25 @@ export class GraphOps {
      */
     restoreToken(token: number): void {
         this.home.write(Object.freeze({ ...this.home.read(), token }));
+    }
+
+    /**
+     * Take an epoch never issued before and make it the slice's: the graph is a new dataset, whose
+     * coordinates are never mapped from another's.
+     * @returns The epoch.
+     */
+    newEpoch(): number {
+        const epoch = this.epochs.next();
+        this.home.write(Object.freeze({ ...this.home.read(), epoch }));
+        return epoch;
+    }
+
+    /**
+     * Put a recorded epoch back.
+     * @param epoch - The epoch.
+     */
+    restoreEpoch(epoch: number): void {
+        this.home.write(Object.freeze({ ...this.home.read(), epoch }));
     }
 
     /**
@@ -549,6 +571,7 @@ class GraphEntry implements OpLogEntry {
                     break;
                 case "replace":
                     this.graph.swapMaps(op.prior);
+                    this.graph.restoreEpoch(op.epochs.prior);
                     ({ nodes, edges, values } = this.maps());
                     touchAll(this.graph, op.prior);
                     store.replace(op.kept, true);
@@ -638,6 +661,7 @@ class GraphEntry implements OpLogEntry {
                     break;
                 case "replace":
                     this.graph.swapMaps(emptyMaps());
+                    this.graph.restoreEpoch(op.epochs.next);
                     ({ nodes, edges, values } = this.maps());
                     touchAll(this.graph, op.prior);
                     store.replace(op.kept, false);
@@ -894,9 +918,11 @@ class Writer implements GraphWriter {
         this.graph.setPinned(this.draft, [...this.graph.pins()], false);
         const kept = this.store.keep();
         this.graph.swapMaps(emptyMaps());
+        // A new dataset: its coordinates are never restored from the one it replaced.
+        const epochs = { prior: this.graph.slice.epoch, next: this.graph.newEpoch() };
         this.store.replace(kept, false);
         if (this.entry !== null) {
-            this.entry.push({ kind: "replace", kept, prior });
+            this.entry.push({ kind: "replace", kept, prior, epochs });
             touchAll(this.graph, prior);
         }
     }

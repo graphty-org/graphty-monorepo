@@ -35,7 +35,7 @@ import type { ScopeService } from "../commands/scope";
 import type { StyleService } from "../commands/style";
 import type { CameraService } from "../commands/view";
 import type { VisibilityService } from "../commands/visibility";
-import { Arrangement } from "./arrangement";
+import { Arrangement, type ArrangementOp } from "./arrangement";
 import { DerivationLane } from "./derive";
 import {
     createProjectStore,
@@ -49,7 +49,7 @@ import {
     type Slice,
 } from "./draft";
 import { GraphOps, nodeKey } from "./graphOps";
-import { History, type HistoryChangeReason } from "./History";
+import { History, type HistoryChangeReason, type OpenArrangement } from "./History";
 import { createProjectState, type ProjectState } from "./state";
 import { checkSoleHolder, strictStateEnabled } from "./strict";
 
@@ -153,8 +153,13 @@ type Lane<C extends CommandLike> =
 /** What every definition declares, whether or not it is undoable. */
 interface DefinitionBase<C extends CommandLike> {
     readonly op: C["op"];
-    /** Sets coordinates on purpose, so it seals an arrangement capture when it starts. */
+    /**
+     * Takes a before-arrangement when it starts (design section 6.4): it sets coordinates on
+     * purpose, or holds its slot while a layout can move the lane (a chunked import).
+     */
     readonly moves: boolean;
+    /** For an op only some of whose commands take one (`clear` among the data mutations). */
+    movesWhen?(command: C): boolean;
     /** The keys it will write, known before it runs. */
     keys(command: C, state: ProjectState): readonly SliceKey[];
     readonly lane: Lane<C>;
@@ -492,6 +497,10 @@ interface Group {
     readonly compound: boolean;
     /** Work to start once it is recorded, by key; see `UndoableContext.after`. */
     readonly onSeal: Map<string, (dispatch: DispatchFunction) => void>;
+    /** Its before-arrangement, once a member that needs one has started; see `History.open`. */
+    arrangement: OpenArrangement | null;
+    /** The graph epoch when it took its before-arrangement. */
+    epoch: number;
 }
 
 /** The step a deferred member's work belongs to, and whether its origin was declared at construction. */
@@ -1023,6 +1032,21 @@ export class Dispatcher {
     }
 
     /**
+     * Whether a job's group takes a before-arrangement as it starts: the job's command moves, or
+     * it is a transaction's first graph write.
+     * @param job - The job starting.
+     * @returns True when it does.
+     */
+    private takesBefore(job: Job): boolean {
+        const { definition, command } = job;
+        if (definition.moves || definition.movesWhen?.(command) === true) {
+            return true;
+        }
+
+        return job.group.tx !== null && job.keys.some((key) => sliceOf(key) === "graph");
+    }
+
+    /**
      * Act now, or after the current call when called from inside a listener, and settle once the
      * pass that derives the change has run.
      * @param act - The history call.
@@ -1468,6 +1492,14 @@ export class Dispatcher {
         job.status = "running";
         job.blockedBy = null;
         this.acquire(group, opLogKeys(job.keys));
+        if (group.arrangement === null && this.takesBefore(job)) {
+            const before = this.arrangement.before();
+            if (before !== null) {
+                group.arrangement = this.history.open(before);
+                group.epoch = state.graph.epoch;
+            }
+        }
+
         if (group.tx === null && group.after === null) {
             group.label = definition.undo.label(command, state);
             group.key = definition.undo.coalesce?.(command) ?? null;
@@ -1658,8 +1690,27 @@ export class Dispatcher {
         this.leave(group);
         const patch = group.draft.seal();
         const oplog = [...group.holds.keys()];
+        const open = group.arrangement;
+        if (open !== null) {
+            this.history.close(open);
+        }
+
+        // A replacing import or a clear began a new dataset: its step ends at the new graph's
+        // seeded coordinates, so no later restore maps the dataset it replaced onto it.
+        const newEpoch =
+            open !== null && this.store.state.graph.epoch !== group.epoch ? this.arrangement.settledCapture() : null;
         let id: string | null = null;
-        if (!isEmptyPatch(patch) && this.intoBaseline(group, slicesOf(patch))) {
+        const baseline = !isEmptyPatch(patch) && this.intoBaseline(group, slicesOf(patch));
+        if (isEmptyPatch(patch) || baseline) {
+            // No step of its own: where the lane came to rest while it was open is the seal
+            // target's now.
+            const rest = newEpoch ?? open?.provisional ?? null;
+            if (rest !== null) {
+                this.history.seal(rest);
+            }
+        }
+
+        if (baseline) {
             const change = { slices: slicesOf(patch), cause: "command" as const };
             this.emit(change, [change]);
             this.release(group, true);
@@ -1679,9 +1730,11 @@ export class Dispatcher {
                 bytes: { done: bytes, undone: bytes },
                 // A `positions.set` over more than a third of the rows keeps a capture instead.
                 after:
-                    patch.rows !== null && this.arrangement.wantsCapture(patch.rows)
+                    newEpoch ??
+                    (patch.rows !== null && this.arrangement.wantsCapture(patch.rows)
                         ? this.arrangement.capture()
-                        : null,
+                        : (open?.provisional ?? null)),
+                before: open?.before ?? null,
             };
             if (group.after !== null && this.history.amend(group.after, input)) {
                 id = group.after;
@@ -1760,8 +1813,22 @@ export class Dispatcher {
         this.leave(group);
         const patch = group.draft.rollback();
         const slices = slicesOf(patch);
+        const open = group.arrangement;
+        if (open !== null) {
+            this.history.close(open);
+        }
+
         if (slices.length > 0) {
-            this.arrangement.restore(patch.rows === null ? [] : [{ patch: patch.rows, forward: false }]);
+            // Where things were when the group began, not where a half-run layout pushed them;
+            // written in restore mode, and not a rest point (design section 6.4).
+            let ops: ArrangementOp[] = [];
+            if (open !== null) {
+                ops = [{ capture: open.before }];
+            } else if (patch.rows !== null) {
+                ops = [{ patch: patch.rows, forward: false }];
+            }
+
+            this.arrangement.restore(ops);
         }
 
         this.reverted(slices);
@@ -2055,6 +2122,8 @@ export class Dispatcher {
             setup,
             compound,
             onSeal: new Map(),
+            arrangement: null,
+            epoch: 0,
         };
     }
 

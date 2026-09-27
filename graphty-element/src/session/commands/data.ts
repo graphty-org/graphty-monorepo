@@ -293,6 +293,8 @@ const dataApply: UndoableDefinition<DataApplyCommand> = {
     op: "data.apply",
     undo: { kind: "undoable", label: (command) => labelOf(command.mutation) },
     moves: false,
+    // A clear begins a new dataset, whose step keeps the arrangement it replaced.
+    movesWhen: (command) => command.mutation.kind === "clear",
     draws: true,
     variants: ["add-nodes", "add-edges", "set-attributes", "update-rows", "remove-nodes", "remove-edges", "clear"],
     // An add's ids are not known before it runs (an edge's id is assigned, a record's id is read
@@ -355,7 +357,9 @@ function importLabel(command: DataImportCommand): string {
 const dataImport: UndoableDefinition<DataImportCommand> = {
     op: "data.import",
     undo: { kind: "undoable", label: importLabel },
-    moves: false,
+    // A chunked writer: a layout can move the lane between its chunks, so it takes the
+    // arrangement it began from, and a replacing one begins a new dataset.
+    moves: true,
     draws: true,
     variants: ["replace", "merge"],
     // A load writes rows it cannot name before it has read them, so it holds the whole slice.
@@ -380,7 +384,8 @@ const dataImport: UndoableDefinition<DataImportCommand> = {
 const dataExpand: UndoableDefinition<DataExpandCommand> = {
     op: "data.expand",
     undo: { kind: "undoable", label: (command) => `Expanded ${String(command.seed)}` },
-    moves: false,
+    // A slot-holding writer (design section 6.4).
+    moves: true,
     draws: true,
     keys: () => ["graph"],
     lane: { kind: "immediate" },

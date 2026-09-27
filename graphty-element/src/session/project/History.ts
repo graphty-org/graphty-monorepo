@@ -16,9 +16,16 @@
  *
  * Undoing step k restores before(k) when it has one and A(k-1) otherwise; redoing it restores
  * A(k). Each undo and redo leaves the {@link ArrangementOp}s that do this, which the caller takes.
+ *
+ * A group that takes a before-arrangement is opened here ({@link History.open}) while it is
+ * pending, and a capture sealed meanwhile goes to the newest such group as its provisional
+ * after-capture instead of into a step at or below its before (design section 6.4, "The seal
+ * target"). A(0) is a private buffer that eviction folds the evicted steps' arrangements into in
+ * place (design section 7).
  */
 
 import type { NodeId } from "../../catalog/types";
+import { POSITION_COMPONENTS } from "../../data/positions";
 import { type ArrangementOp, captureBytes, coordsIn, mergeRowPatches, type RowPatch } from "./arrangement";
 import type { ArrangementCapture } from "./state";
 
@@ -67,6 +74,22 @@ interface RecordInput<P> {
     readonly bytes?: { readonly done: number; readonly undone: number };
     /** The arrangement after the step, when it already has one: a large `positions.set`. */
     readonly after?: ArrangementCapture | null;
+    /** The arrangement when the step's group began changing things, if it took one. */
+    readonly before?: ArrangementCapture | null;
+}
+
+/**
+ * A pending group that took a before-arrangement, from {@link History.open} until
+ * {@link History.close}.
+ */
+export interface OpenArrangement {
+    /** The arrangement when the group began changing things. */
+    readonly before: ArrangementCapture;
+    /**
+     * Where the lane came to rest since, sealed while the group was the seal target; dropped
+     * when a history call restores the lane.
+     */
+    readonly provisional: ArrangementCapture | null;
 }
 
 /** A step as the history publishes it. Frozen. */
@@ -125,8 +148,14 @@ export class History<P> {
     private mergeable = false;
     private maxBytes: number;
     private maxSteps: number;
-    /** A(0): the arrangement before the first step. */
-    private baselineCapture: ArrangementCapture | null = null;
+    /**
+     * A(0): the arrangement before the first step. `owned` when it is a private copy, which
+     * eviction folds steps into in place; otherwise a capture shared with others, copied before
+     * the first fold.
+     */
+    private baseline: { capture: ArrangementCapture; owned: boolean } | null = null;
+    /** The pending groups holding a before-arrangement, oldest first. */
+    private groups: { before: ArrangementCapture; provisional: ArrangementCapture | null }[] = [];
     /** What the undos and redos since the last take restore, in order. */
     private arrangementOps: ArrangementOp[] = [];
 
@@ -213,7 +242,7 @@ export class History<P> {
         const time = this.now();
         const at = new Date().toISOString();
         const key = input.key ?? null;
-        const held = input.after ? captureBytes(input.after) : 0;
+        const held = (input.after ? captureBytes(input.after) : 0) + (input.before ? captureBytes(input.before) : 0);
         const done = (input.bytes?.done ?? 0) + held;
         const undone = (input.bytes?.undone ?? 0) + held;
         const top = this.entries.at(-1);
@@ -246,7 +275,7 @@ export class History<P> {
             provenance: Object.freeze({ ...input.provenance }),
             doneBytes: done,
             undoneBytes: undone,
-            before: null,
+            before: input.before ?? null,
             after: input.after ?? null,
             afterRows: null,
             cache: null,
@@ -307,15 +336,21 @@ export class History<P> {
     }
 
     /**
-     * Seal a capture of the lane into the seal target: the top applied step's after-capture, or
-     * the baseline when no step is applied.
+     * Seal a capture of the lane into the seal target: the newest open group's provisional
+     * after-capture, else the top applied step's after-capture, or the baseline when no step is
+     * applied.
      * @param capture - The capture.
      */
     seal(capture: ArrangementCapture): void {
+        const group = this.groups.at(-1);
+        if (group !== undefined) {
+            group.provisional = capture;
+            return;
+        }
+
         const step = this.cursor > 0 ? this.entries[this.cursor - 1] : null;
         if (step === null) {
-            this.total += captureBytes(capture) - (this.baselineCapture ? captureBytes(this.baselineCapture) : 0);
-            this.baselineCapture = capture;
+            this.setBaseline(capture, false);
         } else {
             this.retake(step, capture);
         }
@@ -325,11 +360,37 @@ export class History<P> {
     }
 
     /**
+     * A pending group took a before-arrangement: from now until it is closed, it is the seal
+     * target.
+     * @param before - Its before-arrangement.
+     * @returns Its handle; the dispatcher records `before` and `provisional` from it.
+     */
+    open(before: ArrangementCapture): OpenArrangement {
+        const group = { before, provisional: null };
+        this.groups.push(group);
+        return group;
+    }
+
+    /**
+     * A group recorded or rolled back: it stops being a seal target.
+     * @param group - Its handle.
+     */
+    close(group: OpenArrangement): void {
+        this.groups = this.groups.filter((each) => each !== group);
+    }
+
+    /**
      * What the undos and redos since the last call restore, in the order they happened.
      * @returns The ops; the list is emptied.
      */
     takeArrangement(): ArrangementOp[] {
-        return this.arrangementOps.splice(0);
+        const ops = this.arrangementOps.splice(0);
+        const own = this.baseline?.owned === true ? this.baseline.capture : null;
+        // The private baseline changes in place when a step is folded into it, so what leaves the
+        // history is a copy.
+        return own === null
+            ? ops
+            : ops.map((op) => ("capture" in op && op.capture === own ? { capture: copyCapture(own) } : op));
     }
 
     /**
@@ -401,9 +462,10 @@ export class History<P> {
     clear(baseline: ArrangementCapture | null = null): void {
         this.entries = [];
         this.cursor = 0;
-        this.baselineCapture = baseline;
+        this.baseline = baseline === null ? null : { capture: baseline, owned: false };
         this.total = baseline ? captureBytes(baseline) : 0;
         this.arrangementOps = [];
+        this.dropProvisionals();
         this.mergeable = false;
         this.changed("clear");
     }
@@ -454,6 +516,7 @@ export class History<P> {
         }
 
         const step = this.entries[this.cursor - 1];
+        this.dropProvisionals();
         this.arrangementOps.push(...this.undoOps(this.cursor - 1));
         this.options.backward(step.patch);
         this.cursor--;
@@ -471,6 +534,7 @@ export class History<P> {
         }
 
         const step = this.entries[this.cursor];
+        this.dropProvisionals();
         this.arrangementOps.push(...this.redoOps(this.cursor));
         this.options.forward(step.patch);
         this.cursor++;
@@ -530,14 +594,7 @@ export class History<P> {
         while (over() && dropOld < this.cursor - 1) {
             const step = this.entries[dropOld];
             this.total -= this.size(step, true);
-            // ponytail: keeps the newest evicted capture as A(0) and loses the row patches of
-            // evicted steps without one; the fold of design section 7 replaces this.
-            const kept = step.after ?? step.before;
-            if (kept !== null) {
-                this.total += captureBytes(kept) - (this.baselineCapture ? captureBytes(this.baselineCapture) : 0);
-                this.baselineCapture = kept;
-            }
-
+            this.fold(step);
             dropOld++;
         }
 
@@ -557,6 +614,79 @@ export class History<P> {
         } else if (dropped) {
             this.changed("size");
         }
+    }
+
+    /** A history call restores the lane: what open groups sealed before it no longer holds. */
+    private dropProvisionals(): void {
+        for (const group of this.groups) {
+            group.provisional = null;
+        }
+    }
+
+    /**
+     * Make a capture A(0), keeping `total` in step.
+     * @param capture - The capture.
+     * @param owned - Whether it is a private copy nothing else references.
+     */
+    private setBaseline(capture: ArrangementCapture, owned: boolean): void {
+        this.total += captureBytes(capture) - (this.baseline ? captureBytes(this.baseline.capture) : 0);
+        this.baseline = { capture, owned };
+    }
+
+    /**
+     * Fold an evicted step's arrangement into A(0), by the recursion: A(k) is after(k) with the
+     * rows written over it since, or else before(k) or A(k-1), with row patch(k) applied. The
+     * buffer is written in place while it has the capture's rows; it is copied only when the rows
+     * differ, which a graph edit between the two makes them.
+     * @param step - The oldest step, being evicted.
+     */
+    private fold(step: Step<P>): void {
+        const capture = step.after ?? step.before;
+        if (capture !== null) {
+            const base = this.baseline;
+            if (base?.owned === true && base.capture.token === capture.token && base.capture.ids.length === capture.ids.length) {
+                base.capture.coords.set(capture.coords);
+            } else {
+                this.setBaseline(copyCapture(capture), true);
+            }
+        }
+
+        const rows = step.after === null ? this.rowsOf(step) : step.afterRows;
+        if (rows !== null) {
+            this.foldRows(rows);
+        }
+    }
+
+    /**
+     * Write a row patch's new values into A(0), in place. A node the baseline does not hold yet (it
+     * was added after the baseline was taken) is appended, and then the buffer names no row order.
+     * @param rows - The patch.
+     */
+    private foldRows(rows: RowPatch): void {
+        const base = this.baseline;
+        if (base === null) {
+            return;
+        }
+
+        if (!base.owned) {
+            this.setBaseline(copyCapture(base.capture), true);
+        }
+
+        let {capture} = (this.baseline as { capture: ArrangementCapture });
+        const missing = rows.ids.filter((id, at) => coordsIn(capture, id, rows.rows[at]) === null);
+        if (missing.length > 0) {
+            const coords = new Float32Array(capture.coords.length + POSITION_COMPONENTS * missing.length);
+            coords.set(capture.coords);
+            // ponytail: an appended row starts at the origin and takes its value just below; a
+            // baseline that grows row by row reallocates per fold, fine for the few rows a
+            // placement names.
+            capture = Object.freeze({ ids: Object.freeze([...capture.ids, ...missing]), token: -1, epoch: capture.epoch, coords });
+            this.setBaseline(capture, true);
+        }
+
+        rows.ids.forEach((id, at) => {
+            coordsIn(capture, id, rows.rows[at])?.set(rows.values.subarray(6 * at + 3, 6 * at + 6));
+        });
     }
 
     /**
@@ -652,7 +782,7 @@ export class History<P> {
             }
         }
 
-        return [...(this.baselineCapture === null ? [] : [{ capture: this.baselineCapture }]), ...patches.reverse()];
+        return [...(this.baseline === null ? [] : [{ capture: this.baseline.capture }]), ...patches.reverse()];
     }
 
     /**
@@ -685,7 +815,7 @@ export class History<P> {
             }
         }
 
-        return this.baselineCapture === null ? null : coordsIn(this.baselineCapture, id, hint);
+        return this.baseline === null ? null : coordsIn(this.baseline.capture, id, hint);
     }
 
     /**
@@ -733,4 +863,13 @@ function afterOps(step: {
         ...(step.after === null ? [] : [{ capture: step.after }]),
         ...(step.afterRows === null ? [] : [{ patch: step.afterRows, forward: true }]),
     ];
+}
+
+/**
+ * A private copy of a capture: its own coordinates, the same (frozen) id list.
+ * @param capture - The capture.
+ * @returns The copy.
+ */
+function copyCapture(capture: ArrangementCapture): ArrangementCapture {
+    return Object.freeze({ ids: capture.ids, token: capture.token, epoch: capture.epoch, coords: capture.coords.slice() });
 }

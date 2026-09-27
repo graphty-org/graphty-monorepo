@@ -9,6 +9,9 @@
 
 import { assert, describe, it } from "vitest";
 
+import type { FormatDescriptor } from "../../../src/catalog/types";
+import type { AdHocData } from "../../../src/config";
+import { type BaseDataSourceConfig, DataSource, type DataSourceChunk } from "../../../src/data/DataSource";
 import { dispatcherOf } from "../../../src/session/GraphSession";
 import type { GraphSession } from "../../../src/session/types";
 import { makeSession } from "../helpers";
@@ -45,6 +48,81 @@ async function styleEdit(session: GraphSession, name = "Red"): Promise<void> {
         selector: { match: "everything" },
         set: { "node.color": "#ff0000" },
     });
+}
+
+/**
+ * A data source that writes its first chunk, then waits for the test to let the second through:
+ * a load a layout can move the lane in the middle of.
+ */
+class GatedSource extends DataSource {
+    static type = "gated-arrangement-test";
+    static descriptor: FormatDescriptor = {
+        id: GatedSource.type,
+        plainName: "Gated test load",
+        extensions: [".gated-arrangement"],
+        mimeTypes: ["application/x-gated-arrangement"],
+        canImport: true,
+        canExport: false,
+        options: [],
+    };
+    /** Resolves once the first chunk has been written. */
+    static reached: Promise<void>;
+    /** Lets the second chunk through. */
+    static open: () => void;
+    private static arrive: () => void;
+    private static gate: Promise<void>;
+
+    constructor(private readonly config: BaseDataSourceConfig) {
+        super(config.errorLimit ?? 100, config.chunkSize);
+    }
+
+    /** Arm the gate for the next load. */
+    static arm(): void {
+        GatedSource.reached = new Promise((resolve) => {
+            GatedSource.arrive = resolve;
+        });
+        GatedSource.gate = new Promise((resolve) => {
+            GatedSource.open = resolve;
+        });
+    }
+
+    protected getConfig(): BaseDataSourceConfig {
+        return this.config;
+    }
+
+    async *sourceFetchData(): AsyncGenerator<DataSourceChunk> {
+        yield { nodes: records({ id: "n1" }, { id: "g1" }), edges: [] };
+        GatedSource.arrive();
+        await GatedSource.gate;
+        yield { nodes: records({ id: "g2" }), edges: records({ src: "n1", dst: "g2" }) };
+    }
+}
+
+DataSource.register(GatedSource);
+
+/**
+ * Records as a data source yields them: parsed objects, not yet validated.
+ * @param each - The records.
+ * @returns They, typed as a chunk carries them.
+ */
+function records(...each: object[]): AdHocData[] {
+    return each as AdHocData[];
+}
+
+/**
+ * A load through the gated source, its first chunk written when this resolves.
+ * @param session - The session.
+ * @param mode - Replace the graph or add to it.
+ * @returns The load, still waiting on its second chunk.
+ */
+async function halfLoaded(session: GraphSession, mode: "replace" | "merge"): Promise<{ done: Promise<unknown> }> {
+    GatedSource.arm();
+    const done = session.data.import({ type: GatedSource.type, config: {} }, { mode }).then(
+        () => "loaded",
+        (error: unknown) => error,
+    );
+    await GatedSource.reached;
+    return { done };
 }
 
 describe("the arrangement under undo and redo", () => {
@@ -265,6 +343,123 @@ describe("the arrangement under undo and redo", () => {
             [...(dispatcherOf(session).state.arrangement?.coords.subarray(0, 6) ?? [])],
             [2, 2, 2, 3, 3, 3],
         );
+        session.dispose();
+    });
+
+    it("never restores one dataset's coordinates onto another that reuses its ids", async () => {
+        const session = await fixtureSession();
+        const layout = fakeLayout(session);
+        const dataset = JSON.stringify({ nodes: [{ id: "1" }, { id: "2" }, { id: "3" }], edges: [] });
+        await session.data.import({ type: "json", config: { data: dataset } });
+        layout.play();
+        layout.step();
+        layout.step();
+        layout.settle();
+        const settledA = lane(session);
+
+        await session.data.import({ type: "json", config: { data: dataset } });
+        const seededB = lane(session);
+        layout.play();
+        layout.step();
+        await styleEdit(session);
+
+        await session.undo();
+        const restored = lane(session);
+        assert.deepEqual(restored, seededB, "the second dataset where it began");
+        for (const id of ["1", "2", "3"]) {
+            assert.notStrictEqual(restored[id], settledA[id], `node ${id} did not take the first dataset's place`);
+        }
+
+        session.dispose();
+    });
+
+    it("an undo that cancels a load between its chunks puts back the arrangement from before it", async () => {
+        const session = await fixtureSession();
+        const layout = fakeLayout(session);
+        layout.play();
+        layout.step();
+        layout.settle();
+        await styleEdit(session);
+        const {bytes} = session.history.steps[0];
+        const before = lane(session);
+
+        const load = await halfLoaded(session, "merge");
+        layout.play();
+        layout.step();
+        assert.notDeepEqual(lane(session), before, "the layout moved the lane under the load");
+
+        const outcome = await session.undo();
+        assert.strictEqual(outcome.kind, "cancelled");
+        assert.deepEqual(lane(session), before, "every node where it was before the load");
+        assert.strictEqual(session.history.steps[0].bytes, bytes, "the step below took no capture");
+        assert.isFalse(layout.running, "the rollback left the layout at rest");
+        GatedSource.open();
+        assert.notStrictEqual(await load.done, "loaded");
+        session.dispose();
+    });
+
+    it("a layout settling between the chunks of a replacing load seals nothing below it, and undo restores the previous dataset", async () => {
+        const session = await fixtureSession();
+        const layout = fakeLayout(session);
+        layout.play();
+        layout.step();
+        layout.settle();
+        await styleEdit(session);
+        const {bytes} = session.history.steps[0];
+        const before = lane(session);
+
+        const load = await halfLoaded(session, "replace");
+        layout.play();
+        layout.step();
+        layout.settle();
+        assert.strictEqual(session.history.steps[0].bytes, bytes, "the rest point went to the open load");
+        GatedSource.open();
+        assert.strictEqual(await load.done, "loaded");
+        assert.lengthOf(session.history.steps, 2);
+
+        await session.undo();
+        assert.deepEqual(lane(session), before, "the previous dataset, where it was");
+        session.dispose();
+    });
+
+    it("a layout settling while a load transaction is open is the transaction's, and undo restores where it began", async () => {
+        const session = await fixtureSession();
+        const layout = fakeLayout(session);
+        layout.play();
+        layout.step();
+        layout.settle();
+        await styleEdit(session);
+        const {bytes} = session.history.steps[0];
+        const before = lane(session);
+
+        let loaded = (): void => undefined;
+        const imported = new Promise<void>((resolve) => {
+            loaded = resolve;
+        });
+        let finish = (): void => undefined;
+        const held = new Promise<void>((resolve) => {
+            finish = resolve;
+        });
+        const document = JSON.stringify({ nodes: [{ id: "n1" }, { id: "x" }], edges: [] });
+        const transaction = session.transaction("Loaded a project", async (tx) => {
+            await tx.execute({ op: "data.import", source: { type: "json", config: { data: document } } });
+            loaded();
+            await held;
+        });
+        await imported;
+        layout.play();
+        layout.step();
+        layout.settle();
+        assert.strictEqual(session.history.steps[0].bytes, bytes, "the rest point went to the open transaction");
+        const settled = lane(session);
+        finish();
+        await transaction;
+        assert.lengthOf(session.history.steps, 2);
+
+        await session.undo();
+        assert.deepEqual(lane(session), before, "where things were when the transaction began");
+        await session.redo();
+        assert.deepEqual(lane(session), settled, "where the load came to rest inside it");
         session.dispose();
     });
 });

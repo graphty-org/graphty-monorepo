@@ -3,6 +3,7 @@ import { css, LitElement } from "lit";
 import { property } from "lit/decorators.js";
 
 import { type AccelerationController, type AccelerationPolicy, isAccelerationPolicy } from "./acceleration";
+import { layoutIdForEngine } from "./catalog/layouts";
 import type { AlgorithmKey, Scope } from "./catalog/types";
 import type { GraphBackgroundConfig, GraphBehaviorConfig, GraphSelectionStyleInput, ViewMode } from "./config";
 import { type AlgorithmOnLoad, parseAlgorithmsOnLoad, REPEATED_EDGE_POLICIES } from "./config/DataConfig";
@@ -19,6 +20,7 @@ import {
     SOURCE_VALUE,
 } from "./session/commands/data";
 import type { BatchCommand } from "./session/commands/index";
+import { DEFAULT_LAYOUT, type LayoutSetCommand } from "./session/commands/layout";
 import { recordsInRowOrder } from "./session/data";
 import { dispatcherOf } from "./session/GraphSession";
 import type { GraphSlice } from "./session/project/state";
@@ -40,6 +42,12 @@ const RUN_PROGRESS_INTERVAL_MS = 100;
 
 /** The queued coalesce key of the `dataSource` / `dataSourceConfig` pair: one tick, one load. */
 const ELEMENT_SOURCE = "element-source";
+
+/**
+ * The queued coalesce key of the `layout` / `layoutConfig` pair: two assignments in one tick are
+ * one `layout.set`, one build and one step.
+ */
+const ELEMENT_LAYOUT = "element-layout";
 
 /**
  * The properties that take an object or an array, and so cannot survive being written as an
@@ -450,9 +458,6 @@ export class Graphty extends LitElement {
     }
 
     // Private backing fields for reactive properties
-    #layout?: string;
-    #layoutConfig?: Record<string, unknown>;
-    #viewMode?: ViewMode;
     #startingCameraDistance?: number;
     #xr?: PartialXRConfig;
 
@@ -1155,20 +1160,21 @@ export class Graphty extends LitElement {
      */
     @property()
     get layout(): string | undefined {
-        return this.#layout;
+        return this.#layoutPair().engine;
     }
     /**
-     * Sets the layout algorithm. Triggers layout recalculation with merged config.
+     * Sets the layout algorithm: one undoable step, which undo takes back to the layout, the
+     * engine and the options before it. Assigned with `layoutConfig` in the same tick, the two are
+     * one step.
      */
     set layout(value: string | undefined) {
-        const oldValue = this.#layout;
-        this.#layout = value;
+        const oldValue = this.layout;
 
-        // Forward to Graph method (which queues operation)
         if (value) {
-            const templateLayoutOptions = this.#graph.styles.config.graph.layoutOptions ?? {};
-            const mergedConfig = { ...templateLayoutOptions, ...(this.#layoutConfig ?? {}) };
-            void this.#graph.setLayout(value, mergedConfig);
+            // The options go with the layout they were set for: those still waiting beside it, or
+            // those it is drawn with already when the same layout is assigned again.
+            const pair = this.#layoutPair();
+            this.#setLayoutPair(value, pair.pending || pair.engine === value ? pair.options : {});
         }
 
         this.requestUpdate("layout", oldValue);
@@ -1181,23 +1187,50 @@ export class Graphty extends LitElement {
      */
     @property({ attribute: "layout-config" })
     get layoutConfig(): Record<string, unknown> | undefined {
-        return this.#layoutConfig;
+        return this.#layoutPair().options as Record<string, unknown>;
     }
     /**
-     * Sets layout-specific configuration. Updates active layout if one is set.
+     * Sets layout-specific configuration: the layout is drawn again with it, as one undoable step.
      */
     set layoutConfig(value: Record<string, unknown> | undefined) {
-        const oldValue = this.#layoutConfig;
-        this.#layoutConfig = value;
+        const oldValue = this.layoutConfig;
+        this.#setLayoutPair(this.#layoutPair().engine ?? DEFAULT_LAYOUT.engine, value ?? {});
+        this.requestUpdate("layoutConfig", oldValue);
+    }
 
-        // If layout is already set, update it with new config
-        if (this.#layout) {
-            const templateLayoutOptions = this.#graph.styles.config.graph.layoutOptions ?? {};
-            const mergedConfig = { ...templateLayoutOptions, ...(value ?? {}) };
-            void this.#graph.setLayout(this.#layout, mergedConfig);
+    /**
+     * The layout as assigned: the choice waiting its turn, or the one the graph is drawn with.
+     * @returns The engine and its options, and whether they are still waiting.
+     */
+    #layoutPair(): { engine?: string; options: Readonly<Record<string, unknown>>; pending: boolean } {
+        const dispatcher = dispatcherOf(this.#graph.getSession());
+        const waiting = dispatcher.pendingCommand(ELEMENT_LAYOUT) as LayoutSetCommand | undefined;
+        if (waiting !== undefined) {
+            return { engine: waiting.engine, options: waiting.options ?? {}, pending: true };
         }
 
-        this.requestUpdate("layoutConfig", oldValue);
+        const choice = dispatcher.state.layout;
+        return { engine: choice?.engine, options: choice?.options ?? {}, pending: false };
+    }
+
+    /**
+     * Choose a layout from the property pair, as one step. The engine name maps to the catalogue
+     * id it serves, and the slice keeps the engine itself.
+     * @param engine - The engine name.
+     * @param options - Its options.
+     */
+    #setLayoutPair(engine: string, options: Readonly<Record<string, unknown>>): void {
+        void dispatcherOf(this.#graph.getSession())
+            .dispatch({
+                op: "layout.set",
+                id: layoutIdForEngine(engine) ?? engine,
+                engine,
+                options: { ...options },
+                coalesce: ELEMENT_LAYOUT,
+                ...(this.#settingUp ? { setup: true } : {}),
+            })
+            // A layout that cannot be built is reported on the error event by the layout itself.
+            .catch(() => undefined);
     }
 
     /**
@@ -1362,18 +1395,17 @@ export class Graphty extends LitElement {
      */
     @property({ attribute: "view-mode" })
     get viewMode(): ViewMode | undefined {
-        return this.#viewMode;
+        return this.#graph.getViewMode();
     }
     /**
-     * Sets the view mode. Switches camera and rendering mode accordingly.
+     * Sets the view mode. Switching between 2D and 3D is one undoable step; entering VR or AR is
+     * not a step, and from 2D it switches to 3D first in the same step.
      */
     set viewMode(value: ViewMode | undefined) {
-        const oldValue = this.#viewMode;
-        this.#viewMode = value;
+        const oldValue = this.viewMode;
 
-        // Forward to Graph method (which handles all mode switching logic)
         if (value !== undefined) {
-            void this.#graph.setViewMode(value);
+            void this.#graph.setViewMode(value).catch(() => undefined);
         }
 
         this.requestUpdate("viewMode", oldValue);
@@ -1389,11 +1421,12 @@ export class Graphty extends LitElement {
     @property({ attribute: "layout-2d" })
     get layout2d(): boolean | undefined {
         // Return true if viewMode is "2d", false if "3d", undefined otherwise
-        if (this.#viewMode === "2d") {
+        const mode = this.viewMode;
+        if (mode === "2d") {
             return true;
         }
 
-        if (this.#viewMode === "3d") {
+        if (mode === "3d") {
             return false;
         }
 

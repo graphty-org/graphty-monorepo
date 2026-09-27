@@ -28,7 +28,16 @@ import type {
 // `string` everywhere else -- so assigning one to the other was an error on the element's own
 // published surface.
 import type { CameraState } from "../camera/types";
-import type { AlgorithmKey, AttributeDescriptor, CatalogApi, EdgeId, RunId, Scope, ScopeId } from "../catalog/types";
+import type {
+    AlgorithmKey,
+    AttributeDescriptor,
+    CatalogApi,
+    EdgeId,
+    LayoutId,
+    RunId,
+    Scope,
+    ScopeId,
+} from "../catalog/types";
 import type { DataConfig } from "../config/DataConfig";
 import type { GraphBackgroundConfig, GraphSelectionStyleConfig, GraphSelectionStyleInput } from "../config/GraphStyle";
 import type { ElementPositions } from "../data/positions";
@@ -775,6 +784,14 @@ export interface CommandOutcomeMap {
     "positions.set": Promise<void>;
     /** Settles once the pins are recorded and the layout has taken them. */
     "positions.pin": Promise<void>;
+    /** Settles once the choice is recorded and the layout has spent its pre-steps. */
+    "layout.set": Promise<void>;
+    /** Settles once the switch is recorded and the layout has been rebuilt for it. */
+    "view.dimension": Promise<void>;
+    /** Settles once the layout has started or stopped moving. */
+    "layout.transport": Promise<void>;
+    /** Settles once the device session has started or ended. */
+    "view.immersive": Promise<void>;
 }
 
 /** One node's coordinates for `positions.set`, in scene units. */
@@ -816,6 +833,44 @@ export interface SessionPositions {
      * @returns Settles once the step is recorded and the layout has taken the change.
      */
     unpin(ids: readonly NodeId[]): Promise<void>;
+}
+
+/**
+ * Which layout draws the graph, and in how many dimensions: the project's `layout` slice.
+ *
+ * Choosing a layout and switching between 2D and 3D are undoable steps, and undo puts back the
+ * engine that was chosen with its own options, not the catalogue's default. Until one is chosen
+ * it reads the element's default, the `force` layout drawn by `ngraph` in 3D.
+ */
+export interface SessionLayout {
+    /** The catalogue id, such as `"force"`. */
+    readonly id: LayoutId;
+    /** The engine that draws it, such as `"d3"`. */
+    readonly engine: string;
+    /** The options it was chosen with. */
+    readonly options: Readonly<Record<string, unknown>>;
+    /** Whether the graph is drawn in two dimensions or three. */
+    readonly dimension: "2d" | "3d";
+    /**
+     * Choose the layout. One step.
+     * @param id - The catalogue id; a registered engine name is read as the id it serves.
+     * @param options - The engine, when not the catalogue's default for `id`, and its options.
+     * @param options.engine - The engine that draws it, such as `"d3"`.
+     * @param options.options - The engine's options.
+     * @returns Settles once the step is recorded and the layout has taken its pre-steps.
+     * @throws A `GraphtyError` (as a rejection) with `E_UNKNOWN_LAYOUT`, `E_UNKNOWN_OPTION` or
+     *     `E_OPTION_RANGE` when the renderer cannot build it; nothing is changed then.
+     */
+    set(
+        id: LayoutId,
+        options?: { readonly engine?: string; readonly options?: Readonly<Record<string, unknown>> },
+    ): Promise<void>;
+    /**
+     * Draw in 2D or 3D. One step; nothing is recorded when the graph is drawn so already.
+     * @param dimension - Which.
+     * @returns Settles once the step is recorded and the layout has been rebuilt for it.
+     */
+    setDimension(dimension: "2d" | "3d"): Promise<void>;
 }
 
 /**
@@ -916,6 +971,8 @@ export interface GraphSession {
      * choosing. Saving and removing one are undoable steps; moving the camera to one is not.
      */
     readonly views: SessionViews;
+    /** Which layout draws the graph, and in how many dimensions; choosing either is a step. */
+    readonly layout: SessionLayout;
     /**
      * The element-owned node coordinates: a stride-3 Float32Array indexed by dense node index,
      * where a row no layout has placed reads NaN rather than the origin, with the verbs that place

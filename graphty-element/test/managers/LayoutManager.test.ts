@@ -418,12 +418,8 @@ describe("LayoutManager", () => {
         it("should use 2D mode for NGraphEngine when twoD is set in styles", async () => {
             // Configure 2D mode in styles (testing deprecated API for backward compatibility)
              
-            // The configuration is a frozen view; the old flag lives in the view settings it merges.
-            (graph as unknown as { writeViewSettings(write: (settings: { graph: { twoD?: boolean } }) => void): void }).writeViewSettings(
-                (settings) => {
-                    settings.graph.twoD = true;
-                },
-            );
+            // The dimension's one home is the `layout` slice; the deprecated flag is computed from it.
+            await graph.setViewMode("2d");
 
             // Add some nodes
             const dataManager = graph.getDataManager();
@@ -462,12 +458,8 @@ describe("LayoutManager", () => {
         it("should use 3D mode for NGraphEngine when twoD is not set", async () => {
             // Ensure 3D mode (testing deprecated API for backward compatibility)
              
-            // The configuration is a frozen view; the old flag lives in the view settings it merges.
-            (graph as unknown as { writeViewSettings(write: (settings: { graph: { twoD?: boolean } }) => void): void }).writeViewSettings(
-                (settings) => {
-                    settings.graph.twoD = false;
-                },
-            );
+            // The dimension's one home is the `layout` slice; the deprecated flag is computed from it.
+            await graph.setViewMode("3d");
 
             // Add some nodes
             const dataManager = graph.getDataManager();

@@ -192,12 +192,14 @@ describe("the element's properties read back across undo and redo", () => {
         }
     }
 
-    it("covers only rows that dispatch: a knownGap or partial property is checked once its phase ports it", () => {
+    it("covers every property door: none is left on the gap list", () => {
         const gaps = DOOR_ROOTS.flatMap((root) =>
-            Object.values(root.doors ?? {}).filter(
-                (door) => (door.kind === "knownGap" || door.kind === "partial") && door.call?.kind === "set",
+            Object.entries(root.doors ?? {}).flatMap(([member, door]) =>
+                (door.kind === "knownGap" || door.kind === "partial") && door.call?.kind === "set"
+                    ? [`${root.name}.${member}`]
+                    : [],
             ),
         );
-        assert.isNotEmpty(gaps, "the element's property doors are still on the gap list");
+        assert.deepEqual(gaps, [], "property doors not yet checked across undo and redo");
     });
 });

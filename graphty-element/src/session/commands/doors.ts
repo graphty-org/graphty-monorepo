@@ -71,7 +71,7 @@ export const PHASES = [
 type PlanPhase = (typeof PHASES)[number];
 
 /** The phase this branch has reached. Each phase's commit raises it. */
-export const PLAN_PHASE: PlanPhase = "16a";
+export const PLAN_PHASE: PlanPhase = "17";
 
 /** How the doors tests call a door. */
 export type DoorCall =
@@ -144,17 +144,6 @@ function exempt(reason: string): Door {
  */
 function gap(phase: PlanPhase, op: string, args: readonly unknown[] | (() => readonly unknown[]) = []): Door {
     return { kind: "knownGap", phase, op, call: { kind: "call", args } };
-}
-
-/**
- * A property door that will dispatch `op` once `phase` ports it, called by assignment.
- * @param phase - The phase that ports it.
- * @param op - The op it will dispatch.
- * @param value - The value to assign.
- * @returns The door.
- */
-function gapSet(phase: PlanPhase, op: string, value: unknown): Door {
-    return { kind: "knownGap", phase, op, call: { kind: "set", value } };
 }
 
 /**
@@ -369,6 +358,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     visibility: READ,
     styles: READ,
     views: READ,
+    layout: READ,
     positions: READ,
     seededNodeCount: READ,
     status: READ,
@@ -392,6 +382,12 @@ const SESSION: Readonly<Record<string, Door>> = {
     on: LISTEN,
     dispose: LIFECYCLE,
 };
+
+/** The command switching to 2D. */
+const DIMENSION_2D: SessionCommand = { op: "view.dimension", dimension: "2d" };
+
+/** The command choosing the circular layout through a door that takes an engine name. */
+const SET_CIRCULAR: SessionCommand = { op: "layout.set", id: "circular", engine: "circular", options: {} };
 
 /** The rows of `SelectionApi`, shared with the element's wider form of it. */
 const SELECTION_API: Readonly<Record<string, Door>> = {
@@ -533,8 +529,13 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ]),
             positionScale: assigns(2, [{ op: "config.set", values: { data: { knownFields: { positionScale: 2 } } } }]),
             directed: assigns(true, [{ op: "config.set", values: { data: { directed: true } } }]),
-            layout: gapSet("17", "layout.set", "circular"),
-            layoutConfig: gapSet("17", "layout.set", {}),
+            layout: assigns("circular", [
+                { op: "layout.set", id: "circular", engine: "circular", options: {}, coalesce: "element-layout" },
+            ]),
+            // Called after the row above: the options are the layout's, now circular.
+            layoutConfig: assigns({}, [
+                { op: "layout.set", id: "circular", engine: "circular", options: {}, coalesce: "element-layout" },
+            ]),
             layoutBehavior: assigns({ layout: { preSteps: 0 } }, [
                 { op: "config.set", values: { layoutBehavior: { preSteps: 0 } } },
             ]),
@@ -542,8 +543,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 { op: "config.set", values: { selectionStyle: { color: "#ff0000" } } },
             ]),
             algorithmsOnLoad: assigns([], [{ op: "config.set", values: { data: { algorithms: [] } } }]),
-            viewMode: gapSet("17", "view.dimension", "2d"),
-            layout2d: gapSet("17", "view.dimension", true),
+            viewMode: assigns("2d", [DIMENSION_2D]),
+            layout2d: assigns(true, [DIMENSION_2D]),
             background: assigns({ backgroundType: "color", color: "#101010" }, [
                 { op: "config.set", values: { background: { backgroundType: "color", color: "#101010" } } },
             ]),
@@ -558,7 +559,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             isAnimationCapturing: READ,
             estimateAnimationCapture: READ,
             getViewMode: READ,
-            setViewMode: gap("17", "view.dimension", ["2d"]),
+            setViewMode: calls(["2d"], [DIMENSION_2D]),
             isVRSupported: READ,
             isARSupported: READ,
             getCameraState: READ,
@@ -601,7 +602,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             runAlgorithm: calls(["graphty", "degree"], [RUN_DEGREE]),
             applySuggestedStyles: calls(["graphty:degree"], [DEGREE_ENCODE]),
             getSuggestedStyles: READ,
-            setLayout: gap("17", "layout.set", ["circular"]),
+            setLayout: calls(["circular"], [SET_CIRCULAR]),
             zoomToFit: CAMERA,
             waitForSettled: READ,
             waitForStableFrame: READ,
@@ -711,7 +712,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     addEdges({ src: "n1", dst: "n2" }),
                 ),
             ),
-            setLayout: gap("17", "layout.set", ["circular"]),
+            setLayout: calls(["circular"], [SET_CIRCULAR]),
             runAlgorithm: calls(["graphty", "degree"], [RUN_DEGREE]),
             // Its own id, so the run the row above left finished is not simply handed back.
             run: calls(["degree", {}, { as: "door-run" }], [{ op: "algo.run", algorithm: "degree", as: "door-run" }]),
@@ -756,7 +757,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             is2D: READ,
             getViewMode: READ,
             setStartingCameraDistance: CAMERA,
-            setViewMode: gap("17", "view.dimension", ["2d"]),
+            setViewMode: calls(["2d"], [DIMENSION_2D]),
             needsRayUpdate: READ,
             getConfig: READ,
             isRunning: READ,
@@ -1007,13 +1008,22 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         file: "src/managers/LayoutManager.ts",
         half: "renderer",
         doors: {
-            layoutEngine: escape("17"),
+            // Writable, and assigned by standalone manager tests; made read-only with the other
+            // manager escapes.
+            layoutEngine: escape("18c"),
             running: IN_FLIGHT,
             setGraphContext: LIFECYCLE,
             updateStyles: RENDER,
             init: LIFECYCLE,
             dispose: LIFECYCLE,
-            setLayout: gap("17", "layout.set", ["circular"]),
+            // Builds an engine outside the `layout` slice; the element's own doors dispatch
+            // `layout.set`. Standalone manager tests still build through it.
+            setLayout: escape("18c"),
+            // The `layout` hook itself, which the slice drives; public so `Graph` can register it.
+            apply: escape("18c"),
+            isCurrent: READ,
+            loadArrangement: DERIVED,
+            dimension: READ,
             step: TRANSPORT,
             stepBatch: TRANSPORT,
             getNodePosition: READ,
@@ -1021,8 +1031,6 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             nodes: READ,
             edges: READ,
             layoutType: READ,
-            updateLayoutDimension: gap("17", "view.dimension", [true]),
-            applyTemplateLayout: gap("17", "layout.set", ["circular"]),
             getStats: READ,
             hasLayoutEngine: READ,
             updatePositions: TRANSPORT,
@@ -1266,6 +1274,19 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         },
     },
     {
+        name: "SessionLayout",
+        file: "src/session/types.ts",
+        half: "session",
+        doors: {
+            id: READ,
+            engine: READ,
+            options: READ,
+            dimension: READ,
+            set: calls(["circular"], [{ op: "layout.set", id: "circular" }]),
+            setDimension: calls(["2d"], [DIMENSION_2D]),
+        },
+    },
+    {
         name: "SessionPositions",
         file: "src/session/types.ts",
         half: "session",
@@ -1404,7 +1425,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         file: "src/layout/LayoutEngine.ts",
         half: "renderer",
         doors: {
-            config: escape("17"),
+            config: escape("18c"),
             init: LIFECYCLE,
             addNode: DERIVED,
             addEdge: DERIVED,

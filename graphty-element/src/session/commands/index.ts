@@ -11,6 +11,7 @@ import type { CommandDefinition, UndoableDefinition } from "../project/Dispatche
 import { ALGO_DEFINITIONS } from "./algo";
 import { CONFIG_DEFINITIONS } from "./config";
 import { DATA_DEFINITIONS } from "./data";
+import { LAYOUT_DEFINITIONS } from "./layout";
 import { POSITIONS_DEFINITIONS } from "./positions";
 import { SCOPE_DEFINITIONS } from "./scope";
 import { STYLE_DEFINITIONS } from "./style";
@@ -61,4 +62,5 @@ export const DEFINITIONS: readonly CommandDefinition<SessionCommand>[] = [
     ...VIEW_DEFINITIONS,
     ...CONFIG_DEFINITIONS,
     ...POSITIONS_DEFINITIONS,
+    ...LAYOUT_DEFINITIONS,
 ];

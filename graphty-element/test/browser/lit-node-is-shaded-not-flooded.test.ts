@@ -65,19 +65,13 @@ const HEIGHT = 360;
 const NODES = [{ id: "one" }];
 
 /**
- * Write the opening view before `init()`, where `init()` reads it. The configuration document is
- * a frozen view, so this writes the graph's view settings that it merges.
+ * Ask for the opening view before `init()`, where `init()` reads it from the `layout` slice.
  * @param graph - The graph, not yet initialised.
- * @param settings - The view mode, or the deprecated flag.
+ * @param settings - The view mode.
+ * @param settings.viewMode - "2d" or "3d".
  */
-function openIn(graph: Graph, settings: { viewMode?: "2d" | "3d"; twoD?: boolean }): void {
-    (
-        graph as unknown as {
-            writeViewSettings(write: (view: { graph: { viewMode?: string; twoD?: boolean } }) => void): void;
-        }
-    ).writeViewSettings((view) => {
-        Object.assign(view.graph, settings);
-    });
+function openIn(graph: Graph, settings: { viewMode: "2d" | "3d" }): void {
+    void graph.setViewMode(settings.viewMode);
 }
 
 /**

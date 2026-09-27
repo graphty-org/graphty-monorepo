@@ -439,4 +439,27 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         before: (session) => session.positions.pin(["n1"]),
         command: { op: "positions.pin", ids: ["n1"], pinned: false },
     },
+    {
+        name: "layout.set: a new layout",
+        tags: BOTH,
+        command: { op: "layout.set", id: "spiral" },
+    },
+    {
+        name: "layout.set: an alternate engine with its options",
+        tags: ["session"],
+        command: { op: "layout.set", id: "force", engine: "d3", options: { alphaMin: 0.2 } },
+    },
+    {
+        name: "view.dimension: 3D to 2D",
+        tags: BOTH,
+        command: { op: "view.dimension", dimension: "2d" },
+    },
+    {
+        name: "view.dimension: 2D to 3D",
+        tags: BOTH,
+        before: async (session) => {
+            await session.layout.setDimension("2d");
+        },
+        command: { op: "view.dimension", dimension: "3d" },
+    },
 ];

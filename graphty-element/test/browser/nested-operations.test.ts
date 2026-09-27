@@ -332,7 +332,7 @@ describe("Nested Operations", () => {
             // Verify we're in 3D mode initially
             assert.isFalse(graph.getViewMode() === "2d", "Should start in 3D mode");
 
-            // Switch to 2D - internally calls updateLayoutDimension()
+            // Switch to 2D - internally rebuilds the layout for two dimensions
             await delay(10);
             await graph.setViewMode("2d");
 

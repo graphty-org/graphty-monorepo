@@ -50,7 +50,7 @@ describe("Graph Queue Integration", () => {
             "layout-set",
             expect.any(Function),
             expect.objectContaining({
-                description: "Setting layout to ngraph",
+                description: "Changed the layout to force",
             }),
         );
 

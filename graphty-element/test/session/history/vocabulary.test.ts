@@ -122,6 +122,8 @@ describe("the vocabulary", () => {
         // One command per exempt op; an exempt op with none here fails below.
         const cases: Readonly<Record<string, SessionCommand>> = {
             "view.camera": { op: "view.camera", position: { x: 1, y: 2, z: 3 }, target: { x: 0, y: 0, z: 0 } },
+            "layout.transport": { op: "layout.transport", action: "play" },
+            "view.immersive": { op: "view.immersive", mode: "vr" },
         };
         const session = await fixtureSession();
         const dispatcher = dispatcherOf(session as ElementSession);
@@ -129,6 +131,16 @@ describe("the vocabulary", () => {
         dispatcher.services.camera = {
             move: (command) => {
                 carried.push(command);
+                return Promise.resolve();
+            },
+        };
+        dispatcher.services.layout = {
+            apply: () => Promise.resolve(),
+            transport: (action) => {
+                carried.push(action);
+            },
+            immersive: (mode) => {
+                carried.push(mode);
                 return Promise.resolve();
             },
         };
@@ -145,7 +157,7 @@ describe("the vocabulary", () => {
             assert.strictEqual(session.history.steps.length, steps, `${definition.op} recorded a step`);
         }
 
-        assert.deepEqual(carried, [cases["view.camera"]], "the renderer carried the camera move out");
+        assert.deepEqual(carried, [cases["view.camera"], "play", "vr"], "the renderer carried each one out");
         session.dispose();
     });
 
@@ -223,9 +235,67 @@ describe("the vocabulary", () => {
         );
     });
 
-    it.skip("view.immersive from 2D and from 3D, and layout.transport, leave the state digest unchanged (phase 17)", () =>
-        undefined);
+    it("view.immersive from 2D and from 3D, and layout.transport, leave the state digest unchanged", async () => {
+        const session = await fixtureSession();
+        const dispatcher = dispatcherOf(session as ElementSession);
+        dispatcher.services.layout = {
+            apply: () => Promise.resolve(),
+            transport: () => undefined,
+            immersive: () => Promise.resolve(),
+        };
 
-    it.skip("the dimension fields of Styles.config.graph are written only by the layout hook and agree with layout.dimension (phase 17)", () =>
-        undefined);
+        for (const dimension of ["2d", "3d"] as const) {
+            await session.layout.setDimension(dimension);
+            for (const command of [
+                { op: "view.immersive", mode: "ar" },
+                { op: "view.immersive", mode: null },
+                { op: "layout.transport", action: "pause" },
+            ] as const) {
+                const before = stateDigest(dispatcher.state);
+                const steps = session.history.steps.length;
+                await session.execute(command);
+                assert.strictEqual(stateDigest(dispatcher.state), before, `${JSON.stringify(command)} in ${dimension}`);
+                assert.strictEqual(session.history.steps.length, steps);
+            }
+        }
+
+        session.dispose();
+    });
+
+    it("refuses the layout's exempt ops on a session that draws nothing", async () => {
+        const session = await fixtureSession();
+        for (const command of [
+            { op: "layout.transport", action: "play" },
+            { op: "view.immersive", mode: "vr" },
+        ] as const) {
+            const refused = await session.execute(command).then(
+                () => null,
+                (error: unknown) => (error as { code?: string }).code,
+            );
+            assert.strictEqual(refused, "E_UNSUPPORTED", command.op);
+        }
+
+        session.dispose();
+    });
+
+    it("the dimension fields of Styles.config.graph are written only by the layout hook", () => {
+        // `graph.viewMode` and `graph.twoD` are computed from the `layout` slice in the merged
+        // configuration and stored nowhere, so the one field to police is the scene's record of
+        // the dimension, which the edge meshes read. `test/browser/history-layout.test.ts` checks
+        // that every reading agrees with the slice after each switch and its undo.
+        const sources = import.meta.glob<string>("../../../src/**/*.ts", {
+            query: "?raw",
+            import: "default",
+            eager: true,
+        });
+        const writers = Object.entries(sources).flatMap(([file, text]) =>
+            [...text.matchAll(/metadata\??\.twoD\s*=[^=]/g)].map(() => file),
+        );
+        assert.deepEqual(writers, ["../../../src/Graph.ts"], "only Graph writes scene.metadata.twoD");
+
+        const graph = sources["../../../src/Graph.ts"];
+        const writer = graph.slice(graph.indexOf("private writeSceneDimension("));
+        assert.match(writer.slice(0, writer.indexOf("\n    }\n")), /metadata\.twoD = twoD/, "inside writeSceneDimension");
+        assert.notMatch(graph, /settings\.graph\.(viewMode|twoD)\s*=/, "no view setting holds the dimension");
+    });
 });

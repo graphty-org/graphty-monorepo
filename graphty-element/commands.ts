@@ -58,6 +58,16 @@ export const COMMANDS = Object.freeze({
     "config.set": { undo: "undoable" },
     "positions.set": { undo: "undoable" },
     "positions.pin": { undo: "undoable" },
+    "layout.set": { undo: "undoable" },
+    "view.dimension": { undo: "undoable" },
+    "layout.transport": {
+        undo: "exempt",
+        reason: "A moving layout is in-flight computation; where it comes to rest is sealed into the step on top.",
+    },
+    "view.immersive": {
+        undo: "exempt",
+        reason: "Entering or leaving VR or AR is a device session, not the document.",
+    },
 } as const satisfies { readonly [Op in SessionCommand["op"]]: CommandMeta });
 
 /**

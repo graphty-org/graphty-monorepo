@@ -50,6 +50,7 @@ export type {
     SessionEventMap,
     SessionGraphStore,
     SessionHistory,
+    SessionLayout,
     SessionPositions,
     SessionRecordSource,
     SessionRunsOptions,

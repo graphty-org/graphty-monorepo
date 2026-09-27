@@ -22,6 +22,7 @@ import type { AlgoRemoveCommand } from "./commands/algo";
 import type { ConfigSetCommand } from "./commands/config";
 import type { DataCommand } from "./commands/data";
 import type { BatchCommand } from "./commands/index";
+import type { LayoutCommand } from "./commands/layout";
 import type { PositionsCommand } from "./commands/positions";
 import type { ScopeCommand } from "./commands/scope";
 import type { StyleCommand } from "./commands/style";
@@ -92,6 +93,7 @@ export type SessionCommand =
     | ViewCommand
     | ConfigSetCommand
     | PositionsCommand
+    | LayoutCommand
     | BatchCommand;
 
 /**

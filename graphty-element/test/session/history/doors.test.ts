@@ -64,6 +64,7 @@ const SESSION_ROOTS: Readonly<Record<string, (session: ElementSession) => object
     SelectionApi: selectOne,
     SelectionOwner: selectOne,
     SessionViews: (session) => session.views,
+    SessionLayout: (session) => session.layout,
     SessionConfig: (session) => session.config,
     VisibilityApi: (session) => session.visibility,
     SessionVisibilityApi: (session) => session.visibility,

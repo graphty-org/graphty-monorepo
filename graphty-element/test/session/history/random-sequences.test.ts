@@ -950,6 +950,22 @@ const COMMANDS = [
                 return name === undefined ? null : { key: null, run: () => real.session.views.remove([name]) };
             }),
     ),
+    fc.constantFrom("circular", "spiral", "force").map(
+        (id) =>
+            new Edit(`layout ${id}`, (real) => ({
+                key: null,
+                moves: true,
+                run: () => real.session.layout.set(id),
+            })),
+    ),
+    fc.constantFrom("2d", "3d").map(
+        (dimension) =>
+            new Edit(`dimension ${dimension}`, (real) => ({
+                key: null,
+                moves: true,
+                run: () => real.session.layout.setDimension(dimension),
+            })),
+    ),
     fc.constantFrom("name", "label", null).map(
         (path) =>
             new Edit(`label path ${String(path)}`, (real) => ({
@@ -1154,12 +1170,12 @@ async function runSeed(seed: number, numRuns: number): Promise<void> {
                 s,
                 async () => {
                     const clock = fakeClock();
-                    // An import's turn and a run's come at once, so an edit can await them;
-                    // interleaving them with other queued work is phase 21's
+                    // An import's turn, a run's and a layout's come at once, so an edit can await
+                    // them; interleaving them with other queued work is phase 21's
                     // (design/undo/undo-plan.md).
                     const session = await fixtureSession({
                         now: clock.now,
-                        scheduler: fakeScheduler(s, new Set(["data-add", "algorithm-run"])),
+                        scheduler: fakeScheduler(s, new Set(["data-add", "algorithm-run", "layout-set", "view-mode"])),
                     });
                     await session.runs.start("degree", {}, { as: "deg", style: false });
                     await session.runs.start(

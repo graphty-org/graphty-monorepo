@@ -21,7 +21,7 @@ import {
     type GraphAccelerator,
 } from "../acceleration";
 import type { CameraState } from "../camera/types";
-import type { EdgeId, NodeId, Path, Query, RunId, Scope, StaticStyle } from "../catalog/types";
+import type { EdgeId, LayoutId, NodeId, Path, Query, RunId, Scope, StaticStyle } from "../catalog/types";
 import { DataConfig } from "../config/DataConfig";
 import { defaultEdgeStyle } from "../config/EdgeStyle";
 import { defaultNodeStyle } from "../config/NodeStyle";
@@ -32,8 +32,10 @@ import { GraphtyError, isGraphtyError } from "../errors";
 import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
 import { DEFINITIONS } from "./commands";
 import { readProjectConfig } from "./commands/config";
+import { DEFAULT_LAYOUT } from "./commands/layout";
 import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
+import { recommendLayout } from "./layout";
 import {
     type AlgorithmRunCommand,
     estimateCommand,
@@ -49,7 +51,7 @@ import {
     type Scheduler,
     type TransactionScope as DispatchScope,
 } from "./project/Dispatcher";
-import type { GraphSlice } from "./project/state";
+import type { GraphSlice, LayoutChoice } from "./project/state";
 import { createQueryEngine, type QueryEngine } from "./query";
 import { createResultsApi, type ResultsApi, type ResultsRunEntry, type RunRef } from "./results";
 import {
@@ -105,6 +107,7 @@ import type {
     SessionEventMap,
     SessionGraphStore,
     SessionHistory,
+    SessionLayout,
     SessionPositions,
     SessionRecordSource,
     SessionRunsOptions,
@@ -266,6 +269,7 @@ class Session implements ElementSession {
     readonly visibility: SessionVisibilityApi;
     readonly styles: SessionStylesApi;
     readonly views: SessionViews;
+    readonly layout: SessionLayout;
     readonly paint: ElementPaint;
 
     private readonly sessionRuns: SessionRunsApi;
@@ -333,6 +337,12 @@ class Session implements ElementSession {
         SESSION_RUNS.set(this, this.sessionRuns);
         this.history = historyOf(this.dispatcher, () => version);
         this.views = viewsOf(this.dispatcher);
+        this.layout = layoutOf(this.dispatcher, (command) => this.dispatcher.dispatch(command));
+        // What an import asking for a recommended layout chooses, for the graph it loaded.
+        this.dispatcher.services.layoutAdvice = () => {
+            const advice = recommendLayout(this.data.statistics(), { placedNodes: this.store.seededNodeCount });
+            return advice === undefined ? undefined : { id: advice.layout.id, engine: advice.layout.engine };
+        };
         this.config = configOf(this.dispatcher, parts.readProject, parts.controller);
     }
 
@@ -439,6 +449,10 @@ class Session implements ElementSession {
             execute: {
                 value: <C extends SessionCommand>(command: C) =>
                     this.executeThrough(command, (each, options) => scope.dispatch(each, options)),
+            },
+            // Its layout verbs join the transaction too.
+            layout: {
+                value: layoutOf(this.dispatcher, (command) => scope.dispatch(command)),
             },
             transaction: {
                 value: <T>(
@@ -744,6 +758,44 @@ function positionsOf(store: SessionGraphStore, dispatcher: Dispatcher): ElementP
  * @param dispatcher - The dispatcher.
  * @returns The views.
  */
+/**
+ * The `layout` slice with its verbs.
+ * @param dispatcher - The session's dispatcher, whose state is read.
+ * @param dispatch - Where the verbs go: the session's dispatch, or a transaction's.
+ * @returns The layout surface.
+ */
+function layoutOf(dispatcher: Dispatcher, dispatch: (command: SessionCommand) => Promise<unknown>): SessionLayout {
+    const choice = (): LayoutChoice => dispatcher.state.layout ?? DEFAULT_LAYOUT;
+    return Object.freeze({
+        get id() {
+            return choice().id;
+        },
+        get engine() {
+            return choice().engine;
+        },
+        get options() {
+            return choice().options;
+        },
+        get dimension() {
+            return choice().dimension;
+        },
+        set: async (
+            id: LayoutId,
+            options?: { readonly engine?: string; readonly options?: Readonly<Record<string, unknown>> },
+        ) => {
+            await dispatch({
+                op: "layout.set",
+                id,
+                ...(options?.engine === undefined ? {} : { engine: options.engine }),
+                ...(options?.options === undefined ? {} : { options: options.options }),
+            });
+        },
+        setDimension: async (dimension: "2d" | "3d") => {
+            await dispatch({ op: "view.dimension", dimension });
+        },
+    });
+}
+
 function viewsOf(dispatcher: Dispatcher): SessionViews {
     const held = dispatcher.state.views;
     const views: SessionViews = Object.freeze({

@@ -48,11 +48,11 @@ import { OrbitCameraController } from "./cameras/OrbitCameraController";
 import { TwoDCameraController } from "./cameras/TwoDCameraController";
 import { algorithmByKey, algorithmByLegacyKey } from "./catalog/algorithms";
 import { undetectedFormat } from "./catalog/detect";
+import { layoutIdForEngine } from "./catalog/layouts";
 import { registeredAlgorithmByKey } from "./catalog/registry";
 import type { AlgorithmKey, Scope } from "./catalog/types";
 import {
     AdHocData,
-    DEFAULT_VIEW_MODE,
     defaultXRConfig,
     FetchEdgesFn,
     FetchNodesFn,
@@ -97,18 +97,21 @@ import {
 } from "./managers";
 import { MeshCache } from "./meshes/MeshCache";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
-import { Node, type NodeIdType } from "./Node";
+import { Node } from "./Node";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
 import { readProjectConfig } from "./session/commands/config";
 import type { DataMutation } from "./session/commands/data";
 import type { BatchCommand } from "./session/commands/index";
+import { DEFAULT_LAYOUT } from "./session/commands/layout";
 import { assertViewName } from "./session/commands/view";
 import { dispatcherOf, sessionRunsOf } from "./session/GraphSession";
-import { type DispatchFunction, queueScheduler } from "./session/project/Dispatcher";
+import type { SessionCommand } from "./session/planning";
+import { cancelReasonOf, type DispatchFunction, queueScheduler } from "./session/project/Dispatcher";
 import { deepFreeze } from "./session/project/draft";
 import { EDGES_ADDED, NODES_ADDED } from "./session/project/graphOps";
+import type { LayoutChoice } from "./session/project/state";
 import type { Run, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionTarget, SetOp } from "./session/selection";
 import type { StyleSuggestion } from "./session/styles";
@@ -142,17 +145,26 @@ const BASE_DOCUMENT: StyleSchemaV1 = deepFreeze(StyleTemplate.parse({ graphtyTem
 /** The project settings of a graph whose session is still being built: every one at its default. */
 const DEFAULT_PROJECT: ProjectConfig = readProjectConfig(new Map(), DataConfig.parse({}));
 
+/**
+ * Whether a rejection is a cancellation: work withdrawn or replaced, which is not a failure.
+ * @param error - The rejection.
+ * @returns True for an `AbortError`.
+ */
+function isAbort(error: unknown): boolean {
+    return (error as { name?: unknown } | null)?.name === "AbortError";
+}
+
 /** The three layout-behaviour settings a project file saves. The others are the view's. */
 const PROJECT_LAYOUT_KEYS: readonly string[] = ["preSteps", "stepMultiplier", "minDelta"];
 
 /**
  * The settings of this view that a project file does not save (design/undo/undo-design.md section
- * 3.2), as they were set: the camera distance, the layout-behaviour preferences of this machine
- * and this reader, and -- until the dimension becomes project state -- the view mode and its old
- * `twoD` spelling. The frozen `Styles.config` merges these with the project settings.
+ * 3.2), as they were set: the camera distance, the immersive session the view is in, and the
+ * layout-behaviour preferences of this machine and this reader. The frozen `Styles.config` merges
+ * these with the project settings and the `layout` slice, which is the one home of the dimension.
  */
 interface ViewSettings {
-    graph: { viewMode?: ViewMode; twoD?: boolean; startingCameraDistance?: number };
+    graph: { startingCameraDistance?: number; immersive?: "vr" | "ar" };
     behavior: GraphBehaviorConfig;
 }
 
@@ -184,8 +196,10 @@ export class Graph implements GraphContext {
     private readonly viewSettings: ViewSettings = { graph: {}, behavior: {} };
     /** Moves on every write of the view settings, so the frozen configuration knows to rebuild. */
     private viewVersion = 0;
-    /** The frozen configuration, and the two write counts it was built at. */
-    private configCache: { readonly writes: number; readonly view: number; readonly value: StyleSchemaV1 } | undefined;
+    /** The frozen configuration, and the three write counts it was built at. */
+    private configCache:
+        | { readonly writes: number; readonly layout: number; readonly view: number; readonly value: StyleSchemaV1 }
+        | undefined;
     private wasSettled = false; // Track previous settlement state
     private resizeHandler = (): void => {
         this.engine.resize();
@@ -263,9 +277,6 @@ export class Graph implements GraphContext {
 
     // Active video capture for cancellation support
     private activeCapture: import("./video/MediaRecorderCapture.js").MediaRecorderCapture | null = null;
-
-    // Storage for Z positions when switching from 3D to 2D mode
-    private savedZPositions = new Map<NodeIdType, number>();
 
     /**
      * Creates a new Graph instance and initializes the rendering engine and managers.
@@ -426,7 +437,7 @@ export class Graph implements GraphContext {
                 this.layoutManager.running = false;
             },
             loadArrangement: (restoring) => {
-                this.layoutManager.layoutEngine?.loadArrangement();
+                this.layoutManager.loadArrangement(restoring);
                 if (restoring) {
                     this.layoutManager.running = false;
                 }
@@ -523,6 +534,31 @@ export class Graph implements GraphContext {
             dispatcherOf(this.session).arrangement.rest();
         };
         this.layoutManager.restoring = () => dispatcherOf(this.session).lane.restoring;
+
+        // The `layout` hook: the engine, the scene's dimension and the camera follow the `layout`
+        // slice, forward and on undo, redo and rollback. `layout.set` and `view.dimension` run it
+        // inline in their slot, with pre-steps; a pass after undo runs it with none, and leaves
+        // the layout at rest for the `arrangement` hook to place (design/undo section 4.7).
+        dispatcherOf(this.session).services.layout = {
+            apply: (choice, signal) => this.applyLayout(choice, { restoring: false, signal }),
+            transport: (action) => {
+                this.layoutManager.running = action === "play";
+            },
+            immersive: (mode) => this.setImmersive(mode),
+        };
+        lane.register("layout", async (_rendered, target) => {
+            const choice = target.layout ?? DEFAULT_LAYOUT;
+            if (this.layoutManager.isCurrent(choice) && this.sceneDrawn(choice)) {
+                return;
+            }
+
+            await this.applyLayout(choice, { restoring: lane.cause !== "command" }).catch((error: unknown) => {
+                // A failure is reported on the element's error channel by the layout itself.
+                if (!isAbort(error)) {
+                    console.error("[graphty] The layout could not follow the project.", error);
+                }
+            });
+        });
 
         // The release list (WebGPU design 9.4 item 2). GPU memory is not garbage collected, so an
         // accelerator holding device buffers for a snapshot has to be TOLD when that snapshot stops
@@ -693,17 +729,18 @@ export class Graph implements GraphContext {
             "selection",
         ]);
 
-        // Queue default layout early so user-specified layouts can obsolete it
-        // This is queued now (in constructor) rather than in init() to ensure
-        // it's the FIRST layout operation queued, allowing user operations to cancel it
-        void this.setLayout("ngraph").catch((e: unknown) => {
-            console.error("ERROR setting default layout:", e);
-            // Emit error event for default layout failure
-            this.eventManager.emitGraphError(this, e instanceof Error ? e : new Error(String(e)), "layout", {
-                layoutType: "ngraph",
-                isDefault: true,
-            });
-        });
+        // The layout the graph is drawn with until one is chosen, built on the queue's first turn
+        // so a layout the consumer asks for replaces it before it is built. It writes no state:
+        // an empty `layout` slice means the default.
+        void this.operationQueue
+            .queueOperationAsync(
+                "layout-set",
+                async (context) => {
+                    await this.buildOpeningLayout(context.signal);
+                },
+                { description: "Setting the default layout" },
+            )
+            .catch(() => undefined);
 
         // Listen for layout-initialized events to handle zoom to fit
         this.eventManager.addListener("layout-initialized", (event) => {
@@ -714,7 +751,32 @@ export class Graph implements GraphContext {
             }
         });
 
-        // Default layout is now queued in constructor to ensure proper obsolescence ordering
+    }
+
+    /**
+     * Build the engine for the `layout` slice when nothing has yet: the default layout, until one
+     * is chosen, in the dimension the slice holds.
+     * @param signal - Fires when a layout the consumer asked for replaces this one first.
+     */
+    private async buildOpeningLayout(signal?: AbortSignal): Promise<void> {
+        const opening = dispatcherOf(this.session).state.layout ?? DEFAULT_LAYOUT;
+        if (signal?.aborted === true || this.layoutManager.isCurrent(opening)) {
+            return;
+        }
+
+        try {
+            await this.layoutManager.apply(opening, { restoring: false, ...(signal === undefined ? {} : { signal }) });
+        } catch (e) {
+            if (isAbort(e)) {
+                return;
+            }
+
+            console.error("ERROR setting default layout:", e);
+            this.eventManager.emitGraphError(this, e instanceof Error ? e : new Error(String(e)), "layout", {
+                layoutType: opening.engine,
+                isDefault: true,
+            });
+        }
     }
 
     private cleanup(): void {
@@ -945,14 +1007,11 @@ export class Graph implements GraphContext {
             this.applyOpeningViewMode();
             this.applyStartingCameraDistance();
 
-            // The default layout is built in the constructor, before a consumer can have asked
-            // for 2D, so it was given a Z axis. An opening 2D is not a transition and never
-            // reaches the rebuild in `_setViewModeInternal`, so the engine is brought into line
-            // here, before any data reaches it. Without this every node keeps a Z the
-            // orthographic camera cannot show, and each flat 2D edge -- sized from the 3D
-            // distance -- runs past its nodes into empty space.
-            // eslint-disable-next-line @typescript-eslint/no-deprecated -- applyOpeningViewMode keeps twoD in step
-            await this.layoutManager.updateLayoutDimension(this.styles.config.graph.twoD);
+            // The engine follows the `layout` slice, dimension included, before any data reaches
+            // it. Without this a layout built with a Z axis would keep one the orthographic camera
+            // cannot show, and each flat 2D edge -- sized from the 3D distance -- would run past
+            // its nodes into empty space.
+            await this.buildOpeningLayout();
 
             // Mark style-init as completed since styles are initialized in constructor
             // This satisfies cross-batch dependencies for operations like data-add
@@ -1153,13 +1212,17 @@ export class Graph implements GraphContext {
     setLayoutBehavior(behavior: GraphBehaviorConfig): void {
         const layout: Readonly<Record<string, unknown>> = behavior.layout ?? {};
         const project = Object.fromEntries(Object.entries(layout).filter(([key]) => PROJECT_LAYOUT_KEYS.includes(key)));
+        // `layout.type` names the layout, whose one home is the `layout` slice.
+        const { type } = layout;
         const current = this.viewSettings.behavior;
         const view: GraphBehaviorConfig = {
             ...current,
             ...behavior,
             layout: {
                 ...current.layout,
-                ...Object.fromEntries(Object.entries(layout).filter(([key]) => !PROJECT_LAYOUT_KEYS.includes(key))),
+                ...Object.fromEntries(
+                    Object.entries(layout).filter(([key]) => !PROJECT_LAYOUT_KEYS.includes(key) && key !== "type"),
+                ),
             },
             node: { ...current.node, ...behavior.node },
             labels: { ...current.labels, ...behavior.labels },
@@ -1184,7 +1247,25 @@ export class Graph implements GraphContext {
         this.fetchNodes = parsed.fetchNodes as FetchNodesFn | undefined;
         this.fetchEdges = parsed.fetchEdges as FetchEdgesFn | undefined;
 
-        if (Object.keys(project).length > 0) {
+        if (typeof type === "string") {
+            // The settings and the layout it names are one step.
+            const setLayout = { op: "layout.set", id: layoutIdForEngine(type) ?? type, engine: type } as const;
+            const command: BatchCommand | typeof setLayout =
+                Object.keys(project).length > 0
+                    ? {
+                          op: "batch",
+                          label: "Changed the layout behaviour",
+                          steps: [{ op: "config.set", values: { layoutBehavior: project } }, setLayout],
+                      }
+                    : setLayout;
+            dispatcherOf(this.session)
+                .dispatch(command)
+                .catch((error: unknown) => {
+                    if (!isAbort(error)) {
+                        console.error("[graphty] A layout behaviour was refused and nothing was changed.", error);
+                    }
+                });
+        } else if (Object.keys(project).length > 0) {
             this.setProjectConfig({ layoutBehavior: project });
         }
     }
@@ -1228,19 +1309,6 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Record the view mode, and the deprecated `twoD` spelling with it.
-     *
-     * A view setting until the dimension becomes project state; see {@link ViewSettings}.
-     * @param mode - The view mode.
-     */
-    private writeViewMode(mode: ViewMode): void {
-        this.writeViewSettings((settings) => {
-            settings.graph.viewMode = mode;
-            settings.graph.twoD = mode === "2d";
-        });
-    }
-
-    /**
      * Write the view settings, so the frozen configuration is rebuilt on its next read.
      * @param write - Changes the settings.
      */
@@ -1260,31 +1328,46 @@ export class Graph implements GraphContext {
         // every project setting is at its default then.
         const session = this.session as ElementSession | undefined;
         if (session === undefined) {
-            return this.mergeConfig(DEFAULT_PROJECT);
+            return this.mergeConfig(DEFAULT_PROJECT, DEFAULT_LAYOUT);
         }
 
-        const writes = dispatcherOf(session).lane.writes("config");
-        if (this.configCache?.writes !== writes || this.configCache.view !== this.viewVersion) {
-            this.configCache = { writes, view: this.viewVersion, value: this.mergeConfig(session.config) };
+        const dispatcher = dispatcherOf(session);
+        const writes = dispatcher.lane.writes("config");
+        const layout = dispatcher.lane.writes("layout");
+        let cache = this.configCache;
+        if (cache?.writes !== writes || cache.layout !== layout || cache.view !== this.viewVersion) {
+            cache = {
+                writes,
+                layout,
+                view: this.viewVersion,
+                value: this.mergeConfig(session.config, dispatcher.state.layout ?? DEFAULT_LAYOUT),
+            };
+            this.configCache = cache;
         }
 
-        return this.configCache.value;
+        return cache.value;
     }
 
     /**
-     * Merge project settings and the view settings into one frozen configuration document.
+     * Merge project settings, the layout and the view settings into one frozen configuration
+     * document. `graph.viewMode` and the deprecated `graph.twoD` are computed from the layout's
+     * dimension, and from the immersive session the view is in; they are stored nowhere.
      * @param project - The project settings.
+     * @param layout - The `layout` slice.
      * @returns The document.
      */
-    private mergeConfig(project: ProjectConfig): StyleSchemaV1 {
+    private mergeConfig(project: ProjectConfig, layout: LayoutChoice): StyleSchemaV1 {
         const { graph, behavior } = this.viewSettings;
-        const defined = Object.fromEntries(Object.entries(graph).filter(([, value]) => value !== undefined));
 
         return deepFreeze({
             ...BASE_DOCUMENT,
             graph: {
                 ...BASE_DOCUMENT.graph,
-                ...defined,
+                ...(graph.startingCameraDistance === undefined
+                    ? {}
+                    : { startingCameraDistance: graph.startingCameraDistance }),
+                viewMode: graph.immersive ?? layout.dimension,
+                twoD: layout.dimension === "2d",
                 background: project.background,
                 selection: project.selectionStyle,
             },
@@ -1661,24 +1744,16 @@ export class Graph implements GraphContext {
      * ```
      */
     async setLayout(type: string, opts: object = {}, options?: QueueableOptions): Promise<void> {
-        if (options?.skipQueue) {
-            await this.layoutManager.setLayout(type, opts);
-            return;
-        }
-
-        await this.operationQueue.queueOperationAsync(
-            "layout-set",
-            async (context) => {
-                if (context.signal.aborted) {
-                    throw new Error("Operation cancelled");
-                }
-
-                await this.layoutManager.setLayout(type, opts);
-            },
+        // One undoable step. The engine name maps to the catalogue id it serves, and the slice
+        // keeps the engine itself, so undo restores the engine that was chosen, with its options.
+        await this.dispatchSuperseded(
             {
-                description: `Setting layout to ${type}`,
-                ...options,
+                op: "layout.set",
+                id: layoutIdForEngine(type) ?? type,
+                engine: type,
+                options: { ...(opts as Record<string, unknown>) },
             },
+            options?.skipQueue === true ? { beside: true } : undefined,
         );
     }
 
@@ -2755,14 +2830,13 @@ export class Graph implements GraphContext {
      *
      * WHY THE ELEMENT NEEDED THIS AT ALL. `setupCameras` ends with an unconditional
      * `activateCamera("orbit")` and RenderManager is handed no configuration, so a freshly built
-     * scene was always perspective 3D no matter what `config.graph.viewMode` said. The only route
-     * to the orthographic camera was `_setViewModeInternal`, which is a TRANSITION: it clears the
-     * mesh cache, rebuilds every node and edge, saves and restores Z, and reframes the camera. A
-     * graph whose opening state is 2D has nothing to transition from -- there are no meshes yet
-     * and no Z to save -- and a consumer who wrote `<graphty-element view-mode="2d">` or set
-     * `config.graph.viewMode` on a bare `Graph` got a graph that reported "2d" from every property
-     * while drawing through a perspective camera, spreading the layout through three dimensions
-     * and building every edge as a 3D tube.
+     * scene was always perspective 3D no matter what the `layout` slice's dimension said. The
+     * other route to the orthographic camera is the `layout` hook, which is a TRANSITION: it
+     * clears the mesh cache, rebuilds every node and edge, and reframes the camera. A graph whose
+     * opening state is 2D has nothing to transition from -- there are no meshes yet -- and a
+     * consumer who wrote `<graphty-element view-mode="2d">` got a graph that reported "2d" from
+     * every property while drawing through a perspective camera, spreading the layout through
+     * three dimensions and building every edge as a 3D tube.
      *
      * WHY HERE. This runs immediately before `markCategoryCompleted("style-init")`, and the
      * position is load-bearing: `data-add` depends on `style-init`, so no node or edge mesh can be
@@ -2776,29 +2850,41 @@ export class Graph implements GraphContext {
      *
      * AR AND VR OPEN AS 3D, deliberately. Entering an immersive session is `requestSession`,
      * which browsers only grant inside a user gesture, so it cannot happen during init; the
-     * XR session manager is merely constructed later in `init()`. An opening `viewMode` of "ar"
-     * or "vr" therefore gets the perspective camera and is recorded in the scene metadata, and
-     * the session begins when a consumer calls `setViewMode` from a click.
+     * XR session manager is merely constructed later in `init()`, and the session begins when a
+     * consumer calls `setViewMode` from a click.
      */
     private applyOpeningViewMode(): void {
-        const config = this.styles.config.graph;
+        const twoD = this.dimension() === "2d";
+        this.writeSceneDimension(twoD);
+        this.camera.activateCamera(twoD ? "2d" : "orbit");
+    }
 
-        // The deprecated flag still decides when `viewMode` was never set: a document carrying
-        // `twoD: true` and nothing else meant 2D, and `viewMode` at its default cannot
-        // distinguish "the consumer asked for 3D" from "the consumer said nothing". Any explicit
-        // `viewMode` wins over it.
-        // eslint-disable-next-line @typescript-eslint/no-deprecated -- reconciling the old spelling
-        const askedForTwoDTheOldWay = config.viewMode === DEFAULT_VIEW_MODE && config.twoD;
-        const mode: ViewMode = askedForTwoDTheOldWay ? "2d" : config.viewMode;
-        const isTwoD = mode === "2d";
+    /**
+     * The dimension the `layout` slice holds: the one home of 2D versus 3D.
+     * @returns "2d" or "3d".
+     */
+    private dimension(): "2d" | "3d" {
+        return (dispatcherOf(this.session).state.layout ?? DEFAULT_LAYOUT).dimension;
+    }
 
-        this.writeViewMode(mode);
-
+    /**
+     * Record in the scene whether it is drawn flat, which the edge meshes read. The only writer of
+     * `scene.metadata.twoD`: the `layout` hook and the opening view call it, from the slice.
+     * @param twoD - Whether the scene is 2D.
+     */
+    private writeSceneDimension(twoD: boolean): void {
         this.scene.metadata = this.scene.metadata ?? {};
-        this.scene.metadata.twoD = isTwoD;
-        this.scene.metadata.viewMode = mode;
+        this.scene.metadata.twoD = twoD;
+        this.scene.metadata.viewMode = this.viewSettings.graph.immersive ?? (twoD ? "2d" : "3d");
+    }
 
-        this.camera.activateCamera(isTwoD ? "2d" : "orbit");
+    /**
+     * Whether the scene already draws a value of the `layout` slice in its dimension.
+     * @param choice - The value.
+     * @returns True when nothing about the scene needs to change for it.
+     */
+    private sceneDrawn(choice: LayoutChoice): boolean {
+        return (this.scene.metadata?.twoD === true) === (choice.dimension === "2d");
     }
 
     /**
@@ -2865,8 +2951,14 @@ export class Graph implements GraphContext {
     /**
      * Set the view mode.
      * This controls the camera type, input handling, and rendering approach.
+     *
+     * Switching between 2D and 3D is one undoable step (`view.dimension`). Entering VR or AR is
+     * not a step -- it is a device session -- but VR and AR draw in 3D, so asking for one from 2D
+     * switches to 3D first, and the switch and the entry are one step. When entry fails, because
+     * the browser has no WebXR or the session is refused, nothing is recorded, the graph stays in
+     * the dimension it was in, and the failure is logged rather than thrown.
      * @param mode - The view mode to set: "2d", "3d", "ar", or "vr"
-     * @param options - Optional queueing options
+     * @param options - Optional queueing options; `skipQueue` switches at once.
      * @returns Promise that resolves when view mode is set
      * @example
      * ```typescript
@@ -2878,217 +2970,177 @@ export class Graph implements GraphContext {
      * ```
      */
     async setViewMode(mode: ViewMode, options?: QueueableOptions): Promise<void> {
-        // "view-mode", not "camera-update": `layout-set` obsoletes a pending `camera-update`, so
-        // while this switch shared that category `element.viewMode = "2d"` followed by
-        // `element.layout = "circular"` cancelled itself. See the category's own comment in
-        // `src/managers/OperationQueueManager.ts` and the rule in `src/constants/obsolescence-rules.ts`.
+        const dispatcher = dispatcherOf(this.session);
+        if (mode === "2d" || mode === "3d") {
+            if (this.viewSettings.graph.immersive !== undefined) {
+                await dispatcher.dispatch({ op: "view.immersive", mode: null });
+            }
 
-        // ASKED FOR BEFORE THERE IS A GRAPH, this is the OPENING view mode rather than a switch,
-        // so it is recorded now and applied by `applyOpeningViewMode` when `init()` runs. Two
-        // things read the configuration before the queue could possibly drain: `init()` itself,
-        // and `LayoutManager._setLayoutInternal`, which reads `viewMode` to decide whether the
-        // layout engine gets a Z axis -- which is why `element.viewMode = "2d"` beside
-        // `element.layout = "circular"` used to produce a flat picture of a three-dimensional
-        // layout. The queued operation below still runs; it finds the scene already in the mode
-        // it was going to ask for and returns without rebuilding a single mesh.
-        //
-        // Only the two views that exist without a session are recorded this way. "ar" and "vr"
-        // keep the queued path, because entering XR needs the session manager `init()` builds.
-        if (!this.initialized && (mode === "2d" || mode === "3d")) {
-            this.writeViewMode(mode);
-        }
+            // ASKED FOR BEFORE THERE IS A GRAPH, the dimension is written at once rather than on
+            // the queue's turn, so the layout the graph opens with is built flat and `init()`
+            // opens the scene in it. The command still runs beside the queue; it is not a step,
+            // because nothing is recorded before the graph holds data.
+            const beside = options?.skipQueue === true || !this.initialized;
+            await this.dispatchSuperseded(
+                { op: "view.dimension", dimension: mode },
+                beside ? { beside: true } : undefined,
+            );
+            // A scene drawing through the other mode's camera is brought back: the camera is view
+            // state, so asking for the mode already recorded still repairs it.
+            const camera: CameraKey = this.dimension() === "2d" ? "2d" : "orbit";
+            if (this.initialized && this.camera.getActiveController() !== this.camera.getController(camera)) {
+                this.camera.activateCamera(camera);
+            }
 
-        return this.operationQueue.queueOperationAsync(
-            "view-mode",
-            async (context) => {
-                if (context.signal.aborted) {
-                    throw new Error("Operation cancelled");
-                }
-
-                await this._setViewModeInternal(mode);
-            },
-            {
-                description: `Setting view mode to ${mode}`,
-                ...options,
-            },
-        );
-    }
-
-    /**
-     * Internal method for setting view mode - bypasses queue
-     * Used by operations that are already queued
-     *
-     * WHAT "PREVIOUS" MEANS HERE IS THE SCENE, NOT THE CONFIGURATION, and the distinction is the
-     * whole reason an opening 2D used to be impossible. This method's job is to move the scene
-     * from the view it is drawing to the view that was asked for, so the only honest reading of
-     * "the view it is drawing" is the scene itself -- which camera is active and what
-     * `scene.metadata` records. The configuration is a statement of what the graph should be,
-     * written by `applyOpeningViewMode` at init and by the public `setViewMode` before its
-     * operation is queued, so diffing against it answers "has anyone asked for this yet" rather
-     * than "is it already so", and those are different questions the moment a mode is asked for
-     * before there is a scene to put it in.
-     *
-     * Reading the scene also makes the method idempotent and self-repairing: a redundant switch
-     * to the mode already on screen costs nothing, and a scene that has drifted out of step with
-     * its configuration is brought back rather than declared fine.
-     * @param mode - The view mode to set
-     */
-    private async _setViewModeInternal(mode: ViewMode): Promise<void> {
-        // What the scene is drawing right now. Undefined on a graph whose `init()` has not run,
-        // which is a legitimate state: a switch asked for then is the first thing to touch the
-        // scene, and must not be mistaken for a switch that has already happened.
-        const sceneMode = this.scene.metadata?.viewMode as ViewMode | undefined;
-        const sceneIsTwoD = this.scene.metadata?.twoD === true;
-
-        // Skip if the scene already draws what was asked for -- in that mode's own camera. A
-        // scene that records the mode while another mode's camera draws has drifted, and falls
-        // through so the camera is brought back.
-        const modeCamera = cameraForViewMode(mode);
-        const drawsThroughModeCamera =
-            modeCamera === undefined || this.camera.getActiveController() === this.camera.getController(modeCamera);
-        if (sceneMode === mode && drawsThroughModeCamera) {
             return;
         }
 
-        // Update the config, and twoD with it for backward compatibility
-        const isTwoD = mode === "2d";
-        this.writeViewMode(mode);
-
-        // Handle mode switching
-        const modeSwitchingBetween2D3D = sceneIsTwoD !== isTwoD;
-
-        if (modeSwitchingBetween2D3D) {
-            // Clear mesh cache if switching between 2D and 3D modes
-            this.dataManager.meshCache.clear();
-
-            // Update scene metadata for 2D mode detection
-            this.scene.metadata = this.scene.metadata ?? {};
-            this.scene.metadata.twoD = isTwoD;
-            this.scene.metadata.viewMode = mode;
-
-            // Activate camera BEFORE mesh recreation so that is2DMode() checks
-            // in EdgeMesh.create() work correctly (camera.mode must be ORTHOGRAPHIC for 2D)
-            const cameraType: CameraKey = isTwoD ? "2d" : "orbit";
-            this.camera.activateCamera(cameraType);
-
-            // Reset flag so initial camera state gets re-captured after layout settles
-            this.initialCameraStateCaptured = false;
-
-            // Force all nodes to recreate their meshes (they were disposed when cache was cleared)
-            for (const node of this.getNodes()) {
-                node.updateStyle();
-            }
-
-            // Force all edges to recreate their meshes
-            // Note: Edge meshes from Simple2DLineRenderer are NOT tracked by MeshCache,
-            // so we must explicitly dispose them before calling updateStyle()
-            for (const edge of this.dataManager.edges.values()) {
-                // Dispose edge mesh if not already disposed (handles non-cached meshes like Simple2DLineRenderer)
-                if (edge.mesh instanceof PatternedLineMesh) {
-                    edge.mesh.dispose();
-                } else if (!edge.mesh.isDisposed()) {
-                    edge.mesh.dispose();
-                }
-
-                // Dispose arrow meshes too
-                if (edge.arrowMesh && !edge.arrowMesh.isDisposed()) {
-                    edge.arrowMesh.dispose();
-                }
-
-                if (edge.arrowTailMesh && !edge.arrowTailMesh.isDisposed()) {
-                    edge.arrowTailMesh.dispose();
-                }
-
-                edge.updateStyle();
-            }
-
-            // Save Z positions before any layout changes (3D->2D only)
-            // We save here to capture the true 3D positions before layout is recreated
-            if (isTwoD && !sceneIsTwoD) {
-                // Switching from 3D to 2D: save current Z positions
-                for (const node of this.getNodes()) {
-                    this.savedZPositions.set(node.id, node.mesh.position.z);
-                }
-            }
-        }
-
-        // Update scene metadata for any mode change
-        this.scene.metadata = this.scene.metadata ?? {};
-        this.scene.metadata.viewMode = mode;
-
-        // Handle XR modes (ar/vr)
-        if (mode === "ar" || mode === "vr") {
-            // For AR/VR, we need to initialize XR session
-            if (!this.xrSessionManager) {
-                // XR not available
-                console.warn(`[Graph] Cannot switch to ${mode} mode: XR session manager not initialized`);
-                // Fall back to 3D mode
-                this.writeViewSettings((settings) => {
-                    settings.graph.viewMode = "3d";
+        try {
+            if (this.dimension() === "2d") {
+                await dispatcher.transaction(`Switched to 3D for ${mode.toUpperCase()}`, async (tx) => {
+                    await tx.dispatch({ op: "view.dimension", dimension: "3d" });
+                    await tx.dispatch({ op: "view.immersive", mode });
                 });
-                this.scene.metadata.viewMode = "3d";
-                return;
-            }
-
-            try {
-                // Enter XR mode
-                await this.enterXR(mode === "vr" ? "immersive-vr" : "immersive-ar");
-            } catch (error) {
-                console.warn(`[Graph] Failed to enter ${mode} mode:`, error);
-                // Fall back to 3D mode
-                this.writeViewSettings((settings) => {
-                    settings.graph.viewMode = "3d";
-                });
-                this.scene.metadata.viewMode = "3d";
-            }
-        } else if (sceneMode === "ar" || sceneMode === "vr") {
-            // Exiting XR mode - return to 3D or 2D. The scene is asked, not the configuration:
-            // leaving an immersive session is only right when a session is actually running, and
-            // the scene is what records that it is.
-            try {
-                await this.exitXR();
-            } catch (error) {
-                console.warn("[Graph] Failed to exit XR mode:", error);
-            }
-        }
-
-        // Activate appropriate camera based on mode
-        if (mode !== "ar" && mode !== "vr") {
-            // For 2D/3D, activate the appropriate camera
-            const cameraType: CameraKey = mode === "2d" ? "2d" : "orbit";
-            this.camera.activateCamera(cameraType);
-        }
-
-        // Update layout dimension if needed
-        await this.layoutManager.updateLayoutDimension(isTwoD);
-
-        // After mode switch, update node positions and edges
-        // The goal is to preserve the current view - just render it in the new mode
-        if (modeSwitchingBetween2D3D) {
-            // Handle Z-coordinate flattening/restoration BEFORE updating edges
-            // This ensures edges connect to the correct 2D/3D positions
-            if (isTwoD) {
-                // 3D→2D: flatten Z to 0 (positions were saved earlier)
-                for (const node of this.getNodes()) {
-                    node.mesh.position.z = 0;
-                }
             } else {
-                // 2D→3D: restore saved Z positions
-                for (const node of this.getNodes()) {
-                    const savedZ = this.savedZPositions.get(node.id);
-                    if (savedZ !== undefined) {
-                        node.mesh.position.z = savedZ;
-                    }
-                }
-                this.savedZPositions.clear();
+                await dispatcher.dispatch({ op: "view.immersive", mode });
+            }
+        } catch (error) {
+            console.warn(`[Graph] Cannot switch to ${mode} mode:`, error);
+        }
+    }
+
+    /**
+     * Dispatch a door's command, resolving rather than rejecting when a newer request of the same
+     * kind made it redundant before it ran: that is the caller's own later decision, not a failure
+     * they have to handle. Undone or failed, it rejects.
+     * @param command - The command.
+     * @param options - How it joins the queue.
+     * @param options.beside - Start at once, beside the queue.
+     */
+    private async dispatchSuperseded(
+        command: SessionCommand,
+        options?: { readonly beside?: boolean },
+    ): Promise<void> {
+        const done = dispatcherOf(this.session).dispatch(command, options);
+        // Inside `batchOperations` the queue holds the command until the batch closes, after this
+        // call has returned, so it resolves at once and the batch is what the caller awaits.
+        if (this.operationQueue.isInBatchMode()) {
+            done.catch(() => undefined);
+            return;
+        }
+
+        try {
+            await done;
+        } catch (error) {
+            if (cancelReasonOf(error) !== "obsolete") {
+                throw error;
+            }
+        }
+    }
+
+    /**
+     * Bring the engine, the scene's dimension and the camera to a value of the `layout` slice:
+     * the `layout` hook. Run inline by `layout.set` and `view.dimension`, and by the derivation
+     * pass after undo, redo or a rollback.
+     * @param choice - The value.
+     * @param how - `restoring` for undo, redo, a restore or a rollback; `signal` stops the build.
+     * @param how.restoring - Whether this is a restore: no pre-steps, the layout left at rest.
+     * @param how.signal - The asking command's signal.
+     * @returns Settles once the engine is built and its pre-steps have landed.
+     */
+    private async applyLayout(
+        choice: LayoutChoice,
+        how: { readonly restoring: boolean; readonly signal?: AbortSignal },
+    ): Promise<void> {
+        const twoD = choice.dimension === "2d";
+        // VR and AR draw in 3D: an undo or redo that makes the scene flat ends the session first.
+        if (twoD && this.viewSettings.graph.immersive !== undefined) {
+            await this.setImmersive(null);
+        }
+
+        const switching = !this.sceneDrawn(choice);
+        if (switching) {
+            this.enterDimension(twoD);
+        }
+
+        await this.layoutManager.apply(choice, how);
+
+        if (switching) {
+            this.settleDimension(twoD, !how.restoring);
+        }
+    }
+
+    /**
+     * Rebuild the scene for a new dimension, before the engine is rebuilt: the mesh cache, the
+     * scene's record, the camera, and every node and edge mesh.
+     * @param twoD - Whether the scene becomes 2D.
+     */
+    private enterDimension(twoD: boolean): void {
+        // Clear mesh cache if switching between 2D and 3D modes
+        this.dataManager.meshCache.clear();
+        this.writeSceneDimension(twoD);
+
+        // Activate camera BEFORE mesh recreation so that is2DMode() checks
+        // in EdgeMesh.create() work correctly (camera.mode must be ORTHOGRAPHIC for 2D)
+        const cameraType: CameraKey = twoD ? "2d" : "orbit";
+        this.camera.activateCamera(cameraType);
+
+        // Reset flag so initial camera state gets re-captured after layout settles
+        this.initialCameraStateCaptured = false;
+
+        // Force all nodes to recreate their meshes (they were disposed when cache was cleared)
+        for (const node of this.getNodes()) {
+            node.updateStyle();
+        }
+
+        // Force all edges to recreate their meshes
+        // Note: Edge meshes from Simple2DLineRenderer are NOT tracked by MeshCache,
+        // so we must explicitly dispose them before calling updateStyle()
+        for (const edge of this.dataManager.edges.values()) {
+            // Dispose edge mesh if not already disposed (handles non-cached meshes like Simple2DLineRenderer)
+            if (edge.mesh instanceof PatternedLineMesh) {
+                edge.mesh.dispose();
+            } else if (!edge.mesh.isDisposed()) {
+                edge.mesh.dispose();
             }
 
-            // Now update edges to connect to the updated node positions
-            Edge.updateRays(this);
-            for (const edge of this.dataManager.edges.values()) {
-                edge.update();
+            // Dispose arrow meshes too
+            if (edge.arrowMesh && !edge.arrowMesh.isDisposed()) {
+                edge.arrowMesh.dispose();
             }
 
+            if (edge.arrowTailMesh && !edge.arrowTailMesh.isDisposed()) {
+                edge.arrowTailMesh.dispose();
+            }
+
+            edge.updateStyle();
+        }
+    }
+
+    /**
+     * Put the nodes and edges where the new dimension draws them, once the engine is rebuilt:
+     * flat in 2D, and at the coordinates the position array holds in 3D.
+     * @param twoD - Whether the scene is 2D now.
+     * @param frame - Frame the camera on the nodes, as a forward switch does.
+     */
+    private settleDimension(twoD: boolean, frame: boolean): void {
+        if (twoD) {
+            for (const node of this.getNodes()) {
+                node.mesh.position.z = 0;
+            }
+        } else {
+            // The array kept every node's Z through the 2D view; a 3D engine that rebuilt has
+            // published over it, and one that did not left it as it was.
+            this.updateManager.redrawArrangement();
+        }
+
+        // Now update edges to connect to the updated node positions
+        Edge.updateRays(this);
+        for (const edge of this.dataManager.edges.values()) {
+            edge.update();
+        }
+
+        if (frame) {
             // Zoom the camera to fit the nodes. Only the nodes, as the mode switch always has: the
             // labels are framed by zoom-to-fit, on a data load or a layout change.
             const box = nodeFramingBox(this.getNodes());
@@ -3096,6 +3148,60 @@ export class Graph implements GraphContext {
                 this.camera.zoomToBoundingBox(box.min, box.max);
             }
         }
+    }
+
+    /**
+     * Enter or leave an immersive session: `view.immersive`. Exempt from history -- a device
+     * session is not the document -- and refused from 2D, which the caller switches out of in
+     * the same step first.
+     * @param mode - VR, AR, or null to leave.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` from 2D, or `E_UNSUPPORTED` without WebXR;
+     *     whatever the browser rejects the session with otherwise.
+     */
+    private async setImmersive(mode: "vr" | "ar" | null): Promise<void> {
+        if (mode === null) {
+            if (this.viewSettings.graph.immersive === undefined) {
+                return;
+            }
+
+            this.writeViewSettings((settings) => {
+                delete settings.graph.immersive;
+            });
+            try {
+                await this.exitXR();
+            } catch (error) {
+                console.warn("[Graph] Failed to exit XR mode:", error);
+            }
+
+            const twoD = this.dimension() === "2d";
+            this.writeSceneDimension(twoD);
+            this.camera.activateCamera(twoD ? "2d" : "orbit");
+            return;
+        }
+
+        if (this.dimension() === "2d") {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `${mode.toUpperCase()} draws in 3D. Switch to 3D first, in the same step: setViewMode("${mode}") does.`,
+                source: "view",
+                details: { mode },
+            });
+        }
+
+        if (!this.xrSessionManager) {
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message: `${mode.toUpperCase()} needs WebXR, and this graph has no XR session manager.`,
+                source: "view",
+                details: { mode },
+            });
+        }
+
+        await this.enterXR(mode === "vr" ? "immersive-vr" : "immersive-ar");
+        this.writeViewSettings((settings) => {
+            settings.graph.immersive = mode;
+        });
+        this.writeSceneDimension(false);
     }
 
     /**

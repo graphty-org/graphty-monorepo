@@ -101,7 +101,7 @@ export interface DataImportCommand {
     readonly source: ImportSource;
     /** `"replace"` (the default) empties the graph first, in the same step; `"merge"` adds to it. */
     readonly mode?: "replace" | "merge";
-    /** `"recommended"` also chooses a layout for what was loaded; not available yet. */
+    /** `"recommended"` also chooses a layout for what was loaded, in the same step. */
     readonly layout?: "recommended" | "keep";
     /** Declared at construction: while the baseline window is open it becomes the baseline. */
     readonly setup?: boolean;
@@ -370,10 +370,13 @@ const dataImport: UndoableDefinition<DataImportCommand> = {
     closesBaseline: true,
     execute: async (command, ctx) => {
         if (command.layout === "recommended") {
-            throw new GraphtyError({
-                code: "E_UNSUPPORTED",
-                message: 'data.import cannot choose a layout yet; import with layout "keep" and set the layout after.',
-                source: "data",
+            // Chosen for what was loaded, once it is loaded, and merged into the import's step.
+            const advise = ctx.services.layoutAdvice;
+            ctx.after("layout:recommended", (dispatch) => {
+                const advice = advise?.();
+                if (advice !== undefined) {
+                    void dispatch({ op: "layout.set", id: advice.id, engine: advice.engine }).catch(() => undefined);
+                }
             });
         }
 

@@ -31,6 +31,7 @@ import { GraphtyError } from "../../errors/GraphtyError";
 import type { OperationCategory } from "../../managers/OperationQueueManager";
 import type { RunService } from "../commands/algo";
 import type { DataService } from "../commands/data";
+import type { LayoutAdvice, LayoutService } from "../commands/layout";
 import type { ScopeService } from "../commands/scope";
 import type { StyleService } from "../commands/style";
 import type { CameraService } from "../commands/view";
@@ -83,6 +84,10 @@ interface CommandServices {
     visibility?: VisibilityService;
     scopes?: ScopeService;
     camera?: CameraService;
+    /** The renderer's layout engine and scene: what `layout.set` and `view.dimension` build. */
+    layout?: LayoutService;
+    /** Which layout suits the graph held now, for an import that asks for one. */
+    layoutAdvice?: LayoutAdvice;
 }
 
 /** What the queue hands a queued command when its slot comes up. */

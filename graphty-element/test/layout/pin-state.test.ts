@@ -156,29 +156,36 @@ describe("a pin outlives the engine that was told about it", () => {
         harness.add("b");
         harness.add("c");
 
-        await harness.layoutManager.setLayout("circular", {});
+        const circular = { id: "circular", engine: "circular", options: {}, dimension: "3d" } as const;
+        await harness.layoutManager.apply(circular, { restoring: false });
         const held = harness.coordsOf(pinned);
         pinned.pin();
 
-        await harness.layoutManager.updateLayoutDimension(true);
+        await harness.layoutManager.apply({ ...circular, dimension: "2d" }, { restoring: false });
 
         assert.isTrue(pinned.isPinned(), "switching to 2D did not release the reader's pins");
         assert.deepStrictEqual(harness.coordsOf(pinned), held);
     });
 
-    it("keeps the pin when a style template brings its own layout", async () => {
+    it("keeps the pin when the layout slice names a new layout", async () => {
         harness = createHarness();
         const pinned = harness.add("a");
         harness.add("b");
         harness.add("c");
 
-        await harness.layoutManager.setLayout("circular", {});
+        await harness.layoutManager.apply(
+            { id: "circular", engine: "circular", options: {}, dimension: "3d" },
+            { restoring: false },
+        );
         const held = harness.coordsOf(pinned);
         pinned.pin();
 
-        await harness.layoutManager.applyTemplateLayout("spiral", {});
+        await harness.layoutManager.apply(
+            { id: "spiral", engine: "spiral", options: {}, dimension: "3d" },
+            { restoring: false },
+        );
 
-        assert.isTrue(pinned.isPinned(), "applying a template did not release the reader's pins");
+        assert.isTrue(pinned.isPinned(), "the layout hook's new engine did not release the reader's pins");
         assert.deepStrictEqual(harness.coordsOf(pinned), held);
     });
 

@@ -154,17 +154,29 @@ describe("data.import", () => {
         session.dispose();
     });
 
-    it("refuses to choose a layout until layouts are steps", async () => {
+    it("chooses the recommended layout for what it loaded, in its own step", async () => {
         const session = await fixtureSession();
-        const code = await session
-            .execute({ op: "data.import", source: { type: "json", config: { data: DOCUMENT } }, layout: "recommended" })
-            .then(
-                () => null,
-                (error: unknown) => (error as { code?: string }).code,
-            );
+        await session.layout.set("spiral");
+        const before = digest(session);
+        const steps = session.history.steps.length;
 
-        assert.strictEqual(code, "E_UNSUPPORTED");
-        assert.lengthOf(session.history.steps, 0);
+        await session.execute({
+            op: "data.import",
+            source: { type: "json", config: { data: DOCUMENT } },
+            layout: "recommended",
+        });
+        // The choice is made once the rows are in, and joins the import's step.
+        for (let wait = 0; wait < 100 && session.history.pending.length > 0; wait++) {
+            await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+
+        assert.lengthOf(session.history.pending, 0);
+        assert.lengthOf(session.history.steps, steps + 1, "the import and its layout are one step");
+        assert.strictEqual(session.layout.id, "force", "two nodes, one edge, one of them unplaced: force");
+
+        await session.undo();
+        assert.strictEqual(session.layout.id, "spiral", "one undo leaves the previous layout");
+        assert.strictEqual(digest(session), before);
         session.dispose();
     });
 });

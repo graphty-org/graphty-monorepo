@@ -533,11 +533,18 @@ the CI lane's own 4-vCPU Xeon was never timed, and no T4 traversal row exists, s
 traversal figure is the 4070's kernel scaled by an assumed 2.5x.
 
 Stack note (added 2026-09-27, issue #425): every GPU constant above was measured on NVIDIA
-hardware under the `webgpu` npm package 0.4.0 -- the RTX 4070 SUPER in the dev container (Ubuntu
-22.04.5, driver 580.173.02) and the Tesla T4 of CI's GPU lane (Ubuntu 22.04.5, driver
-580.126.20). None comes from lavapipe, so CI's default lane running Ubuntu 24.04 with Mesa
-25.2.8 (LLVM 20.1.2) instead of the dev container's Mesa 23.2.1 (LLVM 15.0.7) does not move
-them. What would move them is the `webgpu` 0.6.x bump of pull request #24, which is not merged:
-under Dawn 0.6.1 the dense-twin PageRank ran about 2x slower. A constant measured after that
-bump lands is a new measurement on a new runtime, and a crossover in the tables above re-derived
-from it can shift with it; the figures here stay as measured on 0.4.0.
+hardware, on two runtimes. The Node constants (the 0.10 ms round trip, the 1 us dispatch, the
+0.15 ms per MiB readback and the kernel rates of `nvidia-lovelace-driver580.json` and
+`gpu-linux-t4.json`) ran under the `webgpu` npm package 0.4.0, on the RTX 4070 SUPER in the dev
+container (Ubuntu 22.04.5, driver 580.173.02) and on the Tesla T4 of CI's GPU lane (Ubuntu
+22.04.5, driver 580.126.20). The Chromium constants (the 2.0 ms round trip, the 10 us dispatch,
+the 2.65 ms per MiB readback, the traversal floor) and therefore the table's crossovers, which
+are Chromium figures, ran on the Dawn that Chromium bundles (the round-trip profile is Chromium
+143), not on the npm package. None comes from lavapipe, so CI's default lane running Ubuntu
+24.04 with Mesa 25.2.8 (LLVM 20.1.2) instead of the dev container's Mesa 23.2.1 (LLVM 15.0.7)
+moves none of them. Two different changes would move them. The `webgpu` 0.6.x bump of pull
+request #24, which is not merged, moves the Node constants: under Dawn 0.6.1 the dense-twin
+PageRank ran about 2x slower. A Chromium or Playwright upgrade moves the Chromium constants and
+the crossovers, whether or not #24 lands. A constant measured after either change is a new
+measurement on a new runtime, and a crossover re-derived from it can shift with it; the figures
+here stay as measured.

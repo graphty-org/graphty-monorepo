@@ -390,12 +390,14 @@ measured it):
 
 ### The measurement stack and the stack CI runs
 
-The gate records (`docs/decisions/G0.md` to `G8.md`), the `*-mesa-software-node*` noise fixtures of
-`test/fixtures/noise/` and the lavapipe rows of `benchmarks/results/noise-floor.json` were measured in the dev
-container. CI does not run that stack. Read from CI run 36339995757 (default lane) and GPU-lane run 36325827063, both
-2026-09-27:
+Most lavapipe rows of the gate records (`docs/decisions/G0.md` to `G8.md`), the `*-mesa-software-node*` noise fixtures
+of `test/fixtures/noise/` and the lavapipe rows of `benchmarks/results/noise-floor.json` were measured in the dev
+container. The records are not single-stack: some rows were read from CI's default lane instead (`G0.md` row D4, the
+CI lavapipe timings of `G2.md`, the CI runs cited by findings G4-F14 and G4-F18 of `G4.md`), and the stack note of each record that measured on lavapipe says
+which of its rows are the dev box's. CI does not run the dev container's stack. Read from CI run 36339995757 (default
+lane) and GPU-lane run 36325827063, both 2026-09-27:
 
-|                      | Dev container (the records)                              | CI default lane (`ci.yml`, `ubuntu-latest`)            | CI GPU lane (`gpu.yml`)                    |
+|                      | Dev container (most record rows)                         | CI default lane (`ci.yml`, `ubuntu-latest`)            | CI GPU lane (`gpu.yml`)                    |
 | -------------------- | -------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------ |
 | Operating system     | Ubuntu 22.04.5, glibc 2.35                               | Ubuntu 24.04 (runner image 20260920.314.1)             | Ubuntu 22.04.5, glibc 2.35                 |
 | Software adapter     | `llvmpipe: Mesa 23.2.1-1ubuntu3.1~22.04.3 (LLVM 15.0.7)` | `llvmpipe: Mesa 25.2.8-0ubuntu0.24.04.2 (LLVM 20.1.2)` | none (`mesa-vulkan-drivers` not installed) |
@@ -407,7 +409,10 @@ What it means for a reader comparing a new measurement against a record: the sui
 tolerances pass on CI's Mesa 25.2.8, so the bounds hold there, but a lavapipe number read from CI (a noise floor, an
 iteration count, a duration) comes from a newer shader compiler on another machine and is not comparable to a
 record's -- measure both on one stack. No benchmark is ever timed on a software adapter, so the timing baselines are
-untouched by the Mesa difference; they are NVIDIA-only and all ran under `webgpu` 0.4.0. Moving the dev container to
+untouched by the Mesa difference. They are NVIDIA-only, on two runtimes: `nvidia-lovelace-driver580.json` and
+`gpu-linux-t4.json` are Node runs under `webgpu` 0.4.0, and `nvidia-lovelace-driver0.json` and
+`nvidia-turing-driver0.json` are browser runs on the Dawn that Chromium bundles, which the npm package does not
+touch. A `webgpu` bump moves the first two; a Chromium or Playwright upgrade moves the other two. Moving the dev container to
 Ubuntu 24.04 and the package to `webgpu` 0.6.x is pull request #24 (`chore/webgpu-environment-move`, plan
 `design/webgpu/plans/2026-09-23-webgpu-environment-move.md` on that branch); it is unmerged because the dev container
 has to be rebuilt and because Dawn 0.6.1 made the dense-twin PageRank about 2x slower.

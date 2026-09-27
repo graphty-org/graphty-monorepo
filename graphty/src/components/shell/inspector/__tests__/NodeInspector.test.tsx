@@ -2,7 +2,7 @@ import { PopoutManager } from "@graphty/compact-mantine";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { fireEvent, render, screen } from "../../../../test/test-utils";
+import { fireEvent, render, screen, within } from "../../../../test/test-utils";
 import { ShellProvider } from "../../ShellContext";
 import { NodeInspector, type NodeInspectorProps } from "../NodeInspector";
 
@@ -58,7 +58,6 @@ const defaultProps: NodeInspectorProps = {
     onCopyId: vi.fn(),
     onLocate: vi.fn(),
     onShowAllAttributes: vi.fn(),
-    onAddNote: vi.fn(),
     onToggleNoteDone: vi.fn(),
     onDeleteNote: vi.fn(),
     onSelectNeighbor: vi.fn(),
@@ -150,15 +149,14 @@ describe("NodeInspector", () => {
             expect(input.getAttribute("aria-label")).toMatch(/^Add a note/);
         });
 
-        it("saves on the platform key plus Enter", () => {
-            const onAddNote = vi.fn();
-            renderNode({ onAddNote });
+        /* Issue #188: notes have no store until graphty-element's session carries them, and
+           the input used to clear whatever was typed and keep none of it. It is drawn
+           disabled and tagged Coming instead, the way the edge inspector draws its Notes. */
+        it("draws the note input disabled and tagged Coming until notes have a store", () => {
+            renderNode();
 
-            const input = screen.getByTestId("node-note-input");
-            fireEvent.change(input, { target: { value: "Worth a look" } });
-            fireEvent.keyDown(input, { key: "Enter", metaKey: true });
-
-            expect(onAddNote).toHaveBeenCalledWith("Worth a look");
+            expect(screen.getByTestId("node-note-input")).toBeDisabled();
+            expect(screen.getByText("Coming")).toBeInTheDocument();
         });
 
         it("collapses done notes under their count", () => {
@@ -274,8 +272,10 @@ describe("NodeInspector", () => {
         it("draws no Coming tag resident, because no verb it draws is unshipped", () => {
             renderNode();
 
-            expect(screen.queryByTestId("unshipped-group-mark")).not.toBeInTheDocument();
-            expect(screen.queryByTestId("coming-tag")).not.toBeInTheDocument();
+            const actions = screen.getByTestId("inspector-actions");
+
+            expect(within(actions).queryByTestId("unshipped-group-mark")).not.toBeInTheDocument();
+            expect(within(actions).queryByTestId("coming-tag")).not.toBeInTheDocument();
         });
 
         it("disables every unshipped verb instead of wiring it to nothing", async () => {

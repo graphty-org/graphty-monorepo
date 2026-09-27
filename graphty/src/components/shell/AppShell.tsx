@@ -3985,9 +3985,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 onShowAllAttributes: () => {
                     openDrawerOn("nodes");
                 },
-                onAddNote: () => {
-                    openPanelAt("explore");
-                },
                 onToggleNoteDone: () => undefined,
                 onDeleteNote: () => undefined,
                 onSelectNeighbor: (nodeId: string) => {

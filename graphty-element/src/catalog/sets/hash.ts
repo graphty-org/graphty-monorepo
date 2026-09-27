@@ -33,8 +33,11 @@ export interface LanePair {
 /** The sum of no members. */
 export const EMPTY_SUM: LanePair = { a: 0, b: 0 };
 
-/** Invocation counts the complexity tests read. Internal; never reset by this module. */
-export const hashCounters = { memberHashes: 0 };
+/**
+ * Invocation counts the complexity tests read: member hashes computed, and member hashes added to
+ * a sum. Internal; never reset by this module.
+ */
+export const hashCounters = { memberHashes: 0, sums: 0 };
 
 const BASIS_A = 0x811c9dc5;
 const PRIME_A = 0x01000193;
@@ -216,6 +219,8 @@ export function hashEdgeMember(member: EdgeMember, directed: boolean): LanePair 
  * @returns The new sum, each lane mod 2^32.
  */
 export function addToSum(sum: LanePair, hash: LanePair): LanePair {
+    hashCounters.sums++;
+
     return { a: (sum.a + hash.a) >>> 0, b: (sum.b + hash.b) >>> 0 };
 }
 
@@ -260,6 +265,36 @@ export function hashHex(hash: LanePair): string {
  */
 function summary(count: number, sum: LanePair): { count: number; sum: string } {
     return { count, sum: hashHex(sum) };
+}
+
+/** A member array as the revision sees it: how many members, and the sum of their hashes. */
+export interface MemberSummary {
+    readonly count: number;
+    readonly sum: LanePair;
+}
+
+/**
+ * The revision of a fixed definition that carries no field this element does not know, from its
+ * member summaries alone, so a member delta can re-derive it without touching the other members.
+ * Equal to {@link revisionOf} of the same definition.
+ * @param reading - The stored reading, `induced` or `listed`.
+ * @param nodes - The node members' summary.
+ * @param edges - The edge members' summary; absent or empty when no edge is listed.
+ * @returns `r1:` and 16 hex digits.
+ */
+export function fixedRevision(reading: string, nodes: MemberSummary, edges?: MemberSummary): string {
+    // The canonical key order, as `revisionOf` spreads it: edges, kind, nodes, reading.
+    const input = {
+        ...(edges === undefined || edges.count === 0 ? {} : { edges: summary(edges.count, edges.sum) }),
+        kind: "fixed",
+        nodes: summary(nodes.count, nodes.sum),
+        reading,
+    };
+
+    begin();
+    stringPart(JSON.stringify(input));
+
+    return `r1:${hashHex(end())}`;
 }
 
 /**

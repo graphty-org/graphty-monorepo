@@ -58,6 +58,8 @@ import {
     type ScopeResolver,
 } from "./scope";
 import { createSelectionApi, type SelectionOwner, type SelectionTextMode } from "./selection";
+import { createSetsApi, sessionEdgeMember } from "./sets/SetsApi";
+import type { SetsApi } from "./sets/types";
 import {
     createAutoApplyPolicy,
     createStylesApi,
@@ -1105,6 +1107,16 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     const runsOptions = options.runs ?? {};
     const snapshot = (): GraphSnapshot => store.store.getSnapshot();
     const components = componentLabelsOf(data);
+    // Kept sets, built here and not yet published as `session.sets`.
+    const sets = createSetsApi({
+        edgeMember: (id: EdgeId) =>
+            sessionEdgeMember(
+                snapshot(),
+                id,
+                (row) => options.records?.edgeAttributes(row),
+                readData().knownFields.edgeIdPath,
+            ),
+    });
     // ONE queue for both, whether the host handed one in or not: a filter pass and an algorithm
     // run both read the whole graph, and two queues would let one start while the other is
     // halfway through. A rendered graph hands in the element's own, so a filter also takes its
@@ -1349,12 +1361,31 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         watchers,
     });
     sessionInputs.set(session, inputs);
+    sessionSets.set(session, sets);
 
     return session;
 }
 
 /** Each session's input counters, beside it rather than on it so the published type gains nothing. */
 const sessionInputs = new WeakMap<GraphSession, InputCounters>();
+
+/** Each session's kept sets, beside it until `session.sets` is published. */
+const sessionSets = new WeakMap<GraphSession, SetsApi>();
+
+/**
+ * A session's kept sets: the synchronous doors, not yet published on the session. Internal.
+ * @param session - a session this module built
+ * @returns its sets
+ * @throws An Error for a session this module did not build.
+ */
+export function setsOfSession(session: GraphSession): SetsApi {
+    const sets = sessionSets.get(session);
+    if (sets === undefined) {
+        throw new Error("Not a session built by createGraphSession.");
+    }
+
+    return sets;
+}
 
 /**
  * A session's input counters: its input tick and its attribute revisions (design/sets 6.2).

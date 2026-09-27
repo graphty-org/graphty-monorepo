@@ -57,6 +57,7 @@
         "coverage": "vitest run --project=node --project=node-device-errors --coverage",
         "coverage:preview": "npx serve coverage -p ${PORT:?start it through servherd, which sets PORT}",
         "bench": "tsx benchmarks/run.ts",
+        "bench:ab": "node scripts/bench-ab.js",
         "bench:compare": "node scripts/bench-compare.js",
         "bench:append": "node scripts/bench-append-session.js",
         "benchmark": "tsx benchmarks/run.ts",

@@ -8,6 +8,7 @@
 
 import { createAccelerator } from "../src/accelerator.js";
 import { bellmanFord } from "../src/algorithms/bellman-ford.js";
+import { betweennessCentrality, edgeBetweennessCentrality } from "../src/algorithms/betweenness.js";
 import { breadthFirstSearch } from "../src/algorithms/bfs.js";
 import { closenessCentrality } from "../src/algorithms/closeness.js";
 import { connectedComponents } from "../src/algorithms/components.js";
@@ -72,6 +73,9 @@ const VALUE_EXPORTS = [
     "sssp",
     "bellmanFord",
     "closenessCentrality",
+    // betweenness (spec 3.3 lines 811-812, 8.4)
+    "betweennessCentrality",
+    "edgeBetweennessCentrality",
     // the device self-check (the capability record a caller reads before committing work to a device)
     "verifyDevice",
 ];
@@ -128,6 +132,10 @@ const NEVER_EXPORTED = [
     "ssspWithTuning",
     "bellmanFordWithTuning",
     "closenessWithTuning",
+    // the betweenness tuning entry points and the planner, @internal seams the tests reach by file
+    "betweennessWithTuning",
+    "edgeBetweennessWithTuning",
+    "planBatchSize",
     "bfsRingSlots",
 ];
 
@@ -170,6 +178,8 @@ describe("public barrel (contract 3.15; spec 3.3, 11.3 row 'Build output')", () 
         expect(api.sssp).toBe(sssp);
         expect(api.bellmanFord).toBe(bellmanFord);
         expect(api.closenessCentrality).toBe(closenessCentrality);
+        expect(api.betweennessCentrality).toBe(betweennessCentrality);
+        expect(api.edgeBetweennessCentrality).toBe(edgeBetweennessCentrality);
         expect(api.calibrateLayout).toBe(calibrateLayout);
         expect(api.verifyDevice).toBe(verifyDevice);
         expect(typeof api.WebGpuGraphError).toBe("function");

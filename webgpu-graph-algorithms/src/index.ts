@@ -57,6 +57,7 @@ export { eigenvectorCentrality, hits, katzCentrality } from "./algorithms/spectr
 
 // ==================== algorithms (P8: the frontier family, spec 3.3 lines 807-810, 8.4; the seam's option types in)
 export { bellmanFord } from "./algorithms/bellman-ford.js";
+export { betweennessCentrality, edgeBetweennessCentrality } from "./algorithms/betweenness.js";
 export { breadthFirstSearch } from "./algorithms/bfs.js";
 export { closenessCentrality } from "./algorithms/closeness.js";
 export { sssp } from "./algorithms/sssp.js";
@@ -98,6 +99,10 @@ export type {
 // ==================== types: the P8 traversal results (spec 3.3 lines 830-832, 9.7); the option types are the seam's
 // BfsOptions / SsspOptions / HitsOptionsLike above (P8 PD-19)
 export type { GpuBellmanFordResult, GpuBfsResult, GpuSsspResult } from "./types/traversal.js";
+
+// ==================== types: the betweenness results (spec 3.3 lines 833-834); the option type is the seam's
+// BetweennessAcceleratorOptions above
+export type { GpuBetweennessResult, GpuEdgeScoresResult } from "./types/betweenness.js";
 
 // ==================== types: the P7 algorithm results and option records (spec 3.3 lines 815-828, 9.7)
 export type {

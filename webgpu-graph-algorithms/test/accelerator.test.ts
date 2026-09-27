@@ -2,6 +2,7 @@ import { type F32, type GraphSnapshot } from "@graphty/graph-format";
 
 import { createAccelerator } from "../src/accelerator.js";
 import { bellmanFord } from "../src/algorithms/bellman-ford.js";
+import { betweennessCentrality, edgeBetweennessCentrality } from "../src/algorithms/betweenness.js";
 import { breadthFirstSearch } from "../src/algorithms/bfs.js";
 import { closenessCentrality } from "../src/algorithms/closeness.js";
 import { connectedComponents } from "../src/algorithms/components.js";
@@ -46,6 +47,8 @@ const ALGORITHM_MEMBERS = [
     "sssp",
     "bellmanFord",
     "closenessCentrality",
+    "betweennessCentrality",
+    "edgeBetweennessCentrality",
 ] as const;
 
 /** The simulation class behind createForceAtlas2, narrowed so the tests can read `tuning` and `options`. */
@@ -129,10 +132,10 @@ describe("createAccelerator (contract 3.14; spec 3.3, 9.2, 9.3)", () => {
         expect(typeof acc.springElectrical).toBe("function");
         expect(typeof acc.release).toBe("function");
         expect(typeof acc.dispose).toBe("function");
-        // spec 2.4 row "method missing" / 9.2 `acc.betweennessCentrality === undefined -> CPU`: absent, never a
-        // throwing stub (P9's member); the P7 members are present and route to the GPU
-        expect(acc.betweennessCentrality).toBeUndefined();
-        expect("betweennessCentrality" in acc).toBe(false);
+        // spec 2.4 row "method missing" / 9.2 `acc.allPairsShortestPath === undefined -> CPU`: absent, never a
+        // throwing stub; the shipped members are present and route to the GPU
+        expect(acc.allPairsShortestPath).toBeUndefined();
+        expect("allPairsShortestPath" in acc).toBe(false);
         // P8 PD-16: a member exists when its algorithm ships, so the four traversals are functions now and a consumer's
         // feature detection (`typeof accel.sssp === "function"`) routes them to the GPU; nothing named harmonic or
         // eccentricity exists (DEP-P8-F)
@@ -141,8 +144,9 @@ describe("createAccelerator (contract 3.14; spec 3.3, 9.2, 9.3)", () => {
         }
         expect("harmonicCentrality" in acc).toBe(false);
         expect("eccentricity" in acc).toBe(false);
-        const route = acc.betweennessCentrality !== undefined ? "gpu" : "cpu";
+        const route = acc.allPairsShortestPath !== undefined ? "gpu" : "cpu";
         expect(route).toBe("cpu");
+        expect(typeof acc.betweennessCentrality).toBe("function");
         const p7Route = acc.pageRank !== undefined ? "gpu" : "cpu";
         expect(p7Route).toBe("gpu");
         // one per call (spec 3.3): two accelerators over one context are distinct objects
@@ -517,6 +521,35 @@ describe("createAccelerator (contract 3.14; spec 3.3, 9.2, 9.3)", () => {
         for (const member of ["breadthFirstSearch", "sssp", "bellmanFord", "closenessCentrality"] as const) {
             await expect(callMember(acc, member, snapshot, mass), member).rejects.toMatchObject({ code: "E_DISPOSED" });
         }
+    });
+
+    it("carries the two betweenness members: the seam's options reach the driver, the accelerator's algorithms.betweenness defaults apply only when a call names no sampling, endpoints: true is refused", async (t) => {
+        requireGpu(t);
+        const ctx = await acquire({ label: "accelerator-betweenness" });
+        const snapshot = snapshotOf(KARATE_EDGES);
+        const plain = createAccelerator(ctx);
+        const exact = await plain.betweennessCentrality(snapshot, { normalized: true });
+        const exactDirect = await betweennessCentrality(ctx, snapshot, { normalized: true });
+        expectBitwiseEqual(exact.scores, exactDirect.scores, "betweennessCentrality");
+        expect(exact.sourcesUsed).toBe(snapshot.nodeCount);
+        const edges = await plain.edgeBetweennessCentrality(snapshot);
+        expectBitwiseEqual(edges.scores, (await edgeBetweennessCentrality(ctx, snapshot)).scores, "edge");
+        const sampled = createAccelerator(ctx, { algorithms: { betweenness: { sources: [0, 5, 33] } } });
+        const byDefault = await sampled.betweennessCentrality(snapshot);
+        expect(byDefault.sourcesUsed).toBe(3);
+        expectBitwiseEqual(
+            byDefault.scores,
+            (await betweennessCentrality(ctx, snapshot, { sources: [0, 5, 33] })).scores,
+            "defaults",
+        );
+        expect((await sampled.betweennessCentrality(snapshot, { k: 5 })).sourcesUsed).toBe(5);
+        expect((await sampled.edgeBetweennessCentrality(snapshot)).sourcesUsed).toBe(3);
+        await expect(plain.betweennessCentrality(snapshot, { endpoints: true })).rejects.toMatchObject({
+            code: "E_UNSUPPORTED",
+            details: { feature: "betweenness.endpoints" },
+        });
+        plain.dispose();
+        await expect(plain.betweennessCentrality(snapshot)).rejects.toMatchObject({ code: "E_DISPOSED" });
     });
 
     it("release and dispose delegate to the context", async (t) => {

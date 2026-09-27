@@ -2,8 +2,10 @@ import type {
     AcceleratedAlgorithms,
     AlgorithmAccelerator,
     BellmanFordResultLike,
+    BetweennessAcceleratorOptions,
     BfsOptions,
     BfsResultLike,
+    EdgeScoresResultLike,
     HitsOptionsLike,
     IndexedPageRankOptions,
     PageRankResultLike,
@@ -60,7 +62,9 @@ expectTypeOf(injected).toMatchTypeOf<LayoutAccelerator>();
 expectTypeOf<GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2Stats>>().toMatchTypeOf<LayoutSimulation>();
 expectTypeOf<ReturnType<NonNullable<LayoutAccelerator["forceAtlas2"]>>>().toEqualTypeOf<LayoutSimulation>();
 // P5: the two other layout members route the same way (spec 9.3 lines 3018-3025; PD-19)
-expectTypeOf<GpuLayoutSimulation<FruchtermanReingoldOptions, FruchtermanReingoldStats>>().toMatchTypeOf<LayoutSimulation>();
+expectTypeOf<
+    GpuLayoutSimulation<FruchtermanReingoldOptions, FruchtermanReingoldStats>
+>().toMatchTypeOf<LayoutSimulation>();
 expectTypeOf<GpuLayoutSimulation<SpringElectricalOptions, SpringElectricalStats>>().toMatchTypeOf<LayoutSimulation>();
 expectTypeOf<ReturnType<NonNullable<LayoutAccelerator["fruchtermanReingold"]>>>().toEqualTypeOf<LayoutSimulation>();
 expectTypeOf<ReturnType<NonNullable<LayoutAccelerator["springElectrical"]>>>().toEqualTypeOf<LayoutSimulation>();
@@ -122,3 +126,13 @@ expectTypeOf<Awaited<ReturnType<GpuAccelerator["breadthFirstSearch"]>>>().toMatc
 expectTypeOf<Awaited<ReturnType<GpuAccelerator["sssp"]>>>().toMatchTypeOf<SsspResultLike>();
 expectTypeOf<Awaited<ReturnType<GpuAccelerator["bellmanFord"]>>>().toMatchTypeOf<BellmanFordResultLike>();
 expectTypeOf<Awaited<ReturnType<GpuAccelerator["closenessCentrality"]>>>().toMatchTypeOf<ScoresResultLike>();
+
+// ---- betweenness: the seam's option type in, the design's result records out, which satisfy the seam's shapes
+expectTypeOf<BetweennessAcceleratorOptions | undefined>().toEqualTypeOf<
+    Parameters<GpuAccelerator["betweennessCentrality"]>[1]
+>();
+expectTypeOf<BetweennessAcceleratorOptions | undefined>().toEqualTypeOf<
+    Parameters<GpuAccelerator["edgeBetweennessCentrality"]>[1]
+>();
+expectTypeOf<Awaited<ReturnType<GpuAccelerator["betweennessCentrality"]>>>().toMatchTypeOf<ScoresResultLike>();
+expectTypeOf<Awaited<ReturnType<GpuAccelerator["edgeBetweennessCentrality"]>>>().toMatchTypeOf<EdgeScoresResultLike>();

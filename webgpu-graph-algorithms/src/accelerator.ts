@@ -17,6 +17,7 @@
 import { type F32, type F64, type GraphSnapshot } from "@graphty/graph-format";
 
 import { bellmanFord } from "./algorithms/bellman-ford.js";
+import { betweennessCentrality, edgeBetweennessCentrality } from "./algorithms/betweenness.js";
 import { breadthFirstSearch } from "./algorithms/bfs.js";
 import { closenessCentrality } from "./algorithms/closeness.js";
 import { connectedComponents } from "./algorithms/components.js";
@@ -29,6 +30,7 @@ import { createFruchtermanReingold } from "./layouts/fruchterman-reingold.js";
 import { createSpringElectrical } from "./layouts/spring-electrical.js";
 import {
     type AcceleratorOptions,
+    type BetweennessAcceleratorOptions,
     type BfsOptions,
     type GpuAccelerator,
     type HitsOptionsLike,
@@ -45,6 +47,7 @@ import {
     type KatzOptions,
     type PageRankOptions,
 } from "./types/algorithms.js";
+import { type GpuBetweennessResult, type GpuEdgeScoresResult } from "./types/betweenness.js";
 import {
     type ForceAtlas2Stats,
     type FruchtermanReingoldStats,
@@ -77,6 +80,23 @@ function copyBetweenness(defaults: BetweennessDefaults): BetweennessDefaults {
         copy.sources = Object.freeze([...defaults.sources]);
     }
     return Object.freeze(copy);
+}
+
+/**
+ * A betweenness call's options with the accelerator's `algorithms.betweenness` defaults applied: the defaults supply
+ * `sources` / `k` only when the call names neither, so a call's own sampling always wins whole.
+ * @param defaults - the frozen defaults, if any
+ * @param options - the call's options
+ * @returns the options the driver runs with
+ */
+function withBetweennessDefaults(
+    defaults: BetweennessDefaults | undefined,
+    options: BetweennessAcceleratorOptions | undefined,
+): BetweennessAcceleratorOptions | undefined {
+    if (defaults === undefined || options?.sources !== undefined || options?.k !== undefined) {
+        return options;
+    }
+    return { ...options, sources: defaults.sources, k: defaults.k };
 }
 
 /**
@@ -118,8 +138,9 @@ function freezeOptions(options: AcceleratorOptions | undefined): Readonly<Accele
  * Spec 3.3 createAccelerator, verbatim: the object implementing AlgorithmAccelerator & LayoutAccelerator
  * structurally; P3's forceAtlas2, release and dispose, P5's fruchtermanReingold and springElectrical (the same
  * `{ ...o, ...options.layout }` shape as forceAtlas2) plus P7's seven algorithm members and P8's four traversal
- * members, each a delegation to its algorithm with `ctx.assertReady()` first. The accelerator's algorithm defaults are not consulted by any of
- * them: only `betweenness` has any, and it belongs to P9. One per call (the app creates one and injects
+ * members and the two betweenness members, each a delegation to its algorithm with `ctx.assertReady()` first. Only
+ * the betweenness members consult the accelerator's algorithm defaults (`algorithms.betweenness` supplies `sources` /
+ * `k` when a call names neither). One per call (the app creates one and injects
  * it, spec 2.4); `kind` is "webgpu"; `options` is a frozen deep copy; `forceAtlas2(o)` is
  * `createForceAtlas2(ctx, { ...o, ...options.layout })`, so the GPU tuning given here wins over anything the
  * CPU-typed option object carries (spec 3.3: tuning never comes from the caller of the accelerator method);
@@ -163,7 +184,9 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
          * @param o - the CPU option type (spec 9.3 SpringElectricalOptions, ngraph's names)
          * @returns a fresh simulation in state "created"
          */
-        springElectrical(o?: SpringElectricalOptions): GpuLayoutSimulation<SpringElectricalOptions, SpringElectricalStats> {
+        springElectrical(
+            o?: SpringElectricalOptions,
+        ): GpuLayoutSimulation<SpringElectricalOptions, SpringElectricalStats> {
             ctx.assertReady();
             return createSpringElectrical(ctx, { ...o, ...frozen.layout });
         },
@@ -277,6 +300,35 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
         async bellmanFord(gs: GraphSnapshot, source: number, o?: SsspOptions): Promise<GpuBellmanFordResult> {
             ctx.assertReady();
             return await bellmanFord(ctx, gs, source, o);
+        },
+        /**
+         * Betweenness centrality on the device (spec 8.4): exact, or sampled through `sources` / `k` (the call's own,
+         * else the accelerator's `algorithms.betweenness` defaults), the unscaled sum over the sources run.
+         * `endpoints: true` is refused.
+         * @param gs - the snapshot
+         * @param o - the seam's `BetweennessAcceleratorOptions`
+         * @returns the f32 scores with `sourcesUsed` and `sigmaOverflow`
+         */
+        async betweennessCentrality(
+            gs: GraphSnapshot,
+            o?: BetweennessAcceleratorOptions,
+        ): Promise<GpuBetweennessResult> {
+            ctx.assertReady();
+            return await betweennessCentrality(ctx, gs, withBetweennessDefaults(frozen.algorithms?.betweenness, o));
+        },
+        /**
+         * Edge betweenness on the device (spec 8.4): one score per edge, folded with "first" and not halved; sampling
+         * and defaults as `betweennessCentrality`.
+         * @param gs - the snapshot
+         * @param o - the seam's `BetweennessAcceleratorOptions`
+         * @returns the f32 per-edge scores with `sourcesUsed` and `sigmaOverflow`
+         */
+        async edgeBetweennessCentrality(
+            gs: GraphSnapshot,
+            o?: BetweennessAcceleratorOptions,
+        ): Promise<GpuEdgeScoresResult> {
+            ctx.assertReady();
+            return await edgeBetweennessCentrality(ctx, gs, withBetweennessDefaults(frozen.algorithms?.betweenness, o));
         },
         /**
          * Closeness centrality on the device (spec 8.4; P8-T13): the bit-parallel multi-source sweep, or one `sssp`

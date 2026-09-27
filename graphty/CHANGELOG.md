@@ -1,3 +1,53 @@
+## 0.8.15 (2026-09-27)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.9
+- Updated compact-mantine to 0.8.8
+- Updated graphty-element to 2.5.2
+
+## 0.8.14 (2026-09-27)
+
+### 🩹 Fixes
+
+- **graphty:** list records through the element's session, not its private maps ([#53](https://github.com/graphty-org/graphty-monorepo/issues/53))
+- **graph-format:** count every change the next freeze would show in mutationCount ([#100](https://github.com/graphty-org/graphty-monorepo/issues/100))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.8
+- Updated graphty-element to 2.5.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.13 (2026-09-27)
+
+### 🚀 Features
+
+- **graphty-element:** report an unknown style layer id as E_UNKNOWN_LAYER ([#111](https://github.com/graphty-org/graphty-monorepo/issues/111))
+
+### 🩹 Fixes
+
+- **graphty:** clear the app's lint warnings and fail the lint on any warning ([#261](https://github.com/graphty-org/graphty-monorepo/issues/261))
+- **graphty:** stop the node note input from discarding what is typed ([#145](https://github.com/graphty-org/graphty-monorepo/issues/145), [#188](https://github.com/graphty-org/graphty-monorepo/issues/188))
+- **graphty:** stop inventing an edge type in the node panel's neighbour rows ([#382](https://github.com/graphty-org/graphty-monorepo/issues/382))
+- **graphty:** add a style layer the element accepts, and say when it refuses ([#380](https://github.com/graphty-org/graphty-monorepo/issues/380))
+- **graphty:** open settings from the gpu chip through the one overlay opener ([#184](https://github.com/graphty-org/graphty-monorepo/issues/184))
+- **graphty:** show graphty-element's group names in the result panel ([7712f1c5](https://github.com/graphty-org/graphty-monorepo/commit/7712f1c5))
+- **graphty:** load dialog reads formats from graphty-element and opens the chosen tab ([#47](https://github.com/graphty-org/graphty-monorepo/issues/47), [#200](https://github.com/graphty-org/graphty-monorepo/issues/200))
+- **graphty:** read the export format list from the element's catalogue ([50bc8209](https://github.com/graphty-org/graphty-monorepo/commit/50bc8209))
+- **graphty:** hide menu tooltips while open and drop the stale Coming tag ([f7bfe4c3](https://github.com/graphty-org/graphty-monorepo/commit/f7bfe4c3))
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 2.5.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.12 (2026-09-26)
 
 ### 🩹 Fixes

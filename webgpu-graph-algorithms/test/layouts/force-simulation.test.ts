@@ -37,6 +37,7 @@ import { type LayoutStatsBase, type ResolvedLayoutTuning } from "../../src/types
 import { type CommonLayoutOptions, type SimulationOptions } from "../../src/types/options.js";
 import { pathEdges, snapshotOf } from "../helpers/graphs.js";
 import { LeakCounter } from "../helpers/leak-counter.js";
+import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { acquire, acquireRaw, gpuScale, requireGpu } from "../setup/gpu.js";
 
 // ============================================================ the fake model
@@ -619,6 +620,11 @@ describe("ForceSimulation (fake model)", () => {
         const positions = nanPositions(20);
         s.load(g, positions);
         await s.step(1);
+        const twin = sim(ctx, new FakeModel());
+        const twinPositions = nanPositions(20);
+        twin.load(g, twinPositions);
+        await twin.step(1);
+        expectBitwiseEqual(twinPositions, positions, "positions after one step, run 1 vs run 2");
         expectRows(positions, 20, 1, 1, 1);
         expect(s.iterationsDone).toBe(1);
         expect(s.inFlight).toBe(0);

@@ -1,4 +1,3 @@
-import type { Graphty } from "../../../src/graphty-element";
 import {
     assertAlgorithmPainted,
     assertDistinctPicture,
@@ -87,8 +86,7 @@ export const ConnectedComponents: Story = {
             return;
         }
 
-        const graphtyElement = element as Graphty;
-        const { graph } = graphtyElement;
+        const { graph } = element;
 
         // Apply suggested styles from the algorithm
         const applied = graph.applySuggestedStyles("graphty:connected-components");

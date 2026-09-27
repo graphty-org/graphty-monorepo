@@ -46,7 +46,7 @@ import { pajekImporter } from "../../src/formats/pajek/index.js";
 import { type GraphImporter, type ImportInput } from "../../src/types.js";
 
 const BENCH = process.env.IO_BENCH === "1";
-const LONG = { timeout: 180_000 };
+const LONG = 180_000;
 
 const MIB = 1048576;
 const CHUNK = 64 * 1024;

@@ -235,6 +235,25 @@ export async function holds(condition: boolean, complaint: string): Promise<void
 }
 
 /**
+ * The story's `<graphty-element>`, or a failure naming the story when it rendered none.
+ * @param canvasElement - Where the story was rendered.
+ * @param complaint - What to say when there is no element.
+ * @returns The element.
+ */
+export async function renderedElement(canvasElement: HTMLElement, complaint: string): Promise<Graphty> {
+    const element = canvasElement.querySelector("graphty-element");
+
+    await holds(element !== null, complaint);
+
+    // `holds` is async, and an async function cannot be a type assertion, so it cannot narrow.
+    if (element === null) {
+        throw new Error(complaint);
+    }
+
+    return element;
+}
+
+/**
  * Cut a list of offenders down to something a person can read.
  * @param offenders - What went wrong.
  * @returns The list, with a count when it was cut.
@@ -646,7 +665,7 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
         graph,
         session,
         nodes,
-        edgeIds: [...scope.edges].map((id) => String(id)),
+        edgeIds: [...scope.edges],
         nodeCount: session.status.counts.nodes,
         edgeCount: session.status.counts.edges,
         curvedEdges: curves.length,
@@ -1093,33 +1112,38 @@ export async function assertAlgorithmPainted(
     algorithm: string,
     options: { readonly paints?: "node" | "edge" | "either"; readonly atLeast?: number } = {},
 ): Promise<void> {
-    const finished = scene.session.runs.list().filter((run) => run.status === "succeeded");
+    // The runs this address names, as the element resolves it: every suggestion is built from one
+    // finished run of the algorithm, and names that run.
+    const runIds = new Set(
+        scene.graph.getSuggestedStyles(algorithm).map(({ spec: { run } }) => {
+            if (typeof run === "string") {
+                return run;
+            }
+
+            return "runId" in run ? run.runId : run.id;
+        }),
+    );
 
     await holds(
-        finished.length > 0,
-        `${scene.story}: no run in this session succeeded, so the picture is the element's defaults. It holds ` +
-            `[${scene.session.runs
+        runIds.size > 0,
+        `${scene.story}: no run of "${algorithm}" succeeded with anything to draw, so none of the picture is ` +
+            `its. The session holds [${scene.session.runs
                 .list()
                 .map((run) => `${String(run.algorithm)}:${run.status}`)
                 .join(", ")}]`,
     );
 
-    await holds(
-        scene.graph.getSuggestedStyles(algorithm).length > 0,
-        `${scene.story}: "${algorithm}" finished and suggests nothing to draw, so applySuggestedStyles had ` +
-            "nothing to apply and the picture is the element's defaults",
-    );
-
     const fromRun = scene.session.styles
         .list()
-        .filter((layer) => (layer.source as { by?: string } | undefined)?.by === "run");
+        .filter((layer) => layer.source?.by === "run" && runIds.has(layer.source.runId));
 
     await holds(
         fromRun.length > 0,
-        `${scene.story}: "${algorithm}" succeeded and no layer in the stack is sourced from a run, so nothing ` +
-            `it computed is being drawn. The stack is [${scene.session.styles
+        `${scene.story}: "${algorithm}" succeeded and no layer in the stack is sourced from its runs ` +
+            `[${[...runIds].join(", ")}], so nothing it computed is being drawn. The stack is ` +
+            `[${scene.session.styles
                 .list()
-                .map((layer) => layer.name)
+                .map((layer) => `${layer.name} (${layer.source?.by === "run" ? layer.source.runId : "not a run"})`)
                 .join(", ")}]`,
     );
 
@@ -1145,8 +1169,9 @@ export async function assertAlgorithmPainted(
     await holds(
         counted >= atLeast,
         `${scene.story}: "${algorithm}" has a layer in the stack and it painted ${String(paintedNodes)} nodes ` +
-            `and ${String(paintedEdges)} edges, where the story says it paints at least ${String(atLeast)} ` +
-            `${paints === "either" ? "elements" : `${paints}s`}`,
+            `and ${String(paintedEdges)} edges, where the story says it paints at least ${String(atLeast)} ${
+                paints === "either" ? "elements" : `${paints}s`
+            }`,
     );
 }
 /**

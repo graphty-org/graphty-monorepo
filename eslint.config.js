@@ -22,14 +22,11 @@ export default tseslint.config(
             "**/gh-pages/**",
             "**/tmp/**",
             "**/.worktrees/**",
-            // Config files are typically JS and don't need strict type checking
-            "**/*.config.js",
-            "**/*.config.ts",
-            "**/vite.config.ts",
-            "**/vitest.config.ts",
-            "**/commitlint.config.js",
-            // Benchmark and Storybook files not included in tsconfig
-            "**/benchmarks/**",
+            // Storybook configuration directories, not yet linted. graphty and compact-mantine keep
+            // .storybook out of every tsconfig, so a type-aware pass reports "not found by the
+            // project service" on each file; the other packages have a handful of real findings
+            // (import order, a missing JSDoc, an object stringified in vitest.setup.ts). Removing
+            // this needs those two directories in a tsconfig and a pass over the findings.
             "**/.storybook/**",
             // Example files are for demonstration, not production. Anchored one level deep so
             // this means "the package's examples directory" -- algorithms/examples and
@@ -39,10 +36,6 @@ export default tseslint.config(
             // that runs in Storybook and in the storybook test project was linted by nothing.
             "*/examples/**",
             "*/examples-legacy/**",
-            // Build scripts are Node.js tools, not source code
-            "**/scripts/**",
-            // Vite plugins are build tools
-            "**/vite-plugin-*.js",
             // The webgpu-graph-algorithms browser demo belongs to no tsconfig on purpose --
             // webgpu-graph-algorithms/eslint.config.js has ignored it since it was written, with
             // the note that it is type-checked by hand with the DOM lib. A per-package run honours
@@ -53,16 +46,10 @@ export default tseslint.config(
             // VitePress cache and generated files
             "**/.vitepress/cache/**",
             "**/.vitepress/dist/**",
-            // Docs directory (VitePress content)
+            // VitePress content: Markdown and the site theme, which the docs build checks, not
+            // code a package or CI runs
             "docs/**",
             "**/docs/**",
-            // Algorithms tests have pre-existing TypeScript issues; they work with vitest
-            // but fail tsc --noEmit. Ignoring until tests can be refactored.
-            "algorithms/test/**",
-            // Layout tests are not in tsconfig and have parsing issues
-            "layout/test/**",
-            // Remote-logger tests are not in main tsconfig (see tsconfig.eslint.json)
-            "remote-logger/test/**",
         ],
     },
 
@@ -286,24 +273,7 @@ export default tseslint.config(
     // relax a rule here instead.
     {
         files: ["**/*.stories.ts", "**/*.stories.tsx", "**/stories/**/*.ts"],
-        // No type information for stories, and that is what makes linting them possible at all.
-        // The root TypeScript block above turns on `projectService`, which needs every file it
-        // lints to belong to a tsconfig. Story files belong to none -- they are excluded from the
-        // package tsconfig -- so a type-aware pass reports "was not found by the project service"
-        // on all 30 of them and nothing else. Disabling the service here trades the type-aware
-        // rules for the syntactic ones, which still catch real defects: turning this on for the
-        // first time found a nested ternary in a story.
-        //
-        // The type-aware half is not lost, merely elsewhere: `.storybook/**/*.ts` IS in the
-        // tsconfig and imports these files, so `tsc --noEmit` does typecheck them.
-        languageOptions: {
-            parserOptions: {
-                projectService: false,
-                project: false,
-            },
-        },
         rules: {
-            ...tseslint.configs.disableTypeChecked.rules,
             // A story's exported const name is a USER-FACING IDENTIFIER, not an internal one:
             // Storybook derives both the displayed story name and the story id from it, so
             // `CsvAdjacencyList` becomes the id `data--csv-adjacency-list`. Renaming an export to
@@ -320,6 +290,30 @@ export default tseslint.config(
             "jsdoc/check-tag-names": "off",
             "jsdoc/tag-lines": "off",
         },
+    },
+
+    // ============================================
+    // STORIES WITH NO TSCONFIG: SYNTACTIC RULES ONLY
+    // ============================================
+    // The root TypeScript block turns on `projectService`, which needs every file it lints to
+    // belong to a tsconfig. The stories of algorithms, layout, graphty and compact-mantine are
+    // excluded from their package tsconfigs, so a type-aware pass reports "was not found by the
+    // project service" on every one of them and nothing else. Turning the service off here keeps
+    // the syntactic rules over those files, and nothing more: they are not type-checked at all.
+    //
+    // graphty-element's stories ARE in its tsconfig, so `tsc --noEmit` type-checks them and the
+    // type-aware rules apply. graphty-element/eslint.config.js drops this block by its name.
+    // A package that adds its stories to its tsconfig should drop it the same way.
+    {
+        name: "stories/no-type-information",
+        files: ["**/*.stories.ts", "**/*.stories.tsx", "**/stories/**/*.ts"],
+        languageOptions: {
+            parserOptions: {
+                projectService: false,
+                project: false,
+            },
+        },
+        rules: tseslint.configs.disableTypeChecked.rules,
     },
 
     // ============================================
@@ -349,6 +343,81 @@ export default tseslint.config(
             ...tseslint.configs.disableTypeChecked.rules,
         },
     },
+
+    // ============================================
+    // CONFIGS, SCRIPTS AND BENCHMARKS: NODE, SYNTACTIC RULES ONLY
+    // ============================================
+    // These run in CI or decide what CI runs (a package's vitest.config.ts chooses which tests
+    // exist at all), so they are linted. They run in Node, not a browser, and most belong to no
+    // tsconfig -- a type-aware pass would report "was not found by the project service" on each
+    // one and nothing else. They get eslint:recommended and the syntactic TypeScript rules
+    // instead. The algorithms benchmarks are still type-checked, by tsc through
+    // algorithms/tsconfig.typecheck.json, which the package's lint script runs.
+    //
+    // no-console is off because printing is what a script or a benchmark is for, and the JSDoc
+    // rules are off because they exist for public API documentation and these files export
+    // nothing a consumer imports.
+    {
+        files: [
+            "**/*.config.{js,mjs,cjs,ts,mts}",
+            "**/vite-plugin-*.js",
+            "**/scripts/**/*.{js,mjs,cjs,ts}",
+            "**/benchmarks/**/*.{js,mjs,cjs,ts}",
+        ],
+        languageOptions: {
+            parserOptions: {
+                projectService: false,
+                project: false,
+            },
+            globals: {
+                ...globals.node,
+            },
+        },
+        // A .js script's JSDoc types are its type annotations (several are checked with checkJs),
+        // so they are allowed here and parsed as TypeScript types, which is what tsc reads them as.
+        settings: {
+            jsdoc: {
+                mode: "typescript",
+            },
+        },
+        rules: {
+            ...tseslint.configs.disableTypeChecked.rules,
+            "@typescript-eslint/explicit-function-return-type": "off",
+            "jsdoc/no-types": "off",
+            // The JSDoc type parser rejects `readonly T[]`, which tsc accepts and these scripts use.
+            "jsdoc/valid-types": "off",
+            // knip reads `@public <reason>` as "exported on purpose"; the reason is the point.
+            "jsdoc/empty-tags": "off",
+            "no-console": "off",
+            "jsdoc/require-jsdoc": "off",
+            "jsdoc/require-description": "off",
+            "jsdoc/require-param": "off",
+            "jsdoc/require-param-description": "off",
+            "jsdoc/require-returns": "off",
+            "jsdoc/require-returns-description": "off",
+            "jsdoc/check-param-names": "off",
+            "jsdoc/tag-lines": "off",
+        },
+    },
+
+    // ============================================
+    // TESTS OUTSIDE THE PACKAGE TSCONFIG
+    // ============================================
+    // algorithms, layout and remote-logger build with `tsc` over tsconfig.json, so their test/
+    // directories cannot join that project without being emitted into dist/. Each package has a
+    // tsconfig.eslint.json that adds test/ to src/, and these files are linted against it. The
+    // project service only discovers files through a tsconfig.json, which is why the project is
+    // named explicitly here.
+    ...["algorithms", "layout", "remote-logger"].map((pkg) => ({
+        files: [`${pkg}/test/**/*.ts`],
+        languageOptions: {
+            parserOptions: {
+                projectService: false,
+                project: `./${pkg}/tsconfig.eslint.json`,
+                tsconfigRootDir: import.meta.dirname,
+            },
+        },
+    })),
 
     // ============================================
     // RELAXED RULES FOR JAVASCRIPT FILES

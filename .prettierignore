@@ -31,3 +31,9 @@ gh-pages/
 graph-io/test/conformance/fixtures/
 graph-io/test/conformance/REPORT.md
 graph-io/test/conformance/schemas/
+
+# Generated benchmark reports
+algorithms/benchmark-results/
+
+# Deliberately malformed input for the importer tests; formatting would repair or reject it
+**/corpus/malformed/

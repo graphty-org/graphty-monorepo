@@ -1,11 +1,10 @@
 #!/usr/bin/env tsx
 
 // Node.js Sync (Synergistic Deep Graph Clustering) Performance Benchmark using Benchmark.js
-import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
-import { generateTestGraphs } from "../utils/test-data-generator";
-import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { syncClustering } from "../../src/research/sync";
 import { saveBenchmarkSession } from "../utils/benchmark-result";
+import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
+import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { formatSystemInfo, getSystemInfo } from "../utils/system-info";
 
 // Configuration for Node.js benchmarks
@@ -102,7 +101,7 @@ function generateDeepClusteringGraph(size: number) {
 
 async function runSyncBenchmark(configType: "quick" | "comprehensive") {
     console.log(`🚀 Running ${configType} Sync (Deep Graph Clustering) benchmarks in Node.js`);
-    console.log("=" + "=".repeat(60));
+    console.log(`=${  "=".repeat(60)}`);
     console.log(formatSystemInfo(getSystemInfo()));
     console.log("");
 
@@ -147,11 +146,8 @@ async function runSyncBenchmark(configType: "quick" | "comprehensive") {
                 () => {
                     const result = syncClustering(testData.graph, {
                         numClusters: Math.max(2, Math.floor(size / 20)),
-                        embeddingDim: Math.min(32, size / 2),
                         maxIterations: 50,
                         learningRate: 0.01,
-                        augmentationStrength: 0.1,
-                        temperature: 0.5,
                         seed: 42,
                     });
                     // Verify result to prevent dead code elimination
@@ -176,10 +172,10 @@ async function runSyncBenchmark(configType: "quick" | "comprehensive") {
         const session = await benchmark.run();
 
         // Display summary
-        console.log("\n" + "=".repeat(80));
+        console.log(`\n${  "=".repeat(80)}`);
         console.log("BENCHMARK RESULTS SUMMARY");
         console.log("=".repeat(80));
-        console.log("Size\tEdges\tTime(ms)\tOps/sec\tClusters\tSilhouette\tLoss\t\tMargin");
+        console.log("Size\tEdges\tTime(ms)\tOps/sec\tClusters\tIterations\tLoss\t\tMargin");
         console.log("-".repeat(80));
 
         session.results.forEach((result) => {
@@ -188,28 +184,27 @@ async function runSyncBenchmark(configType: "quick" | "comprehensive") {
             // Run once more to get clustering results
             const testData = testGraphs.get(`${result.graphType}-${result.graphSize}`);
             let numClusters = "N/A";
-            let silhouette = "N/A";
+            let iterations = "N/A";
             let finalLoss = "N/A";
 
             if (testData) {
                 try {
                     const clusterResult = syncClustering(testData.graph, {
                         numClusters: Math.max(2, Math.floor(result.graphSize / 20)),
-                        embeddingDim: Math.min(32, result.graphSize / 2),
                         maxIterations: 50,
                         learningRate: 0.01,
-                        augmentationStrength: 0.1,
-                        temperature: 0.5,
                         seed: 42,
                     });
-                    numClusters = clusterResult.numClusters.toString();
-                    silhouette = clusterResult.silhouetteScore.toFixed(3);
-                    finalLoss = clusterResult.finalLoss.toFixed(4);
-                } catch (e) {}
+                    numClusters = new Set(clusterResult.clusters.values()).size.toString();
+                    iterations = clusterResult.iterations.toString();
+                    finalLoss = clusterResult.loss.toFixed(4);
+                } catch {
+                    // The summary column stays "N/A" when the rerun fails
+                }
             }
 
             console.log(
-                `${result.graphSize}\t${result.edges}\t${result.executionTime.toFixed(2)}\t\t${result.metrics?.opsPerSecond?.toFixed(0) || "N/A"}\t${numClusters}\t\t${silhouette}\t\t${finalLoss}\t±${margin.toFixed(1)}%`,
+                `${result.graphSize}\t${result.edges}\t${result.executionTime.toFixed(2)}\t\t${result.metrics?.opsPerSecond?.toFixed(0) || "N/A"}\t${numClusters}\t\t${iterations}\t\t${finalLoss}\t±${margin.toFixed(1)}%`,
             );
         });
 

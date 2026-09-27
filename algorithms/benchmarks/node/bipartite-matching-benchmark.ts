@@ -1,11 +1,10 @@
 #!/usr/bin/env tsx
 
 // Node.js Bipartite Matching Performance Benchmark using Benchmark.js
-import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
-import { generateTestGraphs } from "../utils/test-data-generator";
-import { convertToLibraryGraph } from "../utils/graph-adapter";
-import { maximumBipartiteMatching, bipartitePartition } from "../../src/algorithms/matching/bipartite";
+import { bipartitePartition,maximumBipartiteMatching } from "../../src/algorithms/matching/bipartite";
 import { saveBenchmarkSession } from "../utils/benchmark-result";
+import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
+import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { formatSystemInfo, getSystemInfo } from "../utils/system-info";
 
 // Configuration for Node.js benchmarks
@@ -68,7 +67,7 @@ function generateBipartiteGraph(size: number) {
 
 async function runBipartiteMatchingBenchmark(configType: "quick" | "comprehensive") {
     console.log(`🚀 Running ${configType} Bipartite Matching benchmarks in Node.js`);
-    console.log("=" + "=".repeat(50));
+    console.log(`=${  "=".repeat(50)}`);
     console.log(formatSystemInfo(getSystemInfo()));
     console.log("");
 
@@ -145,7 +144,7 @@ async function runBipartiteMatchingBenchmark(configType: "quick" | "comprehensiv
         const session = await benchmark.run();
 
         // Display summary
-        console.log("\n" + "=".repeat(70));
+        console.log(`\n${  "=".repeat(70)}`);
         console.log("BENCHMARK RESULTS SUMMARY");
         console.log("=".repeat(70));
         console.log("Size\tEdges\tTime(ms)\tOps/sec\tMatching Size\tMargin");
@@ -165,7 +164,9 @@ async function runBipartiteMatchingBenchmark(configType: "quick" | "comprehensiv
                         rightNodes: testData.rightPartition,
                     });
                     matchingSize = matching.size.toString();
-                } catch (e) {}
+                } catch {
+                    // The summary column stays "N/A" when the rerun fails
+                }
             }
 
             console.log(

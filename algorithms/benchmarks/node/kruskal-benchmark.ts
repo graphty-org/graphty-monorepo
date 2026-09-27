@@ -1,12 +1,12 @@
 #!/usr/bin/env tsx
 
 // Node.js Kruskal's MST Performance Benchmark using Benchmark.js
-import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
-import { generateTestGraphs } from "../utils/test-data-generator";
-import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { kruskalMST } from "../../src/algorithms/mst/kruskal";
 import { saveBenchmarkSession } from "../utils/benchmark-result";
+import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
+import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { formatSystemInfo, getSystemInfo } from "../utils/system-info";
+import { generateTestGraphs } from "../utils/test-data-generator";
 
 // Configuration for Node.js benchmarks
 // Kruskal's is O(E log E) or O(E log V)
@@ -27,7 +27,7 @@ const configs = {
 
 async function runKruskalBenchmark(configType: "quick" | "comprehensive") {
     console.log(`🚀 Running ${configType} Kruskal's MST benchmarks in Node.js`);
-    console.log("=" + "=".repeat(50));
+    console.log(`=${  "=".repeat(50)}`);
     console.log(formatSystemInfo(getSystemInfo()));
     console.log("");
 
@@ -153,7 +153,7 @@ async function runKruskalBenchmark(configType: "quick" | "comprehensive") {
         const session = await benchmark.run();
 
         // Display summary
-        console.log("\n" + "=".repeat(70));
+        console.log(`\n${  "=".repeat(70)}`);
         console.log("BENCHMARK RESULTS SUMMARY");
         console.log("=".repeat(70));
         console.log("Size\tType\tTime(ms)\tOps/sec\tEdges\tMST Weight\tMargin");
@@ -169,7 +169,9 @@ async function runKruskalBenchmark(configType: "quick" | "comprehensive") {
                 try {
                     const mst = kruskalMST(testData.graph);
                     mstWeight = mst.totalWeight.toFixed(0);
-                } catch (e) {}
+                } catch {
+                    // The summary column stays "N/A" when the rerun fails
+                }
             }
 
             console.log(

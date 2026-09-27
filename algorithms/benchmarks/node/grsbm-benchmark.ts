@@ -1,11 +1,10 @@
 #!/usr/bin/env tsx
 
 // Node.js GRSBM (Greedy Recursive Spectral Bisection) Performance Benchmark using Benchmark.js
-import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
-import { generateTestGraphs } from "../utils/test-data-generator";
-import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { grsbm } from "../../src/research/grsbm";
 import { saveBenchmarkSession } from "../utils/benchmark-result";
+import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
+import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { formatSystemInfo, getSystemInfo } from "../utils/system-info";
 
 // Configuration for Node.js benchmarks
@@ -90,7 +89,7 @@ function generateCommunityGraph(size: number) {
 
 async function runGRSBMBenchmark(configType: "quick" | "comprehensive") {
     console.log(`🚀 Running ${configType} GRSBM benchmarks in Node.js`);
-    console.log("=" + "=".repeat(50));
+    console.log(`=${  "=".repeat(50)}`);
     console.log(formatSystemInfo(getSystemInfo()));
     console.log("");
 
@@ -162,7 +161,7 @@ async function runGRSBMBenchmark(configType: "quick" | "comprehensive") {
         const session = await benchmark.run();
 
         // Display summary
-        console.log("\n" + "=".repeat(70));
+        console.log(`\n${  "=".repeat(70)}`);
         console.log("BENCHMARK RESULTS SUMMARY");
         console.log("=".repeat(70));
         console.log("Size\tEdges\tTime(ms)\tOps/sec\tClusters\tModularity\tMargin");
@@ -186,8 +185,10 @@ async function runGRSBMBenchmark(configType: "quick" | "comprehensive") {
                         maxIterations: 100,
                     });
                     numClusters = clusterResult.numClusters.toString();
-                    modularity = clusterResult.totalModularity.toFixed(3);
-                } catch (e) {}
+                    modularity = (clusterResult.modularityScores.at(-1) ?? 0).toFixed(3);
+                } catch {
+                    // The summary column stays "N/A" when the rerun fails
+                }
             }
 
             console.log(

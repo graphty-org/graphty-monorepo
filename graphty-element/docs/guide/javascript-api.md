@@ -136,15 +136,22 @@ const nodeCount = graph.getNodeCount();
 const edgeCount = graph.getEdgeCount();
 ```
 
-Edge records are read through the session, by the edge's own id. Ask for the ids first:
+**Listing every node and edge record** -- for a data table, an inspector list or an export --
+goes through the session in two steps: resolve the `"graph"` scope for the ids, then read each
+record by id. Listing is asynchronous because it walks the whole graph; each read is a lookup.
 
 ```typescript
 const session = element.session;
+const { nodes, edges } = await session.scope.resolve("graph");
 
-for (const id of (await session.scope.resolve("graph")).edges) {
-    const record = session.data.edge(id); // { id, source, target, ...the file's own keys }
-}
+const nodeRecords = [...nodes].map((id) => session.data.node(id)); // { id, ...the file's own keys }
+const edgeRecords = [...edges].map((id) => session.data.edge(id)); // { id, source, target, ...the file's own keys }
 ```
+
+A record always carries the id the element stores it under, written after the file's own keys: an
+edge whose file row has its own `id` column still reports the element's edge id, and its `source`
+and `target` are always the element's node ids. Resolve `"visible"` instead of `"graph"` to list
+only what a filter left showing.
 
 "The edge between two nodes" is plural, because a graph may hold more than one:
 

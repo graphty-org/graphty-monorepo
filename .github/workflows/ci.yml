@@ -4,12 +4,19 @@ on:
     push:
         branches: [master]
     pull_request:
+        # "labeled" re-runs CI when a label is added. (Chromatic, which used a label, is switched off.)
+        types: [opened, synchronize, reopened, labeled]
     # Manual trigger. GitHub twice declined to queue a run for a push to master
     # (4ca5f8a and 756117b both reached the remote with zero runs created for
     # their SHA, while every workflow showed state=active). Without a dispatch
     # trigger the only way to recover is an empty commit, which puts noise in
     # the history to work around a scheduling hiccup.
     workflow_dispatch:
+        inputs:
+            chromatic:
+                description: "Publish Chromatic builds for the affected projects (billed per snapshot)"
+                type: boolean
+                default: false
 
 # Note: We use local Nx caching only (no Nx Cloud)
 # Cache is stored in .nx/cache and persisted via actions/cache
@@ -142,6 +149,21 @@ jobs:
             - name: Published dependencies
               run: pnpm run check:published-deps
 
+            # The same three checks run in tools/prepush.sh. The first two read no build output; the
+            # bundle size check measures graphty-element's dist/ against graphty-element/size-budgets.json.
+            - name: ESLint root config
+              run: pnpm run lint:eslint-root
+
+            - name: Formatting (changed files)
+              if: github.event_name == 'pull_request'
+              run: pnpm run format:check:changed origin/${{ github.base_ref }}
+
+            - name: Bundle size (graphty-element)
+              run: pnpm run check:bundle-size
+
+            - name: Declared build tools
+              run: pnpm run check:declared-tools
+
             - name: Build Storybook (graphty-element)
               run: pnpm exec nx run graphty-element:build-storybook
 
@@ -169,6 +191,26 @@ jobs:
 
             - name: Build layout gh-pages
               run: pnpm exec nx run layout:build:gh-pages
+
+            # Every package's dist in one artifact, so a test shard fetches them in one request.
+            # The per-package artifacts below stay: release.yml, deploy-pages.yml and the
+            # performance job download them by name.
+            - name: Upload all package builds
+              uses: actions/upload-artifact@v4
+              with:
+                  name: build-packages
+                  path: |
+                      graph-format/dist/
+                      graph-io/dist/
+                      webgpu-graph-algorithms/dist/
+                      graph-samples/dist/
+                      algorithms/dist/
+                      layout/dist/
+                      graphty/dist/
+                      graphty-element/dist/
+                      remote-logger/dist/
+                      compact-mantine/dist/
+                  retention-days: 1
 
             - name: Upload graph-format build
               uses: actions/upload-artifact@v4
@@ -331,65 +373,24 @@ jobs:
               env:
                   HUSKY: "0"
 
-            - name: Download graph-format build
+            # One download instead of one per package: about twenty shards starting at once, each
+            # making ten requests, drew 403 errors from the artifact service (#252). The archive
+            # keeps each package's path, so it unpacks into place at the repository root. A failed
+            # download is tried once more.
+            - name: Download all package builds
+              id: download-packages
+              continue-on-error: true
               uses: actions/download-artifact@v4
               with:
-                  name: build-graph-format
-                  path: graph-format/dist/
+                  name: build-packages
+                  path: .
 
-            - name: Download graph-io build
+            - name: Download all package builds (retry)
+              if: steps.download-packages.outcome == 'failure'
               uses: actions/download-artifact@v4
               with:
-                  name: build-graph-io
-                  path: graph-io/dist/
-
-            - name: Download webgpu-graph-algorithms build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-webgpu-graph-algorithms
-                  path: webgpu-graph-algorithms/dist/
-
-            - name: Download graph-samples build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-graph-samples
-                  path: graph-samples/dist/
-
-            - name: Download algorithms build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-algorithms
-                  path: algorithms/dist/
-
-            - name: Download layout build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-layout
-                  path: layout/dist/
-
-            - name: Download graphty build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-graphty
-                  path: graphty/dist/
-
-            - name: Download graphty-element build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-graphty-element
-                  path: graphty-element/dist/
-
-            - name: Download remote-logger build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-remote-logger
-                  path: remote-logger/dist/
-
-            - name: Download compact-mantine build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-compact-mantine
-                  path: compact-mantine/dist/
+                  name: build-packages
+                  path: .
 
             - name: Cache Playwright browsers
               if: matrix.needs-browser
@@ -431,6 +432,26 @@ jobs:
                       echo "GRAPHTY_GPU_REQUIRE=any"
                       echo "XDG_RUNTIME_DIR=/tmp"
                   } >> "$GITHUB_ENV"
+
+            # A forked vitest worker that crashes must not spend minutes writing a multi-gigabyte core dump.
+            # scripts/run-node-shard.js runs vitest under `ulimit -c 0`, but the runner's default core_pattern
+            # pipes cores to a program, and the kernel ignores RLIMIT_CORE for a piped pattern (core(5)). A plain
+            # file pattern makes the limit bind. Issue #273.
+            - name: Write core dumps to a file so the shard's ulimit -c 0 holds
+              if: matrix.shard == 'webgpu-graph-algorithms-node'
+              run: echo "core_pattern was $(cat /proc/sys/kernel/core_pattern)" && sudo sysctl -w kernel.core_pattern=core
+
+            - name: SCRATCH verify a crash writes no core dump
+              if: matrix.shard == 'webgpu-graph-algorithms-node'
+              working-directory: ${{ runner.temp }}
+              run: |
+                  crash() { sh -c "ulimit -c $1; exec node -e 'process.kill(process.pid, \"SIGSEGV\")'" && rc=0 || rc=$?; }
+                  crash unlimited; echo "control, ulimit unlimited: exit=$rc"; ls -la core* || true
+                  test -n "$(ls core* 2>/dev/null)" || { echo "::error::control wrote no core file; the pattern did not take"; exit 1; }
+                  rm -f core*
+                  start=$(date +%s); crash 0; end=$(date +%s)
+                  echo "ulimit 0: exit=$rc in $((end - start)) s"; ls -la core* || true
+                  test "$rc" = 139 && test -z "$(ls core* 2>/dev/null)"
 
             - name: Run tests
               run: ${{ matrix.test-command }}
@@ -487,13 +508,20 @@ jobs:
                   overwrite: true
 
     # Chromatic visual regression testing (graphty-element)
-    # Every Chromatic job runs on a pull request only when its package is affected, which includes a change
-    # to anything the package depends on (nx affected adds dependents). Its Storybook is built in every run
-    # regardless, because the Links job checks the assembled site. On master every Chromatic job runs.
+    # ALL CHROMATIC JOBS ARE SWITCHED OFF (they need the repository variable CHROMATIC_ENABLED) until the self-hosted visual review replaces them:
+    # Chromatic's paid plans have no hard spending cap. Turning one back on is an owner decision.
+    # Chromatic bills every snapshot, and running it on every push cost thousands of dollars a month
+    # (September 2026: 481,000 snapshots). So it is opt-in: a Chromatic job runs only on a pull request
+    # that carries the "chromatic" label (and only when its package is affected, which includes a change
+    # to anything it depends on), or on a manual dispatch with the chromatic input set. It never runs on
+    # a push to master. Its Storybook is built in every run regardless, because the Links job checks the
+    # assembled site.
     chromatic-element:
         name: Chromatic (graphty-element)
         needs: build
-        if: github.event_name != 'pull_request' || contains(fromJSON(needs.build.outputs.affected), 'graphty-element')
+        # Switched off: Chromatic has no spending cap and is being replaced (design/visual-testing/).
+        # The variable is unset on purpose; setting it is an owner decision.
+        if: vars.CHROMATIC_ENABLED == 'owner-approved'
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
@@ -532,7 +560,9 @@ jobs:
     chromatic-app:
         name: Chromatic (graphty)
         needs: build
-        if: github.event_name != 'pull_request' || contains(fromJSON(needs.build.outputs.affected), 'graphty')
+        # Switched off: Chromatic has no spending cap and is being replaced (design/visual-testing/).
+        # The variable is unset on purpose; setting it is an owner decision.
+        if: vars.CHROMATIC_ENABLED == 'owner-approved'
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
@@ -571,7 +601,9 @@ jobs:
     chromatic-compact-mantine:
         name: Chromatic (compact-mantine)
         needs: build
-        if: github.event_name != 'pull_request' || contains(fromJSON(needs.build.outputs.affected), 'compact-mantine')
+        # Switched off: Chromatic has no spending cap and is being replaced (design/visual-testing/).
+        # The variable is unset on purpose; setting it is an owner decision.
+        if: vars.CHROMATIC_ENABLED == 'owner-approved'
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
@@ -610,7 +642,9 @@ jobs:
     chromatic-algorithms:
         name: Chromatic (algorithms)
         needs: build
-        if: github.event_name != 'pull_request' || contains(fromJSON(needs.build.outputs.affected), 'algorithms')
+        # Switched off: Chromatic has no spending cap and is being replaced (design/visual-testing/).
+        # The variable is unset on purpose; setting it is an owner decision.
+        if: vars.CHROMATIC_ENABLED == 'owner-approved'
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
@@ -649,7 +683,9 @@ jobs:
     chromatic-layout:
         name: Chromatic (layout)
         needs: build
-        if: github.event_name != 'pull_request' || contains(fromJSON(needs.build.outputs.affected), 'layout')
+        # Switched off: Chromatic has no spending cap and is being replaced (design/visual-testing/).
+        # The variable is unset on purpose; setting it is an owner decision.
+        if: vars.CHROMATIC_ENABLED == 'owner-approved'
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
@@ -812,6 +848,55 @@ jobs:
                   retention-days: 90
                   if-no-files-found: ignore
 
+    # graphty-element's cost estimates held against a stopwatch (issue #236). The test times real
+    # algorithm runs and scales the estimate by the element's own calibration probe, so it reads the
+    # same on this runner as on a workstation. It is a measurement, not a gate: master and dispatch
+    # only, and not in "All Checks Pass", so a drift shows as a red job on master and never blocks a
+    # pull request. Each failure names the row, the graph, n, m, both times and the ratio; every
+    # row's ratio also lands in the job summary.
+    cost-accuracy:
+        name: Cost Estimate Accuracy
+        needs: build
+        if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: pnpm/action-setup@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            - name: Download all package builds
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-packages
+                  path: .
+
+            - name: Time the estimates against real runs
+              working-directory: graphty-element
+              run: |
+                  set -o pipefail
+                  COST_GUARD_VERBOSE=1 npm run test:cost 2>&1 | tee "$RUNNER_TEMP/cost.log"
+
+            - name: Write the ratios to the job summary
+              if: ${{ !cancelled() }}
+              run: |
+                  {
+                      echo "### Cost estimate / measured run (bounds 0.95 to 4)"
+                      echo '```'
+                      grep -E "ratio [0-9.]+, machine speed" "$RUNNER_TEMP/cost.log" || echo "no rows ran"
+                      echo '```'
+                  } >> "$GITHUB_STEP_SUMMARY"
+
     # Gate job - ensures all required checks pass before release/deploy. It is the required status check,
     # so it runs even when a job it needs failed (if: always()) and decides for itself.
     # On a pull request a job this run chose not to start (a test job or Chromatic job for an unaffected
@@ -821,7 +906,17 @@ jobs:
     # there, so a skip means the plan went wrong and must not pass silently.
     all-checks:
         name: All Checks Pass
-        needs: [build, test, links, chromatic-element, chromatic-app, chromatic-compact-mantine, chromatic-algorithms, chromatic-layout]
+        needs:
+            [
+                build,
+                test,
+                links,
+                chromatic-element,
+                chromatic-app,
+                chromatic-compact-mantine,
+                chromatic-algorithms,
+                chromatic-layout,
+            ]
         if: always()
         runs-on: ubuntu-latest
         steps:
@@ -833,8 +928,9 @@ jobs:
                   ok='["success"]'
                   [[ "$EVENT" == "pull_request" ]] && ok='["success","skipped"]'
                   jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$NEEDS"
+                  # Chromatic jobs are opt-in (see chromatic-element), so a skipped one passes on every event.
                   bad=$(jq -r --argjson ok "$ok" \
-                      'to_entries[] | select(.value.result as $r | ($ok | index($r)) == null or (.key == "build" and $r != "success")) | .key' \
+                      'to_entries[] | select(.value.result as $r | (($ok | index($r)) == null and ((.key | startswith("chromatic-")) and $r == "skipped" | not)) or (.key == "build" and $r != "success")) | .key' \
                       <<<"$NEEDS")
                   if [[ -n "$bad" ]]; then
                       echo "::error::jobs that did not pass: $(echo $bad)"

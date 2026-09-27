@@ -1571,7 +1571,8 @@ not convey:
   at freeze per `selfLoops`).
 - `removeNode(id)` tombstones the node and every live incident edge (both
   lists) and returns the removed edge indices as a `Uint32Array`;
-  `removeEdge(e)` is O(1). Both bump `mutationCount`; column writes do not.
+  `removeEdge(e)` is O(1). Both bump `mutationCount`, as does every other
+  change the next freeze would show (cell and column writes included).
 - `outEdgesOf(index)`, `inEdgesOf(index)` and `findEdges(u, v)` walk the
   builder's incidence lists (O(degree), fresh `Uint32Array` of live edge
   indices) so an owner can answer "which edges touch this node" and "is
@@ -3348,8 +3349,8 @@ export declare class GraphBuilder implements GraphSink {
     get edgeCount(): number;            // live edges (exact; incidence lists)
     get nodeBound(): number;            // next node index to be assigned
     get edgeBound(): number;
-    get mutationCount(): number;        // increments on every topology or weight mutation; column writes and freeze() do not count
-    get dirty(): boolean;               // mutated since the last freeze()
+    get mutationCount(): number;        // increments on every change that makes the next freeze() differ (topology, weights, cells, columns, graph values, meta, extension tables, merges); freeze() does not count
+    get dirty(): boolean;               // changed since the last freeze()
     setDirected(directed: boolean, options?: SetDirectedOptions): void;
     lockDirected(): void;
     // nodes
@@ -4139,6 +4140,11 @@ Ownership rules that the sketch below implements:
   which no `WeakMap` can do for it; caches drop their entries; the
   element calls `previous.dropCaches()`), so an interactive session holds
   at most one superseded snapshot (section 15.2 costs it).
+- The cache is keyed on `builder.mutationCount` alone. It advances on
+  every change that makes the next `freeze()` differ -- topology, weights,
+  cell and column writes, declarations, graph values, meta, extension
+  tables, `addNodeRecord` merges and `addGraph` -- and never on `freeze()`
+  itself, so no write path needs a revision counter of its own.
 
 ```typescript
 class DataManager {

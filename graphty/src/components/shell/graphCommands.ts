@@ -73,7 +73,7 @@ function invoke(graph: ShellGraph | null, name: string, ...args: readonly unknow
         return undefined;
     }
 
-    const member = graph[name];
+    const member: unknown = Reflect.get(graph, name);
 
     if (typeof member !== "function") {
         console.warn(`[shell] this graph publishes no ${name}()`);

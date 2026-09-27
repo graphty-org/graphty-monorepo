@@ -13,6 +13,7 @@ import type {
     EventCallbackType,
     EventType,
     GraphDataAddedEvent,
+    GraphDataClearedEvent,
     GraphDataLoadedEvent,
     GraphErrorEvent,
     GraphEvent,
@@ -253,6 +254,14 @@ export class EventManager implements Manager {
     }
 
     /**
+     * Emits the public announcement that the graph's data was cleared.
+     */
+    emitDataCleared(): void {
+        const event: GraphDataClearedEvent = { type: "data-cleared" };
+        this.graphObservable.notifyObservers(event);
+    }
+
+    /**
      * Emits a layout initialized event when a layout is ready
      * @param layoutType - Type of layout that was initialized
      * @param shouldZoomToFit - Whether to zoom to fit after initialization
@@ -478,6 +487,7 @@ export class EventManager implements Manager {
             case "error":
             case "data-loaded":
             case "data-added":
+            case "data-cleared":
             case "snapshot-replaced":
             case "layout-initialized":
             case "skybox-loaded":

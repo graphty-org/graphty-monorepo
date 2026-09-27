@@ -15,6 +15,14 @@ ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 
 cd "$ROOT_DIR"
 
+# node_modules must match the lockfile, or everything below runs against dependency versions CI
+# (pnpm install --frozen-lockfile) does not have. pnpm copies the lockfile it installed from to
+# node_modules/.pnpm/lock.yaml, byte for byte.
+if ! cmp -s pnpm-lock.yaml node_modules/.pnpm/lock.yaml; then
+    echo "node_modules is out of date with pnpm-lock.yaml; run pnpm install" >&2
+    exit 1
+fi
+
 echo "========================================"
 echo "Pre-push validation"
 echo "========================================"
@@ -52,6 +60,11 @@ run_step() {
     fi
 }
 
+# No checked-in commit tooling may turn GPG signing off. This runs on every push, whatever it
+# touches. The [s] and [-] keep the patterns from matching this line itself.
+run_step "No signing bypass in tools/ and .husky/" \
+    "! git grep -niE -e 'no-gpg[-]sign' -e 'gpg[s]ign *[= ] *false' -- tools/ .husky/"
+
 # The affected projects, as nx names them. The base is where this branch left origin/master,
 # so commits other people landed on master since then do not count as this push's changes.
 if [ "${PREPUSH_ALL:-0}" = "1" ]; then
@@ -66,8 +79,8 @@ affected() { echo ",$PROJECT_LIST," | grep -q ",$1,"; }
 DIR_LIST=$(echo "$PROJECT_LIST" | tr ',' ' ' | sed 's#@graphty/##g')
 
 if [ -z "$PROJECT_LIST" ]; then
-    echo -e "${GREEN}No package is affected by this push; nothing to check.${NC}"
-    exit 0
+    echo -e "${GREEN}No package is affected by this push; no package to check.${NC}"
+    exit "$FAILED"
 fi
 echo "Affected packages: $PROJECT_LIST"
 echo ""
@@ -111,6 +124,25 @@ run_step "Knip (production dependencies)" "pnpm run lint:knip:prod"
 # WebGPU peer fell four breaking releases behind. Needs the build above. About 3 seconds (2026-09-24).
 run_step "Published dependencies" "pnpm run check:published-deps -- $DIR_LIST"
 
+# Every package that has its own eslint.config.js is linted with that file alone, so it must spread
+# the root config; a stale copy silently drops every rule the root gained since. Run for every push,
+# not per affected package: the check is about the configs, and it takes about a second.
+run_step "ESLint root config" "pnpm run lint:eslint-root"
+
+# Prettier on the files this branch adds or modifies. The tree is not formatted as a whole yet
+# (issue #239), so this stops new drift without asking a branch to reformat what it never touched.
+run_step "Formatting (changed files)" "pnpm run format:check:changed"
+
+# The gzip budget of each graphty-element entry point (graphty-element/size-budgets.json), counted
+# over the entry file and every chunk it statically imports. Needs the build above.
+if affected graphty-element; then
+    run_step "Bundle size (graphty-element)" "pnpm run check:bundle-size"
+fi
+
+# Every tool a package's scripts run or its *.config.* files import is declared by that package,
+# not only by the root, where hoisting hides the gap until the package builds somewhere else.
+run_step "Declared build tools" "pnpm run check:declared-tools"
+
 # Dead relative links and #anchors in the Markdown, MDX and HTML, and links to this repository's own
 # files on GitHub, resolved against the working tree. Offline: the network half of the check
 # (github.com/graphty-org, and graphty.app against the assembled site) runs in CI's "Links" job,
@@ -140,9 +172,15 @@ affected graph-samples && { (cd graph-samples && npm run test:run) || { FAILED=1
 # webgpu-graph-algorithms - the node project only (design 12.5): Dawn on the local adapter -- NVIDIA when
 # LD_LIBRARY_PATH carries the libEGL tree (package CLAUDE.md), else Mesa lavapipe (about 5 minutes); the
 # browser project and the no-subgroups pass run in CI. GRAPHTY_GPU_REQUIRE=any: a machine with no adapter
-# fails up front instead of skipping every GPU test and reporting a vacuous pass
+# fails up front instead of skipping every GPU test and reporting a vacuous pass. The libEGL tree comes from
+# GRAPHTY_EGL_LIB_DIR (the variable the browser project already reads), else the main checkout's gitignored
+# tmp/egl/ (found through the git common dir, so a push from a worktree finds it too); it is prepended to
+# LD_LIBRARY_PATH for this one command. The test setup prints the adapter that ran.
 echo "  Testing webgpu-graph-algorithms..."
-affected webgpu-graph-algorithms && { (cd webgpu-graph-algorithms && GRAPHTY_GPU_REQUIRE=any npm run test:run) || { FAILED=1; TESTS_FAILED=1; }; }
+EGL_LIB_DIR="${GRAPHTY_EGL_LIB_DIR:-$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/tmp/egl/root/usr/lib/x86_64-linux-gnu}"
+WEBGPU_LD_PATH="$LD_LIBRARY_PATH"
+[ -d "$EGL_LIB_DIR" ] && WEBGPU_LD_PATH="$EGL_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+affected webgpu-graph-algorithms && { (cd webgpu-graph-algorithms && LD_LIBRARY_PATH="$WEBGPU_LD_PATH" GRAPHTY_GPU_REQUIRE=any npm run test:run) || { FAILED=1; TESTS_FAILED=1; }; }
 
 # algorithms - has test:run that runs --project=default
 echo "  Testing algorithms..."
@@ -186,12 +224,12 @@ affected layout && { (cd layout && npm run test:run) || { FAILED=1; TESTS_FAILED
 echo "  Testing graphty-element (default + mesh + contract + xr)..."
 affected graphty-element && { (cd graphty-element && npm run test:prepush) || { FAILED=1; TESTS_FAILED=1; }; }
 
-# The cost-estimate stopwatch test is NOT part of this gate: run it by hand on a quiet machine with
-# `pnpm --filter @graphty/graphty-element run test:cost`. Its rates were fitted on this reference
-# machine, and even timed on running time and pinned to the P-cores it cannot be made immune to a
-# busy hyperthread sibling -- memory-bound rows such as degree run 2-2.7x slower while the
-# calibration probe slows 1.5x -- and a gate cannot promise an idle machine
-# (see test/session/cost/estimate-against-measured-runs.test.ts).
+# The cost-estimate stopwatch test is NOT part of this gate. It runs in CI's "Cost Estimate Accuracy"
+# job on every push to master (and by hand with `pnpm --filter @graphty/graphty-element run test:cost`),
+# where a drift turns that job red without blocking anyone. It stays out of here because a gate cannot
+# promise an idle machine: even timed on running time and pinned to the P-cores it cannot be made immune
+# to a busy hyperthread sibling -- memory-bound rows such as degree run 2-2.7x slower while the
+# calibration probe slows 1.5x (see test/session/cost/estimate-against-measured-runs.test.ts).
 
 # graphty is NOT run here -- it has no 'default' project to run. Its whole suite is
 # playwright-backed, so it gets its own step (and its own flag) after this block.
@@ -214,8 +252,8 @@ echo ""
 # graphty -- the FULL app shell suite, browser (playwright/chromium) and all.
 #
 # This is a separate step rather than a line in the "Fast tests" block above because it
-# is not a 'default'-project run: graphty/vitest.config.ts sets browser.enabled and
-# defines no non-browser project, so `npm run test:run` here IS the browser suite.
+# is not a 'default'-project run: graphty/vitest.config.ts runs the app's tests in a browser
+# project, plus a small node project for its lint rules, and `npm run test:run` runs both.
 #
 # Running all of it is a measured choice, not an assumption. Wall clock for the whole
 # suite -- 1762 tests across 109 files -- is ~14s, and ~14s again with node_modules/.vite

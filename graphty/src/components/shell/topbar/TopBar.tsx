@@ -233,7 +233,12 @@ export function TopBar(props: TopBarOwnProps): React.JSX.Element {
                     position="bottom-end"
                     withinPortal
                 >
-                    <Tooltip label={exportTitle(dataLoaded)} openDelay={TOOLTIP_DELAY_MS} withinPortal>
+                    <Tooltip
+                        disabled={exportOpen && dataLoaded}
+                        label={exportTitle(dataLoaded)}
+                        openDelay={TOOLTIP_DELAY_MS}
+                        withinPortal
+                    >
                         <Menu.Target>
                             <Button
                                 type="button"

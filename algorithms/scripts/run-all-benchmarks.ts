@@ -1,8 +1,6 @@
 #!/usr/bin/env tsx
 
 import { execSync } from "child_process";
-import { readFileSync } from "fs";
-import { join } from "path";
 
 // List of all working benchmarks in order
 const benchmarks = [
@@ -28,7 +26,7 @@ const benchmarks = [
 async function runBenchmarks(isQuick: boolean) {
     const mode = isQuick ? "quick" : "comprehensive";
     console.log(`🚀 Running ${mode} benchmarks for all algorithms...`);
-    console.log("=" + "=".repeat(60));
+    console.log(`=${  "=".repeat(60)}`);
 
     const results = {
         successful: [] as string[],
@@ -47,14 +45,14 @@ async function runBenchmarks(isQuick: boolean) {
             });
             results.successful.push(benchmark);
             console.log(`✅ ${benchmark} completed successfully`);
-        } catch (error) {
+        } catch {
             results.failed.push(benchmark);
             console.error(`❌ ${benchmark} failed`);
         }
     }
 
     // Summary
-    console.log("\n" + "=".repeat(60));
+    console.log(`\n${  "=".repeat(60)}`);
     console.log("📊 BENCHMARK SUMMARY");
     console.log("=".repeat(60));
     console.log(`Total algorithms: ${benchmarks.length}`);
@@ -71,7 +69,7 @@ async function runBenchmarks(isQuick: boolean) {
     try {
         execSync("npm run benchmark:report", { stdio: "inherit" });
         console.log("✅ Report generated successfully");
-    } catch (error) {
+    } catch {
         console.error("❌ Failed to generate report");
     }
 

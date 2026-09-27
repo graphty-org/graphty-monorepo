@@ -470,6 +470,8 @@ export class LayoutManager implements Manager {
         const observer = this.eventManager.onGraphEvent.add((event) => {
             if (event.type === "snapshot-replaced") {
                 this.onSnapshotReplaced(event);
+            } else if (event.type === "data-cleared") {
+                this.reset();
             }
         });
         this.unsubscribeSnapshot = (): void => {
@@ -552,6 +554,22 @@ export class LayoutManager implements Manager {
             this.running = false;
             this.reportSimulationFailure(error);
         }
+    }
+
+    /**
+     * Forget the cleared graph: stop the engine and build a fresh one of the same type with the
+     * consumer's own options, so the next load lays out from scratch instead of inheriting the old
+     * engine's bodies and its settled state. A failure is already reported on the error channel
+     * by `_setLayoutInternal`, which also leaves the old engine in place.
+     */
+    private reset(): void {
+        const engine = this.layoutEngine;
+        if (!engine) {
+            return;
+        }
+
+        this.running = false;
+        this._setLayoutInternal(engine.type, this.currentLayoutOptions ?? {}).catch(() => undefined);
     }
 
     /**
@@ -730,6 +748,15 @@ export class LayoutManager implements Manager {
             this.layoutEngine = engine;
             this.engineDimension = dimension;
             await engine.init();
+
+            // WHAT ARRIVED WHILE `init()` WAS AWAITED went to the previous engine, which the
+            // DataManager still holds until the swap below. A load that replaces the dataset
+            // clears (which rebuilds the layout) and adds its records in the same turn, so without
+            // this the new engine would start empty and lay out nothing.
+            const known = new Set(nodeArray);
+            const knownEdges = new Set(edgeArray);
+            engine.addNodes([...this.dataManager.nodes.values()].filter((n) => !known.has(n)));
+            engine.addEdges([...this.dataManager.edges.values()].filter((e) => !knownEdges.has(e)));
 
             // AFTER init(), and before any step runs. See `replayPins`.
             this.replayPins(engine, nodeArray);

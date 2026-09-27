@@ -9,7 +9,7 @@ import {
     type RunsApiOptions,
     type SessionRunsApi,
 } from "../../../src/session/runs";
-import { CAVEATS, descriptor, ENGINE, FakeGraph, FakeQueue, settle, spyExecutor, stubResult } from "./harness";
+import { CAVEATS, descriptor, ENGINE, FakeGraph, FakeQueue, spyExecutor, stubResult } from "./harness";
 
 const DEGREE = descriptor({
     options: [{ name: "weighted", plainName: "Weighted", type: "boolean", default: false }],
@@ -50,19 +50,55 @@ function harness(
     return { runs, queue, graph, calls: () => spy.calls.length };
 }
 
-function slowExecutor(ms: number): RunExecutor {
-    return async (context) => {
-        const start = Date.now();
+interface HeldExecutor {
+    execute: RunExecutor;
+    /** Resolves once the given number of runs have started. */
+    started: (count: number) => Promise<void>;
+    /** Lets the run that started at this position finish with a result. */
+    release: (index: number) => void;
+}
 
-        while (Date.now() - start < ms) {
+/**
+ * An executor that stays busy until the test releases it, or until its run
+ * is cancelled. Nothing here reads the clock, so what a test observes does
+ * not depend on timer granularity or scheduling.
+ */
+function heldExecutor(): HeldExecutor {
+    const releases: (() => void)[] = [];
+    const waiters: { count: number; resolve: () => void }[] = [];
+
+    const execute: RunExecutor = (context) =>
+        new Promise((resolve, reject) => {
+            const abort = (): void => {
+                reject(new DOMException("stopped", "AbortError"));
+            };
+
             if (context.signal.aborted) {
-                throw new DOMException("stopped", "AbortError");
+                abort();
+                return;
             }
 
-            await settle(1);
-        }
+            context.signal.addEventListener("abort", abort, { once: true });
+            releases.push(() => {
+                context.signal.removeEventListener("abort", abort);
+                resolve({ result: stubResult(context.runId) });
+            });
 
-        return { result: stubResult(context.runId) };
+            for (const waiter of waiters.filter((w) => w.count <= releases.length)) {
+                waiters.splice(waiters.indexOf(waiter), 1);
+                waiter.resolve();
+            }
+        });
+
+    return {
+        execute,
+        started: (count) =>
+            count <= releases.length
+                ? Promise.resolve()
+                : new Promise((resolve) => waiters.push({ count, resolve })),
+        release: (index) => {
+            releases[index]();
+        },
     };
 }
 
@@ -344,7 +380,8 @@ describe("the queue a consumer shows", () => {
     });
 
     it("cancels the runs it replaces under the \"replace\" policy", async () => {
-        const { runs, queue } = harness(slowExecutor(50));
+        const held = heldExecutor();
+        const { runs, queue } = harness(held.execute);
         queue.paused = true;
 
         const first = runs.start("k-core", { k: 1 });
@@ -360,7 +397,10 @@ describe("the queue a consumer shows", () => {
             assert.strictEqual((error as DOMException).name, "AbortError");
         }
 
-        await queue.drain();
+        const drained = queue.drain();
+        await held.started(1);
+        held.release(0);
+        await drained;
     });
 
     it("runs beside the queue under the \"now\" policy", async () => {
@@ -429,9 +469,10 @@ describe("removing a run", () => {
     });
 
     it("cancels a run that was still going", async () => {
-        const { runs, queue } = harness(slowExecutor(200));
+        const held = heldExecutor();
+        const { runs, queue } = harness(held.execute);
         const run = runs.start("degree", {}, { as: "mine" });
-        await settle(5);
+        await held.started(1);
 
         runs.remove("mine");
 
@@ -502,25 +543,27 @@ describe("batches", () => {
     });
 
     it("keeps the members that finished when it is cancelled", async () => {
-        const { runs } = harness(slowExecutor(30));
+        const held = heldExecutor();
+        const { runs } = harness(held.execute);
         const batch = runs.batch([
             { algorithm: "k-core", params: { k: 1 } },
             { algorithm: "k-core", params: { k: 2 } },
             { algorithm: "k-core", params: { k: 3 } },
         ]);
 
-        await settle(45);
+        await held.started(1);
+        held.release(0);
+        await held.started(2);
         batch.cancel("the reader pressed Cancel");
 
         const result = await batch;
 
         assert.strictEqual(result.partial, true);
-        assert.isAtLeast(result.completed, 1, "work somebody paid for is not thrown away");
-        assert.isBelow(result.completed, 3);
+        assert.strictEqual(result.completed, 1, "work somebody paid for is not thrown away");
         assert.strictEqual(batch.status, "canceled");
 
         const finished = runs.list().filter((run) => run.status === "succeeded");
-        assert.strictEqual(finished.length, result.completed);
+        assert.strictEqual(finished.length, 1);
         assert.isDefined(finished[0].result);
     });
 
@@ -537,9 +580,10 @@ describe("batches", () => {
 
 describe("disposal", () => {
     it("cancels what is still going and refuses new work", async () => {
-        const { runs, queue } = harness(slowExecutor(200));
+        const held = heldExecutor();
+        const { runs, queue } = harness(held.execute);
         const run = runs.start("degree");
-        await settle(5);
+        await held.started(1);
 
         runs.dispose();
 

@@ -1929,7 +1929,9 @@ export class DataManager implements Manager {
         // Clear mesh cache
         this.meshCache.clear();
 
-        // TODO: Notify layout engine to clear
+        // Announced last, once the graph is empty. The LayoutManager hears it too, and rebuilds
+        // its engine so the next load does not start from the old graph's bodies and settled state.
+        this.eventManager.emitDataCleared();
     }
 
     /**

@@ -1,15 +1,16 @@
 import { Graph } from "../../src/core/graph";
-import { GraphImpl } from "../../src/core/graph";
+import type { GraphImpl } from "../benchmark-graph";
 
 /**
  * Converts our benchmark GraphImpl to the library's Graph format
+ * @param benchmarkGraph
  */
 export function convertToLibraryGraph(benchmarkGraph: GraphImpl): Graph {
     const graph = new Graph({ directed: benchmarkGraph.directed });
 
-    // Add all vertices
-    for (let i = 0; i < benchmarkGraph.vertices; i++) {
-        graph.addNode(i);
+    // Add all vertices, isolated ones included
+    for (const vertex of benchmarkGraph.vertices) {
+        graph.addNode(vertex);
     }
 
     // Add all edges

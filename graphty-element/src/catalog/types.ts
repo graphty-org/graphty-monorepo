@@ -157,10 +157,21 @@ export const KNOWN_LAYOUT_IDS = [
 /** A layout id: a built-in name, or a plugin's. */
 export type LayoutId = (typeof KNOWN_LAYOUT_IDS)[number] | (string & {});
 
-/** The built-in file formats. */
+/**
+ * The built-in file formats.
+ *
+ * "sif" and "cx2" are deprecated: no data source reads them (see `UNSERVED_FORMAT_IDS`, and issues
+ * #306 and #307). A load that names either fails with that reason. Both are removed at the next
+ * major release unless a reader lands first.
+ */
 export const KNOWN_FORMAT_IDS = ["json", "csv", "graphml", "gexf", "gml", "dot", "pajek", "sif", "cx2"] as const;
 
-/** A format id: a built-in name, or a plugin's. */
+/**
+ * A format id: a built-in name, or a plugin's.
+ *
+ * The built-in names "sif" and "cx2" are deprecated and unserved (issues #306 and #307); they are
+ * removed at the next major release unless a reader lands first.
+ */
 export type FormatId = (typeof KNOWN_FORMAT_IDS)[number] | (string & {});
 
 /**

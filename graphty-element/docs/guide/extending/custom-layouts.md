@@ -387,5 +387,9 @@ plugin. A single-pass engine that takes a long time holds the frame.
 **A saved document's `graph.layout` is inert.** Nothing reads it back yet, for a built-in layout
 or a registered one.
 
+**A registered layout is not accelerated.** Your engine's own code runs on the CPU, even when
+the element has a GPU accelerator attached. Only the element's built-in simulation layouts
+(`forceatlas2`, `spring` and `spring-electrical`) run on an accelerator.
+
 **A routed or curved edge path is not available.** Edges are drawn between the two ends
 `getEdgePosition` reports, for every engine alike.

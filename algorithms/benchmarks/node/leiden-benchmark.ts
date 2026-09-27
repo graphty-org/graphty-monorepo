@@ -2,18 +2,24 @@
 
 // Leiden Community Detection Benchmark
 import Benchmark from "benchmark";
+
 import { leiden } from "../../src/algorithms/community/leiden.js";
-import { saveBenchmarkResult, initBenchmarkSession } from "../utils/benchmark-result.js";
+import { Graph } from "../../src/core/graph.js";
 import { BenchmarkResult } from "../benchmark-result.js";
+import { initBenchmarkSession,saveBenchmarkResult } from "../utils/benchmark-result.js";
 
-// Make leiden available globally for Benchmark.js
-(globalThis as any).leiden = leiden;
+interface LeidenTestData {
+    graph: Graph;
+    size: number;
+    edges: number;
+    graphType: string;
+    algorithm: string;
+}
 
-// Store test data globally for Benchmark.js
-const globalTestData = new Map();
+const globalTestData = new Map<string, LeidenTestData>();
 
-function createAdjacencyMapGraph(size: number): Map<string, Map<string, number>> {
-    const graph = new Map<string, Map<string, number>>();
+function createCommunityGraph(size: number): Graph {
+    const graph = new Graph({ directed: false });
 
     // Create community-structured graph for Leiden algorithm
     const numCommunities = Math.max(2, Math.floor(size / 10));
@@ -21,7 +27,7 @@ function createAdjacencyMapGraph(size: number): Map<string, Map<string, number>>
 
     // Initialize nodes
     for (let i = 0; i < size; i++) {
-        graph.set(String(i), new Map());
+        graph.addNode(String(i));
     }
 
     // Add intra-community edges (higher density)
@@ -33,12 +39,7 @@ function createAdjacencyMapGraph(size: number): Map<string, Map<string, number>>
             for (let j = i + 1; j < end; j++) {
                 if (Math.random() < 0.6) {
                     // High intra-community edge probability
-                    const nodeI = String(i);
-                    const nodeJ = String(j);
-                    const weight = 1.0;
-
-                    graph.get(nodeI)?.set(nodeJ, weight);
-                    graph.get(nodeJ)?.set(nodeI, weight);
+                    graph.addEdge(String(i), String(j), 1.0);
                 }
             }
         }
@@ -52,25 +53,12 @@ function createAdjacencyMapGraph(size: number): Map<string, Map<string, number>>
 
             if (communityI !== communityJ && Math.random() < 0.1) {
                 // Low inter-community edge probability
-                const nodeI = String(i);
-                const nodeJ = String(j);
-                const weight = 1.0;
-
-                graph.get(nodeI)?.set(nodeJ, weight);
-                graph.get(nodeJ)?.set(nodeI, weight);
+                graph.addEdge(String(i), String(j), 1.0);
             }
         }
     }
 
     return graph;
-}
-
-function countEdges(graph: Map<string, Map<string, number>>): number {
-    let edgeCount = 0;
-    for (const neighbors of graph.values()) {
-        edgeCount += neighbors.size;
-    }
-    return edgeCount / 2; // Undirected graph, each edge counted twice
 }
 
 function createTestGraphs(isQuick: boolean) {
@@ -92,8 +80,8 @@ function createTestGraphs(isQuick: boolean) {
     const config = isQuick ? configs.quick : configs.comprehensive;
 
     config.sizes.forEach((size) => {
-        const graph = createAdjacencyMapGraph(size);
-        const edgeCount = countEdges(graph);
+        const graph = createCommunityGraph(size);
+        const edgeCount = graph.uniqueEdgeCount;
 
         globalTestData.set(`leiden-${size}`, {
             graph,
@@ -115,7 +103,7 @@ function runBenchmarks(config: ReturnType<typeof createTestGraphs>) {
 
     config.sizes.forEach((size) => {
         const testData = globalTestData.get(`leiden-${size}`);
-        if (!testData) return;
+        if (!testData) {return;}
 
         const testName = `Leiden Community Detection - ${testData.graphType} (${size} nodes, ${testData.edges} edges)`;
 
@@ -131,7 +119,7 @@ function runBenchmarks(config: ReturnType<typeof createTestGraphs>) {
             },
             {
                 onComplete: (event: Benchmark.Event) => {
-                    const benchmark = event.target as Benchmark;
+                    const benchmark = event.target;
                     const hz = benchmark.hz || 0;
                     const stats = benchmark.stats || {
                         mean: 0,
@@ -169,8 +157,6 @@ function runBenchmarks(config: ReturnType<typeof createTestGraphs>) {
                             marginOfError: stats.rme,
                             standardDeviation: stats.deviation,
                             variance: stats.variance,
-                            platform: config.platform,
-                            testType: config.testType,
                             teps: hz * testData.edges, // Traversed Edges Per Second
                         },
                     };

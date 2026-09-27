@@ -710,7 +710,7 @@ describe("resolveToStatic turns a rule into a fixed value a person can then edit
         );
         assert.strictEqual(
             codeOf(() => resolveToStatic("l9", "node.color", explain)),
-            "E_BAD_COMMAND",
+            "E_UNKNOWN_LAYER",
         );
     });
 });

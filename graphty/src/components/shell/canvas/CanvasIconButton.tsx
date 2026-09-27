@@ -61,7 +61,7 @@ export interface CanvasIconButtonProps {
  * @returns the tooltip text.
  * @public
  */
-export function canvasTooltipText(label: string, chip?: string | null, disabledReason?: string): string {
+function canvasTooltipText(label: string, chip?: string | null, disabledReason?: string): string {
     const withChip = chip === undefined || chip === null || chip === "" ? label : `${label} (${chip})`;
 
     return disabledReason === undefined || disabledReason === "" ? withChip : `${withChip}. ${disabledReason}`;

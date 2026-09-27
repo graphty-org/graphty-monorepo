@@ -308,7 +308,18 @@ export interface SessionRecordSource {
  * Every verb here is synchronous, because every verb here is either an O(1) lookup or a walk
  * whose answer is cached against the snapshot it was computed from. The verbs that must walk the
  * graph on every call -- id listings over a scope, neighbour pages, search -- are asynchronous by
- * construction and are not part of this surface yet.
+ * construction and are not part of this surface.
+ *
+ * To list every record, resolve a scope for the ids and read each one here:
+ *
+ * ```ts
+ * const { nodes, edges } = await session.scope.resolve("graph");
+ * const nodeRecords = [...nodes].map((id) => session.data.node(id));
+ * const edgeRecords = [...edges].map((id) => session.data.edge(id));
+ * ```
+ *
+ * Every record carries the id the element stores it under, written after the record's own keys,
+ * so a file row with its own `id` column cannot replace it.
  */
 export interface SessionDataApi {
     /** The store this session reads, whether it built it or was handed one. */

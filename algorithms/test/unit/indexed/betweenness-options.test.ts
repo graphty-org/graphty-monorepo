@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
-    type BetweennessCentralityOptions,
     betweennessCentrality,
+    type BetweennessCentralityOptions,
     edgeBetweennessCentrality,
     nodeBetweennessCentrality,
 } from "../../../src/algorithms/centrality/betweenness.js";
@@ -32,8 +32,8 @@ describe("BetweennessCentralityOptions sources / k", () => {
 
     it("leaves the existing three members working exactly as before", () => {
         const g = path();
-        expect(betweennessCentrality(g, { normalized: false })["b"]).toBe(1);
-        expect(betweennessCentrality(g)["a"]).toBe(0);
+        expect(betweennessCentrality(g, { normalized: false }).b).toBe(1);
+        expect(betweennessCentrality(g).a).toBe(0);
         expect(nodeBetweennessCentrality(g, "b")).toBe(1);
         expect(edgeBetweennessCentrality(g, { normalized: true }).get("a-b")).toBe(1);
     });

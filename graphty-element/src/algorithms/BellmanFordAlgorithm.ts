@@ -5,6 +5,7 @@ import type { EdgeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import { scopeEdges, type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
     type AlgorithmOutput,
     type AlgorithmRunContext,
@@ -53,6 +54,8 @@ interface BellmanFordOptions extends Record<string, unknown> {
 export class BellmanFordAlgorithm extends DeclaredAlgorithm<BellmanFordOptions> {
     static namespace = "graphty";
     static type = "bellman-ford";
+    /** Searches the run's scope: the node and edge lists and the graph all come from the input. */
+    static scopeInput: ScopeInputDeclaration = "subgraph";
 
     static zodOptionsSchema: ZodOptionsSchema = bellmanFordOptionsSchema;
 
@@ -102,8 +105,9 @@ export class BellmanFordAlgorithm extends DeclaredAlgorithm<BellmanFordOptions> 
      * @returns The route, or null when there are no nodes to search.
      */
     async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
-        const dataManager = this.graph.getDataManager();
-        const nodeIds = Array.from(dataManager.nodes.keys());
+        // The nodes and edges of the run's input: its scope's, or the whole graph's.
+        const input = this.input("undirected");
+        const nodeIds = scopeNodeIds(input);
 
         if (nodeIds.length === 0) {
             return null;
@@ -141,12 +145,12 @@ export class BellmanFordAlgorithm extends DeclaredAlgorithm<BellmanFordOptions> 
 
         const routeEdges = this.getPathEdges(path);
         const edges: ResultElementValues<EdgeId>[] = [];
-        await forEachChunked(context, "Marking the route", Array.from(dataManager.edges.values()), (edge) => {
+        await forEachChunked(context, "Marking the route", scopeEdges(input), (edge) => {
             // The pair keys match an @graphty/algorithms route back onto element edges; the id
             // PUBLISHED is the element's own, which is the only one that can name one of two
             // parallel edges.
-            const key = edgePairKey(edge.srcId, edge.dstId);
-            const reversed = edgePairKey(edge.dstId, edge.srcId);
+            const key = edgePairKey(edge.source, edge.target);
+            const reversed = edgePairKey(edge.target, edge.source);
 
             edges.push({ id: edge.id, values: { onPath: routeEdges.has(key) || routeEdges.has(reversed) } });
         });

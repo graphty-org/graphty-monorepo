@@ -28,15 +28,8 @@ const PERMANENT: Readonly<Record<string, string>> = {
  * the graph directly, so a migrated file is removed from it in the commit that migrates it.
  */
 const TO_MIGRATE: readonly string[] = [
-    "BellmanFordAlgorithm.ts",
-    "BipartiteMatchingAlgorithm.ts",
-    "DFSAlgorithm.ts",
     "EigenvectorCentralityAlgorithm.ts",
-    "FloydWarshallAlgorithm.ts",
     "LinkPredictionAlgorithm.ts",
-    "MaxFlowAlgorithm.ts",
-    "MinCutAlgorithm.ts",
-    "PrimAlgorithm.ts",
     "utils/graphUtils.ts",
 ];
 

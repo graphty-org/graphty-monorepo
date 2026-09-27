@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import { type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
     type AlgorithmOutput,
     type AlgorithmRunContext,
@@ -74,6 +75,8 @@ interface DFSOptions extends Record<string, unknown> {
 export class DFSAlgorithm extends DeclaredAlgorithm<DFSOptions> {
     static namespace = "graphty";
     static type = "dfs";
+    /** Walks the run's scope: the node list and the graph both come from the input. */
+    static scopeInput: ScopeInputDeclaration = "subgraph";
 
     static zodOptionsSchema: ZodOptionsSchema = dfsOptionsSchema;
 
@@ -140,8 +143,8 @@ export class DFSAlgorithm extends DeclaredAlgorithm<DFSOptions> {
      * @returns The exploration order, or null when there is nothing to walk.
      */
     async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
-        const dataManager = this.graph.getDataManager();
-        const nodeIds = Array.from(dataManager.nodes.keys());
+        // The nodes of the run's input: its scope's, or the whole graph's.
+        const nodeIds = scopeNodeIds(this.input("undirected"));
 
         if (nodeIds.length === 0) {
             return null;
@@ -152,7 +155,7 @@ export class DFSAlgorithm extends DeclaredAlgorithm<DFSOptions> {
         const source = this.legacyOptions?.source ?? this._schemaOptions.source ?? nodeIds[0];
         const { targetNode, recursive, preOrder } = this._schemaOptions;
 
-        if (!dataManager.nodes.has(source)) {
+        if (!nodeIds.includes(source)) {
             return null;
         }
 

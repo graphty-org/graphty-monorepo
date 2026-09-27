@@ -28,7 +28,7 @@ export class InputGraph {
     readonly store: GraphStore;
     readonly acceleration = new AccelerationController({ policy: "auto", minNodes: 0, registry: new AcceleratorRegistry() });
     readonly nodes = new Map<string, { id: string }>();
-    readonly edges = new Map<string, { id: string; srcId: string; dstId: string; index: number }>();
+    readonly edges = new Map<string, { id: string; srcId: string; dstId: string; index: number; data?: Record<string, unknown> }>();
 
     /**
      * A graph over some records.
@@ -79,13 +79,15 @@ export class InputGraph {
      */
     getDataManager(): {
         nodes: Map<string, { id: string }>;
-        edges: Map<string, { id: string; srcId: string; dstId: string; index: number }>;
+        edges: Map<string, { id: string; srcId: string; dstId: string; index: number; data?: Record<string, unknown> }>;
         getSnapshot: () => GraphSnapshot;
         undirected: GraphStore["undirected"];
+        getEdge: (id: string) => { data?: Record<string, unknown> } | undefined;
     } {
         return {
             nodes: this.nodes,
             edges: this.edges,
+            getEdge: (id) => this.edges.get(id),
             getSnapshot: () => this.store.getSnapshot(),
             undirected: (snapshot) => this.store.undirected(snapshot),
         };

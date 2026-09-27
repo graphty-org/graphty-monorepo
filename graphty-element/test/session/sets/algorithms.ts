@@ -29,7 +29,7 @@ export function builtInRuns(harness: () => Harness, table: Map<string, Published
             return Promise.resolve({ result: resultOf(context.runId, published) });
         }
 
-        // The four data-manager members the algorithms read, rebuilt from the current snapshot.
+        // The data-manager members the algorithms read, rebuilt from the current snapshot.
         const { store } = harness();
         const snapshot = store.getSnapshot();
         const space = edgeSpaceOf(snapshot);
@@ -51,6 +51,7 @@ export function builtInRuns(harness: () => Harness, table: Map<string, Published
             graphResults: undefined,
             getSnapshot: () => store.getSnapshot(),
             undirected: (graph: ReturnType<typeof store.getSnapshot>) => store.undirected(graph),
+            getEdge: (id: string) => edges.get(id),
             applyStylesToExistingNodes: (): void => undefined,
             applyStylesToExistingEdges: (): void => undefined,
         };

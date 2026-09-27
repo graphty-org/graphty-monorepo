@@ -386,11 +386,15 @@ export function scopeNodeIds(input: ScopedInput): NodeId[] {
     return ids;
 }
 
-/** One declared edge an input covers: its session id, and its row in the declared graph. */
+/** One declared edge an input covers: its session id, its row in the declared graph, and its ends. */
 interface ScopeEdge {
     readonly id: EdgeId;
     /** The row in `ScopedInput.graph`, which is what an edge remap is indexed by. */
     readonly row: number;
+    /** The source node, in the declared orientation. */
+    readonly source: NodeId;
+    /** The target node, in the declared orientation. */
+    readonly target: NodeId;
 }
 
 /**
@@ -406,10 +410,11 @@ export function scopeEdges(input: ScopedInput): ScopeEdge[] {
         throw new Error(`The graph carries no "${EDGE_ID_COLUMN}" column to name its edges by.`);
     }
 
+    const { src, dst } = graph.edgeList();
     const list: ScopeEdge[] = [];
     for (let row = 0; row < graph.edgeCount; row++) {
         if (whole || maskTest(edges, row)) {
-            list.push({ id: edgeIdOf(counters.data[row]), row });
+            list.push({ id: edgeIdOf(counters.data[row]), row, source: graph.ids.idOf(src[row]), target: graph.ids.idOf(dst[row]) });
         }
     }
 

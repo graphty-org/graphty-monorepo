@@ -12,6 +12,7 @@ import type { EdgeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import { scopeEdges, type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
     type AlgorithmOutput,
     type AlgorithmRunContext,
@@ -91,6 +92,8 @@ interface MinCutOptions extends Record<string, unknown> {
 export class MinCutAlgorithm extends DeclaredAlgorithm<MinCutOptions> {
     static namespace = "graphty";
     static type = "min-cut";
+    /** Cuts the run's scope: the node and edge lists and the graph all come from the input. */
+    static scopeInput: ScopeInputDeclaration = "subgraph";
 
     static zodOptionsSchema: ZodOptionsSchema = minCutOptionsSchema;
 
@@ -172,36 +175,37 @@ export class MinCutAlgorithm extends DeclaredAlgorithm<MinCutOptions> {
      * @returns The edge set, or null when there is nothing to cut.
      */
     async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
-        const dataManager = this.graph.getDataManager();
-        const graphEdges = Array.from(dataManager.edges.values());
-        const nodeIds = Array.from(dataManager.nodes.keys());
+        // The nodes and declared edges of the run's input: its scope's, or the whole graph's.
+        const input = this.input("undirected");
+        const graphEdges = scopeEdges(input);
+        const nodeIds = scopeNodeIds(input);
 
         if (graphEdges.length === 0 || nodeIds.length === 0) {
             return null;
         }
 
-        // Build weighted graph from edges - Map format for stoerWagner/kargerMinCut
-        const weightedGraphMap = new Map<string, Map<string, number>>();
-        // Also build AlgorithmGraph for minSTCut (which requires Graph type)
-        const weightedGraph = new AlgorithmGraph({ directed: false });
+        // The weights are the element's edge weights, read off the input: a reciprocal pair is one
+        // edge and parallel edges are one edge carrying their summed weight, because cutting a
+        // pair of nodes apart costs every edge between them.
+        const cutInput = input.subgraph();
+        const { ids } = cutInput;
+        const { src, dst, weights } = cutInput.edgeList();
 
+        // Map format for stoerWagner and kargerMinCut, and a Graph for minSTCut, both keyed by
+        // string id as their answers are.
+        const weightedGraphMap = new Map<string, Map<string, number>>();
+        const weightedGraph = new AlgorithmGraph({ directed: false });
         for (const nodeId of nodeIds) {
             weightedGraphMap.set(String(nodeId), new Map());
             weightedGraph.addNode(String(nodeId));
         }
 
-        for (const edge of graphEdges) {
-            const srcId = String(edge.srcId);
-            const dstId = String(edge.dstId);
-
-            // Get weight from edge data
-            const edgeData = edge.data as Record<string, unknown> | undefined;
-            const edgeObject = edge as unknown as Record<string, unknown>;
-            const rawWeight = edgeData?.value ?? edgeObject.value ?? 1;
-            const weight: number = typeof rawWeight === "number" ? rawWeight : 1;
+        for (let edge = 0; edge < cutInput.edgeCount; edge++) {
+            const srcId = String(ids.idOf(src[edge]));
+            const dstId = String(ids.idOf(dst[edge]));
+            const weight = weights === null ? 1 : weights[edge];
 
             weightedGraphMap.get(srcId)?.set(dstId, weight);
-            // Add reverse edge for undirected graph (Map)
             weightedGraphMap.get(dstId)?.set(srcId, weight);
             weightedGraph.addEdge(srcId, dstId, weight);
         }
@@ -260,7 +264,7 @@ export class MinCutAlgorithm extends DeclaredAlgorithm<MinCutOptions> {
         const edges: ResultElementValues<EdgeId>[] = [];
         await forEachChunked(context, "Marking the cut", graphEdges, (edge) => {
             // The pair key looks the cut up; the element's own id is what is published.
-            const weight = cutWeightOf.get(edgePairKey(edge.srcId, edge.dstId));
+            const weight = cutWeightOf.get(edgePairKey(edge.source, edge.target));
 
             edges.push({ id: edge.id, values: { in: weight !== undefined } });
         });

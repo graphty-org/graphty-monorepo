@@ -26,17 +26,17 @@ import { assertComputesOverScope, type Build, coveredBy, handBuilt, runScoped, r
 
 /** Each registered algorithm's `scopeInput`: on computes over the scope, off over the whole graph. */
 const EXPECTED: Readonly<Record<string, "on" | "off">> = {
-    "graphty:bellman-ford": "off",
+    "graphty:bellman-ford": "on",
     "graphty:betweenness": "on",
     "graphty:bfs": "on",
-    "graphty:bipartite-matching": "off",
+    "graphty:bipartite-matching": "on",
     "graphty:closeness": "on",
     "graphty:connected-components": "on",
     "graphty:degree": "on",
-    "graphty:dfs": "off",
+    "graphty:dfs": "on",
     "graphty:dijkstra": "on",
     "graphty:eigenvector": "off",
-    "graphty:floyd-warshall": "off",
+    "graphty:floyd-warshall": "on",
     "graphty:girvan-newman": "on",
     "graphty:hits": "on",
     "graphty:k-core": "on",
@@ -46,10 +46,10 @@ const EXPECTED: Readonly<Record<string, "on" | "off">> = {
     "graphty:leiden": "on",
     "graphty:link-prediction": "off",
     "graphty:louvain": "on",
-    "graphty:max-flow": "off",
-    "graphty:min-cut": "off",
+    "graphty:max-flow": "on",
+    "graphty:min-cut": "on",
     "graphty:pagerank": "on",
-    "graphty:prim": "off",
+    "graphty:prim": "on",
     "graphty:scc": "on",
 };
 
@@ -148,6 +148,9 @@ class Recording extends InputGraph {
                 return base.getSnapshot();
             },
             undirected: base.undirected,
+            // One edge's record by an id the input named, for an attribute the snapshot does not
+            // carry (a flow capacity): not a topology read, so it is not recorded.
+            getEdge: base.getEdge,
         };
     }
 }

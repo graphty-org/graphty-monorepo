@@ -12,6 +12,7 @@ import type { EdgeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import { scopeEdges, type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
     type AlgorithmOutput,
     type AlgorithmRunContext,
@@ -61,6 +62,8 @@ interface MaxFlowOptions extends Record<string, unknown> {
 export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
     static namespace = "graphty";
     static type = "max-flow";
+    /** Flows within the run's scope: the node and edge lists come from the input. */
+    static scopeInput: ScopeInputDeclaration = "subgraph";
 
     static zodOptionsSchema: ZodOptionsSchema = maxFlowOptionsSchema;
 
@@ -113,9 +116,10 @@ export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
      * @returns The flow per edge, or null when there is no network to measure.
      */
     async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
-        const dataManager = this.graph.getDataManager();
-        const graphEdges = Array.from(dataManager.edges.values());
-        const nodeIds = Array.from(dataManager.nodes.keys());
+        // The nodes and declared edges of the run's input: its scope's, or the whole graph's.
+        const input = this.input("declared");
+        const graphEdges = scopeEdges(input);
+        const nodeIds = scopeNodeIds(input);
 
         if (graphEdges.length === 0 || nodeIds.length === 0) {
             return null;
@@ -142,17 +146,20 @@ export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
 
         const capacityOf = new Map<string, number>();
         for (const edge of graphEdges) {
-            const srcId = String(edge.srcId);
-            const dstId = String(edge.dstId);
+            const srcId = String(edge.source);
+            const dstId = String(edge.target);
 
-            // Get capacity from edge data
-            const edgeData = edge.data as Record<string, unknown> | undefined;
-            const edgeObject = edge as unknown as Record<string, unknown>;
-            const rawCapacity = edgeData?.capacity ?? edgeData?.value ?? edgeObject.value ?? 1;
+            // The capacity is an attribute of the edge's record, which the snapshot does not carry.
+            const record = this.edgeRecord(edge.id);
+            const rawCapacity = record?.capacity ?? record?.value ?? 1;
             const capacity: number = typeof rawCapacity === "number" ? rawCapacity : 1;
 
-            capacityGraph.addEdge(srcId, dstId, capacity);
-            capacityOf.set(edgePairKey(srcId, dstId), capacity);
+            // Parallel edges carry their capacities together, so one arc holds their sum.
+            const key = edgePairKey(srcId, dstId);
+            const total = (capacityOf.get(key) ?? 0) + capacity;
+            capacityOf.set(key, total);
+            capacityGraph.removeEdge(srcId, dstId);
+            capacityGraph.addEdge(srcId, dstId, total);
         }
 
         context.report({ phase: "Pushing flow", total: null });
@@ -173,8 +180,8 @@ export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
 
         const edges: ResultElementValues<EdgeId>[] = [];
         await forEachChunked(context, "Measuring edges", graphEdges, (edge) => {
-            const srcId = String(edge.srcId);
-            const dstId = String(edge.dstId);
+            const srcId = String(edge.source);
+            const dstId = String(edge.target);
 
             // The pair key reads the flow back out of the algorithm's answer; the element's own
             // id is what is published.

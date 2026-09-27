@@ -18,6 +18,7 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
 
 import type { AttributeDescriptor, AttributeType } from "../catalog/types";
+import type { MovedInput } from "./sets/notify";
 import { ATTRIBUTE_SAMPLE_CAP, ATTRIBUTE_UNIQUE_CAP, type SessionRecordSource } from "./types";
 
 /** What one attribute looked like as the walk accumulated it. */
@@ -248,6 +249,7 @@ export function describeAttributes(
  */
 export class InputTick {
     #value = 0;
+    readonly #listeners = new Set<(input: MovedInput) => void>();
 
     /**
      * The current tick.
@@ -260,6 +262,31 @@ export class InputTick {
     /** Move the tick on. Allocation-free, so a freeze can call it inside its commit. */
     advance(): void {
         this.#value += 1;
+    }
+
+    /**
+     * Tell every session over this store that an input moved (design/sets 11). Separate from
+     * {@link InputTick.advance}, which moves on every bump: this is said once per write or freeze,
+     * after it has landed, by the store owner's side -- a freeze once delivered, an attribute
+     * write once per batch.
+     * @param input - what moved
+     */
+    announce(input: MovedInput): void {
+        for (const listener of [...this.#listeners]) {
+            listener(input);
+        }
+    }
+
+    /**
+     * Hear every announcement.
+     * @param listener - called with each
+     * @returns stops listening
+     */
+    listen(listener: (input: MovedInput) => void): () => void {
+        this.#listeners.add(listener);
+        return () => {
+            this.#listeners.delete(listener);
+        };
     }
 }
 
@@ -357,6 +384,40 @@ export function writeAttributes(
     }
 
     revisions.bump(fields);
+}
+
+/**
+ * Write a batch of updates, each into the attributes of the record its `id` names, through
+ * {@link writeAttributes}, then announce the fields written once on the input tick, so a live set
+ * re-resolves once per batch rather than once per record (design/sets 11). `id` is the address,
+ * not an attribute, and is not written; an id with no record is skipped.
+ * @param counters - the store owner's counters
+ * @param element - which kind of record
+ * @param updates - the updates
+ * @param dataOf - a record's attribute object by id
+ */
+export function writeUpdates(
+    counters: InputCounters,
+    element: "node" | "edge",
+    updates: readonly { readonly id: string | number; readonly [key: string]: unknown }[],
+    dataOf: (id: string | number) => Record<string, unknown> | undefined,
+): void {
+    const revisions = element === "node" ? counters.nodes : counters.edges;
+    const written = new Set<string>();
+    for (const update of updates) {
+        const data = dataOf(update.id);
+        if (data !== undefined) {
+            const fields = Object.keys(update).filter((key) => key !== "id");
+            writeAttributes(revisions, data, update, fields);
+            for (const field of fields) {
+                written.add(field);
+            }
+        }
+    }
+
+    if (written.size > 0) {
+        counters.tick.announce({ kind: "attributes", element, fields: [...written] });
+    }
 }
 
 /**

@@ -64,6 +64,7 @@ import { createMaterialiser } from "./sets/algebra";
 import { outcomeOf, SetsCache } from "./sets/cache";
 import { captureItem, captureOf, type HeldCaptures, heldItems, nextCaptures } from "./sets/captures";
 import { type DependencySources, referentReading } from "./sets/dependencies";
+import { SetsNotifier } from "./sets/notify";
 import { createOffering } from "./sets/offers";
 import { createSetsApi, sessionEdgeMember, setsStoreOf } from "./sets/SetsApi";
 import { identityOf } from "./sets/signature";
@@ -1210,6 +1211,15 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         }),
     });
     const keptSets = setsStoreOf(sets);
+    // Change notification (design/sets 11): live users of a set re-resolve from here, before any
+    // public event. The store owner's side -- freezes and attribute writes -- arrives on the tick.
+    const notifier = new SetsNotifier();
+    keptSets.onCommit((changes) => {
+        notifier.notify({ kind: "sets", ids: changes.map((change) => change.id) });
+    });
+    const stopHearing = inputs.tick.listen((input) => {
+        notifier.notify(input);
+    });
     keptSets.onChange((change) => {
         publish(watchers, "set:changed", change);
     });
@@ -1284,6 +1294,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         result: resultSource,
         ...(options.records === undefined ? {} : { values: valueSourceOf(options.records, snapshot) }),
         onChange: (change) => {
+            notifier.notify({ kind: "visibility" });
             publish(watchers, "visibility:changed", change);
         },
         onMaskVersion: advanceTick,
@@ -1305,6 +1316,9 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         engine: runsOptions.engine ?? ENGINE_VERSIONS,
         defaultScope,
         onExecution: advanceTick,
+        onRemoved: (id: RunId) => {
+            notifier.notify({ kind: "run", run: id });
+        },
         // Before a re-run replaces a result, what kept rules hold of it is captured onto the run.
         // ponytail: kept sets are the only holders; style layers and the visibility filter join
         // when they name sets (design/sets 5.2).
@@ -1385,6 +1399,11 @@ function buildSession(options: CreateGraphSessionOptions): Session {
             },
         },
         onChange: (change) => {
+            // Queued for a re-run clears the result; the end publishes the new one.
+            if (change.phase === "queued" || change.phase === "end") {
+                notifier.notify({ kind: "run", run: change.run.id });
+            }
+
             if (change.phase === "end") {
                 // A run that has just published has replaced the column a style layer bound to
                 // it was prepared against, so what was prepared describes the numbers as they
@@ -1433,6 +1452,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         find: (text: string, mode: SelectionTextMode) => engine.find(text, mode),
         ...(options.records === undefined ? {} : { records: options.records }),
         onChange: (delta) => {
+            notifier.notify({ kind: "selection" });
             publish(watchers, "selection:changed", delta);
         },
         onMaskVersion: advanceTick,
@@ -1460,6 +1480,10 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     forgetPreparedBindings = painter.invalidate;
 
     const teardown = new AbortController();
+    teardown.signal.addEventListener("abort", () => {
+        stopHearing();
+        notifier.dispose();
+    });
     const styles = createStylesApi({
         elements,
         base: elementBaseLayers(),
@@ -1526,8 +1550,27 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     });
     sessionInputs.set(session, inputs);
     sessionScopes.set(session, scope);
+    sessionNotifiers.set(session, notifier);
 
     return session;
+}
+
+/** Each session's change notifier, for the live users of sets and the element's frame source. */
+const sessionNotifiers = new WeakMap<GraphSession, SetsNotifier>();
+
+/**
+ * A session's change notifier and re-resolution scheduler (design/sets 11). Internal.
+ * @param session - a session this module built
+ * @returns its notifier
+ * @throws An Error for a session this module did not build.
+ */
+export function setsNotifierOfSession(session: GraphSession): SetsNotifier {
+    const notifier = sessionNotifiers.get(session);
+    if (notifier === undefined) {
+        throw new Error("Not a session built by createGraphSession.");
+    }
+
+    return notifier;
 }
 
 /** Each session's input counters, beside it rather than on it so the published type gains nothing. */

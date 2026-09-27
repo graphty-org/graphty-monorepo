@@ -564,6 +564,8 @@ export class GraphStore {
             }
 
             this.pending = null;
+            // Last, once every stage has landed: a session re-resolves its live sets from here.
+            this.inputs.tick.announce({ kind: "snapshot", serial: replacement.next.serial });
         } finally {
             this.publishing = false;
         }

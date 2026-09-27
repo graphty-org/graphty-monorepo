@@ -99,6 +99,7 @@ export class SetsStore implements RecordView {
     private readonly issued = new Set<SetId>();
     private readonly tombstones = new Map<SetId, Tombstone>();
     private readonly listeners = new Set<(change: SetChange) => void>();
+    private readonly commitListeners = new Set<(changes: readonly SetChange[]) => void>();
     private readonly seeds = new Map<SetId, { readonly counters: Map<string, number>; version: number }>();
     private tombstoneBytes = 0;
     private highestOrder = 0;
@@ -373,6 +374,20 @@ export class SetsStore implements RecordView {
     }
 
     /**
+     * Hear each committed group whole, before any per-key listener: the change notification
+     * (`./notify`) re-resolves live sets here, ahead of `set:changed`.
+     * @param listener - The listener, handed every change of the group.
+     * @returns A function that stops listening.
+     */
+    onCommit(listener: (changes: readonly SetChange[]) => void): () => void {
+        this.commitListeners.add(listener);
+
+        return () => {
+            this.commitListeners.delete(listener);
+        };
+    }
+
+    /**
      * The open group.
      * @param verb - What needs it, for the message.
      * @returns The group.
@@ -444,8 +459,20 @@ export class SetsStore implements RecordView {
             }
         }
 
-        for (const change of changes) {
-            const frozen = Object.freeze({ ...change, fields: Object.freeze(change.fields) });
+        if (changes.length === 0) {
+            return;
+        }
+
+        const committed = Object.freeze(changes.map((change) => Object.freeze({ ...change, fields: Object.freeze(change.fields) })));
+        for (const listener of [...this.commitListeners]) {
+            try {
+                listener(committed);
+            } catch {
+                // A listener's failure is the listener's; the write has committed.
+            }
+        }
+
+        for (const frozen of committed) {
             for (const listener of [...this.listeners]) {
                 try {
                     listener(frozen);

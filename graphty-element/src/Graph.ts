@@ -105,8 +105,8 @@ import { Node, type NodeIdType } from "./Node";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
-import { inputCountersOf, writeAttributes } from "./session/attributes";
-import { scopeResolverOfSession } from "./session/GraphSession";
+import { inputCountersOf, writeUpdates } from "./session/attributes";
+import { scopeResolverOfSession, setsNotifierOfSession } from "./session/GraphSession";
 import type { Run, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionTarget, SetOp } from "./session/selection";
 import type { Layer, StyleSuggestion } from "./session/styles";
@@ -405,6 +405,15 @@ export class Graph implements GraphContext {
         // pass has run, an element draws itself from the element's own defaults; see
         // `bootstrapNodePaint` in StylePainter.
         this.stylePainter.bind(this.session.paint);
+
+        // Live sets re-resolve after a freeze a frame at a time, on the render loop's frames
+        // (design/sets 6.2): a held frame holds that work too.
+        setsNotifierOfSession(this.session).useFrames((callback) => {
+            const observer = this.scene.onBeforeRenderObservable.addOnce(callback);
+            return () => {
+                this.scene.onBeforeRenderObservable.remove(observer);
+            };
+        });
 
         // WHAT USED TO TAKE THE DIRTY SET HERE. A style edit repaints before it commits, so this
         // fired after the pass had worked out what moved -- but "after" is turns of the event
@@ -2125,18 +2134,7 @@ export class Graph implements GraphContext {
      * @param updates - the updates, each naming its node by `id`
      */
     private writeNodeUpdates(updates: readonly { id: string | number; [key: string]: unknown }[]): void {
-        const revisions = inputCountersOf(this.dataManager).nodes;
-        for (const update of updates) {
-            const node = this.dataManager.getNode(update.id);
-            if (node) {
-                writeAttributes(
-                    revisions,
-                    node.data,
-                    update,
-                    Object.keys(update).filter((key) => key !== "id"),
-                );
-            }
-        }
+        writeUpdates(inputCountersOf(this.dataManager), "node", updates, (id) => this.dataManager.getNode(id)?.data);
     }
 
     /**

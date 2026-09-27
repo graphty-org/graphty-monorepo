@@ -207,6 +207,8 @@ export interface RunsApiOptions {
     readonly onChange?: (change: RunChange) => void;
     /** Called once per execution token minted, which is what advances the session input tick. */
     readonly onExecution?: () => void;
+    /** Called when a run is removed, and with it its result (design/sets 11). */
+    readonly onRemoved?: (id: RunId) => void;
     /**
      * Capture what live references hold of a run's result before a re-run replaces it
      * (design/sets 5.2). Absent: nothing is captured.
@@ -645,6 +647,7 @@ class Runs implements SessionRunsApi {
             // The layers this run painted went with it, so starting the same work again is a
             // first completion again rather than a run nothing will ever draw.
             this.options.styling?.forget(id);
+            this.options.onRemoved?.(id);
         }
 
         if (layerIds.length > 0) {

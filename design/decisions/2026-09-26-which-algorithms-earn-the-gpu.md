@@ -531,3 +531,13 @@ The Tesla T4 column is "a T4 next to this i9", a class figure at best (two rente
 the same class differed by 1.32x on identical work, `2026-09-24-performance-targets-belong-to-a-card-class.md`);
 the CI lane's own 4-vCPU Xeon was never timed, and no T4 traversal row exists, so every T4
 traversal figure is the 4070's kernel scaled by an assumed 2.5x.
+
+Stack note (added 2026-09-27, issue #425): every GPU constant above was measured on NVIDIA
+hardware under the `webgpu` npm package 0.4.0 -- the RTX 4070 SUPER in the dev container (Ubuntu
+22.04.5, driver 580.173.02) and the Tesla T4 of CI's GPU lane (Ubuntu 22.04.5, driver
+580.126.20). None comes from lavapipe, so CI's default lane running Ubuntu 24.04 with Mesa
+25.2.8 (LLVM 20.1.2) instead of the dev container's Mesa 23.2.1 (LLVM 15.0.7) does not move
+them. What would move them is the `webgpu` 0.6.x bump of pull request #24, which is not merged:
+under Dawn 0.6.1 the dense-twin PageRank ran about 2x slower. A constant measured after that
+bump lands is a new measurement on a new runtime, and a crossover in the tables above re-derived
+from it can shift with it; the figures here stay as measured on 0.4.0.

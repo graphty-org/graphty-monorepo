@@ -71,6 +71,11 @@ The G5 story graph under the spring preset (`test/layouts/se-settle.test.ts`): 4
 RTX 4070 SUPER as before, 488 on lavapipe (480 before). `docs/decisions/G5.md` row 4 records the old
 counts.
 
+The lavapipe counts in this record were measured in the dev container, on Mesa 23.2.1 (LLVM 15.0.7).
+CI's default lane runs Mesa 25.2.8 (LLVM 20.1.2) on Ubuntu 24.04 (added 2026-09-27, issue #425), so
+a lavapipe count read from a CI log comes from a different shader compiler, and a difference from
+these is not by itself a change in the code; compare counts taken on the same stack.
+
 ## Amendment (2026-09-25): the spring floor scales with node count
 
 The fixed floor of 0.002 x `springLength` also bound the 150-node story graph, where the relative

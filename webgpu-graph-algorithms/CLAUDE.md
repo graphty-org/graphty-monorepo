@@ -384,9 +384,33 @@ measured it):
 | `sudo modprobe nvidia nvidia_uvm` needed on the T4 image before the driver answers, or a no-op                                                             | unverified (the "Driver up" step of `gpu.yml`)                                                        |
 | Headless Chromium finds the T4 without `xvfb-run -a`                                                                                                       | unverified (the "Browser smoke on NVIDIA" step of `gpu.yml`)                                          |
 | `libegl1` present on the T4 image (so the `LD_LIBRARY_PATH` workaround stays local)                                                                        | unverified                                                                                            |
-| lavapipe on an actual GitHub `ubuntu-latest` runner acquires an adapter under `GRAPHTY_GPU_REQUIRE=any`                                                    | unverified (first `ci.yml` run)                                                                       |
+| lavapipe on an actual GitHub `ubuntu-latest` runner acquires an adapter under `GRAPHTY_GPU_REQUIRE=any`                                                    | yes -- Mesa 25.2.8 (LLVM 20.1.2) on `ubuntu-24.04` (`docs/decisions/G0.md` row D4)                    |
 | `GRAPHTY_GPU_REQUIRE=nvidia` on the software lane is RED at the `gpu-report.js` step (no `tee`)                                                            | unverified (the deliberate red run)                                                                   |
 | Firefox / Safari exposure of `subgroups` / `timestamp-query` on Linux CI                                                                                   | not verified; Chromium only (Q-22)                                                                    |
+
+### The measurement stack and the stack CI runs
+
+The gate records (`docs/decisions/G0.md` to `G8.md`), the `*-mesa-software-node*` noise fixtures of
+`test/fixtures/noise/` and the lavapipe rows of `benchmarks/results/noise-floor.json` were measured in the dev
+container. CI does not run that stack. Read from CI run 36339995757 (default lane) and GPU-lane run 36325827063, both
+2026-09-27:
+
+|                      | Dev container (the records)                              | CI default lane (`ci.yml`, `ubuntu-latest`)            | CI GPU lane (`gpu.yml`)                    |
+| -------------------- | -------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------ |
+| Operating system     | Ubuntu 22.04.5, glibc 2.35                               | Ubuntu 24.04 (runner image 20260920.314.1)             | Ubuntu 22.04.5, glibc 2.35                 |
+| Software adapter     | `llvmpipe: Mesa 23.2.1-1ubuntu3.1~22.04.3 (LLVM 15.0.7)` | `llvmpipe: Mesa 25.2.8-0ubuntu0.24.04.2 (LLVM 20.1.2)` | none (`mesa-vulkan-drivers` not installed) |
+| Hardware adapter     | RTX 4070 SUPER, driver 580.173.02                        | none                                                   | Tesla T4, driver 580.126.20                |
+| `webgpu` npm package | 0.4.0                                                    | 0.4.0                                                  | 0.4.0                                      |
+| lavapipe subgroups   | 8 / 8                                                    | 8 / 8                                                  | --                                         |
+
+What it means for a reader comparing a new measurement against a record: the suites that assert the recorded
+tolerances pass on CI's Mesa 25.2.8, so the bounds hold there, but a lavapipe number read from CI (a noise floor, an
+iteration count, a duration) comes from a newer shader compiler on another machine and is not comparable to a
+record's -- measure both on one stack. No benchmark is ever timed on a software adapter, so the timing baselines are
+untouched by the Mesa difference; they are NVIDIA-only and all ran under `webgpu` 0.4.0. Moving the dev container to
+Ubuntu 24.04 and the package to `webgpu` 0.6.x is pull request #24 (`chore/webgpu-environment-move`, plan
+`design/webgpu/plans/2026-09-23-webgpu-environment-move.md` on that branch); it is unmerged because the dev container
+has to be rebuilt and because Dawn 0.6.1 made the dense-twin PageRank about 2x slower.
 
 ### Settled at G2 (P2-T3; the evidence is docs/decisions/G2.md)
 

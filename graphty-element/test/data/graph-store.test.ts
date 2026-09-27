@@ -117,7 +117,7 @@ describe("GraphStore", () => {
         assert.strictEqual(events[0]?.previous, null);
     });
 
-    it("invalidates on a MERGE, which builder.mutationCount does not see", () => {
+    it("invalidates on a MERGE, which builder.mutationCount also counts", () => {
         const { store } = makeStore();
         store.builder.addNode("a");
         store.touch();
@@ -126,8 +126,8 @@ describe("GraphStore", () => {
         store.builder.addNodeRecord("a", { label: "second write" });
         store.touch();
         const second = store.getSnapshot();
-        assert.strictEqual(store.builder.mutationCount, mutationCountBefore, "the format did not count the merge");
-        assert.notStrictEqual(second, first, "but the store did");
+        assert.ok(store.builder.mutationCount > mutationCountBefore, "the format counted the merge");
+        assert.notStrictEqual(second, first, "and the store did");
     });
 
     it("attaches the element positions as the role-position column, by reference", () => {

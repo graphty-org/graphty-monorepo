@@ -34,7 +34,7 @@ const EXPECTED: Readonly<Record<string, "on" | "off">> = {
     "graphty:connected-components": "on",
     "graphty:degree": "on",
     "graphty:dfs": "off",
-    "graphty:dijkstra": "off",
+    "graphty:dijkstra": "on",
     "graphty:eigenvector": "off",
     "graphty:floyd-warshall": "off",
     "graphty:girvan-newman": "off",

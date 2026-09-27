@@ -5,6 +5,7 @@ import type { EdgeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import { scopeEdges, scopeNodeIds } from "./input/ScopedInput";
 import {
     type AlgorithmOutput,
     type AlgorithmRunContext,
@@ -65,6 +66,8 @@ interface DijkstraOptions extends Record<string, unknown> {
 export class DijkstraAlgorithm extends DeclaredAlgorithm<DijkstraOptions> {
     static namespace = "graphty";
     static type = "dijkstra";
+    /** Searches the run's scope: the node and edge lists and the graph all come from the input. */
+    static scopeInput = "subgraph" as const;
 
     static zodOptionsSchema: ZodOptionsSchema = dijkstraOptionsSchema;
 
@@ -125,8 +128,9 @@ export class DijkstraAlgorithm extends DeclaredAlgorithm<DijkstraOptions> {
      * @returns The route, or null when there are no nodes to search.
      */
     async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
-        const dataManager = this.graph.getDataManager();
-        const nodeIds = Array.from(dataManager.nodes.keys());
+        // The nodes and edges of the run's input: its scope's, or the whole graph's.
+        const input = this.input("undirected");
+        const nodeIds = scopeNodeIds(input);
 
         if (nodeIds.length === 0) {
             return null;
@@ -135,13 +139,9 @@ export class DijkstraAlgorithm extends DeclaredAlgorithm<DijkstraOptions> {
         // Undirected: a shortest path may cross an edge in either direction.
         const { snapshot, edgeRemap, run } = this.accelerated("sssp", "undirected");
 
-        if (snapshot.nodeCount === 0) {
-            return null;
-        }
-
-        /* Get source and target from legacy options, schema options, or use the graph's first and
-           last node. The DEFAULTS come from the snapshot rather than from the render objects,
-           because the snapshot is what the search runs over. */
+        /* Get source and target from legacy options, schema options, or use the input's first and
+           last node -- the scope's, for a scoped run. The DEFAULTS come from the snapshot rather
+           than from the render objects, because the snapshot is what the search runs over. */
         const { ids } = snapshot;
         const source = this.legacyOptions?.source ?? this._schemaOptions.source ?? ids.idOf(0);
         const target = this.legacyOptions?.target ?? this._schemaOptions.target ?? ids.idOf(snapshot.nodeCount - 1);
@@ -176,13 +176,13 @@ export class DijkstraAlgorithm extends DeclaredAlgorithm<DijkstraOptions> {
         });
 
         const edges: ResultElementValues<EdgeId>[] = [];
-        await forEachChunked(context, "Marking the route", Array.from(dataManager.edges.values()), (edge) => {
+        await forEachChunked(context, "Marking the route", scopeEdges(input), (edge) => {
             /* The route names edges of the UNDIRECTED view, so the element's own edge is mapped
                onto that space rather than the other way round: both halves of a reciprocal pair
                that merged into one edge are on the route, and the id PUBLISHED is the element's
                own, because a merged edge cannot name one of two parallel edges and a style layer
                has to be able to. */
-            const merged = edgeRemap === null ? edge.index : (edgeRemap[edge.index] ?? INVALID_INDEX);
+            const merged = edgeRemap === null ? edge.row : (edgeRemap[edge.row] ?? INVALID_INDEX);
 
             edges.push({ id: edge.id, values: { onPath: routeEdges.has(merged) } });
         });

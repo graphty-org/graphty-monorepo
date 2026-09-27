@@ -5,13 +5,15 @@
  */
 
 import { maskTest } from "@graphty/graph-format";
-import { assert } from "vitest";
+import fc from "fast-check";
+import { assert, describe, it } from "vitest";
 
 import type { Algorithm } from "../../../src/algorithms/Algorithm";
 import { type ResolvedInputScope, withRunInput } from "../../../src/algorithms/input/ScopedInput";
 import { detachedRunContext } from "../../../src/algorithms/results";
 import type { Graph } from "../../../src/Graph";
 import type { RunResult } from "../../../src/session/results";
+import { fcParams } from "../../helpers/fc-params";
 import { type EdgeSpec, InputGraph } from "../input/harness";
 
 /** Builds one algorithm over a graph. */
@@ -197,6 +199,11 @@ export async function assertComputesOverScope(build: Build, graph: InputGraph, s
     const scoped = await runScoped(build, graph, scope);
     const hand = handBuilt(graph, scope);
     const expected = await runWhole(build, hand);
+    if (expected === undefined) {
+        assert.isUndefined(scoped, "nothing to compute on the scope's graph, so nothing over the scope");
+        return undefined;
+    }
+
     const covered = coveredBy(graph, scope);
 
     assert.deepStrictEqual(valuesOf(scoped, graph, covered.node, covered.edge), valuesOf(expected, hand));
@@ -204,4 +211,113 @@ export async function assertComputesOverScope(build: Build, graph: InputGraph, s
     assert.deepStrictEqual(scoped?.graph, expected?.graph);
 
     return scoped;
+}
+
+/**
+ * A result's values and graph-level fields over a scope, for telling two runs apart.
+ * @param result - The result.
+ * @param graph - The graph it ran on.
+ * @param scope - The scope.
+ * @returns The values.
+ */
+function readingOver(result: RunResult | undefined, graph: InputGraph, scope: ResolvedInputScope): unknown {
+    const covered = coveredBy(graph, scope);
+    return { values: valuesOf(result, graph, covered.node, covered.edge), graph: result?.graph };
+}
+
+/*
+ * The listed fixture: a triangle a, b, c with a tail c - d - e, and f outside the scope joined to
+ * e and a. The listed scope is a to e without c>a and c>d, which breaks the triangle and cuts the
+ * tail off, so a run that read the induced edges instead of the listed ones publishes different
+ * values.
+ */
+const LISTED_NODES = ["a", "b", "c", "d", "e", "f"];
+const LISTED_EDGES: readonly EdgeSpec[] = [
+    ["a", "b", 1],
+    ["b", "c", 2],
+    ["c", "a", 3],
+    ["c", "d", 1],
+    ["d", "e", 2],
+    ["e", "f", 1],
+    ["f", "a", 1],
+];
+
+/*
+ * The multigraph fixture: two parallel a>b edges of different weights, a reciprocal pair b>c and
+ * c>b, and z outside the scope offering a way round.
+ */
+const MULTI_NODES = ["a", "z", "b", "c", "d"];
+const MULTI_EDGES: readonly EdgeSpec[] = [
+    ["a", "b", 1],
+    ["a", "b", 4],
+    ["b", "c", 2],
+    ["c", "b", 3],
+    ["c", "d", 1],
+    ["a", "z", 1],
+    ["z", "d", 1],
+];
+
+/**
+ * The two cases every adapter that computes over its scope is tested on beyond the registry test:
+ * a listed scope, and a multigraph.
+ * @param name - The adapter, for the test names.
+ * @param build - The adapter.
+ */
+export function describeScopedAdapter(name: string, build: Build): void {
+    describe(`${name} over a scope`, () => {
+        it("a listed scope computes over exactly its listed edges", async () => {
+            const graph = new InputGraph(LISTED_NODES, LISTED_EDGES, true);
+            const members = ["a", "b", "c", "d", "e"];
+            const listed = graph.scope(members, (source, target) => !(source === "c" && (target === "a" || target === "d")));
+            const induced = graph.scope(members);
+
+            const result = await assertComputesOverScope(build, graph, listed);
+            assert.notDeepEqual(
+                readingOver(result, graph, listed),
+                readingOver(await runScoped(build, graph, induced), graph, listed),
+                "the listed edges, not every edge between the members",
+            );
+        });
+
+        it("a multigraph scope merges its parallel edges as the scope's own graph would", async () => {
+            const graph = new InputGraph(MULTI_NODES, MULTI_EDGES, true);
+            await assertComputesOverScope(build, graph, graph.scope(["a", "b", "c", "d"]));
+        });
+    });
+}
+
+/** A random directed multigraph over up to ten nodes, and a scope over it. */
+const scopedGraphs = fc
+    .integer({ min: 1, max: 10 })
+    .chain((size) =>
+        fc.record({
+            size: fc.constant(size),
+            edges: fc.array(fc.tuple(fc.nat(size - 1), fc.nat(size - 1), fc.integer({ min: 1, max: 5 })), { maxLength: 30 }),
+            members: fc.array(fc.boolean(), { minLength: size, maxLength: size }),
+            listed: fc.option(fc.array(fc.boolean(), { minLength: 30, maxLength: 30 }), { nil: undefined }),
+        }),
+    );
+
+/**
+ * A scoped run equals the run on the scope's graph built by hand, for generated graphs and scopes,
+ * induced and listed.
+ * @param build - The adapter.
+ */
+export async function assertOverGeneratedScopes(build: Build): Promise<void> {
+    await fc.assert(
+        fc.asyncProperty(scopedGraphs, async ({ size, edges, members, listed }) => {
+            const ids = Array.from({ length: size }, (_, index) => `n${String(index)}`);
+            const graph = new InputGraph(
+                ids,
+                edges.map(([source, target, weight]) => [ids[source], ids[target], weight] as const),
+                true,
+            );
+            const scope = graph.scope(
+                ids.filter((_, index) => members[index]),
+                listed === undefined ? undefined : (_source, _target, index) => listed[index],
+            );
+            await assertComputesOverScope(build, graph, scope);
+        }),
+        fcParams(200),
+    );
 }

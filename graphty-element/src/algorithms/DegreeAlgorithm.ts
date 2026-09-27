@@ -38,6 +38,8 @@ const DEGREE_FIELDS: readonly FieldDescriptor[] = [
 export class DegreeAlgorithm extends MetricAlgorithm {
     static namespace = "graphty";
     static type = "degree";
+    /** Counts over the run's scope: the node list and the graph both come from the input. */
+    static scopeInput = "subgraph" as const;
 
     /**
      * The fields a degree result publishes.

@@ -1614,7 +1614,7 @@ class RemoveRun implements Command {
         const going = model.pending.filter((item) => item.runs.includes(id));
         await edit(model, real, `remove run ${id}`, { key: null }, async () => {
             try {
-                await real.session.execute({ op: "algo.remove", id });
+                await real.session.execute({ op: "algo.remove", runId: id });
             } finally {
                 model.pending = model.pending.filter((item) => !going.includes(item));
             }

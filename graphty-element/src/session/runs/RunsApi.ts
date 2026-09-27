@@ -683,7 +683,7 @@ class Runs implements SessionRunsApi {
      * @returns What went with it.
      */
     remove(id: RunId): RunRemoval {
-        const command: AlgoRemoveCommand = { op: "algo.remove", id };
+        const command: AlgoRemoveCommand = { op: "algo.remove", runId: id };
         const removal = this.removalOf(id);
         this.dispatcher.dispatchNow(command);
 
@@ -1207,7 +1207,7 @@ class Runs implements SessionRunsApi {
      * @returns What went with it.
      */
     private removeInto(command: AlgoRemoveCommand, draft: Draft): RunRemoval {
-        const { id } = command;
+        const { runId: id } = command;
         const removal = this.removalOf(id);
         const { layerIds } = removal;
         const run = this.runs.get(id);

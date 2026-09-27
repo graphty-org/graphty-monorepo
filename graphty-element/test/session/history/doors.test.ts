@@ -1,9 +1,8 @@
 /**
  * @file The door list's ratchet, and the session half of the doors test.
  *
- * The ratchet holds for every row: a `knownGap` or `partial` row names a phase after the one the
- * branch has reached (`PLAN_PHASE`), so a phase cannot finish while a door it promised is still
- * open; exempt rows give a reason; a row that dispatches, or will, says how to call it.
+ * The rule holds for every row: no `knownGap` or `partial` row remains; exempt rows give a
+ * reason; a row that dispatches, or will, says how to call it.
  *
  * The session half calls every such row of the session's roots on a real session with a spy on
  * its dispatcher: a `knownGap` door must dispatch nothing, and a `dispatches` or `partial` door
@@ -14,7 +13,7 @@
 import { assert, describe, it } from "vitest";
 
 import { COMMANDS } from "../../../commands";
-import { type Door, DOOR_ROOTS, GESTURE_DOORS, PHASES, PLAN_PHASE } from "../../../src/session/commands/doors";
+import { type Door, DOOR_ROOTS, GESTURE_DOORS } from "../../../src/session/commands/doors";
 import { createElementSession, dispatcherOf } from "../../../src/session/GraphSession";
 import type { ElementSession } from "../../../src/session/types";
 import { callOf, checkDispatches, dispatchesOf } from "./door-harness";
@@ -71,23 +70,12 @@ const SESSION_ROOTS: Readonly<Record<string, (session: ElementSession) => object
 };
 
 describe("the door ratchet", () => {
-    it("has reached a phase of the plan", () => {
-        assert.include(PHASES, PLAN_PHASE);
-    });
+    it("leaves no knownGap or partial row", () => {
+        const open = rows()
+            .filter(([, door]) => door.kind === "knownGap" || door.kind === "partial")
+            .map(([label, door]) => `${label} (issue #${door.kind === "knownGap" || door.kind === "partial" ? door.issue : 0})`);
 
-    it("leaves no knownGap or partial row at or below the phase reached", () => {
-        const reached = PHASES.indexOf(PLAN_PHASE);
-        const overdue = rows()
-            .filter(
-                ([, door]) =>
-                    (door.kind === "knownGap" || door.kind === "partial") && PHASES.indexOf(door.phase) <= reached,
-            )
-            .map(
-                ([label, door]) =>
-                    `${label} (${door.kind === "knownGap" || door.kind === "partial" ? door.phase : ""})`,
-            );
-
-        assert.deepEqual(overdue, [], `rows still open at phase ${PLAN_PHASE}`);
+        assert.deepEqual(open, [], "rows that change project state without a step");
     });
 
     it("gives every exempt and partial row a reason", () => {

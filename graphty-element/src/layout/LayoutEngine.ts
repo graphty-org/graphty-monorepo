@@ -4,12 +4,13 @@ import { z } from "zod/v4";
 import { publishLayoutDescriptor } from "../catalog/layoutRegistry";
 import type { AuthoredLayoutDescriptor } from "../catalog/types";
 import type { OptionsSchema } from "../config";
-import { writableLane } from "../data/lane";
+import { readonlyPositions, writableLane } from "../data/lane";
 import { ElementPositions, isStorableCoordinate } from "../data/positions";
 import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
 import { GraphtyLogger } from "../logging/GraphtyLogger.js";
 import type { Node, NodeIdType } from "../Node";
+import type { ReadonlyElementPositions } from "../session/types";
 
 export interface Position {
     x: number;
@@ -184,6 +185,8 @@ export const layoutEngineInternals = {} as {
     pin(engine: LayoutEngine, n: Node): void;
     /** See `LayoutEngine.unpin`. */
     unpin(engine: LayoutEngine, n: Node): void;
+    /** The engine's writable coordinate array; `LayoutEngine.nodePositions` is its read-only view. */
+    positions(engine: LayoutEngine): ElementPositions;
 };
 
 /**
@@ -218,6 +221,7 @@ export abstract class LayoutEngine {
         layoutEngineInternals.unpin = (engine, n) => {
             engine.unpin(n);
         };
+        layoutEngineInternals.positions = (engine) => engine.writablePositions;
     }
 
     static type: string;
@@ -373,13 +377,29 @@ export abstract class LayoutEngine {
     }
 
     /**
-     * The array this engine publishes node coordinates into.
+     * The coordinates this engine publishes, read-only.
+     *
+     * Read-only because the array is the element's: a write here would move or pin a node with no
+     * undo step. The engine writes through {@link LayoutEngine.writeNodePosition}; a consumer
+     * places and pins nodes through `session.positions`.
+     * @returns the coordinates in use, read-only
+     */
+    get nodePositions(): ReadonlyElementPositions {
+        return this.readonlyPositionArray;
+    }
+
+    /** The read-only view {@link LayoutEngine.nodePositions} hands out; reads the array in use now. */
+    private readonly readonlyPositionArray = readonlyPositions(() => this.writablePositions);
+
+    /**
+     * The array this engine publishes node coordinates into, writable.
      *
      * Allocated on demand, so reading it is enough to make an engine that has never been handed an
-     * element's array produce one of its own.
+     * element's array produce one of its own. The element reaches it through
+     * {@link layoutEngineInternals}.
      * @returns the position array in use
      */
-    get nodePositions(): ElementPositions {
+    private get writablePositions(): ElementPositions {
         this.positionArray ??= new ElementPositions(0);
         return this.positionArray;
     }
@@ -636,7 +656,7 @@ export abstract class LayoutEngine {
             }
         }
 
-        return this.nodePositions;
+        return this.writablePositions;
     }
 
     /**

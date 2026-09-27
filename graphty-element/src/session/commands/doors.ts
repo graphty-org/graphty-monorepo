@@ -8,10 +8,11 @@
  * - `exempt`, with the reason: it changes something no project file saves (the camera, the
  *   selection, work in flight, a machine preference);
  * - `dispatches`: it dispatches the command in its row, and nothing else;
- * - `partial`: it dispatches, but one call of it is not yet one step, until the phase it names;
- * - `knownGap`: it changes project state without the dispatcher, until the phase it names ports
- *   it. With an `op` it will dispatch that op; without one it is a public escape (a writable
- *   field, a live array) that the phase narrows.
+ * - `partial`: it dispatches, but one call of it is not yet one step, until the issue it names
+ *   is fixed;
+ * - `knownGap`: it changes project state without the dispatcher, until the issue it names is
+ *   fixed. With an `op` it will dispatch that op; without one it is a public escape (a writable
+ *   field, a live array) that the issue narrows.
  *
  * The roots are the element, `Graph`, `Node`, `Edge`, the session and each of its parts, the
  * `Run` handle, the style layer, every manager, and every type a public member of one of them
@@ -20,58 +21,16 @@
  * not classify, and on any handle type that is not a root, so nothing public can ship without a
  * decision about undo. `test/session/history/doors.test.ts` (the session's rows) and
  * `test/browser/doors.test.ts` (the renderer's rows) call every row that dispatches or will
- * dispatch, with a spy on the dispatcher, and enforce the ratchet: a `knownGap` or `partial` row
- * whose phase is at or below {@link PLAN_PHASE} fails, as does a `knownGap` door that dispatches.
+ * dispatch, with a spy on the dispatcher, and hold the rule: no `knownGap` or `partial` row may
+ * remain, and a `knownGap` door must dispatch nothing. A row of either kind names the GitHub
+ * issue that tracks it, so a gap that has to land for a while is still on record.
  *
- * No entry point exports this module. The phases are those of design/undo/undo-plan.md.
+ * No entry point exports this module.
  */
 
 import type { LayerSpec } from "../../catalog/types";
 import type { SessionCommand } from "../planning";
 import type { ImportSource } from "./data";
-
-/** The phases of the undo plan, in order. */
-export const PHASES = [
-    "1",
-    "2",
-    "3",
-    "4a",
-    "4b",
-    "5",
-    "6",
-    "7",
-    "8",
-    "9",
-    "10",
-    "11",
-    "12",
-    "13",
-    "14",
-    "15",
-    "16a",
-    "16b",
-    "17",
-    "18a",
-    "18b",
-    "18c",
-    "19a",
-    "19b",
-    "20",
-    "21",
-    "22",
-    "23",
-    "24",
-    "25a",
-    "25b",
-    "25c",
-    "26",
-] as const;
-
-/** One phase of the undo plan. */
-type PlanPhase = (typeof PHASES)[number];
-
-/** The phase this branch has reached. Each phase's commit raises it. */
-export const PLAN_PHASE: PlanPhase = "26";
 
 /** How the doors tests call a door. */
 export type DoorCall =
@@ -100,7 +59,8 @@ export type Door =
       }
     | {
           readonly kind: "partial";
-          readonly phase: PlanPhase;
+          /** The GitHub issue tracking it. */
+          readonly issue: number;
           readonly reason: string;
           readonly op: string;
           readonly call: DoorCall;
@@ -108,8 +68,9 @@ export type Door =
       }
     | {
           readonly kind: "knownGap";
-          readonly phase: PlanPhase;
-          /** The op it will dispatch once ported; absent for an escape the phase narrows. */
+          /** The GitHub issue tracking it. */
+          readonly issue: number;
+          /** The op it will dispatch once ported; absent for an escape the issue narrows. */
           readonly op?: string;
           /** How to call it; present exactly when `op` is. */
           readonly call?: DoorCall;
@@ -271,15 +232,15 @@ const LOAD_FROM_URL = calls(
 );
 
 /**
- * Loading from a URL on the element, whose rows above set the edge id paths to `src` and `dst`,
- * which the load names as the endpoints to read.
+ * Loading from a URL on the element, whose rows above set the node id path to `key` and the edge
+ * id paths to `src` and `dst`, which the load names as the ids and the endpoints to read.
  */
 const LOAD_FROM_URL_ELEMENT = calls(
     [TINY_JSON_URL],
     [
         imports("merge", {
             type: "json",
-            config: { data: TINY_JSON, nodeIdPath: "id", edgeSource: "src", edgeTarget: "dst" },
+            config: { data: TINY_JSON, nodeIdPath: "key", edgeSource: "src", edgeTarget: "dst" },
         }),
     ],
 );
@@ -534,7 +495,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 imports("replace", { type: "json", config: { url: TINY_JSON_URL } }, { coalesce: "element-source" }),
             ]),
             clearData: CLEAR_DATA,
-            nodeIdPath: assigns("id", [{ op: "config.set", values: { data: { knownFields: { nodeIdPath: "id" } } } }]),
+            // Each property row assigns a value other than its default: assigning the default leaves the
+            // setting unset, so its getter goes on reading undefined and no step is recorded.
+            nodeIdPath: assigns("key", [{ op: "config.set", values: { data: { knownFields: { nodeIdPath: "key" } } } }]),
             edgeSrcIdPath: assigns("src", [
                 { op: "config.set", values: { data: { knownFields: { edgeSrcIdPath: "src" } } } },
             ]),
@@ -542,14 +505,14 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 { op: "config.set", values: { data: { knownFields: { edgeDstIdPath: "dst" } } } },
             ]),
             edgeIdPath: assigns("id", [{ op: "config.set", values: { data: { knownFields: { edgeIdPath: "id" } } } }]),
-            repeatedEdges: assigns("keep", [
-                { op: "config.set", values: { data: { knownFields: { repeatedEdges: "keep" } } } },
+            repeatedEdges: assigns("first", [
+                { op: "config.set", values: { data: { knownFields: { repeatedEdges: "first" } } } },
             ]),
             nodeLabelPath: assigns("label", [
                 { op: "config.set", values: { data: { knownFields: { nodeLabelPath: "label" } } } },
             ]),
-            edgeWeightPath: assigns("weight", [
-                { op: "config.set", values: { data: { knownFields: { edgeWeightPath: "weight" } } } },
+            edgeWeightPath: assigns("w", [
+                { op: "config.set", values: { data: { knownFields: { edgeWeightPath: "w" } } } },
             ]),
             positionScale: assigns(2, [{ op: "config.set", values: { data: { knownFields: { positionScale: 2 } } } }]),
             directed: assigns(true, [{ op: "config.set", values: { data: { directed: true } } }]),
@@ -560,8 +523,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             layoutConfig: assigns({}, [
                 { op: "layout.set", id: "circular", engine: "circular", options: {}, coalesce: "element-layout" },
             ]),
-            layoutBehavior: assigns({ layout: { preSteps: 0 } }, [
-                { op: "config.set", values: { layoutBehavior: { preSteps: 0 } } },
+            layoutBehavior: assigns({ layout: { preSteps: 5 } }, [
+                { op: "config.set", values: { layoutBehavior: { preSteps: 5 } } },
             ]),
             selectionStyle: assigns({ color: "#ff0000" }, [
                 { op: "config.set", values: { selectionStyle: { color: "#ff0000" } } },
@@ -573,7 +536,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 { op: "config.set", values: { background: { backgroundType: "color", color: "#101010" } } },
             ]),
             startingCameraDistance: CAMERA,
-            runAlgorithmsOnLoad: assigns(false, [{ op: "config.set", values: { runAlgorithmsOnLoad: false } }]),
+            runAlgorithmsOnLoad: assigns(true, [{ op: "config.set", values: { runAlgorithmsOnLoad: true } }]),
             historyKeys: INPUT,
             enableDetailedProfiling: PROFILING,
             xr: XR,
@@ -1265,7 +1228,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             batch: calls([[{ algorithm: "degree" }]], [RUN_DEGREE]),
             get: READ,
             list: READ,
-            remove: calls(["door-run"], [{ op: "algo.remove", id: "door-run" }]),
+            remove: calls(["door-run"], [{ op: "algo.remove", runId: "door-run" }]),
             bindings: READ,
             queue: READ,
         },
@@ -1378,8 +1341,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: STYLES_API,
     },
     {
-        // The lane itself, which only the renderer reaches (`DataManager.positions`,
-        // `LayoutEngine.nodePositions`); a consumer holds `SessionPositions`.
+        // The lane itself, which only the renderer reaches (through `writableLane` and
+        // `layoutEngineInternals`); every public accessor hands out `ReadonlyElementPositions`.
         name: "ElementPositions",
         file: "src/data/positions.ts",
         half: "renderer",
@@ -1480,7 +1443,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             removeEdge: DERIVED,
             updatePositions: TRANSPORT,
             dispose: LIFECYCLE,
-            nodePositions: TRANSPORT,
+            // A read-only view; the engine's writable array is reached through layoutEngineInternals.
+            nodePositions: READ,
             attachPositions: TRANSPORT,
             publishPositions: TRANSPORT,
             readNodePosition: READ,

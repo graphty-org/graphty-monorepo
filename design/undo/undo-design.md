@@ -2187,20 +2187,31 @@ surviving step that moved nodes, whose lane must equal its before-arrangement.
 
 ### 12.6 Scale
 
-- **Node (`scale.test.ts`).** Runs at 100,000 nodes in CI and at a million behind
-  `GRAPHTY_SCALE=1m`. It imports, runs 50 mixed steps (including adding nodes one at a time while
+The element refuses a graph larger than its render ceiling (`DEFAULT_LIMITS.renderCeiling`,
+50,000 nodes and 100,000 edges today) with `E_TOO_LARGE`, so no test loads a million nodes into a
+session. The scale tests run at that ceiling, and the million-node claims are checked without a
+session: in Node, a snapshot and a run result of a million nodes and five million edges are built,
+their byte estimates checked against their storage, and a history fed steps of those sizes is
+checked to stay inside the 256 MiB default. The per-element retained sizes asserted at the ceiling
+give the figures of section 7 at a million nodes by multiplication.
+
+- **Node (`scale.test.ts`, with the time budgets in `scale.bench.test.ts`).** Runs at the render
+  ceiling, less room for the steps to add nodes. It imports, runs 50 mixed steps (including adding nodes one at a time while
   the layout runs, and calling `positions.set` for one node at a time), and asserts the retained
   sizes of section 7, `history.bytes <= limitBytes` after eviction, the dispatch overhead of one
-  command over a million ids, and time budgets for undoing an attribute edit, undoing a replacing
+  command over a million ids (a list of ids, not a loaded graph), and time budgets for undoing an attribute edit, undoing a replacing
   import at the state layer, and `restoreTo(null)`. It undoes 30 mid-row removals without
   awaiting, asserts that the synchronous part of each call stays within a budget proportional to
   its patch, then reads the snapshot once and asserts that one rebuild ran (section 3.4). It also
   measures the cost of deep-freezing records at import.
-- **Browser (`graphty-element/test/browser/history-scale.test.ts`).** The Node test has no
+- **Browser (`graphty-element/test/browser/history-scale.bench.test.ts`).** The Node test has no
   renderer, Babylon scene or layout engine, and the dominant costs of undo at scale are there. This
-  test drives a real `Graph` at 50,000 nodes in CI (a million behind `GRAPHTY_SCALE=1m`) and times,
-  including the derivation pass, undoing a replacing import, undoing the removal of 1000 nodes,
-  undoing a drag at rest, and `restoreTo(null)`, against budgets.
+  test drives a real `Graph` at the render ceiling and times, including the derivation pass,
+  undoing a replacing import, undoing the removal of 1000 nodes, undoing a drag at rest, and
+  `restoreTo(null)`, against budgets. Tearing the whole graph down -- a replacing import, a clear,
+  or undoing the load -- takes about 20 s at the ceiling, because each node's mesh dispose costs
+  the size of the scene. That is reported, not budgeted, until
+  https://github.com/graphty-org/graphty-monorepo/issues/543 is fixed.
 
 Timing assertions in both run with strict state off; strict overhead is reported separately.
 

@@ -28,7 +28,8 @@
  * NOT A BUDGET HERE, REPORTED: tearing the whole graph down -- a replacing import, a clear, or
  * undoing the load -- takes about 20 s at this size, because every node's mesh dispose searches
  * and splices the scene's mesh list. That is the renderer's cost of removing a node, which a
- * forward clear pays as well; the replacing import below prints it.
+ * forward clear pays as well; the replacing import below prints it. Tracked by
+ * https://github.com/graphty-org/graphty-monorepo/issues/543, which turns this into a budget.
  */
 
 import { Vector3 } from "@babylonjs/core";

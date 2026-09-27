@@ -34,7 +34,7 @@ import type { RowUpdate } from "../types";
 export interface AlgoRemoveCommand {
     readonly op: "algo.remove";
     /** The run. */
-    readonly id: RunId;
+    readonly runId: RunId;
 }
 
 /**
@@ -135,7 +135,10 @@ const algoLegacy: UndoableDefinition<AlgoLegacyCommand> = {
 
 const algoRemove: UndoableDefinition<AlgoRemoveCommand> = {
     op: "algo.remove",
-    undo: { kind: "undoable", label: (command) => `Removed run ${command.id}` },
+    undo: {
+        kind: "undoable",
+        label: (command, state) => `Removed ${state.runs.get(command.runId)?.command.algorithm ?? `run ${command.runId}`}`,
+    },
     moves: false,
     draws: true,
     keys: () => ["runs", "styles"],

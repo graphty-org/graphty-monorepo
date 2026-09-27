@@ -5,13 +5,13 @@
  * while the list is not empty.
  */
 
-import { DOOR_ROOTS, PHASES } from "../../../src/session/commands/doors";
+import { DOOR_ROOTS } from "../../../src/session/commands/doors";
 import { DEFINITIONS } from "../../../src/session/commands/index";
 
 /**
- * The phase that ports the first door of `op`, when no door dispatches it yet.
+ * The issue that tracks the first door of `op`, when no door dispatches it yet.
  * @param op - The op.
- * @returns The phase, or null when some door dispatches it.
+ * @returns The issue, as `#N`, or null when some door dispatches it.
  */
 export function pendingPhase(op: string): string | null {
     const doors = DOOR_ROOTS.flatMap((root) => Object.values(root.doors ?? {}));
@@ -19,17 +19,17 @@ export function pendingPhase(op: string): string | null {
         return null;
     }
 
-    const phases = doors.flatMap((door) => (door.kind === "knownGap" && door.op === op ? [door.phase] : []));
-    return phases.sort((a, b) => PHASES.indexOf(a) - PHASES.indexOf(b))[0] ?? null;
+    const issues = doors.flatMap((door) => (door.kind === "knownGap" && door.op === op ? [door.issue] : []));
+    return issues.length === 0 ? null : `#${Math.min(...issues)}`;
 }
 
 /**
- * Every undoable op still pending, with the phase that ports it.
- * @returns The ops, as `op (phase N)`.
+ * Every undoable op still pending, with the issue that tracks it.
+ * @returns The ops, as `op (issue #N)`.
  */
 export function pendingOps(): string[] {
     return DEFINITIONS.filter((definition) => definition.undo.kind === "undoable").flatMap((definition) => {
         const phase = pendingPhase(definition.op);
-        return phase === null ? [] : [`${definition.op} (phase ${phase})`];
+        return phase === null ? [] : [`${definition.op} (issue ${phase})`];
     });
 }

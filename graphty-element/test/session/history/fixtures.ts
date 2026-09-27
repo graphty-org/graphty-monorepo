@@ -227,7 +227,7 @@ export const FIXTURES: readonly RoundTripFixture[] = [
             await session.runs.start("degree", {}, { as: "deg" });
             await session.styles.settled();
         },
-        command: { op: "algo.remove", id: "deg" },
+        command: { op: "algo.remove", runId: "deg" },
     },
     {
         name: "style.patch add",

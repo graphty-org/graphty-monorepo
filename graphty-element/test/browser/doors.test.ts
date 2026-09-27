@@ -207,3 +207,24 @@ describe("the element's properties read back across undo and redo", () => {
         assert.deepEqual(gaps, [], "property doors not yet checked across undo and redo");
     });
 });
+
+describe("the coordinate lane is read-only everywhere a consumer reaches it", () => {
+    it(
+        "hands out no writer through the data manager or the layout engine",
+        async () => {
+            const graph = await loadedGraph();
+            const engine = graph.getLayoutManager().layoutEngine;
+            assert.isDefined(engine);
+            const views: [string, object][] = [
+                ["DataManager.positions", graph.getDataManager().positions],
+                ["LayoutEngine.nodePositions", engine.nodePositions],
+            ];
+            for (const [name, view] of views) {
+                for (const writer of ["write", "fillUnplaced", "grow", "remap", "setPinned", "pinnedView", "view"]) {
+                    assert.notProperty(view, writer, `${name} has no ${writer}`);
+                }
+            }
+        },
+        ROOT_TIMEOUT_MS,
+    );
+});

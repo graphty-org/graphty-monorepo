@@ -25,6 +25,7 @@ import jmespath from "jmespath";
 
 import type { EdgeId, NodeId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
+import { GraphtyLogger } from "../../logging/GraphtyLogger.js";
 import type { UndoableContext, UndoableDefinition } from "../project/Dispatcher";
 import type { Draft } from "../project/draft";
 import { edgeKey, nodeKey } from "../project/graphOps";
@@ -377,13 +378,18 @@ function serviceOf(service: DataService | undefined): DataService {
  * @returns "Loaded flights.csv" and the like.
  */
 function importLabel(command: DataImportCommand): string {
-    const { type, config } = command.source;
-    if (type === undefined || config === undefined) {
-        return "Set the data source";
+    const { type, config, name } = command.source;
+    const file = config?.file as { name?: unknown } | undefined;
+    const url = typeof config?.url === "string" && !config.url.startsWith("data:") ? config.url : undefined;
+    // The same name `data.source()` reports: the one given, the file's, or the URL's last part.
+    const named = [name, config?.filename, file?.name, url?.split(/[?#]/)[0]?.split("/").pop()].find(
+        (each): each is string => typeof each === "string" && each !== "",
+    );
+    if (named !== undefined) {
+        return `Loaded ${named}`;
     }
 
-    const named = config.filename ?? config.url;
-    return `Loaded ${typeof named === "string" && !named.startsWith("data:") ? named : type}`;
+    return type === undefined ? "Set the data source" : `Loaded ${type}`;
 }
 
 const dataImport: UndoableDefinition<DataImportCommand> = {
@@ -407,7 +413,17 @@ const dataImport: UndoableDefinition<DataImportCommand> = {
             ctx.after("layout:recommended", (dispatch) => {
                 const advice = advise?.();
                 if (advice !== undefined) {
-                    void dispatch({ op: "layout.set", id: advice.id, engine: advice.engine }).catch(() => undefined);
+                    void dispatch({ op: "layout.set", id: advice.id, engine: advice.engine }).catch((error: unknown) => {
+                        // An undo that took the import away cancels this too; anything else is a
+                        // layout the import promised and did not apply.
+                        if ((error as { name?: unknown } | null)?.name !== "AbortError") {
+                            GraphtyLogger.getLogger(["graphty", "data"]).error(
+                                "The layout recommended for the imported data could not be applied",
+                                error instanceof Error ? error : new Error(String(error)),
+                                { layout: advice.id },
+                            );
+                        }
+                    });
                 }
             });
         }

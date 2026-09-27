@@ -97,14 +97,14 @@ describe("the vocabulary", () => {
             });
         } else {
             it(fixtureTitle, () => {
-                assert.isNull(pending, `${definition.op}: no door dispatches it until phase ${String(pending)}`);
+                assert.isNull(pending, `${definition.op}: no door dispatches it until issue ${String(pending)} is fixed`);
                 assert.deepEqual(covers("session"), [], `${definition.op}: values with no session fixture`);
             });
         }
 
         if (definition.draws === true) {
             it(`${definition.op} changes what is drawn, so it has a renderer fixture for every value`, () => {
-                assert.isNull(pending, `${definition.op}: no door dispatches it until phase ${String(pending)}`);
+                assert.isNull(pending, `${definition.op}: no door dispatches it until issue ${String(pending)} is fixed`);
                 assert.deepEqual(covers("renderer"), [], `${definition.op}: values with no renderer fixture`);
             });
         }

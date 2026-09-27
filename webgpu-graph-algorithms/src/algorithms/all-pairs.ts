@@ -6,14 +6,17 @@
  * `3 B` dispatches -- is recorded into ONE compute pass: WebGPU runs the dispatches of a pass in order and makes each
  * one's writes visible to the next, so nothing is read back until the matrix is done. Above
  * `APSP_MAX_DISPATCHES_PER_SUBMIT` dispatches the sweep is split into further submits and `signal` is checked
- * between them. The result is bitwise reproducible (no atomics, and a cell is only ever written by one lane per
- * dispatch), exact for hop counts, and the minimum of f32 path sums for weights.
+ * between them -- but no binding WebGPU devices offer today reaches that (a 4 GiB binding is 32,767 nodes, 3,072
+ * dispatches), so in practice the sweep is one submit: `signal` is checked before it and after it, never during,
+ * and `onProgress` fires once. The result is bitwise reproducible (no atomics, and a cell is only ever written by one
+ * lane per dispatch), exact for hop counts, and the minimum of f32 path sums for weights.
  *
  * The ceiling: the matrix is exactly `n * n` (never padded to the tile) and is bound as ONE storage binding, so
  * `n <= floor(sqrt(limit / 4))` with `limit` the smaller of the device's `maxStorageBufferBindingSize` and
- * `maxBufferSize` -- 5,792 nodes at the 128 MiB spec default, 23,170 at Dawn-node's 2 GiB. Above it the call throws
- * `E_TOO_LARGE` naming the node count, the ceiling, the limit it read and `GpuContextOptions.limits` as the way to
- * raise it; the rows are never windowed. Refused before any device work: a negative weight (`E_UNSUPPORTED
+ * `maxBufferSize`. A context's default `limits: "raise"` takes the adapter's own limits: 23,170 nodes on a hardware
+ * adapter under Dawn (a 2 GiB binding), 5,792 on lavapipe or under `limits: "default"` (the 128 MiB spec default).
+ * Above it the call throws `E_TOO_LARGE` naming the node count, the ceiling, the limit it read and
+ * `GpuContextOptions.limits` as the way to raise it; the rows are never windowed. Refused before any device work: a negative weight (`E_UNSUPPORTED
  * allPairs.negativeWeights` -- Floyd-Warshall's in-place tile update is race-free only while the diagonal stays 0)
  * and a NaN or infinite one (`allPairs.nonFiniteWeights`). `weighted` defaults to "the snapshot has weights";
  * `weighted: false` on a weighted snapshot computes hop counts. The empty graph returns an empty matrix without a
@@ -208,7 +211,8 @@ export async function allPairsWithTuning(
 /**
  * All-pairs shortest paths on the device (design 8.7, 3.3 line 813): blocked Floyd-Warshall over 32 x 32 tiles of one
  * `n x n` f32 matrix. `dist[i * n + j]` is the distance from `i` to `j`, `+Infinity` when unreachable, `0` on the
- * diagonal. `E_TOO_LARGE` above `floor(sqrt(maxStorageBufferBindingSize / 4))` nodes (5,792 at the default limits);
+ * diagonal. `E_TOO_LARGE` above `floor(sqrt(maxStorageBufferBindingSize / 4))` nodes (23,170 at a 2 GiB binding, the
+ * usual hardware adapter under the context's default `limits: "raise"`; 5,792 at the 128 MiB spec default);
  * `E_UNSUPPORTED` for a negative or non-finite weight unless `weighted: false`.
  * @param ctx - the context whose device runs the kernels
  * @param s - the snapshot (uploaded through ctx.residency, or found there)

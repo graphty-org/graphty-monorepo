@@ -9,7 +9,8 @@
  *   apsp at n=<n>            the whole call
  *   apsp readback n=<n>      the matrix readback alone
  *
- * The top rung, 5,760, is one 32-node tile under the 5,792-node ceiling of the 128 MiB spec default binding; a rung
+ * The top rung, 5,760, is one 32-node tile under the 5,792-node ceiling of a 128 MiB binding (lavapipe's, and the
+ * spec default), so every adapter runs the whole ladder; a rung
  * above the device's ceiling is skipped with a printed reason. No profiler row: the sweep is recorded as ONE compute
  * pass per submit and the driver never resolves the profiler's query set, so there is no per-kernel GPU time to
  * report. The design sets no T-target for all-pairs: the rows arm the regression check.

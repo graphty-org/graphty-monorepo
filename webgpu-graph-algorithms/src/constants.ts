@@ -266,8 +266,10 @@ export const F32_INF_BITS = 0x7f800000;
  */
 export const APSP_TILE = 32;
 /**
- * The blocked sweep records `3 x ceil(n / APSP_TILE)` dispatches (543 at the 5,792-node default ceiling, 2,172 at a
- * raised 23,170); above this many the driver splits the sweep into further submits, so a raised-limit run never
- * builds one unbounded command buffer.
+ * The blocked sweep records `3 x ceil(n / APSP_TILE)` dispatches (543 at the 5,792-node ceiling of a 128 MiB binding,
+ * 2,175 at a 2 GiB binding's 23,170, 3,072 at a 4 GiB binding's 32,767); above this many the driver splits the sweep
+ * into further submits. No binding offered today reaches it, so every sweep is one submit; the cap only stops a
+ * device with a binding above 4 GiB (`maxStorageBufferBindingSize` is a GPUSize64) from building one unbounded
+ * command buffer.
  */
 export const APSP_MAX_DISPATCHES_PER_SUBMIT = 4096;

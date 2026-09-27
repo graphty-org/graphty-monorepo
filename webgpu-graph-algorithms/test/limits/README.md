@@ -41,10 +41,11 @@ Files, planned and landed, and the gate that lands each:
   in [0.1, 10) (the benchmark's SSSP row; the near-far queue binds 8 x roundUp(arcCount, 64)
   bytes whole, above lavapipe's 128 MiB): `dist` bitwise against the f32 oracle, the triangle
   inequality, `reachedCount`.
-- `apsp-ceiling.test.ts` (all-pairs shortest paths, landed): under raised limits an 8,192-node
-  matrix (268 MB, refused at the 128 MiB default) matches one BFS per source exactly, and one
-  node above the raised ceiling is `E_TOO_LARGE` naming the node count, the ceiling, the limit
-  and `GpuContextOptions.limits`.
+- `apsp-ceiling.test.ts` (all-pairs shortest paths, landed): an 8,192-node matrix (268 MB) is
+  `E_TOO_LARGE` under `limits: "default"` (128 MiB, 5,792 nodes) and, on a hardware adapter,
+  runs under the context's default `limits: "raise"` and matches one BFS per source exactly;
+  one node above the raised ceiling is `E_TOO_LARGE` naming the node count, the ceiling, the
+  limit and `GpuContextOptions.limits`.
 
 The six G4 files are the P4 phase's (`design/webgpu/plans/2026-09-20-webgpu-p4-grid-pyramid-and-tiers.md`,
 Task P4-T15); their measured numbers are in the G4 record, `docs/decisions/G4.md`.

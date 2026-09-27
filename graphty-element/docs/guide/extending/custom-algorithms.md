@@ -174,6 +174,60 @@ calibrated the estimate reports `"calibrated"`, like a built-in's. The older
 `static cost = (n, m) => seconds` still works, but those seconds cannot be scaled to the device,
 so its estimate always reports `"modelled"`; `costUnits` wins when a class declares both.
 
+## Computing over the run's scope
+
+A run can be scoped to part of the graph -- a kept [set](../sets), the selection, a community
+another run found. Declare `static scopeInput = "subgraph"` and your algorithm computes over that
+part:
+
+```ts
+class HopReach extends DeclaredAlgorithm<HopReachOptions> {
+    // ...as above...
+    static scopeInput = "subgraph" as const;
+}
+```
+
+With it declared, `this.algorithmGraph(...)` above already returns the scope's subgraph, so the
+example needs no other change. For the typed arrays instead, ask the context:
+
+```ts
+override async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
+    const input = context.input("undirected", { simplify: "min" });
+
+    // The compact snapshot of the scope's nodes and edges: rows are the subgraph's, not the graph's
+    const sub = input.subgraph();
+    for (let row = 0; row < sub.nodeCount; row++) {
+        const id = sub.ids.idOf(row); // publish by id, never by row
+        // ...
+    }
+
+    // Or the full graph with the scope as masks over it, for an algorithm that only skips nodes
+    console.log(input.graph.nodeCount, input.nodeCount, input.whole);
+    // ...
+}
+```
+
+| Member | What it is |
+| --- | --- |
+| `subgraph()` | The scope as its own compact graph-format snapshot, built on first call and cached |
+| `graph` | The full graph, as loaded |
+| `nodes`, `edges` | The scope as bit masks over `graph` (`edges` over the declared orientation) |
+| `nodeCount`, `edgeCount` | How many nodes and edges the scope holds |
+| `whole` | True when the scope is the whole graph; `subgraph()` then returns the graph itself |
+
+`simplify` says how parallel edges merge in `subgraph()`: `"sum"` by default, `"min"` for a
+shortest path, `"max"`, or `"none"` to keep them apart.
+
+**Declare it only once every node list, edge read and count your algorithm takes comes from the
+input.** An algorithm that lists its nodes some other way while reading a scoped topology would
+report every node over a subgraph's edges.
+
+**Without the declaration**, your algorithm is handed the whole graph, the element keeps only the
+scope's values of what you publish, and the run says so: "Computed on the whole graph; values kept
+for the scope only." The cost estimate is then the whole graph's, so a small scope cannot admit a
+run the whole graph is too large for. `register` publishes the declaration as the descriptor's
+`scopeInput`; leave it out of the descriptor, which is refused if it disagrees with the class.
+
 ## Chunking, for free
 
 `forEachChunked` walks a collection in chunks of 1024, reporting at the start of each and yielding
@@ -280,9 +334,10 @@ greying what your algorithm did not select is a reader's choice, not yours.
 renderer-backed `Graph`, as it does for every one of the element's own. `@graphty/graphty-element/extend`
 resolving in Node buys you type-checking rather than a headless test.
 
-**`scope`, `seed`, `exact`, `sample` and `timeBox` do not reach `compute`.** The run resolves all
-five and the manager forwards only the signal, the progress channel and the yield -- to the
-element's own algorithms as much as to yours.
+**`seed`, `exact`, `sample` and `timeBox` do not reach `compute`.** The run resolves all four and
+the manager forwards only the signal, the progress channel, the yield and the input -- to the
+element's own algorithms as much as to yours. The scope does reach it, through `context.input`
+(see "Computing over the run's scope"). The run option `scopeAs` is reserved and refused.
 
 **The 1.10 `namespace:type` address still works** and still calls `run()` directly, with no run
 record, no progress, no cancel and no published result. Start a run by the catalogue key instead.

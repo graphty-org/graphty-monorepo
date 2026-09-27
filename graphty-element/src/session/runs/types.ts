@@ -265,7 +265,12 @@ export interface RunScopeRecord {
      * The kept set a `{ set }` scope named, and its revision when the run resolved it, so a reader
      * can tell whether the set has been redefined since. Absent for every other scope.
      */
-    readonly set?: { readonly id: SetId; readonly revision: string };
+    readonly set?: {
+        /** The kept set's id. */
+        readonly id: SetId;
+        /** The set's revision when the run resolved it. */
+        readonly revision: string;
+    };
     /** Which edges came with the scope's nodes. OPEN UNION, as {@link EdgeReading}. */
     readonly reading?: EdgeReading;
 }

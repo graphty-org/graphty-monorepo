@@ -117,6 +117,25 @@ graph.on("error", ({ error, context }) => {
 });
 ```
 
+### Session events
+
+The session has its own events, for changes to what it holds rather than to the picture. Subscribe
+with `session.on()`, which returns the function that unsubscribes:
+
+```typescript
+const stop = element.session.on("set:changed", ({ id, change, fields, set }) => {
+    // change: "created" | "updated" | "removed"
+    // fields: for an update, which of "name", "definition" and "order" changed
+    console.log(id, change, fields, set?.name);
+});
+
+stop();
+```
+
+`set:changed` fires once per kept [set](./sets) a write touched, after the layers and the filter
+that name it have repainted. A rule set's members move with the data and emit nothing: re-read
+them on the events you already watch.
+
 ## DOM Events
 
 Listen via standard `addEventListener` on the Web Component:

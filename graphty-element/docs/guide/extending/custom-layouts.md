@@ -293,6 +293,46 @@ layout that ignores weights advertises a control that changes nothing.
 Likewise, you do not have to assign `this.config`. The element rebuilds your engine from the
 options the consumer actually gave when the drawing mode changes.
 
+## Laying out one set while holding the rest
+
+A consumer can ask a layout to move only some nodes -- `setLayout(type, opts, { scope })` -- and
+hold every other node still. An engine is refused that request (`E_UNSUPPORTED`) unless its class
+says it can:
+
+```ts
+class RingWalk extends LayoutEngine {
+    static type = "acme-ring";
+    static scoped = true;
+}
+```
+
+Declaring it publishes `scoped: true` on your descriptor in `session.catalog.layouts()`, and
+signs you up for one contract:
+
+- **The element hands you the hold** through `setHoldMask(mask, rows)` after `init()` and again
+  whenever the graph's rows are renumbered. A set bit is a row to hold; a row at or past `rows`
+  belongs to a node that arrived later, and is held too. `null` holds nothing.
+- **A held node never moves, whatever you do.** The element drops a layout write onto a held row
+  that already has a position, the way it drops one onto a pinned row. A held node with no position
+  yet takes your first write, so a newcomer is drawn somewhere.
+- **You must treat held nodes as fixed in your own state.** A simulation that keeps integrating a
+  held body computes every force on the members against a position that is never drawn. Override
+  `setHoldMask`, call `super.setHoldMask(mask, rows)` first, then fix the held rows in your own
+  terms -- a fixed-node mask, `fx`/`fy`, a pinned body -- and read `this.isHeld(index)` for a node
+  that arrives later or that a reader unpins while it is held.
+
+```ts
+override setHoldMask(mask: NodeMask | null, rows: number): void {
+    super.setHoldMask(mask, rows);
+    for (const body of this.bodies) {
+        body.fixed = this.isHeld(body.index);
+    }
+}
+```
+
+The hold is never a pin: it is not saved as one and unpinning does not release it. `holdMask`
+reads the current mask back.
+
 ## Finding it again
 
 ```ts

@@ -66,7 +66,9 @@ export interface ScopedInput {
     readonly edges: EdgeMask;
     /** True when the scope is the whole graph; `subgraph()` then returns `graph` (or its undirected view). */
     readonly whole: boolean;
+    /** How many nodes the scope holds: the set bits of `nodes`. */
     readonly nodeCount: number;
+    /** How many edges the scope holds: the set bits of `edges`. */
     readonly edgeCount: number;
     /** The derived compact snapshot in the asked orientation. Lazy, cached, shared. */
     subgraph(): GraphSnapshot;

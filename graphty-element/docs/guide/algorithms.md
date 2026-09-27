@@ -149,6 +149,42 @@ console.log(summary.max, summary.min, summary.top[0].id);
 The same values are published as columns under the run's id, which is what a style layer and a
 filter read: `results.<runId>.value`.
 
+## Running over part of the graph
+
+The `scope` option runs an algorithm over part of the graph -- a kept [set](./sets), the
+selection, or anything else a scope names -- and the run computes over that subgraph alone:
+
+```typescript
+const team = element.session.sets.create({ kind: "fixed", nodes: ["a", "b", "c", "d"], reading: "induced" });
+
+const run = element.run("pagerank", {}, { scope: { set: team } });
+await run;
+
+console.log(run.caveats.notes); // ["Computed on the induced subgraph of 4 nodes."]
+console.log(run.record.scope.set); // the set's id, and its revision when the run read it
+```
+
+- **Only the scope's elements get values.** A node outside the scope has no value from the run,
+  so it is left out of the ranking, the summary and any layer painting the run.
+- **The caveat says what was computed on**, so the number can be reproduced: the induced subgraph
+  of N nodes, or the N nodes and M edges in scope when the scope lists its edges.
+- **A node option must be inside the scope.** Dijkstra's `source` naming a node outside it is
+  refused with `E_OPTION_RANGE`; with no `source` and `target`, a scoped run takes the scope's
+  first and last nodes.
+- **A registered algorithm that does not read scopes** runs over the whole graph, keeps only the
+  scope's values, and says so: "Computed on the whole graph; values kept for the scope only."
+  `session.catalog.algorithms()` publishes which is which as `scopeInput`.
+
+With no `scope`, a run is over `"visible"`: the whole graph, or what the visibility filter shows.
+
+**This changed in 2.5.** Before, a run recorded its scope but computed over the whole graph, so a
+run scoped to less than the graph -- including a default run while a visibility filter was hiding
+something -- reported values that contradicted its own record. It now computes over its scope, so
+those values differ from 2.4's.
+
+A finished result also offers sets -- one per community, one for a path -- that can be kept or
+used as the next run's scope. See [Sets a result offers](./sets#sets-a-result-offers).
+
 ## Suggested Styles
 
 A run paints itself on its first completion. For a run started with `{style: false}`, or to put a

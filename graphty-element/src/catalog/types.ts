@@ -890,7 +890,9 @@ export type EdgeReading = "induced" | "listed" | "clipped";
  * OPEN: may gain optional members in a minor release.
  */
 export interface EdgeMember {
+    /** The node the edge leaves, as loaded. */
     readonly source: NodeId;
+    /** The node the edge enters, as loaded. */
     readonly target: NodeId;
     /**
      * The file's edge id, read at the element's configured `edgeIdPath`, or for an edge added in
@@ -981,7 +983,12 @@ export type SetDefinitionInput =
  *
  * OPEN UNION: forms may be added in a minor release; handle unknown forms.
  */
-export type ItemKey = { readonly field: string; readonly value: string | number | boolean };
+export type ItemKey = {
+    /** The result field, such as `group` for a community or `onPath` for a path. */
+    readonly field: string;
+    /** The value an element's field equals, or its array contains, to be in the item. */
+    readonly value: string | number | boolean;
+};
 
 /**
  * One item of a result: community 3 of a Louvain run, the path of a Dijkstra run.
@@ -989,7 +996,9 @@ export type ItemKey = { readonly field: string; readonly value: string | number 
  * OPEN: may gain optional members in a minor release.
  */
 export interface ResultItem {
+    /** The run whose result holds the item. */
     readonly run: RunId;
+    /** How the item's elements are found in that result. */
     readonly key: ItemKey;
     /**
      * Present: holds that execution of the run. Absent: follows the run's current execution.

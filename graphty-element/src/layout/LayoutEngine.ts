@@ -152,12 +152,12 @@ export interface LayoutEngineStatics {
      *
      * THE CONTRACT A SCOPED ENGINE ACCEPTS. The element hands it a hold mask through
      * {@link LayoutEngine.setHoldMask} after `init()` and again whenever the graph is renumbered,
-     * and {@link LayoutEngine.writeNodePosition} already refuses a layout write onto a held row that
+     * and the protected `writeNodePosition` already refuses a layout write onto a held row that
      * has a coordinate -- so a held node never MOVES under any engine. That alone is not enough:
      * an engine that keeps integrating a held body computes every force on its members against a
      * position the element will never draw. A scoped engine must therefore treat held nodes as
      * fixed in its own state -- a fixed-node mask, `fx`/`fy`, a pinned body -- read through
-     * {@link LayoutEngine.isHeld}, including for a node added after the hold was set and a node a
+     * the protected `isHeld(index)`, including for a node added after the hold was set and a node a
      * reader unpins while it is held. The hold is never a pin: it is not written to the element's
      * pin lane, so it never leaks into saved pins or exports.
      */

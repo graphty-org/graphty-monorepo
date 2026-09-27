@@ -61,7 +61,7 @@ if (!verdict.ok) {
 
 ## Selectors
 
-A selector says which elements a layer is about. There are five kinds, and they are spelled out
+A selector says which elements a layer is about. There are six kinds, and they are spelled out
 rather than implied:
 
 ```typescript
@@ -70,7 +70,16 @@ rather than implied:
 { match: "ids", nodes: ["alice", "bob"] }        // exactly these
 { match: "top", path: "results.degree.value", n: 10 } // the top 10 by a run's field, whole ties only
 { match: "expression", where: "data.type == 'server'" }
+{ match: "scope", scope: { set: id } }           // the members of a set, or any other scope
 ```
+
+### A set
+
+`{ match: "scope", scope }` paints the members of a kept [set](./sets), or of anything else a
+scope names (`"selection"`, `{ define }`). The layer follows its scope: redefine the set, change
+the data a rule set reads, or re-run the run a followed set reads, and the layer repaints the
+elements that joined or left without being touched. A set has no colour of its own -- colouring
+one is this layer. A scope naming a set that was removed paints nothing.
 
 ### The top N
 

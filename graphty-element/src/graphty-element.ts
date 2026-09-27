@@ -1243,7 +1243,7 @@ export class Graphty extends LitElement {
      * @since 2.5.0
      * @example JavaScript property
      * ```typescript
-     * const id = element.session.sets.create({ kind: "fixed", nodes: ["a", "b", "c"] });
+     * const id = element.session.sets.create({ kind: "fixed", nodes: ["a", "b", "c"], reading: "induced" });
      * element.layout = "ngraph";
      * element.layoutScope = { set: id };
      * ```

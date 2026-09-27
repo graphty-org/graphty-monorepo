@@ -48,6 +48,7 @@ export interface ElementSet {
 
 /** One kept set's committed change. One per touched key per write. */
 export interface SetChange {
+    /** The set that changed. */
     readonly id: SetId;
     /** OPEN UNION. */
     readonly change: "created" | "updated" | "removed";
@@ -108,8 +109,11 @@ export type SetStatusReason =
  * release; render `label` for a kind you do not know.
  */
 export interface SetUser {
+    /** What kind of thing names the set. OPEN UNION. */
     readonly kind: "set" | "layer" | "filter" | "layout" | "run";
+    /** Its id: a set id, a layer id, a run id or a layout type. Absent for the visibility filter. */
     readonly id?: string;
+    /** What to show for it: a layer's or set's name, "Visibility filter", "Layout (ngraph)". */
     readonly label: string;
 }
 
@@ -133,6 +137,7 @@ export interface SetOffer {
     readonly nodes?: number;
     /** Filled only when this execution's edge-count pass is already cached; `offers` never runs it. */
     readonly edges?: number;
+    /** Which edges come with its nodes: `induced` for a group, `listed` for an edge set or a path. */
     readonly reading: EdgeReading;
     /** A path offer: `createPath` accepts it and keeps its order. */
     readonly path: boolean;
@@ -147,7 +152,14 @@ export interface Memberships {
     /** Kept sets holding the element, in listing order. */
     readonly sets: readonly SetId[];
     /** The partition items holding it: "Louvain: community 4 of 212". */
-    readonly items: readonly { readonly item: ResultItem; readonly label: string; readonly of: number }[];
+    readonly items: readonly {
+        /** The item, with the execution it was read from. */
+        readonly item: ResultItem;
+        /** "Louvain: community 4". */
+        readonly label: string;
+        /** How many items the result's partition has. */
+        readonly of: number;
+    }[];
 }
 
 /** Members to add to or remove from a fixed set. Edges by session id or stable identity. Internal name. */
@@ -204,7 +216,15 @@ export interface SetsApi {
      * @returns The largest `limit` offers and how many were left out.
      * @throws `E_UNKNOWN_RUN` for a run this session does not hold.
      */
-    offers(run: RunId, options?: { readonly limit?: number }): { readonly offers: readonly SetOffer[]; readonly more: number };
+    offers(
+        run: RunId,
+        options?: { readonly limit?: number },
+    ): {
+        /** The largest `limit` offers, largest first. */
+        readonly offers: readonly SetOffer[];
+        /** How many offers were left out. */
+        readonly more: number;
+    };
     /**
      * What holds one element: the kept sets, and the partition items of every finished run. A
      * cached resolution is tested when present; else a fixed set of nodes alone is a binary

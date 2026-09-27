@@ -943,6 +943,7 @@ export class LayoutManager implements Manager {
      * The layout as a user of the sets it names, for "Used by": present only while a layout
      * is actually holding nodes for its scope.
      * @returns The user and the scope, or undefined.
+     * @internal
      */
     scopeUser(): { readonly user: { readonly kind: "layout"; readonly id?: string; readonly label: string }; readonly scope: Scope } | undefined {
         const scope = this.carriedScope;

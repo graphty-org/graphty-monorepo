@@ -7,7 +7,8 @@
  * picture moves with it. Colouring a set is an ordinary layer -- a set has no colour of its own.
  * The visibility filter names a set with the leaf `{ kind: "scope", scope: { set: id } }` and
  * follows it the same way. A live layout lays out one set with `setLayout(type, options, { scope })`
- * and holds every other node where it is.
+ * and holds every other node where it is. A finished run OFFERS sets -- one per community, one for
+ * a path -- and keeping one is `sets.createFrom(offer)` or, for a path, `sets.createPath(offer)`.
  *
  * Each story builds its sets and layers in its play function, through the element's session, and
  * then reads back what every node is drawn.
@@ -32,18 +33,50 @@ const EDGES = NODES.map((node, index) => ({ src: node.id, dst: NODES[(index + 1)
 const BASE = "#6366f1";
 
 /**
- * Build the element: the ring, laid out the same way every time.
+ * Three cliques of five, four and three nodes, joined in a chain by one edge each: three
+ * communities of three different sizes, so the offers come back in a known order.
+ */
+const CLIQUES = [
+    ["a1", "a2", "a3", "a4", "a5"],
+    ["b1", "b2", "b3", "b4"],
+    ["c1", "c2", "c3"],
+];
+
+/**
+ * Build the element, laid out the same way every time.
+ * @param nodes - The nodes.
+ * @param edges - The edges.
  * @returns The element.
  */
-function render(): Element {
+function build(nodes: readonly Record<string, unknown>[], edges: readonly Record<string, unknown>[]): Element {
     const element = document.createElement("graphty-element") as Graphty;
     setLayoutPreSteps(element, 2000);
-    element.nodeData = NODES;
-    element.edgeData = EDGES;
+    element.nodeData = [...nodes];
+    element.edgeData = [...edges];
     element.layout = "ngraph";
     element.layoutConfig = { seed: 42 };
 
     return element;
+}
+
+/**
+ * Build the element: the ring.
+ * @returns The element.
+ */
+function render(): Element {
+    return build(NODES, EDGES);
+}
+
+/**
+ * Build the element: the three chained cliques.
+ * @returns The element.
+ */
+function renderCliques(): Element {
+    const nodes = CLIQUES.flat().map((id) => ({ id }));
+    const edges = CLIQUES.flatMap((clique) => clique.flatMap((src, i) => clique.slice(i + 1).map((dst) => ({ src, dst }))));
+    edges.push({ src: "a1", dst: "b1" }, { src: "b1", dst: "c1" });
+
+    return build(nodes, edges);
 }
 
 const meta: Meta = {
@@ -199,5 +232,67 @@ export const LayoutOneSet: Story = {
 
         const moved = ["n1", "n2", "n3", "n4"].filter((id) => at(before, id).some((value, axis) => Math.abs(value - at(after, id)[axis]) > 1e-3));
         await holds(moved.length > 0, "the set's own nodes were laid out again, so at least one of them moved");
+    },
+};
+
+/**
+ * Keep a community: Louvain finds the three cliques, its result offers one set per community,
+ * largest first, and keeping the third offer makes the three-node clique a kept set -- created from
+ * the result -- that a layer paints like any other.
+ */
+export const KeepACommunity: Story = {
+    render: renderCliques,
+    play: async ({ canvasElement }) => {
+        const element = await settled(canvasElement);
+        const { sets, styles } = element.session;
+        const run = element.run("louvain", {}, { style: false, seed: 1 });
+        await run;
+
+        const { offers } = sets.offers(run.id);
+        await holds(offers.length === 3, `Louvain offers one set per clique, three in all, not ${String(offers.length)}`);
+        const third = offers[2];
+        await holds(third.nodes === 3, `the offers come largest first, so the third holds the three-node clique, not ${String(third.nodes)} nodes`);
+
+        const kept = await sets.createFrom(third, { name: "Community 3" });
+        await holds(sets.get(kept)?.createdFrom.kind === "result", "a set kept from an offer records that it was created from a result");
+        await styles.add(paintSet("Community 3", kept, "#e53935"));
+
+        const scene = await drawn(canvasElement, "Sets/Kept Sets KeepACommunity");
+        await assertGraphLoaded(scene, { nodes: 12, edges: 21 });
+        await assertDrawnColour(
+            scene,
+            Object.fromEntries(CLIQUES.flat().map((id) => [id, CLIQUES[2].includes(id) ? "#e53935" : BASE])),
+        );
+    },
+};
+
+/**
+ * A shortest path as a set: Dijkstra from n1 to n4 on the ring offers its route, and
+ * `createPath(offer)` keeps it as a path set in route order -- n1, n2, n3, n4 -- which counts as
+ * four nodes and three edges and is painted by an ordinary layer.
+ */
+export const ShortestPathAsASet: Story = {
+    play: async ({ canvasElement }) => {
+        const element = await settled(canvasElement);
+        const { sets, styles, scope } = element.session;
+        const run = element.run("shortest-path", { source: "n1", target: "n4" }, { style: false });
+        await run;
+
+        const [offer] = sets.offers(run.id).offers;
+        await holds(offer.path, "a shortest-path result offers its route as a path");
+
+        const route = await sets.createPath(offer, { name: "Route" });
+        const definition = sets.get(route)?.definition;
+        const order = definition?.kind === "path" ? definition.nodes.join(",") : "not a path";
+        await holds(order === "n1,n2,n3,n4", `the path keeps the route in order, n1,n2,n3,n4, not ${order}`);
+        await holds(sets.pathKind(route) === "simple", `a route that repeats no node is a simple path, not ${String(sets.pathKind(route))}`);
+        const count = await scope.count({ set: route });
+        await holds(count.nodes === 4 && count.edges === 3, `the route holds 4 nodes and 3 edges, not ${String(count.nodes)} and ${String(count.edges)}`);
+
+        await styles.add(paintSet("Route", route, "#e53935"));
+
+        const scene = await drawn(canvasElement, "Sets/Kept Sets ShortestPathAsASet");
+        await assertGraphLoaded(scene, { nodes: 8, edges: 8 });
+        await assertDrawnColour(scene, expecting({ n1: "#e53935", n2: "#e53935", n3: "#e53935", n4: "#e53935" }));
     },
 };

@@ -41,7 +41,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
+import { type GraphSnapshot, INVALID_INDEX, makeMask } from "@graphty/graph-format";
 
 import type { EdgeId, FieldDescriptor, NodeId, Path, Scope } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
@@ -64,20 +64,24 @@ import {
 // The explicit `/index` matters: `src/session/scope.ts` still exists beside the directory and
 // wins a bare `../scope`. It goes when the resolver behind it is retired.
 import {
+    createScopeApi,
     edgeSpaceOf,
     ElementMask,
     type MaskIdSpace,
-    membershipDigest,
     nodeSpaceOf,
+    type ScopeResolver,
     type ScopeVisibilitySource,
 } from "../scope/index";
+import { type DependencySources, visibilityCycle } from "../sets/dependencies";
+import type { SetWatch } from "../sets/notify";
 import {
     assertVisibility,
     compileVisibility,
-    type Filter,
     type FilterSources,
+    type RuleTree,
     runPass,
     runPassInSlices,
+    type ScopeLeaf,
     type TimeWindow,
 } from "./filter";
 
@@ -190,7 +194,7 @@ export interface VisibilityApi {
     /** How much of the graph is showing. */
     readonly summary: VisibilitySummary;
     /** The filter in force, or null when no filter is hiding anything. */
-    readonly filter: Filter | null;
+    readonly filter: RuleTree | null;
     /** The time window in force, or null when no window is hiding anything. */
     readonly window: TimeWindow | null;
     /**
@@ -212,7 +216,7 @@ export interface VisibilityApi {
      * @returns The run, which resolves with the counts.
      * @throws A `GraphtyError` when the filter is malformed or needs something this session lacks.
      */
-    set(filter: Filter | null, options?: RunOptions): Run<FilterResult>;
+    set(filter: RuleTree | null, options?: RunOptions): Run<FilterResult>;
     /**
      * Apply a time window, or clear it with null.
      *
@@ -289,6 +293,72 @@ export interface VisibilitySources extends FilterSources {
      * @param change - The counts, the unresolved paths, and what produced the change.
      */
     readonly onChange?: (change: VisibilityChange) => void;
+    /** Called on every version bump of either mask, which is what advances the session input tick. */
+    readonly onMaskVersion?: () => void;
+    /**
+     * Where the sets a `member` leaf names are looked up, so a filter that reads `"visible"` or
+     * `"search"` through them is refused, and a pass never reads the masks it is writing.
+     */
+    readonly dependencies?: DependencySources;
+    /**
+     * A write door's check of a filter: session edge ids inside a `member` leaf's inline
+     * definition to stable members, and every set id it names checked as issued. Absent, the
+     * filter is taken as given.
+     * @param filter - The filter as given.
+     * @returns The filter to hold.
+     */
+    readonly admit?: (filter: RuleTree) => RuleTree;
+    /**
+     * How the filter follows the sets its `scope` leaves name (design/sets 11). Absent, a filter
+     * is re-evaluated only when it is set again or the snapshot moves.
+     */
+    readonly watch?: FilterWatchSources;
+}
+
+/** What the filter follows its sets through: the session's change notifier and cache. */
+interface FilterWatchSources {
+    /**
+     * Watch through the session's notifier.
+     * @param watch - The watch; it resolves to whether the masks were re-evaluated.
+     * @returns Stops watching.
+     */
+    subscribe(watch: SetWatch<boolean>): () => void;
+    /**
+     * A scope's input signature now.
+     * @param scope - The scope.
+     * @returns The signature, or null when its inputs cannot be enumerated.
+     */
+    signature(scope: Scope): string | null;
+    /**
+     * Pin a scope's cache entry, so budget pressure never evicts what the filter shows.
+     * @param scope - The scope.
+     * @returns Releases the pin.
+     */
+    pin(scope: Scope): () => void;
+}
+
+/**
+ * The scopes a filter tree's `member` leaves name, outermost first. Not followed into a scope: its
+ * own signature covers what it reads.
+ * @param filter - The filter, or null.
+ * @returns The scopes.
+ */
+function filterScopes(filter: RuleTree | null): Scope[] {
+    const found: Scope[] = [];
+    const walk = (node: RuleTree): void => {
+        if (node.kind === "member") {
+            found.push(node.of);
+        } else if (node.kind === "all" || node.kind === "any") {
+            node.of.forEach(walk);
+        } else if (node.kind === "not") {
+            walk(node.of);
+        }
+    };
+    if (filter !== null) {
+        walk(filter);
+    }
+
+    return found;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -365,7 +435,7 @@ function sealedSet<TId>(values: readonly TId[]): ReadonlySet<TId> {
  * @param window - The window it applies, or null.
  * @returns The label.
  */
-function labelFor(filter: Filter | null, window: TimeWindow | null): string {
+function labelFor(filter: RuleTree | null, window: TimeWindow | null): string {
     if (filter !== null && window !== null) {
         return `Filter (${filter.kind}) and time window`;
     }
@@ -383,7 +453,7 @@ function labelFor(filter: Filter | null, window: TimeWindow | null): string {
  * @param window - The window it applies, or null.
  * @returns The caveats.
  */
-function caveatsFor(filter: Filter | null, window: TimeWindow | null): Caveats {
+function caveatsFor(filter: RuleTree | null, window: TimeWindow | null): Caveats {
     const caveats: Caveats = {
         direction: "as-loaded",
         exact: true,
@@ -419,7 +489,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
     let frame: VisibilityFrame | null = null;
     let evaluated: GraphSnapshot | null = null;
-    let filterValue: Filter | null = null;
+    let filterValue: RuleTree | null = null;
     let windowValue: TimeWindow | null = null;
     let showContextValue = false;
     let unresolvedValue: readonly Path[] = NO_PATHS;
@@ -441,8 +511,8 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
     // The spaces are read through the live frame rather than captured, so one mask object spans
     // every snapshot this session ever holds and its id cache still notices when the ids move.
-    const nodeMaskValue = new ElementMask<NodeId>(() => currentFrame().nodeSpace, 1);
-    const edgeMaskValue = new ElementMask<EdgeId>(() => currentFrame().edgeSpace, 1);
+    const nodeMaskValue = new ElementMask<NodeId>(() => currentFrame().nodeSpace, 1, sources.onMaskVersion);
+    const edgeMaskValue = new ElementMask<EdgeId>(() => currentFrame().edgeSpace, 1, sources.onMaskVersion);
 
     let cachedNodeIds: readonly NodeId[] | null = null;
     let cachedNodeSet: ReadonlySet<NodeId> | null = null;
@@ -450,20 +520,107 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     let cachedEdgeSet: ReadonlySet<EdgeId> | null = null;
     let cachedSummary: VisibilitySummary | null = null;
     let cachedSummaryKey = "";
-    let cachedScope: ResolvedScope | null = null;
-    let cachedScopeGraph: GraphSnapshot | null = null;
+    let fallbackScope: ScopeResolver | null = null;
+    /** The signature of the named sets the masks were last evaluated under. */
+    let evaluatedSignature: string | null = "";
+    let unpins: (() => void)[] = [];
+    let stopWatching: (() => void) | null = null;
+
+    /**
+     * The input signature of the sets a filter names. A scope that reaches `"visible"` or
+     * `"search"` speaks nothing whatever moves, and is left out: its signature moves with the
+     * masks the filter writes, so following it would re-evaluate for ever.
+     * @param filter - The filter, or null.
+     * @returns The signature: "" for none, null when one cannot be enumerated.
+     */
+    const signatureOf = (filter: RuleTree | null): string | null => {
+        const { watch, dependencies } = sources;
+        if (watch === undefined) {
+            return "";
+        }
+
+        const parts: string[] = [];
+        for (const scope of filterScopes(filter)) {
+            if (dependencies !== undefined && visibilityCycle({ kind: "member", of: scope }, dependencies) !== null) {
+                continue;
+            }
+
+            const part = watch.signature(scope);
+            if (part === null) {
+                return null;
+            }
+
+            parts.push(part);
+        }
+
+        return parts.join("\n");
+    };
+
+    /**
+     * Follow the sets the filter in force names: watch them and pin their cache entries, or stop
+     * watching when it names none, so a session filtering without sets pays nothing.
+     */
+    const follow = (): void => {
+        const { watch } = sources;
+        if (watch === undefined) {
+            return;
+        }
+
+        const scopes = filterScopes(filterValue);
+        const previous = unpins;
+        unpins = scopes.map((scope) => watch.pin(scope));
+        for (const unpin of previous) {
+            unpin();
+        }
+
+        if (scopes.length === 0) {
+            stopWatching?.();
+            stopWatching = null;
+        } else {
+            stopWatching ??= watch.subscribe(filterWatch);
+        }
+    };
+
+    /**
+     * The sources a pass compiles against: a `member` leaf that reaches `"visible"` or `"search"`
+     * (a cycle a later redefine or a load made) speaks nothing, so a pass never reads the masks
+     * it is writing and never recurses.
+     * @param graph - The snapshot the pass walks.
+     * @returns The sources.
+     */
+    const passSources = (graph: GraphSnapshot): FilterSources => {
+        const { scope, dependencies } = sources;
+        if (scope === undefined) {
+            return sources;
+        }
+
+        return {
+            ...sources,
+            scope: (spec): ScopeLeaf =>
+                dependencies !== undefined && visibilityCycle({ kind: "member", of: spec }, dependencies) !== null
+                    ? { nodes: makeMask(graph.nodeCount), edges: null }
+                    : scope(spec),
+        };
+    };
 
     /**
      * Write the whole membership into the masks from the stored filter and window.
      * @param graph - The snapshot to evaluate against.
      */
     const evaluate = (graph: GraphSnapshot): void => {
+        // Read before the compile, as the notifier reads a watch's signature before resolving it.
+        evaluatedSignature = signatureOf(filterValue);
+        // Compiled before the masks are cleared: nothing a compile reads may see them half-written.
+        const compiled =
+            filterValue === null && windowValue === null
+                ? null
+                : compileVisibility(graph, filterValue, windowValue, passSources(graph));
         nodeMaskValue.grow(graph.nodeCount);
         edgeMaskValue.grow(graph.edgeCount);
         nodeMaskValue.clear();
         edgeMaskValue.clear();
 
-        if (filterValue === null && windowValue === null) {
+        if (compiled === null) {
             nodeMaskValue.fill();
             edgeMaskValue.fill();
             unresolvedValue = NO_PATHS;
@@ -471,9 +628,9 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             return;
         }
 
-        const compiled = compileVisibility(graph, filterValue, windowValue, sources);
         runPass({ compiled, edges: edgeMaskValue, graph, nodes: nodeMaskValue });
         unresolvedValue = compiled.unresolvedPaths();
+        follow();
     };
 
     /**
@@ -532,35 +689,9 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             return resolve("graph");
         }
 
-        const active = currentFrame();
+        fallbackScope ??= createScopeApi({ snapshot: () => sources.snapshot() });
 
-        if (cachedScope !== null && cachedScopeGraph === active.graph) {
-            return cachedScope;
-        }
-
-        const nodeIds: NodeId[] = [];
-        const edgeIds: EdgeId[] = [];
-
-        for (let index = 0; index < active.graph.nodeCount; index++) {
-            nodeIds.push(active.nodeSpace.idOf(index));
-        }
-
-        for (let index = 0; index < active.graph.edgeCount; index++) {
-            edgeIds.push(active.edgeSpace.idOf(index));
-        }
-
-        cachedScopeGraph = active.graph;
-        cachedScope = Object.freeze({
-            digest: membershipDigest(nodeIds, edgeIds),
-            edgeCount: edgeIds.length,
-            edges: new Set(edgeIds),
-            nodeCount: nodeIds.length,
-            nodes: new Set(nodeIds),
-            resolvedAt: new Date().toISOString(),
-            spec: WHOLE_GRAPH,
-        });
-
-        return cachedScope;
+        return fallbackScope.resolveNow(WHOLE_GRAPH);
     };
 
     /**
@@ -594,14 +725,17 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      * @param scratchNodes - The node membership it computed.
      * @param scratchEdges - The edge membership it computed.
      * @param unresolved - The paths nothing answered.
+     * @param signature - The signature of the named sets the pass compiled under.
      */
     const commit = (
         against: GraphSnapshot,
         scratchNodes: ElementMask<NodeId>,
         scratchEdges: ElementMask<EdgeId>,
         unresolved: readonly Path[],
+        signature: string | null,
     ): void => {
-        if (sources.snapshot() !== against) {
+        // A named set that moved while the pass was walking makes its answer out of date too.
+        if (sources.snapshot() !== against || signature === null || signature !== signatureOf(filterValue)) {
             // The graph moved while the pass was walking it, so its answer describes a graph that
             // is gone. Re-walk the stored filter against what is actually there rather than
             // committing a membership indexed against elements that have been renumbered.
@@ -620,6 +754,8 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         edgeMaskValue.union(scratchEdges);
         unresolvedValue = unresolved;
         evaluated = active.graph;
+        evaluatedSignature = signature;
+        follow();
     };
 
     /**
@@ -657,12 +793,12 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      * @throws A `GraphtyError` when either is malformed, or when a dry run was asked for.
      */
     const startPass = (
-        nextFilter: Filter | null,
+        nextFilter: RuleTree | null,
         nextWindow: TimeWindow | null,
         options: RunOptions,
         filterKind: string,
     ): Run<FilterResult> => {
-        assertVisibility(nextFilter, nextWindow);
+        assertVisibility(nextFilter, nextWindow, sources.dependencies);
 
         if (options.dryRun === true) {
             throw new GraphtyError({
@@ -707,7 +843,8 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             execute: async (context) => {
                 const startedAt = performance.now();
                 const active = currentFrame();
-                const compiled = compileVisibility(active.graph, nextFilter, nextWindow, sources);
+                const signature = signatureOf(nextFilter);
+                const compiled = compileVisibility(active.graph, nextFilter, nextWindow, passSources(active.graph));
                 const scratchNodes = new ElementMask<NodeId>(
                     () => active.nodeSpace,
                     Math.max(1, active.graph.nodeCount),
@@ -729,7 +866,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
                 filterValue = nextFilter;
                 windowValue = nextWindow;
-                commit(active.graph, scratchNodes, scratchEdges, compiled.unresolvedPaths());
+                commit(active.graph, scratchNodes, scratchEdges, compiled.unresolvedPaths(), signature);
 
                 const result = resultOf(Math.round(performance.now() - startedAt));
                 announce(result, filterKind);
@@ -745,6 +882,35 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         run.start();
 
         return run;
+    };
+
+    // The filter follows the sets it names: when one moves, the masks are evaluated again and the
+    // change announced. On the same snapshot that is synchronous, before any public event; after a
+    // freeze it waits for the notifier's frame, unless a read re-evaluated it first.
+    const filterWatch: SetWatch<boolean> = {
+        signature: () => signatureOf(filterValue),
+        resolve: (): boolean => {
+            const graph = sources.snapshot();
+            const signature = signatureOf(filterValue);
+            if (evaluated === graph && signature !== null && signature === evaluatedSignature) {
+                return false;
+            }
+
+            evaluated = currentFrame().graph;
+            evaluate(graph);
+
+            return true;
+        },
+        ready: (changed) => {
+            if (changed) {
+                announce(resultOf(0), filterValue?.kind ?? "none");
+            }
+        },
+        cost: () => {
+            const graph = sources.snapshot();
+
+            return graph.nodeCount + graph.edgeCount;
+        },
     };
 
     return {
@@ -805,7 +971,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             return summaryOf();
         },
 
-        get filter(): Filter | null {
+        get filter(): RuleTree | null {
             return filterValue;
         },
 
@@ -813,8 +979,9 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             return windowValue;
         },
 
-        set(filter: Filter | null, options: RunOptions = {}): Run<FilterResult> {
-            return startPass(filter, windowValue, options, filter === null ? "none" : filter.kind);
+        set(filter: RuleTree | null, options: RunOptions = {}): Run<FilterResult> {
+            const admitted = filter === null || sources.admit === undefined ? filter : sources.admit(filter);
+            return startPass(admitted, windowValue, options, admitted === null ? "none" : admitted.kind);
         },
 
         setWindow(window: TimeWindow | null, options: RunOptions = {}): Run<FilterResult> {

@@ -82,6 +82,7 @@ const circular: LayoutDescriptor = {
     options: [],
     engine: "@graphty/layout",
     honoursWeights: false,
+    scoped: false,
 };
 
 describe("catalogue descriptors", () => {

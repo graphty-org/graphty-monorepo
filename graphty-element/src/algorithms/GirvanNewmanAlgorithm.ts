@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import { type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
     type AlgorithmOutput,
     type AlgorithmRunContext,
@@ -61,6 +62,8 @@ interface GirvanNewmanOptions extends Record<string, unknown> {
 export class GirvanNewmanAlgorithm extends DeclaredAlgorithm<GirvanNewmanOptions> {
     static namespace = "graphty";
     static type = "girvan-newman";
+    /** Groups over the run's scope: the node list and the graph both come from the input. */
+    static scopeInput: ScopeInputDeclaration = "subgraph";
 
     static zodOptionsSchema: ZodOptionsSchema = girvanNewmanOptionsSchema;
 
@@ -103,7 +106,8 @@ export class GirvanNewmanAlgorithm extends DeclaredAlgorithm<GirvanNewmanOptions
      * @returns The community result, or null when there are no nodes to group.
      */
     async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
-        const nodeIds = Array.from(this.graph.getDataManager().nodes.keys());
+        // The nodes of the run's input: its scope's, so a member with no edge in the scope stands alone.
+        const nodeIds = scopeNodeIds(this.input("undirected"));
 
         if (nodeIds.length === 0) {
             return null;
@@ -131,9 +135,7 @@ export class GirvanNewmanAlgorithm extends DeclaredAlgorithm<GirvanNewmanOptions
         // than the caller asked for would make that a false promise. So the published cut is
         // chosen among the levels that honour the cap.
         const within =
-            maxCommunities > 0
-                ? dendrogram.filter((level) => level.communities.length <= maxCommunities)
-                : dendrogram;
+            maxCommunities > 0 ? dendrogram.filter((level) => level.communities.length <= maxCommunities) : dendrogram;
 
         // Nothing honours the cap when the graph arrived in more pieces than the cap allows,
         // before a single edge was cut. The first level is then the closest thing to an answer,
@@ -141,7 +143,8 @@ export class GirvanNewmanAlgorithm extends DeclaredAlgorithm<GirvanNewmanOptions
         const choices = within.length > 0 ? within : dendrogram.slice(0, 1);
 
         const best = choices.reduce<(typeof dendrogram)[number] | undefined>(
-            (winner, candidate) => (winner === undefined || candidate.modularity > winner.modularity ? candidate : winner),
+            (winner, candidate) =>
+                winner === undefined || candidate.modularity > winner.modularity ? candidate : winner,
             undefined,
         );
 

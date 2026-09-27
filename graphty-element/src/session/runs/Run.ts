@@ -27,6 +27,7 @@
 import type { AlgorithmKey, FieldDescriptor, ResultShape, RunId } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import type { ResultSummary, RunResult } from "../results/types";
+import type { HeldCaptures } from "../sets/captures";
 import { type StyleSuggestion, suggestStyles } from "../styles/derive";
 import {
     type Caveats,
@@ -38,6 +39,7 @@ import {
     type Run,
     type RunPhase,
     type RunRecord,
+    type RunScopeFacts,
     type RunScopeRecord,
     type RunStatus,
     type RunStyle,
@@ -243,6 +245,12 @@ export interface RunSurroundings {
      */
     resolveScope(): ResolvedScope;
     /**
+     * What the run records about the set its scope names, read when the scope is resolved.
+     * Optional: a run with nobody to ask records neither.
+     * @returns The facts.
+     */
+    scopeFacts?(): RunScopeFacts;
+    /**
      * Hand the run's work to the queue.
      * @param body - The work.
      * @returns A handle that can stop it.
@@ -257,6 +265,21 @@ export interface RunSurroundings {
      * @param phase - Which moment.
      */
     notify?(phase: RunPhase): void;
+    /**
+     * Mint the token that identifies one execution of this run (design/sets 5.2): a session nonce
+     * plus a session-wide counter. Called once when the work starts. Optional for the same reason
+     * as `notify`: a run driven directly by a test has no session to mint from.
+     * @returns The token.
+     */
+    mintExecution?(): string;
+    /**
+     * Capture what live references hold of the result about to be replaced (design/sets 5.2).
+     * Called when a finished run re-executes in place, before its result goes. Optional for the
+     * same reason as `notify`.
+     * @param prior - The captures the run keeps now.
+     * @returns The captures the run keeps from now on.
+     */
+    captureHeld?(prior: HeldCaptures): HeldCaptures;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -383,10 +406,6 @@ export class ManagedRun<T = RunResult> implements Run<T> {
 
     readonly algorithm: AlgorithmKey;
 
-    readonly params: Readonly<Record<string, unknown>>;
-
-    readonly seed: number | null;
-
     readonly shape: ResultShape;
 
     readonly engine: EngineVersions;
@@ -401,11 +420,13 @@ export class ManagedRun<T = RunResult> implements Run<T> {
     /** The journal has not landed, so every run reports that it wrote no entry. */
     readonly journalId: JournalId | null = null;
 
-    private readonly definition: RunDefinition<T>;
+    /** What the run is. Replaced only by {@link ManagedRun.retune}, which changes the parameters and seed. */
+    private definition: RunDefinition<T>;
 
     private readonly surroundings: RunSurroundings;
 
     private scopeValue: ResolvedScope;
+    private scopeFactsValue: RunScopeFacts | undefined;
 
     private statusValue: RunStatus = "queued";
 
@@ -416,6 +437,15 @@ export class ManagedRun<T = RunResult> implements Run<T> {
     private fieldsValue: readonly FieldDescriptor[];
 
     private resultValue: T | undefined = undefined;
+
+    /** The token of the execution now running, minted when its work started. */
+    private executionValue: string | null = null;
+
+    /** The token of the execution that produced {@link resultValue}, written with it. */
+    private resultExecutionValue: string | undefined = undefined;
+
+    /** What held references keep of earlier executions: run state, written only by a re-run. */
+    private heldValue: HeldCaptures = new Map();
 
     private summaryValue: ResultSummary | undefined = undefined;
 
@@ -456,17 +486,32 @@ export class ManagedRun<T = RunResult> implements Run<T> {
         this.surroundings = surroundings;
         this.id = definition.id;
         this.algorithm = definition.algorithm;
-        this.params = definition.params;
-        this.seed = definition.seed;
         this.shape = definition.shape;
         this.engine = definition.engine;
         this.style = definition.style;
         this.caveatsValue = definition.caveats;
         this.fieldsValue = definition.fields;
         this.scopeValue = surroundings.resolveScope();
+        this.scopeFactsValue = surroundings.scopeFacts?.();
     }
 
     // -- the facts ----------------------------------------------------------------------------
+
+    /**
+     * The parameters the current execution uses, canonicalised.
+     * @returns The parameters.
+     */
+    get params(): Readonly<Record<string, unknown>> {
+        return this.definition.params;
+    }
+
+    /**
+     * The seed the current execution uses, or null.
+     * @returns The seed.
+     */
+    get seed(): number | null {
+        return this.definition.seed;
+    }
 
     /**
      * What to call this run, computed by the element rather than by the consumer.
@@ -584,6 +629,24 @@ export class ManagedRun<T = RunResult> implements Run<T> {
     }
 
     /**
+     * The execution token of the current result: undefined until a result exists, and for a run
+     * whose surroundings mint none. Internal: not on the published `Run` interface.
+     * @returns The token.
+     */
+    get resultExecution(): string | undefined {
+        return this.resultExecutionValue;
+    }
+
+    /**
+     * The members of earlier executions' items that live references hold, by execution and item
+     * key. Internal: not on the published `Run` interface.
+     * @returns The captures.
+     */
+    get held(): HeldCaptures {
+        return this.heldValue;
+    }
+
+    /**
      * Why the run failed.
      * @returns The error, or undefined when it did not.
      */
@@ -601,6 +664,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
             nodes: this.scopeValue.nodeCount,
             edges: this.scopeValue.edgeCount,
             digest: this.scopeValue.digest,
+            ...this.scopeFactsValue,
         });
 
         const record: RunRecord = {
@@ -715,10 +779,32 @@ export class ManagedRun<T = RunResult> implements Run<T> {
             return this;
         }
 
+        // Before the result goes: what held references keep of it is captured now.
+        this.heldValue = this.surroundings.captureHeld?.(this.heldValue) ?? this.heldValue;
         this.resetForRerun();
         this.start();
 
         return this;
+    }
+
+    /**
+     * Run the same result again with other parameters or another seed, keeping its id, so every
+     * style layer and reference bound to the result repaints from the new values. Work still
+     * queued or running is cancelled first: only the latest parameters' answer matters.
+     * @param params - The new parameters, canonicalised.
+     * @param seed - The new seed, or null.
+     * @param caveats - The caveats the new execution starts from.
+     * @returns This run, restarted.
+     * @internal
+     */
+    retune(params: Readonly<Record<string, unknown>>, seed: number | null, caveats: Caveats): Run<T> {
+        if (!isTerminalRunStatus(this.statusValue)) {
+            this.cancel(`Run "${this.id}" was restarted with other parameters.`);
+        }
+
+        this.definition = { ...this.definition, params, seed, caveats };
+
+        return this.rerun();
     }
 
     /**
@@ -749,7 +835,17 @@ export class ManagedRun<T = RunResult> implements Run<T> {
         this.statusValue = "running";
         this.startedAtValue = new Date().toISOString();
         this.startedAtMs = nowMs();
-        this.scopeValue = this.surroundings.resolveScope();
+        this.executionValue = this.surroundings.mintExecution?.() ?? null;
+        try {
+            // Resolved again as the work starts: the scope may have emptied, or its set been
+            // removed, while the run waited in the queue.
+            this.scopeValue = this.surroundings.resolveScope();
+            this.scopeFactsValue = this.surroundings.scopeFacts?.();
+        } catch (error) {
+            this.fail(error);
+
+            return;
+        }
 
         const execution = new AbortController();
         this.executionController = execution;
@@ -782,11 +878,19 @@ export class ManagedRun<T = RunResult> implements Run<T> {
                 },
             });
 
-            this.succeed(outcome, timeBox);
+            // A retune cancels this execution and starts the next one on the same run; an answer
+            // that arrives after that belongs to parameters nobody asked for any more.
+            if (this.executionController === execution) {
+                this.succeed(outcome, timeBox);
+            }
         } catch (error) {
-            this.fail(error);
+            if (this.executionController === execution) {
+                this.fail(error);
+            }
         } finally {
-            this.clearTimeBox();
+            if (this.executionController === execution) {
+                this.clearTimeBox();
+            }
         }
     }
 
@@ -806,7 +910,9 @@ export class ManagedRun<T = RunResult> implements Run<T> {
 
         const controller = new AbortController();
         this.timeBoxTimer = setTimeout(() => {
-            controller.abort(new DOMException(`Run "${this.id}" reached its ${timeBoxMs} ms time box.`, "TimeoutError"));
+            controller.abort(
+                new DOMException(`Run "${this.id}" reached its ${timeBoxMs} ms time box.`, "TimeoutError"),
+            );
         }, timeBoxMs);
 
         return controller.signal;
@@ -835,6 +941,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
         const partial = outcome.partial ?? (timedOut || canceled);
 
         this.resultValue = outcome.result;
+        this.resultExecutionValue = this.executionValue ?? undefined;
         this.summaryValue = outcome.summary;
         this.fieldsValue = outcome.fields ?? this.fieldsValue;
         this.caveatsValue = this.mergeCaveats(outcome, partial, timedOut);
@@ -1077,6 +1184,8 @@ export class ManagedRun<T = RunResult> implements Run<T> {
         this.caveatsValue = this.definition.caveats;
         this.fieldsValue = this.definition.fields;
         this.resultValue = undefined;
+        this.resultExecutionValue = undefined;
+        this.executionValue = null;
         this.summaryValue = undefined;
         this.errorValue = undefined;
         this.startedAtValue = null;

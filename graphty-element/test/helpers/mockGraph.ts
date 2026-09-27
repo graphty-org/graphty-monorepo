@@ -234,6 +234,7 @@ export async function createMockGraph(opts: MockGraphOpts = {}): Promise<Graph> 
                 nodes,
                 edges,
                 ...snapshots,
+                getEdge: (id: string) => edges.get(id),
                 get graphResults() {
                     return graphResults;
                 },
@@ -254,9 +255,8 @@ export async function createMockGraph(opts: MockGraphOpts = {}): Promise<Graph> 
  * @param nodeId - The node ID to look up
  * @returns The node object (any type)
  */
- 
+
 export function getMockNode(graph: Graph, nodeId: string | number): any {
-     
     const dm = graph.getDataManager() as any;
     return dm.nodes.get(nodeId);
 }

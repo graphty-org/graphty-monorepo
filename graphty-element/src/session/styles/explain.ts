@@ -163,6 +163,9 @@ const NOTHING_PAINTED: StyleExplanation = Object.freeze({
 /** Nothing was unbound. */
 const NONE_UNBOUND: readonly UnboundLayer[] = Object.freeze([]);
 
+/** A detached layer needs no path. */
+const NO_NEEDS: readonly Path[] = Object.freeze([]);
+
 // ---------------------------------------------------------------------------------------------
 // Refusals
 // ---------------------------------------------------------------------------------------------
@@ -413,20 +416,35 @@ export function explainStyle(target: ExplainTarget, sources: ExplainSources): St
  * not been started yet is a correct layer over a session that will answer it later, and a layer
  * imported with a style document may name a column the next dataset does have. What it must never
  * be is invisible -- a confident empty screen reads exactly like a correct answer of zero.
- * @param sources - The stack and the path directory. With no directory nothing is reported.
- * @returns One entry per layer that reads only paths nothing answers, bottom first.
+ * A `{match:"member"}` layer whose scope cannot be resolved -- a set this project does not hold --
+ * is reported as detached, whatever the directory says.
+ * @param sources - The stack and the path directory. With no directory only detached layers are
+ *     reported.
+ * @returns One entry per layer that reads only paths nothing answers or is detached, bottom first.
  */
 export function unboundLayers(sources: ExplainSources): readonly UnboundLayer[] {
     const directory = sources.paths;
-
-    if (directory === undefined) {
-        return NONE_UNBOUND;
-    }
-
     const unbound: UnboundLayer[] = [];
 
     for (const entry of sources.stack()) {
         const { layer, selector } = entry;
+        // A scope that cannot be resolved (a set this project does not hold) is detached: kept,
+        // reported, and painting nothing.
+        const detached = selector.problem?.();
+
+        if (detached !== undefined) {
+            unbound.push({
+                layerId: layer.id,
+                reason: `"${layer.name}" names a scope that cannot be resolved, so it is detached and paints nothing. ${detached}`,
+                needs: NO_NEEDS,
+            });
+            continue;
+        }
+
+        if (directory === undefined) {
+            continue;
+        }
+
         const wanted = new Set<Path>(selector.paths);
 
         for (const binding of Object.values(layer.encode ?? {})) {

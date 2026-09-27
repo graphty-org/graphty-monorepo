@@ -18,8 +18,10 @@
 import type { FieldDescriptor, NodeId } from "../../catalog/types";
 import { createRunResult, type RunResult } from "../../session/results";
 import { Algorithm } from "../Algorithm";
+import { maskBack } from "../input/maskBack";
+import { scopeNodeIds } from "../input/ScopedInput";
 import { nodeLabelReader } from "../results/labels";
-import type { AlgorithmRunContext } from "../results/types";
+import type { RunControls } from "../results/types";
 import { detachedRunContext } from "./context";
 import type { MetricMeasurement, MetricRunContext } from "./types";
 
@@ -67,7 +69,7 @@ export abstract class MetricAlgorithm<
      * @returns The result, or undefined when there was nothing to measure.
      * @throws Whatever the context's signal throws once the run has been cancelled.
      */
-    publishResult(context: AlgorithmRunContext, runId: string): Promise<RunResult | undefined> {
+    publishResult(context: RunControls, runId: string): Promise<RunResult | undefined> {
         return this.measureRun({ runId, ...context });
     }
 
@@ -80,8 +82,10 @@ export abstract class MetricAlgorithm<
      *   `DOMException` named `AbortError`.
      */
     async measureRun(context: MetricRunContext): Promise<RunResult | undefined> {
-        const data = this.graph.getDataManager();
-        const nodeIds = Array.from(data.nodes.keys());
+        // The nodes this run computes over, from the input: its scope's when the class declares a
+        // scoped input, else the whole graph's. `measured` counts the same input.
+        const input = this.input("declared");
+        const nodeIds = scopeNodeIds(input);
 
         if (nodeIds.length === 0) {
             return undefined;
@@ -96,20 +100,22 @@ export abstract class MetricAlgorithm<
            built-in metric and a third party's would come to name the same node differently. */
         const labelOf = nodeLabelReader(this.graph);
 
-        const result = createRunResult({
-            ...(labelOf === undefined ? {} : { labelOf }),
-            runId: context.runId,
-            shape: "node-metric",
-            fields: this.resultFields(),
-            measured: { nodes: nodeIds.length, edges: data.edges.size },
-            // The only graph-level field a metric publishes itself. Everything else the shape
-            // promises -- the range, the average, how many elements were measured, how many sit at
-            // the bottom -- is computed from the column the measurement produced.
-            graph: { normalization: measurement.normalization },
-            nodes: measurement.nodes,
-            caveats: measurement.caveats,
-            durationMs: Date.now() - startedAt,
-        });
+        const result = createRunResult(
+            maskBack(this, {
+                ...(labelOf === undefined ? {} : { labelOf }),
+                runId: context.runId,
+                shape: "node-metric",
+                fields: this.resultFields(),
+                measured: { nodes: input.nodeCount, edges: input.edgeCount },
+                // The only graph-level field a metric publishes itself. Everything else the shape
+                // promises -- the range, the average, how many elements were measured, how many sit at
+                // the bottom -- is computed from the column the measurement produced.
+                graph: { normalization: measurement.normalization },
+                nodes: measurement.nodes,
+                caveats: measurement.caveats,
+                durationMs: Date.now() - startedAt,
+            }),
+        );
 
         this.#result = result;
 
@@ -125,11 +131,8 @@ export abstract class MetricAlgorithm<
     /**
      * Measure every node.
      * @param context - Where progress goes and where cancellation arrives.
-     * @param nodeIds - The nodes to measure, in the graph's own order.
+     * @param nodeIds - The nodes to measure, in the input's row order.
      * @returns One value per node, how they were scaled, and what qualifies them.
      */
-    protected abstract measure(
-        context: MetricRunContext,
-        nodeIds: readonly NodeId[],
-    ): Promise<MetricMeasurement>;
+    protected abstract measure(context: MetricRunContext, nodeIds: readonly NodeId[]): Promise<MetricMeasurement>;
 }

@@ -433,9 +433,21 @@ const ALPHABET_WALK_DESCRIPTOR: AlgorithmDescriptor = {
     // `metricField` is the element's own path builder: it fills in the published
     // `results.$.<name>` address so no extension author retypes one.
     fields: [
-        metricField({ name: "onPath", plainName: "On the walk", technicalName: "onPath", kind: "node", type: "boolean" }),
+        metricField({
+            name: "onPath",
+            plainName: "On the walk",
+            technicalName: "onPath",
+            kind: "node",
+            type: "boolean",
+        }),
         metricField({ name: "order", plainName: "Step", technicalName: "order", kind: "node", type: "integer" }),
-        metricField({ name: "onPath", plainName: "On the walk", technicalName: "onPath", kind: "edge", type: "boolean" }),
+        metricField({
+            name: "onPath",
+            plainName: "On the walk",
+            technicalName: "onPath",
+            kind: "edge",
+            type: "boolean",
+        }),
         metricField({
             name: "length",
             plainName: "Nodes on the walk",
@@ -690,6 +702,70 @@ class FaultyCount extends DeclaredAlgorithm {
     }
 }
 
+// ---------------------------------------------------------------------------------------------
+// The fourth extension: one that computes over its run's scope
+// ---------------------------------------------------------------------------------------------
+
+/** What `ScopedLinks` saw of its input on its last run, for the tests to read back. */
+const scopedProbe: { nodeCount: number; subgraphNodes: number; whole: boolean | null } = {
+    nodeCount: 0,
+    subgraphNodes: 0,
+    whole: null,
+};
+
+/**
+ * A third party's node metric that declares `scopeInput: "subgraph"`: each node's links WITHIN the
+ * run's scope. On the line a - b - c - d, a run over a, b and c gives c one link, where the whole
+ * graph gives it two -- which is what tells a scoped computation from a masked whole-graph one.
+ */
+class ScopedLinks extends DeclaredAlgorithm {
+    static override namespace = "acme";
+
+    static override type = "scoped-links";
+
+    static override scopeInput = "subgraph" as const;
+
+    static override descriptor: AlgorithmDescriptor = {
+        key: "scoped-links",
+        plainName: "Links in scope",
+        technicalName: "scoped degree",
+        description: "Counts each node's links to the other nodes of the run's scope.",
+        category: "centrality",
+        shape: "node-metric",
+        fields: HOP_REACH_FIELDS,
+        options: [],
+        costClass: "instant",
+        complexity: "O(n + m)",
+    };
+
+    /**
+     * Count each node's links inside the scope, reading only what the context hands it.
+     * @param context - The run's controls and its input.
+     * @returns One value per node in scope.
+     */
+    override compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
+        const input = context.input("undirected", { simplify: "min" });
+        const subgraph = input.subgraph();
+        scopedProbe.nodeCount = input.nodeCount;
+        scopedProbe.subgraphNodes = subgraph.nodeCount;
+        scopedProbe.whole = input.whole;
+
+        const nodes: ResultElementValues[] = [];
+        for (let row = 0; row < subgraph.nodeCount; row++) {
+            // Published by element id: a subgraph's rows are not the graph's.
+            nodes.push({ id: subgraph.ids.idOf(row) as NodeId, values: { value: subgraph.outDegreeOf(row) } });
+        }
+
+        return Promise.resolve({
+            shape: "node-metric",
+            fields: HOP_REACH_FILLED,
+            nodes,
+            graph: { normalization: "none" },
+            caveats: declaredCaveats({ direction: "undirected", weight: null, method: "links within the scope" }),
+        });
+    }
+}
+
 /**
  * A third party's metric that asks the element for an accelerator.
  *
@@ -747,6 +823,7 @@ class SharedRank extends DeclaredAlgorithm {
 DeclaredAlgorithm.register(HopReach);
 DeclaredAlgorithm.register(AlphabetWalk);
 DeclaredAlgorithm.register(FaultyCount);
+DeclaredAlgorithm.register(ScopedLinks);
 DeclaredAlgorithm.register(SharedRank);
 
 // ---------------------------------------------------------------------------------------------
@@ -1118,7 +1195,11 @@ describe("an algorithm written outside this package", () => {
             isGraphtyError(rejection),
             "a bug in a plugin surfaces as the element's own error type rather than escaping raw",
         );
-        assert.strictEqual(codeOf(rejection), "E_INTERNAL", "under the code the element reserves for an unowned failure");
+        assert.strictEqual(
+            codeOf(rejection),
+            "E_INTERNAL",
+            "under the code the element reserves for an unowned failure",
+        );
         assert.instanceOf(
             isGraphtyError(rejection) ? rejection.cause : undefined,
             Error,
@@ -1388,6 +1469,88 @@ describe("an algorithm written outside this package", () => {
         );
     });
 
+    it("computes over its run's scope when it declares scopeInput, reading it from the context", async () => {
+        const run = graph.run("scoped-links", {}, { scope: { nodes: ["a", "b", "c"] } });
+        const result = await run;
+
+        assert.deepStrictEqual(
+            { nodeCount: scopedProbe.nodeCount, subgraphNodes: scopedProbe.subgraphNodes, whole: scopedProbe.whole },
+            { nodeCount: 3, subgraphNodes: 3, whole: false },
+            "the input it read was the scope, not the graph",
+        );
+        const values = ["a", "b", "c", "d"].map((id) => result.node(id)?.value);
+        assert.deepStrictEqual(
+            values,
+            [1, 2, 1, undefined],
+            "c has one link inside the scope, not two, and d is not measured",
+        );
+        assert.notInclude(
+            run.caveats.notes.join(" "),
+            "Computed on the whole graph",
+            "and its run does not say it computed on the whole graph",
+        );
+        assert.strictEqual(
+            graph
+                .getSession()
+                .catalog.algorithms()
+                .find((entry) => entry.key === "scoped-links")?.scopeInput,
+            "subgraph",
+            "the catalogue publishes what the class declares, so the planner prices the scope",
+        );
+    });
+
+    it("computes on the whole graph when it declares no scopeInput, keeping only the scope's values and saying so", async () => {
+        const run = graph.run("hop-reach", { hops: 1 }, { scope: { nodes: ["a", "b", "c"] } });
+        const result = await run;
+
+        const values = ["a", "b", "c", "d"].map((id) => result.node(id)?.value);
+        assert.deepStrictEqual(
+            values,
+            [1, 2, 2, undefined],
+            "c reaches d, outside the scope: computed on the whole graph, kept for the scope",
+        );
+        assert.include(run.caveats.notes, "Computed on the whole graph; values kept for the scope only.");
+        assert.strictEqual(
+            graph
+                .getSession()
+                .catalog.algorithms()
+                .find((entry) => entry.key === "hop-reach")?.scopeInput,
+            "none",
+        );
+    });
+
+    it("is refused when its descriptor states a scopeInput its class does not declare", () => {
+        class Overclaiming extends DeclaredAlgorithm {
+            static override namespace = "acme-refused";
+
+            static override type = "overclaiming";
+
+            static override descriptor: AlgorithmDescriptor = {
+                ...HOP_REACH_DESCRIPTOR,
+                key: "overclaiming",
+                scopeInput: "subgraph",
+            };
+
+            /**
+             * Never runs: registration is refused first.
+             * @returns Nothing to compute.
+             */
+            override compute(): Promise<AlgorithmOutput | null> {
+                return Promise.resolve(null);
+            }
+        }
+
+        let refusal: unknown;
+        try {
+            DeclaredAlgorithm.register(Overclaiming);
+        } catch (error) {
+            refusal = error;
+        }
+
+        assert.strictEqual(codeOf(refusal), "E_BAD_COMMAND", "one declaration: the class's");
+        assert.isNull(Algorithm.getClass("acme-refused", "overclaiming"));
+    });
+
     it("is refused when its catalogue key disagrees with the name its class registers under", () => {
         class MisnamedReach extends DeclaredAlgorithm {
             static override namespace = "acme-refused";
@@ -1498,11 +1661,7 @@ describe("an algorithm written outside this package", () => {
             true,
             "the first edge it crossed carries a value",
         );
-        assert.strictEqual(
-            result.edge(byPair.get(pairKey("c", "d")) ?? "")?.onPath,
-            true,
-            "and so does the last",
-        );
+        assert.strictEqual(result.edge(byPair.get(pairKey("c", "d")) ?? "")?.onPath, true, "and so does the last");
         assert.isUndefined(
             result.edge(byPair.get(pairKey("d", "e")) ?? ""),
             "an edge the walk never crossed carries nothing at all",
@@ -1562,7 +1721,9 @@ describe("an algorithm written outside this package", () => {
             "the reader's layer reached an edge the walk crossed",
         );
         assert.isEmpty(
-            session.styles.explain({ edge: untouched ?? "" }).contributions.filter((entry) => entry.layerId === layer.id),
+            session.styles
+                .explain({ edge: untouched ?? "" })
+                .contributions.filter((entry) => entry.layerId === layer.id),
             "and did not reach one it never did",
         );
     });

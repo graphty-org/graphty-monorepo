@@ -1,6 +1,6 @@
 import { assert, describe, it } from "vitest";
 
-import type { Filter, TimeWindow, VisibilityChange } from "../../src/session/visibility";
+import type { RuleTree, TimeWindow, VisibilityChange } from "../../src/session/visibility";
 import { type Harness, makeSession } from "./helpers";
 
 /** Three hosts and two services, on a timeline, joined in a line. */
@@ -26,7 +26,7 @@ function harnessOf(): Harness {
 }
 
 /** Only the hosts. */
-const HOSTS: Filter = { kind: "categories", attribute: "data.type", values: ["host"] };
+const HOSTS: RuleTree = { kind: "categories", attribute: "data.type", values: ["host"] };
 
 /** The first three moments of the timeline. A window is half-open, so `to` is one past. */
 const EARLY: TimeWindow = { attribute: "data.seen", from: 1, to: 4 };
@@ -133,7 +133,11 @@ describe("session.visibility", () => {
 
         assert.lengthOf(seen, 1);
         assert.strictEqual(seen[0]?.filterKind, "context");
-        assert.strictEqual(harness.session.visibility.summary.visibleNodes, 5, "drawing a hidden node is not showing it");
+        assert.strictEqual(
+            harness.session.visibility.summary.visibleNodes,
+            5,
+            "drawing a hidden node is not showing it",
+        );
 
         harness.session.visibility.showContext = true;
 

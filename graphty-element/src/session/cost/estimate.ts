@@ -281,6 +281,11 @@ export interface CostInput {
      * same rule written once.
      */
     readonly sample?: number;
+    /**
+     * Seconds spent deriving a scoped run's compact input before the algorithm starts, added to
+     * the algorithm's own estimate. Absent for a run over the whole graph.
+     */
+    readonly derivationSeconds?: number;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -711,8 +716,11 @@ export function estimateCost(input: CostInput): CostEstimate {
             ownUnits !== undefined,
         );
     const confidence = iterationsAreGuessed && modelled.confidence !== "modelled" ? "modelled" : modelled.confidence;
+    const derivation = input.derivationSeconds ?? 0;
     const seconds =
-        Number.isFinite(modelled.seconds) && modelled.seconds >= 0 ? modelled.seconds : Number.POSITIVE_INFINITY;
+        Number.isFinite(modelled.seconds) && modelled.seconds >= 0
+            ? modelled.seconds + derivation
+            : Number.POSITIVE_INFINITY;
 
     const notes = [
         sizes,
@@ -730,6 +738,10 @@ export function estimateCost(input: CostInput): CostEstimate {
 
     if (iterationsAreGuessed) {
         notes.push(`no iteration bound is declared, so ${group(ASSUMED_ITERATION_BOUND)} is assumed`);
+    }
+
+    if (derivation > 0) {
+        notes.push(`plus about ${String(Math.round(derivation * 1000))} ms to derive the scope's subgraph`);
     }
 
     notes.push(modelled.provenance);
@@ -809,7 +821,8 @@ function modelFromRates(
     }
 
     const own = OWN_COST_MODELS[descriptor.key];
-    const seconds = own === undefined || ownUnits ? units / rate : own.seconds(nodes, edges, rates, iterations) * sampleFactor;
+    const seconds =
+        own === undefined || ownUnits ? units / rate : own.seconds(nodes, edges, rates, iterations) * sampleFactor;
 
     if (probed) {
         return {
@@ -915,8 +928,24 @@ export type CostGateDecision =
           readonly error: GraphtyError;
       };
 
+/** A scope a refused run could be pointed at, sized by whoever holds it: a kept set, today. */
+export interface ScopeCandidate {
+    /** The scope specification. */
+    readonly scope: Scope;
+    /** What to call it on a button: the set's name. */
+    readonly label: string;
+    /** How many nodes it covers. */
+    readonly nodes: number;
+    /** How many edges it covers. */
+    readonly edges: number;
+    /** Seconds to derive its compact input. */
+    readonly derivationSeconds: number;
+}
+
 /** What the gate is told beyond the estimate's own inputs. */
 interface CostGateOptions {
+    /** The kept sets to suggest when they fit, read only on a refusal. */
+    readonly keptSets?: () => readonly ScopeCandidate[];
     /** The cap and the memory budget. Defaults to {@link DEFAULT_COST_GATE_LIMITS}. */
     readonly limits?: Readonly<CostGateLimits>;
     /** Refuse to approximate: above the cap this fails rather than sampling. */
@@ -976,10 +1005,7 @@ export function resultBytes(descriptor: AlgorithmDescriptor, nodes: number, edge
  * @param edges - Edges in scope.
  * @returns The count that is too large and what it is, or undefined when nothing is.
  */
-function structuralOverflow(
-    nodes: number,
-    edges: number,
-): { kind: string; count: number } | undefined {
+function structuralOverflow(nodes: number, edges: number): { kind: string; count: number } | undefined {
     if (nodes > MAX_COLUMN_LENGTH) {
         return { kind: "nodes", count: nodes };
     }
@@ -994,37 +1020,66 @@ function structuralOverflow(
 /**
  * The scopes that would bring a refused run back under the cap.
  *
- * Only scopes the element can size today are listed. "largest-component" is one of them: the
- * statistics carry its node count, and its edge count is scaled by the share of nodes it holds,
- * which the entry marks as scaled rather than counted so nobody mistakes it for a measurement.
+ * None for an algorithm that computes on the whole graph whatever its scope: no scope changes
+ * what it costs. Otherwise the largest connected piece comes first -- the statistics carry its
+ * node count, and its edge count is scaled by the share of nodes it holds, which the entry marks
+ * as scaled rather than counted so nobody mistakes it for a measurement -- then the kept sets that
+ * fit, smallest first, each counted and charged for deriving its input.
  * @param input - The estimate's own inputs.
  * @param statistics - The graph's shape.
  * @param cap - The seconds a run has to fit in.
- * @returns The scopes that fit, largest first.
+ * @param keptSets - The kept sets, sized.
+ * @returns The scopes that fit.
  */
-function fittingScopes(input: CostInput, statistics: GraphStatistics, cap: number): readonly FittingScope[] {
+function fittingScopes(
+    input: CostInput,
+    statistics: GraphStatistics,
+    cap: number,
+    keptSets: () => readonly ScopeCandidate[],
+): readonly FittingScope[] {
+    if (input.descriptor?.scopeInput !== "subgraph") {
+        return Object.freeze([]);
+    }
+
+    const fitting: FittingScope[] = [];
     const { largestSize } = statistics.components;
-    if (statistics.components.count <= 1 || largestSize <= 0 || statistics.nodeCount <= 0) {
-        return [];
+    if (statistics.components.count > 1 && largestSize > 0 && statistics.nodeCount > 0) {
+        const share = largestSize / statistics.nodeCount;
+        const edges = Math.round(statistics.edgeCount * share);
+        const estimate = estimateCost({
+            ...input,
+            sample: undefined,
+            scope: { nodes: largestSize, edges, exact: false },
+        });
+        if (estimate.available && estimate.seconds <= cap) {
+            fitting.push(
+                Object.freeze({
+                    scope: "largest-component" as Scope,
+                    label: "The largest connected piece",
+                    nodes: largestSize,
+                    edges,
+                    seconds: estimate.seconds,
+                    exact: false,
+                }),
+            );
+        }
     }
 
-    const share = largestSize / statistics.nodeCount;
-    const edges = Math.round(statistics.edgeCount * share);
-    const estimate = estimateCost({ ...input, sample: undefined, scope: { nodes: largestSize, edges, exact: false } });
-    if (!estimate.available || !(estimate.seconds <= cap)) {
-        return [];
+    const sets = [...keptSets()].sort((left, right) => left.nodes - right.nodes || left.edges - right.edges);
+    for (const candidate of sets) {
+        const { scope, label, nodes, edges, derivationSeconds } = candidate;
+        const estimate = estimateCost({
+            ...input,
+            sample: undefined,
+            derivationSeconds,
+            scope: { nodes, edges, spec: scope, exact: true },
+        });
+        if (estimate.available && estimate.seconds <= cap) {
+            fitting.push(Object.freeze({ scope, label, nodes, edges, seconds: estimate.seconds, exact: true }));
+        }
     }
 
-    return Object.freeze([
-        Object.freeze({
-            scope: "largest-component" as Scope,
-            label: "The largest connected piece",
-            nodes: largestSize,
-            edges,
-            seconds: estimate.seconds,
-            exact: false,
-        }),
-    ]);
+    return Object.freeze(fitting);
 }
 
 /**
@@ -1179,7 +1234,7 @@ export function gateRun(input: CostInput, options: CostGateOptions = {}): CostGa
             graph: { nodes, edges },
             approximable: approximable !== undefined,
             exactRequested: options.exact === true,
-            scopes: fittingScopes(input, statistics, cap),
+            scopes: fittingScopes(input, statistics, cap, options.keptSets ?? ((): readonly ScopeCandidate[] => [])),
             fitsUpTo: fitsUpTo(input, cap),
         },
     );

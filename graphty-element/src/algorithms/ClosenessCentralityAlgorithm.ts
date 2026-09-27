@@ -3,6 +3,7 @@ import { closenessCentrality } from "@graphty/algorithms";
 import type { FieldDescriptor, NodeId } from "../catalog/types";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import type { ScopeInputDeclaration } from "./input/ScopedInput";
 import { walkInChunks } from "./metrics/context";
 import { nodeMetricFields } from "./metrics/fields";
 import { MetricAlgorithm } from "./metrics/MetricAlgorithm";
@@ -23,6 +24,8 @@ const CLOSENESS_FIELDS: readonly FieldDescriptor[] = nodeMetricFields({
 export class ClosenessCentralityAlgorithm extends MetricAlgorithm {
     static namespace = "graphty";
     static type = "closeness";
+    /** Computes over the run's scope: the node list and the graph both come from the input. */
+    static scopeInput: ScopeInputDeclaration = "subgraph";
 
     /**
      * The fields a closeness result publishes.

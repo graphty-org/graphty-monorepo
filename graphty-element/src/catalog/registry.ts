@@ -137,6 +137,18 @@ export function publishAlgorithmDescriptor(entry: RegisteredAlgorithm, options?:
         });
     }
 
+    // `results.<result>.runs` is reserved for naming one run under a result, so a field of that
+    // name would change meaning when it arrives (design/sets 15.3, item 36).
+    const runs = entry.descriptor.fields.find((field) => field.name === "runs");
+    if (runs !== undefined) {
+        throw new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message: `the algorithm "${entry.namespace}:${entry.type}" publishes a field named "runs", which is reserved. Name the field something else.`,
+            source: "registry",
+            details: { kind: "algorithm", field: "descriptor.fields", name: "runs", reason: "reserved-field" },
+        });
+    }
+
     registry.register(entry, options);
 }
 

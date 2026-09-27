@@ -470,6 +470,8 @@ export interface StylesSources {
      * across a freeze that renumbers the index space.
      */
     readonly elements: SelectorSource;
+    /** See {@link LayerCheckOptions.admitScope}. */
+    readonly admitScope?: LayerCheckOptions["admitScope"];
     /**
      * The element's own layers, seeded at the bottom of the stack in the order given.
      *
@@ -1067,14 +1069,19 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * Check one layer specification against this session.
      * @param spec - The specification.
      * @param id - The id it would carry.
+     * @param admit - Whether a scope selector is admitted as at a write door (false for a
+     *     document's layer, which may name a set of the session it was saved in).
      * @returns The verdict and, when it is sound, the compiled layer.
      */
-    const check = (spec: LayerSpec, id: LayerId): LayerCheck => {
+    const check = (spec: LayerSpec, id: LayerId, admit = true): LayerCheck => {
         const options: LayerCheckOptions = {
             id,
             elements: sources.elements,
             scales,
             ...(sources.paths === undefined ? {} : { paths: sources.paths }),
+            // A document's layer may name a set of the session it was saved in: kept, and reported
+            // detached, rather than refused.
+            ...(sources.admitScope === undefined || !admit ? {} : { admitScope: sources.admitScope }),
         };
 
         return checkLayerSpec(spec, options);
@@ -1718,7 +1725,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                         });
                     }
 
-                    const checked = check(authored, id(authored.name));
+                    const checked = check(authored, id(authored.name), false);
 
                     if (checked.layer === null) {
                         throw refusedSpec(authored.name, checked.result);
@@ -1743,7 +1750,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                         return entry.compiled;
                     }
 
-                    const off = check({ ...entry.spec, enabled: false }, entry.compiled.layer.id);
+                    const off = check({ ...entry.spec, enabled: false }, entry.compiled.layer.id, false);
 
                     if (off.layer === null) {
                         throw refusedSpec(entry.spec.name, off.result);

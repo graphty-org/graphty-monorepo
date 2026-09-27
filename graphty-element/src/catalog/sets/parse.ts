@@ -719,3 +719,59 @@ export function parseScope(value: unknown): Scope {
         ? Object.freeze({ define: canonicalSetDefinition(value.define as SetDefinition) })
         : (value as Scope);
 }
+
+/**
+ * A write door's value with every session edge id inside an inline definition replaced by its
+ * stable member, at any depth: a scope's `{ define }`, a fixed or path definition's edges, a
+ * rule's tree, the `scope` leaves of a rule tree and a `{ match: "scope" }` selector. Everything
+ * else is returned as given for the validator to judge, and a value holding no session edge id is
+ * returned unchanged (the same object).
+ * @param value - A scope, a set definition, a rule tree or a selector, as given.
+ * @param stable - The stable member of a session edge id; throws for an edge the graph lacks.
+ * @returns The value, stable.
+ */
+export function stabiliseEdgeRefs<T>(value: T, stable: (ref: string) => unknown): T {
+    const walk = (node: unknown): unknown => {
+        if (!isObject(node)) {
+            return node;
+        }
+
+        const swap = (field: string, next: unknown): unknown => (next === node[field] ? node : { ...node, [field]: next });
+        const each = (list: unknown, step: (item: unknown) => unknown): unknown => {
+            if (!Array.isArray(list)) {
+                return list;
+            }
+
+            const next = list.map(step);
+            return next.every((item, i) => item === list[i]) ? list : next;
+        };
+        const ref = (item: unknown): unknown => (typeof item === "string" ? stable(item) : item);
+
+        if (node.define !== undefined) {
+            return swap("define", walk(node.define));
+        }
+
+        if (node.match === "scope") {
+            return swap("scope", walk(node.scope));
+        }
+
+        switch (node.kind) {
+            case "fixed":
+            case "path":
+                return swap("edges", each(node.edges, (step) => (Array.isArray(step) ? each(step, ref) : ref(step))));
+            case "rule":
+                return swap("where", walk(node.where));
+            case "scope":
+                return swap("scope", walk(node.scope));
+            case "all":
+            case "any":
+                return swap("of", each(node.of, walk));
+            case "not":
+                return swap("of", walk(node.of));
+            default:
+                return node;
+        }
+    };
+
+    return walk(value) as T;
+}

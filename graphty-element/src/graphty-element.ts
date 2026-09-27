@@ -2874,7 +2874,7 @@ export class Graphty extends LitElement {
     async applyCameraView(
         id: string,
         options?: {
-            scope?: Scope;
+            scope?: ScopeInput;
             params?: Readonly<Record<string, unknown>>;
         } & import("./screenshot/types.js").CameraAnimationOptions,
     ): Promise<void> {

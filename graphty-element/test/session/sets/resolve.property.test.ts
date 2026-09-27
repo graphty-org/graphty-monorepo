@@ -620,12 +620,7 @@ describe("the resolver against a naive model, for edge members and paths", () =>
                 let missingEdges = 0;
                 let ambiguous = 0;
                 for (const member of fixed.edges ?? []) {
-                    for (const end of [member.source, member.target]) {
-                        if (present(end) !== INVALID_INDEX) {
-                            nodes.add(present(end));
-                        }
-                    }
-
+                    // Read listed, an edge member's ends join only with its bound edge.
                     const row = naiveBind(member, seeds.counters.get(edgeMemberKey(member)), table, ordered);
                     if (row >= 0) {
                         edges.add(row);

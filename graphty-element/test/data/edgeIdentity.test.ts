@@ -13,6 +13,7 @@ import { assert, describe, expect, it } from "vitest";
 
 import { hashEdgeMember, hashNodeId } from "../../src/catalog/sets/hash";
 import {
+    completeLoad,
     createEdgeCounter,
     decideRepeat,
     type EdgeCounter,
@@ -452,6 +453,27 @@ describe("the identity columns", () => {
         }
     });
 
+    it("gives the same ordinals and hashes whichever sort the pass picks", () => {
+        // Pairs with repeats, in both orientations; the node range decides the sort.
+        const src = [0, 1, 2, 0, 1, 3, 2, 0];
+        const dst = [1, 0, 3, 1, 2, 2, 3, 3];
+        const rows = new Uint32Array(src.map((_, i) => i));
+        const run = (offset: number): string[] => {
+            const out: string[] = [];
+            const graph = { endpoints: (e: number) => [src[e] + offset, dst[e] + offset] as const, idOf: (n: number) => `n${n - offset}` };
+            completeLoad(rows, graph, false, () => undefined, (row, ordinal, among, hash) => {
+                out[row] = `${ordinal}/${among}/${hash.a}/${hash.b}`;
+            });
+            return out;
+        };
+        // Offset 0 keeps the node range within four per edge (counting sort); offset 1000 does not.
+        assert.deepEqual(run(0), run(1000));
+        assert.deepEqual(run(0).map((cell) => cell.split("/").slice(0, 2).join("/")), ["0/3", "1/3", "0/3", "2/3", "0/1", "1/3", "2/3", "0/1"]);
+        const member = { source: "n0", target: "n1", ordinal: 0, among: 3 };
+        const { a, b } = hashEdgeMember(member, false);
+        assert.strictEqual(run(0)[0], `0/3/${a}/${b}`);
+    });
+
     it("never changes an ordinal when another edge is deleted", () => {
         const store = newStore("auto");
         load(store, ab3);
@@ -461,7 +483,7 @@ describe("the identity columns", () => {
         assert.deepEqual(ordinals(store.getSnapshot()), ["0/3", "2/3", "0/1"]);
     });
 
-    it("costs 8 bytes a node and 16 an edge, and the pass 16 transient bytes a loaded edge", () => {
+    it("costs 8 bytes a node and 16 an edge, and the pass 20 transient bytes a loaded edge and 4 a node", () => {
         const store = newStore("auto");
         const records: Rec[] = [];
         for (let i = 0; i < 200; i++) {
@@ -471,7 +493,8 @@ describe("the identity columns", () => {
         load(store, records);
         const snapshot = store.getSnapshot();
         assert.strictEqual(identityCounters.lastLoadEdges, 200);
-        assert.strictEqual(identityCounters.lastTransientBytes, 16 * 200);
+        // The load's rows, both ends and the two counting-sort buffers, and one count per node.
+        assert.strictEqual(identityCounters.lastTransientBytes, 20 * 200 + 4 * (snapshot.nodeCount + 1));
 
         // The accounting walk: every typed array reachable from the four columns.
         let walked = 0;

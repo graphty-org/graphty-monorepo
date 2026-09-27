@@ -174,8 +174,9 @@ Babylon.js, Lit or the DOM.
 **Goal.** A yes or no on every one-way door before anything depends on it.
 
 **Work.** Present to the owner, one line each with its recommendation:
-- design 15.3 items 1 to 20 (items 17 to 20 are the never-reissue, promote, Dijkstra and
-  source-column decisions);
+- design 15.3 items 1 to 26 (items 17 to 21 are the never-reissue, promote, Dijkstra,
+  source-column and edge-counter decisions; items 22 to 26 are where `ScopeInput` is published,
+  the empty-run and unknown-id refusals, the empty-save refusal and canonical undirected ends);
 - every new public name checked against the studio glossary (`design/ui/framework/glossary.md`) as
   it stands that day, with each difference and the reason design 19 gives.
 
@@ -351,7 +352,7 @@ against production code; only the `DataManager` wiring needs the browser project
     stable identity, for loaded and session-added rows, and survive a freeze unchanged.
   - Deleting an edge never changes another edge's ordinal.
   - Byte accounting: identity columns 8 bytes per node and 16 per edge; the pass's transient
-    buffer 16 bytes per loaded edge.
+    buffers 20 bytes per loaded edge and 4 per node.
 - `test/browser/sets/DataManager.identity.test.ts` (browser): after a load of each data source
   kind and after `addNodes` / `addEdges`, the frozen store carries the columns; `DataManager` makes
   its survivorship decisions through the Node-safe function.

@@ -110,12 +110,20 @@ describe("the scope selector", () => {
         assert.deepStrictEqual(colours(h), { a: BASE, b: "#ff0000", c: BASE, d: "#ff0000", e: BASE });
     });
 
-    it("a detached or unresolvable scope paints nothing, and the layers above it still paint", async () => {
+    it("a detached scope paints nothing, the layers above it still paint, and an id never issued is refused", async () => {
         const h = graph();
         const id = h.session.sets.create({ kind: "fixed", nodes: ["a"], reading: "induced" }, { name: "Gone" });
         h.session.sets.remove(id);
         await h.session.styles.add({ name: "detached", selector: { match: "scope", scope: { set: id } }, set: { "node.color": "#ff0000" } });
-        await h.session.styles.add({ name: "never", selector: { match: "scope", scope: { set: "set_nowhere" } }, set: { "node.color": "#00ff00" } });
+        // An id never issued is a typo, refused at the door rather than painting nothing forever.
+        let refused = false;
+        try {
+            await h.session.styles.add({ name: "never", selector: { match: "scope", scope: { set: "set_nowhere" } }, set: { "node.color": "#00ff00" } });
+        } catch {
+            refused = true;
+        }
+
+        assert.isTrue(refused, "a set id never issued is refused");
         await h.session.styles.add({ name: "above", selector: { match: "ids", nodes: ["c"] }, set: { "node.color": "#0000ff" } });
         await paintAll(h);
 

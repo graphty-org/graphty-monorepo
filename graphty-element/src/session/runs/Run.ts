@@ -805,8 +805,16 @@ export class ManagedRun<T = RunResult> implements Run<T> {
         this.startedAtValue = new Date().toISOString();
         this.startedAtMs = nowMs();
         this.executionValue = this.surroundings.mintExecution?.() ?? null;
-        this.scopeValue = this.surroundings.resolveScope();
-        this.scopeFactsValue = this.surroundings.scopeFacts?.();
+        try {
+            // Resolved again as the work starts: the scope may have emptied, or its set been
+            // removed, while the run waited in the queue.
+            this.scopeValue = this.surroundings.resolveScope();
+            this.scopeFactsValue = this.surroundings.scopeFacts?.();
+        } catch (error) {
+            this.fail(error);
+
+            return;
+        }
 
         const execution = new AbortController();
         this.executionController = execution;

@@ -184,6 +184,41 @@ describe("a layer naming a set repaints only what moved", () => {
         assert.deepStrictEqual(red(h), ["b", "d"]);
     });
 
+    it("across a freeze, the full passes ten live sets ask for are coalesced while one runs", async () => {
+        const h = path();
+        let frame: (() => void) | null = null;
+        setsNotifierOfSession(h.session).useFrames((callback) => {
+            frame = callback;
+            return () => {
+                frame = null;
+            };
+        });
+        for (let i = 0; i < 10; i++) {
+            const id = h.session.sets.create({ kind: "fixed", nodes: [i % 2 === 0 ? "b" : "d"], reading: "induced" }, { name: `S${String(i)}` });
+            await h.session.styles.add({ ...redLayer({ set: id }), name: `L${String(i)}` });
+        }
+
+        await paintAll(h);
+        h.store.builder.removeNode("a");
+        h.store.touch();
+        h.session.data.snapshot();
+
+        const seen = passes(h);
+        // Every set's resolution arrives before the first full pass has finished painting.
+        for (let guard = 0; frame !== null && guard < 100; guard++) {
+            (frame as unknown as () => void)();
+        }
+
+        for (let i = 0; i < 20; i++) {
+            await drain();
+        }
+
+        const whole = seen.log.filter((pass) => pass.nodes === 4 && pass.edges === 3);
+        assert.isAtLeast(whole.length, 1, "the layers are repainted");
+        assert.isAtMost(whole.length, 2, "one pass, and at most one more for the requests that arrived while it ran");
+        assert.deepStrictEqual(red(h), ["b", "d"]);
+    });
+
     it("a rename repaints nothing", async () => {
         const h = path();
         const id = h.session.sets.create({ kind: "fixed", nodes: ["b"], reading: "induced" }, { name: "S" });

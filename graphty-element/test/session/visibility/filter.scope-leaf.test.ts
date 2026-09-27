@@ -12,6 +12,7 @@ import { type GraphtyError, isGraphtyError } from "../../../src/errors";
 import type { GraphSession } from "../../../src/session";
 import { setsOfSession } from "../../../src/session/GraphSession";
 import { resolveSet } from "../../../src/session/sets/cache";
+import { prepareRedefine } from "../../../src/session/sets/prepare";
 import type { Resolution } from "../../../src/session/sets/resolve";
 import { setsStoreOf } from "../../../src/session/sets/SetsApi";
 import type { SetsStore } from "../../../src/session/sets/store";
@@ -348,13 +349,22 @@ describe("nothing throws or recurses in a pass", () => {
     it("a filter naming a set that a load later points at visible shows nothing, and never reads its own masks", async () => {
         const harness = harnessOf();
         const sets = setOfSession(harness.session);
-        await harness.session.visibility.set({ kind: "any", of: [{ kind: "scope", scope: { set: "set_later" } }, { kind: "expression", where: LEAF }] });
-        assert.deepStrictEqual([...harness.session.visibility.nodes], ["e"], "a missing referent speaks nothing");
-
+        // The set exists harmlessly when the filter names it (a door refuses an id never issued).
         sets.store.loadLogicalRecords({
-            records: [{ id: "set_later", name: "Later", order: 0, definition: rule({ kind: "scope", scope: "visible" }, "clipped"), createdFrom: { kind: "user" } }],
+            records: [{ id: "set_later", name: "Later", order: 0, definition: { kind: "fixed", nodes: [], reading: "induced" }, createdFrom: { kind: "user" } }],
             register: ["set_later"],
             tombstones: [],
+        });
+        await harness.session.visibility.set({ kind: "any", of: [{ kind: "scope", scope: { set: "set_later" } }, { kind: "expression", where: LEAF }] });
+        assert.deepStrictEqual([...harness.session.visibility.nodes], ["e"], "an empty referent speaks nothing");
+
+        // Then it comes to read "visible", written past the doors (which refuse that cycle) as a
+        // stored record arriving would be.
+        sets.store.transact(() => {
+            const next = prepareRedefine(sets.store, { id: "set_later", definition: rule({ kind: "scope", scope: "visible" }, "clipped") });
+            if (next !== null) {
+                sets.store.put(next);
+            }
         });
         // The graph moves, so the stored filter is re-evaluated against the set that now reads "visible".
         harness.add([{ id: "f" }]);

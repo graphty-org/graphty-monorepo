@@ -28,6 +28,7 @@ import {
     type OptionDescriptor,
     type RunId,
     type Scope,
+    type ScopeInput,
     type SetId,
 } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
@@ -182,6 +183,13 @@ export interface RunsApiOptions {
     readonly engine: EngineVersions;
     /** What a call that names no scope gets. Defaults to the visible graph. */
     readonly defaultScope?: Scope;
+    /**
+     * A write door's check of the scope a call names: session edge ids to stable members, set ids
+     * checked as issued. Absent, the scope is taken as given.
+     * @param spec - The scope as given.
+     * @returns The scope to record.
+     */
+    readonly admitScope?: (spec: ScopeInput) => Scope;
     /** The caveats a run starts from, before the work refines them. */
     readonly defaultCaveats?: Caveats;
     /** The style layers that read runs, once there are any. */
@@ -524,7 +532,7 @@ class Runs implements SessionRunsApi {
         const descriptor = this.descriptorFor(algorithm);
         this.checkParams(descriptor, params);
 
-        const spec = options.scope ?? this.defaultScope;
+        const spec = options.scope === undefined ? this.defaultScope : (this.options.admitScope?.(options.scope) ?? (options.scope as Scope));
         const identity: RunIdentity = {
             algorithm: descriptor.key,
             params: canonicalizeParams(params, descriptor.options),
@@ -766,7 +774,7 @@ class Runs implements SessionRunsApi {
             label: () => this.labelOf(id),
             queuePosition: () => this.queuePositionOf(id),
             stale: () => this.staleOf(id),
-            resolveScope: () => this.options.resolveScope(spec),
+            resolveScope: () => refuseEmptySet(spec, this.options.resolveScope(spec)),
             ...(this.options.scopeFacts === undefined ? {} : { scopeFacts: () => this.options.scopeFacts?.(spec) ?? {} }),
             enqueue: (body) => (policy === "now" ? enqueueBesideQueue(body, id) : this.enqueueOnQueue(id, body)),
             mintExecution: this.mintExecution,
@@ -1246,4 +1254,28 @@ function enqueueBesideQueue(body: RunBody, id: RunId): RunTicket {
  */
 export function createRunsApi(options: RunsApiOptions): SessionRunsApi {
     return new Runs(options);
+}
+
+/**
+ * Refuse a run over a set that holds no nodes: there is nothing to compute, and a result over
+ * nothing reads as a finding. The whole graph and the visible graph are not sets a caller chose,
+ * so an empty graph, or a filter that hides everything, is not refused here.
+ * @param spec - The scope the run names.
+ * @param scope - What it resolves to now.
+ * @returns The resolution, when it holds a node.
+ * @throws `E_SCOPE_EMPTY`, targeting the set when the scope names a kept one.
+ */
+function refuseEmptySet(spec: Scope, scope: ResolvedScope): ResolvedScope {
+    if (scope.nodeCount > 0 || spec === "graph" || spec === "visible") {
+        return scope;
+    }
+
+    const id = typeof spec === "object" && "set" in spec ? spec.set : undefined;
+    throw new GraphtyError({
+        code: "E_SCOPE_EMPTY",
+        message: "The run's scope holds no nodes, so there is nothing to compute over. Choose a scope with members.",
+        source: "run",
+        ...(id === undefined ? {} : { target: { kind: "scope" as const, id } }),
+        details: { scope: spec },
+    });
 }

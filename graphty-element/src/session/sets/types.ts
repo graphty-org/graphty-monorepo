@@ -263,6 +263,10 @@ export interface SetsApi {
      * `follow`, it is kept instead as a rule over the item without the execution, so it follows
      * the run's re-runs; a partition group cannot be followed, because a group number means
      * nothing in another run.
+     *
+     * The members are read when the asynchronous step resolves the source, not when the call is
+     * made: a set the source names that is redefined synchronously after this call is frozen as
+     * redefined. Await the call before changing what it reads to freeze the membership as it was.
      * @param source - The scope; `"selection"` for the current selection with its edges; or an offer.
      * @param options - How to keep it.
      * @param options.name - The name; "Set N" (the smallest free N) when absent.

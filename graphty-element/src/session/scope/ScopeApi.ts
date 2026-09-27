@@ -26,7 +26,7 @@
 
 import { type GraphSnapshot, INVALID_INDEX, makeMask, maskCount, maskTest, maskToIndices, type U32 } from "@graphty/graph-format";
 
-import { parseScope, readingOfScope } from "../../catalog/sets/parse";
+import { parseScope, readingOfScope, stabiliseEdgeRefs } from "../../catalog/sets/parse";
 import type {
     EdgeId,
     EdgeMember,
@@ -49,7 +49,7 @@ import type { AttributeRevisions, InputTick } from "../attributes";
 import type { ResolvedScope } from "../runs/types";
 import { resolveSet, SetsCache } from "../sets/cache";
 import { type Capture,capturedHalves } from "../sets/captures";
-import { referentReading } from "../sets/dependencies";
+import { assertIssued, referentReading } from "../sets/dependencies";
 import {
     type ComponentLabels,
     deriveEdges,
@@ -328,6 +328,15 @@ export interface ScopeResolver extends ScopeApi {
      */
     canonical(spec: ScopeInput): Scope;
     /**
+     * What a write door stores, before it validates it: session edge ids inside any nested inline
+     * definition replaced by their stable members, and every `{ set }` it names checked as issued
+     * in this session (a removed set's id is accepted and reads as detached).
+     * @param value - A scope, a rule tree or a set definition, as given.
+     * @returns The value, stable; the same object when it held no session edge id.
+     * @throws `E_BAD_COMMAND` for a session edge id the graph lacks, or a set id never issued.
+     */
+    admit<T>(value: T): T;
+    /**
      * The elements a specification covers, answered without a promise.
      * @param spec - What to resolve.
      * @returns The resolved scope.
@@ -602,28 +611,13 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
     };
 
     /**
-     * A write position's scope, canonical: session edge ids inside `{ define }` replaced by their
-     * stable members, the definition validated and canonicalised.
+     * A write position's scope, canonical: session edge ids inside `{ define }`, at any depth,
+     * replaced by their stable members, the definition validated and canonicalised.
      * @param spec - The scope as given.
      * @returns The scope.
      * @throws `E_BAD_COMMAND` when it is not a scope.
      */
-    const scopeOf = (spec: ScopeInput): Scope => {
-        const {define} = (spec as { define?: { kind?: unknown; edges?: unknown } });
-        if (typeof define !== "object" || define === null || !Array.isArray(define.edges) || (define.kind !== "fixed" && define.kind !== "path")) {
-            return parseScope(spec);
-        }
-
-        const edges = (define.edges as unknown[]).map((step) => {
-            if (typeof step === "string") {
-                return stable(step);
-            }
-
-            return Array.isArray(step) ? step.map((ref: EdgeRef) => stable(ref)) : step;
-        });
-
-        return parseScope({ define: { ...define, edges } });
-    };
+    const scopeOf = (spec: ScopeInput): Scope => parseScope(stabiliseEdgeRefs(spec, stable));
 
     /**
      * The nodes one specification covers, and the edge constraint it came with. Uncached: only an
@@ -740,6 +734,16 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
     const definitionOf = (spec: Scope): SetDefinitionInput => {
         if (spec === "selection" || spec === "visible") {
             const { resolution, graph } = membershipOf(spec);
+            // The same refusal as createFrom: a save freezes the members, so an empty one would be
+            // a set that stays empty, not one that follows later clicks as it did in 2.x.
+            if (resolution.nodeCount === 0 && resolution.edgeCount === 0) {
+                throw new GraphtyError({
+                    code: "E_SCOPE_EMPTY",
+                    message: `The ${spec} holds no nodes and no edges, so there is nothing to save. A saved "${spec}" keeps the members it has now.`,
+                    source: "run",
+                    details: { scope: spec },
+                });
+            }
 
             return frozenDefinition(resolution, graph);
         }
@@ -803,6 +807,13 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
         resolveNow,
 
         canonical: scopeOf,
+
+        admit<T>(value: T): T {
+            const admitted = stabiliseEdgeRefs(value, stable);
+            assertIssued(admitted as Scope, kept);
+
+            return admitted;
+        },
 
         sets,
 

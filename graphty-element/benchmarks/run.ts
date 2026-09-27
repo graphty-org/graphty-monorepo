@@ -231,6 +231,58 @@ function sessionOverGraph(): { session: GraphSession; snapshot: GraphSnapshot } 
 }
 
 /**
+ * The load rows (design 6.5, 12.3): a whole graph ingested into a store as one load, untimed,
+ * then the load's completion pass (`closeLoad`) and the first freeze, timed together and apart.
+ * Every consumer pays these at load, whether or not it uses sets.
+ * @returns The results.
+ */
+function runLoadBenchmarks(): BenchResult[] {
+    const graph = barabasiAlbertGraph({ n: NODES, m: M, seed: 1 });
+    const ingested = (): GraphStore => {
+        const store = new GraphStore({
+            directed: "auto",
+            positionScale: () => 1,
+            onReplaced: () => undefined,
+            onNodeRemap: () => undefined,
+            onEdgeRemap: () => undefined,
+        });
+        store.openLoad();
+        for (let i = 0; i < NODES; i++) {
+            ingestNode(store, i, {});
+        }
+
+        for (let e = 0; e < graph.src.length; e++) {
+            ingestEdge(store, graph.src[e], graph.dst[e], 1);
+        }
+
+        return store;
+    };
+    const closed = (): GraphStore => {
+        const store = ingested();
+        store.closeLoad();
+        return store;
+    };
+
+    return [
+        bench("load", `completion pass and first freeze, ${LABEL}`, {
+                setup: ingested,
+                run: (store) => {
+                    store.closeLoad();
+                    return store.getSnapshot();
+                },
+            }, { runs: 3 }),
+        bench("load", `completion pass alone, ${LABEL}`, {
+                setup: ingested,
+                run: (store) => {
+                    store.closeLoad();
+                    return store;
+                },
+            }, { runs: 3 }),
+        bench("load", `first freeze alone, ${LABEL}`, { setup: closed, run: (store) => store.getSnapshot() }, { runs: 3 }),
+    ];
+}
+
+/**
  * The algebra rows (design 6.5, 7): each of the four combinations of two large sets, one read
  * induced (every other node) and one listed (every third edge), so the edge-first path runs.
  * @returns The results.
@@ -357,6 +409,7 @@ const GROUPS: Readonly<Record<string, () => BenchResult[] | Promise<BenchResult[
     algebra: runAlgebraBenchmarks,
     doors: runDoorBenchmarks,
     members: runMemberBenchmarks,
+    load: runLoadBenchmarks,
 };
 
 const args = process.argv.slice(2);

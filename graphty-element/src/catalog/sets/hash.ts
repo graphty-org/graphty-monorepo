@@ -51,6 +51,14 @@ const TAG_KEY = 0x6b;
 const TAG_ORDINAL = 0x6f;
 
 const float = new DataView(new ArrayBuffer(8));
+// The same eight bytes through typed views: two word reads are several times faster than eight
+// DataView.getUint8 calls. The views are platform-endian, so they are used only where the
+// platform is little-endian (every engine the element ships to); elsewhere the DataView feeds.
+const floatValue = new Float64Array(float.buffer);
+const floatWords = new Uint32Array(float.buffer);
+/** The four lane values `hashPairs` feeds, so its loop reads them by index. */
+const parts = new Float64Array(4);
+const LITTLE_ENDIAN = new Uint8Array(new Uint32Array([1]).buffer)[0] === 1;
 
 // The two running lanes of the hash being fed. Every `H` below is fed start to finish without
 // another starting in between, so one pair of lanes serves them all.
@@ -78,10 +86,30 @@ function unit(unit: number): void {
  */
 function numberPart(value: number): void {
     unit(TAG_NUMBER);
-    float.setFloat64(0, value === 0 ? 0 : value, true);
-    for (let i = 0; i < 8; i++) {
-        unit(float.getUint8(i));
+    if (!LITTLE_ENDIAN) {
+        float.setFloat64(0, value === 0 ? 0 : value, true);
+        for (let i = 0; i < 8; i++) {
+            unit(float.getUint8(i));
+        }
+
+        return;
     }
+
+    // The hot path of the completion pass: the eight bytes read as two words and fed from locals.
+    floatValue[0] = value === 0 ? 0 : value;
+    let a = laneA;
+    let b = laneB;
+    for (let w = 0; w < 2; w++) {
+        const word = floatWords[w];
+        for (let shift = 0; shift < 32; shift += 8) {
+            const byte = (word >>> shift) & 0xff;
+            a = Math.imul(a ^ byte, PRIME_A) >>> 0;
+            b = Math.imul(b ^ byte, PRIME_B) >>> 0;
+        }
+    }
+
+    laneA = a;
+    laneB = b;
 }
 
 /**
@@ -150,13 +178,38 @@ function nodeHash(id: NodeId): LanePair {
  * @returns The hash.
  */
 function hashPairs(first: LanePair, second: LanePair): LanePair {
-    begin();
-    numberPart(first.a);
-    numberPart(first.b);
-    numberPart(second.a);
-    numberPart(second.b);
+    if (!LITTLE_ENDIAN) {
+        begin();
+        numberPart(first.a);
+        numberPart(first.b);
+        numberPart(second.a);
+        numberPart(second.b);
 
-    return end();
+        return end();
+    }
+
+    // The same four numeric parts fed from locals: this runs twice for every edge of a load.
+    let a = BASIS_A;
+    let b = BASIS_B;
+    parts[0] = first.a;
+    parts[1] = first.b;
+    parts[2] = second.a;
+    parts[3] = second.b;
+    for (let k = 0; k < 4; k++) {
+        floatValue[0] = parts[k];
+        a = Math.imul(a ^ TAG_NUMBER, PRIME_A) >>> 0;
+        b = Math.imul(b ^ TAG_NUMBER, PRIME_B) >>> 0;
+        for (let w = 0; w < 2; w++) {
+            const word = floatWords[w];
+            for (let shift = 0; shift < 32; shift += 8) {
+                const byte = (word >>> shift) & 0xff;
+                a = Math.imul(a ^ byte, PRIME_A) >>> 0;
+                b = Math.imul(b ^ byte, PRIME_B) >>> 0;
+            }
+        }
+    }
+
+    return { a: finalise(a), b: finalise(b) };
 }
 
 /**
@@ -211,6 +264,56 @@ export function hashEdgeMember(member: EdgeMember, directed: boolean): LanePair 
 
     return hashPairs(ends, discriminatorHash(member));
 }
+
+/**
+ * An edge member's hash from its endpoints' node hashes, equal to {@link hashEdgeMember} of the
+ * member those ends and that discriminator spell. The completion pass calls it with hashes it
+ * has already computed, so no member object is built and no endpoint id is hashed twice.
+ * @param source - `hashNodeId` of the source (or lower end)
+ * @param target - `hashNodeId` of the target (or upper end)
+ * @param directed - Whether the graph was declared directed at ingest.
+ * @param id - The file or minted id; when undefined, `ordinal` and `among` discriminate.
+ * @param ordinal - The edge's position among its pair's edges.
+ * @param among - Its pair's edge count.
+ * @returns The member hash.
+ */
+export function hashEdgeEnds(
+    source: LanePair,
+    target: LanePair,
+    directed: boolean,
+    id: string | number | undefined,
+    ordinal: number,
+    among: number,
+): LanePair {
+    hashCounters.memberHashes++;
+    const ends = directed ? hashPairs(source, target) : { a: (source.a + target.a) >>> 0, b: (source.b + target.b) >>> 0 };
+    let discriminator: LanePair;
+    if (id !== undefined) {
+        begin();
+        unit(TAG_ID);
+        idPart(id);
+        discriminator = end();
+    } else {
+        // Nearly every edge of a load is 0 of 1, so the last ordinal discriminator is kept.
+        if (ordinal !== lastOrdinal || among !== lastAmong) {
+            begin();
+            unit(TAG_ORDINAL);
+            numberPart(ordinal);
+            numberPart(among);
+            lastOrdinal = ordinal;
+            lastAmong = among;
+            lastOrdinalHash = end();
+        }
+
+        discriminator = lastOrdinalHash;
+    }
+
+    return hashPairs(ends, discriminator);
+}
+
+let lastOrdinal = -1;
+let lastAmong = -1;
+let lastOrdinalHash: LanePair = EMPTY_SUM;
 
 /**
  * Add a member hash to a sum.

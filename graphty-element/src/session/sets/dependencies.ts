@@ -426,3 +426,33 @@ export function followsGroup(item: ResultItem): GraphtyError {
         details: { reason: "follow-group", item },
     });
 }
+
+/**
+ * Refuse a value that names a set id never issued in this session, at a write door. A removed
+ * set's id was issued, so it is accepted and reads as detached; only a typo, or an id from
+ * another session, is refused -- which would otherwise hide everything in a filter or paint
+ * nothing in a layer without a word.
+ * @param value - A set definition, a scope, a rule tree, or a selector's scope.
+ * @param ids - Which ids exist: the live records, and every id ever issued.
+ * @param ids.get - A live record by id.
+ * @param ids.register - Every id ever issued and committed.
+ * @param self - The id being written, which a definition may not name but is not unknown.
+ * @throws `E_BAD_COMMAND` with `details.reason` `"unknown-set"`.
+ */
+export function assertIssued(
+    value: SetDefinition | Scope | Filter,
+    ids: { get(id: SetId): unknown; register(): ReadonlySet<SetId> },
+    self?: SetId,
+): void {
+    for (const dependency of dependenciesOf(value)) {
+        if (dependency.kind === "set" && dependency.id !== self && ids.get(dependency.id) === undefined && !ids.register().has(dependency.id)) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `No set has the id "${dependency.id}". A set id is the one session.sets.create returned.`,
+                source: "data",
+                target: { kind: "scope", id: dependency.id },
+                details: { id: dependency.id, reason: "unknown-set" },
+            });
+        }
+    }
+}

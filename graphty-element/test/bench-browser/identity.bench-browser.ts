@@ -36,7 +36,8 @@ const SIZES: readonly { label: string; n: number; m: number; projection: string 
  * @param graph.nodeCount - its node count
  * @param graph.src - edge sources
  * @param graph.dst - edge targets
- * @returns the store, with the load closed and not yet frozen
+ * @returns the store, with the load still open: closing it runs the completion pass, which the
+ * timed body must include
  */
 function loadInto(graph: { nodeCount: number; src: Uint32Array; dst: Uint32Array }): GraphStore {
     const store = new GraphStore({
@@ -56,7 +57,6 @@ function loadInto(graph: { nodeCount: number; src: Uint32Array; dst: Uint32Array
         ingestEdge(store, graph.src[e], graph.dst[e], 1);
     }
 
-    store.closeLoad();
     return store;
 }
 
@@ -98,7 +98,10 @@ for (const size of SIZES) {
             `load completion and first freeze, ${size.label}`,
             median3(
                 () => loadInto(graph),
-                (store) => store.getSnapshot(),
+                (store) => {
+                    store.closeLoad();
+                    return store.getSnapshot();
+                },
             ),
             size.projection,
         );

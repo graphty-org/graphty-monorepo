@@ -301,6 +301,14 @@ export interface VisibilitySources extends FilterSources {
      */
     readonly dependencies?: DependencySources;
     /**
+     * A write door's check of a filter: session edge ids inside a `scope` leaf's inline
+     * definition to stable members, and every set id it names checked as issued. Absent, the
+     * filter is taken as given.
+     * @param filter - The filter as given.
+     * @returns The filter to hold.
+     */
+    readonly admit?: (filter: Filter) => Filter;
+    /**
      * How the filter follows the sets its `scope` leaves name (design/sets 11). Absent, a filter
      * is re-evaluated only when it is set again or the snapshot moves.
      */
@@ -969,7 +977,8 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         },
 
         set(filter: Filter | null, options: RunOptions = {}): Run<FilterResult> {
-            return startPass(filter, windowValue, options, filter === null ? "none" : filter.kind);
+            const admitted = filter === null || sources.admit === undefined ? filter : sources.admit(filter);
+            return startPass(admitted, windowValue, options, admitted === null ? "none" : admitted.kind);
         },
 
         setWindow(window: TimeWindow | null, options: RunOptions = {}): Run<FilterResult> {

@@ -13,7 +13,7 @@
 import { type DuplicatePolicy, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
 import { compareIds } from "../catalog/sets/canonical";
-import { hashEdgeMember, hashNodeId, type LanePair } from "../catalog/sets/hash";
+import { hashEdgeEnds, hashEdgeMember, hashNodeId, type LanePair } from "../catalog/sets/hash";
 import type { EdgeId, EdgeMember, NodeId } from "../catalog/types";
 
 /**
@@ -203,8 +203,8 @@ export const identityCounters = { lastTransientBytes: 0, lastLoadEdges: 0 };
  * Complete one load: give each of its surviving edges its ordinal and among, counted per pair in
  * ingest order, and its edge hash.
  *
- * The load's rows are sorted by (pair, row) through a permutation over two endpoint arrays, 16
- * transient bytes per loaded edge with the row list, and the columns are filled in one pass. No
+ * The load's rows are sorted by (pair, row) through a permutation over two endpoint arrays, 20
+ * transient bytes per loaded edge with the row list and 4 per node (see `sortPairs`), and the columns are filled in one pass. No
  * map over the whole graph's pairs is kept. Rows are appended in ingest order and a compacting
  * freeze keeps their order, so row order within a load is counter order.
  * @param rows - the load's surviving edge rows, ascending
@@ -223,20 +223,22 @@ export function completeLoad(
     const count = rows.length;
     const lo = new Uint32Array(count);
     const hi = new Uint32Array(count);
-    const perm = new Uint32Array(count);
+    let nodeBound = 0;
     for (let i = 0; i < count; i++) {
         const [u, v] = graph.endpoints(rows[i]);
         const swap = !ordered && v < u;
         lo[i] = swap ? v : u;
         hi[i] = swap ? u : v;
-        perm[i] = i;
+        nodeBound = Math.max(nodeBound, lo[i] + 1, hi[i] + 1);
     }
 
-    perm.sort((a, b) => lo[a] - lo[b] || hi[a] - hi[b] || a - b);
-    identityCounters.lastTransientBytes = rows.byteLength + lo.byteLength + hi.byteLength + perm.byteLength;
+    const { perm, bytes } = sortPairs(lo, hi, nodeBound);
+    identityCounters.lastTransientBytes = rows.byteLength + lo.byteLength + hi.byteLength + bytes;
     identityCounters.lastLoadEdges = count;
 
     let start = 0;
+    let loNode = -1;
+    let loHash: LanePair = { a: 0, b: 0 };
     while (start < count) {
         const first = perm[start];
         let end = start + 1;
@@ -244,23 +246,71 @@ export function completeLoad(
             end++;
         }
 
+        // lo and hi are the declared ends, swapped only when the pair is unordered, where the
+        // hash is symmetric in its ends. Runs share their lower end, so it is hashed once a run.
+        if (lo[first] !== loNode) {
+            loNode = lo[first];
+            loHash = hashNodeId(graph.idOf(loNode));
+        }
+
+        const hiHash = hashNodeId(graph.idOf(hi[first]));
         const among = end - start;
         for (let k = start; k < end; k++) {
             const position = perm[k];
-            const row = rows[position];
-            // lo and hi are the declared ends, swapped only when the pair is unordered, where the
-            // hash is symmetric in its ends.
-            const source = graph.idOf(lo[position]);
-            const target = graph.idOf(hi[position]);
-            const fileId = fileIdAt(position);
             const ordinal = k - start;
-            const member: EdgeMember =
-                fileId === undefined ? { source, target, ordinal, among } : { source, target, id: fileId };
-            write(row, ordinal, among, hashEdgeMember(member, ordered));
+            write(rows[position], ordinal, among, hashEdgeEnds(loHash, hiHash, ordered, fileIdAt(position), ordinal, among));
         }
 
         start = end;
     }
+}
+
+/**
+ * The positions of a load's edges ordered by (lo, hi, position).
+ *
+ * Two stable counting-sort passes, by hi and then by lo, when the node range is small beside the
+ * load (every bulk load): linear, and no comparator closure is called per comparison, which was
+ * most of the pass's time. A small load onto a large graph sorts by comparator instead, so its
+ * transient memory stays proportional to the load, not to the graph.
+ * @param lo - each position's lower (or source) node
+ * @param hi - each position's upper (or target) node
+ * @param nodeBound - one past the largest node index
+ * @returns the ordered positions, and the transient bytes the sort held
+ */
+function sortPairs(lo: Uint32Array, hi: Uint32Array, nodeBound: number): { perm: Uint32Array; bytes: number } {
+    const count = lo.length;
+    if (nodeBound > 4 * count) {
+        const perm = new Uint32Array(count);
+        for (let i = 0; i < count; i++) {
+            perm[i] = i;
+        }
+
+        perm.sort((a, b) => lo[a] - lo[b] || hi[a] - hi[b] || a - b);
+        return { perm, bytes: perm.byteLength };
+    }
+
+    const starts = new Uint32Array(nodeBound + 1);
+    const byHi = new Uint32Array(count);
+    const perm = new Uint32Array(count);
+    const place = (key: Uint32Array, from: Uint32Array | null, to: Uint32Array): void => {
+        starts.fill(0);
+        for (let i = 0; i < count; i++) {
+            starts[key[i] + 1]++;
+        }
+
+        for (let n = 0; n < nodeBound; n++) {
+            starts[n + 1] += starts[n];
+        }
+
+        for (let i = 0; i < count; i++) {
+            const position = from === null ? i : from[i];
+            to[starts[key[position]]++] = position;
+        }
+    };
+    place(hi, null, byHi);
+    place(lo, byHi, perm);
+
+    return { perm, bytes: starts.byteLength + byHi.byteLength + perm.byteLength };
 }
 
 /**

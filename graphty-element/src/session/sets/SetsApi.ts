@@ -12,7 +12,8 @@
 
 import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
-import { EDGE_READINGS, inducedEdgeLeaf, parseScope, speaksEdges } from "../../catalog/sets/parse";
+import { compareIds } from "../../catalog/sets/canonical";
+import { EDGE_READINGS, inducedEdgeLeaf, parseScope, speaksEdges, stabiliseEdgeRefs } from "../../catalog/sets/parse";
 import type {
     EdgeId,
     EdgeMember,
@@ -35,6 +36,7 @@ import { GraphtyError } from "../../errors/GraphtyError";
 import type { SessionAttributes } from "../types";
 import { type Concrete, isOffer, type Materialiser, SET_COMBINES } from "./algebra";
 import {
+    assertIssued,
     type ChainStep,
     dependenciesOf,
     type DependencySources,
@@ -69,6 +71,12 @@ interface SetsDependencies {
      * @returns The member, or undefined when the graph holds no such edge.
      */
     edgeMember(id: EdgeId): EdgeMember | undefined;
+    /**
+     * Whether the graph's edge pairs are ordered (it was declared directed at ingest). False: an
+     * edge member given in stable form is stored with its ends in canonical order, so both
+     * spellings of one undirected edge are one member. Absent: members are stored as given.
+     */
+    readonly pairsOrdered?: () => boolean;
     /** The most edge members one member edit may touch. */
     readonly maxEdgeMembers?: number;
     /**
@@ -200,7 +208,7 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
      */
     const stable = (ref: EdgeRef): EdgeMember => {
         if (typeof ref !== "string") {
-            return ref;
+            return canonicalEnds(ref);
         }
 
         const member = dependencies.edgeMember(ref);
@@ -216,6 +224,23 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
         named.push([ref, member]);
 
         return member;
+    };
+
+    /**
+     * A stable member with its ends in canonical order when pairs are unordered, so `b -> a`
+     * and `a -> b` spell one member of an undirected graph. Anything that is not a well-formed
+     * pair of ids passes through for the validator to judge.
+     * @param member - The member as given.
+     * @returns The member.
+     */
+    const canonicalEnds = (member: EdgeMember): EdgeMember => {
+        const { source, target } = member as { source?: unknown; target?: unknown };
+        const isId = (value: unknown): value is NodeId => typeof value === "string" || typeof value === "number";
+        if (!isId(source) || !isId(target) || dependencies.pairsOrdered?.() !== false || compareIds(target, source) >= 0) {
+            return member;
+        }
+
+        return { ...member, source: target, target: source };
     };
 
     /**
@@ -259,27 +284,12 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
     };
 
     /**
-     * A definition with every session edge id replaced by its stable member. Other values pass
-     * through for the validator to judge.
+     * A definition with every session edge id replaced by its stable member, at any depth (a rule's
+     * nested `{ define }` leaves too). Other values pass through for the validator to judge.
      * @param definition - The definition as given.
      * @returns The definition, stable.
      */
-    const stabilise = (definition: SetDefinitionInput): unknown => {
-        const loose = definition as { kind?: unknown; edges?: unknown };
-        if (!Array.isArray(loose.edges) || (loose.kind !== "fixed" && loose.kind !== "path")) {
-            return definition;
-        }
-
-        const edges = (loose.edges as unknown[]).map((step) => {
-            if (typeof step === "string") {
-                return stable(step);
-            }
-
-            return Array.isArray(step) ? step.map((ref: unknown) => (typeof ref === "string" ? stable(ref) : ref)) : step;
-        });
-
-        return { ...definition, edges };
-    };
+    const stabilise = (definition: SetDefinitionInput): unknown => stabiliseEdgeRefs<unknown>(definition, stable);
 
     const stableDelta = (delta: SetMemberDelta): { nodes?: SetMemberDelta["nodes"]; edges?: readonly EdgeMember[] } => ({
         ...(delta.nodes === undefined ? {} : { nodes: delta.nodes }),
@@ -309,6 +319,7 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
      */
     const checkReferences = (record: ElementSet): void => {
         const { definition, id } = record;
+        assertIssued(definition, store, id);
         if (definition.kind !== "rule") {
             return;
         }

@@ -330,7 +330,7 @@ export function resolveNodeHalf(scope: Scope, context: ResolveContext, seen: Set
         if (record === undefined) {
             throw new GraphtyError({
                 code: "E_BAD_COMMAND",
-                message: `No saved scope is called "${scope.set}".`,
+                message: `No set has the id "${scope.set}". A set id is the one session.sets.create returned.`,
                 source: "run",
                 target: { kind: "scope", id: scope.set },
                 details: { scope, available: [...(context.saved?.keys() ?? [])] },
@@ -986,24 +986,36 @@ export function addEdgeRow(row: number, snapshot: GraphSnapshot, nodes: U32, edg
 export function resolveFixed(definition: Extract<SetDefinition, { kind: "fixed" }>, context: ResolveContext, seeds?: EdgeSeeds): Resolution {
     const { snapshot } = context;
     const nodes = makeMask(snapshot.nodeCount);
-    const missingNodes = addIds(definition.nodes, nodes, context);
+    let missingNodes = addIds(definition.nodes, nodes, context);
     const listed = listedEdgesOf(definition);
 
-    for (let i = 0; i < listed.length; i++) {
-        const member = listed.at(i) as EdgeMember;
-        // Endpoints join the node half; one the graph no longer holds is simply not there.
-        for (const end of [member.source, member.target]) {
-            const index = (context.ids ?? snapshot.ids).indexOf(end);
-            if (index !== INVALID_INDEX) {
-                nodes[index >>> 5] |= 1 << (index & 31);
+    if (definition.reading === "induced") {
+        // Read induced, an edge member names its two ends, whether or not the edge itself is still
+        // there: the set is those nodes and every edge among them. An end the graph lacks is a
+        // missing node, counted once however many members name it.
+        const absent = new Set<NodeId>();
+        const named = new Set<NodeId>(definition.nodes);
+        for (let i = 0; i < listed.length; i++) {
+            const member = listed.at(i) as EdgeMember;
+            for (const end of [member.source, member.target]) {
+                const index = (context.ids ?? snapshot.ids).indexOf(end);
+                if (index !== INVALID_INDEX) {
+                    nodes[index >>> 5] |= 1 << (index & 31);
+                } else if (!named.has(end)) {
+                    absent.add(end);
+                }
             }
         }
-    }
 
-    const half: NodeHalf = { nodes, constraint: null, all: false, missingNodes };
-    if (definition.reading === "induced") {
+        missingNodes += absent.size;
+        const half: NodeHalf = { nodes, constraint: null, all: false, missingNodes };
+
         return resolutionOf(half, deriveEdges(half, snapshot), context, 0);
     }
+
+    // Read listed, the ends of an edge member join only when the edge binds: a deleted edge does
+    // not leave its ends behind as members nobody chose, and counts as one missing edge.
+    const half: NodeHalf = { nodes, constraint: null, all: false, missingNodes };
 
     const edges = makeMask(snapshot.edgeCount);
     let missing = 0;

@@ -62,6 +62,25 @@ const picked = await sets.createFrom("selection", { name: "Picked" });
 
 Leave out `name` and the element picks "Set 1", "Set 2", and so on.
 
+### Putting edges in a set
+
+A fixed set can hold edges as well as nodes. Name an edge by the id the element gave it -- the
+`id` of an edge in `session.selection.edges` or in a click event -- and read the set
+`listed`, so the edge itself, not every edge among its ends, is the member:
+
+```typescript
+const [edgeId] = element.session.selection.edges;
+const link = sets.create({ kind: "fixed", nodes: [], edges: [edgeId], reading: "listed" }, { name: "Link" });
+```
+
+That id lasts only as long as the session. The set stores the edge by what survives a reload
+instead -- its ends and the file's edge id, or its position among the edges joining the same
+two nodes -- so `sets.get(link).definition.edges` hands back objects such as
+`{ source: "a", target: "b", ordinal: 0, among: 1 }`. You can pass that form back in too, to any
+door that takes edges: `create`, `redefine`, `addMembers`, `removeMembers` and a `path`'s steps.
+In an undirected graph the two spellings of one edge, `a` to `b` and `b` to `a`, are the same
+member.
+
 A rule can also be a filter tree -- the same tree the visibility filter takes -- which reaches
 things a query cannot, such as the top ten by a run's value or one community of a result:
 

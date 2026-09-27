@@ -21,11 +21,11 @@ import {
     type GraphAccelerator,
 } from "../acceleration";
 import { readingOfScope } from "../catalog/sets/parse";
-import type { EdgeId, EdgeMember, EdgeReading, Filter, NodeId, Path, Query, ResultItem, RunId, Scope, SetId, StaticStyle } from "../catalog/types";
+import type { EdgeId, EdgeMember, EdgeReading, Filter, NodeId, Path, Query, ResultItem, RunId, Scope, ScopeInput, SetId, StaticStyle } from "../catalog/types";
 import { DataConfig } from "../config/DataConfig";
 import { defaultEdgeStyle } from "../config/EdgeStyle";
 import { defaultNodeStyle } from "../config/NodeStyle";
-import { createEdgeCounter } from "../data/edgeIdentity";
+import { createEdgeCounter, pairsOrdered } from "../data/edgeIdentity";
 import { GraphStore } from "../data/GraphStore";
 import type { ElementPositions } from "../data/positions";
 import { GraphtyError, isGraphtyError } from "../errors";
@@ -1199,6 +1199,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     const hostUsers: SetsUsersProvider[] = [];
     const sets = createSetsApi({
         edgeMember,
+        pairsOrdered: () => pairsOrdered(snapshot()),
         dependencies,
         offering,
         executionOf: (run: RunId) => executionOf(run),
@@ -1314,6 +1315,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         components,
         queue,
         dependencies,
+        admit: (filter: Filter) => scope.admit(filter),
         scope: (spec: Scope) => scope.leafOf(spec),
         // The resolver's context turns a capture into bitmaps over the current snapshot.
         captured: (item: ResultItem) => scope.contextNow().captured?.(item),
@@ -1343,6 +1345,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         queue,
         catalog: SESSION_CATALOG_TABLES,
         resolveScope: (spec: Scope) => scope.resolveNow(spec),
+        admitScope: (spec: ScopeInput) => scope.admit(spec) as Scope,
         scopeFacts: (spec: Scope) => {
             const reading = readingOfScope(spec, referentReading(dependencies)) as EdgeReading;
             const kept = typeof spec === "object" && "set" in spec ? sets.get(spec.set) : undefined;
@@ -1536,10 +1539,10 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         pin: (spec: Scope) => pinScope(spec),
         repaint: (dirty) => {
             if (stack === null || (dirty.node.length === 0 && dirty.edge.length === 0)) {
-                return;
+                return undefined;
             }
 
-            painter.repaintElements(stack.compiled(), dirty, { signal: teardown.signal, report: () => undefined }).catch((error: unknown) => {
+            return painter.repaintElements(stack.compiled(), dirty, { signal: teardown.signal, report: () => undefined }).catch((error: unknown) => {
                 if (!teardown.signal.aborted) {
                     console.error("[graphty] Could not repaint the layers naming a set that changed.", error);
                 }
@@ -1553,6 +1556,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     });
     const styles = createStylesApi({
         elements: { ...elements, scope: (spec: Scope) => layerScopes.live(spec) },
+        admitScope: (spec: unknown) => scope.admit(spec),
         base: elementBaseLayers(),
         paths,
         scales,

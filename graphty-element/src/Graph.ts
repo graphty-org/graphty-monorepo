@@ -4895,13 +4895,15 @@ export class Graph implements GraphContext {
     async applyCameraView(
         id: string,
         options?: {
-            scope?: Scope;
+            scope?: ScopeInput;
             params?: Readonly<Record<string, unknown>>;
         } & import("./screenshot/types.js").CameraAnimationOptions,
     ): Promise<void> {
         const scope = options?.scope;
-        // Read from the scope's node bitmap, so framing a subset never builds an id Set.
-        const nodes = scope === undefined ? undefined : scopeResolverOfSession(this.getSession()).nodeIdsOf(scope);
+        const resolver = scopeResolverOfSession(this.getSession());
+        // Read from the scope's node bitmap, so framing a subset never builds an id Set. An inline
+        // definition may name edges by session id, as at every door that takes a scope.
+        const nodes = scope === undefined ? undefined : resolver.nodeIdsOf(resolver.canonical(resolver.admit(scope)));
         const state = this.resolveCameraPreset(id, {
             ...(nodes === undefined ? {} : { nodes }),
             ...(options?.params === undefined ? {} : { params: options.params }),

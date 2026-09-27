@@ -72,8 +72,9 @@ interface LayerScopeSources {
     /**
      * Repaint elements whose membership moved.
      * @param dirty - The indices, per half.
+     * @returns Settles when the repaint has finished, or nothing when it is not awaitable.
      */
-    repaint(dirty: ElementIndices): void;
+    repaint(dirty: ElementIndices): Promise<unknown> | undefined;
 }
 
 /** Nothing to repaint. */
@@ -222,12 +223,13 @@ class Entry implements LiveScope {
         const previous = this.#held;
         this.#take(next);
         const {graph} = next;
+        // Fire and forget: a repaint's refusal is reported where it runs.
         if (previous?.graph !== graph) {
-            this.sources.repaint({ node: every(graph.nodeCount), edge: every(graph.edgeCount) });
+            void this.sources.repaint({ node: every(graph.nodeCount), edge: every(graph.edgeCount) });
             return;
         }
 
-        this.sources.repaint({
+        void this.sources.repaint({
             node: moved(previous.resolution?.nodes ?? null, next.resolution?.nodes ?? null, graph.nodeCount),
             edge: moved(previous.resolution?.edges ?? null, next.resolution?.edges ?? null, graph.edgeCount),
         });
@@ -281,12 +283,57 @@ class Entry implements LiveScope {
 /** The live scopes of one session's style layers. */
 export class LayerScopes {
     readonly #entries = new Map<string, Entry>();
+    readonly #inner: LayerScopeSources;
+    readonly #sources: LayerScopeSources;
+    /** Whether a whole-graph repaint is running, and whether another was asked for meanwhile. */
+    #whole: "idle" | "running" | "again" = "idle";
 
     /**
-     * Build over a session.
+     * Build over a session. Whole-graph repaints the entries ask for are coalesced: while one is
+     * running, every further request becomes one more pass after it, over the graph as it then
+     * stands. After a freeze each live set asks for one as its resolution arrives, frame by frame,
+     * so ten live sets would otherwise cost ten whole-graph passes.
      * @param sources - The session.
      */
-    constructor(private readonly sources: LayerScopeSources) {}
+    constructor(sources: LayerScopeSources) {
+        this.#inner = sources;
+        this.#sources = {
+            ...sources,
+            repaint: (dirty) => {
+                const graph = sources.snapshot();
+                if (dirty.node.length < graph.nodeCount || dirty.edge.length < graph.edgeCount) {
+                    return sources.repaint(dirty);
+                }
+
+                this.#repaintWhole();
+                return undefined;
+            },
+        };
+    }
+
+    /** Run one whole-graph repaint, or fold this request into the one after the running pass. */
+    #repaintWhole(): void {
+        if (this.#whole !== "idle") {
+            this.#whole = "again";
+            return;
+        }
+
+        this.#whole = "running";
+        const graph = this.#sources.snapshot();
+        const done = (): void => {
+            const again = this.#whole === "again";
+            this.#whole = "idle";
+            if (again) {
+                this.#repaintWhole();
+            }
+        };
+        const pass = this.#inner.repaint({ node: every(graph.nodeCount), edge: every(graph.edgeCount) });
+        if (pass === undefined) {
+            done();
+        } else {
+            pass.then(done, done);
+        }
+    }
 
     /**
      * The live membership of a scope, shared by every layer naming it.
@@ -297,7 +344,7 @@ export class LayerScopes {
         const key = canonicalize(scope);
         let entry = this.#entries.get(key);
         if (entry === undefined) {
-            entry = new Entry(scope, this.sources);
+            entry = new Entry(scope, this.#sources);
             this.#entries.set(key, entry);
         }
 

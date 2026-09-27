@@ -323,6 +323,16 @@ export type SetDefinition =
 - A fixed set stores ids, never row indices, and is **never out of date**.
 - Its node half is its `nodes` plus the endpoints of its `edges`. Its edge half is its `edges`.
   The reading is applied as in section 4.1.
+- **What an edge member that does not bind contributes depends on the reading.** Read `listed`,
+  nothing: its ends join the node half only through the bound edge, so a set made from selected
+  edges does not keep two nodes nobody chose after the edge is deleted, and the member counts as
+  one missing edge. Read `induced`, an edge member names its two ends whether or not the edge is
+  still there, because an induced set is a set of nodes and every edge among them; an end the
+  graph lacks counts as one missing node, once however many members name it.
+- **In an undirected graph an edge member's ends are stored in canonical order** (section 12.1),
+  at every door that takes members: `a` to `b` and `b` to `a` are one member, with one revision,
+  and adding the other spelling is a no-op. In a graph whose pairs are ordered the order is part
+  of the member.
 - **In a session**, each edge member a door adds from a session `EdgeId` is bound to that
   edge's counter, which is never reissued: the counter moves from `GraphStore` to `DataManager`,
   so `resetStore` no longer rewinds it. These **seeds** (member to the counter it entered through)
@@ -530,8 +540,11 @@ one lifecycle, while the definition keeps the walk.
 - **Direction.** A walk is valid regardless of edge direction unless `directed: true`, because a
   route computed on the undirected view traverses directed edges backwards.
 - **Validity.** A step whose named edges are all gone counts as missing, and so does, under
-  `directed: true`, a named edge whose direction opposes its step (the doors refuse one).
-  Resolution never throws. The validator refuses an `edges` array whose length is not
+  `directed: true`, a named edge whose direction opposes its step. The doors do not refuse such a
+  step: they validate a definition without the graph, and a stable member of an undirected graph
+  records no direction to check. It is reported where every other unbound member is, in
+  `scope.count`'s `missingEdges`, and `pathKind` keys the step on its named edge group as for any
+  other step. Resolution never throws. The validator refuses an `edges` array whose length is not
   `nodes.length - 1`.
 - **Path kind is a derived read**, `sets.pathKind(id)`, because the studio shows it on every path
   and the app may not compute it. Each step counts as one logical edge, keyed on its named edge
@@ -904,6 +917,19 @@ the plan's benchmark task re-measures it at the stated target.
   worse, the owner decides whether to add an internal typed encoding behind a lazily materialised
   `definition.nodes`. An induced source stores no edges. No
   JSON is built.
+- **Load completion is paid by every consumer**, whether or not it uses sets: the identity
+  columns are filled when a load closes (section 12.3), because an ordinal counted later would
+  move when an edge is deleted. Budget: the completion pass at most about the cost of the first
+  freeze it precedes, and never more than twice it; at 100k / 500k it is 160 ms against a 48 ms
+  freeze, at 1M / 5M 2.5 s against 1.3 s (Node). Two things keep it there: the float64 bytes of
+  each numeric part are read as two words and fed from local variables, and the load's edges are
+  grouped by pair with two counting-sort passes (a small load onto a large graph sorts by
+  comparator, so its transient memory follows the load, not the graph). The hash bytes are
+  unchanged, so no `r1:` revision or `d1:` digest moves. What remains is the builder's cell
+  writes (three per edge, about a third of the pass) and one node hash per edge's upper end. If
+  the owner wants it lower, the next step is writing the three columns in bulk when a load covers
+  every edge of the store, and after that deferring the edge hash (not the ordinals, which must be
+  fixed at load) until something first reads it.
 - **Size cap on member edits.** `addMembers` and `removeMembers` on a set holding more than 1M
   edge members are refused with `E_TOO_LARGE` until the op-log sub-key of section 20 exists,
   because each step keeps both whole values in history (section 13.2).
@@ -939,11 +965,12 @@ the plan's benchmark task re-measures it at the stated target.
   (which compares the old and new member lists) materialises them. Captures: 8 bytes per captured
   node member, and an edge capture holds its members in the same column form as a definition
   (20 bytes per member plus interned ids), never an object per member; the identity columns of section 12.3, 8 bytes per node (`nodeHash`) and 16
-  per edge (`edgeHash`, `edgeOrdinal`, `edgeAmong`), about 168 MB, plus a transient 16 bytes per
-  edge of the load being completed; no `EdgeIdIndex` in the sets code; the summary cache tens of
+  per edge (`edgeHash`, `edgeOrdinal`, `edgeAmong`), about 168 MB, plus a transient 20 bytes per
+  edge of the load being completed and 4 per node; no `EdgeIdIndex` in the sets code; the summary cache tens of
   bytes per set.
 
-**Recorded timings, 2026-09-27.** Intel i9-14900, Node 22.22.1 (Node runner,
+**Recorded timings, 2026-09-27** (re-recorded after the load completion pass was made cheaper
+and the full repaints after a freeze were coalesced; the 1M / 10M Node door rows were not rerun). Intel i9-14900, Node 22.22.1 (Node runner,
 `benchmarks/run.ts`) and headless Chromium 143 (browser runner,
 `test/bench-browser/*.bench-browser.ts`). Medians of five runs (Node) or three (browser input
 row); the freeze rows are single measurements. Graphs are Barabasi-Albert, m = 5 (m = 10 for the
@@ -952,30 +979,34 @@ row); the freeze rows are single measurements. Graphs are Barabasi-Albert, m = 5
 | Row | Runner | Projection | 100k / 500k | 1M / 5M | 1M / 10M |
 |---|---|---|---|---|---|
 | Digest of `"visible"`, nothing hidden | Node | under 150 ms at 10M | 2.2 ms | 9.5 ms | 17.0 ms |
-| First resolution of a listed fixed set, by identity (half the edges at 100k, 1M members at 1M / 5M) | Node | about 85 ms at 1M / 5M | 64 ms | 981 ms, WORSE | -- |
-| The same, seeded (one merge of the edge-id column) | Node | about 85 ms at 1M / 5M | 98 ms | 545 ms, WORSE | -- |
-| Three-node `addMembers` on a set of half the nodes (50,000; 500,000) | Node | O(delta) | 5.4 ms | 50.7 ms, WORSE: grows with the set | -- |
-| `revisionOf`, fixed set of every node | Node | none stated | 27 ms | 115 ms | -- |
-| `revisionOf`, fixed set of as many listed edges | Node | none stated | 165 ms | 1,643 ms | -- |
-| `createFrom("visible")`, no filter | Node | under 200 ms | 19 ms | 190 ms | 329 ms, WORSE |
-| `createFrom` of a scope listing every other edge, total (250k; 2.5M; 5M edges) | Node | under 2 s at 5M edges | 1,454 ms | 21.1 s | 56.4 s, WORSE; runs out of Node's default 4 GB heap, measured with 24 GB |
-| The same, its synchronous commit | Node | under 50 ms at 5M edges | 439 ms, WORSE | 7.2 s | 18.1 s, WORSE |
-| `combineMasks` union / intersection / difference / symmetric difference, 50% induced with 33% listed | Node | none stated | 5.3 / 1.6 / 2.5 / 4.9 ms | 46 / 15 / 23 / 47 ms | 88 / 31 / 45 / 85 ms |
-| Load completion and first freeze | browser | none stated | 1,070 ms | 9,897 ms | 17,644 ms |
-| Freeze with live sets: the freeze itself (add one node) | browser | none stated | 66 ms | 869 ms | 2,452 ms |
-| Freeze with live sets: to the first layer repainted (a fixed set's, which the new node does not affect) | browser | under 200 ms | 533 ms, WORSE | 4,439 ms, WORSE | 9,127 ms, WORSE |
-| Freeze with live sets: to every layer repainted | browser | within the re-resolution time | 3,486 ms, WORSE | 30.8 s, WORSE | 65.5 s, WORSE |
-| Freeze with live sets: the re-resolution alone, all ten sets | browser | none stated | 61 ms | 602 ms | 1,034 ms |
+| First resolution of a listed fixed set, by identity (half the edges at 100k, 1M members at 1M / 5M) | Node | about 85 ms at 1M / 5M | 98 ms | 1,165 ms, WORSE | -- |
+| The same, seeded (one merge of the edge-id column) | Node | about 85 ms at 1M / 5M | 114 ms | 504 ms, WORSE | -- |
+| Three-node `addMembers` on a set of half the nodes (50,000; 500,000) | Node | O(delta) | 2.6 ms | 28.7 ms, WORSE: grows with the set | -- |
+| `revisionOf`, fixed set of every node | Node | none stated | 5.7 ms | 64 ms | -- |
+| `revisionOf`, fixed set of as many listed edges | Node | none stated | 65 ms | 706 ms | -- |
+| `createFrom("visible")`, no filter | Node | under 200 ms | 23 ms | 235 ms, WORSE | 329 ms, WORSE |
+| `createFrom` of a scope listing every other edge, total (250k; 2.5M; 5M edges) | Node | under 2 s at 5M edges | 1,626 ms | 21.3 s | 56.4 s, WORSE; runs out of Node's default 4 GB heap, measured with 24 GB |
+| The same, its synchronous commit | Node | under 50 ms at 5M edges | 487 ms, WORSE | 7.4 s | 18.1 s, WORSE |
+| `combineMasks` union / intersection / difference / symmetric difference, 50% induced with 33% listed | Node | none stated | 4.5 / 1.4 / 2.2 / 4.0 ms | 46 / 15 / 23 / 47 ms | 88 / 31 / 45 / 85 ms |
+| Load completion (`closeLoad`) and first freeze, timed together | browser | completion at most about the freeze | 212 ms | 3,495 ms | 6,712 ms |
+| The same, Node: completion pass / first freeze | Node | completion at most about the freeze | 160 / 48 ms | 2,517 / 1,283 ms | -- |
+| Freeze with live sets: the freeze itself (add one node) | browser | none stated | 59 ms | 1,094 ms | 2,723 ms |
+| Freeze with live sets: to the first layer repainted (a fixed set's, which the new node does not affect) | browser | under 200 ms | 538 ms, WORSE | 4,905 ms, WORSE | 9,979 ms, WORSE |
+| Freeze with live sets: to every layer repainted | browser | within the re-resolution time | 851 ms, WORSE | 8.1 s, WORSE | 15.8 s, WORSE |
+| Freeze with live sets: the re-resolution alone, all ten sets | browser | none stated | 59 ms | 701 ms | 1,236 ms |
 | Freeze with live sets: a 200-row `scope.count` panel after it | browser | none stated | 0.6 ms | 0.3 ms | 0.4 ms |
-| One 50% scoped run's input, declared and undirected | browser | must complete | 34 ms | 350 ms | 770 ms |
+| One 50% scoped run's input, declared and undirected | browser | must complete | 42 ms | 365 ms | 869 ms |
 
 What the freeze rows say. Re-resolving all ten live sets after the freeze costs about 1 s at
 1M / 10M, and the 200-row panel afterwards is served entirely from what the frames resolved. The
 time is in the paint: each layer whose resolution is ready asks for a full pass of both halves
-(section 6.2), and each such pass repaints the whole graph through every layer, so ten live sets
-cost ten whole-graph passes, one per frame. The carry of section 6.2 would remove at most the
-re-resolution, about a tenth of the total; coalescing the full-pass repaints that a freeze causes
-into one pass would remove most of the rest. Which of the two to build is the owner's decision.
+(section 6.2). Those full passes are coalesced: while one runs, every further request becomes one
+more pass after it, over the graph as it then stands, so ten live sets cost two whole-graph passes
+instead of ten (every layer repainted: 3.8 s to 0.85 s at 100k, 34.6 s to 8.1 s at 1M / 5M,
+60.7 s to 15.8 s at 1M / 10M). The first layer still waits for one whole-graph pass, 5 to 10 s at
+1M. The carry of section 6.2 would remove at most the re-resolution; a repaint that paints only
+the carried rows of the layers whose sets moved would remove the rest. Which, if either, to build
+is the owner's decision.
 
 What the door rows say. The listed `createFrom` commit, projected under 50 ms at 5M edges, takes
 18 s, and the whole door needs more than Node's default heap at 5M edges. This is the case the
@@ -1404,7 +1435,10 @@ halves by the composition rule in section 4.3. `visibility.set` refuses a tree t
 internal trigger as layers. A cycle created later resolves to nothing with reason `cycle`; the pass
 never recurses into it or reads a half-written mask.
 
-**Selection and camera.** Unchanged: both already take `{ scope }`. The camera reads the bitmap.
+**Selection and camera.** Both already take `{ scope }`: the selection target `{ scope }`, the
+`scope` that narrows a `{ where }` or `{ text }` target, and `applyCameraView(id, { scope })`. They
+are widened to `ScopeInput`, so an inline definition may name an edge by its session id, and each
+admits its scope as every other door does (section 15.2). The camera reads the bitmap.
 
 **Not changed now.** `pin`, `unpin` and `removeNodes` keep their id lists.
 
@@ -1434,6 +1468,10 @@ One function canonicalises every definition, at every door, on load and before h
   kept. Duplicates are dropped. Edge members sort by (source, target, id, key, ordinal, among)
   under the same comparator, absent before present.
 - Path `nodes` and `edges` keep their order; a step's edge group is sorted as a member array.
+- In a graph whose edge pairs are unordered (section 12.3), the doors store an edge member's ends
+  in comparator order before canonicalising, so both spellings of one undirected edge are one
+  member. This needs the graph, so it is a door step, not part of the pure function; a definition
+  loaded from a file is canonicalised as written.
 - Every nested `Scope` and definition (inside `scope` leaves, `{ define }`, `{ nodes }`) is
   canonicalised recursively. `all` and `any` keep their operand order, because the user wrote it.
 - A one-leaf `expression` tree in `where` becomes the bare query. A fixed `"clipped"` becomes
@@ -1539,8 +1577,9 @@ narrowing. The rules, in the order a member takes them:
      record push through `addEdges`, a headless session's own ingest -- is a session edge and takes
      rule 2's minted id, with ordinal and among -1.
    - **`among`** is the pair's edge count in that load. Both values are written **when the load
-     completes**, not per chunk: the load's edge rows are sorted by (pair, counter) in a
-     transient 16 bytes per loaded edge, and `graphty.edgeOrdinal` and `graphty.edgeAmong` (int32
+     completes**, not per chunk: the load's edge rows are sorted by (pair, counter) with two
+     counting-sort passes in a transient 20 bytes per loaded edge and 4 per node (a load much
+     smaller than the graph sorts by comparator in 16 bytes per loaded edge instead), and `graphty.edgeOrdinal` and `graphty.edgeAmong` (int32
      builder columns beside the edge-id column) are filled in one pass. A load completes when it
      closes, not at the next freeze: an edit made after it ended (a removal, or a second load
      opened straight after) belongs to no load and neither moves its ordinals nor joins it. No map
@@ -1713,6 +1752,12 @@ are separate from the recorded patch**: a consumer cannot supply an id, an order
   with the same name therefore get distinct ids or the second is refused with `E_DUPLICATE_ID`;
   a test runs two concurrent `createFrom` calls to prove it. Section 6.5 states the projection
   for the synchronous part.
+- **An asynchronous door reads its source when it resolves it, not when it is called.** A set the
+  source names that is redefined synchronously after `createFrom` is called is frozen as
+  redefined, and a run queued over `{ set }` runs over the set as it stands when its work starts
+  and records that revision. Both are consistent (each records what it used), and awaiting the
+  call before editing what it reads gives the call-time membership. Capturing the record at call
+  time instead would make a queued run compute over a membership the reader has already changed.
 - **Nothing else writes set state.** Not node removal, not a run finishing, not run or set removal,
   not an event listener.
 - **No handle objects with methods.** Every write verb is on `session.sets`.
@@ -1962,8 +2007,12 @@ export interface SetsApi {                                     // NEW, as sessio
 // LayoutDescriptor gains:    scoped: boolean  (derived by register; omitted from AuthoredLayoutDescriptor) NEW
 // SetLayoutOptions:          interface SetLayoutOptions extends QueueableOptions { scope?: ScopeInput } NEW
 // graphty-element gains:     layoutScope: ScopeInput | undefined (getter: Scope | undefined); attribute layout-scope (JSON) NEW
-// Write positions typed ScopeInput: run options, setLayout, layoutScope, visibility.set,
-//   layer selectors, selection targets, createFrom, combine, status, scope.resolve, scope.count
+// Positions typed ScopeInput (input only): run options (StartOptions.scope, RunSpec.scope),
+//   setLayout, layoutScope, selection targets, applyCameraView, createFrom, combine, status,
+//   scope.resolve, scope.count
+// Positions typed Scope that accept a session EdgeId at run time: a Filter's scope leaf
+//   (visibility.set, a rule set's tree) and a { match: "scope" } selector. These types are also
+//   what getters return and what a document persists, so they stay Scope; a door converts.
 // Error details:             details.reason on refusals, OPEN UNION: "cycle" (with `through`),
 //                            "stale-offer", "live-selection", "induced-edge-leaf", "follow-group",
 //                            "opaque-content", "ambiguous-path" (with `why`),
@@ -1999,7 +2048,9 @@ to `{ where }`), so one scope has one run id and existing ids are unchanged
 
 | Situation | Code |
 |---|---|
-| Malformed definition, bad or empty name, a cycle, a live `"selection"` in a kept rule, an induced rule with an edge leaf, follow mode on a group, a stale offer, an ambiguous path, a directed path step against its edge, an unknown id or unknown `EdgeId` at a write door, `addMembers` on a non-fixed set, a bad `threshold`, a reserved field | `E_BAD_COMMAND`, with `details.reason` where the UI answers with a verb |
+| Malformed definition, bad or empty name, a cycle, a live `"selection"` in a kept rule, an induced rule with an edge leaf, follow mode on a group, a stale offer, an ambiguous path, a set id never issued or an unknown `EdgeId` at a write door (every door that takes a scope, a
+filter, a selector or a definition; a removed set's id is accepted and reads as detached; a
+style document's layer is kept detached instead, because it may come from another session), `addMembers` on a non-fixed set, a bad `threshold`, a reserved field | `E_BAD_COMMAND`, with `details.reason` where the UI answers with a verb |
 | A definition rewrite (`redefine`, `addMembers`, `removeMembers`) of a definition holding opaque content | `E_UNSUPPORTED`, `details.reason: "opaque-content"` |
 | `addMembers` or `removeMembers` on a set holding more than 1M edge members | `E_TOO_LARGE` |
 | A visibility filter that reaches `"visible"` or `"search"` | `E_BAD_COMMAND` |
@@ -2007,7 +2058,7 @@ to `{ where }`), so one scope has one run id and existing ids are unchanged
 | Duplicate name | `E_DUPLICATE_ID` (as `scope.save` today) |
 | Unknown run in `offers` | `E_UNKNOWN_RUN` |
 | A node option outside a run's scope | `E_OPTION_RANGE`, `details.reason: "outside-scope"` |
-| A run over an empty set, or `createFrom` of an empty source | `E_SCOPE_EMPTY` |
+| A run over an empty set (any scope but `"graph"` and `"visible"` that holds no node, refused at `start`, or failing the run when it finds the scope empty as its work starts), `createFrom` of an empty source, or the deprecated `scope.save` of an empty `"selection"` or `"visible"` | `E_SCOPE_EMPTY` |
 | An explicit scope on a layout that is not `scoped` | `E_UNSUPPORTED` |
 | Running, laying out (an explicit scope argument) or `scope.resolve` over a detached reference | `E_BAD_COMMAND`, as an unknown `{ set }` is today. A carried layout scope never refuses (section 11) |
 
@@ -2019,6 +2070,10 @@ union.
 ### 15.3 Public contract: the one-way doors
 
 Every item becomes published API or a persisted format once released. The owner decides each.
+
+**Status, 2026-09-27: no item has a recorded answer yet.** The branch builds every
+recommendation below, so each answer is due before the branch merges, and a "no" is a code change
+on the branch, not a follow-up.
 
 1. **`session.sets` and its method names**: `list`, `get`, `status`, `pathKind`, `containing`,
    `usedBy`, `create`, `createFrom`, `createPath`, `combine`, `rename`, `redefine`, `addMembers`,
@@ -2117,6 +2172,26 @@ Every item becomes published API or a persisted format once released. The owner 
     replacing import the first edge takes the next counter value instead of `"0"`. Recommendation:
     ship as a fix with a changelog entry; a reissued `EdgeId` silently re-points a selection, an
     event subscriber or a stored reference at a different edge.
+22. **Where `ScopeInput` is the published type.** `StartOptions.scope`, `RunSpec.scope`, the
+    selection targets that take a scope and `applyCameraView`'s `scope` are widened from `Scope`
+    to `ScopeInput` (additive: every `Scope` is a `ScopeInput`). A `Filter`'s `scope` leaf and
+    the `{ match: "scope" }` selector stay typed `Scope`, because getters return them and
+    documents persist them, and accept a session `EdgeId` at run time only (section 15.2).
+    Recommendation: ship as described; widening those two later is additive.
+23. **A run over an empty set is refused** with `E_SCOPE_EMPTY` (any scope but `"graph"` and
+    `"visible"`), a behaviour change to a published verb: in 2.x such a run completed with an
+    empty result. Recommendation: ship with a changelog entry; an empty result reads as a finding.
+24. **A set id never issued is refused at every write door**, including `visibility.set` and
+    `styles.add`, which in earlier builds of this branch accepted one and matched nothing. A style
+    document's layer naming an unknown set is kept, detached. Recommendation: ship as described;
+    a typo in a filter otherwise hides everything without a word.
+25. **The deprecated `scope.save` refuses an empty `"selection"` or `"visible"`** with
+    `E_SCOPE_EMPTY`, matching `createFrom` (item 15 makes the save freeze, so an empty save would
+    stay empty). Recommendation: ship with item 15's changelog entry.
+26. **Edge members' ends in an undirected graph are stored in canonical order** at the doors
+    (section 12.1), so `revision` and `definition.edges` of a set created from a reversed spelling
+    differ from what earlier builds of this branch stored. Nothing is released yet, so this only
+    fixes what the first release promises.
 
 ---
 

@@ -16,7 +16,7 @@
  * run was started from, which arrives with the command union.
  */
 
-import type { AlgorithmKey, EdgeId, EdgeReading, FieldDescriptor, LayerId, NodeId, ResultShape, RunId, Scope, SetId } from "../../catalog/types";
+import type { AlgorithmKey, EdgeId, EdgeReading, FieldDescriptor, LayerId, NodeId, ResultShape, RunId, Scope, ScopeInput, SetId } from "../../catalog/types";
 import type { GraphtyError } from "../../errors/GraphtyError";
 import type { ResultSummary, RunResult } from "../results/types";
 import type { StyleSuggestion } from "../styles/derive";
@@ -341,8 +341,11 @@ export interface RunOptions {
  * saved document that referenced one would resolve differently against a different session.
  */
 export interface StartOptions extends RunOptions {
-    /** What the run may look at. Defaults to the visible graph. */
-    readonly scope?: Scope;
+    /**
+     * What the run may look at. Defaults to the visible graph. An inline `{ define }` may name
+     * edges by session edge id; the run records their stable form.
+     */
+    readonly scope?: ScopeInput;
     /** The seed for a randomised or sampled method, so a run can be reproduced. */
     readonly seed?: number;
     /**
@@ -389,8 +392,8 @@ export interface RunSpec {
     readonly algorithm: AlgorithmKey;
     /** Its parameters. */
     readonly params?: Readonly<Record<string, unknown>>;
-    /** What it may look at. */
-    readonly scope?: Scope;
+    /** What it may look at, as {@link StartOptions.scope}. */
+    readonly scope?: ScopeInput;
     /** The seed for a randomised or sampled method. */
     readonly seed?: number;
     /** The id to give the run. */
@@ -631,10 +634,17 @@ export interface RunRemoval {
 export interface RunsApi {
     /**
      * Start one algorithm.
+     *
+     * The scope is resolved when the call is made, and again when the work starts: a set it names
+     * that is redefined while the run waits in the queue is run over as redefined, and the run
+     * records the revision it used (`record.scope.set.revision`).
      * @param algorithm - Which algorithm to run.
      * @param params - Its parameters.
      * @param options - The scope, the seed, the id and the rest.
      * @returns The run, which is awaitable and watchable straight away.
+     * @throws `E_SCOPE_EMPTY` when a scope other than `"graph"` or `"visible"` holds no nodes (a
+     * run that finds it empty only when its work starts fails with the same code);
+     * `E_BAD_COMMAND` for a malformed scope or a set id never issued.
      */
     start(algorithm: AlgorithmKey, params?: Readonly<Record<string, unknown>>, options?: StartOptions): Run;
     /**

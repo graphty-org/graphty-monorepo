@@ -53,7 +53,7 @@ export interface ScopedInputOptions {
      * How parallel edges merge in `subgraph()`. OPEN UNION. Default "sum", the element's reading
      * of a repeated edge as more connection; shortest paths want "min".
      */
-    readonly simplify?: SimplifyPolicy;
+    readonly simplify?: "sum" | "min" | "max" | "none";
 }
 
 /** What a scoped run computes over (design 10.2). OPEN: may gain members. */

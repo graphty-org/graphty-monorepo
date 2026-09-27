@@ -25,13 +25,18 @@ import {
 } from "@graphty/graph-format";
 
 import { EMPTY_SUM, hashEdgeMember, type LanePair, membershipDigestOf } from "../../catalog/sets/hash";
-import type { EdgeId, EdgeMember, NodeId, Path, Query, RunId, Scope, ScopeId, SetDefinition, SetId } from "../../catalog/types";
+import { readingOfScope } from "../../catalog/sets/parse";
+import type { EdgeId, EdgeMember, Filter, NodeId, Path, Query, RunId, Scope, ScopeId, SetDefinition, SetId } from "../../catalog/types";
 import { EDGE_ID_COLUMN, identityColumnsOf, pairsOrdered } from "../../data/edgeIdentity";
-import { GraphtyError } from "../../errors";
+import { GraphtyError, isGraphtyError } from "../../errors";
 import type { AttributeRevisions, InputTick } from "../attributes";
 import { canonicalize } from "../runs/runId";
 import type { ElementMask } from "../scope/ElementMask";
+import { compileFilter, type FilterValueSource, type ScopeLeaf } from "../visibility/filter";
 import type { SetsCache } from "./cache";
+import { referentReading } from "./dependencies";
+import { resolvePath } from "./path";
+import { opaqueName } from "./prepare";
 import { scopeSignature } from "./signature";
 
 /**
@@ -82,6 +87,12 @@ export interface Resolution {
      * two loads gave two edges the same pair, ordinal and among, and neither is bound.
      */
     readonly ambiguousEdges: number;
+    /**
+     * Why this resolution is empty when its definition could not be evaluated (a cycle, a missing
+     * referent, a capability the session lacks). Only a quiet resolution carries one; a door throws
+     * the same error instead.
+     */
+    readonly problem?: GraphtyError;
 }
 
 /** Which connected component each node belongs to. */
@@ -111,6 +122,10 @@ export interface ResolveContext {
     readonly components?: () => ComponentLabels;
     /** The nodes a predicate matches. Absent refuses `{ where }`. */
     readonly match?: (where: Query) => Iterable<NodeId>;
+    /** The edges a predicate matches. Absent refuses a rule's `edges` leaf. */
+    readonly matchEdges?: (where: Query) => Iterable<EdgeId>;
+    /** Attribute values. Absent refuses a rule's `range` and `categories` leaves. */
+    readonly values?: FilterValueSource;
     /**
      * The saved scopes `{ set }` names. Absent: no scope is saved. Replaced, never mutated, on
      * every write, so its identity says whether it moved.
@@ -131,6 +146,8 @@ export interface ResolveContext {
     readonly pathsOf?: (where: Query) => readonly Path[];
     /** The node attribute revisions. */
     readonly revisions?: AttributeRevisions;
+    /** The edge attribute revisions, which a rule's `edges` leaf is keyed on. */
+    readonly edgeRevisions?: AttributeRevisions;
     /**
      * The token of a run's current result, or undefined when it has none.
      * @param run - The run.
@@ -295,8 +312,17 @@ export function resolveNodeHalf(scope: Scope, context: ResolveContext, seen: Set
         return { nodes: largestComponent(context.components(), n), constraint: null, all: false, missingNodes: 0 };
     }
 
+    if ("define" in scope) {
+        return halfOf(resolveDefinitionIn(scope.define, context, [...seen]));
+    }
+
     if ("set" in scope) {
         const record = context.saved?.get(scope.set);
+        const kept = record === undefined ? keptDefinition(scope.set, context) : undefined;
+        if (kept !== undefined) {
+            return halfOf(resolveKept(scope.set, kept, context, [...seen]));
+        }
+
         if (record === undefined) {
             throw new GraphtyError({
                 code: "E_BAD_COMMAND",
@@ -338,12 +364,241 @@ export function resolveNodeHalf(scope: Scope, context: ResolveContext, seen: Set
 }
 
 /**
+ * A full resolution as a node half: its edges become the constraint, which the endpoint invariant
+ * makes exact (the induced edges of its nodes, narrowed to its edges, are its edges).
+ * @param resolution - The resolution.
+ * @returns The node half.
+ */
+function halfOf(resolution: Resolution): NodeHalf {
+    return { nodes: resolution.nodes, constraint: resolution.edges, all: false, missingNodes: resolution.missingNodes };
+}
+
+/**
+ * The definition of the kept set an id names, when the context holds one.
+ * @param id - The id.
+ * @param context - What the resolution reads.
+ * @returns The definition, or undefined.
+ */
+function keptDefinition(id: SetId, context: ResolveContext): SetDefinition | undefined {
+    return (context.sets?.get(id) as { readonly definition?: SetDefinition } | undefined)?.definition;
+}
+
+/**
+ * The refusal of a chain of references that reaches a set already on it.
+ * @param id - The set met again.
+ * @param seen - The sets followed so far, outermost first.
+ * @returns The error; `details.through` is the references followed from `id`, ending with `id`.
+ */
+function cycleAt(id: SetId, seen: readonly SetId[]): GraphtyError {
+    const through = [...seen.slice(seen.indexOf(id) + 1), id];
+
+    return new GraphtyError({
+        code: "E_BAD_COMMAND",
+        message: `The set "${id}" reaches itself through ${through.map((step) => `"${step}"`).join(", ")}, so it names no elements.`,
+        source: "run",
+        target: { kind: "scope", id },
+        details: { reason: "cycle", through },
+    });
+}
+
+/**
+ * What a kept set covers, followed from a reference: refused when the chain already holds it.
+ * @param id - The set.
+ * @param definition - Its definition.
+ * @param context - What the resolution reads.
+ * @param seen - The sets followed so far.
+ * @returns The resolution.
+ * @throws A `GraphtyError` with `details.reason: "cycle"`, or as the definition's resolution does.
+ */
+function resolveKept(id: SetId, definition: SetDefinition, context: ResolveContext, seen: readonly SetId[]): Resolution {
+    if (seen.includes(id)) {
+        throw cycleAt(id, seen);
+    }
+
+    return resolveDefinitionIn(definition, context, [...seen, id], id);
+}
+
+/**
+ * An empty resolution over the context snapshot.
+ * @param context - What the resolution reads.
+ * @param problem - Why it is empty, when it is empty because it could not be evaluated.
+ * @returns The resolution.
+ */
+function emptyResolution(context: ResolveContext, problem?: GraphtyError): Resolution {
+    const { snapshot } = context;
+    const empty = resolutionOf(
+        { nodes: makeMask(snapshot.nodeCount), constraint: null, all: false, missingNodes: 0 },
+        makeMask(snapshot.edgeCount),
+        context,
+        0,
+    );
+
+    return problem === undefined ? empty : Object.freeze({ ...empty, problem });
+}
+
+/**
+ * Resolve without throwing: a definition that cannot be evaluated resolves to nothing, carrying
+ * the refusal as its `problem`. What a pass (the visibility filter, a kept set counted in a panel)
+ * uses, because inside a pass nothing throws.
+ * @param resolve - The resolution to attempt.
+ * @param context - What the resolution reads.
+ * @returns The resolution, or an empty one with its problem.
+ */
+export function resolveQuietly(resolve: () => Resolution, context: ResolveContext): Resolution {
+    try {
+        return resolve();
+    } catch (error) {
+        if (!isGraphtyError(error)) {
+            throw error;
+        }
+
+        return emptyResolution(context, error);
+    }
+}
+
+/**
+ * How a scope reads, following `{ set }` to what it names: `induced` unless the set speaks edges.
+ * @param scope - The scope.
+ * @param context - What the resolution reads.
+ * @returns The reading.
+ */
+function readingIn(scope: Scope, context: ResolveContext): string {
+    return readingOfScope(scope, referentReading({ referent: (id) => context.saved?.get(id)?.spec ?? keptDefinition(id, context) }));
+}
+
+/**
+ * What a `scope` leaf speaks: the referenced set's nodes, and its edges when its reading is
+ * `listed` or `clipped`.
+ * @param scope - The referenced set.
+ * @param context - What the resolution reads.
+ * @param seen - The sets followed so far.
+ * @returns The leaf.
+ * @throws A `GraphtyError` as the scope's resolution does.
+ */
+export function scopeLeafIn(scope: Scope, context: ResolveContext, seen: readonly SetId[] = []): ScopeLeaf {
+    const resolution = resolveIn(scope, context, seen);
+
+    return { nodes: resolution.nodes, edges: readingIn(scope, context) === "induced" ? null : resolution.edges };
+}
+
+/**
+ * What a scope covers, following references with the chain so far. Uncached.
+ * @param scope - The scope.
+ * @param context - What the resolution reads.
+ * @param seen - The sets followed so far.
+ * @returns The resolution.
+ */
+function resolveIn(scope: Scope, context: ResolveContext, seen: readonly SetId[]): Resolution {
+    if (typeof scope === "object" && "define" in scope) {
+        return resolveDefinitionIn(scope.define, context, seen);
+    }
+
+    if (typeof scope === "object" && "set" in scope && context.saved?.get(scope.set) === undefined) {
+        const kept = keptDefinition(scope.set, context);
+        if (kept !== undefined) {
+            return resolveKept(scope.set, kept, context, seen);
+        }
+    }
+
+    const half = resolveNodeHalf(scope, context, new Set(seen));
+
+    return resolutionOf(half, deriveEdges(half, context.snapshot), context, 0);
+}
+
+/**
+ * A rule's two halves, with the reading applied at the root (design 4.3): a silent node half is
+ * every node except under `listed`; `induced` derives the edges; `listed` takes the edge half and
+ * its endpoints; `clipped` takes the edge half (every edge when silent) between member nodes.
+ * @param definition - A canonical rule.
+ * @param context - What the resolution reads.
+ * @param seen - The sets followed so far.
+ * @returns The resolution.
+ * @throws A `GraphtyError` when a leaf needs a capability the context lacks or a reference fails.
+ */
+function resolveRule(definition: Extract<SetDefinition, { kind: "rule" }>, context: ResolveContext, seen: readonly SetId[]): Resolution {
+    const { snapshot } = context;
+    const { reading } = definition;
+    const tree: Filter = typeof definition.where === "string" ? { kind: "expression", where: definition.where } : definition.where;
+    const halves = compileFilter(snapshot, tree, {
+        ...(context.match === undefined ? {} : { match: context.match }),
+        ...(context.matchEdges === undefined ? {} : { matchEdges: context.matchEdges }),
+        ...(context.values === undefined ? {} : { values: context.values }),
+        ...(context.components === undefined ? {} : { components: context.components }),
+        scope: (scope: Scope) => scopeLeafIn(scope, context, seen),
+    });
+
+    const n = snapshot.nodeCount;
+    const nodes = makeMask(n, halves.node === null && reading !== "listed");
+    if (halves.node !== null) {
+        for (let index = 0; index < n; index++) {
+            if (halves.node(index)) {
+                nodes[index >>> 5] |= 1 << (index & 31);
+            }
+        }
+    }
+
+    const half: NodeHalf = { nodes, constraint: null, all: false, missingNodes: 0 };
+    if (reading === "induced" || (reading === "clipped" && halves.edge === null)) {
+        return resolutionOf(half, deriveEdges(half, snapshot), context, 0);
+    }
+
+    const edges = makeMask(snapshot.edgeCount);
+    const test = halves.edge;
+    if (test !== null) {
+        const { src, dst } = snapshot.edgeList();
+        resolveCounters.edgePasses++;
+        resolveCounters.edgeRowVisits += snapshot.edgeCount;
+        for (let edge = 0; edge < snapshot.edgeCount; edge++) {
+            if (!test(edge)) {
+                continue;
+            }
+
+            if (reading === "listed") {
+                addEdgeRow(edge, snapshot, nodes, edges);
+            } else if ((nodes[src[edge] >>> 5] & (1 << (src[edge] & 31))) !== 0 && (nodes[dst[edge] >>> 5] & (1 << (dst[edge] & 31))) !== 0) {
+                edges[edge >>> 5] |= 1 << (edge & 31);
+            }
+        }
+    }
+
+    return resolutionOf(half, edges, context, 0);
+}
+
+/**
+ * What a definition covers. Opaque content resolves to nothing (design 12.5).
+ * @param definition - A canonical definition.
+ * @param context - What the resolution reads.
+ * @param seen - The kept sets followed so far, this one last when it is kept.
+ * @param id - The kept set, whose seeds its edge members bind through; absent for an inline one.
+ * @returns The resolution.
+ * @throws A `GraphtyError` when a rule cannot be evaluated: a cycle, a missing referent, a
+ * capability the context lacks.
+ */
+export function resolveDefinitionIn(definition: SetDefinition, context: ResolveContext, seen: readonly SetId[] = [], id?: SetId): Resolution {
+    if (opaqueName(definition) !== null) {
+        return emptyResolution(context);
+    }
+
+    const seeds = id === undefined ? undefined : context.sets?.seedsOf(id);
+    switch (definition.kind) {
+        case "fixed":
+            return resolveFixed(definition, context, seeds);
+        case "path":
+            return resolvePath(definition, context, seeds);
+        case "rule":
+            return resolveRule(definition, context, seen);
+        default:
+            return emptyResolution(context);
+    }
+}
+
+/**
  * The induced (or, with a constraint, clipped) edges of a node half: one pass over the edge list.
  * @param half - The node half.
  * @param snapshot - The context snapshot.
  * @returns The edge bitmap.
  */
-export function deriveEdges(half: NodeHalf, snapshot: GraphSnapshot): U32 {
+function deriveEdges(half: NodeHalf, snapshot: GraphSnapshot): U32 {
     const count = snapshot.edgeCount;
     if (half.all) {
         return makeMask(count, true);
@@ -412,8 +667,7 @@ export function resolveScope(scope: Scope, context: ResolveContext): Resolution 
         return cached;
     }
 
-    const half = resolveNodeHalf(scope, context);
-    const resolution = resolutionOf(half, deriveEdges(half, context.snapshot), context, 0);
+    const resolution = resolveIn(scope, context, []);
     if (signature !== null) {
         cache?.store(key, signature, resolution);
     }

@@ -20,7 +20,8 @@
  * Nothing here reaches Babylon.js, Lit or the DOM: it is string arithmetic over plain data.
  */
 
-import type { AlgorithmKey, EdgeId, NodeId, OptionDescriptor, RunId, Scope } from "../../catalog/types";
+import { parseScope } from "../../catalog/sets/parse";
+import type { AlgorithmKey, EdgeId, NodeId, OptionDescriptor, RunId, Scope, SetDefinition } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import { RUN_ID_PATTERN } from "./types";
 
@@ -273,9 +274,42 @@ export function canonicalIdentity(identity: RunIdentity): string {
         exact: identity.exact,
         params: identity.params,
         sample: identity.sample,
-        scope: identity.scope,
+        scope: legacyScope(identity.scope),
         seed: identity.seed,
     });
+}
+
+/**
+ * One spelling per scope, so one scope has one run id: an inline definition is canonicalised, and
+ * one that equals a form older than `{ define }` becomes that form -- a fixed node list read
+ * `induced` with no listed edges is `{ nodes }`, a rule over one query read `induced` is
+ * `{ where }` -- so every id derived before `{ define }` existed is unchanged.
+ * @param scope - The scope a run was asked for.
+ * @returns The scope its id is derived from.
+ */
+function legacyScope(scope: Scope): Scope {
+    if (typeof scope !== "object" || !("define" in scope)) {
+        return scope;
+    }
+
+    let canonical: Scope;
+    try {
+        canonical = parseScope(scope);
+    } catch {
+        // A malformed scope is refused where it is resolved; its id is never used.
+        return scope;
+    }
+
+    const definition = (canonical as { define: SetDefinition }).define;
+    if (definition.kind === "fixed" && definition.reading === "induced" && definition.edges === undefined) {
+        return { nodes: definition.nodes };
+    }
+
+    if (definition.kind === "rule" && definition.reading === "induced" && typeof definition.where === "string") {
+        return { where: definition.where };
+    }
+
+    return canonical;
 }
 
 /**

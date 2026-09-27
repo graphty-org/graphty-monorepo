@@ -245,7 +245,7 @@ export { DEFAULT_COST_GATE_LIMITS, DEFAULT_EXACT_COMPUTATION_CAP_SECONDS } from 
 // Identities, scopes and results
 // ---------------------------------------------------------------------------------------------
 
-export { parseSetDefinition } from "./src/catalog/sets/parse";
+export { parseScope, parseSetDefinition } from "./src/catalog/sets/parse";
 export type {
     Binding,
     BindingOverflow,
@@ -271,6 +271,7 @@ export type {
     RunId,
     Scope,
     ScopeId,
+    ScopeInput,
     Selector,
     SetCombine,
     SetCreatedFrom,

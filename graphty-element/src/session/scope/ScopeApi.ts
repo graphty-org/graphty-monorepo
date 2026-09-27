@@ -24,11 +24,12 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import { type GraphSnapshot, INVALID_INDEX, maskCount, maskTest, maskToIndices, type U32 } from "@graphty/graph-format";
+import { type GraphSnapshot, INVALID_INDEX, makeMask, maskCount, maskTest, maskToIndices, type U32 } from "@graphty/graph-format";
 
-import type { EdgeId, NodeId, Path, Query, RunId, Scope, ScopeId } from "../../catalog/types";
+import { parseScope } from "../../catalog/sets/parse";
+import type { EdgeId, EdgeMember, EdgeRef, NodeId, Path, Query, RunId, Scope, ScopeId, ScopeInput } from "../../catalog/types";
 import { edgeCounterOf, edgeIdOf } from "../../data/edgeIdentity";
-import { GraphtyError } from "../../errors";
+import { GraphtyError, isGraphtyError } from "../../errors";
 import type { AttributeRevisions, InputTick } from "../attributes";
 import type { ResolvedScope } from "../runs/types";
 import { SetsCache } from "../sets/cache";
@@ -40,8 +41,11 @@ import {
     type ResolveContext,
     resolveCounters,
     resolveNodeHalf,
+    resolveQuietly,
     resolveScope,
+    scopeLeafIn,
 } from "../sets/resolve";
+import type { FilterValueSource, ScopeLeaf } from "../visibility/filter";
 import type { ElementMask, MaskIdSpace } from "./ElementMask";
 
 export type { ComponentLabels } from "../sets/resolve";
@@ -167,6 +171,8 @@ export interface ScopeSources {
     readonly pathsOf?: (where: Query) => readonly Path[];
     /** The node attribute revisions a predicate's cached answer is keyed on. */
     readonly revisions?: AttributeRevisions;
+    /** The edge attribute revisions a rule's `edges` leaf is keyed on. */
+    readonly edgeRevisions?: AttributeRevisions;
     /**
      * The execution token of a run's current result, which a predicate over its results is keyed
      * on.
@@ -178,6 +184,19 @@ export interface ScopeSources {
     readonly tick?: InputTick;
     /** The resolution cache. A private one when absent. */
     readonly cache?: SetsCache;
+    /** The kept sets `{ set }` and a rule's `scope` leaf may name, beside the saved scopes. */
+    readonly sets?: ResolveContext["sets"];
+    /** The edges a predicate matches. Absent refuses a rule's `edges` leaf. */
+    readonly matchEdges?: (where: Query) => Iterable<EdgeId>;
+    /** Attribute values. Absent refuses a rule's `range` and `categories` leaves. */
+    readonly values?: FilterValueSource;
+    /**
+     * A session edge's stable identity, so an inline `{ define }` may name edges by session id.
+     * Absent refuses a session edge id inside `{ define }`.
+     * @param id - The session edge id.
+     * @returns The member, or undefined when the graph holds no such edge.
+     */
+    readonly edgeMember?: (id: EdgeId) => EdgeMember | undefined;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -227,14 +246,14 @@ export interface ScopeApi {
      * @param spec - What to resolve.
      * @returns The resolved scope.
      */
-    resolve(spec: Scope): Promise<ResolvedScope>;
+    resolve(spec: ScopeInput): Promise<ResolvedScope>;
     /**
      * How many elements a specification covers, without materialising them.
      * @param spec - What to count.
      * @param options - Whether an estimate is acceptable, and how big a sample to take.
      * @returns The counts, saying whether the edge count was exact.
      */
-    count(spec: Scope, options?: ScopeCountOptions): Promise<ScopeCount>;
+    count(spec: ScopeInput, options?: ScopeCountOptions): Promise<ScopeCount>;
     /**
      * Keep a specification under a name, so `{ set: id }` can name it later.
      * @param name - The name, unique within the session.
@@ -274,6 +293,19 @@ export interface ScopeResolver extends ScopeApi {
      * @returns The ids, in dense index order.
      */
     nodeIdsOf(spec: Scope): readonly NodeId[];
+    /**
+     * What a rule's `scope` leaf speaks, for a pass: never throws, and a reference that cannot be
+     * resolved (a cycle, a missing set) speaks nothing.
+     * @param spec - The referenced set.
+     * @returns The leaf.
+     */
+    leafOf(spec: Scope): ScopeLeaf;
+    /**
+     * What a saved scope holds.
+     * @param id - Its id.
+     * @returns The specification, or undefined when no scope is saved under the id.
+     */
+    specOf(id: ScopeId): Scope | undefined;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -281,55 +313,12 @@ export interface ScopeResolver extends ScopeApi {
 // ---------------------------------------------------------------------------------------------
 
 /**
- * The refusal a value that is not a scope at all gets.
- * @param spec - What was passed.
- * @returns The error to throw.
- */
-function notAScope(spec: unknown): GraphtyError {
-    return new GraphtyError({
-        code: "E_BAD_COMMAND",
-        message:
-            "A scope is \"visible\", \"graph\", \"selection\", \"largest-component\", { set }, " +
-            "{ where } or { nodes }.",
-        source: "run",
-        details: { scope: spec },
-    });
-}
-
-/**
- * Tell whether a value is one of the scope specifications.
- * @param value - The value to test.
- * @returns True when it is a scope.
- */
-function isScope(value: unknown): value is Scope {
-    if (typeof value === "string") {
-        return value === "visible" || value === "graph" || value === "selection" || value === "largest-component";
-    }
-
-    if (typeof value !== "object" || value === null) {
-        return false;
-    }
-
-    if ("set" in value) {
-        return typeof value.set === "string";
-    }
-
-    if ("where" in value) {
-        return typeof value.where === "string";
-    }
-
-    return "nodes" in value && Array.isArray(value.nodes);
-}
-
-/**
  * Check a value is a scope before anything tries to resolve it.
  * @param spec - The value to check.
  * @throws A `GraphtyError` with code `E_BAD_COMMAND` when it is not.
  */
 function assertScope(spec: Scope): void {
-    if (!isScope(spec)) {
-        throw notAScope(spec);
-    }
+    parseScope(spec);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -456,9 +445,61 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
         ...(sources.match === undefined ? {} : { match: sources.match }),
         ...(sources.pathsOf === undefined ? {} : { pathsOf: sources.pathsOf }),
         ...(sources.revisions === undefined ? {} : { revisions: sources.revisions }),
+        ...(sources.edgeRevisions === undefined ? {} : { edgeRevisions: sources.edgeRevisions }),
         ...(sources.executionOf === undefined ? {} : { executionOf: sources.executionOf }),
         ...(sources.tick === undefined ? {} : { tick: sources.tick }),
+        ...(sources.sets === undefined ? {} : { sets: sources.sets }),
+        ...(sources.matchEdges === undefined ? {} : { matchEdges: sources.matchEdges }),
+        ...(sources.values === undefined ? {} : { values: sources.values }),
     });
+
+    /**
+     * An edge reference in stable form.
+     * @param ref - A session edge id or a member.
+     * @returns The member.
+     * @throws `E_BAD_COMMAND` for a session edge id the graph does not hold.
+     */
+    const stable = (ref: EdgeRef): EdgeMember => {
+        if (typeof ref !== "string") {
+            return ref;
+        }
+
+        const member = sources.edgeMember?.(ref);
+        if (member === undefined) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `The graph holds no edge "${ref}". An edge member needs its stable identity, which only a held edge has.`,
+                source: "run",
+                details: { edge: ref },
+            });
+        }
+
+        return member;
+    };
+
+    /**
+     * A write position's scope, canonical: session edge ids inside `{ define }` replaced by their
+     * stable members, the definition validated and canonicalised.
+     * @param spec - The scope as given.
+     * @returns The scope.
+     * @throws `E_BAD_COMMAND` when it is not a scope.
+     */
+    const scopeOf = (spec: ScopeInput): Scope => {
+        const {define} = (spec as { define?: { kind?: unknown; edges?: unknown } });
+        if (typeof define !== "object" || define === null || !Array.isArray(define.edges) || (define.kind !== "fixed" && define.kind !== "path")) {
+            return parseScope(spec);
+        }
+
+        const edges = (define.edges as unknown[]).map((step) => {
+            if (typeof step === "string") {
+                return stable(step);
+            }
+
+            return Array.isArray(step) ? step.map((ref: EdgeRef) => stable(ref)) : step;
+        });
+
+        return parseScope({ define: { ...define, edges } });
+    };
 
     /**
      * Replace the saved map after a write.
@@ -572,6 +613,10 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
             return sources.match !== undefined;
         }
 
+        if ("define" in spec) {
+            return resolveQuietly(() => resolveScope(spec, context()), context()).problem === undefined;
+        }
+
         const graph = sources.snapshot();
 
         return spec.nodes.some((id) => graph.ids.indexOf(id) !== INVALID_INDEX);
@@ -592,6 +637,22 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
     return {
         resolveNow,
 
+        specOf: (id: ScopeId) => saved.get(id)?.spec,
+
+        leafOf(spec: Scope): ScopeLeaf {
+            const active = context();
+            try {
+                return scopeLeafIn(spec, active);
+            } catch (error) {
+                if (!isGraphtyError(error)) {
+                    throw error;
+                }
+
+                // Nothing throws in a pass: a reference that cannot be resolved speaks nothing.
+                return { nodes: makeMask(active.snapshot.nodeCount), edges: null };
+            }
+        },
+
         nodeIdsOf(spec: Scope): readonly NodeId[] {
             assertScope(spec);
             const { resolution, graph } = membershipOf(spec);
@@ -599,12 +660,12 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
             return Array.from(maskToIndices(resolution.nodes, graph.nodeCount), (index) => graph.ids.idOf(index));
         },
 
-        resolve(spec: Scope): Promise<ResolvedScope> {
-            return Promise.resolve(resolveNow(spec));
+        resolve(input: ScopeInput): Promise<ResolvedScope> {
+            return Promise.resolve(resolveNow(scopeOf(input)));
         },
 
-        count(spec: Scope, options: ScopeCountOptions = {}): Promise<ScopeCount> {
-            assertScope(spec);
+        count(input: ScopeInput, options: ScopeCountOptions = {}): Promise<ScopeCount> {
+            const spec = scopeOf(input);
             const sample = options.sample ?? DEFAULT_SCOPE_SAMPLE;
 
             if (!Number.isInteger(sample) || sample <= 0) {

@@ -28,7 +28,8 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { Path, Query, RunId, Scope, ScopeId, SetDefinition, SetId } from "../../catalog/types";
+import type { Filter, Query, Scope, ScopeId, SetDefinition, SetId } from "../../catalog/types";
+import { dependencyOf } from "./dependencies";
 import type { EdgeSeeds, ResolveContext } from "./resolve";
 
 /** Invocation counts the complexity tests read. `walks`: saved-scope and kept-set parts computed, not memoised. */
@@ -102,30 +103,15 @@ function partsFor(context: ResolveContext, memo: SignatureMemo | undefined): Map
 }
 
 /**
- * What one path of a compiled query reads: a run's results or a top-level attribute field.
- * @param path - The path.
- * @returns `r<run>` or `a<field>`.
- */
-function dependencyOf(path: Path): { run: RunId } | { field: string } {
-    if (path.startsWith("results.")) {
-        const dot = path.indexOf(".", "results.".length);
-        return { run: path.slice("results.".length, dot === -1 ? undefined : dot) };
-    }
-
-    const key = path.startsWith("data.") ? path.slice("data.".length) : path;
-    const dot = key.indexOf(".");
-
-    return { field: dot === -1 ? key : key.slice(0, dot) };
-}
-
-/**
  * The part of a query: what each path it reads stands at now.
  * @param where - The query.
  * @param context - What the resolution reads.
+ * @param revisions - The attribute revisions its fields are read from: the nodes', unless it is an
+ *     edge query.
  * @returns The part, or null when the context cannot say what the query reads.
  */
-function queryPart(where: Query, context: ResolveContext): string | null {
-    const { pathsOf, revisions, executionOf } = context;
+function queryPart(where: Query, context: ResolveContext, revisions = context.revisions): string | null {
+    const { pathsOf, executionOf } = context;
     if (pathsOf === undefined) {
         return null;
     }
@@ -197,7 +183,94 @@ function scopePart(scope: Scope, context: ResolveContext, parts: Map<unknown, st
         return queryPart(scope.where, context);
     }
 
+    if ("define" in scope) {
+        // The definition is in the key; what it reads is the part.
+        return contentPart(scope.define, context, parts, seen);
+    }
+
     return savedPart(scope.set, context, parts, seen);
+}
+
+/**
+ * The part of what an inline definition reads, beyond its own content (which is in the key).
+ * @param definition - The definition.
+ * @param context - What the resolution reads.
+ * @param parts - The epoch memo, or null.
+ * @param seen - The ids followed so far.
+ * @returns The part, or null.
+ */
+function contentPart(definition: SetDefinition, context: ResolveContext, parts: Map<unknown, string | null> | null, seen: Set<ScopeId>): string | null {
+    switch (definition.kind) {
+        case "fixed":
+        case "path":
+            return "d";
+        case "rule":
+            return rulePart(definition.where, context, parts, seen);
+        default:
+            return "x";
+    }
+}
+
+/**
+ * The part of a rule's `where`: a query's paths, or each leaf's inputs in tree order.
+ * @param where - The query or tree.
+ * @param context - What the resolution reads.
+ * @param parts - The epoch memo, or null.
+ * @param seen - The ids followed so far.
+ * @returns The part, or null when some leaf's inputs cannot be enumerated.
+ */
+function rulePart(where: Query | Filter, context: ResolveContext, parts: Map<unknown, string | null> | null, seen: Set<ScopeId>): string | null {
+    if (typeof where === "string") {
+        return queryPart(where, context);
+    }
+
+    const loose = where as { readonly kind: string };
+    switch (where.kind) {
+        case "expression":
+            return queryPart(where.where, context);
+        case "edges": {
+            const part = context.edgeRevisions === undefined ? null : queryPart(where.where, context, context.edgeRevisions);
+            return part === null ? null : `e${part}`;
+        }
+        case "range":
+        case "categories": {
+            const dependency = dependencyOf(where.attribute);
+            if ("run" in dependency) {
+                const token = context.executionOf?.(dependency.run);
+                return context.executionOf === undefined ? null : `r${JSON.stringify(dependency.run)}=${token ?? "-"}`;
+            }
+
+            return context.revisions === undefined ? null : `a${JSON.stringify(dependency.field)}=${context.revisions.of(dependency.field)}`;
+        }
+        case "degree":
+        case "component":
+        case "neighborhood":
+            // Topology and ids: the serial and the key say it all.
+            return "t";
+        case "scope": {
+            const part = scopePart(where.scope, context, parts, seen);
+            return part === null ? null : `(${part})`;
+        }
+        case "all":
+        case "any":
+        case "not": {
+            const operands = where.kind === "not" ? [where.of] : where.of;
+            const inner: string[] = [];
+            for (const operand of operands) {
+                const part = rulePart(operand, context, parts, seen);
+                if (part === null) {
+                    return null;
+                }
+
+                inner.push(part);
+            }
+
+            return `${where.kind}[${inner.join(";")}]`;
+        }
+        default:
+            // An unknown leaf makes its definition opaque, which resolves to nothing.
+            return `x${loose.kind}`;
+    }
 }
 
 /**
@@ -216,7 +289,21 @@ function savedPart(id: ScopeId, context: ResolveContext, parts: Map<unknown, str
 
     let part: string | null;
     const record = context.saved?.get(id);
-    if (record === undefined) {
+    const kept = record === undefined ? context.sets?.get(id) : undefined;
+    if (kept !== undefined) {
+        // A kept set named by `{ set }`: keyed by its definition's identity, so a rename hits.
+        if (seen.has(id)) {
+            // A ring resolves to nothing; nothing about it can move without a set write.
+            return `k${JSON.stringify(id)}@`;
+        }
+
+        signatureCounters.walks++;
+        const { definition } = kept as { readonly definition: SetDefinition };
+        seen.add(id);
+        const inner = definitionPart(id, definition, context, parts, seen);
+        seen.delete(id);
+        part = inner === null ? null : `k${JSON.stringify(id)}#${identityOf(definition)}(${inner})`;
+    } else if (record === undefined) {
         part = `s${JSON.stringify(id)}!`;
     } else if (seen.has(id)) {
         // A ring resolves to a refusal; nothing about it can move without a saved write.
@@ -257,6 +344,29 @@ function seedsPart(seeds: EdgeSeeds | undefined): string {
 }
 
 /**
+ * The part of a kept set's definition.
+ * @param id - The set's id, which its seeds are filed under.
+ * @param definition - Its frozen definition.
+ * @param context - What the resolution reads.
+ * @param parts - The epoch memo, or null.
+ * @param seen - The ids followed so far, this one included.
+ * @returns The part, or null.
+ */
+function definitionPart(id: SetId, definition: SetDefinition, context: ResolveContext, parts: Map<unknown, string | null> | null, seen: Set<ScopeId>): string | null {
+    switch (definition.kind) {
+        case "fixed":
+            return definition.edges === undefined ? "f" : `f${seedsPart(context.sets?.seedsOf(id))}`;
+        case "path":
+            return `p${seedsPart(context.sets?.seedsOf(id))}`;
+        case "rule":
+            return rulePart(definition.where, context, parts, seen);
+        default:
+            // Opaque: resolves to nothing, which only the serial can move.
+            return "x";
+    }
+}
+
+/**
  * The input signature of a kept set's definition.
  * @param id - The set's id, which its seeds are filed under.
  * @param definition - Its frozen definition.
@@ -270,21 +380,7 @@ export function definitionSignature(id: SetId, definition: SetDefinition, contex
     let part: string | null | undefined = parts?.get(key);
     if (part === undefined && parts?.has(key) !== true) {
         signatureCounters.walks++;
-        switch (definition.kind) {
-            case "fixed":
-                part = definition.edges === undefined ? "f" : `f${seedsPart(context.sets?.seedsOf(id))}`;
-                break;
-            case "path":
-                part = `p${seedsPart(context.sets?.seedsOf(id))}`;
-                break;
-            case "rule":
-                part = typeof definition.where === "string" ? queryPart(definition.where, context) : null;
-                break;
-            default:
-                // Opaque: resolves to nothing, which only the serial can move.
-                part = "x";
-        }
-
+        part = definitionPart(id, definition, context, parts, new Set([id]));
         parts?.set(key, part);
     }
 

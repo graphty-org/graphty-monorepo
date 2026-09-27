@@ -65,17 +65,23 @@ export { CHANNEL_DESCRIPTORS, channelDescriptor, CHANNELS, channelsFor } from ".
 // Sets: what a kept set holds, and the one validator for it
 //
 // `parseSetDefinition` checks any value -- from a form, a file or an assistant -- and returns the
-// canonical definition, or refuses it with `E_BAD_COMMAND`. It reaches no graph.
+// canonical definition, or refuses it with `E_BAD_COMMAND`. `parseScope` does the same for a scope,
+// which may carry a definition inline. Neither reaches a graph.
 // ---------------------------------------------------------------------------------------------
 
-export { parseSetDefinition } from "./src/catalog/sets/parse";
+export { parseScope, parseSetDefinition } from "./src/catalog/sets/parse";
 export type {
     EdgeMember,
     EdgeReading,
     EdgeRef,
+    Filter,
+    FilterDirection,
     ItemKey,
     PathKind,
     ResultItem,
+    Scope,
+    ScopeId,
+    ScopeInput,
     SetCombine,
     SetCreatedFrom,
     SetDefinition,

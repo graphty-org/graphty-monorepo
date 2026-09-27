@@ -41,7 +41,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
+import { type GraphSnapshot, INVALID_INDEX, makeMask } from "@graphty/graph-format";
 
 import type { EdgeId, FieldDescriptor, NodeId, Path, Scope } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
@@ -72,6 +72,7 @@ import {
     type ScopeResolver,
     type ScopeVisibilitySource,
 } from "../scope/index";
+import { type DependencySources, visibilityCycle } from "../sets/dependencies";
 import {
     assertVisibility,
     compileVisibility,
@@ -79,6 +80,7 @@ import {
     type FilterSources,
     runPass,
     runPassInSlices,
+    type ScopeLeaf,
     type TimeWindow,
 } from "./filter";
 
@@ -292,6 +294,11 @@ export interface VisibilitySources extends FilterSources {
     readonly onChange?: (change: VisibilityChange) => void;
     /** Called on every version bump of either mask, which is what advances the session input tick. */
     readonly onMaskVersion?: () => void;
+    /**
+     * Where the sets a `scope` leaf names are looked up, so a filter that reads `"visible"` or
+     * `"search"` through them is refused, and a pass never reads the masks it is writing.
+     */
+    readonly dependencies?: DependencySources;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -456,16 +463,40 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     let fallbackScope: ScopeResolver | null = null;
 
     /**
+     * The sources a pass compiles against: a `scope` leaf that reaches `"visible"` or `"search"`
+     * (a cycle a later redefine or a load made) speaks nothing, so a pass never reads the masks
+     * it is writing and never recurses.
+     * @param graph - The snapshot the pass walks.
+     * @returns The sources.
+     */
+    const passSources = (graph: GraphSnapshot): FilterSources => {
+        const { scope, dependencies } = sources;
+        if (scope === undefined) {
+            return sources;
+        }
+
+        return {
+            ...sources,
+            scope: (spec): ScopeLeaf =>
+                dependencies !== undefined && visibilityCycle({ kind: "scope", scope: spec }, dependencies) !== null
+                    ? { nodes: makeMask(graph.nodeCount), edges: null }
+                    : scope(spec),
+        };
+    };
+
+    /**
      * Write the whole membership into the masks from the stored filter and window.
      * @param graph - The snapshot to evaluate against.
      */
     const evaluate = (graph: GraphSnapshot): void => {
+        // Compiled before the masks are cleared: nothing a compile reads may see them half-written.
+        const compiled = filterValue === null && windowValue === null ? null : compileVisibility(graph, filterValue, windowValue, passSources(graph));
         nodeMaskValue.grow(graph.nodeCount);
         edgeMaskValue.grow(graph.edgeCount);
         nodeMaskValue.clear();
         edgeMaskValue.clear();
 
-        if (filterValue === null && windowValue === null) {
+        if (compiled === null) {
             nodeMaskValue.fill();
             edgeMaskValue.fill();
             unresolvedValue = NO_PATHS;
@@ -473,7 +504,6 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             return;
         }
 
-        const compiled = compileVisibility(graph, filterValue, windowValue, sources);
         runPass({ compiled, edges: edgeMaskValue, graph, nodes: nodeMaskValue });
         unresolvedValue = compiled.unresolvedPaths();
     };
@@ -638,7 +668,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         options: RunOptions,
         filterKind: string,
     ): Run<FilterResult> => {
-        assertVisibility(nextFilter, nextWindow);
+        assertVisibility(nextFilter, nextWindow, sources.dependencies);
 
         if (options.dryRun === true) {
             throw new GraphtyError({
@@ -683,7 +713,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             execute: async (context) => {
                 const startedAt = performance.now();
                 const active = currentFrame();
-                const compiled = compileVisibility(active.graph, nextFilter, nextWindow, sources);
+                const compiled = compileVisibility(active.graph, nextFilter, nextWindow, passSources(active.graph));
                 const scratchNodes = new ElementMask<NodeId>(
                     () => active.nodeSpace,
                     Math.max(1, active.graph.nodeCount),

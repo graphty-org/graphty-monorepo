@@ -20,7 +20,7 @@ import {
     type AccelerationPolicy,
     type GraphAccelerator,
 } from "../acceleration";
-import type { EdgeId, NodeId, Path, Query, RunId, Scope, StaticStyle } from "../catalog/types";
+import type { EdgeId, EdgeMember, NodeId, Path, Query, RunId, Scope, SetId, StaticStyle } from "../catalog/types";
 import { DataConfig } from "../config/DataConfig";
 import { defaultEdgeStyle } from "../config/EdgeStyle";
 import { defaultNodeStyle } from "../config/NodeStyle";
@@ -59,7 +59,8 @@ import {
     type ScopeResolver,
 } from "./scope";
 import { createSelectionApi, type SelectionOwner, type SelectionTextMode } from "./selection";
-import { createSetsApi, sessionEdgeMember } from "./sets/SetsApi";
+import type { DependencySources } from "./sets/dependencies";
+import { createSetsApi, sessionEdgeMember, setsStoreOf } from "./sets/SetsApi";
 import { identityOf } from "./sets/signature";
 import type { SetsApi } from "./sets/types";
 import {
@@ -1110,15 +1111,18 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     const snapshot = (): GraphSnapshot => store.store.getSnapshot();
     const components = componentLabelsOf(data);
     // Kept sets, built here and not yet published as `session.sets`.
-    const sets = createSetsApi({
-        edgeMember: (id: EdgeId) =>
-            sessionEdgeMember(
-                snapshot(),
-                id,
-                (row) => options.records?.edgeAttributes(row),
-                readData().knownFields.edgeIdPath,
-            ),
-    });
+    const edgeMember = (id: EdgeId): EdgeMember | undefined =>
+        sessionEdgeMember(snapshot(), id, (row) => options.records?.edgeAttributes(row), readData().knownFields.edgeIdPath);
+    // What a `{ set }` reference names -- a saved scope, else a kept set -- and what "visible"
+    // reads, so a door can refuse a chain of references that loops (design/sets 5.2). Read
+    // through calls: the scope and visibility APIs are built below.
+    const dependencies: DependencySources = {
+        referent: (id: SetId) => scope.specOf(id) ?? setsStoreOf(sets).get(id)?.definition,
+        visibility: () => visibility.filter,
+        pathsOf: (where: Query) => requireQuery(query).pathsOf(where),
+    };
+    const sets = createSetsApi({ edgeMember, dependencies });
+    const keptSets = setsStoreOf(sets);
     // ONE queue for both, whether the host handed one in or not: a filter pass and an algorithm
     // run both read the whole graph, and two queues would let one start while the other is
     // halfway through. A rendered graph hands in the element's own, so a filter also takes its
@@ -1139,6 +1143,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         match: (where: Query) => requireQuery(query).nodes(where),
         pathsOf: (where: Query) => requireQuery(query).pathsOf(where),
         revisions: inputs.nodes,
+        edgeRevisions: inputs.edges,
         // The token of the result a predicate reads; a result published with none (an executor
         // outside the runs API) stands for itself, so a new result is never read as the old one.
         executionOf: (run: RunId) => {
@@ -1147,12 +1152,18 @@ function buildSession(options: CreateGraphSessionOptions): Session {
             return result === undefined ? undefined : (resultExecutionOf(results, run) ?? `#${identityOf(result)}`);
         },
         tick: inputs.tick,
+        sets: keptSets,
+        edgeMember,
+        matchEdges: (where: Query) => requireQuery(query).edges(where),
+        ...(options.records === undefined ? {} : { values: valueSourceOf(options.records, snapshot) }),
     });
 
     const visibility = createVisibilityApi({
         snapshot,
         components,
         queue,
+        dependencies,
+        scope: (spec: Scope) => scope.leafOf(spec),
         resolveScope: (spec: Scope) => scope.resolveNow(spec),
         match: (where: Query) => requireQuery(query).nodes(where),
         matchEdges: (where: Query) => requireQuery(query).edges(where),

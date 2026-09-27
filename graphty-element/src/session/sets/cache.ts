@@ -21,13 +21,8 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import { makeMask } from "@graphty/graph-format";
-
 import type { SetDefinition, SetId } from "../../catalog/types";
-import { GraphtyError } from "../../errors";
-import { resolvePath } from "./path";
-import { opaqueName } from "./prepare";
-import { deriveEdges, type Resolution, resolutionOf, type ResolveContext, resolveFixed, resolveNodeHalf } from "./resolve";
+import { type Resolution, type ResolveContext, resolveDefinitionIn, resolveQuietly } from "./resolve";
 import { createSignatureMemo, definitionSignature, type SignatureMemo } from "./signature";
 
 /** The default byte bound on resolutions. */
@@ -233,47 +228,15 @@ export class SetsCache {
 }
 
 /**
- * Resolve a kept definition, uncached.
+ * Resolve a kept definition, uncached and quietly: a definition that cannot be evaluated (a cycle,
+ * a missing referent) resolves to nothing, with its `problem`.
  * @param id - The set, whose seeds its edge members bind through.
  * @param definition - Its frozen definition.
  * @param context - What the resolution reads.
  * @returns The resolution.
- * @throws A `GraphtyError` for a rule over a rule tree, which this element cannot resolve yet.
  */
 function resolveDefinition(id: SetId, definition: SetDefinition, context: ResolveContext): Resolution {
-    const { snapshot } = context;
-    const empty = (): Resolution =>
-        resolutionOf({ nodes: makeMask(snapshot.nodeCount), constraint: null, all: false, missingNodes: 0 }, makeMask(snapshot.edgeCount), context, 0);
-    if (opaqueName(definition) !== null) {
-        // Opaque content resolves to nothing (design 12.5).
-        return empty();
-    }
-
-    switch (definition.kind) {
-        case "fixed":
-            return resolveFixed(definition, context, context.sets?.seedsOf(id));
-        case "path":
-            return resolvePath(definition, context, context.sets?.seedsOf(id));
-        case "rule": {
-            if (typeof definition.where !== "string") {
-                throw new GraphtyError({
-                    code: "E_UNSUPPORTED",
-                    message: "A rule over a rule tree cannot be resolved by this graphty-element yet.",
-                    source: "run",
-                    details: { set: id },
-                });
-            }
-
-            const half = resolveNodeHalf({ where: definition.where }, context);
-            // A query speaks only about nodes: its edge half is silent, which `listed` reads as none.
-            const edges = definition.reading === "listed" ? makeMask(snapshot.edgeCount) : deriveEdges(half, snapshot);
-
-            return resolutionOf(half, edges, context, 0);
-        }
-
-        default:
-            return empty();
-    }
+    return resolveQuietly(() => resolveDefinitionIn(definition, context, [id], id), context);
 }
 
 /**
@@ -295,7 +258,9 @@ export function resolveSet(record: { readonly id: SetId; readonly definition: Se
     let resolution = cache.lookup(record.definition, signature);
     if (resolution === undefined) {
         resolution = resolveDefinition(record.id, record.definition, context);
-        cache.store(record.definition, signature, resolution);
+        if (resolution.problem === undefined) {
+            cache.store(record.definition, signature, resolution);
+        }
     }
 
     summarise(cache, record.id, signature, resolution, context);

@@ -12,11 +12,13 @@
 
 import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
+import { inducedEdgeLeaf, speaksEdges } from "../../catalog/sets/parse";
 import type { EdgeId, EdgeMember, EdgeRef, SetDefinitionInput, SetId } from "../../catalog/types";
 import { edgeCounterOf, stableEdgeMember } from "../../data/edgeIdentity";
 import { readEndpoint } from "../../data/endpoints";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { SessionAttributes } from "../types";
+import { type ChainStep, type DependencySources, referentReading, selectionChain, setCycle } from "./dependencies";
 import {
     defaultName,
     holdsEdgeMember,
@@ -41,6 +43,11 @@ interface SetsDependencies {
     edgeMember(id: EdgeId): EdgeMember | undefined;
     /** The most edge members one member edit may touch. */
     readonly maxEdgeMembers?: number;
+    /**
+     * Where the references a rule makes are looked up (kept sets, saved scopes, the visibility
+     * filter), so a write that would make a cycle is refused. Absent: the kept sets alone.
+     */
+    readonly dependencies?: DependencySources;
 }
 
 /**
@@ -194,12 +201,64 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
         ...(delta.edges === undefined ? {} : { edges: delta.edges.map(stable) }),
     });
 
+    const references: DependencySources = dependencies.dependencies ?? { referent: (id) => store.get(id)?.definition };
+
+    /**
+     * A refusal of what a rule reads.
+     * @param message - What is wrong.
+     * @param id - The set.
+     * @param reason - The typed reason a UI answers with a verb.
+     * @param through - The references followed.
+     * @returns The error to throw.
+     */
+    const refuseChain = (message: string, id: SetId, reason: string, through: readonly ChainStep[]): GraphtyError =>
+        new GraphtyError({ code: "E_BAD_COMMAND", message, source: "data", target: { kind: "scope", id }, details: { id, reason, through } });
+
+    /**
+     * Refuse a kept rule the doors cannot keep: one that reads the live selection, one that reaches
+     * its own set, and one read `induced` holding a leaf that speaks edges through a set it names.
+     * @param record - The prepared record.
+     * @throws `E_BAD_COMMAND` with `details.reason` `"live-selection"`, `"cycle"` or `"induced-edge-leaf"`.
+     */
+    const checkReferences = (record: ElementSet): void => {
+        const { definition, id } = record;
+        if (definition.kind !== "rule") {
+            return;
+        }
+
+        const selection = selectionChain(definition, references);
+        if (selection !== null) {
+            throw refuseChain(
+                "A kept set cannot follow the live selection, which changes on every click. Create a set from the current selection instead.",
+                id,
+                "live-selection",
+                selection,
+            );
+        }
+
+        const cycle = setCycle(id, definition, references);
+        if (cycle !== null) {
+            throw refuseChain(
+                `This definition reaches the set it is written to through ${cycle.map((step) => `"${step}"`).join(", ")}, so it would contain ` +
+                    "itself. Create a set from the current members instead.",
+                id,
+                "cycle",
+                cycle,
+            );
+        }
+
+        if (definition.reading === "induced" && speaksEdges(definition.where, referentReading(references))) {
+            throw inducedEdgeLeaf();
+        }
+    };
+
     /**
      * Write a prepared record, or nothing for a no-op.
      * @param record - The record, or null.
      */
     const write = (record: ElementSet | null): void => {
         if (record !== null) {
+            checkReferences(record);
             store.put(record);
         }
     };
@@ -214,7 +273,7 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
             const id = store.transact(() => {
                 const name = options.name ?? defaultName(store);
                 const minted = store.mint(typeof name === "string" ? name.trim() : "");
-                store.put(prepareCreate(store, { id: minted, name, order: store.nextOrder(), definition: concrete, createdFrom: { kind: "user" } }));
+                write(prepareCreate(store, { id: minted, name, order: store.nextOrder(), definition: concrete, createdFrom: { kind: "user" } }));
 
                 return minted;
             });

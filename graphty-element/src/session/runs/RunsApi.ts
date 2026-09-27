@@ -277,6 +277,10 @@ function describeScope(spec: Scope): string {
         return spec.where;
     }
 
+    if ("define" in spec) {
+        return `${spec.define.kind} set`;
+    }
+
     return `${spec.nodes.length} nodes`;
 }
 

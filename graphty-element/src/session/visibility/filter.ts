@@ -38,43 +38,20 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import { type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
+import { type GraphSnapshot, INVALID_INDEX, maskTest, type U32 } from "@graphty/graph-format";
 
-import type { EdgeId, NodeId, Path, Query } from "../../catalog/types";
+import { parseScope } from "../../catalog/sets/parse";
+import type { EdgeId, Filter, FilterDirection, NodeId, Path, Query, Scope } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import { type ComponentLabels, edgeSpaceOf,type ElementMask } from "../scope/index";
+import { type ChainStep, type DependencySources, visibilityCycle } from "../sets/dependencies";
 
 // ---------------------------------------------------------------------------------------------
 // What a consumer asks for
 // ---------------------------------------------------------------------------------------------
 
-/** Which arcs a degree filter counts. */
-export type FilterDirection = "in" | "out" | "all";
-
-/**
- * What to keep.
- *
- * Ten kinds, of which eight speak about nodes, one (`edges`) speaks about edges, and three
- * (`all`, `any`, `not`) combine the others. A group with no members constrains nothing: an empty
- * list in a form means "nothing chosen", not "nothing allowed", and a filter builder that blanked
- * the graph the moment its last chip was removed would be unusable.
- */
-export type Filter =
-    | { readonly kind: "expression"; readonly where: Query }
-    | { readonly kind: "range"; readonly attribute: Path; readonly min?: number; readonly max?: number }
-    | { readonly kind: "categories"; readonly attribute: Path; readonly values: readonly string[] }
-    | {
-          readonly kind: "degree";
-          readonly min?: number;
-          readonly max?: number;
-          readonly direction?: FilterDirection;
-      }
-    | { readonly kind: "component"; readonly id: number }
-    | { readonly kind: "neighborhood"; readonly seeds: readonly NodeId[]; readonly depth: number }
-    | { readonly kind: "edges"; readonly where: Query }
-    | { readonly kind: "all"; readonly of: readonly Filter[] }
-    | { readonly kind: "any"; readonly of: readonly Filter[] }
-    | { readonly kind: "not"; readonly of: Filter };
+// The rule tree and its direction live with the other definition types; this module compiles them.
+export type { Filter, FilterDirection } from "../../catalog/types";
 
 /** How wide a step a time window advances by, when something advances it. */
 export type TimeStep = number | "hour" | "day" | "week" | "month" | "quarter" | "year";
@@ -166,6 +143,23 @@ export interface FilterSources {
      * @returns The unresolved paths.
      */
     readonly unresolvedPathsOf?: (where: Query) => readonly Path[];
+    /**
+     * What a `scope` leaf's set covers. Absent refuses a `scope` leaf.
+     * @param scope - The referenced set.
+     * @returns Its node half, and its edge half when its reading speaks edges.
+     */
+    readonly scope?: (scope: Scope) => ScopeLeaf;
+}
+
+/**
+ * What a `scope` leaf speaks: the referenced set's nodes, and its edges only when the set is read
+ * `listed` or `clipped`. `edges: null` is silent, exactly as a node leaf is.
+ */
+export interface ScopeLeaf {
+    /** Node bitmap over the snapshot. */
+    readonly nodes: U32;
+    /** Edge bitmap over the snapshot, or null when the set is read `induced`. */
+    readonly edges: U32 | null;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -210,6 +204,7 @@ const FILTER_KINDS = [
     "component",
     "neighborhood",
     "edges",
+    "scope",
     "all",
     "any",
     "not",
@@ -253,6 +248,19 @@ function malformed(message: string, details: Readonly<Record<string, unknown>>):
  */
 function outOfRange(message: string, details: Readonly<Record<string, unknown>>): GraphtyError {
     return new GraphtyError({ code: "E_OPTION_RANGE", message, source: "data", details });
+}
+
+/**
+ * The refusal of a visibility filter that reads what it computes.
+ * @param through - The references followed, ending with `"visible"` or `"search"`.
+ * @returns The error to throw.
+ */
+function readsItself(through: readonly ChainStep[]): GraphtyError {
+    return malformed(
+        `This filter reads ${through.map((step) => `"${step}"`).join(" through ")}, which is what the visibility ` +
+            "filter computes, so it would depend on itself. Create a set from the current members instead.",
+        { reason: "cycle", through },
+    );
 }
 
 /**
@@ -380,6 +388,16 @@ function assertFilter(filter: Filter): void {
             }
 
             return;
+        case "scope":
+            // The filter computes "visible", and "search" will read the filter: either one here is
+            // a filter reading itself.
+            if (filter.scope === "visible" || (filter.scope as unknown) === "search") {
+                throw readsItself([filter.scope as ChainStep]);
+            }
+
+            parseScope(filter.scope);
+
+            return;
         case "all":
         case "any":
             if (!Array.isArray(filter.of)) {
@@ -480,11 +498,18 @@ function assertTimeWindow(window: TimeWindow): void {
  * Check a filter and a window before anything starts working on them.
  * @param filter - The filter, or null for none.
  * @param window - The time window, or null for none.
+ * @param dependencies - Where the references a `scope` leaf makes are looked up, so a filter that
+ *     reaches `"visible"` or `"search"` through kept sets is refused (`details.reason: "cycle"`).
  * @throws A `GraphtyError` when either is malformed.
  */
-export function assertVisibility(filter: Filter | null, window: TimeWindow | null): void {
+export function assertVisibility(filter: Filter | null, window: TimeWindow | null, dependencies?: DependencySources): void {
     if (filter !== null) {
         assertFilter(filter);
+
+        const through = dependencies === undefined ? null : visibilityCycle(filter, dependencies);
+        if (through !== null) {
+            throw readsItself(through);
+        }
     }
 
     if (window !== null) {
@@ -884,6 +909,16 @@ function compileOne(filter: Filter, context: CompileContext): CompiledHalves {
             return { node: neighborhoodTest(context, filter.seeds, filter.depth), edge: null };
         case "edges":
             return { node: null, edge: edgeQueryTest(context, filter.where) };
+        case "scope": {
+            if (context.sources.scope === undefined) {
+                throw unsupported("scope", "a scope resolver");
+            }
+
+            const leaf = context.sources.scope(filter.scope);
+            const { edges } = leaf;
+
+            return { node: (index) => maskTest(leaf.nodes, index), edge: edges === null ? null : (index) => maskTest(edges, index) };
+        }
         case "all":
         case "any": {
             const members = filter.of.map((member) => compileOne(member, context));
@@ -908,6 +943,19 @@ function compileOne(filter: Filter, context: CompileContext): CompiledHalves {
             };
         }
     }
+}
+
+/**
+ * Compile a rule tree into its two halves, for a rule set: the same compiler the visibility
+ * filter runs, so a rule and a filter can never disagree. The tree is already validated.
+ * @param graph - The snapshot every test is written against.
+ * @param filter - The tree.
+ * @param sources - Where to read what the compiler cannot compute.
+ * @returns The node test and the edge test, either null when the tree is silent about it.
+ * @throws A `GraphtyError` when the tree needs a capability the sources lack.
+ */
+export function compileFilter(graph: GraphSnapshot, filter: Filter, sources: FilterSources): CompiledHalves {
+    return compileOne(filter, { graph, sources, marks: new Map<Path, PathMark>(), unresolvedQueries: new Set<Path>() });
 }
 
 /**

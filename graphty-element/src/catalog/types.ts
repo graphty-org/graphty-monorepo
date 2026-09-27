@@ -21,7 +21,6 @@
 import type { DrawingMode } from "../camera/types";
 import type { EdgeStyleConfig } from "../config/EdgeStyle";
 import type { GraphtyErrorCode } from "../errors/codes";
-import type { Filter } from "../session/visibility/filter";
 import type { LabelStyle } from "./label-style";
 
 /**
@@ -750,7 +749,15 @@ export interface QueryValidation {
     }[];
 }
 
-/** What a run, a layout or an export is allowed to look at. */
+/**
+ * What an operation runs over: a set reference.
+ *
+ * `{ define }` carries a set definition inline, with edge members in stable form; a write
+ * position that also accepts session edge ids takes {@link ScopeInput}. The keyword `"search"` is
+ * reserved for a later release and refused.
+ *
+ * OPEN UNION: forms may be added in a minor release; handle unknown forms.
+ */
 export type Scope =
     | "visible"
     | "graph"
@@ -758,7 +765,46 @@ export type Scope =
     | "largest-component"
     | { set: ScopeId }
     | { where: Query }
-    | { nodes: readonly NodeId[] };
+    | { nodes: readonly NodeId[] }
+    | { define: SetDefinition };
+
+/**
+ * A {@link Scope} as a write position accepts it: an inline definition may name edges by session
+ * {@link EdgeId}. Every getter returns the canonical {@link Scope}, with stable members.
+ */
+export type ScopeInput = Exclude<Scope, { define: unknown }> | { define: SetDefinitionInput };
+
+/** Which arcs a degree filter counts. */
+export type FilterDirection = "in" | "out" | "all";
+
+/**
+ * A rule tree: what the visibility filter keeps, and what a rule set holds.
+ *
+ * Every leaf speaks about nodes, edges or both, and is SILENT about the rest: `all` and `any` fold
+ * the halves that are not silent, and `not` negates only those. `edges` speaks edges; `scope`
+ * speaks the referenced set's nodes, and its edges only when that set is read `listed` or
+ * `clipped` (`"visible"` is); every other leaf speaks nodes. A group with no members constrains
+ * nothing.
+ *
+ * OPEN UNION: leaf kinds may be added in a minor release; handle unknown kinds.
+ */
+export type Filter =
+    | { readonly kind: "expression"; readonly where: Query }
+    | { readonly kind: "range"; readonly attribute: Path; readonly min?: number; readonly max?: number }
+    | { readonly kind: "categories"; readonly attribute: Path; readonly values: readonly string[] }
+    | {
+          readonly kind: "degree";
+          readonly min?: number;
+          readonly max?: number;
+          readonly direction?: FilterDirection;
+      }
+    | { readonly kind: "component"; readonly id: number }
+    | { readonly kind: "neighborhood"; readonly seeds: readonly NodeId[]; readonly depth: number }
+    | { readonly kind: "edges"; readonly where: Query }
+    | { readonly kind: "scope"; readonly scope: Scope }
+    | { readonly kind: "all"; readonly of: readonly Filter[] }
+    | { readonly kind: "any"; readonly of: readonly Filter[] }
+    | { readonly kind: "not"; readonly of: Filter };
 
 // ---------------------------------------------------------------------------------------------
 // Sets: what a kept set holds, and how it came to exist

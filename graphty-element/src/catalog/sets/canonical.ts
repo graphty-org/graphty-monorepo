@@ -211,6 +211,10 @@ function canonicalTree(node: unknown): unknown {
         return sortKeys({ ...loose, of: canonicalTree(loose.of) });
     }
 
+    if (kind === "scope") {
+        return sortKeys({ ...loose, scope: canonicalScope(loose.scope) });
+    }
+
     if (typeof kind === "string" && KNOWN_LEAVES.has(kind)) {
         const out: Record<string, unknown> = {};
 
@@ -222,6 +226,30 @@ function canonicalTree(node: unknown): unknown {
     }
 
     return node;
+}
+
+/**
+ * A scope inside a rule tree, canonical: an inline definition canonical, a `{ nodes }` list sorted
+ * and de-duplicated like a fixed set's, anything else (a keyword, `{ set }`, `{ where }`, an
+ * unknown form) as it is.
+ * @param scope - The scope.
+ * @returns The canonical scope.
+ */
+function canonicalScope(scope: unknown): unknown {
+    if (typeof scope !== "object" || scope === null || Array.isArray(scope)) {
+        return scope;
+    }
+
+    const loose = scope as Loose;
+    if (hasUnknownField(loose, ["define"]) && hasUnknownField(loose, ["nodes"])) {
+        return scope;
+    }
+
+    if (typeof loose.define === "object" && loose.define !== null) {
+        return { define: canonicalSetDefinition(loose.define as SetDefinition) };
+    }
+
+    return Array.isArray(loose.nodes) ? { nodes: sortUnique<NodeId>((loose.nodes as NodeId[]).map(unsigned), compareIds) } : scope;
 }
 
 /**

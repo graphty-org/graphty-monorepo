@@ -387,6 +387,41 @@ describe("the signature memo, input by input", () => {
             assert.strictEqual(signatureCounters.walks - before, 4, `left, base, right, top once each at ${size}`);
         }
     });
+
+    it("caches a rule tree by what its leaves read: a named set's redefine misses, its rename hits", () => {
+        const f = new Fixture();
+        const { sets } = f.graph;
+        const named = sets.create({ kind: "fixed", nodes: ["a"], reading: "induced" }, { name: "named" });
+        const tree: Scope = { define: { kind: "rule", where: { kind: "any", of: [{ kind: "scope", scope: { set: named } }, { kind: "degree", min: 3 }] }, reading: "induced" } };
+        const first = f.scope(tree);
+        assert.strictEqual(f.scope(tree), first, "unchanged inputs: a hit");
+
+        sets.rename(named, "renamed");
+        assert.strictEqual(f.scope(tree), first, "a rename reads nothing the tree reads");
+
+        sets.redefine(named, { kind: "fixed", nodes: ["a", "d"], reading: "induced" });
+        const second = f.scope(tree);
+        assert.notStrictEqual(second, first);
+        assert.strictEqual(second.nodeCount, first.nodeCount + 1);
+    });
+
+    it("walks the base of a true diamond of rule sets once, at two sizes", () => {
+        for (const size of [1_000, 100_000]) {
+            const f = new Fixture();
+            const { sets } = f.graph;
+            const base = sets.create({ kind: "fixed", nodes: Array.from({ length: size }, (_, i) => `n${i}`), reading: "induced" }, { name: "base" });
+            const left = sets.create({ kind: "rule", where: { kind: "scope", scope: { set: base } }, reading: "induced" }, { name: "left" });
+            const right = sets.create({ kind: "rule", where: { kind: "not", of: { kind: "scope", scope: { set: base } } }, reading: "induced" }, { name: "right" });
+            const top = sets.create(
+                { kind: "rule", where: { kind: "any", of: [{ kind: "scope", scope: { set: left } }, { kind: "scope", scope: { set: right } }] }, reading: "induced" },
+                { name: "top" },
+            );
+            const before = signatureCounters.walks;
+            assert.isNotNull(scopeSignature({ set: top }, f.context(), f.cache.memo), "a rule tree has a signature");
+
+            assert.strictEqual(signatureCounters.walks - before, 4, `top, left, base, right once each at ${size}`);
+        }
+    });
 });
 
 describe("the summary cache and the digest", () => {

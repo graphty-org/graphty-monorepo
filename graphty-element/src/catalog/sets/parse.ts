@@ -17,20 +17,26 @@
  * One walker serves both modes, so the two can never disagree about what a known node is.
  *
  * Reserved fields -- names a later release will give a meaning, refused at the doors until then:
- * `weights` on a fixed set, `within` on a rule, `key` and `dataSource` on an edge member.
+ * `weights` on a fixed set, `within` on a rule, `key` and `dataSource` on an edge member, `graph` on
+ * `{ set }`. Reserved kinds: the scope keyword `"search"`.
+ *
+ * `parseScope` is the same validator for a `Scope`, which may carry a definition inline.
  *
  * Pure and Node-safe: nothing here reaches a graph, a renderer or the DOM.
  */
 
 import { GraphtyError } from "../../errors/GraphtyError";
-import type { SetDefinition } from "../types";
+import type { Scope, SetDefinition } from "../types";
 import { canonicalSetDefinition, DEFINITION_FIELDS, EDGE_MEMBER_FIELDS } from "./canonical";
 
 type Loose = Readonly<Record<string, unknown>>;
 type Mode = "door" | "load";
 
 /** Reserved field names, by the node that reserves them, as `<node>.<field>`. */
-const RESERVED = new Set(["fixed.weights", "rule.within", "edgeMember.key", "edgeMember.dataSource"]);
+const RESERVED = new Set(["fixed.weights", "rule.within", "edgeMember.key", "edgeMember.dataSource", "set.graph", "search"]);
+
+/** The scope keywords this element defines. */
+const KEYWORDS = ["visible", "graph", "selection", "largest-component"];
 
 const READINGS = ["induced", "listed", "clipped"];
 const DIRECTIONS = ["in", "out", "all"];
@@ -271,6 +277,11 @@ function checkTree(value: unknown, walker: Walker): void {
             }
 
             return;
+        case "scope":
+            known(["scope"]);
+            checkScope(value.scope, walker);
+
+            return;
         case "all":
         case "any":
             known(["of"]);
@@ -295,11 +306,41 @@ function checkTree(value: unknown, walker: Walker): void {
 }
 
 /**
- * Whether a rule tree holds a leaf that speaks about edges.
+ * How a scope reads, as far as the scope itself says: `"visible"` is clipped, an inline definition
+ * reads as it is stored (a path `listed`), and every other form is node-induced. A `{ set }` names
+ * a set this module cannot see: `referent` answers for it, and without one it reads induced.
+ * @param scope - A validated scope.
+ * @param referent - The reading of the set an id names, when the caller can look it up.
+ * @returns The reading.
+ */
+export function readingOfScope(scope: unknown, referent?: (id: string) => string | undefined): string {
+    if (scope === "visible") {
+        return "clipped";
+    }
+
+    if (!isObject(scope)) {
+        return "induced";
+    }
+
+    if (isObject(scope.define)) {
+        if (scope.define.kind === "path") {
+            return "listed";
+        }
+
+        return typeof scope.define.reading === "string" ? scope.define.reading : "induced";
+    }
+
+    return typeof scope.set === "string" ? (referent?.(scope.set) ?? "induced") : "induced";
+}
+
+/**
+ * Whether a rule tree holds a leaf that speaks about edges: an `edges` leaf, or a `scope` leaf
+ * whose set is read `listed` or `clipped`.
  * @param node - A validated tree node, or a query.
+ * @param referent - The reading of the set an id names, when the caller can look it up.
  * @returns True when some leaf speaks the edge half.
  */
-function speaksEdges(node: unknown): boolean {
+export function speaksEdges(node: unknown, referent?: (id: string) => string | undefined): boolean {
     if (!isObject(node)) {
         return false;
     }
@@ -307,13 +348,67 @@ function speaksEdges(node: unknown): boolean {
     switch (node.kind) {
         case "edges":
             return true;
+        case "scope":
+            return readingOfScope(node.scope, referent) !== "induced";
         case "all":
         case "any":
-            return (node.of as readonly unknown[]).some(speaksEdges);
+            return Array.isArray(node.of) && node.of.some((operand) => speaksEdges(operand, referent));
         case "not":
-            return speaksEdges(node.of);
+            return speaksEdges(node.of, referent);
         default:
             return false;
+    }
+}
+
+/**
+ * The refusal of a rule read `induced` that holds an edge-speaking leaf.
+ * @returns The error to throw.
+ */
+export function inducedEdgeLeaf(): GraphtyError {
+    return bad(
+        "An induced set derives its edges from its nodes, so this rule's edge-speaking leaf would be " +
+            'ignored. Read it "clipped" or "listed" instead.',
+        { reason: "induced-edge-leaf" },
+    );
+}
+
+/**
+ * Check one scope, all the way down.
+ * @param value - The candidate scope.
+ * @param walker - The pass.
+ */
+function checkScope(value: unknown, walker: Walker): void {
+    if (typeof value === "string") {
+        if (!KEYWORDS.includes(value)) {
+            walker.unknown(value, "The scope keyword");
+        }
+
+        return;
+    }
+
+    if (!isObject(value)) {
+        throw bad('A scope is "visible", "graph", "selection", "largest-component", { set }, { where }, { nodes } or { define }.', {
+            scope: value,
+        });
+    }
+
+    if (value.set !== undefined) {
+        walker.fields(value, "set", ["set"]);
+
+        if (typeof value.set !== "string" || value.set === "") {
+            throw bad("A { set } scope names a set by its id.", { scope: value });
+        }
+    } else if (value.where !== undefined) {
+        walker.fields(value, "where", ["where"]);
+        checkQuery(value.where, "A { where } scope");
+    } else if (value.nodes !== undefined) {
+        walker.fields(value, "nodes", ["nodes"]);
+        checkIds(value.nodes, "A { nodes } scope");
+    } else if (value.define !== undefined) {
+        walker.fields(value, "define", ["define"]);
+        checkDefinition(value.define, walker);
+    } else {
+        walker.unknown(Object.keys(value).sort()[0] ?? "{}", "The scope form");
     }
 }
 
@@ -335,7 +430,17 @@ function checkReading(value: unknown): void {
  */
 function check(value: unknown, mode: Mode): Walker {
     const walker = new Walker(mode);
+    checkDefinition(value, walker);
 
+    return walker;
+}
+
+/**
+ * Check one definition, all the way down.
+ * @param value - The candidate.
+ * @param walker - The pass.
+ */
+function checkDefinition(value: unknown, walker: Walker): void {
     if (!isObject(value) || typeof value.kind !== "string") {
         throw bad('A set definition is an object whose kind is "fixed", "rule" or "path".', { definition: value });
     }
@@ -368,12 +473,8 @@ function check(value: unknown, mode: Mode): Walker {
             }
 
             // Load mode keeps this form: a stored one reads invalid instead of failing the load.
-            if (mode === "door" && value.reading === "induced" && speaksEdges(value.where)) {
-                throw bad(
-                    "An induced set derives its edges from its nodes, so this rule's edge leaf would be " +
-                        'ignored. Read it "clipped" or "listed" instead.',
-                    { reason: "induced-edge-leaf" },
-                );
+            if (walker.mode === "door" && value.reading === "induced" && speaksEdges(value.where)) {
+                throw inducedEdgeLeaf();
             }
 
             break;
@@ -421,8 +522,6 @@ function check(value: unknown, mode: Mode): Walker {
         default:
             walker.unknown(value.kind, "The set definition kind");
     }
-
-    return walker;
 }
 
 /**
@@ -456,4 +555,24 @@ export function loadSetDefinition(value: unknown): { definition: SetDefinition; 
     const definition = canonicalSetDefinition(value as SetDefinition);
 
     return first === undefined ? { definition } : { definition, opaque: { first } };
+}
+
+/**
+ * Check a scope and return its canonical form: an inline definition canonical, every other form
+ * as given.
+ *
+ * Door mode: anything malformed, unknown or reserved (the keyword `"search"`) is refused. Edge
+ * members inside `{ define }` must be in stable form; a write door that accepts session edge ids
+ * converts them first.
+ * @param value - The candidate scope, from any source.
+ * @returns The scope.
+ * @throws A `GraphtyError` with code `E_BAD_COMMAND`, with `details.reason` as
+ * {@link parseSetDefinition} gives it for an inline definition.
+ */
+export function parseScope(value: unknown): Scope {
+    checkScope(value, new Walker("door"));
+
+    return isObject(value) && value.define !== undefined
+        ? Object.freeze({ define: canonicalSetDefinition(value.define as SetDefinition) })
+        : (value as Scope);
 }

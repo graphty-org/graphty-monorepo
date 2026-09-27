@@ -272,18 +272,20 @@ These local images are previews only and are never committed.
 
 **Build.**
 
-- `trusted/lib/github.mjs`: open pull requests (`gh pr list`), the newest `ci.yml` run for a head
-  SHA, the `visual` job's conclusion, and the highest-attempt `visual-<project>-<attempt>`
+- `trusted/lib/github.mjs`: open pull requests, the newest `ci.yml` run for a head SHA, the `visual` job's conclusion, and the highest-attempt `visual-<project>-<attempt>`
   artifacts downloaded to `tmp/visual-review/<run>-<attempt>/`. "master" is a target too, pinned
   to one run with `serve --master-run <id>` (the page shows that run's id and commit); its accepts
   go to a new branch `visual/seed-<date>` created at that run's `results.commit` (not at
   `origin/master`, so the branch holds exactly the captured tree), and a pull request titled
-  `test(workspace): seed visual baselines` opened with `gh pr create`.
+  `test(workspace): seed visual baselines`. Every call goes through `gh api` (and `gh run
+  download`), not `gh pr list`, `gh run list --commit` or `gh pr create`: the development server
+  has gh 2.4, which lacks those flags and most `--json` fields.
 - `trusted/lib/accept.mjs`: works in `.worktrees/visual-accept-<pr>` (`git worktree add --detach`
   at the captured head), never in the main checkout. The worktree has no `node_modules`, and the
   shared hooks (`core.hooksPath=.husky/_`: secretlint on pre-commit, commitlint on commit-msg,
-  `cz --hook` on prepare-commit-msg, the gate on pre-push) all need it or a terminal, so it commits
-  and pushes with `HUSKY=0` and `--no-verify`. Signing stays on and the owner's git identity is
+  `cz --hook` on prepare-commit-msg, the gate on pre-push) all need it or a terminal, so every git
+  command runs with `-c core.hooksPath=/dev/null` (and `HUSKY=0`, `--no-verify`): git runs
+  prepare-commit-msg even under `--no-verify`, so that flag alone does not skip it. Signing stays on and the owner's git identity is
   used; if gpg-agent's cache has expired, the commit fails and Finish shows git's stderr (the
   owner unlocks the key and presses Finish again). A comment in the code gives the reason: the
   commit holds only tool-written PNG and JSON under `visual-baselines/`, and its message is
@@ -295,7 +297,8 @@ These local images are previews only and are never committed.
   prints the URL with the token at every start, so `servherd_logs` shows it again. Every `/api`
   request must carry the token in a header the page sets; state-changing requests must be POST
   with an `Origin` equal to the served origin. Images are served only from the downloaded
-  artifact and only when their SHA-256 matches `results.json`. Decisions in progress live in
+  artifact and only when their SHA-256 matches `results.json`. The second capture of an unstable
+  item (`second/<file>`) is therefore not shown: `results.json` records no hash for it. Decisions in progress live in
   memory until Finish.
 - The page, plain HTML and JavaScript: the pull request list and the master target; per project a
   thumbnail grid filtered by status with "12 / 40 reviewed"; a story view with side by side, flash

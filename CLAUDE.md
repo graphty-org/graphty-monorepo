@@ -582,6 +582,30 @@ Each package has its own CLAUDE.md with package-specific guidance:
 - Ports come from servherd (see "Starting Servers"); graphty's Storybook requires HTTPS
 - GitHub Pages: https://graphty.app/storybook/
 
+### Visual review
+
+CI screenshots every story of compact-mantine and graphty-element; the owner compares them with
+the baseline PNGs in `visual-baselines/` and accepts or rejects them in a page served from this
+machine (`visual-review/`, design in `design/visual-testing/design.md`). Start the page through
+servherd; its log prints the URL with the session token at every start:
+
+```jsonc
+servherd_start({ name: "visual-review", cwd: "<repo>", protocol: "https",
+  command: "env HTTPS_CERT_PATH={{httpsCert}} HTTPS_KEY_PATH={{httpsKey}} node visual-review/trusted/cli.mjs serve",
+  env: { PORT: "{{port}}", HOST: "{{hostname}}" } })
+```
+
+Add `--master-run <run id>` to the command to review a master run for seeding, or `--results <dir>
+--branch <name>` to serve local captures offline.
+
+- Only the owner approves visual changes. Agents never press Accept or Finish, never call the
+  page's API, and never write, move or delete anything under `visual-baselines/` on the owner's
+  behalf.
+- A merge conflict under `visual-baselines/`: take master's side for every file there and let CI
+  recapture; the owner reviews again what still differs.
+- After an accept commit lands on a pull request branch, update that branch from master by merge,
+  never by rebase, so the accept commit and its record stay as the owner made them.
+
 ### GitHub Pages URLs
 
 **IMPORTANT**: Use `graphty.app` for all documentation and Storybook links (NOT `graphty-org.github.io`):

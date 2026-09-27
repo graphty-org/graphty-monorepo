@@ -109,20 +109,21 @@ describe("Graph Queue Integration", () => {
             return originalQueue(category, execute, metadata);
         });
 
-        // Use batchOperations to ensure all operations are in same batch
-        await graph.batchOperations(async () => {
-            await graph.addNodes([
+        // The changes made through the batch's `tx` are one step, and the queued ones still take
+        // their turn on the queue.
+        await graph.batchOperations(async (tx) => {
+            await tx.data.addNodes([
                 { id: "1", label: "Node 1" },
                 { id: "2", label: "Node 2" },
             ]);
 
-            await graph.addEdges([{ source: "1", target: "2", label: "Edge 1" }], { source: "source", target: "target" });
+            await tx.data.addEdges([{ src: "1", dst: "2", label: "Edge 1" }]);
 
-            await graph.setLayout("circular");
+            await tx.layout.set("circular");
         });
 
-        // All operations should be queued
-        expect(operations).toContain("data-add");
+        expect(graph.getNodeCount()).toBe(2);
+        expect(graph.getEdgeCount()).toBe(1);
         expect(operations).toContain("layout-set");
     });
 

@@ -360,15 +360,19 @@ graph.zoomToFit();
 
 ## Batch Operations
 
-For bulk updates, use batch operations to prevent intermediate renders:
+To make several changes one undoable step, make them through the `tx` the callback receives:
 
 ```typescript
-await graph.batchOperations(async () => {
-    await graph.addNodes(manyNodes);
-    await graph.addEdges(manyEdges);
-    // Layout runs once at the end
+await graph.batchOperations(async (tx) => {
+    await tx.data.addNodes(manyNodes);
+    await tx.data.addEdges(manyEdges);
+    await tx.layout.set("circular");
 });
 ```
+
+One undo takes the whole batch back, and a throw inside the callback rolls it back. A call on
+`graph` itself during the callback is a step of its own, and logs a warning naming the `tx` verb
+to use instead.
 
 ## Event Handling
 

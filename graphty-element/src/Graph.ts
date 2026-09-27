@@ -118,7 +118,7 @@ import type { Run, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionTarget, SetOp } from "./session/selection";
 import type { StyleSuggestion } from "./session/styles";
 import { suggestionCommand } from "./session/styles/autoApply";
-import type { ProjectConfig, ProjectConfigPatch } from "./session/types";
+import type { ProjectConfig, ProjectConfigPatch, TransactionScope } from "./session/types";
 
 /** The namespace every algorithm this package ships is registered under. */
 const BUILT_IN_ALGORITHM_NAMESPACE = "graphty";
@@ -169,6 +169,31 @@ interface ViewSettings {
     graph: { startingCameraDistance?: number; immersive?: "vr" | "ar" };
     behavior: GraphBehaviorConfig;
 }
+
+/**
+ * The doors of a graph that change it, each with the `tx` verb that makes the same change part of
+ * a `batchOperations` callback's step. Called on the graph during the callback, one warns.
+ */
+const BATCH_VERBS: Readonly<Record<string, string>> = {
+    addNode: "tx.data.addNodes",
+    addNodes: "tx.data.addNodes",
+    addEdge: "tx.data.addEdges",
+    addEdges: "tx.data.addEdges",
+    updateNodes: "tx.data.updateNodes",
+    updateEdges: "tx.data.updateEdges",
+    removeNodes: "tx.data.removeNodes",
+    removeEdges: "tx.data.removeEdges",
+    setEdges: "tx.data.removeEdges and tx.data.addEdges",
+    clearData: "tx.data.clear",
+    addDataFromSource: "tx.data.import",
+    loadFromFile: "tx.data.import",
+    loadFromUrl: "tx.data.import",
+    setLayout: "tx.layout.set",
+    setViewMode: "tx.layout.setDimension",
+    run: "tx.run",
+    runAlgorithm: "tx.run",
+    applySuggestedStyles: "tx.run with applySuggestedStyles: true",
+};
 
 /** Each graph's operation queue; see {@link operationQueueOf}. */
 const QUEUES = new WeakMap<Graph, OperationQueueManager>();
@@ -271,6 +296,10 @@ export class Graph implements GraphContext {
     private updateManager: UpdateManager;
     private algorithmManager: AlgorithmManager;
     private inputManager: InputManager;
+    /** While an immersive session is active: its mode and when it started, stamped on steps. */
+    private immersiveSince: string | null = null;
+    /** How many `batchOperations` callbacks are open. */
+    private openBatches = 0;
     private selectionManager: SelectionManager;
 
     /**
@@ -458,6 +487,12 @@ export class Graph implements GraphContext {
         // The `arrangement` hook's engine is this graph's layout: a history call stops it, a restore
         // hands it the restored coordinates and redraws the nodes where they now are, and a pin
         // reaches it. Where it comes to rest is sealed into history (design/undo section 6.4).
+        // A step recorded while VR or AR is active says so, as "<mode>:<session start>", so a
+        // history list can group what was done in the headset (design/undo section 5.3).
+        dispatcherOf(this.session).ambientProvenance = (): Readonly<Record<string, string>> =>
+            this.immersiveSince !== null && (this.xrSessionManager?.getActiveMode() ?? null) !== null
+                ? { xr: this.immersiveSince }
+                : {};
         const { arrangement } = dispatcherOf(this.session);
         arrangement.engine = {
             suspend: () => {
@@ -703,6 +738,11 @@ export class Graph implements GraphContext {
             keyboardEnabled: true,
             pointerLockEnabled: false,
             recordInput: false,
+            // Mod+Z and Shift+Mod+Z on the focused canvas move this graph's history.
+            history: {
+                undo: () => this.session.undo(),
+                redo: () => this.session.redo(),
+            },
         };
         this.inputManager = new InputManager(
             {
@@ -1906,13 +1946,6 @@ export class Graph implements GraphContext {
                 command,
                 options?.skipQueue === true ? { beside: true } : {},
             );
-            // Inside `batchOperations` the queue holds it until the batch closes, after this call
-            // has returned, so it resolves at once and the batch is what the caller awaits.
-            if (this.operationQueue.isInBatchMode()) {
-                done.catch(() => undefined);
-                return;
-            }
-
             await done;
         } catch (error) {
             const algorithmError = error instanceof Error ? error : new Error(String(error));
@@ -1989,15 +2022,7 @@ export class Graph implements GraphContext {
                 },
             );
 
-            // Inside `batchOperations`, the queue holds everything until the batch closes -- which
-            // happens AFTER the batching function returns. Awaiting the run here would wait for
-            // work that cannot start until this call has already returned, so the 1.10 contract is
-            // kept instead: the call resolves, the work lands with the batch, and
-            // `batchOperations` is what the caller awaits. `graph.run()` hands back the run
-            // itself, so a caller that wants the result awaits that and gets it either way.
-            if (!this.operationQueue.isInBatchMode()) {
-                await run;
-            }
+            await run;
         } catch (error) {
             const algorithmError = error instanceof Error ? error : new Error(String(error));
 
@@ -2392,22 +2417,63 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Execute multiple operations as a batch
-     * Operations will be queued and executed in dependency order
-     * @param fn - Function containing operations to batch
+     * Make several changes one undoable step.
+     *
+     * A transaction of this graph's session: what `fn` does through `tx` -- `tx.data.addNodes`,
+     * `tx.layout.set`, `tx.run`, `tx.styles.add` -- is recorded as one step once `fn` settles, and
+     * a throw rolls all of it back. A call on this graph itself while `fn` runs is a step of its
+     * own, and logs a warning naming the `tx` verb to use instead.
+     * @param fn - The changes, made through `tx`.
+     * @param label - The step's label.
+     * @returns Once the step is recorded and drawn.
+     * @since 3.0.0
+     * @example
+     * ```typescript
+     * await graph.batchOperations(async (tx) => {
+     *     await tx.data.addNodes([{ id: "a" }, { id: "b" }]);
+     *     await tx.data.addEdges([{ src: "a", dst: "b" }]);
+     *     await tx.layout.set("circular");
+     * });
+     * ```
      */
-    async batchOperations(fn: () => Promise<void> | void): Promise<void> {
-        this.operationQueue.enterBatchMode();
-
-        try {
-            await fn();
-        } catch (error) {
-            await this.operationQueue.exitBatchMode();
-            throw error;
+    async batchOperations(
+        fn: (tx: TransactionScope) => Promise<void> | void,
+        label = "Batch of changes",
+    ): Promise<void> {
+        if (this.openBatches++ === 0) {
+            this.warnOutsideBatch();
         }
 
-        // Exit batch mode and wait for all operations to complete
-        await this.operationQueue.exitBatchMode();
+        try {
+            await this.session.transaction(label, (tx) => fn(tx));
+        } finally {
+            if (--this.openBatches === 0) {
+                for (const verb of Object.keys(BATCH_VERBS)) {
+                    Reflect.deleteProperty(this, verb);
+                }
+            }
+        }
+    }
+
+    /**
+     * While a batch is open, make each of this graph's doors warn that it is a step of its own,
+     * naming the `tx` verb that would join the batch.
+     */
+    private warnOutsideBatch(): void {
+        for (const [verb, instead] of Object.entries(BATCH_VERBS)) {
+            const door = Reflect.get(Graph.prototype, verb) as (...args: unknown[]) => unknown;
+            Object.defineProperty(this, verb, {
+                configurable: true,
+                writable: true,
+                value: (...args: unknown[]) => {
+                    console.warn(
+                        `[graphty] ${verb} was called on the graph while its batchOperations callback was open, ` +
+                            `so it is a step of its own. Call ${instead} inside the callback to make it part of the batch.`,
+                    );
+                    return Reflect.apply(door, this, args);
+                },
+            });
+        }
     }
 
     /**
@@ -3048,13 +3114,6 @@ export class Graph implements GraphContext {
         options?: { readonly beside?: boolean },
     ): Promise<void> {
         const done = dispatcherOf(this.session).dispatch(command, options);
-        // Inside `batchOperations` the queue holds the command until the batch closes, after this
-        // call has returned, so it resolves at once and the batch is what the caller awaits.
-        if (this.operationQueue.isInBatchMode()) {
-            done.catch(() => undefined);
-            return;
-        }
-
         try {
             await done;
         } catch (error) {
@@ -5556,6 +5615,7 @@ export class Graph implements GraphContext {
         } else {
             await this.xrSessionManager.enterAR(previousCamera ?? undefined);
         }
+        this.immersiveSince = `${mode === "immersive-vr" ? "vr" : "ar"}:${new Date().toISOString()}`;
 
         // Phase 3: Set up XR camera controller and input handler
         const xrHelper = this.xrSessionManager.getXRHelper();
@@ -5591,6 +5651,8 @@ export class Graph implements GraphContext {
         if (!this.xrSessionManager) {
             return;
         }
+
+        this.immersiveSince = null;
 
         // Clean up XR camera controller
         if (this.scene.metadata?.xrCameraController) {

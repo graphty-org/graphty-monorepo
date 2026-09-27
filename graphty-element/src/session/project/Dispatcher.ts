@@ -252,6 +252,11 @@ interface TransactionOptions {
      * command needing a key it holds waits for it instead of being refused.
      */
     readonly compound?: boolean;
+    /**
+     * Takes its before-arrangement when it opens, not at its first graph write: a node drag, whose
+     * pointer moves write the lane before anything is dispatched (design section 5.3).
+     */
+    readonly moves?: boolean;
 }
 
 /** What moved live project state. */
@@ -733,6 +738,11 @@ export class Dispatcher {
     private baselineOpen: boolean;
     /** Where an untagged dispatch goes during a call through a group-tagged facade; see {@link Dispatcher.routed}. */
     private route: DispatchFunction | null = null;
+    /**
+     * Stamped on every step as it is recorded, under the step's own provenance: the renderer
+     * stamps `xr` while an immersive session is active (design section 5.3).
+     */
+    ambientProvenance: (() => Readonly<Record<string, string>>) | null = null;
 
     /**
      * Create a dispatcher over a state it alone will write.
@@ -925,6 +935,10 @@ export class Dispatcher {
             options.compound === true,
         );
         this.enter(group);
+        if (options.moves === true) {
+            this.takeBefore(group);
+        }
+
         const tx = this.scope(group);
         const { signal } = controller;
 
@@ -1112,6 +1126,18 @@ export class Dispatcher {
         }
 
         return job.group.tx !== null && job.keys.some((key) => sliceOf(key) === "graph");
+    }
+
+    /**
+     * Give a group its before-arrangement: where the lane is now (design section 6.4).
+     * @param group - The group.
+     */
+    private takeBefore(group: Group): void {
+        const before = this.arrangement.before();
+        if (before !== null) {
+            group.arrangement = this.history.open(before);
+            group.epoch = this.store.state.graph.epoch;
+        }
     }
 
     /**
@@ -1621,11 +1647,7 @@ export class Dispatcher {
         job.blockedBy = null;
         this.acquire(group, opLogKeys(job.keys));
         if (group.arrangement === null && this.takesBefore(job)) {
-            const before = this.arrangement.before();
-            if (before !== null) {
-                group.arrangement = this.history.open(before);
-                group.epoch = state.graph.epoch;
-            }
+            this.takeBefore(group);
         }
 
         if (job.inline) {
@@ -1883,8 +1905,11 @@ export class Dispatcher {
             if (group.after !== null && this.history.amend(group.after, input)) {
                 id = group.after;
             } else {
-                const provenance =
-                    group.after === null ? group.provenance : { ...group.provenance, after: group.after };
+                const provenance = {
+                    ...this.ambientProvenance?.(),
+                    ...group.provenance,
+                    ...(group.after === null ? {} : { after: group.after }),
+                };
                 id = this.history.record({ ...input, provenance });
             }
 
@@ -1962,14 +1987,20 @@ export class Dispatcher {
             this.history.close(open);
         }
 
-        if (slices.length > 0) {
+        if (slices.length > 0 || open !== null) {
             // Where things were when the group began, not where a half-run layout pushed them;
-            // written in restore mode, and not a rest point (design section 6.4).
+            // written in restore mode, and not a rest point (design section 6.4). A group that
+            // took a before-arrangement and wrote nothing is written back too: an aborted drag
+            // has moved the lane without dispatching anything.
             let ops: ArrangementOp[] = [];
             if (open !== null) {
                 ops = [{ capture: open.before }];
             } else if (patch.rows !== null) {
                 ops = [{ patch: patch.rows, forward: false }];
+            }
+
+            if (slices.length === 0) {
+                this.lane.restore("rollback");
             }
 
             this.arrangement.restore(ops);

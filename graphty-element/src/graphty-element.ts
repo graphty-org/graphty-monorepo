@@ -26,7 +26,7 @@ import { dispatcherOf } from "./session/GraphSession";
 import type { GraphSlice } from "./session/project/state";
 import type { Run, RunChange, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionTarget, SetOp } from "./session/selection";
-import type { ProjectConfigPatch } from "./session/types";
+import type { ProjectConfigPatch, SessionEventMap, TransactionScope } from "./session/types";
 import type { VisibilityChange } from "./session/visibility";
 
 /**
@@ -93,6 +93,7 @@ export class Graphty extends LitElement {
     #unwatchRuns: (() => void) | null = null;
     #unwatchSelection: (() => void) | null = null;
     #unwatchVisibility: (() => void) | null = null;
+    #unwatchHistory: (() => void) | null = null;
     #runProgressAt = new Map<string, number>();
     #reportedStrayAttributes = false;
 
@@ -265,6 +266,32 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Mirror one history change onto the DOM, so an Undo button beside the tag can follow it.
+     *
+     * The detail is the cursor and what the next undo and redo would do, all plain values; a
+     * history panel reads `session.history` for the steps themselves.
+     * @param reason - Why the history changed.
+     */
+    #mirrorHistoryChange(reason: SessionEventMap["history:changed"]["reason"]): void {
+        const session = this.#graph.getSession();
+        const { history } = session;
+        this.dispatchEvent(
+            new CustomEvent("graphty-history-change", {
+                detail: {
+                    reason,
+                    version: history.version,
+                    position: history.position,
+                    steps: history.steps.length,
+                    canUndo: session.canUndo,
+                    canRedo: session.canRedo,
+                },
+                bubbles: true,
+                composed: true,
+            }),
+        );
+    }
+
+    /**
      * Reports rich props that reached the element as "[object Object]" attributes.
      *
      * React 19 sets a custom-element prop as a property only when the element is already defined;
@@ -345,6 +372,9 @@ export class Graphty extends LitElement {
         });
         this.#unwatchVisibility ??= session.on("visibility:changed", (change) => {
             this.#mirrorVisibilityChange(change);
+        });
+        this.#unwatchHistory ??= session.on("history:changed", ({ reason }) => {
+            this.#mirrorHistoryChange(reason);
         });
     }
 
@@ -452,6 +482,8 @@ export class Graphty extends LitElement {
         this.#unwatchSelection = null;
         this.#unwatchVisibility?.();
         this.#unwatchVisibility = null;
+        this.#unwatchHistory?.();
+        this.#unwatchHistory = null;
 
         this.#graph.shutdown();
         super.disconnectedCallback();
@@ -1583,6 +1615,34 @@ export class Graphty extends LitElement {
         this.#setSetting("runAlgorithmsOnLoad", this.runAlgorithmsOnLoad, { runAlgorithmsOnLoad: value ?? undefined });
     }
 
+    #historyKeys = true;
+
+    /**
+     * Whether the element handles the undo keys itself: Ctrl+Z (Cmd+Z on macOS) undoes one step
+     * and Ctrl+Shift+Z or Ctrl+Y redoes it, while the graph's canvas has keyboard focus. On by
+     * default. A handled key has its default prevented, so a host page binding the same keys
+     * skips a keydown whose `defaultPrevented` is set; or turns this off with
+     * `history-keys="false"` and calls `session.undo()` itself.
+     * @returns Whether the undo keys are handled.
+     * @since 3.0.0
+     */
+    @property({
+        attribute: "history-keys",
+        converter: { fromAttribute: (value: string | null) => value !== "false" },
+    })
+    get historyKeys(): boolean {
+        return this.#historyKeys;
+    }
+    /**
+     * Turns the element's own undo keys on or off.
+     */
+    set historyKeys(value: boolean) {
+        const oldValue = this.#historyKeys;
+        this.#historyKeys = value;
+        this.#graph.input.updateConfig({ historyKeys: value });
+        this.requestUpdate("historyKeys", oldValue);
+    }
+
     #enableDetailedProfiling?: boolean;
 
     /**
@@ -2662,21 +2722,27 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Execute multiple operations as a batch.
-     * @param fn - Function containing batch operations
-     * @returns Promise that resolves when batch completes
+     * Make several changes one undoable step.
+     *
+     * `fn` receives `tx`, the session as seen from inside the step: what it does through `tx` is
+     * recorded as one step once `fn` settles, and a throw rolls all of it back. A call on the
+     * element itself while `fn` runs is a step of its own, and logs a warning naming the `tx`
+     * verb to use instead. The same as `session.transaction`, with a default label.
+     * @param fn - The changes, made through `tx`.
+     * @param label - The step's label in the history.
+     * @returns Once the step is recorded and drawn.
      * @since 1.5.0
      * @example
      * ```typescript
-     * await element.batchOperations(async () => {
-     *   await element.addNodes(nodes);
-     *   await element.addEdges(edges);
-     *   await element.setLayout('circular');
+     * await element.batchOperations(async (tx) => {
+     *   await tx.data.addNodes(nodes);
+     *   await tx.data.addEdges(edges);
+     *   await tx.layout.set("circular");
      * });
      * ```
      */
-    async batchOperations(fn: () => Promise<void> | void): Promise<void> {
-        return this.#graph.batchOperations(fn);
+    async batchOperations(fn: (tx: TransactionScope) => Promise<void> | void, label?: string): Promise<void> {
+        return this.#graph.batchOperations(fn, label);
     }
 
     // ============================================================================

@@ -192,6 +192,20 @@ const DISPOSED_STATUS: SessionStatus = Object.freeze({
 /** The prefix an attribute path carries in front of the key the record actually holds. */
 const ATTRIBUTE_PREFIX = "data.";
 
+/** The parts of a session whose verbs a transaction's `tx` routes into the transaction. */
+const TX_PARTS = [
+    "data",
+    "runs",
+    "results",
+    "scope",
+    "selection",
+    "visibility",
+    "styles",
+    "views",
+    "positions",
+    "config",
+] as const satisfies readonly (keyof GraphSession)[];
+
 /**
  * What the factory hands the session, with the ownership question already answered.
  *
@@ -474,10 +488,20 @@ class Session implements ElementSession {
      * @returns The scope.
      */
     private scopeOf(scope: DispatchScope): TransactionScope {
+        const via: DispatchFunction = (each, options) => scope.dispatch(each, options);
+        // Every verb of a part runs with its dispatches routed into the transaction, so
+        // `tx.styles.add` and `tx.data.addNodes` join it exactly as `tx.execute` does.
+        const parts = Object.fromEntries(
+            TX_PARTS.map((name) => [name, { value: this.routedPart(this[name], via) }]),
+        );
         const tx: TransactionScope = Object.create(this, {
+            ...parts,
             execute: {
-                value: <C extends SessionCommand>(command: C) =>
-                    this.executeThrough(command, (each, options) => scope.dispatch(each, options)),
+                value: <C extends SessionCommand>(command: C) => this.executeThrough(command, via),
+            },
+            run: {
+                value: (command: AlgorithmRunCommand, options?: RunOptions) =>
+                    this.startCommand(via, command, options),
             },
             // Its layout verbs join the transaction too.
             layout: {
@@ -492,6 +516,25 @@ class Session implements ElementSession {
             },
         }) as TransactionScope;
         return tx;
+    }
+
+    /**
+     * A part of this session whose every method runs with its dispatches routed to `via`. Values
+     * read from it are handed back as they are.
+     * @param part - The part.
+     * @param via - Where its dispatches go.
+     * @returns The routed part.
+     */
+    private routedPart<P extends object>(part: P, via: DispatchFunction): P {
+        return new Proxy(Object.create(null) as P, {
+            get: (_target, key) => {
+                const value: unknown = Reflect.get(part, key, part);
+                return typeof value === "function"
+                    ? (...args: unknown[]) => this.dispatcher.routed(via, () => Reflect.apply(value, part, args))
+                    : value;
+            },
+            has: (_target, key) => key in part,
+        });
     }
 
     /**

@@ -143,6 +143,15 @@ describe.each([
                 assert.strictEqual(node.mesh.getScene(), graph.scene, `node ${String(node.id)} is not in the scene`);
             }
 
+            // A step recorded in the headset says so, with the session it belongs to.
+            await element.session.data.addNodes([{ id: "added-in-xr" }]);
+            const inside = element.session.history.steps.at(-1)?.provenance.xr;
+            assert.match(
+                inside ?? "",
+                new RegExp(`^${viewMode}:\\d{4}-\\d{2}-\\d{2}T`),
+                "the step carries the session",
+            );
+
             await element.setViewMode("3d");
 
             await vi.waitFor(() => {
@@ -150,6 +159,12 @@ describe.each([
             }, WAIT);
             assert.isNull(graph.getXRSessionManager()?.getActiveMode(), "the session manager still holds a session");
             assert.strictEqual(graph.getViewMode(), "3d");
+            await element.session.data.addNodes([{ id: "added-after-xr" }]);
+            assert.notProperty(
+                element.session.history.steps.at(-1)?.provenance ?? {},
+                "xr",
+                "and one after it does not",
+            );
 
             const orbit = graph.camera.getActiveController()?.camera;
 

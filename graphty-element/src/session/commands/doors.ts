@@ -71,7 +71,7 @@ export const PHASES = [
 type PlanPhase = (typeof PHASES)[number];
 
 /** The phase this branch has reached. Each phase's commit raises it. */
-export const PLAN_PHASE: PlanPhase = "18c";
+export const PLAN_PHASE: PlanPhase = "19a";
 
 /** How the doors tests call a door. */
 export type DoorCall =
@@ -159,15 +159,6 @@ function calls(args: readonly unknown[] | (() => readonly unknown[]), expect: re
  */
 function assigns(value: unknown, expect: readonly SessionCommand[]): Door {
     return { kind: "dispatches", op: expect[0]?.op ?? "", call: { kind: "set", value }, expect };
-}
-
-/**
- * A public escape, a writable field or a live object, that `phase` makes read-only or private.
- * @param phase - The phase that narrows it.
- * @returns The door.
- */
-function escape(phase: PlanPhase): Door {
-    return { kind: "knownGap", phase };
 }
 
 /**
@@ -335,6 +326,16 @@ const MASK = exempt(
 );
 const LLM = exempt("Talks to a language model; changes nothing in the graph.");
 const BUDGET = exempt("The history's own budget, not project state.");
+const GESTURE = exempt(
+    "Part of a node drag, which the element records as one step of its own: a transaction opened at drag " +
+        "start and recorded at the drop with the positions.set and positions.pin it dispatches; checked by " +
+        "test/browser/history-drag.test.ts.",
+);
+const MESSAGE = exempt(
+    "An assistant message: one transaction, stamped via assistant, that every tool writes through as ctx.tx; " +
+        "checked by test/browser/ai/assistant-history.test.ts.",
+);
+const TOOL = exempt("An assistant tool: it writes through ctx.tx, which joins the message's transaction.");
 const LANE = exempt(
     "The layout lane: coordinates a layout, a drag or a GPU readback writes while it works, recorded into the " +
         "step on top when the layout comes to rest. The renderer's engines write it here; a consumer places " +
@@ -396,6 +397,15 @@ const SESSION: Readonly<Record<string, Door>> = {
     on: LISTEN,
     dispose: LIFECYCLE,
 };
+
+/** A batch: what its callback adds through `tx` is dispatched as the batch's own step. */
+const BATCH = calls(
+    () => [
+        (tx: { data: { addNodes(records: readonly object[]): Promise<void> } }) =>
+            tx.data.addNodes([{ id: "door-batch" }]),
+    ],
+    [addNodes({ id: "door-batch" })],
+);
 
 /** The command switching to 2D. */
 const DIMENSION_2D: SessionCommand = { op: "view.dimension", dimension: "2d" };
@@ -564,6 +574,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ]),
             startingCameraDistance: CAMERA,
             runAlgorithmsOnLoad: assigns(false, [{ op: "config.set", values: { runAlgorithmsOnLoad: false } }]),
+            historyKeys: INPUT,
             enableDetailedProfiling: PROFILING,
             xr: XR,
             captureScreenshot: CAPTURE,
@@ -621,7 +632,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             waitForSettled: READ,
             waitForStableFrame: READ,
             isFrameStable: READ,
-            batchOperations: escape("19a"),
+            batchOperations: BATCH,
             on: LISTEN,
             addListener: LISTEN,
             listenerCount: READ,
@@ -657,13 +668,13 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getXRSessionManager: READ,
             enableAiControl: ASSISTANT,
             disableAiControl: ASSISTANT,
-            aiCommand: escape("19a"),
+            aiCommand: MESSAGE,
             getAiStatus: READ,
             onAiStatusChange: LISTEN,
             cancelAiCommand: IN_FLIGHT,
             getAiManager: READ,
             isAiEnabled: READ,
-            retryLastAiCommand: escape("19a"),
+            retryLastAiCommand: MESSAGE,
             getApiKeyManager: READ,
             getVoiceAdapter: READ,
             startVoiceInput: INPUT,
@@ -746,7 +757,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             removeNodes: REMOVE_NODES,
             setCameraMode: CAMERA,
             setRenderSettings: VIEW_SETTING,
-            batchOperations: escape("19a"),
+            batchOperations: BATCH,
             getSession: READ,
             getNodeCount: READ,
             getEdgeCount: READ,
@@ -832,13 +843,13 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             render: RENDER,
             enableAiControl: ASSISTANT,
             disableAiControl: ASSISTANT,
-            aiCommand: escape("19a"),
+            aiCommand: MESSAGE,
             getAiStatus: READ,
             onAiStatusChange: LISTEN,
             cancelAiCommand: IN_FLIGHT,
             getAiManager: READ,
             isAiEnabled: READ,
-            retryLastAiCommand: escape("19a"),
+            retryLastAiCommand: MESSAGE,
             getApiKeyManager: READ,
             getVoiceAdapter: READ,
             startVoiceInput: INPUT,
@@ -1101,12 +1112,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             init: LIFECYCLE,
             registerCommand: TOOLS,
             getRegisteredCommands: READ,
-            execute: escape("19a"),
+            execute: MESSAGE,
             setApiKey: KEYS,
             getStatus: READ,
             onStatusChange: LISTEN,
             cancel: IN_FLIGHT,
-            retry: escape("19a"),
+            retry: MESSAGE,
             getCommandRegistry: READ,
             getController: READ,
             getProvider: READ,
@@ -1193,10 +1204,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         file: "src/NodeBehavior.ts",
         half: "renderer",
         doors: {
-            onDragStart: escape("19a"),
-            onDragUpdate: escape("19a"),
-            onDragEnd: escape("19a"),
-            setPositionDirect: escape("19a"),
+            onDragStart: GESTURE,
+            onDragUpdate: GESTURE,
+            onDragEnd: GESTURE,
+            setPositionDirect: GESTURE,
             getNode: READ,
             select: SELECTION,
             dispose: LIFECYCLE,
@@ -1491,7 +1502,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         file: "src/ai/AiController.ts",
         half: "renderer",
         doors: {
-            execute: escape("19a"),
+            execute: MESSAGE,
             getLastInput: READ,
             getLastError: READ,
             clearLastError: ASSISTANT,
@@ -1559,7 +1570,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             description: READ,
             parameters: READ,
             examples: READ,
-            execute: escape("19a"),
+            execute: TOOL,
         },
     },
     {

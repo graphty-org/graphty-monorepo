@@ -108,7 +108,7 @@ can report progress and be cancelled. The stack moves only once the repaint has 
 
 | Method                | Parameters       | Returns         | Description               |
 | --------------------- | ---------------- | --------------- | ------------------------- |
-| `batchOperations(fn)` | `async Function` | `Promise<void>` | Batch multiple operations |
+| `batchOperations(fn)` | `async (tx) => void` | `Promise<void>` | Make the changes `fn` makes through `tx` one undoable step |
 
 ## Manager Classes
 

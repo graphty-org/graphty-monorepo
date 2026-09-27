@@ -1,12 +1,12 @@
 #!/usr/bin/env tsx
 
 // Node.js Bellman-Ford Performance Benchmark using Benchmark.js
-import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
-import { generateTestGraphs } from "../utils/test-data-generator";
-import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { bellmanFord } from "../../src/algorithms/shortest-path/bellman-ford";
 import { saveBenchmarkSession } from "../utils/benchmark-result";
+import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
+import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { formatSystemInfo, getSystemInfo } from "../utils/system-info";
+import { generateTestGraphs } from "../utils/test-data-generator";
 
 // Store test data globally for Benchmark.js
 const globalTestData = new Map();
@@ -84,14 +84,14 @@ async function runBellmanFordBenchmark(configType: "quick" | "comprehensive") {
 
             // Create a function that accesses the global store
             const testFn = new Function(
-                'return function() { const graph = globalTestData.get("' +
-                    testKey +
-                    '"); const result = bellmanFord(graph, 0); if (!result.distances || result.distances.size === 0) { throw new Error("Bellman-Ford returned empty result"); } }',
+                `return function() { const graph = globalTestData.get("${ 
+                    testKey 
+                    }"); const result = bellmanFord(graph, 0); if (!result.distances || result.distances.size === 0) { throw new Error("Bellman-Ford returned empty result"); } }`,
             )();
 
             // Make sure global references are available
-            (globalThis as any).globalTestData = globalTestData;
-            (globalThis as any).bellmanFord = bellmanFord;
+            Object.assign(globalThis, { globalTestData });
+            Object.assign(globalThis, { bellmanFord });
 
             benchmark.addTest(`Bellman-Ford ${size} vertices (sparse)`, testFn, testData, {
                 minSamples: config.iterations,
@@ -135,9 +135,9 @@ async function runBellmanFordBenchmark(configType: "quick" | "comprehensive") {
                 globalTestData.set(testKey, graph);
 
                 const testFn = new Function(
-                    'return function() { const graph = globalTestData.get("' +
-                        testKey +
-                        '"); const result = bellmanFord(graph, 0); if (!result.distances || result.distances.size === 0) { throw new Error("Bellman-Ford returned empty result"); } }',
+                    `return function() { const graph = globalTestData.get("${ 
+                        testKey 
+                        }"); const result = bellmanFord(graph, 0); if (!result.distances || result.distances.size === 0) { throw new Error("Bellman-Ford returned empty result"); } }`,
                 )();
 
                 benchmark.addTest(`Bellman-Ford ${size} vertices (small-world)`, testFn, testData, {
@@ -160,7 +160,7 @@ async function runBellmanFordBenchmark(configType: "quick" | "comprehensive") {
         const session = await benchmark.run();
 
         // Display summary
-        console.log("\n" + "=".repeat(70));
+        console.log(`\n${  "=".repeat(70)}`);
         console.log("BENCHMARK RESULTS SUMMARY");
         console.log("=".repeat(70));
         console.log("Size\tType\t\tEdges\tTime(ms)\tOps/sec\tMargin");

@@ -93,6 +93,9 @@ playwright-report/
 # redirects them to its own tmp/ (vitest.config.ts, FAILURE_SCREENSHOT_DIR); this rule
 # stays because every other package still writes them where vitest chooses.
 **/__screenshots__/
+# Vitest 4 copies each failing browser test's screenshot into .vitest-attachments/ beside the
+# config, as the attachment its reporters link to. Failure diagnostics, never committed.
+**/.vitest-attachments/
 
 # Playwright visual test artifacts
 **/playwright/visual/screenshots-diff/

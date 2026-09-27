@@ -1,11 +1,10 @@
 #!/usr/bin/env tsx
 
 // Node.js TeraHAC (Hierarchical Agglomerative Clustering) Performance Benchmark using Benchmark.js
-import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
-import { generateTestGraphs } from "../utils/test-data-generator";
-import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { teraHAC } from "../../src/research/terahac";
 import { saveBenchmarkSession } from "../utils/benchmark-result";
+import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
+import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { formatSystemInfo, getSystemInfo } from "../utils/system-info";
 
 // Configuration for Node.js benchmarks
@@ -143,7 +142,7 @@ function generateHierarchicalGraph(size: number) {
 
 async function runTeraHACBenchmark(configType: "quick" | "comprehensive") {
     console.log(`🚀 Running ${configType} TeraHAC benchmarks in Node.js`);
-    console.log("=" + "=".repeat(50));
+    console.log(`=${  "=".repeat(50)}`);
     console.log(formatSystemInfo(getSystemInfo()));
     console.log("");
 
@@ -191,18 +190,15 @@ async function runTeraHACBenchmark(configType: "quick" | "comprehensive") {
                     `TeraHAC ${size} vertices (${linkage})`,
                     () => {
                         const result = teraHAC(testData.graph, {
-                            linkageCriterion: linkage,
-                            maxClusters: Math.max(2, Math.floor(size / 10)),
-                            minClusterSize: 2,
-                            useApproximation: size > 200, // Use approximation for larger graphs
-                            seed: 42,
+                            linkage,
+                            numClusters: Math.max(2, Math.floor(size / 10)),
                         });
                         // Verify result to prevent dead code elimination
                         if (!result.dendrogram || result.clusters.size === 0) {
                             throw new Error("TeraHAC returned invalid result");
                         }
                     },
-                    { ...testData, linkage },
+                    { ...testData, algorithm: `TeraHAC ${linkage}` },
                     {
                         minSamples: config.iterations,
                         initCount: 1,
@@ -220,7 +216,7 @@ async function runTeraHACBenchmark(configType: "quick" | "comprehensive") {
         const session = await benchmark.run();
 
         // Display summary
-        console.log("\n" + "=".repeat(85));
+        console.log(`\n${  "=".repeat(85)}`);
         console.log("BENCHMARK RESULTS SUMMARY");
         console.log("=".repeat(85));
         console.log("Size\tLinkage\t\tEdges\tTime(ms)\tOps/sec\tClusters\tHeight\t\tMargin");
@@ -233,20 +229,19 @@ async function runTeraHACBenchmark(configType: "quick" | "comprehensive") {
             const testData = testGraphs.get(`${result.graphType}-${result.graphSize}`);
             let numClusters = "N/A";
             let treeHeight = "N/A";
-            const linkage = (result as any).linkage || "unknown";
+            const linkage = linkageCriteria.find((l) => result.algorithm === `TeraHAC ${l}`) ?? "average";
 
             if (testData) {
                 try {
                     const clusterResult = teraHAC(testData.graph, {
-                        linkageCriterion: linkage,
-                        maxClusters: Math.max(2, Math.floor(result.graphSize / 10)),
-                        minClusterSize: 2,
-                        useApproximation: result.graphSize > 200,
-                        seed: 42,
+                        linkage,
+                        numClusters: Math.max(2, Math.floor(result.graphSize / 10)),
                     });
                     numClusters = clusterResult.numClusters.toString();
-                    treeHeight = clusterResult.treeHeight.toFixed(3);
-                } catch (e) {}
+                    treeHeight = (clusterResult.distances.at(-1) ?? 0).toFixed(3);
+                } catch {
+                    // The summary column stays "N/A" when the rerun fails
+                }
             }
 
             console.log(

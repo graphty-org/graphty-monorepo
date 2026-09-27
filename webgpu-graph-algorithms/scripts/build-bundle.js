@@ -11,7 +11,7 @@
  *
  * Runtime dependencies stay external so consumers install exactly one copy of each: every name under
  * package.json "dependencies" and "peerDependencies" (@graphty/graph-format, @webgpu/types, webgpu,
- * @graphty/algorithms, @graphty/layout), subpaths included. Run "npm run build" (tsc -p tsconfig.build.json)
+ * the algorithms and layout packages), subpaths included. Run "npm run build" (tsc -p tsconfig.build.json)
  * first so that dist/src/ exists; scripts/bundle-types.js then writes one d.ts shim per entry that re-exports
  * the per-module declarations under dist/src/. At P0 the browser entry is `export {};`, so vite reports
  * "Generated an empty chunk: browser" -- a warning, not an error (contract 2.6).

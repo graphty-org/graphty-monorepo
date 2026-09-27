@@ -787,7 +787,7 @@ describe("RemoteLogClient", () => {
             // Create a fetch that never resolves
             let abortSignal: AbortSignal | undefined;
             fetchSpy.mockImplementation((_url, options) => {
-                abortSignal = (options as RequestInit).signal;
+                abortSignal = (options as RequestInit).signal ?? undefined;
                 return new Promise(() => {}); // Never resolves
             });
 
@@ -808,7 +808,7 @@ describe("RemoteLogClient", () => {
             // Create a fetch that never resolves
             let abortSignal: AbortSignal | undefined;
             fetchSpy.mockImplementation((_url, options) => {
-                abortSignal = (options as RequestInit).signal;
+                abortSignal = (options as RequestInit).signal ?? undefined;
                 return new Promise(() => {}); // Never resolves
             });
 
@@ -839,7 +839,7 @@ describe("RemoteLogClient", () => {
                     // Simulate AbortController behavior - return a promise that
                     // rejects when the signal is aborted
                     return new Promise((_resolve, reject) => {
-                        const signal = (options as RequestInit).signal;
+                        const {signal} = (options as RequestInit);
                         if (signal) {
                             signal.addEventListener("abort", () => {
                                 const error = new Error("The operation was aborted");

@@ -22,6 +22,10 @@
  *    its sizes put back, where it is required to say nothing. A gate nobody has ever seen fail is
  *    a gate nobody knows the shape of.
  *
+ * The same three things are asserted for every tree in `SUBJECT_TREES` -- Layout, Data and
+ * Algorithms -- where the subject is a registry key rather than a channel: a layout story names
+ * the engine it sets, a data story the format it loads, an algorithm story the algorithm it runs.
+ *
  * The rule itself, the vocabulary it reads and what counts as demonstrating a subject are in
  * `test/contracts/story-subject.ts`.
  */
@@ -32,7 +36,7 @@ import path from "node:path";
 import { assert, describe, it } from "vitest";
 
 import { PACKAGE_ROOT, readStories } from "./story-source";
-import { checkSubjects } from "./story-subject";
+import { checkSubjects, checkTreeSubjects } from "./story-subject";
 
 /**
  * How many stories in the `Styles/` tree must name a subject for the gate to count as awake.
@@ -44,6 +48,73 @@ import { checkSubjects } from "./story-subject";
  * it a second roster.
  */
 const MUST_CHECK_AT_LEAST = 25;
+
+/**
+ * How many stories in each registry-keyed tree must name a key, for the same reason as
+ * {@link MUST_CHECK_AT_LEAST}. Today: 27 layout stories, 20 data stories, 27 algorithm stories.
+ */
+const TREE_MUST_CHECK_AT_LEAST: Readonly<Record<string, number>> = {
+    "Layout/": 15,
+    Data: 10,
+    "Algorithms/": 15,
+};
+
+/**
+ * One hollow story per registry-keyed tree, and the same story with its subject back. The
+ * hollow one keeps its name and configures some other key, which is how a copied story that was
+ * never finished looks.
+ */
+const TREE_FIXTURES: readonly {
+    tree: string;
+    title: string;
+    exportName: string;
+    hollow: string;
+    whole: string;
+    missing: string;
+}[] = [
+    {
+        tree: "Layout/",
+        title: "Layout/2D",
+        exportName: "KamadaKawai",
+        hollow: `args: { layout: "circular" }`,
+        whole: `args: { layout: "kamada-kawai" }`,
+        missing: 'layout engine "kamada-kawai"',
+    },
+    {
+        tree: "Data",
+        title: "Data",
+        exportName: "CsvNeo4j",
+        hollow: `args: { dataSource: "json", dataSourceConfig: { data: "{}" } }`,
+        whole: `args: { dataSource: "csv", dataSourceConfig: { data: "a,b" } }`,
+        missing: 'format "csv"',
+    },
+    {
+        tree: "Algorithms/",
+        title: "Algorithms/Centrality",
+        exportName: "PageRank",
+        hollow: `args: { setup: storySetup({ algorithms: ["graphty:degree"] }) }`,
+        whole: `args: { setup: storySetup({ algorithms: ["graphty:pagerank"] }) }`,
+        missing: 'algorithm "pagerank"',
+    },
+];
+
+/**
+ * A one-story file in a tree of the fixture's choosing.
+ * @param title - The meta title.
+ * @param exportName - The story's export name.
+ * @param body - The story object's members.
+ * @returns The file's source.
+ */
+function treeStory(title: string, exportName: string, body: string): string {
+    return `import type { Meta, StoryObj } from "@storybook/web-components-vite";
+import { storySetup } from "./helpers";
+
+const meta: Meta = { title: "${title}", component: "graphty-element" };
+export default meta;
+
+export const ${exportName}: StoryObj = { ${body} };
+`;
+}
 
 /** Where a scratch story tree goes: the monorepo's own tmp, never the system one. */
 const SCRATCH_ROOT = path.join(PACKAGE_ROOT, "..", "tmp");
@@ -86,6 +157,16 @@ export const ArrowSizeVariations: Story = {
  * @returns What the gate found.
  */
 function gateOver(source: string): ReturnType<typeof checkSubjects> {
+    return checkSubjects(readScratch(source));
+}
+
+/**
+ * Read a one-file story tree of this test's own making, written to disk so the reader reads it
+ * exactly as it reads the real one.
+ * @param source - The single story file to put in it.
+ * @returns The reading.
+ */
+function readScratch(source: string): ReturnType<typeof readStories> {
     mkdirSync(SCRATCH_ROOT, { recursive: true });
 
     const dir = mkdtempSync(path.join(SCRATCH_ROOT, "story-subject-selftest-"));
@@ -93,7 +174,7 @@ function gateOver(source: string): ReturnType<typeof checkSubjects> {
     try {
         writeFileSync(path.join(dir, "Scratch.stories.ts"), source, "utf8");
 
-        return checkSubjects(readStories(dir));
+        return readStories(dir);
     } finally {
         rmSync(dir, { recursive: true, force: true });
     }
@@ -169,4 +250,62 @@ describe("a story demonstrates the subject it is named after", () => {
                 `raises worthless.`,
         );
     });
+});
+
+describe("a layout, data or algorithm story demonstrates the key it is named after", () => {
+    const reports = checkTreeSubjects(readStories());
+
+    for (const report of reports) {
+        it(`${report.tree}: writes every key its name spells`, () => {
+            assert.deepEqual(
+                report.findings.map((finding) => `${finding.id} (${finding.file}) names ${finding.missing.join(", ")}`),
+                [],
+                `Each of these stories is named after a key in the element's registry and never writes ` +
+                    `it, so its name promises a layout, a format or an algorithm the story does not use. ` +
+                    `Either put the key back, or rename the story -- and renaming it changes its story id, ` +
+                    `so stories/story-roster.json is edited in the same breath.`,
+            );
+        });
+
+        it(`${report.tree}: is still reading the tree`, () => {
+            assert.isAtLeast(
+                report.checked,
+                TREE_MUST_CHECK_AT_LEAST[report.tree],
+                `Only ${String(report.checked)} stories in ${report.tree} were found to name a key at all. ` +
+                    `The tree was retitled, the catalogue it reads moved, or the name matching in ` +
+                    `test/contracts/story-subject.ts stopped matching. A gate that recognises nothing ` +
+                    `passes everything.`,
+            );
+        });
+    }
+
+    it("covers exactly the trees it has a floor and a fixture for", () => {
+        const trees = reports.map((report) => report.tree);
+
+        assert.sameMembers(Object.keys(TREE_MUST_CHECK_AT_LEAST), trees);
+        assert.sameMembers(
+            TREE_FIXTURES.map((fixture) => fixture.tree),
+            trees,
+        );
+    });
+
+    for (const fixture of TREE_FIXTURES) {
+        it(`${fixture.tree}: catches a story that keeps its name and drops its subject`, () => {
+            const found = checkTreeSubjects(readScratch(treeStory(fixture.title, fixture.exportName, fixture.hollow)))
+                .flatMap((report) => report.findings)
+                .map((finding) => `${finding.id}: ${finding.missing.join(", ")}`);
+
+            assert.deepEqual(found, [`${fixture.title}::${fixture.exportName}: ${fixture.missing}`]);
+        });
+
+        it(`${fixture.tree}: says nothing about the same story once its subject is back`, () => {
+            const reports = checkTreeSubjects(readScratch(treeStory(fixture.title, fixture.exportName, fixture.whole)));
+
+            assert.deepEqual(
+                reports.flatMap((report) => report.findings),
+                [],
+            );
+            assert.strictEqual(reports.reduce((total, report) => total + report.checked, 0), 1);
+        });
+    }
 });

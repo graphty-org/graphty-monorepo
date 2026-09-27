@@ -59,7 +59,7 @@ function createTargetServer(): Promise<{ server: http.Server; port: number }> {
             }
 
             if (url === "/redirect") {
-                res.writeHead(302, { "Location": "http://127.0.0.1:" + (server.address() as { port: number }).port + "/index.html" });
+                res.writeHead(302, { "Location": `http://127.0.0.1:${  (server.address() as { port: number }).port  }/index.html` });
                 res.end();
                 return;
             }
@@ -84,7 +84,7 @@ function createTargetServer(): Promise<{ server: http.Server; port: number }> {
         });
 
         server.listen(0, "127.0.0.1", () => {
-            const port = (server.address() as { port: number }).port;
+            const {port} = (server.address() as { port: number });
             resolve({ server, port });
         });
     });

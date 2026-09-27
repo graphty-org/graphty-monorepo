@@ -13,7 +13,6 @@ export default defineConfig({
         // see test/setup/yield-to-event-loop.ts (the vitest 3 birpc 60 s timeout on long synchronous files)
         setupFiles: ["./test/setup/yield-to-event-loop.ts"],
         coverage: {
-            all: true,
             provider: "v8",
             reporter: ["text", "json-summary", "json", "lcov", "html"],
             reportsDirectory: "coverage",

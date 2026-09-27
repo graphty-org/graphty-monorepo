@@ -1,4 +1,5 @@
 import assert from "node:assert";
+
 import { fromEdgeArrays } from "@graphty/graph-format";
 import { describe, it } from "vitest";
 

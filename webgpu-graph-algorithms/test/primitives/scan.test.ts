@@ -11,7 +11,7 @@ import { isWebGpuGraphError } from "../../src/errors.js";
 import { prepareScan } from "../../src/primitives/scan.js";
 import { bindingOf, uploadBuffer } from "../helpers/device.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
-import { adapterClass, writeNoiseFixture } from "../helpers/noise-floor.js";
+import { adapterClass, sampleStrided, writeNoiseFixture } from "../helpers/noise-floor.js";
 import { assertCheckPasses } from "../helpers/sabotage.js";
 import { runScan, SCAN_SEED, scanInput, scanReport } from "../helpers/scan.js";
 import { testReduceScope } from "../helpers/segmented-reduce.js";
@@ -35,8 +35,8 @@ function expectedDispatches(ctx: GpuContext, count: number): number {
     return count <= wg * wg ? 3 : 5;
 }
 
-/** Every 1024th word of `out` and the total: the committed fixture of the 2^20 scan (the whole output would be 18 MB of JSON). */
-const FIXTURE_STRIDE = 1024;
+/** Every 1025th word (odd, issue #267) of `out` and the total: the committed fixture of the 2^20 scan (the whole output would be 18 MB of JSON). */
+const FIXTURE_STRIDE = 1025;
 
 describe("exclusiveScan (spec 6 row 2; P4-T2): equals the oracle bitwise, twice bitwise", () => {
     it("the row ladder 0, 1, 255, 256, 257, 4097 and the scaled 65537 / 2^20: out and the total word equal scanOracle; two runs bitwise equal", async (t) => {
@@ -150,7 +150,7 @@ describe("exclusiveScan (spec 6 row 2; P4-T2): equals the oracle bitwise, twice 
         }
     });
 
-    it("records the random1m u32 fixture of this adapter: every 1024th word of the 2^20 scan and its total (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {
+    it("records the random1m u32 fixture of this adapter: every 1025th word of the 2^20 scan and its total (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {
         requireGpu(t);
         const ctx = await acquire({ label: "scan-noise" });
         try {
@@ -160,11 +160,7 @@ describe("exclusiveScan (spec 6 row 2; P4-T2): equals the oracle bitwise, twice 
             const want = scanOracle(values);
             expectBitwiseEqual(run.out, want.out, "random1m vs oracle");
             expect(run.total).toBe(want.total);
-            const sample = new Uint32Array(count / FIXTURE_STRIDE + 1);
-            for (let i = 0; i < count / FIXTURE_STRIDE; i++) {
-                sample[i] = run.out[i * FIXTURE_STRIDE];
-            }
-            sample[sample.length - 1] = run.total;
+            const sample = [...sampleStrided(run.out, FIXTURE_STRIDE), run.total];
             writeNoiseFixture("scan-block", "random1m", adapterClass(ctx.caps), sample, "u32");
         } finally {
             ctx.dispose();

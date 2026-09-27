@@ -1,5 +1,4 @@
-import type { Graphty } from "../../../src/graphty-element";
-import { assertGraphLoaded, drawn, holds } from "../../assertions";
+import { assertGraphLoaded, drawn, holds, renderedElement } from "../../assertions";
 import { algorithmMetaBase, createAlgorithmStory, type Story, storySetup, waitForGraphSettled } from "../helpers";
 
 const meta = {
@@ -70,12 +69,10 @@ export const LouvainMoreCommunitiesThanColours: Story = {
     play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
 
-        const element = canvasElement.querySelector("graphty-element");
-
-        await holds(element !== null, "LouvainMoreCommunitiesThanColours: no <graphty-element> rendered");
-
-        const graphtyElement = element as Graphty;
-        const { session } = graphtyElement;
+        const { session } = await renderedElement(
+            canvasElement,
+            "LouvainMoreCommunitiesThanColours: no <graphty-element> rendered",
+        );
 
         // Started here rather than on load: inline data arrives as nodes and then edges, and a run
         // started on load can see the nodes before the edges.
@@ -172,11 +169,7 @@ export const KCore: Story = {
     play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
 
-        const element = canvasElement.querySelector("graphty-element");
-
-        await holds(element !== null, "KCore: no <graphty-element> rendered");
-
-        const { session } = element as Graphty;
+        const { session } = await renderedElement(canvasElement, "KCore: no <graphty-element> rendered");
 
         // Started here rather than on load, for the reason LouvainMoreCommunitiesThanColours gives.
         const run = session.runs.start("k-core", {}, { style: false });

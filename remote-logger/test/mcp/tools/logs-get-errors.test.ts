@@ -2,13 +2,13 @@
  * Tests for the logs_get_errors MCP tool.
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { beforeEach,describe, expect, it } from "vitest";
 
-import { LogStorage } from "../../../src/server/log-storage.js";
 import {
     logsGetErrorsHandler,
     logsGetErrorsTool,
 } from "../../../src/mcp/tools/logs-get-errors.js";
+import { LogStorage } from "../../../src/server/log-storage.js";
 
 describe("logs_get_errors tool", () => {
     let storage: LogStorage;

@@ -15,6 +15,14 @@ ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 
 cd "$ROOT_DIR"
 
+# node_modules must match the lockfile, or everything below runs against dependency versions CI
+# (pnpm install --frozen-lockfile) does not have. pnpm copies the lockfile it installed from to
+# node_modules/.pnpm/lock.yaml, byte for byte.
+if ! cmp -s pnpm-lock.yaml node_modules/.pnpm/lock.yaml; then
+    echo "node_modules is out of date with pnpm-lock.yaml; run pnpm install" >&2
+    exit 1
+fi
+
 echo "========================================"
 echo "Pre-push validation"
 echo "========================================"
@@ -131,6 +139,10 @@ if affected graphty-element; then
     run_step "Bundle size (graphty-element)" "pnpm run check:bundle-size"
 fi
 
+# Every tool a package's scripts run or its *.config.* files import is declared by that package,
+# not only by the root, where hoisting hides the gap until the package builds somewhere else.
+run_step "Declared build tools" "pnpm run check:declared-tools"
+
 # Dead relative links and #anchors in the Markdown, MDX and HTML, and links to this repository's own
 # files on GitHub, resolved against the working tree. Offline: the network half of the check
 # (github.com/graphty-org, and graphty.app against the assembled site) runs in CI's "Links" job,
@@ -212,12 +224,12 @@ affected layout && { (cd layout && npm run test:run) || { FAILED=1; TESTS_FAILED
 echo "  Testing graphty-element (default + mesh + contract + xr)..."
 affected graphty-element && { (cd graphty-element && npm run test:prepush) || { FAILED=1; TESTS_FAILED=1; }; }
 
-# The cost-estimate stopwatch test is NOT part of this gate: run it by hand on a quiet machine with
-# `pnpm --filter @graphty/graphty-element run test:cost`. Its rates were fitted on this reference
-# machine, and even timed on running time and pinned to the P-cores it cannot be made immune to a
-# busy hyperthread sibling -- memory-bound rows such as degree run 2-2.7x slower while the
-# calibration probe slows 1.5x -- and a gate cannot promise an idle machine
-# (see test/session/cost/estimate-against-measured-runs.test.ts).
+# The cost-estimate stopwatch test is NOT part of this gate. It runs in CI's "Cost Estimate Accuracy"
+# job on every push to master (and by hand with `pnpm --filter @graphty/graphty-element run test:cost`),
+# where a drift turns that job red without blocking anyone. It stays out of here because a gate cannot
+# promise an idle machine: even timed on running time and pinned to the P-cores it cannot be made immune
+# to a busy hyperthread sibling -- memory-bound rows such as degree run 2-2.7x slower while the
+# calibration probe slows 1.5x (see test/session/cost/estimate-against-measured-runs.test.ts).
 
 # graphty is NOT run here -- it has no 'default' project to run. Its whole suite is
 # playwright-backed, so it gets its own step (and its own flag) after this block.
@@ -240,8 +252,8 @@ echo ""
 # graphty -- the FULL app shell suite, browser (playwright/chromium) and all.
 #
 # This is a separate step rather than a line in the "Fast tests" block above because it
-# is not a 'default'-project run: graphty/vitest.config.ts sets browser.enabled and
-# defines no non-browser project, so `npm run test:run` here IS the browser suite.
+# is not a 'default'-project run: graphty/vitest.config.ts runs the app's tests in a browser
+# project, plus a small node project for its lint rules, and `npm run test:run` runs both.
 #
 # Running all of it is a measured choice, not an assumption. Wall clock for the whole
 # suite -- 1762 tests across 109 files -- is ~14s, and ~14s again with node_modules/.vite

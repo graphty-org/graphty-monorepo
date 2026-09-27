@@ -1,5 +1,6 @@
 /**
- * @file The number of scene objects grows with styles and nodes, never with edges (issue #441).
+ * @file In 3D, the number of scene objects grows with styles and nodes, never with edges (issue
+ * #441).
  *
  * THE DEFECT THIS GUARDS. Arrow heads were once thin instances of one shared mesh, and a single
  * commit turned each of them back into a `Mesh` with its own material. Nothing in the suite
@@ -12,6 +13,9 @@
  * batch lives or dies by: when a node moves, the batch its edges are drawn from uploads its matrix
  * buffer on the next frame, and the matrix Babylon draws that edge's instance with is the moved one.
  * A batch that writes its own array and forgets to tell Babylon draws every edge where it was.
+ *
+ * WHAT IS NOT. 2D. A 2D line still owns its mesh, so a 2D graph still adds one mesh per edge
+ * (issue #444). The last test here holds that as a known failure, so the fix for #444 flips it.
  */
 import "@babylonjs/core/Meshes/thinInstanceMesh";
 
@@ -20,7 +24,7 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { Edge } from "../../src/Edge";
 import { Graph } from "../../src/Graph";
-import { styleEveryEdge } from "../helpers/testSetup";
+import { addStyleLayer, styleEveryEdge } from "../helpers/testSetup";
 
 /** How many nodes sit on the circle. */
 const NODE_COUNT = 30;
@@ -60,6 +64,8 @@ describe("the scene grows with styles and nodes, not with edges", () => {
             Array.from({ length: EDGES_PER_NODE }, (__, step) => ({
                 src: `n${String(i)}`,
                 dst: `n${String((i + step + 1) % NODE_COUNT)}`,
+                // Which of two edge styles the second-style test paints this edge with.
+                half: step % 2 === 0 ? "a" : "b",
             })),
         );
         await graph.addNodes(nodes);
@@ -115,10 +121,32 @@ describe("the scene grows with styles and nodes, not with edges", () => {
                 `started with ${String(empty)}: that is growing with the edges`,
         );
 
-        // The bound counts ONE line appearance, so check there is one, or it is the wrong bound.
-        const appearances = new Set(edges().map((edge) => edge.drawnLine?.name));
-        assert.notInclude([...appearances], undefined, "every line is a slot in a batch");
-        assert.equal(appearances.size, 1, "every edge shares the one line appearance");
+        // The bound counts ONE line batch, so check there is one, or it is the wrong bound. The
+        // batch OBJECT, not its name: two batches of one appearance share a name, and the bound's
+        // slack would let a few of them through.
+        assert.isTrue(
+            edges().every((edge) => edge.drawnLine !== null),
+            "every line is a slot in a batch",
+        );
+        assert.equal(new Set(edges().map((edge) => edge.mesh)).size, 1, "every line is a slot in the one batch");
+    });
+
+    it("adds exactly one line batch for a second edge style", async () => {
+        await styleEveryEdge(graph, { "edge.arrowHead": "none" });
+        await frame();
+        const oneStyle = graph.scene.meshes.length;
+
+        await addStyleLayer(graph, {
+            name: "half the edges",
+            target: "edge",
+            selector: { match: "expression", where: "data.half == 'b'" },
+            set: { "edge.color": "#ff00ff" },
+        });
+        await frame();
+
+        const batches = new Set(edges().map((edge) => edge.mesh));
+        assert.equal(batches.size, 2, "the second style draws its edges from a second batch");
+        assert.equal(graph.scene.meshes.length, oneStyle + 1, "and that batch is the one mesh it adds");
     });
 
     it("draws a few hundred arrow caps of one shape as one batch", async () => {
@@ -171,8 +199,11 @@ describe("the scene grows with styles and nodes, not with edges", () => {
     }
 
     /**
-     * Whether Babylon's own copy of a batch's instance matrices -- the one it draws from --
-     * has an instance at a point.
+     * Whether a batch's instance matrices have an instance at a point.
+     *
+     * This reads the batch's own array -- Babylon keeps a reference to it, not a copy -- so it
+     * says which slot the batch WROTE, never whether the GPU got it. The upload is pinned only by
+     * the `thinInstanceBufferUpdated` spy in `moveAndWatch`.
      * @param mesh - The batch mesh.
      * @param at - The point.
      * @returns True when some instance is translated there.
@@ -198,7 +229,7 @@ describe("the scene grows with styles and nodes, not with edges", () => {
         assert.include(uploads, "matrix", "the frame after a move uploads the line matrices");
         const after = edge.drawnCentre;
         assert.isFalse(after.equalsWithEpsilon(before, 1e-3), "the edge's slot moved with its node");
-        assert.isTrue(drawsAt(lineBatch, after), "Babylon draws the line batch from the moved matrix");
+        assert.isTrue(drawsAt(lineBatch, after), "the line batch wrote the moved matrix");
         assert.isFalse(drawsAt(lineBatch, before), "and no instance is still drawn where the edge was");
     });
 
@@ -218,8 +249,43 @@ describe("the scene grows with styles and nodes, not with edges", () => {
         const uploads = moveAndWatch("n0", capBatch);
 
         assert.include(uploads, "matrix", "the frame after a move uploads the cap matrices");
+        // Moving the destination turns the line, and the billboard shader points the cap along it.
+        assert.include(uploads, "arrowDirection", "and the directions the caps point along");
         const after = cap.position;
         assert.isFalse(after.equalsWithEpsilon(before, 1e-3), "the cap's slot moved with its node");
-        assert.isTrue(drawsAt(capBatch, after), "Babylon draws the cap batch from the moved matrix");
+        assert.isTrue(drawsAt(capBatch, after), "the cap batch wrote the moved matrix");
+        assert.isFalse(drawsAt(capBatch, before), "and no cap is still drawn where it was");
+    });
+
+    it("uploads a cap batch's sizes and colours when the cap style changes", async () => {
+        await styleEveryEdge(graph, { "edge.arrowHead": "normal" });
+        await frame();
+
+        const capBatch = edges()[0].arrowMesh?.batchMesh;
+        assert.isDefined(capBatch);
+        assert.isNotNull(capBatch);
+        const uploads: string[] = [];
+        const upload = capBatch.thinInstanceBufferUpdated.bind(capBatch);
+        capBatch.thinInstanceBufferUpdated = (kind: string): void => {
+            uploads.push(kind);
+            upload(kind);
+        };
+
+        await styleEveryEdge(graph, { "edge.arrowHeadColor": "#ff00ff", "edge.arrowHeadSize": 3 }, "restyle caps");
+        await frame();
+
+        assert.include(uploads, "arrowColor", "a new cap colour is uploaded");
+        assert.include(uploads, "arrowSize", "a new cap size is uploaded");
+    });
+
+    // Known failure, kept as a tripwire: a 2D line still owns its mesh (issue #444), so 300 edges
+    // are about 300 more meshes. When 2D lines are batched this starts passing, `it.fails` reports
+    // it, and the fix is to change `it.fails` to `it`.
+    it.fails("draws a few hundred 2D edges of one style as one batch", async () => {
+        await graph.setViewMode("2d");
+        await styleEveryEdge(graph, { "edge.arrowHead": "none" });
+        await frame();
+
+        assert.isAtMost(graph.scene.meshes.length, bound(1), "2D edges grow the scene");
     });
 });

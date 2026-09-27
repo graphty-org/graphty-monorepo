@@ -14,10 +14,10 @@
  *   reading the log, and never asserted.
  * - Load, clear, load, clear must return the scene to exactly the meshes, materials and textures
  *   it started with.
- * - Draw calls and materials must not grow with the number of edges.
+ * - Draw calls, materials and scene meshes must not grow with the number of edges.
  *
- * When a change lowers a count on purpose (instanced edges, issue #419, will), or raises one and
- * the cost is accepted, rewrite the baseline and commit it:
+ * When a change lowers a count on purpose, or raises one and the cost is accepted, rewrite the
+ * baseline and commit it:
  *
  *     GRAPHTY_UPDATE_RENDER_BUDGET=1 npx vitest run --project=browser test/browser/render-budget.test.ts
  */
@@ -142,36 +142,40 @@ describe("the cost of drawing a whole graph", () => {
     for (const [nodeCount, edgeCount] of GRAPHS) {
         const name = `${String(nodeCount)} nodes, ${String(edgeCount)} edges`;
 
-        it(`stays within its baseline for ${name}`, async () => {
-            graph = await createTestGraph();
-            await graph.setLayout("fixed");
-            await load(graph, nodeCount, edgeCount);
+        it(
+            `stays within its baseline for ${name}`,
+            async () => {
+                graph = await createTestGraph();
+                await graph.setLayout("fixed");
+                await load(graph, nodeCount, edgeCount);
 
-            const { frameMs, ...counts } = measure(graph);
-            // Printed for trend reading only. A frame's time depends on the machine and on what else
-            // it is doing, so it is never a pass/fail condition.
-            console.log(`render budget, ${name}: ${JSON.stringify(counts)}, frame ${frameMs.toFixed(1)} ms`);
+                const { frameMs, ...counts } = measure(graph);
+                // Printed for trend reading only. A frame's time depends on the machine and on what else
+                // it is doing, so it is never a pass/fail condition.
+                console.log(`render budget, ${name}: ${JSON.stringify(counts)}, frame ${frameMs.toFixed(1)} ms`);
 
-            if (UPDATING) {
-                recorded[name] = counts;
+                if (UPDATING) {
+                    recorded[name] = counts;
 
-                return;
-            }
+                    return;
+                }
 
-            const budget = (baseline as Record<string, Counts | undefined>)[name];
-            assert.isDefined(budget, `render-budget.baseline.json has no entry for "${name}"; rewrite it`);
+                const budget = (baseline as Record<string, Counts | undefined>)[name];
+                assert.isDefined(budget, `render-budget.baseline.json has no entry for "${name}"; rewrite it`);
 
-            for (const key of Object.keys(counts) as (keyof Counts)[]) {
-                const limit = Math.floor(budget[key] * (1 + BUDGET_MARGIN));
-                assert.isAtMost(
-                    counts[key],
-                    limit,
-                    `${name}: ${key} is ${String(counts[key])}, over its baseline of ${String(budget[key])} ` +
-                        `plus ${String(BUDGET_MARGIN * 100)}%. If the cost is intended, rewrite the baseline ` +
-                        "(see the top of this file).",
-                );
-            }
-        }, LARGE_LOAD_TIMEOUT_MS);
+                for (const key of Object.keys(counts) as (keyof Counts)[]) {
+                    const limit = Math.floor(budget[key] * (1 + BUDGET_MARGIN));
+                    assert.isAtMost(
+                        counts[key],
+                        limit,
+                        `${name}: ${key} is ${String(counts[key])}, over its baseline of ${String(budget[key])} ` +
+                            `plus ${String(BUDGET_MARGIN * 100)}%. If the cost is intended, rewrite the baseline ` +
+                            "(see the top of this file).",
+                    );
+                }
+            },
+            LARGE_LOAD_TIMEOUT_MS,
+        );
     }
 
     it.runIf(UPDATING)("writes the baseline", async () => {
@@ -228,11 +232,9 @@ describe("the number of edges", () => {
         assert.strictEqual(more.materials, fewer.materials, "materials grew with the edges");
     });
 
-    // Known failure, kept as a tripwire. Every edge's line and arrowhead is still an InstancedMesh,
-    // and Babylon lists each one in scene.meshes, so the list grows by two per edge. Issue #419 draws
-    // edges as instances of one mesh per style; when that lands this starts passing, `it.fails`
-    // reports it, and the fix is to change `it.fails` to `it`.
-    it.fails("does not change the number of scene meshes", async () => {
+    // Each edge's line and arrowhead is a slot in one batch mesh per appearance (issue #419), so
+    // twice the edges is the same scene meshes. A renderer that gives each edge a mesh fails it.
+    it("does not change the number of scene meshes", async () => {
         const fewer = await costOf(200);
         const more = await costOf(400);
 

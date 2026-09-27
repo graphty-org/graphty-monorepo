@@ -297,7 +297,11 @@ export class EdgeLineBatch {
         this.mesh.thinInstanceBufferUpdated("matrix");
     }
 
-    /** Drop the mesh, the buffer and the per-frame upload. Every slot in this batch is now stale. */
+    /**
+     * Drop the mesh, its material, the buffer and the per-frame upload. Every slot in this batch
+     * is now stale. The material goes too: every batch's line mesh is built with its own, and
+     * `mesh.dispose()` alone would leave it in `scene.materials` after a clear.
+     */
     dispose(): void {
         if (this.gone) {
             return;
@@ -305,7 +309,7 @@ export class EdgeLineBatch {
 
         this.gone = true;
         this.mesh.getScene().onBeforeRenderObservable.removeCallback(this.flushOnRender);
-        this.mesh.dispose();
+        this.mesh.dispose(false, true);
     }
 
     /**

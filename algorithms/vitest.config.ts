@@ -10,9 +10,9 @@ export default defineConfig({
                     environment: "happy-dom",
                     pool: "forks",
                     testTimeout: 30000,
-                    // Increase hook timeout to avoid vitest-worker timeout errors
-                    // This happens when tests are CPU-intensive and the worker can't respond
-                    hookTimeout: 60000,
+                    // see test/setup/yield-to-event-loop.ts -- without it a file of long synchronous
+                    // tests holds the worker past vitest's fixed 60 s RPC timeout and fails a green run
+                    setupFiles: ["./test/setup/yield-to-event-loop.ts"],
                     exclude: [
                         // Browser-specific tests
                         "test/browser/**/*.test.ts",
@@ -23,12 +23,6 @@ export default defineConfig({
                         "**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*",
                     ],
                     include: ["test/**/*.test.ts", "src/**/*.test.ts"],
-                    poolOptions: {
-                        forks: {
-                            // Isolate tests to prevent memory buildup causing worker timeouts
-                            isolate: true,
-                        },
-                    },
                 },
             },
             {
@@ -79,10 +73,6 @@ export default defineConfig({
         slowTestThreshold: 5000,
         // Force exit after tests complete to prevent hanging
         teardownTimeout: 10000,
-        // Ignore unhandled errors from vitest-worker timeouts
-        // This is a known vitest issue: https://github.com/vitest-dev/vitest/issues/3077
-        // The tests pass but vitest-worker RPC can timeout on CPU-intensive test suites
-        dangerouslyIgnoreUnhandledErrors: true,
     },
     resolve: {
         alias: {

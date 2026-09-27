@@ -5,6 +5,17 @@ import { defineConfig } from "vitest/config";
 /** The tests that mount the real graphty-element, unmocked. */
 const REAL_ELEMENT_TESTS = "src/**/*.real-element.test.tsx";
 const BASE_EXCLUDE = ["**/node_modules/**", "**/dist/**", "**/.worktrees/**"];
+/**
+ * A fresh headless Chromium config per project: vitest writes each instance's name into the
+ * object it is handed, so two projects must not share one.
+ * @returns the browser config.
+ */
+const chromium = () => ({
+    enabled: true,
+    headless: true,
+    provider: "playwright",
+    instances: [{ browser: "chromium" as const }],
+});
 
 export default defineConfig({
     plugins: [react()],
@@ -18,29 +29,42 @@ export default defineConfig({
     },
     test: {
         globals: true,
-        browser: {
-            enabled: true,
-            headless: true,
-            provider: "playwright",
-            instances: [{ browser: "chromium" }],
-        },
         exclude: BASE_EXCLUDE,
-        // Two projects, so the tests that mount the real graphty-element get a browser of
-        // their own. Every file of one browser project runs in an iframe of the same page, and
-        // same-page iframes share one main thread: a real element loading and laying out a
-        // sample holds that thread for seconds at a time, and a neighbouring file's module
-        // import then outruns its test timeout.
+        // The tests that mount the real graphty-element get a browser project of their own.
+        // Every file of one browser project runs in an iframe of the same page, and same-page
+        // iframes share one main thread: a real element loading and laying out a sample holds
+        // that thread for seconds at a time, and a neighbouring file's module import then
+        // outruns its test timeout.
         projects: [
             {
                 extends: true,
-                test: { name: "app", exclude: [...BASE_EXCLUDE, REAL_ELEMENT_TESTS] },
+                test: {
+                    name: "browser",
+                    include: ["src/**/*.test.{ts,tsx}"],
+                    exclude: [...BASE_EXCLUDE, REAL_ELEMENT_TESTS],
+                    browser: chromium(),
+                    setupFiles: "./src/test/setup.ts",
+                },
             },
             {
                 extends: true,
-                test: { name: "real-element", include: [REAL_ELEMENT_TESTS] },
+                test: {
+                    name: "real-element",
+                    include: [REAL_ELEMENT_TESTS],
+                    browser: chromium(),
+                    setupFiles: "./src/test/setup.ts",
+                },
+            },
+            {
+                // Tests of the app's tooling (its lint rules), which need Node APIs.
+                extends: true,
+                test: {
+                    name: "node",
+                    include: ["test/**/*.test.ts"],
+                    environment: "node",
+                },
             },
         ],
-        setupFiles: "./src/test/setup.ts",
         coverage: {
             all: true,
             provider: "v8",

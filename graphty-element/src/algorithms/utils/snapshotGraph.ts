@@ -7,6 +7,7 @@ import { Graph as AlgorithmGraph } from "@graphty/algorithms";
 import type { GraphSnapshot } from "@graphty/graph-format";
 
 import type { DataManager } from "../../managers/DataManager";
+import { createScopedInput, orientationOf, type ScopedInput } from "../input/ScopedInput";
 
 /**
  * How an algorithm wants the reader's graph presented to `@graphty/algorithms`.
@@ -45,23 +46,26 @@ export type AlgorithmGraphView = AlgorithmGraph;
  * than the part of it the scene has caught up with.
  * @param data - the element's data manager, which owns the one snapshot
  * @param mode - the shape this algorithm needs; see {@link AlgorithmGraphMode}
+ * @param input - what the run reads, from `Algorithm.input`; the whole graph when absent
  * @returns a freshly built Graph for `@graphty/algorithms`
  */
-export function toAlgorithmGraph(data: DataManager, mode: AlgorithmGraphMode): AlgorithmGraph {
-    const declared = data.getSnapshot();
-    // The undirected view is derived once per snapshot and cached by the store, so two algorithms
-    // run back to back over the same data pay for it once. It is also what collapses a reciprocal
-    // pair into a single edge; building an undirected Graph straight from the directed snapshot
-    // would count that pair twice, which is the doubling this conversion exists to end.
-    const oriented = mode === "directed" ? declared : data.undirected(declared).snapshot;
-    // THE ELEMENT SIMPLIFIES BEFORE IT CONVERTS, because `@graphty/algorithms` cannot represent a
-    // multigraph: its `Graph` holds one edge per pair, so a second parallel edge replaces the first
-    // and its weight is lost.
-    // Summing rather than taking the first, because a repeated edge between two nodes is MORE
-    // connection, not the same connection -- and it is the same reading a weighted layout gives
-    // the same number.
-    const snapshot = oriented.flags.multigraph ? oriented.simplified({ weights: "sum" }).snapshot : oriented;
-    return build(snapshot, mode);
+export function toAlgorithmGraph(
+    data: DataManager,
+    mode: AlgorithmGraphMode,
+    input: ScopedInput = createScopedInput(data, orientationOf(mode)),
+): AlgorithmGraph {
+    // The input accessor derives the snapshot: over the run's scope when the algorithm declares
+    // one, else the whole graph, whose undirected view the store derives once per snapshot. It is
+    // also what collapses a reciprocal pair into a single edge; building an undirected Graph
+    // straight from the directed snapshot would count that pair twice, which is the doubling this
+    // conversion exists to end.
+    //
+    // THE INPUT IS SIMPLIFIED, because `@graphty/algorithms` cannot represent a multigraph: its
+    // `Graph` holds one edge per pair, so a second parallel edge replaces the first and its weight
+    // is lost. Summing rather than taking the first, because a repeated edge between two nodes is
+    // MORE connection, not the same connection -- and it is the same reading a weighted layout
+    // gives the same number.
+    return build(input.subgraph(), mode);
 }
 
 /**

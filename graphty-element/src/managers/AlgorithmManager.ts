@@ -1,4 +1,5 @@
 import { Algorithm } from "../algorithms/Algorithm";
+import { type ResolvedInputScope, withRunInput } from "../algorithms/input/ScopedInput";
 import { mergedParallelEdges } from "../algorithms/utils/snapshotGraph";
 import type { BuiltInAlgorithmDescriptor, LegacyAlgorithmKey } from "../catalog/algorithms";
 import { registeredAlgorithmByKey } from "../catalog/registry";
@@ -7,6 +8,7 @@ import { GraphtyError } from "../errors";
 import type { Graph } from "../Graph";
 import { createRunResult, resultPath, type RunResult } from "../session/results";
 import type { RunExecutionContext, RunOutcome, RunProgressReport } from "../session/runs";
+import { resolutionBehind } from "../session/scope/ScopeApi";
 import type { AlgorithmSpecificOptions } from "../utils/queue-migration";
 import type { EventManager } from "./EventManager";
 import type { Manager } from "./interfaces";
@@ -324,6 +326,22 @@ export class AlgorithmManager implements Manager {
     }
 
     /**
+     * A run's scope as bitmaps over the snapshot the graph holds now. The run resolved it when it
+     * started; a freeze since then resolves it again, so an algorithm never reads bitmaps over a
+     * snapshot that is no longer the graph.
+     * @param context - What the run handed the work.
+     * @returns The scope, or null when the run carries none this module can read.
+     */
+    private scopeOf(context: RunExecutionContext): ResolvedInputScope | null {
+        const behind = resolutionBehind(context.scope);
+        if (behind === undefined) {
+            return null;
+        }
+
+        return behind.graph === this.graph.getDataManager().getSnapshot() ? behind : behind.now();
+    }
+
+    /**
      * Do the work.
      *
      * One call, whichever family the algorithm belongs to: `publishResult` is the name every
@@ -342,16 +360,21 @@ export class AlgorithmManager implements Manager {
         context: RunExecutionContext,
         descriptor: AlgorithmDescriptor,
     ): Promise<RunResult> {
-        const published = await algorithm.publishResult(
-            {
-                signal: context.signal,
-                report: (progress: RunProgressReport) => {
-                    context.report(progress);
+        // The run's scope is handed to the algorithm through the input accessor, which gives it to a
+        // class that declares a scoped input and the whole graph to every other; whatever it
+        // derives is held until the work settles.
+        const published = await withRunInput(algorithm, this.graph, () => this.scopeOf(context), context.signal, () =>
+            algorithm.publishResult(
+                {
+                    signal: context.signal,
+                    report: (progress: RunProgressReport) => {
+                        context.report(progress);
+                    },
+                    yieldNow: yieldToHost,
                 },
-                yieldNow: yieldToHost,
-            },
-            context.runId,
-            descriptor.fields,
+                context.runId,
+                descriptor.fields,
+            ),
         );
 
         return published ?? emptyResult(context, descriptor);

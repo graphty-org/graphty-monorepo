@@ -393,6 +393,34 @@ function idSetOf<TId>(mask: U32, length: number, idOf: (index: number) => TId): 
     return ids;
 }
 
+/** A resolution and the snapshot it covers. */
+interface Membership {
+    readonly resolution: Resolution;
+    readonly graph: GraphSnapshot;
+}
+
+/** What stands behind a resolved scope: its bitmaps, and how to resolve the same spec again now. */
+interface ScopeBehind extends Membership {
+    /**
+     * The same specification resolved against the graph as it stands now.
+     * @returns The resolution and its snapshot.
+     */
+    now(): Membership;
+}
+
+/** The resolution behind each resolved scope a resolver dressed, for the internal readers of its bitmaps. */
+const resolutionsBehind = new WeakMap<ResolvedScope, ScopeBehind>();
+
+/**
+ * The bitmaps behind a resolved scope, and the snapshot they cover. Internal: a run hands its
+ * algorithm these rather than the id sets.
+ * @param scope - A resolved scope.
+ * @returns What stands behind it, or undefined for a scope no resolver dressed.
+ */
+export function resolutionBehind(scope: ResolvedScope): ScopeBehind | undefined {
+    return resolutionsBehind.get(scope);
+}
+
 /**
  * Dress a resolution as the published {@link ResolvedScope}. `nodes`, `edges` and `digest` are
  * lazy: each is built on its first read and kept by this object; the digest is memoised on the
@@ -755,8 +783,10 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
     const resolveNow = (spec: Scope): ResolvedScope => {
         assertScope(spec);
         const { resolution, graph } = membershipOf(spec);
+        const resolved = resolvedScopeOf(resolution, graph, spec);
+        resolutionsBehind.set(resolved, { resolution, graph, now: () => membershipOf(spec) });
 
-        return resolvedScopeOf(resolution, graph, spec);
+        return resolved;
     };
 
     return {

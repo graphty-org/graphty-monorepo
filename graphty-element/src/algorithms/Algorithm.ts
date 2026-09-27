@@ -10,6 +10,15 @@ import { type OptionsSchema as ZodOptionsSchema } from "../config";
 import { GraphtyError } from "../errors";
 import { Graph } from "../Graph";
 import type { RunResult } from "../session/results";
+import type { InputOrientation } from "./input/derivedInputs";
+import {
+    createScopedInput,
+    type ElementScopedInput,
+    orientationOf,
+    runInputOf,
+    type ScopedInputOptions,
+    type ScopeInputDeclaration,
+} from "./input/ScopedInput";
 import type { AlgorithmRunContext } from "./results/types";
 import { type OptionsFromSchema, type OptionsSchema, resolveOptions } from "./types/OptionSchema";
 import { type AlgorithmGraphMode, toAlgorithmGraph } from "./utils/snapshotGraph";
@@ -117,7 +126,8 @@ export interface AcceleratedAlgorithmRun {
      * The snapshot the work runs over: the declared one for `"directed"`, the undirected view for
      * `"undirected"`, in either case with every group of parallel edges collapsed to one edge
      * carrying the group's summed weight. Its `ids` map is how a node id becomes the index every
-     * result is keyed by, and the node space is the declared one either way.
+     * result is keyed by: the declared node space for the whole graph, the scope's compact one
+     * for an algorithm that declares a scoped input.
      */
     readonly snapshot: GraphSnapshot;
     /**
@@ -182,38 +192,6 @@ export interface AcceleratedAlgorithmRun {
 // }
 
 /**
- * One map from the declared edge space onto the space a run's result is keyed by.
- *
- * Two derivations can stand between the two -- the undirected view, which collapses a reciprocal
- * pair, and the simplification, which collapses a group of parallel edges -- and each publishes a
- * map from ITS input. An adapter has one edge index to look up, `Edge.index`, so the two are
- * composed here rather than at every call site. A step that changed nothing publishes no map,
- * which is why either argument may be null.
- * @param first - Declared edge index -> index in the undirected view, or null.
- * @param second - Index in that view -> index in the simplified snapshot, or null.
- * @returns The composed map, or null when neither step renumbered anything.
- */
-function composeEdgeRemap(first: U32 | null, second: U32 | null): U32 | null {
-    if (second === null) {
-        return first;
-    }
-
-    if (first === null) {
-        return second;
-    }
-
-    const composed = new Uint32Array(first.length);
-    for (let edge = 0; edge < first.length; edge++) {
-        const middle = first[edge];
-        // A dropped edge has nowhere to land in the second space, and INVALID_INDEX is how it says
-        // so -- indexing with it would read a neighbour's answer.
-        composed[edge] = middle === INVALID_INDEX ? INVALID_INDEX : second[middle];
-    }
-
-    return composed;
-}
-
-/**
  * Base class for all graph algorithms
  * @template TOptions - The options type for this algorithm (defaults to empty object)
  * @example
@@ -257,6 +235,17 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      * This is the new unified system that provides both validation and UI metadata.
      */
     static zodOptionsSchema?: ZodOptionsSchema;
+
+    /**
+     * Whether this algorithm computes over its run's scope. `"subgraph"`: the input accessor hands
+     * a run's algorithm the compact snapshot of its scope; absent or `"none"`: the whole graph.
+     *
+     * A fact about the class at run time, because an algorithm that still lists its nodes from the
+     * data manager would compute over a scoped topology while reporting every node. Declare it
+     * only once every node list, edge read and count the class takes comes from {@link input}.
+     * @internal
+     */
+    static scopeInput?: ScopeInputDeclaration;
 
     protected graph: Graph;
 
@@ -306,7 +295,20 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      * @returns a freshly built Graph for the algorithm package
      */
     protected algorithmGraph(mode: AlgorithmGraphMode): AlgorithmGraph {
-        return toAlgorithmGraph(this.graph.getDataManager(), mode);
+        return toAlgorithmGraph(this.graph.getDataManager(), mode, this.input(orientationOf(mode)));
+    }
+
+    /**
+     * The graph this run computes over, in one orientation: its scope's compact snapshot when the
+     * class declares {@link Algorithm.scopeInput} and runs as a run, else the whole graph. Both
+     * seams below read through it.
+     * @param orientation - `"declared"` or `"undirected"`.
+     * @param options - How parallel edges merge; `"sum"` by default.
+     * @returns The input.
+     * @internal
+     */
+    protected input(orientation: InputOrientation, options?: ScopedInputOptions): ElementScopedInput {
+        return createScopedInput(this.graph.getDataManager(), orientation, options, runInputOf(this));
     }
 
     /**
@@ -336,14 +338,12 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      * ```
      */
     protected accelerated(capability: string, mode: AlgorithmGraphMode): AcceleratedAlgorithmRun {
-        const data = this.graph.getDataManager();
-        const declared = data.getSnapshot();
-        /* The undirected view is derived once per snapshot and cached by the store, and it leaves
-           the NODE space alone -- so a node result indexes the declared snapshot's nodes directly
-           and only an EDGE result needs the map. */
-        const derived = mode === "undirected" ? data.undirected(declared) : null;
-        const oriented = derived === null ? declared : derived.snapshot;
-        /* THE ELEMENT SIMPLIFIES BEFORE IT DISPATCHES, the same step `toAlgorithmGraph` takes for
+        /* The input accessor derives the snapshot: the declared one or the store's cached
+           undirected view, over the run's scope when the class declares one. It leaves the NODE
+           space of the whole graph alone -- so a node result indexes the declared snapshot's nodes
+           directly -- and only an EDGE result needs the map.
+
+           THE ELEMENT SIMPLIFIES BEFORE IT DISPATCHES, the same step `toAlgorithmGraph` takes for
            the object-graph route, and for a reason that outlives that route's inability to hold
            two edges between one pair: a group of parallel edges becomes ONE edge carrying the
            group's summed weight, because a repeated edge between two nodes is MORE connection
@@ -351,16 +351,15 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
            Two things depend on it. The run agrees with the caveat `AlgorithmManager` appends over
            a multigraph ("N parallel edges were merged, with weights summed"), and EVERY member of
            a merged group carries the merged value, because they all map to the survivor through
-           the remap below. Without it a spanning tree or a route would flag one of two coincident
+           the remap. Without it a spanning tree or a route would flag one of two coincident
            edges and leave its twin unpainted, which reads as a rendering glitch. */
-        const collapsed = oriented.flags.multigraph ? oriented.simplified({ weights: "sum" }) : null;
-        const snapshot = collapsed === null ? oriented : collapsed.snapshot;
+        const { snapshot, edgeRemap } = this.input(orientationOf(mode)).derived();
         const controller = this.graph.acceleration;
         const work = { capability, nodeCount: snapshot.nodeCount };
 
         return {
             snapshot,
-            edgeRemap: composeEdgeRemap(derived?.edgeRemap ?? null, collapsed?.edgeRemap ?? null),
+            edgeRemap,
             run: async <T>(
                 fn: (dispatch: AcceleratedAlgorithms, s: GraphSnapshot) => Promise<T>,
             ): Promise<{ value: T; precision: AccelerationPrecision }> => {

@@ -14,11 +14,15 @@
  * | digest          | the resolution object             | whatever the resolution reads (memoised on it)                    |
  * | offer counts    | run id                            | the run's execution token, store, snapshot serial; the edge-count |
  * |                 |                                   | pass is filled into the entry and dropped with it                 |
+ * | derived input   | store, serial, bitmap signature,  | the scope's node and edge bitmaps (confirmed word for word), the  |
+ * |                 | orientation, merge policy         | store and snapshot serial, the orientation, the merge policy      |
  */
 
 import { type GraphSnapshot, maskToIndices, type U32 } from "@graphty/graph-format";
 import { assert, describe, it } from "vitest";
 
+import { DerivedInputs } from "../../../src/algorithms/input/derivedInputs";
+import { createScopedInput, type ResolvedInputScope } from "../../../src/algorithms/input/ScopedInput";
 import type { NodeId, Query, Scope, ScopeId, SetId } from "../../../src/catalog/types";
 import { AttributeRevisions, InputTick } from "../../../src/session/attributes";
 import type { RunResult } from "../../../src/session/results/types";
@@ -27,6 +31,7 @@ import { cacheCounters, countsOf, resolveSet, SetsCache } from "../../../src/ses
 import { createOffering, offerCounters,type Offering } from "../../../src/session/sets/offers";
 import { digestOf, type Resolution, type ResolveContext, resolveCounters, resolveScope } from "../../../src/session/sets/resolve";
 import { scopeSignature, signatureCounters } from "../../../src/session/sets/signature";
+import { InputGraph, resolutionOver } from "../../algorithms/input/harness";
 import { type EdgeRecord, TestGraph } from "./graphs";
 
 const RECORDS: EdgeRecord[] = [
@@ -650,5 +655,70 @@ describe("the offer counts, input by input", () => {
         assert.isUndefined(offering.offers("louv").offers[0].edges, "the new execution has no pass yet");
         offering.countEdges("louv");
         assert.strictEqual(offerCounters.edgePasses, passes + 2);
+    });
+});
+
+describe("the derived inputs, input by input", () => {
+    /** a -> b -> c -> d, with a second a -> b so a merge policy has something to merge. */
+    const graph = (): InputGraph =>
+        new InputGraph(["a", "b", "c", "d"], [
+            ["a", "b", 1],
+            ["a", "b", 2],
+            ["b", "c", 1],
+            ["c", "d", 1],
+        ]);
+
+    /**
+     * One audit row: derive, change one input of the key, derive again.
+     * @param g - The graph.
+     * @param first - The scope read first.
+     * @param second - What is read second: a scope, an orientation and a merge policy.
+     * @param second.scope - The scope.
+     * @param second.orientation - The orientation.
+     * @param second.simplify - The merge policy.
+     * @returns Whether the second read was served the first read's input.
+     */
+    const same = (
+        g: InputGraph,
+        first: ResolvedInputScope,
+        second: { scope?: ResolvedInputScope; orientation?: "declared" | "undirected"; simplify?: "sum" | "min" },
+    ): boolean => {
+        const inputs = new DerivedInputs();
+        const holder = {};
+        const read = (scope: ResolvedInputScope, orientation: "declared" | "undirected", simplify: "sum" | "min"): unknown =>
+            createScopedInput(g.getDataManager(), orientation, { simplify }, { inputs, holder, scope: () => scope }).subgraph();
+        const before = read(first, "declared", "sum");
+
+        return read(second.scope ?? first, second.orientation ?? "declared", second.simplify ?? "sum") === before;
+    };
+
+    it("misses on the node bitmap, the edge bitmap, the orientation and the merge policy", () => {
+        const g = graph();
+        const scope = g.scope(["a", "b", "c"]);
+        assert.isFalse(same(g, scope, { scope: g.scope(["a", "b", "d"]) }));
+        assert.isFalse(same(g, scope, { scope: g.scope(["a", "b", "c"], (source) => source === "a") }));
+        assert.isFalse(same(g, scope, { orientation: "undirected" }));
+        assert.isFalse(same(g, scope, { simplify: "min" }));
+    });
+
+    it("misses on the store and on the snapshot serial", () => {
+        const g = graph();
+        const scope = g.scope(["a", "b", "c"]);
+        const elsewhere = { graph: scope.graph, resolution: resolutionOver(scope.graph, scope.resolution.nodes, scope.resolution.edges, {}) };
+        assert.isFalse(same(g, scope, { scope: elsewhere }));
+
+        const inputs = new DerivedInputs();
+        const holder = {};
+        const before = createScopedInput(g.getDataManager(), "declared", undefined, { inputs, holder, scope: () => scope }).subgraph();
+        g.add(["e"]);
+        const after = g.scope(["a", "b", "c"]);
+        assert.notStrictEqual(createScopedInput(g.getDataManager(), "declared", undefined, { inputs, holder, scope: () => after }).subgraph(), before);
+    });
+
+    it("hits on another resolution of the same members, whatever spelled it", () => {
+        const g = graph();
+        const scope = g.scope(["a", "b", "c"]);
+        const respelled = { graph: scope.graph, resolution: resolutionOver(scope.graph, scope.resolution.nodes.slice(), scope.resolution.edges.slice(), g.store) };
+        assert.isTrue(same(g, scope, { scope: respelled }));
     });
 });

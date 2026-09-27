@@ -28,6 +28,7 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 import { ACCELERATION_POLICY_DEFAULT, AccelerationController } from "./acceleration";
 import { VoiceInputAdapter } from "./ai/input/VoiceInputAdapter";
 import type { ApiKeyManager } from "./ai/keys";
+import { peekDerivedInputs } from "./algorithms/input/ScopedInput";
 import { GraphtyLogger, type Logger } from "./logging";
 
 const graphLogger: Logger = GraphtyLogger.getLogger(["graphty", "graph"]);
@@ -451,6 +452,9 @@ export class Graph implements GraphContext {
         this.eventManager.onGraphEvent.add((event) => {
             if (event.type === "snapshot-replaced") {
                 this.#resident = event.next;
+                // The derived inputs of scoped runs are over the snapshot that has gone: released
+                // now unless a run still holds one, and then when it lets go.
+                peekDerivedInputs(this)?.freeze();
                 this.releaseSnapshot(event.previous);
                 return;
             }
@@ -461,6 +465,7 @@ export class Graph implements GraphContext {
             // device buffers for the accelerator's life -- the leak the release list exists to
             // close -- and the field would go on pointing into a store that no longer exists.
             if (event.type === "snapshot-dropped") {
+                peekDerivedInputs(this)?.freeze();
                 this.releaseSnapshot(this.#resident);
                 this.#resident = null;
                 // A repaint in flight is painting rows that no longer exist; stop it.
@@ -781,6 +786,8 @@ export class Graph implements GraphContext {
         // reading the snapshot whose device memory this frees.
         this.releaseSnapshot(resident, residentUndirected);
         this.#resident = null;
+        // Scoped runs' derived inputs go with it; one a run still holds goes when that run lets go.
+        peekDerivedInputs(this)?.dispose();
 
         // The controller goes LAST. Disposing the managers is what stops the running layout
         // engine, and a simulation stepped after its accelerator's device had been destroyed

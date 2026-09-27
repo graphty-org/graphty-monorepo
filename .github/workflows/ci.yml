@@ -432,6 +432,26 @@ jobs:
                       echo "XDG_RUNTIME_DIR=/tmp"
                   } >> "$GITHUB_ENV"
 
+            # A forked vitest worker that crashes must not spend minutes writing a multi-gigabyte core dump.
+            # scripts/run-node-shard.js runs vitest under `ulimit -c 0`, but the runner's default core_pattern
+            # pipes cores to a program, and the kernel ignores RLIMIT_CORE for a piped pattern (core(5)). A plain
+            # file pattern makes the limit bind. Issue #273.
+            - name: Write core dumps to a file so the shard's ulimit -c 0 holds
+              if: matrix.shard == 'webgpu-graph-algorithms-node'
+              run: echo "core_pattern was $(cat /proc/sys/kernel/core_pattern)" && sudo sysctl -w kernel.core_pattern=core
+
+            - name: SCRATCH verify a crash writes no core dump
+              if: matrix.shard == 'webgpu-graph-algorithms-node'
+              working-directory: ${{ runner.temp }}
+              run: |
+                  crash() { sh -c "ulimit -c $1; exec node -e 'process.kill(process.pid, \"SIGSEGV\")'" && rc=0 || rc=$?; }
+                  crash unlimited; echo "control, ulimit unlimited: exit=$rc"; ls -la core* || true
+                  test -n "$(ls core* 2>/dev/null)" || { echo "::error::control wrote no core file; the pattern did not take"; exit 1; }
+                  rm -f core*
+                  start=$(date +%s); crash 0; end=$(date +%s)
+                  echo "ulimit 0: exit=$rc in $((end - start)) s"; ls -la core* || true
+                  test "$rc" = 139 && test -z "$(ls core* 2>/dev/null)"
+
             - name: Run tests
               run: ${{ matrix.test-command }}
 

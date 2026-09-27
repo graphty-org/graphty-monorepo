@@ -9,6 +9,11 @@
 
 import type { KnipConfig } from "knip";
 
+// `lint:knip:prod` runs knip with --production. Some settings are needed only by that run and
+// are hinted as redundant by the default one (`lint:knip`), and configuration hints fail the
+// gate (`treatConfigHintsAsErrors` below), so they are added only when `--production` is set.
+const production = process.argv.includes("--production");
+
 const config: KnipConfig = {
     workspaces: {
         // Root workspace - shared configs and docs
@@ -41,7 +46,7 @@ const config: KnipConfig = {
                 "test/types/**/*.test-d.ts",
                 "scripts/**/*.{ts,js}",
             ],
-            project: ["graph-format.ts!", "src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js}"],
+            project: ["src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js}"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
         },
 
@@ -97,7 +102,7 @@ const config: KnipConfig = {
                 "examples/**/*.ts",
                 "scripts/**/*.{ts,js}",
             ],
-            project: ["algorithms.ts!", "src/**/*.ts!", "test/**/*.ts", "examples/**/*.ts", "scripts/**/*.{ts,js}"],
+            project: ["src/**/*.ts!", "test/**/*.ts", "examples/**/*.ts", "scripts/**/*.{ts,js}"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
             ignoreDependencies: [
                 // Storybook implicit dependencies
@@ -143,20 +148,24 @@ const config: KnipConfig = {
             entry: [
                 // The published entry points. Each has a subpath in package.json's exports map,
                 // so each is a door a consumer comes through and nothing reachable from one is
-                // dead. Listing only src/graphty-element.ts here made all ten invisible to
-                // dead-code analysis -- neither entry nor project -- while they were public API.
-                "index.ts!",
-                "ai.ts!",
-                "catalog.ts!",
-                "commands.ts!",
-                "extend.ts!",
-                "format.ts!",
-                "logging.ts!",
-                "react.ts!",
-                "schema.ts!",
-                "session.ts!",
-                "webgpu.ts!",
-                "src/graphty-element.ts!",
+                // dead. A default run derives them from the exports map (and hints a repeat as
+                // redundant); a --production run does not, so they are listed for it alone.
+                ...(production
+                    ? [
+                          "index.ts!",
+                          "ai.ts!",
+                          "catalog.ts!",
+                          "commands.ts!",
+                          "extend.ts!",
+                          "format.ts!",
+                          "logging.ts!",
+                          "react.ts!",
+                          "schema.ts!",
+                          "session.ts!",
+                          "webgpu.ts!",
+                          "src/graphty-element.ts!",
+                      ]
+                    : []),
                 "test/**/*.test.ts",
                 "test/**/*.ts",
                 "stories/**/*.stories.ts",
@@ -183,15 +192,12 @@ const config: KnipConfig = {
                 // Copied into dist by vite.config.ts (`bundledDependencies`, and ngraph.random because
                 // nothing externalises it), so each is a devDependency that production source imports.
                 // Only `lint:knip:prod` would report them, as unlisted.
-                "lodash",
-                "ngraph.random",
-                "@graphty/remote-logger",
+                ...(production ? ["lodash", "ngraph.random", "@graphty/remote-logger"] : []),
                 // Storybook addons
                 "@storybook/addon-console",
                 "@storybook/test",
                 // Testing utilities
                 "chai", // Provided by vitest
-                "iwer", // WebXR emulator for testing
                 // Build tools
                 "vite-plugin-eslint",
                 // Type definitions
@@ -215,43 +221,25 @@ const config: KnipConfig = {
             project: ["src/**/*.{ts,tsx}!"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
             ignoreDependencies: [
-                // Installed on graphty-element's behalf: its optional peer, activated by
-                // `import "@graphty/graphty-element/webgpu"` in src/main.tsx and imported by
-                // nothing in this app. knip hints "Remove from ignoreDependencies" -- do not:
-                // it only resolves the package today because the app's tsconfig alias sends it
-                // into graphty-element's SOURCE webgpu.ts and it counts that file's import as
-                // the app's. A consumer reading the element's built dist has no such path and
-                // would see an unused dependency here.
-                "@graphty/webgpu-graph-algorithms",
                 // Testing
                 "jsdom",
                 // Loaded only under import.meta.env.DEV (src/main.tsx) and declared in the root
                 // package.json; `lint:knip:prod` runs --strict, which reads only this workspace's own
                 // dependencies, and would otherwise report it as unlisted.
-                "eruda",
+                ...(production ? ["eruda"] : []),
             ],
         },
 
         // remote-logger package
         "remote-logger": {
-            entry: [
-                "src/index.ts!",
-                "src/server/index.ts!",
-                "src/client/index.ts!",
-                "src/ui/index.ts!",
-                "src/mcp/index.ts!",
-                "src/vite/index.ts!",
-                "src/bundle/browser-entry.ts!",
-                "bin/**/*.js!",
-                "test/**/*.test.ts",
-            ],
+            entry: ["src/bundle/browser-entry.ts!", "bin/**/*.js!", "test/**/*.test.ts"],
             project: ["src/**/*.ts!", "test/**/*.ts", "bin/**/*.js!"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
         },
 
         // compact-mantine package
         "compact-mantine": {
-            entry: ["src/index.ts!", "tests/**/*.test.{ts,tsx}", "stories/**/*.stories.tsx"],
+            entry: ["tests/**/*.test.{ts,tsx}", "stories/**/*.stories.tsx"],
             project: ["src/**/*.{ts,tsx}!", "tests/**/*.{ts,tsx}", "stories/**/*.tsx"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
             ignoreDependencies: [
@@ -295,18 +283,18 @@ const config: KnipConfig = {
     // dead-code detection, and it is per symbol rather than a blanket setting. Knip accepts the
     // key only at the root, so it applies to every workspace; the "unused tag" hints it prints are
     // exports already tagged `@internal` that something does import, which is worth knowing.
+    // Expect such hints from graph-format and webgpu-graph-algorithms `src/`: both builds set
+    // `stripInternal`, so there the tag also keeps a symbol that other modules import out of the
+    // published .d.ts files, and removing it would publish it. Tag hints never fail the gate;
+    // configuration hints do (below).
     tags: ["-internal"],
 
-    // Global ignore patterns.
-    //
-    // `pnpm run lint:knip` passes `--no-gitignore`, so the scratch directories the root
-    // .gitignore hides (`tmp/`, `.tmp/`) are listed here instead. knip otherwise reads every
-    // ancestor .gitignore of the directory it runs in and stops only at a `.git` DIRECTORY; a
-    // worktree's `.git` is a file, so from a worktree under `.worktrees/<name>/` it also reads
-    // the main checkout's .gitignore, whose unanchored `.worktrees/` matches every absolute
-    // path inside the worktree. Every entry knip derives from a package.json (scripts, bin,
-    // exports) is then dropped and its file and exports are reported as unused, while the
-    // same tree in the main checkout is clean.
+    // A configuration hint means knip.config.ts has gone stale (an ignore that matches nothing,
+    // an entry knip already derives). Fail the run on one, so they cannot pile up unread.
+    treatConfigHintsAsErrors: true,
+
+    // Global ignore patterns. These filter what knip REPORTS; what it crawls follows .gitignore
+    // (see tools/run-knip.sh for why that holds in a worktree too).
     ignore: [
         "**/dist/**",
         "**/coverage/**",
@@ -320,7 +308,6 @@ const config: KnipConfig = {
     // Ignore unlisted binaries that are shell built-ins or CI tools
     ignoreBinaries: [
         "wait", // Shell built-in used in npm scripts
-        "http-server", // Used in CI for serving files
         // coverage:preview scripts run `npx serve` with a ${PORT:?...} guard, which knip no longer
         // recognises as an npx invocation.
         "serve",

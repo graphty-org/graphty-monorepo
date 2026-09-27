@@ -19,9 +19,12 @@ storybook-static/
 *storybook.log
 build-storybook.log
 
-# Temporary files
-tmp/
-.tmp/
+# Temporary files. Anchored, so a checkout that sits under a directory named tmp (or a
+# worktree that inherits this file, see tools/run-knip.sh) does not ignore its own sources.
+/tmp/
+/.tmp/
+/*/tmp/
+/*/.tmp/
 .playwright-mcp/
 
 # IDE/Editor files
@@ -137,8 +140,9 @@ layout/log/*
 .pthistory
 .git-prompts
 
-# wtt worktrees
-.worktrees/
+# wtt worktrees. Anchored: a worktree under .worktrees/ must not inherit it (knip reads
+# ancestor .gitignore files, see tools/run-knip.sh).
+/.worktrees/
 
 # Husky (managed by monorepo root)
 */.husky/

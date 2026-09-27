@@ -1125,6 +1125,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
 
     const scope: ScopeResolver = createScopeApi({
         snapshot,
+        store: store.store,
         components,
         // Read through a call rather than captured: both of these are built below, and the
         // resolver only reaches them when somebody resolves a scope that names them.
@@ -1362,12 +1363,32 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     });
     sessionInputs.set(session, inputs);
     sessionSets.set(session, sets);
+    sessionScopes.set(session, scope);
 
     return session;
 }
 
 /** Each session's input counters, beside it rather than on it so the published type gains nothing. */
 const sessionInputs = new WeakMap<GraphSession, InputCounters>();
+
+/** Each session's scope resolver, for the internal readers that want its bitmaps. */
+const sessionScopes = new WeakMap<GraphSession, ScopeResolver>();
+
+/**
+ * A session's scope resolver, with the synchronous doors the published `session.scope` lacks.
+ * Internal.
+ * @param session - a session this module built
+ * @returns its resolver
+ * @throws An Error for a session this module did not build.
+ */
+export function scopeResolverOfSession(session: GraphSession): ScopeResolver {
+    const scope = sessionScopes.get(session);
+    if (scope === undefined) {
+        throw new Error("Not a session built by createGraphSession.");
+    }
+
+    return scope;
+}
 
 /** Each session's kept sets, beside it until `session.sets` is published. */
 const sessionSets = new WeakMap<GraphSession, SetsApi>();

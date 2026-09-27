@@ -15,10 +15,13 @@
  *   npx tsx benchmarks/run.ts --no-save                # do not append to benchmarks/results
  */
 
+import { fromEdgeArrays, type GraphSnapshot } from "@graphty/graph-format";
 import { barabasiAlbertGraph } from "@graphty/graph-samples/generators";
 
 import { revisionOf } from "../src/catalog/sets/hash";
-import type { EdgeMember, SetDefinition } from "../src/catalog/types";
+import type { EdgeMember, NodeId, SetDefinition } from "../src/catalog/types";
+import { createScopeApi, edgeSpaceOf, ElementMask, nodeSpaceOf } from "../src/session/scope/index";
+import { resolveFixed, resolveScope } from "../src/session/sets/resolve";
 import { appendSession, bench, type BenchResult, printTable } from "./harness";
 
 const LARGE = process.env.GRAPHTY_BENCH_SCALE === "large";
@@ -47,8 +50,89 @@ function runSetsBenchmarks(): BenchResult[] {
     ];
 }
 
+/**
+ * The resolver as it was before bitmaps: a Set of the member ids, a walk over every edge testing
+ * both endpoints against it, a Set of the edge ids, and a fold over every id string. The baseline
+ * the bitmap rows are recorded beside.
+ * @param snapshot - The graph.
+ * @param ids - The member node ids.
+ * @returns The digest text, to keep the work live.
+ */
+function setBasedResolve(snapshot: GraphSnapshot, ids: readonly NodeId[]): string {
+    const nodes = new Set<NodeId>();
+    for (const id of ids) {
+        if (snapshot.ids.indexOf(id) >= 0) {
+            nodes.add(id);
+        }
+    }
+
+    const space = edgeSpaceOf(snapshot);
+    const edges = new Set<string>();
+    const { src, dst } = snapshot.edgeList();
+    for (let e = 0; e < snapshot.edgeCount; e++) {
+        if (nodes.has(snapshot.ids.idOf(src[e])) && nodes.has(snapshot.ids.idOf(dst[e]))) {
+            edges.add(space.idOf(e));
+        }
+    }
+
+    let fold = 0x811c9dc5;
+    for (const id of [...nodes, ...edges]) {
+        const text = typeof id === "number" ? `#${id}` : `$${id}`;
+        for (let at = 0; at < text.length; at++) {
+            fold = Math.imul(fold ^ text.charCodeAt(at), 0x01000193) >>> 0;
+        }
+    }
+
+    return fold.toString(16);
+}
+
+/**
+ * The resolution rows (design 6.5): a 50% node list and a fixed 50% set with and without its
+ * edge pass, beside the Set-based cost they replace.
+ * @returns The results.
+ */
+function runResolveBenchmarks(): BenchResult[] {
+    const graph = barabasiAlbertGraph({ n: NODES, m: 5, seed: 1 });
+    const snapshot = fromEdgeArrays(graph);
+    const half = Array.from({ length: Math.floor(NODES / 2) }, (_, i) => 2 * i);
+    const nodeSpace = nodeSpaceOf(snapshot);
+    const edgeSpace = edgeSpaceOf(snapshot);
+    const visibleNodes = new ElementMask<NodeId>(() => nodeSpace, snapshot.nodeCount);
+    visibleNodes.grow(snapshot.nodeCount);
+    visibleNodes.fill();
+    const visibleEdges = new ElementMask<string>(() => edgeSpace, snapshot.edgeCount);
+    visibleEdges.grow(snapshot.edgeCount);
+    visibleEdges.fill();
+    const visibility = { nodes: () => visibleNodes, edges: () => visibleEdges };
+    const opts = { items: snapshot.edgeCount, unit: "edges" };
+    const label = `${LABEL} / ${snapshot.edgeCount} edges`;
+
+    return [
+        bench(
+            "resolve",
+            `resolveNow({ nodes }) 50%, counts only, ${label}`,
+            { setup: () => createScopeApi({ snapshot: () => snapshot }), run: (api) => api.resolveNow({ nodes: half }).edgeCount },
+            opts,
+        ),
+        bench("resolve", `old Set-based resolve + fold, 50%, ${label}`, { setup: () => half, run: (ids) => setBasedResolve(snapshot, ids) }, opts),
+        bench(
+            "resolve",
+            `resolveFixed induced 50% (with edge pass), ${label}`,
+            { setup: () => ({ kind: "fixed", nodes: half, reading: "induced" }) as const, run: (d) => resolveFixed(d, { snapshot }) },
+            opts,
+        ),
+        bench(
+            "resolve",
+            `resolveFixed listed 50% (no edge pass), ${label}`,
+            { setup: () => ({ kind: "fixed", nodes: half, reading: "listed" }) as const, run: (d) => resolveFixed(d, { snapshot }) },
+            opts,
+        ),
+    ];
+}
+
 const GROUPS: Readonly<Record<string, () => BenchResult[]>> = {
     sets: runSetsBenchmarks,
+    resolve: runResolveBenchmarks,
 };
 
 const args = process.argv.slice(2);

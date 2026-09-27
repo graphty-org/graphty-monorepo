@@ -106,6 +106,7 @@ import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
 import { inputCountersOf, writeAttributes } from "./session/attributes";
+import { scopeResolverOfSession } from "./session/GraphSession";
 import type { Run, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionTarget, SetOp } from "./session/selection";
 import type { Layer, StyleSuggestion } from "./session/styles";
@@ -4825,7 +4826,8 @@ export class Graph implements GraphContext {
         } & import("./screenshot/types.js").CameraAnimationOptions,
     ): Promise<void> {
         const scope = options?.scope;
-        const nodes = scope === undefined ? undefined : (await this.getSession().scope.resolve(scope)).nodes;
+        // Read from the scope's node bitmap, so framing a subset never builds an id Set.
+        const nodes = scope === undefined ? undefined : scopeResolverOfSession(this.getSession()).nodeIdsOf(scope);
         const state = this.resolveCameraPreset(id, {
             ...(nodes === undefined ? {} : { nodes }),
             ...(options?.params === undefined ? {} : { params: options.params }),

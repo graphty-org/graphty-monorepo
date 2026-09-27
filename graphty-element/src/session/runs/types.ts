@@ -231,9 +231,9 @@ export interface Caveats {
  * meantime.
  */
 export interface ResolvedScope {
-    /** The nodes in scope. */
+    /** The nodes in scope. Lazy: built on the first read, then the same set on every read. */
     readonly nodes: ReadonlySet<NodeId>;
-    /** The edges in scope. */
+    /** The edges in scope. Lazy: built on the first read, then the same set on every read. */
     readonly edges: ReadonlySet<EdgeId>;
     /** How many nodes are in scope. */
     readonly nodeCount: number;

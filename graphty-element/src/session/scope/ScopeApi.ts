@@ -24,14 +24,25 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
+import { type GraphSnapshot, INVALID_INDEX, maskCount, maskTest, maskToIndices, type U32 } from "@graphty/graph-format";
 
 import type { EdgeId, NodeId, Query, Scope, ScopeId } from "../../catalog/types";
 import { edgeCounterOf, edgeIdOf } from "../../data/edgeIdentity";
 import { GraphtyError } from "../../errors";
 import { canonicalize } from "../runs/runId";
 import type { ResolvedScope } from "../runs/types";
-import { ElementMask, type MaskIdSpace } from "./ElementMask";
+import {
+    type ComponentLabels,
+    type NodeHalf,
+    type Resolution,
+    type ResolveContext,
+    resolveCounters,
+    resolveNodeHalf,
+    resolveScope,
+} from "../sets/resolve";
+import type { ElementMask, MaskIdSpace } from "./ElementMask";
+
+export type { ComponentLabels } from "../sets/resolve";
 
 /** How many edges {@link ScopeApi.count} looks at when it is allowed to answer approximately. */
 export const DEFAULT_SCOPE_SAMPLE = 10_000;
@@ -208,14 +219,6 @@ export interface ScopeSelectionSource {
     nodes(): ElementMask<NodeId>;
 }
 
-/** Which connected component each node belongs to. */
-export interface ComponentLabels {
-    /** One component number per dense node index. */
-    readonly labels: ArrayLike<number>;
-    /** How many components there are, so the labels are `[0, count)`. */
-    readonly count: number;
-}
-
 /**
  * Where the resolver reads everything it does not compute itself.
  *
@@ -230,6 +233,8 @@ export interface ScopeSources {
      * @returns The current snapshot.
      */
     snapshot(): GraphSnapshot;
+    /** The store instance every resolution is tagged with. Absent tags them with null. */
+    readonly store?: object;
     /** What is visible. Absent means nothing hides anything, so `visible` is the whole graph. */
     readonly visibility?: ScopeVisibilitySource;
     /** What is selected. Absent refuses the `selection` scope. */
@@ -338,29 +343,17 @@ export interface ScopeResolver extends ScopeApi {
      * @returns The resolved scope.
      */
     resolveNow(spec: Scope): ResolvedScope;
+    /**
+     * The node ids a specification covers, read from its node bitmap: no id `Set` is built.
+     * @param spec - What to resolve.
+     * @returns The ids, in dense index order.
+     */
+    nodeIdsOf(spec: Scope): readonly NodeId[];
 }
 
 // ---------------------------------------------------------------------------------------------
 // Refusals
 // ---------------------------------------------------------------------------------------------
-
-/**
- * The refusal a scope the session cannot honour yet gets, naming what would honour it.
- * @param spec - What was asked for.
- * @param needs - The capability whose absence is the reason.
- * @returns The error to throw.
- */
-function unsupported(spec: Scope, needs: string): GraphtyError {
-    return new GraphtyError({
-        code: "E_UNSUPPORTED",
-        message:
-            `This session cannot resolve the ${canonicalize(spec)} scope, because ${needs} is not ` +
-            "attached to it. Resolving it anyway would label a result as covering a subset while it " +
-            "covered the whole graph.",
-        source: "run",
-        details: { scope: spec, needs },
-    });
-}
 
 /**
  * The refusal a value that is not a scope at all gets.
@@ -433,43 +426,23 @@ function assertScope(spec: Scope): void {
 // The resolver
 // ---------------------------------------------------------------------------------------------
 
-/** What one specification resolved to, before it was dressed up as a {@link ResolvedScope}. */
-interface ScopeMembership {
-    /** The node ids. */
-    readonly nodes: ReadonlySet<NodeId>;
-    /** The edge ids. */
-    readonly edges: ReadonlySet<EdgeId>;
-    /** The membership digest. */
-    readonly digest: string;
-}
-
-/** The node half of a resolution, and the edge constraint the specification carried with it. */
-interface ScopeNodes {
-    /** The nodes in scope. */
-    readonly mask: ElementMask<NodeId>;
-    /** The edges the specification allows, or null when its edges are purely induced. */
-    readonly edgeConstraint: ElementMask<EdgeId> | null;
-}
-
 /**
- * Everything one set of inputs resolves against: the snapshot, its two identity spaces, and the
- * answers already walked from them.
+ * Everything one set of inputs resolves against: the snapshot, the resolution context over it,
+ * and the answers already resolved from them.
  *
- * It is one object rather than five variables so that replacing it is atomic. A resolver holding
- * the new snapshot and the previous snapshot's edge index would address edges by endpoints that
- * have moved, and would do it silently.
+ * It is one object rather than several variables so that replacing it is atomic. A resolver
+ * holding the new snapshot and a resolution of the previous one would address elements by
+ * indices that have moved, and would do it silently.
  */
 interface ScopeFrame {
-    /** The snapshot every answer in this frame was walked from. */
+    /** The snapshot every answer in this frame was resolved against. */
     readonly graph: GraphSnapshot;
-    /** The node identity space, one object for the life of the frame. */
-    readonly nodeSpace: MaskIdSpace<NodeId>;
-    /** The edge identity space, one object for the life of the frame. */
-    readonly edgeSpace: MaskIdSpace<EdgeId>;
+    /** What every resolution in this frame reads. */
+    readonly context: ResolveContext;
     /** The node half of each specification already resolved, by canonical specification. */
-    readonly nodes: Map<string, ScopeNodes>;
+    readonly halves: Map<string, NodeHalf>;
     /** Each specification already resolved in full, by canonical specification. */
-    readonly resolved: Map<string, ScopeMembership>;
+    readonly resolved: Map<string, Resolution>;
 }
 
 /** A saved scope as the resolver holds it, before `bound` is worked out. */
@@ -498,12 +471,95 @@ function slugOf(name: string): string {
 }
 
 /**
+ * The ids a bitmap holds, as a frozen `Set`.
+ * @param mask - The bitmap.
+ * @param length - How many indices it covers.
+ * @param idOf - The id at an index.
+ * @returns The set.
+ */
+function idSetOf<TId>(mask: U32, length: number, idOf: (index: number) => TId): ReadonlySet<TId> {
+    resolveCounters.idSetBuilds++;
+    const ids = new Set<TId>();
+    for (const index of maskToIndices(mask, length)) {
+        ids.add(idOf(index));
+    }
+
+    return ids;
+}
+
+const digests = new WeakMap<Resolution, string>();
+
+/**
+ * A resolution's digest, folded from its id sets once and memoised on the resolution.
+ * @param resolution - The resolution.
+ * @param scope - The resolved scope dressing it, whose lazy sets the fold reads.
+ * @returns The digest.
+ */
+function digestOf(resolution: Resolution, scope: ResolvedScope): string {
+    let digest = digests.get(resolution);
+    if (digest === undefined) {
+        digest = membershipDigest([...scope.nodes], [...scope.edges]);
+        digests.set(resolution, digest);
+    }
+
+    return digest;
+}
+
+/**
+ * Dress a resolution as the published {@link ResolvedScope}. `nodes`, `edges` and `digest` are
+ * lazy: each is built on its first read and kept by this object; the digest is memoised on the
+ * resolution, so every object dressing one resolution shares one digest computation.
+ * @param resolution - The resolution.
+ * @param graph - The snapshot it was resolved against.
+ * @param spec - What was asked for.
+ * @returns The resolved scope, frozen.
+ */
+function resolvedScopeOf(resolution: Resolution, graph: GraphSnapshot, spec: Scope): ResolvedScope {
+    // ponytail: the object keeps its snapshot so a late read of `nodes` still answers for the
+    // membership it describes; keep only the id map and the id column if retention matters.
+    let nodes: ReadonlySet<NodeId> | null = null;
+    let edges: ReadonlySet<EdgeId> | null = null;
+    const scope = {};
+
+    Object.defineProperties(scope, {
+        nodes: {
+            enumerable: true,
+            get: (): ReadonlySet<NodeId> => {
+                nodes ??= idSetOf(resolution.nodes, graph.nodeCount, (index) => graph.ids.idOf(index));
+                return nodes;
+            },
+        },
+        edges: {
+            enumerable: true,
+            get: (): ReadonlySet<EdgeId> => {
+                if (edges === null) {
+                    const space = edgeSpaceOf(graph);
+                    edges = idSetOf(resolution.edges, graph.edgeCount, (index) => space.idOf(index));
+                }
+
+                return edges;
+            },
+        },
+        nodeCount: { enumerable: true, value: resolution.nodeCount },
+        edgeCount: { enumerable: true, value: resolution.edgeCount },
+        digest: { enumerable: true, get: (): string => digestOf(resolution, scope as ResolvedScope) },
+        spec: { enumerable: true, value: spec },
+        // A fresh object per call, so `resolvedAt` is when it was asked rather than when the
+        // resolution behind it happened to be cached.
+        resolvedAt: { enumerable: true, value: new Date().toISOString() },
+    });
+
+    return Object.freeze(scope) as ResolvedScope;
+}
+
+/**
  * Build the scope resolver one session uses.
  *
- * Membership is walked once per specification and cached against the inputs it was walked from
- * -- the snapshot, the visibility and selection masks, and the saved list -- because the reader
- * that asks most often is the staleness check on a finished run, and that is read by every
- * progress event. Nothing is cached across a change to any of those.
+ * Each specification is resolved once per set of inputs -- the snapshot, the visibility and
+ * selection masks, and the saved list -- because the reader that asks most often is the
+ * staleness check on a finished run, and that is read by every progress event. Nothing is cached
+ * across a change to any of those, and the digest is memoised on the resolution, so a staleness
+ * read over unchanged inputs sums nothing.
  * @param sources - Where to read the graph and the capabilities a narrowing scope needs.
  * @returns The resolver.
  */
@@ -544,10 +600,17 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
             signature = nextSignature;
             frame = {
                 graph,
-                nodeSpace: nodeSpaceOf(graph),
-                edgeSpace: edgeSpaceOf(graph),
-                nodes: new Map<string, ScopeNodes>(),
-                resolved: new Map<string, ScopeMembership>(),
+                context: {
+                    snapshot: graph,
+                    store: sources.store ?? null,
+                    saved,
+                    ...(sources.visibility === undefined ? {} : { visibility: sources.visibility }),
+                    ...(sources.selection === undefined ? {} : { selection: sources.selection }),
+                    ...(sources.components === undefined ? {} : { components: sources.components }),
+                    ...(sources.match === undefined ? {} : { match: sources.match }),
+                },
+                halves: new Map<string, NodeHalf>(),
+                resolved: new Map<string, Resolution>(),
             };
         }
 
@@ -555,294 +618,100 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
     };
 
     /**
-     * Put every id a producer named into the mask, ignoring the ones the graph no longer holds.
-     *
-     * Silently, and on purpose: a saved set outliving some of its members is ordinary, and a
-     * consumer sees it through `bound` on the saved scope and through the counts, rather than
-     * through an exception that makes the whole set unusable because one node was deleted.
-     * @param mask - The mask to fill.
-     * @param ids - The ids to put in it.
-     */
-    const addIds = (mask: ElementMask<NodeId>, ids: Iterable<NodeId>): void => {
-        for (const id of ids) {
-            const index = mask.indexOf(id);
-
-            if (index !== INVALID_INDEX) {
-                mask.add(index);
-            }
-        }
-    };
-
-    /**
-     * Put the largest connected component into the mask.
-     *
-     * A tie goes to the lowest-numbered component, which is the one whose first node comes first
-     * in index order -- so two resolutions of one graph always answer with the same component
-     * rather than whichever the loop happened to see last.
-     * @param mask - The mask to fill.
-     * @param labels - One component number per node index.
-     */
-    const addLargestComponent = (mask: ElementMask<NodeId>, labels: ComponentLabels): void => {
-        const sizes = new Uint32Array(labels.count);
-
-        for (let index = 0; index < mask.count; index++) {
-            sizes[labels.labels[index]] += 1;
-        }
-
-        let largest = -1;
-        let largestSize = 0;
-
-        for (let component = 0; component < labels.count; component++) {
-            if (sizes[component] > largestSize) {
-                largestSize = sizes[component];
-                largest = component;
-            }
-        }
-
-        for (let index = 0; index < mask.count; index++) {
-            if (labels.labels[index] === largest) {
-                mask.add(index);
-            }
-        }
-    };
-
-    /**
-     * Fill the node mask from one specification, following a saved set to what it holds.
-     * @param spec - The specification.
-     * @param mask - The mask to fill, sized to the snapshot and empty.
-     * @param seen - The saved ids already followed, which is how a cycle is caught.
-     * @returns The edge constraint the specification carries, or null when it carries none.
-     * @throws A `GraphtyError` when the specification names a capability this session lacks, an
-     *     unknown saved set, or a cycle of saved sets.
-     */
-    const fillNodes = (spec: Scope, mask: ElementMask<NodeId>, seen: Set<ScopeId>): ElementMask<EdgeId> | null => {
-        if (spec === "graph") {
-            mask.fill();
-
-            return null;
-        }
-
-        if (spec === "visible") {
-            if (sources.visibility === undefined) {
-                mask.fill();
-
-                return null;
-            }
-
-            mask.union(sources.visibility.nodes());
-
-            return sources.visibility.edges();
-        }
-
-        if (spec === "selection") {
-            if (sources.selection === undefined) {
-                throw unsupported(spec, "a selection");
-            }
-
-            mask.union(sources.selection.nodes());
-
-            return null;
-        }
-
-        if (spec === "largest-component") {
-            if (sources.components === undefined) {
-                throw unsupported(spec, "the connected components");
-            }
-
-            addLargestComponent(mask, sources.components());
-
-            return null;
-        }
-
-        if ("set" in spec) {
-            const record = saved.get(spec.set);
-
-            if (record === undefined) {
-                throw new GraphtyError({
-                    code: "E_BAD_COMMAND",
-                    message: `No saved scope is called "${spec.set}".`,
-                    source: "run",
-                    target: { kind: "scope", id: spec.set },
-                    details: { scope: spec, available: [...saved.keys()] },
-                });
-            }
-
-            if (seen.has(spec.set)) {
-                throw new GraphtyError({
-                    code: "E_BAD_COMMAND",
-                    message: `The saved scope "${spec.set}" contains itself, so it names no elements.`,
-                    source: "run",
-                    target: { kind: "scope", id: spec.set },
-                    details: { scope: spec, chain: [...seen, spec.set] },
-                });
-            }
-
-            seen.add(spec.set);
-
-            return fillNodes(record.spec, mask, seen);
-        }
-
-        if ("where" in spec) {
-            if (sources.match === undefined) {
-                throw unsupported(spec, "a query engine");
-            }
-
-            addIds(mask, sources.match(spec.where));
-
-            return null;
-        }
-
-        addIds(mask, spec.nodes);
-
-        return null;
-    };
-
-    /**
      * The nodes one specification covers, and the edge constraint it came with.
      * @param spec - The specification.
      * @returns The node half of the resolution.
      */
-    const nodesOf = (spec: Scope): ScopeNodes => {
+    const nodesOf = (spec: Scope): NodeHalf => {
         // A literal node list pays a canonical key as long as the list, which is the price of a
         // cache that cannot confuse two different lists for one another.
         const key = canonicalize(spec);
         const active = current();
-        const cached = active.nodes.get(key);
+        const cached = active.halves.get(key);
 
         if (cached !== undefined) {
             return cached;
         }
 
-        const { nodeSpace } = active;
-        const mask = new ElementMask<NodeId>(() => nodeSpace, Math.max(1, active.graph.nodeCount));
-        mask.grow(active.graph.nodeCount);
-        const edgeConstraint = fillNodes(spec, mask, new Set<ScopeId>());
-        const computed: ScopeNodes = { mask, edgeConstraint };
+        const computed = resolveNodeHalf(spec, active.context);
 
         if (!isPredicate(spec)) {
-            active.nodes.set(key, computed);
+            active.halves.set(key, computed);
         }
 
         return computed;
     };
 
     /**
-     * Whether one edge is in scope: both endpoints in the node set, and allowed by the
-     * constraint where there is one.
-     * @param nodes - The node half of the resolution.
-     * @param edge - The logical edge index.
-     * @param source - The edge's source node index.
-     * @param target - The edge's target node index.
-     * @returns True when the edge is in scope.
-     */
-    const edgeInScope = (nodes: ScopeNodes, edge: number, source: number, target: number): boolean => {
-        if (!nodes.mask.has(source) || !nodes.mask.has(target)) {
-            return false;
-        }
-
-        return nodes.edgeConstraint === null || nodes.edgeConstraint.has(edge);
-    };
-
-    /**
-     * The edges one resolution covers.
-     * @param nodes - The node half of the resolution.
-     * @param active - The frame being resolved against.
-     * @returns The edge mask.
-     */
-    const edgesOf = (nodes: ScopeNodes, active: ScopeFrame): ElementMask<EdgeId> => {
-        const { edgeSpace, graph } = active;
-        const mask = new ElementMask<EdgeId>(() => edgeSpace, Math.max(1, graph.edgeCount));
-        mask.grow(graph.edgeCount);
-        const list = graph.edgeList();
-
-        for (let edge = 0; edge < graph.edgeCount; edge++) {
-            if (edgeInScope(nodes, edge, list.src[edge], list.dst[edge])) {
-                mask.add(edge);
-            }
-        }
-
-        return mask;
-    };
-
-    /**
-     * Everything one specification resolves to, walked once per set of inputs.
+     * Everything one specification resolves to, once per set of inputs.
      * @param spec - The specification.
-     * @returns The membership.
+     * @returns The resolution, and the snapshot it was resolved against.
      */
-    const membershipOf = (spec: Scope): ScopeMembership => {
+    const membershipOf = (spec: Scope): { resolution: Resolution; graph: GraphSnapshot } => {
         const key = canonicalize(spec);
         const active = current();
         const cached = active.resolved.get(key);
 
         if (cached !== undefined) {
-            return cached;
+            return { resolution: cached, graph: active.graph };
         }
 
-        const nodes = nodesOf(spec);
-        const edges = edgesOf(nodes, active);
-        const nodeIds = nodes.mask.ids();
-        const edgeIds = edges.ids();
-        const computed: ScopeMembership = {
-            nodes: new Set(nodeIds),
-            edges: new Set(edgeIds),
-            digest: membershipDigest(nodeIds, edgeIds),
-        };
+        const computed = resolveScope(spec, active.context);
+
         if (!isPredicate(spec)) {
             active.resolved.set(key, computed);
         }
 
-        return computed;
+        return { resolution: computed, graph: active.graph };
     };
 
     /**
-     * Count the edges in scope by walking every one of them.
-     * @param nodes - The node half of the resolution.
-     * @param graph - The snapshot.
-     * @returns The edge count.
+     * Whether one edge is in scope: both endpoints in the node half, and allowed by the
+     * constraint where there is one.
+     * @param half - The node half of the resolution.
+     * @param edge - The logical edge index.
+     * @param source - The edge's source node index.
+     * @param target - The edge's target node index.
+     * @returns True when the edge is in scope.
      */
-    const countEdges = (nodes: ScopeNodes, graph: GraphSnapshot): number => {
-        const list = graph.edgeList();
-        let found = 0;
-
-        for (let edge = 0; edge < graph.edgeCount; edge++) {
-            if (edgeInScope(nodes, edge, list.src[edge], list.dst[edge])) {
-                found += 1;
-            }
-        }
-
-        return found;
-    };
+    const edgeInScope = (half: NodeHalf, edge: number, source: number, target: number): boolean =>
+        maskTest(half.nodes, source) &&
+        maskTest(half.nodes, target) &&
+        (half.constraint === null || maskTest(half.constraint, edge));
 
     /**
      * Estimate the edges in scope from an evenly spaced sample.
      *
      * Systematic rather than random, so two counts of one graph agree: a reader who sees 1,203
      * and then 1,198 for a graph nothing touched learns to distrust both numbers.
-     * @param nodes - The node half of the resolution.
+     * @param spec - The specification.
      * @param graph - The snapshot.
      * @param sample - How many edges to look at.
      * @returns The estimate, and how many edges it was taken from.
      */
-    const estimateEdges = (nodes: ScopeNodes, graph: GraphSnapshot, sample: number): ScopeCount => {
+    const estimateEdges = (spec: Scope, graph: GraphSnapshot, sample: number): ScopeCount => {
         const total = graph.edgeCount;
         const take = Math.min(sample, total);
 
         if (take === total) {
-            return { nodes: nodes.mask.size, edges: countEdges(nodes, graph), exact: true };
+            const { resolution } = membershipOf(spec);
+
+            return { nodes: resolution.nodeCount, edges: resolution.edgeCount, exact: true };
         }
 
+        const half = nodesOf(spec);
         const list = graph.edgeList();
         let found = 0;
 
         for (let step = 0; step < take; step++) {
             const edge = Math.floor((step * total) / take);
 
-            if (edgeInScope(nodes, edge, list.src[edge], list.dst[edge])) {
+            if (edgeInScope(half, edge, list.src[edge], list.dst[edge])) {
                 found += 1;
             }
         }
 
-        return { nodes: nodes.mask.size, edges: Math.round((found / take) * total), exact: false, sampled: take };
+        return { nodes: maskCount(half.nodes, graph.nodeCount), edges: Math.round((found / take) * total), exact: false, sampled: take };
     };
 
     /**
@@ -892,23 +761,20 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
      */
     const resolveNow = (spec: Scope): ResolvedScope => {
         assertScope(spec);
-        const members = membershipOf(spec);
+        const { resolution, graph } = membershipOf(spec);
 
-        // A fresh object per call, so `resolvedAt` is when it was asked rather than when the walk
-        // behind it happened to be cached.
-        return Object.freeze({
-            nodes: members.nodes,
-            edges: members.edges,
-            nodeCount: members.nodes.size,
-            edgeCount: members.edges.size,
-            digest: members.digest,
-            spec,
-            resolvedAt: new Date().toISOString(),
-        });
+        return resolvedScopeOf(resolution, graph, spec);
     };
 
     return {
         resolveNow,
+
+        nodeIdsOf(spec: Scope): readonly NodeId[] {
+            assertScope(spec);
+            const { resolution, graph } = membershipOf(spec);
+
+            return Array.from(maskToIndices(resolution.nodes, graph.nodeCount), (index) => graph.ids.idOf(index));
+        },
 
         resolve(spec: Scope): Promise<ResolvedScope> {
             return Promise.resolve(resolveNow(spec));
@@ -929,19 +795,19 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
 
             const { graph } = current();
 
-            // The whole graph is two numbers the snapshot already holds, so it never walks, and
-            // a session with nothing hidden reaches the same two numbers through "visible".
+            // The whole graph is two numbers the snapshot already holds, and a session with
+            // nothing hidden reaches the same two numbers through "visible".
             if (spec === "graph" || (spec === "visible" && sources.visibility === undefined)) {
                 return Promise.resolve({ nodes: graph.nodeCount, edges: graph.edgeCount, exact: true });
             }
 
-            const nodes = nodesOf(spec);
-
             if (options.approximate === true) {
-                return Promise.resolve(estimateEdges(nodes, graph, sample));
+                return Promise.resolve(estimateEdges(spec, graph, sample));
             }
 
-            return Promise.resolve({ nodes: nodes.mask.size, edges: countEdges(nodes, graph), exact: true });
+            const { resolution } = membershipOf(spec);
+
+            return Promise.resolve({ nodes: resolution.nodeCount, edges: resolution.edgeCount, exact: true });
         },
 
         save(name: string, spec: Scope): ScopeId {

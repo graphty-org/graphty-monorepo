@@ -415,6 +415,25 @@ export class ElementMask<TId> {
     }
 
     /**
+     * The membership as a packed bitmap in graph-format's mask layout (ceil(length / 32) words,
+     * LSB-first): one pass of byte reads. A row at or past the live count is not a member.
+     * @param length - How many indices the bitmap covers, normally the snapshot's element count.
+     * @returns A fresh bitmap.
+     */
+    pack(length: number): U32 {
+        const bits = new Uint32Array((length + 31) >>> 5);
+        const end = Math.min(length, this.rows);
+
+        for (let index = 0; index < end; index++) {
+            if (this.array[index] === MEMBER) {
+                bits[index >>> 5] |= 1 << (index & 31);
+            }
+        }
+
+        return bits;
+    }
+
+    /**
      * The ids in the set, materialised lazily and handed back frozen.
      *
      * IDENTITY-STABLE: the same array object comes back until the contents actually change, so a

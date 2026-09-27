@@ -64,11 +64,12 @@ import {
 // The explicit `/index` matters: `src/session/scope.ts` still exists beside the directory and
 // wins a bare `../scope`. It goes when the resolver behind it is retired.
 import {
+    createScopeApi,
     edgeSpaceOf,
     ElementMask,
     type MaskIdSpace,
-    membershipDigest,
     nodeSpaceOf,
+    type ScopeResolver,
     type ScopeVisibilitySource,
 } from "../scope/index";
 import {
@@ -452,8 +453,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     let cachedEdgeSet: ReadonlySet<EdgeId> | null = null;
     let cachedSummary: VisibilitySummary | null = null;
     let cachedSummaryKey = "";
-    let cachedScope: ResolvedScope | null = null;
-    let cachedScopeGraph: GraphSnapshot | null = null;
+    let fallbackScope: ScopeResolver | null = null;
 
     /**
      * Write the whole membership into the masks from the stored filter and window.
@@ -534,35 +534,9 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             return resolve("graph");
         }
 
-        const active = currentFrame();
+        fallbackScope ??= createScopeApi({ snapshot: () => sources.snapshot() });
 
-        if (cachedScope !== null && cachedScopeGraph === active.graph) {
-            return cachedScope;
-        }
-
-        const nodeIds: NodeId[] = [];
-        const edgeIds: EdgeId[] = [];
-
-        for (let index = 0; index < active.graph.nodeCount; index++) {
-            nodeIds.push(active.nodeSpace.idOf(index));
-        }
-
-        for (let index = 0; index < active.graph.edgeCount; index++) {
-            edgeIds.push(active.edgeSpace.idOf(index));
-        }
-
-        cachedScopeGraph = active.graph;
-        cachedScope = Object.freeze({
-            digest: membershipDigest(nodeIds, edgeIds),
-            edgeCount: edgeIds.length,
-            edges: new Set(edgeIds),
-            nodeCount: nodeIds.length,
-            nodes: new Set(nodeIds),
-            resolvedAt: new Date().toISOString(),
-            spec: WHOLE_GRAPH,
-        });
-
-        return cachedScope;
+        return fallbackScope.resolveNow(WHOLE_GRAPH);
     };
 
     /**

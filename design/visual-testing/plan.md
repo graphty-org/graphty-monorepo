@@ -335,6 +335,13 @@ path appears in an earlier record on the same branch with a different `to` hash 
 after a merge conflict, so never before the seed). Each has one serve or page test, written
 first.
 
+An item counts as opened once its story view has been shown; Accept all marks its accepts as not
+opened until then. A saved decision is resumed only while the item's image hash (the capture, or
+the baseline for a removed item) is unchanged, so a new CI run keeps decisions on identical
+images and drops the rest. The re-review flag reads the pull request's records at the captured
+head and compares the newest `to` for the path with the baseline in `results.json`. The page test
+(`test/page.test.mjs`) drives Chromium, so the visual-review CI shard installs a browser.
+
 ### Phase 5: the CI job
 
 **Build.** A `visual` job in `.github/workflows/ci.yml`: `needs: build`, `runs-on: ubuntu-24.04`,

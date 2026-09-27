@@ -61,7 +61,7 @@ The provenance section says why the minimum is still not a floor on this box.
 | closeness, 100 sampled sources                   | ~100 (~300)                             | ~5.8k (11k)                   | 1.9x / 38x / 71x                                                                          | 1.8x / 27x / 69x                                                                             | ~1x / 15x / 28x                            | ~0.9x / 13x / 29x             | earns, as a sampled algorithm                                                                      |
 | closeness, exact, every source                   | ~100-250 (~320-400)                     | ~1.0k-2.8k (4.6k-5.0k)        | vs a port 4.4x / 80x / 101x [3.6x / 32x / 101x]                                           | vs a port 4.4x / 58x / 99x [3.6x / 23x / 99x]                                                | 2.4x / 38x / 41x                           | 2.4x / 27x / 40x              | earns per unit of work; unusable above ~30k (see text)                                             |
 | betweenness, 100 sampled sources                 | 1.5k [2.3k] (3.0k [9.5k])               | 1.6k [2.8k] (3.5k [30k])      | 7.0x / 13.7x / 8.1x [2.5x / 3.2x / 8.1x]                                                  | 5.2x / 13.1x / 7.8x [1.9x / 3.1x / 7.8x]                                                     | 3.1x / 5.7x / 3.2x                         | 2.3x / 5.4x / 3.1x            | earns; the pessimistic bracket sits on the 3x line at 100k (3.06x)                                 |
-| all-pairs shortest paths, blocked Floyd-Warshall | ~50 vs legacy, ~130 vs a port           | unchanged                     | n = 1,000: 2,500x vs legacy, 89x vs a port; n = 5,792: 11,300x / 290x                     | unchanged (2,420x and 10,500x vs legacy, within 10 percent)                                  | n = 5,792: 124x vs a port                  | unchanged                     | earns inside the binding bound; cannot address 100k                                                |
+| all-pairs shortest paths, blocked Floyd-Warshall | ~50 vs legacy, ~130 vs a port           | 72 vs a port, Node (below)    | n = 1,000: 2,500x vs legacy, 89x vs a port; n = 5,792: 11,300x / 290x                     | unchanged (2,420x and 10,500x vs legacy, within 10 percent)                                  | n = 5,792: 124x vs a port                  | unchanged                     | earns inside the binding bound; cannot address 100k                                                |
 | k-core vs a port                                 | 132k (380k)                             | 209k (501k)                   | 0.15x / 0.82x / 4.0x                                                                      | 0.06x / 0.49x / 3.7x                                                                         | 0.07x / 0.37x / 1.8x                       | 0.03x / 0.22x / 1.7x          | marginal; earns only against the unported code (as decided on an estimated port; re-derived below) |
 | triangle count, clustering coefficient           | 3.0k (4.8k)                             | 6.6k (15k)                    | 7.2x / 12.7x / 26x [4.4x / 3.0x / 4.1x]                                                   | 1.6x / 9.7x / 23x [0.94x / 2.3x / 3.6x]                                                      | 3.2x / 5.4x / 9.9x                         | 0.69x / 4.1x / 8.8x           | earns at 100k on the assumed merge rate, unverified; the bracket earns at no browser size          |
 | k-truss, support recomputed per round            | 4.2k at 10 rounds                       | 13k at 10 rounds              | 10 rounds 4.0x / 4.8x / 7.8x; 30 rounds 1.5x / 1.8x / 2.9x; 50 rounds 0.91x / 1.1x / 1.8x | 10 rounds 0.85x / 3.7x / 6.9x; 30 rounds 0.32x / 1.4x / 2.5x; 50 rounds 0.20x / 0.83x / 1.6x | 10 rounds 2.1x / 2.0x / 2.8x               | 10 rounds 0.44x / 1.5x / 2.5x | marginal; the round count is unbounded                                                             |
@@ -75,6 +75,62 @@ label propagation 31x / 337x / 508x and Louvain 5.3x / 47x / 294x on the minima 
 7,538x, 32x / 980x / 2,835x, 35x / 400x / 603x and 6.2x / 50x / 357x on the loaded medians),
 and 17-31x of each of those gaps at 100k belongs to the missing CPU port (Louvain's 20x was
 assumed; the port, once built, measured 1.8x at 100k -- see the re-derivation below).
+
+### All-pairs measured, not modelled (2026-09-27)
+
+The all-pairs row above was modelled. It has now been measured, in Node on Dawn on the reference
+card (the RTX 4070 SUPER, driver 580.173.02), not in Chromium. The GPU arm is
+`allPairsShortestPath` of `@graphty/webgpu-graph-algorithms`, timed end to end INCLUDING the upload
+and the `4 n^2`-byte readback of the matrix. The CPU arms are the two this row was modelled
+against: the shipped `floydWarshall` of `@graphty/algorithms` (the Map-of-Maps legacy code), and
+an indexed port -- a row-major `Float64Array` swept k-i-j, the port the model priced at 1.5 ns per
+inner step. No such port ships, so it was written for the measurement. Graphs are this record's
+generator: seeded, 10 n unique undirected edges (fewer below 21 nodes, where 10 n do not exist),
+integer weights 1-100. In every pass the arms ran interleaved -- GPU, port, legacy -- after one
+discarded warm-up of each, and the GPU matrix was checked cell by cell against the port's before
+anything was timed. Medians of 15 passes up to 256 nodes, 5 at 512 and 1,024, 3 at 2,048; the
+legacy arm stops at 512, where one call takes 4.2 s. The one-minute load average was 1.5 before the
+first size and 2.3 after the last. Times in ms:
+
+| nodes |  edges |   GPU |  port | legacy | GPU vs port | GPU vs legacy |
+| ----: | -----: | ----: | ----: | -----: | ----------: | ------------: |
+|    16 |     60 | 0.334 | 0.010 |  0.455 |       0.03x |          1.4x |
+|    32 |    248 | 0.258 | 0.064 |   1.44 |       0.25x |          5.6x |
+|    48 |    480 | 0.346 | 0.182 |   3.32 |       0.52x |          9.6x |
+|    64 |    640 | 0.463 | 0.398 |   8.55 |       0.86x |           18x |
+|    96 |    960 | 0.613 |  1.31 |   26.9 |        2.1x |           44x |
+|   128 |  1,280 | 0.688 |  2.84 |   62.7 |        4.1x |           91x |
+|   256 |  2,560 |  3.16 |  18.9 |    511 |        6.0x |          162x |
+|   512 |  5,120 |  7.82 |   139 |  4,218 |         18x |          540x |
+| 1,024 | 10,240 |  25.9 | 1,040 |     -- |         40x |            -- |
+| 2,048 | 20,480 |   139 | 8,357 |     -- |         60x |            -- |
+
+THE CROSSOVER AGAINST THE PORT IS 64-72 NODES IN NODE. Three further passes over 56-96 nodes at the
+same load put the device ahead at 64 in three of four passes (0.86x, 1.20x, 1.18x, 1.13x), ahead at
+72 in all three (1.44x, 1.39x, 1.37x) and behind at 56 in all three (0.71x, 0.61x, 0.60x).
+Against the legacy code the device won at every size measured, 16 nodes included, so that crossover
+is below 16. Chromium was not measured. The model charges Chromium a 2.0 ms round trip that Node
+does not pay, and the port reaches 2 ms at about 115 nodes (1.3 ms at 96, 2.8 at 128), so the
+modelled Chromium crossover of about 130 is consistent with this row, but it is still modelled.
+
+Two findings move the large-n speedups, in opposite directions. The port is FASTER than the model
+assumed: 1.0 ns per inner step at 2,048 nodes (8.36 s for 8.6 billion steps), not 1.5. And the
+device is SLOWER when the arms are interleaved than when it runs back to back: the `apsp` benchmark
+group, which calls the device repeatedly with nothing in between, read 1.47 / 4.19 / 18.3 ms at 512
+/ 1,024 / 2,048 nodes on the same card minutes later (appended to
+`webgpu-graph-algorithms/benchmarks/results/nvidia-lovelace-driver580.json`), and the interleaving
+script run with its CPU arms switched off reproduced those figures (1.47 / 4.49 / 18.5 ms). So the
+5-7x gap is the device answering slowly on the first call after an idle spell of 0.1-8 s while the
+CPU arm runs, not background load; whether a clock or a power state is the cause was not isolated.
+A consumer who runs all-pairs once sees the interleaved figure, 18x / 40x / 60x over the port at 512
+/ 1,024 / 2,048 nodes; a consumer who runs it repeatedly sees 95x / 248x / 458x. The class is
+unchanged: earns, inside the binding bound.
+
+graphty-element does not route all-pairs to the accelerator yet -- its `floydWarshall` algorithm
+runs the CPU code, and `ACCELERATION_MIN_NODES_BY_CAPABILITY` in
+`graphty-element/src/acceleration/types.ts` has no `allPairsShortestPath` entry -- so no routing
+floor is set from this measurement. When the element routes it, 72 nodes is the Node floor; the
+Chromium floor has to be measured through the element, as the other floors there were.
 
 ### Re-derived against the measured ports (2026-09-27)
 

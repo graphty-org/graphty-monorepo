@@ -3216,5 +3216,141 @@
                 "rateUnit": "nodes/s"
             }
         ]
+    },
+    {
+        "date": "2026-09-27T21:43:56.118Z",
+        "host": "dev.ato.ms",
+        "node": "v22.22.1",
+        "cpu": "Intel(R) Core(TM) i9-14900KF",
+        "exposeGc": false,
+        "gpu": {
+            "vendor": "nvidia",
+            "architecture": "lovelace",
+            "device": "nvidia-geforce-rtx-4070-super",
+            "description": "NVIDIA: 580.173.02 580.173.2.0",
+            "driver": "580.173.02",
+            "limits": {
+                "maxBufferSize": 1099511627776,
+                "maxStorageBufferBindingSize": 2147483644,
+                "maxStorageBuffersPerShaderStage": 16,
+                "maxComputeWorkgroupsPerDimension": 65535
+            },
+            "software": false,
+            "runtime": "node",
+            "subgroupMaxSize": 32
+        },
+        "runnerClass": "nvidia-lovelace-driver580",
+        "results": [
+            {
+                "group": "apsp",
+                "name": "apsp at n=512",
+                "medianMs": 1.4702110000000062,
+                "minMs": 1.4260079999999675,
+                "maxMs": 2.0808890000000133,
+                "runs": 5,
+                "memoryDeltaBytes": 1531210,
+                "rate": 178303658.454466,
+                "rateUnit": "pairs/s"
+            },
+            {
+                "group": "apsp",
+                "name": "apsp readback n=512",
+                "medianMs": 0.15518800000000965,
+                "minMs": 0.14497999999997546,
+                "maxMs": 0.19191400000005387,
+                "runs": 5,
+                "memoryDeltaBytes": 24840,
+                "rate": 6756811093.640841,
+                "rateUnit": "bytes/s"
+            },
+            {
+                "group": "apsp",
+                "name": "apsp at n=1024",
+                "medianMs": 4.191874999999982,
+                "minMs": 4.023156000000029,
+                "maxMs": 6.566329999999994,
+                "runs": 5,
+                "memoryDeltaBytes": 5588210,
+                "rate": 250144863.5753701,
+                "rateUnit": "pairs/s"
+            },
+            {
+                "group": "apsp",
+                "name": "apsp readback n=1024",
+                "medianMs": 0.4002629999999954,
+                "minMs": 0.3947000000000003,
+                "maxMs": 0.41212300000000823,
+                "runs": 5,
+                "memoryDeltaBytes": 92248,
+                "rate": 10478870142.881178,
+                "rateUnit": "bytes/s"
+            },
+            {
+                "group": "apsp",
+                "name": "apsp at n=2048",
+                "medianMs": 18.250976000000037,
+                "minMs": 16.825954999999965,
+                "maxMs": 18.986738000000003,
+                "runs": 5,
+                "memoryDeltaBytes": 18595224,
+                "rate": 229812586.46112907,
+                "rateUnit": "pairs/s"
+            },
+            {
+                "group": "apsp",
+                "name": "apsp readback n=2048",
+                "medianMs": 1.5588240000000155,
+                "minMs": 1.5527519999999981,
+                "maxMs": 1.570319999999981,
+                "runs": 5,
+                "memoryDeltaBytes": 338888,
+                "rate": 10762739090.493752,
+                "rateUnit": "bytes/s"
+            },
+            {
+                "group": "apsp",
+                "name": "apsp at n=4096",
+                "medianMs": 94.43658200000004,
+                "minMs": 93.11205700000005,
+                "maxMs": 94.52714100000003,
+                "runs": 5,
+                "memoryDeltaBytes": 245272,
+                "rate": 177655900.33743483,
+                "rateUnit": "pairs/s"
+            },
+            {
+                "group": "apsp",
+                "name": "apsp readback n=4096",
+                "medianMs": 5.7984449999999015,
+                "minMs": 5.763760999999931,
+                "maxMs": 6.122339000000011,
+                "runs": 5,
+                "memoryDeltaBytes": 1422112,
+                "rate": 11573596714.2917,
+                "rateUnit": "bytes/s"
+            },
+            {
+                "group": "apsp",
+                "name": "apsp at n=5760",
+                "medianMs": 237.61811399999988,
+                "minMs": 237.12742499999968,
+                "maxMs": 238.9091679999999,
+                "runs": 5,
+                "memoryDeltaBytes": 1560672,
+                "rate": 139625718.93824568,
+                "rateUnit": "pairs/s"
+            },
+            {
+                "group": "apsp",
+                "name": "apsp readback n=5760",
+                "medianMs": 11.395768000000317,
+                "minMs": 11.332258999999794,
+                "maxMs": 12.289132999999765,
+                "runs": 5,
+                "memoryDeltaBytes": 2874328,
+                "rate": 11645586326.432436,
+                "rateUnit": "bytes/s"
+            }
+        ]
     }
 ]

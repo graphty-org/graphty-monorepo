@@ -1882,6 +1882,48 @@ describe("AppShell", () => {
             expect(container.querySelector("[data-canvas-graph='true']")).not.toBeNull();
             expect(container.querySelector("[data-canvas-welcome='true']")).not.toBeNull();
         });
+
+        /* A dataset boundary takes away whatever had focus -- the Welcome rows, the docks, the
+           inspector -- so the shell hands focus to the canvas region rather than dropping a
+           keyboard reader on the page body (issue #259). */
+        it("moves focus to the canvas region when a sample loads", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+            await loadCatSample(container);
+
+            const canvas = container.querySelector<HTMLElement>('[data-shell-region="canvas"]');
+
+            await waitFor(() => {
+                expect(document.activeElement).toBe(canvas);
+            });
+            expect(canvas?.tabIndex).toBe(-1);
+        });
+
+        it("moves focus to the canvas region, not the page body, when the dataset is closed", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+            await loadCatSample(container);
+            fireEvent.click(screen.getByRole("button", { name: "Data" }));
+            fireEvent.click(within(screen.getByRole("region", { name: "Data" })).getByRole("button", { name: "More" }));
+
+            const close = await screen.findByText("Close dataset. Starts a new session");
+
+            /* Focus parked on the menu row, so a canvas that already held it from the load
+               cannot pass this on its own. */
+            close.closest<HTMLElement>("[role='menuitem']")?.focus();
+            fireEvent.click(close);
+            await flushMicrotasks();
+
+            expect(container.querySelector("[data-canvas-welcome='true']")).not.toBeNull();
+            await waitFor(() => {
+                expect(document.activeElement).toBe(container.querySelector('[data-shell-region="canvas"]'));
+            });
+            expect(document.activeElement).not.toBe(document.body);
+        });
     });
 
     describe("the Explore search field", () => {

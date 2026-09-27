@@ -47,12 +47,10 @@ import type { GraphStatistics } from "./types";
 /**
  * Start one algorithm, as data.
  *
- * Every verb on a session is meant to be expressible as one of these, so that "do this" and
- * "record that you did this" are the same artifact -- what a recipe replays, what a journal
- * stores, what an agent's tool call carries. One verb is expressible today, and the union below
- * has one member rather than a placeholder: a command that does not exist is discovered by
- * autocomplete finding nothing, which costs a consumer one keystroke, where a stub that compiles
- * and then throws costs them an afternoon.
+ * Every verb on a session is expressible as a command, so that "do this" and "record that you
+ * did this" are the same artifact -- what `session.execute` runs, what a transaction groups into
+ * one undoable step, and what an agent's tool call carries. This is the one that starts a run;
+ * {@link SessionCommand} is the union of all of them.
  */
 export interface AlgorithmRunCommand {
     /** Which verb this is. */

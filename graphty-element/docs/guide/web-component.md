@@ -50,6 +50,7 @@ All configuration is done through HTML attributes or their corresponding JavaScr
 | `algorithmsOnLoad`       | (property only)            | `Array<string \| object>`      | unset       | Algorithms to run once data loads: names, or `{ algorithm, params?, style?, seed?, as? }` (see [Algorithms](./algorithms#running-algorithms-when-the-data-loads)) |
 | `runAlgorithmsOnLoad`    | `run-algorithms-on-load`   | `boolean`                      | `false`     | Whether `algorithmsOnLoad` runs; a boolean attribute, on by presence |
 | `debug`                  | `debug`                    | `boolean`                      | `false`     | Enable debug overlay           |
+| `historyKeys`            | `history-keys`             | `boolean`                      | `true`      | Whether Ctrl+Z, Ctrl+Shift+Z and Ctrl+Y on the focused canvas undo and redo; `history-keys="false"` turns them off (see [Undo and History](./undo#keyboard-shortcuts)) |
 
 ### How the element finds an edge's endpoints
 
@@ -361,6 +362,7 @@ Common events:
 - `node-click` - Node was clicked
 - `node-hover` - Mouse entered a node
 - `selection-changed` - Selected node changed
+- `graphty-history-change` - A step was recorded, undone or redone; the detail carries `canUndo` and `canRedo`
 
 See [Events](./events) for the complete event reference.
 
@@ -478,6 +480,22 @@ const node = element.getNode("a");
 const allNodes = element.getNodes();
 const nodeCount = element.getNodeCount();
 ```
+
+### Undo and Redo
+
+```javascript
+// Every change a project saves is one step
+await element.session.undo();
+await element.session.redo();
+
+// Several changes as one step: call them through tx
+await element.batchOperations(async (tx) => {
+    await tx.data.addNodes([{ id: "d" }]);
+    await tx.data.addEdges([{ source: "c", target: "d" }]);
+});
+```
+
+See [Undo and History](./undo).
 
 ### Selection and Layout
 

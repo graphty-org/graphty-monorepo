@@ -992,6 +992,12 @@ type SampleDatasetId = "karate" | "les-miserables" | "football" | "dolphins"
 
 #### 4.3.3 Mutation, and inverses that serialise
 
+> **Superseded in part by the undo design** ([`../undo/undo-design.md`](../undo/undo-design.md),
+> sections 2 and 4). The element now owns the undo history as well as the inverses:
+> `session.undo()`, `redo()`, `history` and `transaction()`. Inverses are no longer published as
+> commands, because an inverse that holds a previous snapshot or a run result by reference
+> cannot be serialised. The `Mutation` kinds below stand, with `update-rows` added.
+
 ```ts
 type Mutation =
   | { kind: "add-nodes"; rows: readonly NodeRecord[] }
@@ -2637,6 +2643,13 @@ and it means the common case never hand-writes a predicate inside a handler.
 
 #### 4.11.1 The command union
 
+> **Updated by the undo design** ([`../undo/undo-design.md`](../undo/undo-design.md), section
+> 10.5). The published union is `SessionCommand`, and `COMMANDS` in
+> `@graphty/graphty-element/commands` lists only the ops that exist, each declared undoable or
+> exempt with a reason. `view.mode` is split into `view.dimension` (undoable) and
+> `view.immersive` (exempt), and the undo work adds `algo.legacy`, `visibility.context`,
+> `scope.save`, `scope.remove`, `positions.pin`, `view.save` and `view.remove`.
+
 ```ts
 type Command =
   | { op: "data.inspect"; source: Source; format?: FormatId }
@@ -2696,6 +2709,11 @@ target, rejecting the previous promise with `AbortError`; `queue: "now"` runs be
 and is refused with `E_UNSUPPORTED` for anything that mutates.
 
 #### 4.11.2 The journal
+
+> **Superseded in part by the undo design** ([`../undo/undo-design.md`](../undo/undo-design.md),
+> sections 2, 5 and 7). Undo does not read `JournalEntry.inverse`: the session keeps its own
+> history of steps (`session.history`), with coalescing and a byte budget. The journal, recipes
+> and replay described here are not built yet and stay as designed, without the `inverse` field.
 
 ```ts
 interface JournalEntry {

@@ -13,8 +13,8 @@ Graphty uses an event-driven architecture. Subscribe to events for user interact
 | `graph-settled`        | Layout finished          | `{ settled: boolean }`     |
 | `graph-frame-stable`   | The picture is final: layout converged, camera framed, frame drawn | `{ frames }` |
 | `zoom-to-fit-complete` | Auto-framing moved the camera around the whole graph | `{ boundingBoxMin, boundingBoxMax }` |
-| `data-loaded`          | Initial data loaded      | `{ nodeCount, edgeCount }` |
-| `data-added`           | Incremental data added   | `{ nodes, edges }`         |
+| `data-loaded`          | Initial data loaded      | `{ details: { report, ... }, cause? }` |
+| `data-added`           | Incremental data added   | `{ dataType, count, cause? }` |
 | `selection-changed`    | Node selected/deselected | `{ node, previousNode }`   |
 | `camera-state-changed` | Camera moved             | `{ state }`                |
 | `style-changed`        | Styles updated           | `{ layers }`               |
@@ -22,10 +22,15 @@ Graphty uses an event-driven architecture. Subscribe to events for user interact
 | `node-hover`           | Mouse entered node       | `{ node, data }`           |
 | `node-drag-start`      | Started dragging node    | `{ node, position, pinned }` |
 | `node-drag-end`        | Finished dragging node   | `{ node, position, pinned }` |
-| `elements-removed`     | Nodes and their edges removed | `{ nodes, edges }`    |
+| `elements-removed`     | Nodes and their edges removed | `{ nodes, edges, cause? }` |
 | `data-loading-progress` | A chunk of a load arrived | `{ nodeRecordsLoaded, edgeRecordsLoaded, chunksProcessed, ... }` |
 | `data-loading-complete` | A load finished          | `{ nodesLoaded, edgesLoaded, report, ... }` |
 | `error`                | Error occurred           | `{ error, context }`       |
+
+`cause` on the three data events is set when undo, redo, a restore or a rolled-back change added
+or removed the rows: `"undo"`, `"redo"`, `"restore"` or `"rollback"`. A listener that starts work
+when data arrives should skip those, or it starts the work again on every undo. See
+[Undo and History](./undo#following-changes).
 
 There is no edge-click event. Edge meshes are not pickable, so nothing could emit one; it returns,
 with a serialisable detail, when edge picking lands.
@@ -189,6 +194,25 @@ element.addEventListener("graphty-visibility-change", (e) => {
     console.log(`showing ${visible.nodes} of ${total.nodes} nodes`, `(${filterKind})`);
 });
 ```
+
+### graphty-history-change
+
+The undo history changed: a step was recorded, merged, undone or redone, or pending work started
+or finished. The detail is plain values, enough for an Undo and a Redo button:
+
+```javascript
+element.addEventListener("graphty-history-change", (e) => {
+    const { reason, version, position, steps, canUndo, canRedo } = e.detail;
+    undoButton.disabled = !canUndo;
+    redoButton.disabled = !canRedo;
+});
+```
+
+On the session the same change is `history:changed`. The session also publishes
+`project:changed` with `{ slices, cause }` whenever anything a project saves changes, whatever
+changed it, and `style:changed`, `visibility:changed` and `run:changed` carry a `cause` of
+`"command"`, `"undo"`, `"redo"`, `"restore"` or `"rollback"`. See
+[Undo and History](./undo#following-changes).
 
 ### style-changed
 

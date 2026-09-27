@@ -157,6 +157,11 @@ await started;
 session.results.get("reach")?.node("d")?.value;
 ```
 
+A finished run is one undoable step: `session.undo()` takes the run, its result and the style
+layers it applied away together, and `session.redo()` brings them back without computing again. A
+run started through a transaction's `tx.run` joins the transaction's step. Undo while the run is
+still going cancels it (see [Undo and History](../undo#work-still-going)).
+
 Everything that hangs off a run comes with it: `session.results` gives the ranking, the histogram,
 the summary and a plain-language reading; `session.estimate()` answers what it would cost before
 anybody clicks; `session.catalog.metrics()` lists it beside the element's own with that cost; and
@@ -275,3 +280,6 @@ element's own algorithms as much as to yours.
 
 **The 1.10 `namespace:type` address still works** and still calls `run()` directly, with no run
 record, no progress, no cancel and no published result. Start a run by the catalogue key instead.
+It is still one undoable step: the `Graph` such an algorithm is handed records what it writes onto
+records and graph-level results, and every door it calls on that `Graph`, into the one step (see
+[Undo and History](../undo#plugin-algorithms-without-a-descriptor)).

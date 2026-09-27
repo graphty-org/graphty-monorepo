@@ -327,6 +327,10 @@ const unsubscribe = graph.onAiStatusChange((status) => {
 graph.disableAiControl();
 ```
 
+One message is one undoable step. A command you register with
+`graph.getAiManager()?.registerCommand(...)` joins that step only through `ctx.tx`; see
+[Undo and History](./undo#commands-you-register-with-the-ai-assistant).
+
 ### Voice Input
 
 Enable voice commands:
@@ -377,6 +381,31 @@ await graph.batchOperations(async (tx) => {
 One undo takes the whole batch back, and a throw inside the callback rolls it back. A call on
 `graph` itself during the callback is a step of its own, and logs a warning naming the `tx` verb
 to use instead.
+
+## Undo and Redo
+
+Every change a project saves is one undoable step, and the session keeps the history:
+
+```typescript
+const session = graph.getSession();
+
+await session.undo();
+await session.redo();
+session.canUndo; // whether undo() would do anything
+session.history.steps; // [{ label: "Added 3 nodes", ... }, ...]
+
+// Several changes as one step, through the tx the callback receives
+await session.transaction("Recolour", async (tx) => {
+    await tx.styles.add(spec);
+    await tx.layout.set("circular");
+});
+
+// Any command in the vocabulary, as data
+await session.execute({ op: "visibility.context", show: false });
+```
+
+See [Undo and History](./undo) for what is and is not undoable, transactions, work still
+running, events and the memory budget.
 
 ## Event Handling
 

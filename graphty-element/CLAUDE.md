@@ -263,6 +263,27 @@ the element re-reports them as one of these codes with the original attached as 
 is deliberately no `E_NOT_READY`: every method is safe to call before the element is ready, and
 work queues until it is.
 
+### Every change goes through the dispatcher
+
+Undo covers every change a project saves because there is one path for changes: the session's
+dispatcher (`src/session/project/Dispatcher.ts`). Project state is frozen outside it, and the
+strict build (every test) throws on a write that did not come through a command. So:
+
+- **A new public member that changes the graph, a style, a setting or anything else a project
+  saves dispatches a command.** It never writes a manager, a record or a map itself, and it never
+  records its own undo: the command's definition declares the keys it writes, and the dispatcher
+  records forward and inverse values. List the member in `src/session/commands/doors.ts`;
+  `test/session/history/doors.test.ts` and `test/browser/doors.test.ts` fail on a public member
+  that is on no list.
+- **A new op declares `undoable`, or `exempt` with a reason**, in its definition under
+  `src/session/commands/` and in `COMMANDS` (`commands.ts`), which does not compile without it.
+  `test/session/history/vocabulary.test.ts` checks the two agree and fails until an undoable op
+  has a round-trip fixture in `test/session/history/fixtures.ts`.
+- Exempt means it changes nothing a project file saves: the camera, the selection, a moving
+  layout, a device session. When in doubt it is undoable.
+
+The guide a consumer reads is `docs/guide/undo.md`; the design is `design/undo/undo-design.md`.
+
 ### Acceleration
 
 `src/acceleration/` owns hardware acceleration end to end: a registry an accelerator factory

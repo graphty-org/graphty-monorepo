@@ -418,7 +418,7 @@ export abstract class LayoutEngine {
      * Undo and redo write where the nodes were into the array and then call this, so the next
      * drag, add or `setRunning(true)` starts from the restored arrangement instead of the one the
      * engine was holding. The default hands every placed node back through
-     * {@link LayoutEngine.setNodePosition}, which is right for any engine that keeps coordinates of
+     * `setNodePosition`, which is right for any engine that keeps coordinates of
      * its own; an engine that can adopt the array in one pass overrides it.
      */
     loadArrangement(): void {

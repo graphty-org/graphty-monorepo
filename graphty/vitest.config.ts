@@ -2,6 +2,10 @@ import react from "@vitejs/plugin-react";
 import { resolve } from "path";
 import { defineConfig } from "vitest/config";
 
+/** The tests that mount the real graphty-element, unmocked. */
+const REAL_ELEMENT_TESTS = "src/**/*.real-element.test.tsx";
+const BASE_EXCLUDE = ["**/node_modules/**", "**/dist/**", "**/.worktrees/**"];
+
 export default defineConfig({
     plugins: [react()],
     resolve: {
@@ -20,7 +24,22 @@ export default defineConfig({
             provider: "playwright",
             instances: [{ browser: "chromium" }],
         },
-        exclude: ["**/node_modules/**", "**/dist/**", "**/.worktrees/**"],
+        exclude: BASE_EXCLUDE,
+        // Two projects, so the tests that mount the real graphty-element get a browser of
+        // their own. Every file of one browser project runs in an iframe of the same page, and
+        // same-page iframes share one main thread: a real element loading and laying out a
+        // sample holds that thread for seconds at a time, and a neighbouring file's module
+        // import then outruns its test timeout.
+        projects: [
+            {
+                extends: true,
+                test: { name: "app", exclude: [...BASE_EXCLUDE, REAL_ELEMENT_TESTS] },
+            },
+            {
+                extends: true,
+                test: { name: "real-element", include: [REAL_ELEMENT_TESTS] },
+            },
+        ],
         setupFiles: "./src/test/setup.ts",
         coverage: {
             all: true,

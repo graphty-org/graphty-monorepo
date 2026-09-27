@@ -7,6 +7,10 @@
 import { bfsRingSlots } from "../../src/algorithms/bfs.js";
 import {
     ARC_WINDOW_ALIGN,
+    BC_BACKWARD_LEVELS_PER_SUBMIT,
+    BC_BATCH_BUDGET_FRACTION,
+    BC_EDGE_PARALLEL_GAMMA,
+    BC_MAX_BATCH,
     BEAMER_BETA,
     DEFAULT_STAGING_SLOTS,
     DEFAULT_WARN_UNRELEASED_SNAPSHOTS,
@@ -249,6 +253,13 @@ describe("constants.ts (contract 3.2)", () => {
         expect(BEAMER_BETA).toBe(24);
         expect(SSSP_DELTA_FACTOR).toBe(32);
         expect(F32_INF_BITS).toBe(0x7f800000);
+    });
+
+    it("pins the betweenness batch constants (design 8.4, 10.1)", () => {
+        expect(BC_BATCH_BUDGET_FRACTION).toBe(0.25);
+        expect(BC_MAX_BATCH).toBe(64);
+        expect(BC_EDGE_PARALLEL_GAMMA).toBe(2);
+        expect(BC_BACKWARD_LEVELS_PER_SUBMIT).toBe(64);
     });
 
     it("pins the BFS ring arithmetic (P8-T12): 304 at one window, 1,200 at eight, 4 x levels per extra window once the level submit is the larger batch (a fifth per-window kernel must change this pin), and never below the result batch's 34 + w at any cadence", () => {

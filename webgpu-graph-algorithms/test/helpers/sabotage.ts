@@ -61,6 +61,7 @@ const BFS_TEST = "test/algorithms/bfs.test.ts";
 const SSSP_TEST = "test/algorithms/sssp.test.ts";
 const BF_TEST = "test/algorithms/bellman-ford.test.ts";
 const CLOSENESS_TEST = "test/algorithms/closeness.test.ts";
+const BETWEENNESS_TEST = "test/algorithms/betweenness.test.ts";
 
 /** At least three mutations per kernel that has rows (spec 13 rule f); PARTIAL so a phase's kernels can land before its rows (the coverage test below gates by phase). */
 export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> = Object.freeze({
@@ -1414,6 +1415,171 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             test: CLOSENESS_TEST,
         },
     ]),
+    // ---- betweenness, measured by test/sabotage/betweenness.test.ts through betweennessReport
+    "bc-finalize": Object.freeze([
+        {
+            // the boundary never closes a level: every level after the seeds is empty, only the sources are reached
+            name: "level-not-closed",
+            find: "ends[level + 1u] = top;",
+            replace: "ends[level + 1u] = ends[level];",
+            minFactor: 10,
+            test: BETWEENNESS_TEST,
+        },
+        {
+            // a source starts with no shortest path: every count is 0 and every ratio NaN
+            name: "seed-sigma-zero",
+            find: "sigmaK[t] = 1u;",
+            replace: "sigmaK[t] = 0u;",
+            minFactor: 10,
+            test: BETWEENNESS_TEST,
+        },
+        {
+            // the overflow flag is raised at the seed: the layered(4, 16) control reports an overflow it does not have
+            name: "overflow-seeded-raised",
+            find: "atomicStore(&counters[27], 0u);",
+            replace: "atomicStore(&counters[27], 1u);",
+            minFactor: 10,
+            test: BETWEENNESS_TEST,
+        },
+    ]),
+    "bc-forward": Object.freeze([
+        {
+            // the pre-check compares against the level instead of the unclaimed sentinel: nothing is ever claimed
+            name: "pre-check-against-level",
+            find: "if (atomicLoad(&depthK[x]) == INVALID_INDEX) {",
+            replace: "if (atomicLoad(&depthK[x]) == level) {",
+            minFactor: 10,
+            test: BETWEENNESS_TEST,
+        },
+        {
+            // only the claiming arc counts its paths: sigma counts claims, wrong wherever two shortest paths meet
+            name: "count-only-the-winner",
+            find: "if (atomicLoad(&depthK[x]) == next) {",
+            replace: "if (won) {",
+            minFactor: 10,
+            test: BETWEENNESS_TEST,
+        },
+        {
+            // the wrap test is dropped: layered(4, 18) no longer reports its overflow
+            name: "wrap-test-dropped",
+            find: "if (old + add < old) { atomicOr(&counters[27], 1u); }",
+            replace: "",
+            minFactor: 10,
+            test: BETWEENNESS_TEST,
+        },
+        {
+            // the tag is ignored: every source writes source 0's slice (right at k = 1, wrong at k = 2)
+            name: "tag-ignored",
+            find: "let x = (origin - (origin % P.n)) + colIdx",
+            replace: "let x = colIdx",
+            minFactor: 10,
+            test: BETWEENNESS_TEST,
+        },
+    ]),
+    "bc-backward": Object.freeze([
+        {
+            // predecessors and successors both pulled: the recursion adds terms from the level above
+            name: "predecessors-pulled-too",
+            find: "if (depthK[v] == succ) {",
+            replace: "if (depthK[v] != depthK[t]) {",
+            minFactor: 10,
+            test: BETWEENNESS_TEST,
+        },
+        {
+            // (1 + delta) written as delta: every dependency collapses to 0 (the path's closed form is the check)
+            name: "one-plus-dropped",
+            find: "(1.0 + deltaK[v])",
+            replace: "deltaK[v]",
+            minFactor: 10,
+            test: BETWEENNESS_TEST,
+        },
+        {
+            // the path-count ratio inverted
+            name: "sigma-ratio-inverted",
+            find: "(sw / f32(sigmaK[v]))",
+            replace: "(f32(sigmaK[v]) / sw)",
+            minFactor: 10,
+            test: BETWEENNESS_TEST,
+        },
+    ]),
+    "bc-gather": Object.freeze([
+        {
+            // the running sum is dropped: only the last batch survives (the two-source-per-batch checks)
+            name: "previous-batches-dropped",
+            find: "var acc = bc[w];",
+            replace: "var acc = 0.0;",
+            minFactor: 10,
+            test: BETWEENNESS_TEST,
+        },
+        {
+            // the batch's last source is skipped
+            name: "last-source-skipped",
+            find: "s < P.k;",
+            replace: "s + 1u < P.k;",
+            minFactor: 10,
+            test: BETWEENNESS_TEST,
+        },
+        {
+            // the source stride taken as k instead of n
+            name: "stride-k-not-n",
+            find: "deltaK[s * P.n + w]",
+            replace: "deltaK[s * P.k + w]",
+            minFactor: 10,
+            test: BETWEENNESS_TEST,
+        },
+    ]),
+    "bc-edge-gather": Object.freeze([
+        {
+            // the successor test dropped: every reached arc contributes
+            name: "depth-test-dropped",
+            find: "dw != INVALID_INDEX && depthK[base + nbr] == dw + 1u",
+            replace: "dw != INVALID_INDEX",
+            minFactor: 10,
+            test: BETWEENNESS_TEST,
+        },
+        {
+            // each source overwrites the arc's sum: only the batch's last contributing source survives
+            name: "overwrites-not-accumulates",
+            find: "acc = acc + (f32(sigmaK[base + w])",
+            replace: "acc = (f32(sigmaK[base + w])",
+            minFactor: 10,
+            test: BETWEENNESS_TEST,
+        },
+        {
+            // (1 + delta) written as delta
+            name: "one-plus-dropped",
+            find: "(1.0 + deltaK[base + nbr])",
+            replace: "deltaK[base + nbr]",
+            minFactor: 10,
+            test: BETWEENNESS_TEST,
+        },
+    ]),
+    "bc-forward-edge": Object.freeze([
+        {
+            // the other direction of an undirected edge is never relaxed (invisible on a directed graph)
+            name: "second-direction-dropped",
+            find: "if (UNDIRECTED) {",
+            replace: "if (false) {",
+            minFactor: 10,
+            test: BETWEENNESS_TEST,
+        },
+        {
+            // the paths are counted from the wrong end of the edge
+            name: "count-from-the-wrong-end",
+            find: "count_paths(u, x, next);",
+            replace: "count_paths(x, u, next);",
+            minFactor: 10,
+            test: BETWEENNESS_TEST,
+        },
+        {
+            // the tag is ignored: every source relaxes source 0's slice
+            name: "tag-ignored",
+            find: "let base = s * P.n;",
+            replace: "let base = 0u;",
+            minFactor: 10,
+            test: BETWEENNESS_TEST,
+        },
+    ]),
 });
 
 /**
@@ -1940,8 +2106,16 @@ export const SABOTAGE_P4_LAW: Readonly<Partial<Record<KernelId, readonly Mutatio
     ]),
 });
 
-/** The phases whose kernels ALL have their rows: ["P1"] at P1-T5, + "P2" at P2-T2, + "P3" at P3-T5, + "P7" at M8b-T10, + "P4" at P4-T12 (PD-1: when the last P4 kernel has its rows), + "P8" at P8-T15 (the frontier-family kernels, 58 rows written by the tasks that wrote the kernels over fifteen of them, plus `bfs-next-degree`'s 3 for issue #391: sixteen kernels, 61 rows); test/sabotage/coverage.test.ts asserts every KERNELS entry whose `phase` is listed here has >= 3 rows, except SABOTAGE_EXEMPT. */
-export const SABOTAGE_PHASES: readonly KernelEntry["phase"][] = Object.freeze(["P1", "P2", "P3", "P7", "P4", "P8"]);
+/** The phases whose kernels ALL have their rows: ["P1"] at P1-T5, + "P2" at P2-T2, + "P3" at P3-T5, + "P7" at M8b-T10, + "P4" at P4-T12 (PD-1: when the last P4 kernel has its rows), + "P8" at P8-T15 (the frontier-family kernels, 58 rows written by the tasks that wrote the kernels over fifteen of them, plus `bfs-next-degree`'s 3 for issue #391: sixteen kernels, 61 rows), + "P9" with the six betweenness kernels (20 rows); test/sabotage/coverage.test.ts asserts every KERNELS entry whose `phase` is listed here has >= 3 rows, except SABOTAGE_EXEMPT. */
+export const SABOTAGE_PHASES: readonly KernelEntry["phase"][] = Object.freeze([
+    "P1",
+    "P2",
+    "P3",
+    "P7",
+    "P4",
+    "P8",
+    "P9",
+]);
 
 /**
  * Kernels with no oracle-sensitive arithmetic to mutate: a wrong fill / toScene fails the exact-equality tests

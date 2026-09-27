@@ -12,7 +12,8 @@
  * dedupe-claim and dedupe-filter; P8-T4 adds frontier-finalize with the FrontierCounters and FrontierParams blocks;
  * P8-T5 adds advance-expand; P8-T6 adds bfs-contract and sssp-pred; P8-T7 adds bfs-fused; P8-T8 adds bfs-bottom-up,
  * bfs-bitset-build and bfs-unvisited-flags; P8-T9 adds sssp-relax; P8-T10 adds bf-relax with the BfParams and BfFlags
- * blocks; P8-T11 adds closeness-sweep and closeness-reduce. This file is the only importer of src/wgsl/** (spec 3.2;
+ * blocks; P8-T11 adds closeness-sweep and closeness-reduce; P9 (betweenness) adds bc-finalize, bc-forward,
+ * bc-backward, bc-gather, bc-edge-gather and bc-forward-edge with the BcParams block. This file is the only importer of src/wgsl/** (spec 3.2;
  * test/layers.test.ts).
  */
 
@@ -23,6 +24,12 @@ import { type BindingDecl, type OverrideDecl, type WgslModuleSpec } from "./kern
 import { type CoreBinding } from "./memory/residency.js";
 import { type Binding } from "./types/memory.js";
 import { advanceExpandWgsl } from "./wgsl/advance-expand.wgsl.js";
+import { bcBackwardWgsl } from "./wgsl/bc-backward.wgsl.js";
+import { bcEdgeGatherWgsl } from "./wgsl/bc-edge-gather.wgsl.js";
+import { bcFinalizeWgsl } from "./wgsl/bc-finalize.wgsl.js";
+import { bcForwardWgsl } from "./wgsl/bc-forward.wgsl.js";
+import { bcForwardEdgeWgsl } from "./wgsl/bc-forward-edge.wgsl.js";
+import { bcGatherWgsl } from "./wgsl/bc-gather.wgsl.js";
 import { bfRelaxWgsl } from "./wgsl/bf-relax.wgsl.js";
 import { bfsBitsetBuildWgsl } from "./wgsl/bfs-bitset-build.wgsl.js";
 import { bfsBottomUpWgsl } from "./wgsl/bfs-bottom-up.wgsl.js";
@@ -69,7 +76,7 @@ import { wccLinkEdgesWgsl } from "./wgsl/wcc-link-edges.wgsl.js";
 import { wccLinkSampleWgsl } from "./wgsl/wcc-link-sample.wgsl.js";
 import { wccSampleWgsl } from "./wgsl/wcc-sample.wgsl.js";
 
-/** Every module id of P1-P4, P7 and P8 (later ids are appended, never renamed). */
+/** Every module id of P1-P4, P7, P8 and P9 (later ids are appended, never renamed). */
 export type KernelId =
     | "degree"
     | "reduce"
@@ -116,7 +123,13 @@ export type KernelId =
     | "sssp-relax"
     | "bf-relax"
     | "closeness-sweep"
-    | "closeness-reduce";
+    | "closeness-reduce"
+    | "bc-finalize"
+    | "bc-forward"
+    | "bc-backward"
+    | "bc-gather"
+    | "bc-edge-gather"
+    | "bc-forward-edge";
 
 /** One registry entry: everything of a WgslModuleSpec except the per-variant overrides and snippets. */
 export interface KernelEntry {
@@ -131,7 +144,7 @@ export interface KernelEntry {
     /** The snippet marker names the body carries (segmented-reduce: ["VALUE"]). */
     readonly snippetSlots: readonly string[];
     /** The phase the entry landed in (documentation and the compile-matrix filter). */
-    readonly phase: "P1" | "P2" | "P3" | "P4" | "P7" | "P8";
+    readonly phase: "P1" | "P2" | "P3" | "P4" | "P7" | "P8" | "P9";
 }
 
 // ---- the generated blocks (spec 5.3; contract 3.10.2): field order = byte order, offsets in the JSDoc
@@ -392,7 +405,9 @@ export const COMPACT_PARAMS: UniformBlock = UniformBlock.define("CompactParams",
  * one; every level kernel is a direct dispatch that reads it first -- G8-F5), `nextDegreeSum` @100 (issue #391: the
  * out-degree sum of the vertices the level claimed, accumulated by `bfs-next-degree` at the end of every level and
  * read, subtracted and zeroed by the next boundary -- Beamer's m_f measured on the frontier the boundary decides
- * for, not on the one it has just expanded). The words nothing writes before P8-T8 / P8-T9 are declared now because
+ * for, not on the one it has just expanded); `stackTop` @104 (betweenness: the append cursor of the claim log, which
+ * `bc-finalize` also writes into `ends` at every level boundary) and `sigmaOverflow` @108 (betweenness: 1 once a u32
+ * path count wrapped) are APPENDED so every earlier word keeps its byte offset. The words nothing writes before P8-T8 / P8-T9 are declared now because
  * the byte layout is what the single result copy decodes.
  */
 export const FRONTIER_COUNTERS: UniformBlock = UniformBlock.define(
@@ -424,6 +439,8 @@ export const FRONTIER_COUNTERS: UniformBlock = UniformBlock.define(
         ["deltaBits", "u32"],
         ["path", "u32"],
         ["nextDegreeSum", "u32"],
+        ["stackTop", "u32"],
+        ["sigmaOverflow", "u32"],
     ],
     { layout: "storage" },
 );
@@ -460,6 +477,18 @@ export const FRONTIER_PARAMS: UniformBlock = UniformBlock.define("FrontierParams
     ["iteration", "u32"],
     ["pad1", "u32"],
     ["pad2", "u32"],
+]);
+
+/** `BcParams` (uniform, 32 B; betweenness): `n` @0, `k` @4 (the batch's sources), `start` @8 (the first log index of a backward level), `count` @12 (a backward level's entries, or the edge count of `bc-forward-edge`), `stride` @16 (a grid-stride plan's stride), `role` @20 (`bc-finalize`: 0 the level boundary, 1 the seed), `pad0` @24, `pad1` @28. */
+export const BC_PARAMS: UniformBlock = UniformBlock.define("BcParams", [
+    ["n", "u32"],
+    ["k", "u32"],
+    ["start", "u32"],
+    ["count", "u32"],
+    ["stride", "u32"],
+    ["role", "u32"],
+    ["pad0", "u32"],
+    ["pad1", "u32"],
 ]);
 
 /** `BfParams` (uniform, 16 B; P8-T10): `edgeCount` @0 (the logical edges of the `edgeList` view), `stride` @4 (the grid-stride plan's stride), `maxRetries` @8 (PD-12's compare-exchange bound), `cutoffBits` @12 (the f32 bit pattern of the CPU port's `cutoff`, `+Inf` when absent). */
@@ -1363,6 +1392,129 @@ const CLOSENESS_REDUCE: KernelEntry = {
     phase: "P8",
 };
 
+/** `bc-finalize` (design 8.4, 5.4): the one-lane bookkeeping of a betweenness batch -- role 1 seeds it (depth 0 and one path for the k seed entries of the claim log, `stackTop = k`, `level = U32_MAX`), role 0 is the level boundary (`ends[level + 1] = stackTop`, `frontierCount`, `done` on an empty level); 5 storage bindings (the counters block as `array<atomic<u32>>`, `ends`, `S` read-only, `depthK` and `sigmaK` plain: one lane writes the seed). The design's finalize row has 2; `ends` is the third (the level boundary), and the seed's `S`, `depthK` and `sigmaK` make it five. */
+const BC_FINALIZE: KernelEntry = {
+    id: "bc-finalize",
+    body: bcFinalizeWgsl,
+    entryPoint: "bc_finalize",
+    bindings: [
+        decl(1, 0, "counters", "storage", "array<atomic<u32>>"),
+        decl(1, 1, "ends", "storage", "array<u32>"),
+        decl(1, 2, "S", "storage-ro", "array<u32>"),
+        decl(1, 3, "depthK", "storage", "array<u32>"),
+        decl(1, 4, "sigmaK", "storage", "array<u32>"),
+        decl(2, 0, "P", "uniform", "BcParams"),
+    ],
+    overrideDecls: [],
+    uniforms: [BC_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P9",
+};
+
+/** `bc-forward` (design 8.4, 8.10 "BC forward (tagged)", 16.1): one level of the tagged multi-source BFS -- the block-mapped strip over the level's range of the claim log with the claim, the path count and the overflow report inline, the winners appended to the log; 7 storage bindings (`rowPtr`, `colIdx`, `S` read-write -- the level being read and the appends are ranges of ONE binding --, `ends` read-only, the counters block, `depthK` and `sigmaK` as `array<atomic<u32>>`); the inlined Hillis-Steele scan, so `needs: []`. */
+const BC_FORWARD: KernelEntry = {
+    id: "bc-forward",
+    body: bcForwardWgsl,
+    entryPoint: "bc_forward",
+    bindings: [
+        decl(1, 0, "rowPtr", "storage-ro", "array<u32>"),
+        decl(1, 1, "colIdx", "storage-ro", "array<u32>"),
+        decl(1, 2, "S", "storage", "array<u32>"),
+        decl(1, 3, "ends", "storage-ro", "array<u32>"),
+        decl(1, 4, "counters", "storage", "array<atomic<u32>>"),
+        decl(1, 5, "depthK", "storage", "array<atomic<u32>>"),
+        decl(1, 6, "sigmaK", "storage", "array<atomic<u32>>"),
+        decl(2, 0, "P", "uniform", "BcParams"),
+    ],
+    overrideDecls: [],
+    uniforms: [BC_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P9",
+};
+
+/** `bc-backward` (design 8.4, 8.10 "BC backward (successor pull)"): one level of the dependency accumulation, one invocation per log entry of a host-planned range, each pulling over its successors and writing its delta once; 6 storage bindings (`rowPtr`, `colIdx`, `S`, `depthK`, `sigmaK` read-only, `deltaK`). */
+const BC_BACKWARD: KernelEntry = {
+    id: "bc-backward",
+    body: bcBackwardWgsl,
+    entryPoint: "bc_backward",
+    bindings: [
+        decl(1, 0, "rowPtr", "storage-ro", "array<u32>"),
+        decl(1, 1, "colIdx", "storage-ro", "array<u32>"),
+        decl(1, 2, "S", "storage-ro", "array<u32>"),
+        decl(1, 3, "depthK", "storage-ro", "array<u32>"),
+        decl(1, 4, "sigmaK", "storage-ro", "array<u32>"),
+        decl(1, 5, "deltaK", "storage", "array<f32>"),
+        decl(2, 0, "P", "uniform", "BcParams"),
+    ],
+    overrideDecls: [],
+    uniforms: [BC_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P9",
+};
+
+/** `bc-gather` (design 8.4, 8.10 "BC gather"): `bc[w] += sum over s of delta[s][w]`, one invocation per vertex, no atomic; 2 storage bindings (`deltaK` read-only, `bc`). */
+const BC_GATHER: KernelEntry = {
+    id: "bc-gather",
+    body: bcGatherWgsl,
+    entryPoint: "bc_gather",
+    bindings: [
+        decl(1, 0, "deltaK", "storage-ro", "array<f32>"),
+        decl(1, 1, "bc", "storage", "array<f32>"),
+        decl(2, 0, "P", "uniform", "BcParams"),
+    ],
+    overrideDecls: [],
+    uniforms: [BC_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P9",
+};
+
+/** `bc-edge-gather` (design 8.4 "edge BC accumulates per arc from the same n x k deltas"): the per-arc twin of `bc-gather`, one invocation per arc (its row found by an upper-bound search over `rowPtr`) adding the arc's term over the batch's sources; 6 storage bindings (`rowPtr`, `colIdx`, `depthK`, `sigmaK`, `deltaK` read-only, `arcScores`). */
+const BC_EDGE_GATHER: KernelEntry = {
+    id: "bc-edge-gather",
+    body: bcEdgeGatherWgsl,
+    entryPoint: "bc_edge_gather",
+    bindings: [
+        decl(1, 0, "rowPtr", "storage-ro", "array<u32>"),
+        decl(1, 1, "colIdx", "storage-ro", "array<u32>"),
+        decl(1, 2, "depthK", "storage-ro", "array<u32>"),
+        decl(1, 3, "sigmaK", "storage-ro", "array<u32>"),
+        decl(1, 4, "deltaK", "storage-ro", "array<f32>"),
+        decl(1, 5, "arcScores", "storage", "array<f32>"),
+        decl(2, 0, "P", "uniform", "BcParams"),
+    ],
+    overrideDecls: [],
+    uniforms: [BC_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P9",
+};
+
+/** `bc-forward-edge` (design 8.4 "the edge-parallel form", 8.8 row 7): one forward level edge-parallel over the `edgeList` view for every source of the batch, with `bc-forward`'s claim, count and overflow report, appending to the same claim log; `UNDIRECTED` relaxes both directions of every edge; 7 storage bindings (`edgeSrc`, `edgeDst`, `S` read-write, `ends` read-only, the counters block, `depthK` and `sigmaK` as `array<atomic<u32>>`). */
+const BC_FORWARD_EDGE: KernelEntry = {
+    id: "bc-forward-edge",
+    body: bcForwardEdgeWgsl,
+    entryPoint: "bc_forward_edge",
+    bindings: [
+        decl(1, 0, "edgeSrc", "storage-ro", "array<u32>"),
+        decl(1, 1, "edgeDst", "storage-ro", "array<u32>"),
+        decl(1, 2, "S", "storage", "array<u32>"),
+        decl(1, 3, "ends", "storage-ro", "array<u32>"),
+        decl(1, 4, "counters", "storage", "array<atomic<u32>>"),
+        decl(1, 5, "depthK", "storage", "array<atomic<u32>>"),
+        decl(1, 6, "sigmaK", "storage", "array<atomic<u32>>"),
+        decl(2, 0, "P", "uniform", "BcParams"),
+    ],
+    overrideDecls: [{ name: "UNDIRECTED", type: "bool", default: false }],
+    uniforms: [BC_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P9",
+};
+
 /**
  * The entries by id, in dispatch order. PLAN DECISION: `KernelId` is declared in full (contract 3.10) while the
  * entries landed phase by phase, so the table is built as a Partial record and exported below through the
@@ -1372,8 +1524,8 @@ const CLOSENESS_REDUCE: KernelEntry = {
  * and `"fa2-to-scene"`; M8b-T3 landed the seven P7 entries and P4 its thirteen; P8-T3 landed the three compact /
  * dedupe entries, P8-T4 `"frontier-finalize"`, P8-T5 `"advance-expand"`, P8-T6 `"bfs-contract"` and `"sssp-pred"` and
  * P8-T7 `"bfs-fused"`, P8-T8 `"bfs-bottom-up"`, `"bfs-bitset-build"` and `"bfs-unvisited-flags"`, P8-T9
- * `"sssp-relax"`, P8-T10 `"bf-relax"` and P8-T11 `"closeness-sweep"` and `"closeness-reduce"`, so every member of
- * `KernelId` is present and the assertion is exact.
+ * `"sssp-relax"`, P8-T10 `"bf-relax"` and P8-T11 `"closeness-sweep"` and `"closeness-reduce"`, and betweenness the
+ * six `"bc-*"` entries, so every member of `KernelId` is present and the assertion is exact.
  */
 const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze({
     degree: DEGREE,
@@ -1422,6 +1574,12 @@ const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze
     "bf-relax": BF_RELAX,
     "closeness-sweep": CLOSENESS_SWEEP,
     "closeness-reduce": CLOSENESS_REDUCE,
+    "bc-finalize": BC_FINALIZE,
+    "bc-forward": BC_FORWARD,
+    "bc-backward": BC_BACKWARD,
+    "bc-gather": BC_GATHER,
+    "bc-edge-gather": BC_EDGE_GATHER,
+    "bc-forward-edge": BC_FORWARD_EDGE,
 });
 
 /** THE registry (spec 3.5): every entry, keyed by id. */

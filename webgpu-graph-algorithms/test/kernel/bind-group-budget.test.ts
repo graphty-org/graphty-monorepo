@@ -63,6 +63,12 @@ const STORAGE_COUNTS: Readonly<Record<string, number | undefined>> = {
     "bf-relax": 6,
     "closeness-sweep": 8,
     "closeness-reduce": 3,
+    "bc-finalize": 5,
+    "bc-forward": 7,
+    "bc-backward": 6,
+    "bc-gather": 2,
+    "bc-edge-gather": 6,
+    "bc-forward-edge": 7,
 };
 
 /** A spec of an entry with its defaults; an entry with snippet slots gets a trivial VALUE (the layout ignores it). */

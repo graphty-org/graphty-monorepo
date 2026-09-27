@@ -259,3 +259,11 @@ export const BEAMER_BETA = 24;
 export const SSSP_DELTA_FACTOR = 32;
 /** The bit pattern of +Infinity, the unreached sentinel of `dist` (P8 PD-9); interpolated into the prelude as `F32_INF_BITS` so no body types the literal. */
 export const F32_INF_BITS = 0x7f800000;
+/** Design 8.4 "k planned from maxBufferSize and a 25% budget": the share of `maxBufferSize` one betweenness source batch may hold. WebGPU exposes no device memory size, so this is a fraction of the largest buffer, not a memory measurement. */
+export const BC_BATCH_BUDGET_FRACTION = 0.25;
+/** Design 10.1's betweenness column: the most sources one betweenness batch runs together. */
+export const BC_MAX_BATCH = 64;
+/** Design 8.4 (McLaughlin-Bader): a betweenness batch runs the edge-parallel forward pass when the previous batch's level count is below `BC_EDGE_PARALLEL_GAMMA * log2(n)`. The design names the rule and no value; 2 is unmeasured and a benchmark run re-fixes it. */
+export const BC_EDGE_PARALLEL_GAMMA = 2;
+/** Backward-pass levels recorded per submit: each level is one dispatch with its own parameter record, so this bounds the uniform ring. */
+export const BC_BACKWARD_LEVELS_PER_SUBMIT = 64;

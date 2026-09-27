@@ -1,0 +1,435 @@
+/**
+ * Betweenness and edge betweenness (design 8.4, 9.7, 11.3) against the Brandes reference of test/oracle/betweenness.ts
+ * and, on karate, the CPU package's own `betweennessCentrality` / `edgeBetweennessCentrality`. Covered: the batch
+ * planner's k against faked limits (pure); the forward pass on its own -- every batch's `depthK` exactly the
+ * reference's depths and `sigmaK` exactly its path counts, at k = 1, k = 2 and the planner's k; the overflow flag on
+ * the layered fixture and its control; the published scores within 1e-4 on the fixture list with the top-k order,
+ * run twice bitwise; the closed forms of the path and the star; `normalized`; the frontier, edge-parallel and
+ * automatic forward forms bitwise identical, and the automatic choice picking each form where it should; faked
+ * limits shrinking k without changing a bit of the scores; sampling (an explicit list equals the reference on the
+ * same list, `k` draws the same sources every time, the result is the unscaled sum, and a 256-source sample ranks
+ * like the exact scores); edge betweenness (the arcs of an undirected edge equal before the fold, the folded scores
+ * against the reference, the path's closed form, NOT halved); and the refusals before any device work.
+ */
+
+import {
+    betweennessCentrality as cpuBetweenness,
+    edgeBetweennessCentrality as cpuEdgeBetweenness,
+    Graph,
+} from "@graphty/algorithms";
+import { type F32, type GraphSnapshot } from "@graphty/graph-format";
+import { type TestContext } from "vitest";
+
+import {
+    type BetweennessBatchReport,
+    betweennessCentrality,
+    type BetweennessTuning,
+    betweennessWithTuning,
+    edgeBetweennessCentrality,
+    edgeBetweennessWithTuning,
+    planBatchSize,
+} from "../../src/algorithms/betweenness.js";
+import { type GpuContext } from "../../src/context.js";
+import { type WebGpuGraphError } from "../../src/errors.js";
+import { type BetweennessAcceleratorOptions } from "../../src/types/accelerator.js";
+import { limitsForK } from "../helpers/betweenness.js";
+import {
+    arcPairGap,
+    edgeConvention,
+    scoreError,
+    spearman,
+    topKAgrees,
+    vertexConvention,
+} from "../helpers/centrality-check.js";
+import {
+    completeEdges,
+    cycleEdges,
+    type EdgeSpec,
+    gridEdges,
+    KARATE_EDGES,
+    layeredEdges,
+    pathEdges,
+    randomEdges,
+    randomEdgesLoose,
+    rmatEdges,
+    snapshotOf,
+    starEdges,
+} from "../helpers/graphs.js";
+import { expectBitwiseEqual } from "../helpers/matchers.js";
+import { brandesOracle } from "../oracle/betweenness.js";
+import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
+
+/** Design 9.7's betweenness tolerance; the f32 reference sits 2.6e-6 from the f64 one on the random 2k fixture. */
+const TOLERANCE = 1e-4;
+
+/** Awaits a rejection and asserts its code. */
+async function expectRejection(promise: Promise<unknown>, code: string): Promise<WebGpuGraphError> {
+    let caught: unknown = null;
+    try {
+        await promise;
+    } catch (err) {
+        caught = err;
+    }
+    expect(caught).toMatchObject({ code });
+    return caught as WebGpuGraphError;
+}
+
+/** The fixture list of design 13 row P9 (sized by gpuScale on a software adapter). */
+function fixtures(): readonly { readonly name: string; readonly s: GraphSnapshot }[] {
+    const big = gpuScale() < 1 ? 400 : 2000;
+    return [
+        { name: "karate", s: snapshotOf(KARATE_EDGES) },
+        { name: "path(500)", s: snapshotOf(pathEdges(500)) },
+        { name: "star(1000)", s: snapshotOf(starEdges(1000)) },
+        { name: "cycle(101)", s: snapshotOf(cycleEdges(101)) },
+        { name: "grid(15, 15)", s: snapshotOf(gridEdges(15, 15)) },
+        { name: `random(${big}, ${4 * big}, 7)`, s: snapshotOf(randomEdges(big, 4 * big, 7)) },
+        { name: "complete(64)", s: snapshotOf(completeEdges(64)) },
+        { name: "disconnected", s: snapshotOf([...pathEdges(20), [30, 31], [31, 32]], { nodeCount: 40 }) },
+        { name: "directed random(300, 1200, 5)", s: snapshotOf(randomEdges(300, 1200, 5), { directed: true }) },
+        { name: "loops and parallels(200, 800, 9)", s: snapshotOf(randomEdgesLoose(200, 800, 9)) },
+    ];
+}
+
+/**
+ * The CPU package's betweenness on the same graph, index-aligned (every node added first). The node ids are the
+ * strings "v<index>", not the numbers: the CPU accumulation skips its stack entry with `if (!w) continue`
+ * (algorithms/src/algorithms/centrality/betweenness.ts), which drops the node whose id is the number 0 and scores
+ * karate's vertex 0 as 0 instead of 231.07.
+ * @param edges - the edges
+ * @param n - the node count
+ * @returns the vertex scores and the edge scores keyed "u-v"
+ */
+function cpuScores(edges: readonly EdgeSpec[], n: number): { vertex: Float64Array; edge: Map<string, number> } {
+    const graph = new Graph();
+    for (let v = 0; v < n; v++) {
+        graph.addNode(`v${v}`);
+    }
+    for (const [u, v] of edges) {
+        graph.addEdge(`v${u}`, `v${v}`);
+    }
+    const scores = cpuBetweenness(graph);
+    return {
+        vertex: Float64Array.from({ length: n }, (_, v) => scores[`v${v}`]),
+        edge: cpuEdgeBetweenness(graph),
+    };
+}
+
+describe("betweenness batch planner (design 8.4, 10.1)", () => {
+    it("k = min(binding / 4n, 0.25 x maxBufferSize / 16n, 64, remaining), at least 1; a faked maxBufferSize shrinks it", () => {
+        const dawn = { maxStorageBufferBindingSize: 128 * 2 ** 20, maxBufferSize: 256 * 2 ** 20 };
+        expect(planBatchSize(100_000, 256, dawn)).toBe(41); // the budget: floor(64 MiB / 1.6 MB); the binding allows 335
+        expect(planBatchSize(34, 34, dawn)).toBe(34);
+        expect(planBatchSize(34, 1000, dawn)).toBe(64);
+        expect(planBatchSize(1000, 1000, { ...dawn, maxBufferSize: 64 * 16 * 1000 * 4 })).toBe(64);
+        expect(planBatchSize(1000, 1000, { ...dawn, maxBufferSize: 8 * 16 * 1000 * 4 })).toBe(8);
+        expect(planBatchSize(1000, 1000, { ...dawn, maxBufferSize: 1 })).toBe(1);
+        expect(planBatchSize(1000, 1000, { maxStorageBufferBindingSize: 4000 * 3, maxBufferSize: 2 ** 40 })).toBe(3);
+        expect(() => planBatchSize(1000, 1, { maxStorageBufferBindingSize: 3999, maxBufferSize: 2 ** 40 })).toThrow(
+            /E_TOO_LARGE|maxStorageBufferBindingSize = 3999/,
+        );
+    });
+});
+
+describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)", () => {
+    let shared: GpuContext | null = null;
+
+    async function context(t: TestContext): Promise<GpuContext> {
+        requireGpu(t);
+        const ctx = shared ?? (await acquire({ label: "betweenness" }));
+        shared = ctx;
+        return ctx;
+    }
+
+    /** A run that also collects every batch's report (and its arrays when asked). */
+    async function collect(
+        ctx: GpuContext,
+        s: GraphSnapshot,
+        options: BetweennessAcceleratorOptions | undefined,
+        tuning: BetweennessTuning,
+    ): Promise<{ scores: F32; batches: BetweennessBatchReport[]; overflow: boolean; sourcesUsed: number }> {
+        const batches: BetweennessBatchReport[] = [];
+        const result = await betweennessWithTuning(ctx, s, options, {
+            ...tuning,
+            onBatch: (report) => batches.push(report),
+        });
+        return { scores: result.scores, batches, overflow: result.sigmaOverflow, sourcesUsed: result.sourcesUsed };
+    }
+
+    /** Every batch's depthK and sigmaK exactly the reference's, per tag. */
+    function expectForwardExact(s: GraphSnapshot, batches: readonly BetweennessBatchReport[], label: string): void {
+        const n = s.nodeCount;
+        for (const batch of batches) {
+            const { perSource } = brandesOracle(s, { sources: batch.sources });
+            const { depthK } = batch;
+            const { sigmaK } = batch;
+            expect(depthK, label).not.toBeNull();
+            expect(sigmaK, label).not.toBeNull();
+            if (depthK === null || sigmaK === null) {
+                return;
+            }
+            let maxDepth = 0;
+            batch.sources.forEach((_, tag) => {
+                const want = perSource[tag];
+                for (let v = 0; v < n; v++) {
+                    const depth = depthK[tag * n + v];
+                    expect(depth === 0xffffffff ? -1 : depth, `${label}: depth[${tag}][${v}]`).toBe(want.depth[v]);
+                    expect(sigmaK[tag * n + v], `${label}: sigma[${tag}][${v}]`).toBe(want.sigma[v]);
+                    maxDepth = Math.max(maxDepth, want.depth[v]);
+                }
+            });
+            expect(batch.levels, `${label}: levels`).toBe(maxDepth + 1);
+            expect(batch.ends[0]).toBe(0);
+            expect(batch.ends[1], `${label}: the seeds are level 0`).toBe(batch.sources.length);
+        }
+    }
+
+    it("the forward pass alone: depthK and sigmaK exactly the reference's at k = 1, k = 2 and the planner's k", async (t) => {
+        const ctx = await context(t);
+        const cases: readonly [string, GraphSnapshot][] = [
+            ["karate", snapshotOf(KARATE_EDGES)],
+            ["grid(15, 15)", snapshotOf(gridEdges(15, 15))],
+            ["directed random(300, 1200, 5)", snapshotOf(randomEdges(300, 1200, 5), { directed: true })],
+            ["loops and parallels(200, 800, 9)", snapshotOf(randomEdgesLoose(200, 800, 9))],
+        ];
+        for (const [name, s] of cases) {
+            const sources = [0, 3, 7, 11, 19].filter((v) => v < s.nodeCount);
+            for (const k of [1, 2, null]) {
+                const limits = k === null ? undefined : limitsForK(s.nodeCount, k);
+                for (const forward of ["frontier", "edge"] as const) {
+                    const run = await collect(ctx, s, { sources }, { limits, forward, readArrays: true });
+                    expectForwardExact(s, run.batches, `${name} k=${k ?? "planned"} ${forward}`);
+                    expect(run.batches.length).toBe(k === null ? 1 : Math.ceil(sources.length / k));
+                }
+            }
+        }
+    }, 120_000);
+
+    it("the overflow flag: layered(4, 18) has 4^16 shortest paths and reports it; layered(4, 16) (4^14) does not; so does grid(30, 30), whose corner-to-corner count is C(58, 29)", async (t) => {
+        const ctx = await context(t);
+        const grid = await betweennessCentrality(ctx, snapshotOf(gridEdges(30, 30)), { sources: [0] });
+        expect(grid.sigmaOverflow).toBe(true);
+        for (const forward of ["frontier", "edge"] as const) {
+            const over = await betweennessWithTuning(
+                ctx,
+                snapshotOf(layeredEdges(4, 18)),
+                { sources: [0] },
+                { forward },
+            );
+            expect(over.sigmaOverflow, forward).toBe(true);
+            const under = await betweennessWithTuning(
+                ctx,
+                snapshotOf(layeredEdges(4, 16)),
+                { sources: [0] },
+                { forward },
+            );
+            expect(under.sigmaOverflow, forward).toBe(false);
+        }
+    }, 60_000);
+
+    it("exact betweenness on the fixture list within 1e-4 of the reference, top-10 order kept, bitwise run to run, the snapshot unchanged", async (t) => {
+        const ctx = await context(t);
+        for (const { name, s } of fixtures()) {
+            const first = await betweennessCentrality(ctx, s);
+            const second = await betweennessCentrality(ctx, s);
+            expectBitwiseEqual(second.scores, first.scores);
+            const want = vertexConvention(s, brandesOracle(s).vertex);
+            const error = scoreError(first.scores, want);
+            expect(error, name).toBeLessThanOrEqual(TOLERANCE);
+            expect(topKAgrees(first.scores, want, 10), `${name}: top-10`).toBe(true);
+            expect(first.sourcesUsed).toBe(s.nodeCount);
+            expect(first.sigmaOverflow).toBe(false);
+            expect(first.converged).toBe(true);
+            expect(first.precision).toBe("f32");
+        }
+        const checked = snapshotOf(KARATE_EDGES, { checksum: true, label: "karate-checksum" });
+        await betweennessCentrality(ctx, checked);
+        await edgeBetweennessCentrality(ctx, checked);
+        expect(() => checked.validate({ checksum: true })).not.toThrow();
+    }, 300_000);
+
+    it("karate equals the CPU package's betweennessCentrality, and its edgeBetweennessCentrality summed over the two orientations it reports an undirected edge under, within 1e-4", async (t) => {
+        const ctx = await context(t);
+        const s = snapshotOf(KARATE_EDGES);
+        const cpu = cpuScores(KARATE_EDGES, s.nodeCount);
+        expect(scoreError((await betweennessCentrality(ctx, s)).scores, cpu.vertex)).toBeLessThanOrEqual(TOLERANCE);
+        const edges = (await edgeBetweennessCentrality(ctx, s)).scores;
+        const want = new Float64Array(s.edgeCount);
+        for (let e = 0; e < s.edgeCount; e++) {
+            const [u, v] = KARATE_EDGES[e];
+            // the CPU keys an undirected edge under BOTH orientations, each holding half of the edge's score
+            want[e] = (cpu.edge.get(`v${u}-v${v}`) ?? 0) + (cpu.edge.get(`v${v}-v${u}`) ?? 0);
+        }
+        expect(scoreError(edges, want)).toBeLessThanOrEqual(TOLERANCE);
+    }, 60_000);
+
+    it("the closed forms: path(n) scores i (n - 1 - i); star(L) the hub L (L - 1) / 2 and every leaf 0; normalized divides by (n - 1)(n - 2) / 2", async (t) => {
+        const ctx = await context(t);
+        const n = 60;
+        const path = await betweennessCentrality(ctx, snapshotOf(pathEdges(n)));
+        expect(Array.from(path.scores)).toEqual(Array.from({ length: n }, (_, i) => i * (n - 1 - i)));
+        const leaves = 300;
+        const star = await betweennessCentrality(ctx, snapshotOf(starEdges(leaves)));
+        expect(star.scores[0]).toBe((leaves * (leaves - 1)) / 2);
+        expect(Array.from(star.scores.slice(1))).toEqual(new Array<number>(leaves).fill(0));
+        const normalized = await betweennessCentrality(ctx, snapshotOf(pathEdges(n)), { normalized: true });
+        const factor = ((n - 1) * (n - 2)) / 2;
+        expect(
+            scoreError(
+                normalized.scores,
+                Float64Array.from(path.scores, (x) => x / factor),
+            ),
+        ).toBeLessThanOrEqual(1e-7);
+        const directed = snapshotOf(randomEdges(100, 400, 3), { directed: true });
+        const norm = await betweennessCentrality(ctx, directed, { normalized: true });
+        const want = vertexConvention(directed, brandesOracle(directed).vertex, true);
+        expect(scoreError(norm.scores, want)).toBeLessThanOrEqual(TOLERANCE);
+    }, 60_000);
+
+    it("the three forward forms give bitwise identical scores; auto runs edge-parallel on a shallow graph and frontier on a deep one", async (t) => {
+        const ctx = await context(t);
+        const shallow = snapshotOf(rmatEdges(gpuScale() < 1 ? 9 : 12, 8, 3));
+        const deep = snapshotOf(gridEdges(300, 3));
+        for (const [name, s] of [
+            ["rmat", shallow],
+            ["grid(300, 3)", deep],
+        ] as const) {
+            const sources = [0, 1, 2, 3, 4, 5];
+            const limits = limitsForK(s.nodeCount, 2);
+            const frontier = await collect(ctx, s, { sources }, { limits, forward: "frontier" });
+            const edge = await collect(ctx, s, { sources }, { limits, forward: "edge" });
+            const auto = await collect(ctx, s, { sources }, { limits });
+            expectBitwiseEqual(edge.scores, frontier.scores);
+            expectBitwiseEqual(auto.scores, frontier.scores);
+            expect(auto.batches[0].forward, `${name}: the first batch is always frontier-driven`).toBe("frontier");
+            const later = auto.batches.slice(1).map((b) => b.forward);
+            expect(later, name).toEqual(new Array<string>(later.length).fill(s === shallow ? "edge" : "frontier"));
+            const exact = vertexConvention(s, brandesOracle(s, { sources }).vertex);
+            expect(scoreError(frontier.scores, exact), name).toBeLessThanOrEqual(TOLERANCE);
+        }
+    }, 120_000);
+
+    it("a faked maxBufferSize shrinks k and adds batches without changing a single bit of the scores", async (t) => {
+        const ctx = await context(t);
+        const s = snapshotOf(randomEdges(500, 2000, 13));
+        const planned = await collect(ctx, s, undefined, {});
+        const shrunk = await collect(ctx, s, undefined, {
+            limits: {
+                maxStorageBufferBindingSize: ctx.caps.limits.maxStorageBufferBindingSize,
+                maxBufferSize: 5 * 16 * 500 * 4,
+            },
+        });
+        expect(planned.batches[0].sources.length).toBeGreaterThan(5);
+        expect(shrunk.batches[0].sources.length).toBe(5);
+        expect(shrunk.batches.length).toBe(100);
+        expect(shrunk.batches.length).toBeGreaterThan(planned.batches.length);
+        expectBitwiseEqual(shrunk.scores, planned.scores);
+    }, 120_000);
+
+    it("sampling: an explicit list equals the reference on that list, unscaled; k draws the same sources every time; a 256-source sample ranks like the exact scores", async (t) => {
+        const ctx = await context(t);
+        const s = snapshotOf(randomEdges(1000, 4000, 21));
+        const sources = [5, 17, 17, 400, 999, 3];
+        const listed = await betweennessCentrality(ctx, s, { sources });
+        expect(listed.sourcesUsed).toBe(sources.length);
+        expect(
+            scoreError(listed.scores, vertexConvention(s, brandesOracle(s, { sources }).vertex)),
+        ).toBeLessThanOrEqual(TOLERANCE);
+        const drawnA: number[] = [];
+        const drawnB: number[] = [];
+        const a = await betweennessWithTuning(ctx, s, { k: 50 }, { onBatch: (b) => drawnA.push(...b.sources) });
+        const b = await betweennessWithTuning(ctx, s, { k: 50 }, { onBatch: (r) => drawnB.push(...r.sources) });
+        expect(drawnA).toEqual(drawnB);
+        expect(new Set(drawnA).size).toBe(50);
+        expectBitwiseEqual(b.scores, a.scores);
+        expect(a.sourcesUsed).toBe(50);
+        expect(
+            scoreError(a.scores, vertexConvention(s, brandesOracle(s, { sources: drawnA }).vertex)),
+        ).toBeLessThanOrEqual(TOLERANCE);
+        const all = Array.from({ length: s.nodeCount }, (_, i) => i);
+        expectBitwiseEqual(
+            (await betweennessCentrality(ctx, s, { sources: all })).scores,
+            (await betweennessCentrality(ctx, s)).scores,
+        );
+        const sampled = await betweennessCentrality(ctx, s, { k: 256 });
+        const exact = await betweennessCentrality(ctx, s);
+        expect(spearman(sampled.scores, exact.scores)).toBeGreaterThanOrEqual(0.9);
+    }, 120_000);
+
+    it("edge betweenness: both arcs of an undirected edge equal before the fold, the folded scores within 1e-4 of the reference, the path's closed form (i + 1)(n - 1 - i), NOT halved", async (t) => {
+        const ctx = await context(t);
+        for (const { name, s } of fixtures()) {
+            let perArc: Float32Array | null = null;
+            const got = await edgeBetweennessWithTuning(ctx, s, undefined, {}, (arcs) => {
+                perArc = arcs;
+            });
+            expect(got.scores.length, name).toBe(s.edgeCount);
+            if (s.arcCount > 0) {
+                expect(perArc, name).not.toBeNull();
+                expect(arcPairGap(s, perArc ?? new Float32Array(0)), `${name}: arc pairs`).toBeLessThanOrEqual(1e-5);
+            }
+            const want = edgeConvention(s, brandesOracle(s).perArc);
+            expect(scoreError(got.scores, want), name).toBeLessThanOrEqual(TOLERANCE);
+        }
+        const n = 50;
+        const path = await edgeBetweennessCentrality(ctx, snapshotOf(pathEdges(n)));
+        expect(Array.from(path.scores)).toEqual(Array.from({ length: n - 1 }, (_, i) => (i + 1) * (n - 1 - i)));
+        const three = await edgeBetweennessCentrality(ctx, snapshotOf(pathEdges(3)));
+        expect(Array.from(three.scores)).toEqual([2, 2]);
+        const normalized = await edgeBetweennessCentrality(ctx, snapshotOf(pathEdges(n)), { normalized: true });
+        const factor = ((n - 1) * (n - 2)) / 2;
+        expect(
+            scoreError(
+                normalized.scores,
+                Float64Array.from(path.scores, (x) => x / factor),
+            ),
+        ).toBeLessThanOrEqual(1e-7);
+    }, 300_000);
+
+    it("the edge cases: the empty graph, one vertex, no sources, dest, onProgress and the signal", async (t) => {
+        const ctx = await context(t);
+        const empty = await betweennessCentrality(ctx, snapshotOf([], { nodeCount: 0 }));
+        expect(empty.scores.length).toBe(0);
+        expect(empty.sourcesUsed).toBe(0);
+        const one = await betweennessCentrality(ctx, snapshotOf([], { nodeCount: 1 }));
+        expect(Array.from(one.scores)).toEqual([0]);
+        expect((await edgeBetweennessCentrality(ctx, snapshotOf([], { nodeCount: 3 }))).scores.length).toBe(0);
+        const s = snapshotOf(KARATE_EDGES);
+        const none = await betweennessCentrality(ctx, s, { sources: [] });
+        expect(none.sourcesUsed).toBe(0);
+        expect(Array.from(none.scores)).toEqual(new Array<number>(34).fill(0));
+        const dest = new Float32Array(34);
+        const progress: number[] = [];
+        const into = await betweennessWithTuning(
+            ctx,
+            s,
+            { dest, onProgress: (done) => progress.push(done) },
+            { limits: limitsForK(34, 10) },
+        );
+        expect(into.scores).toBe(dest);
+        expect(progress).toEqual([10, 20, 30, 34]);
+        const controller = new AbortController();
+        controller.abort();
+        await expectRejection(betweennessCentrality(ctx, s, { signal: controller.signal }), "E_ABORTED");
+    }, 60_000);
+
+    it("refuses endpoints: true, bad sources, a bad k, a k that contradicts sources and a wrong dest, before any device work", async (t) => {
+        const ctx = await context(t);
+        const s = snapshotOf(KARATE_EDGES);
+        const endpoints = await expectRejection(betweennessCentrality(ctx, s, { endpoints: true }), "E_UNSUPPORTED");
+        expect(endpoints.details).toMatchObject({ feature: "betweenness.endpoints" });
+        await expectRejection(edgeBetweennessCentrality(ctx, s, { endpoints: true }), "E_UNSUPPORTED");
+        await expect(betweennessCentrality(ctx, s, { endpoints: false })).resolves.toBeDefined();
+        await expectRejection(betweennessCentrality(ctx, s, { sources: [34] }), "E_INVALID_ARGUMENT");
+        await expectRejection(betweennessCentrality(ctx, s, { sources: [1.5] }), "E_INVALID_ARGUMENT");
+        await expectRejection(betweennessCentrality(ctx, s, { k: 35 }), "E_INVALID_ARGUMENT");
+        await expectRejection(betweennessCentrality(ctx, s, { k: -1 }), "E_INVALID_ARGUMENT");
+        await expectRejection(betweennessCentrality(ctx, s, { k: 2, sources: [1, 2, 3] }), "E_INVALID_ARGUMENT");
+        await expectRejection(betweennessCentrality(ctx, s, { dest: new Float32Array(3) }), "E_INVALID_ARGUMENT");
+        await expectRejection(betweennessWithTuning(ctx, s, undefined, { levelsPerSubmit: 0 }), "E_INVALID_ARGUMENT");
+    }, 60_000);
+
+    afterAll(() => {
+        shared?.dispose();
+    });
+});

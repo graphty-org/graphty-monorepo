@@ -268,6 +268,25 @@ describe("an algorithm run over a multigraph", () => {
         graph.dispose();
     });
 
+    test("a shortest path takes the cheapest of a parallel group, and its caveat says so", async () => {
+        const graph = await makeGraph();
+        await graph.addEdges(
+            [
+                { source: "a", target: "b", weight: 4 },
+                { source: "a", target: "b", weight: 1 },
+                { source: "b", target: "c", weight: 2 },
+            ],
+            { skipQueue: true },
+        );
+
+        const run = graph.getSession().runs.start("shortest-path", { method: "dijkstra", source: "a", target: "c" });
+        const result = await run;
+
+        assert.deepInclude(result.node("c"), { distance: 3 }, "1 then 2, not the group's sum of 5 then 2");
+        assert.include(run.caveats.notes.join(" "), "1 parallel edge was merged, keeping the lowest weight");
+        graph.dispose();
+    });
+
     test("lands its per-edge values on every member of a merged group, not just the survivor", async () => {
         // The simplification that lets an algorithm run over a multigraph folds a group of
         // parallel edges into one. If the result were then published against only the edge that

@@ -1,4 +1,5 @@
 import { Algorithm } from "../algorithms/Algorithm";
+import type { SimplifyPolicy } from "../algorithms/input/derivedInputs";
 import { checkNodeOptions } from "../algorithms/input/maskBack";
 import { type ResolvedInputScope, withRunInput } from "../algorithms/input/ScopedInput";
 import { mergedParallelEdges } from "../algorithms/utils/snapshotGraph";
@@ -16,6 +17,13 @@ import type { Manager } from "./interfaces";
 
 /** The namespace every algorithm this package ships is registered under. */
 const BUILT_IN_NAMESPACE = "graphty";
+
+/** How a run's caveat says a group of parallel edges became one, by the class's merge policy. */
+const MERGED_WEIGHTS: Readonly<Record<Exclude<SimplifyPolicy, "none">, string>> = {
+    sum: "with weights summed",
+    min: "keeping the lowest weight",
+    max: "keeping the highest weight",
+};
 
 /** Which registered class one run should build, and what to build it with. */
 interface AlgorithmTarget {
@@ -171,15 +179,16 @@ export class AlgorithmManager implements Manager {
         // The note is appended here rather than in each algorithm because the merge is the
         // element's doing, not any one algorithm's.
         const { caveats } = result.summary();
-        const merged = mergedParallelEdges(this.graph.getDataManager());
+        const policy = (algorithm.constructor as typeof Algorithm).parallelEdges ?? "sum";
+        const merged = policy === "none" ? 0 : mergedParallelEdges(this.graph.getDataManager());
         const noted =
-            merged === 0
+            merged === 0 || policy === "none"
                 ? caveats
                 : {
                       ...caveats,
                       notes: [
                           ...caveats.notes,
-                          `${String(merged)} parallel ${merged === 1 ? "edge was" : "edges were"} merged, with weights summed, ` +
+                          `${String(merged)} parallel ${merged === 1 ? "edge was" : "edges were"} merged, ${MERGED_WEIGHTS[policy]}, ` +
                               `because this algorithm runs over a graph that holds one edge per pair. Every member of a merged ` +
                               `group carries the merged value.`,
                       ],

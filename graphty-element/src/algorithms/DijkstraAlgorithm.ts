@@ -5,6 +5,7 @@ import type { EdgeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import type { SimplifyPolicy } from "./input/derivedInputs";
 import { scopeEdges, type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
     type AlgorithmOutput,
@@ -68,6 +69,8 @@ export class DijkstraAlgorithm extends DeclaredAlgorithm<DijkstraOptions> {
     static type = "dijkstra";
     /** Searches the run's scope: the node and edge lists and the graph all come from the input. */
     static scopeInput: ScopeInputDeclaration = "subgraph";
+    /** A route takes the cheapest of a group of parallel edges, not their sum. */
+    static parallelEdges: SimplifyPolicy = "min";
 
     static zodOptionsSchema: ZodOptionsSchema = dijkstraOptionsSchema;
 

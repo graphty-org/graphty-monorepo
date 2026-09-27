@@ -10,7 +10,7 @@ import { type OptionsSchema as ZodOptionsSchema } from "../config";
 import { GraphtyError } from "../errors";
 import { Graph } from "../Graph";
 import type { RunResult } from "../session/results";
-import type { InputOrientation } from "./input/derivedInputs";
+import type { InputOrientation, SimplifyPolicy } from "./input/derivedInputs";
 import {
     createScopedInput,
     type ElementScopedInput,
@@ -247,6 +247,14 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      */
     static scopeInput?: ScopeInputDeclaration;
 
+    /**
+     * How this class's input merges a group of parallel edges into one: `"sum"` when absent, the
+     * element's reading of a repeated edge as more connection. A shortest path wants `"min"`, the
+     * cheapest of the group. Both seams read it, and the run's caveat names it.
+     * @internal
+     */
+    static parallelEdges?: SimplifyPolicy;
+
     protected graph: Graph;
 
     /**
@@ -303,12 +311,16 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      * class declares {@link Algorithm.scopeInput} and runs as a run, else the whole graph. Both
      * seams below read through it.
      * @param orientation - `"declared"` or `"undirected"`.
-     * @param options - How parallel edges merge; `"sum"` by default.
+     * @param options - How parallel edges merge; the class's {@link Algorithm.parallelEdges} by
+     *   default, else `"sum"`.
      * @returns The input.
      * @internal
      */
     protected input(orientation: InputOrientation, options?: ScopedInputOptions): ElementScopedInput {
-        return createScopedInput(this.graph.getDataManager(), orientation, options, runInputOf(this));
+        const simplify = options?.simplify ?? (this.constructor as typeof Algorithm).parallelEdges;
+        const merged = simplify === undefined ? options : { ...options, simplify };
+
+        return createScopedInput(this.graph.getDataManager(), orientation, merged, runInputOf(this));
     }
 
     /**
@@ -348,6 +360,8 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
            two edges between one pair: a group of parallel edges becomes ONE edge carrying the
            group's summed weight, because a repeated edge between two nodes is MORE connection
            rather than the same connection -- the reading a weighted layout gives the same data.
+           A class that reads a repeat differently says so in `parallelEdges`: a shortest path
+           takes the cheapest edge of the group.
            Two things depend on it. The run agrees with the caveat `AlgorithmManager` appends over
            a multigraph ("N parallel edges were merged, with weights summed"), and EVERY member of
            a merged group carries the merged value, because they all map to the survivor through

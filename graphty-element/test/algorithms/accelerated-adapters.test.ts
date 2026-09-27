@@ -426,14 +426,13 @@ describe("the adapters that run through accelerated()", () => {
         assert.deepStrictEqual([...values.values()].map((value) => value.onPath), [true, true, true]);
     });
 
-    describe("over a multigraph, a parallel group is one edge of the summed weight", () => {
-        it("dijkstra costs the merged weight and flags every member of the group", async () => {
+    describe("over a multigraph, a parallel group is one edge", () => {
+        it("dijkstra costs the cheapest edge of the group and flags every member of the group", async () => {
             const graph = await graphWith(PARALLEL);
             const output = await computed(new DijkstraAlgorithm(graph, { source: "A", target: "C" }));
 
-            const reference = dijkstra(toAlgorithmGraph(graph.getDataManager(), "undirected"), "A");
-            assert.strictEqual(output.graph?.cost, reference.get("C")?.distance);
-            assert.strictEqual(output.graph?.cost, 3);
+            // A route takes one of the parallel edges, the cheapest: A-B at 1, then B-C at 1.
+            assert.strictEqual(output.graph?.cost, 2);
 
             const values = valuesOf(output.edges);
             assert.deepStrictEqual([...values.values()].map((value) => value.onPath), [true, true, true]);

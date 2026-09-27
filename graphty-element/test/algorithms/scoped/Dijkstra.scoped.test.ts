@@ -8,7 +8,7 @@ import { assert, describe, it } from "vitest";
 import { DijkstraAlgorithm } from "../../../src/algorithms/DijkstraAlgorithm";
 import type { Graph } from "../../../src/Graph";
 import { InputGraph } from "../input/harness";
-import { assertOverGeneratedScopes, describeScopedAdapter, runScoped } from "./harness";
+import { assertOverGeneratedScopes, describeScopedAdapter, runScoped, runWhole } from "./harness";
 
 const build = (graph: Graph): DijkstraAlgorithm => new DijkstraAlgorithm(graph);
 
@@ -28,5 +28,28 @@ describe("dijkstra over a scope", () => {
         assert.deepInclude(result?.node("b"), { onPath: true, order: 0, distance: 0 });
         assert.deepInclude(result?.node("d"), { onPath: true, order: 2 });
         assert.deepInclude(result?.graph, { length: 3, hops: 2 });
+    });
+});
+
+describe("dijkstra over a weighted multigraph takes the shortest of parallel edges", () => {
+    /** a to b twice, at 1 and at 4, then b to c at 2; z outside any scope below. */
+    const multigraph = (): InputGraph =>
+        new InputGraph(["a", "b", "c", "z"], [["a", "b", 4], ["a", "b", 1], ["b", "c", 2], ["c", "z", 1]]);
+    const route = (graph: Graph): DijkstraAlgorithm => new DijkstraAlgorithm(graph, { source: "a", target: "c" });
+
+    it("over the whole graph", async () => {
+        const graph = multigraph();
+        const result = await runWhole(route, graph);
+
+        assert.deepInclude(result?.node("c"), { distance: 3 });
+        assert.deepInclude(result?.graph, { cost: 3 });
+    });
+
+    it("over a scope", async () => {
+        const graph = multigraph();
+        const result = await runScoped(route, graph, graph.scope(["a", "b", "c"]));
+
+        assert.deepInclude(result?.node("c"), { distance: 3 });
+        assert.deepInclude(result?.graph, { cost: 3 });
     });
 });

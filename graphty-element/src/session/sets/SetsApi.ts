@@ -18,7 +18,15 @@ import { edgeCounterOf, stableEdgeMember } from "../../data/edgeIdentity";
 import { readEndpoint } from "../../data/endpoints";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { SessionAttributes } from "../types";
-import { type ChainStep, type DependencySources, referentReading, selectionChain, setCycle } from "./dependencies";
+import {
+    type ChainStep,
+    type DependencySources,
+    followedGroup,
+    followsGroup,
+    referentReading,
+    selectionChain,
+    setCycle,
+} from "./dependencies";
 import {
     defaultName,
     holdsEdgeMember,
@@ -241,9 +249,11 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
 
     /**
      * Refuse a kept rule the doors cannot keep: one that reads the live selection, one that reaches
-     * its own set, and one read `induced` holding a leaf that speaks edges through a set it names.
+     * its own set, one whose item follows a partition group, and one read `induced` holding a leaf
+     * that speaks edges through a set it names or a field edges carry.
      * @param record - The prepared record.
-     * @throws `E_BAD_COMMAND` with `details.reason` `"live-selection"`, `"cycle"` or `"induced-edge-leaf"`.
+     * @throws `E_BAD_COMMAND` with `details.reason` `"live-selection"`, `"cycle"`, `"follow-group"`
+     * or `"induced-edge-leaf"`.
      */
     const checkReferences = (record: ElementSet): void => {
         const { definition, id } = record;
@@ -272,7 +282,12 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
             );
         }
 
-        if (definition.reading === "induced" && speaksEdges(definition.where, referentReading(references))) {
+        const group = followedGroup(definition, references);
+        if (group !== null) {
+            throw followsGroup(group);
+        }
+
+        if (definition.reading === "induced" && speaksEdges(definition.where, referentReading(references), references.fieldKinds)) {
             throw inducedEdgeLeaf();
         }
     };

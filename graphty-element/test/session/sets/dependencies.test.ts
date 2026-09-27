@@ -64,6 +64,25 @@ describe("what a definition reads", () => {
         ]);
     });
 
+    it("records an item without execution as following its run, and one with it as holding that execution", () => {
+        const tree: Filter = {
+            kind: "any",
+            of: [
+                { kind: "item", item: { run: "louvain", key: { field: "group", value: 3 }, execution: "s1:7" } },
+                { kind: "item", item: { run: "route", key: { field: "onPath", value: true } } },
+                { kind: "threshold", path: "results.pr.rank", top: 10 },
+                { kind: "threshold", path: "data.revenue.usd", above: 5 },
+            ],
+        };
+
+        assert.deepStrictEqual(dependenciesOf(rule(tree), pathsOf), [
+            { kind: "run", run: "louvain", execution: "s1:7" },
+            { kind: "run", run: "route" },
+            { kind: "run", run: "pr" },
+            { kind: "attribute", field: "revenue" },
+        ]);
+    });
+
     it("reads a query rule's paths, and nothing for a fixed set or a path", () => {
         assert.deepStrictEqual(dependenciesOf(rule("results.pr.rank > `0.1`"), pathsOf), [{ kind: "run", run: "pr" }]);
         assert.deepStrictEqual(dependenciesOf({ kind: "fixed", nodes: ["a"], reading: "induced" }, pathsOf), []);

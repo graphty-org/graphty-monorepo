@@ -28,6 +28,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
+import { runIdOfRef } from "../../catalog/sets/canonical";
 import type { Filter, Query, Scope, ScopeId, SetDefinition, SetId } from "../../catalog/types";
 import { dependencyOf } from "./dependencies";
 import type { EdgeSeeds, ResolveContext } from "./resolve";
@@ -241,6 +242,23 @@ function rulePart(where: Query | Filter, context: ResolveContext, parts: Map<unk
             }
 
             return context.revisions === undefined ? null : `a${JSON.stringify(dependency.field)}=${context.revisions.of(dependency.field)}`;
+        }
+        case "item": {
+            // Follow or hold, the members move exactly when the run's current execution does.
+            const run = String(runIdOfRef(where.item.run));
+            return context.executionOf === undefined ? null : `r${JSON.stringify(run)}=${context.executionOf(run) ?? "-"}`;
+        }
+        case "threshold": {
+            const dependency = dependencyOf(where.path);
+            if ("run" in dependency) {
+                return context.executionOf === undefined ? null : `r${JSON.stringify(dependency.run)}=${context.executionOf(dependency.run) ?? "-"}`;
+            }
+
+            // A data threshold ranks whichever half carries the field: both revisions key it.
+            const { revisions, edgeRevisions } = context;
+            return revisions === undefined || edgeRevisions === undefined
+                ? null
+                : `a${JSON.stringify(dependency.field)}=${revisions.of(dependency.field)}.${edgeRevisions.of(dependency.field)}`;
         }
         case "degree":
         case "component":

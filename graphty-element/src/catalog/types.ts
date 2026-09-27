@@ -783,8 +783,8 @@ export type FilterDirection = "in" | "out" | "all";
  * Every leaf speaks about nodes, edges or both, and is SILENT about the rest: `all` and `any` fold
  * the halves that are not silent, and `not` negates only those. `edges` speaks edges; `scope`
  * speaks the referenced set's nodes, and its edges only when that set is read `listed` or
- * `clipped` (`"visible"` is); every other leaf speaks nodes. A group with no members constrains
- * nothing.
+ * `clipped` (`"visible"` is); `item` and `threshold` speak the half or halves their field lives
+ * on; every other leaf speaks nodes. A group with no members constrains nothing.
  *
  * OPEN UNION: leaf kinds may be added in a minor release; handle unknown kinds.
  */
@@ -802,6 +802,25 @@ export type Filter =
     | { readonly kind: "neighborhood"; readonly seeds: readonly NodeId[]; readonly depth: number }
     | { readonly kind: "edges"; readonly where: Query }
     | { readonly kind: "scope"; readonly scope: Scope }
+    /**
+     * The elements one item of a result holds: community 3, the path's nodes and edges. Speaks
+     * the half or halves the result publishes the key's field on (`onPath` speaks both).
+     */
+    | { readonly kind: "item"; readonly item: ResultItem }
+    /**
+     * The elements whose value for a path passes one cut. The population is the elements that
+     * carry a finite number for the path; each half that has one speaks, ranked on its own.
+     * Reserved, refused until built: `percentile`, `z` and `population`.
+     */
+    | {
+          readonly kind: "threshold";
+          /** A value path: `results.<run>.<field>` or `data.<field>`. */
+          readonly path: Path;
+          /** The top `n`, whole tie groups only (the `TopRanking` tie policy). Exactly one cut. */
+          readonly top?: number;
+          /** Strictly above this value. Exactly one cut. */
+          readonly above?: number;
+      }
     | { readonly kind: "all"; readonly of: readonly Filter[] }
     | { readonly kind: "any"; readonly of: readonly Filter[] }
     | { readonly kind: "not"; readonly of: Filter };

@@ -63,7 +63,7 @@ import {
 } from "../sets/resolve";
 import { createSetsApi, sessionEdgeMember, setsStoreOf } from "../sets/SetsApi";
 import type { ElementSet, SetsApi } from "../sets/types";
-import type { FilterValueSource, ScopeLeaf } from "../visibility/filter";
+import type { FilterSources, FilterValueSource, ScopeLeaf } from "../visibility/filter";
 import type { ElementMask, MaskIdSpace } from "./ElementMask";
 
 export type { ComponentLabels } from "../sets/resolve";
@@ -208,6 +208,8 @@ export interface ScopeSources {
     readonly matchEdges?: (where: Query) => Iterable<EdgeId>;
     /** Attribute values. Absent refuses a rule's `range` and `categories` leaves. */
     readonly values?: FilterValueSource;
+    /** A run's current result. Absent refuses a rule's `item` leaf and a `threshold` over `results.*`. */
+    readonly result?: FilterSources["result"];
     /**
      * A session edge's stable identity, so an inline `{ define }` may name edges by session id.
      * Absent refuses a session edge id inside `{ define }`.
@@ -489,6 +491,7 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
         sets: kept,
         ...(sources.matchEdges === undefined ? {} : { matchEdges: sources.matchEdges }),
         ...(sources.values === undefined ? {} : { values: sources.values }),
+        ...(sources.result === undefined ? {} : { result: sources.result }),
     });
 
     /**

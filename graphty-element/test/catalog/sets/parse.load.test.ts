@@ -19,6 +19,10 @@ const OPAQUE: readonly (readonly [string, Record<string, unknown>, string])[] = 
     ["an unknown top-level field on a definition", { kind: "path", meta: { by: "newer" }, nodes: ["a"] }, "path.meta"],
     ["a reserved key on an edge member", { edges: [{ key: "k", source: "a", target: "b" }], kind: "fixed", nodes: [], reading: "listed" }, "edgeMember.key"],
     ["a reserved dataSource on an edge member", { edges: [{ dataSource: "s", id: 1, source: "a", target: "b" }], kind: "fixed", nodes: [], reading: "listed" }, "edgeMember.dataSource"],
+    ["a reserved cut on a threshold, as its only cut", { kind: "rule", reading: "clipped", where: { kind: "threshold", path: "data.score", percentile: 0.9 } }, "threshold.percentile"],
+    ["a reserved population on a threshold", { kind: "rule", reading: "clipped", where: { kind: "threshold", path: "results.pr.rank", population: "group", top: 3 } }, "threshold.population"],
+    ["a reserved op on an item key", { kind: "rule", reading: "clipped", where: { item: { key: { field: "level", op: "le", value: 2 }, run: "kc" }, kind: "item" } }, "itemKey.op"],
+    ["a reserved keyed item form", { kind: "rule", reading: "clipped", where: { item: { key: { smallestNode: "a" }, run: "cc" }, kind: "item" } }, "itemKey.smallestNode"],
 ];
 
 describe("loadSetDefinition, the internal load mode", () => {

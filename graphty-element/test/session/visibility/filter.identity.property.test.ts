@@ -8,14 +8,22 @@
  *    A node leaf L is equivalent to `{ define: rule L induced }` (a scope over an induced set is
  *    silent on edges, exactly like the node leaf), and an expression leaf also to `{ where }`. An
  *    edge leaf has no equivalent scope: every scope speaks its node half.
+ *
+ * Each generated graph carries three runs, so `item` and `threshold` leaves are generated beside the
+ * others: a layered grouping (`lvl`, node `level`), a metric (`met`, node `value`, some nodes
+ * unmeasured) and a path (`route`, `onPath` on nodes and edges). An item over `level`, and a
+ * threshold over `data.score` or a run's node field, speak nodes only; a threshold over
+ * `data.weight` speaks edges only; an `onPath` item speaks both, so it has no equivalent scope.
  */
 
 import fc from "fast-check";
 import { assert, describe, it } from "vitest";
 
 import type { Filter, NodeId, Scope } from "../../../src/catalog/types";
+import { edgeSpaceOf } from "../../../src/session/scope";
 import { fcParams } from "../../helpers/fc-params";
 import { type Harness, makeSession } from "../helpers";
+import { type Published, publishing } from "./results";
 
 /** A generated graph. */
 interface GraphCase {
@@ -24,6 +32,12 @@ interface GraphCase {
     readonly scores: (number | null)[];
     readonly types: (string | null)[];
     readonly edges: [number, number, number][];
+    /** Per node: its `level` in the `lvl` run. */
+    readonly levels: number[];
+    /** Per node: its `value` in the `met` run, or null when the run did not measure it. */
+    readonly metric: (number | null)[];
+    /** Per node, then cycled over the edges: `onPath` in the `route` run. */
+    readonly onPath: boolean[];
 }
 
 const idOf = (i: number): NodeId => `n${i}`;
@@ -38,6 +52,9 @@ const GRAPH: fc.Arbitrary<GraphCase> = fc.integer({ min: 1, max: 10 }).chain((no
             fc.tuple(fc.integer({ min: 0, max: nodeCount - 1 }), fc.integer({ min: 0, max: nodeCount - 1 }), fc.integer({ min: 0, max: 9 })),
             { maxLength: 20 },
         ),
+        levels: fc.array(fc.integer({ min: 0, max: 2 }), { minLength: nodeCount, maxLength: nodeCount }),
+        metric: fc.array(fc.option(fc.integer({ min: 0, max: 4 })), { minLength: nodeCount, maxLength: nodeCount }),
+        onPath: fc.array(fc.boolean(), { minLength: nodeCount, maxLength: nodeCount }),
     }),
 );
 
@@ -56,6 +73,10 @@ const NODE_LEAF: fc.Arbitrary<Filter> = fc.oneof(
     fc
         .record({ seeds: fc.array(fc.integer({ min: 0, max: 12 }), { maxLength: 3 }), depth: fc.integer({ min: 0, max: 2 }) })
         .map((n): Filter => ({ kind: "neighborhood", seeds: n.seeds.map(idOf), depth: n.depth })),
+    fc.integer({ min: 0, max: 3 }).map((level): Filter => ({ kind: "item", item: { run: "lvl", key: { field: "level", value: level } } })),
+    fc
+        .tuple(fc.constantFrom("data.score", "results.met.value"), fc.boolean(), fc.integer({ min: 0, max: 5 }))
+        .map(([path, top, n]): Filter => (top ? { kind: "threshold", path, top: n } : { kind: "threshold", path, above: n - 1 })),
 );
 
 /** Scope leaves over the forms that exist today, inline definitions included. */
@@ -70,9 +91,17 @@ const SCOPE_LEAF: fc.Arbitrary<Filter> = fc
     )
     .map((scope): Filter => ({ kind: "scope", scope }));
 
-const EDGE_LEAF: fc.Arbitrary<Filter> = fc.integer({ min: 0, max: 9 }).map((w): Filter => ({ kind: "edges", where: `data.weight > \`${w}\`` }));
+const EDGE_LEAF: fc.Arbitrary<Filter> = fc.oneof(
+    fc.integer({ min: 0, max: 9 }).map((w): Filter => ({ kind: "edges", where: `data.weight > \`${w}\`` })),
+    fc
+        .tuple(fc.boolean(), fc.integer({ min: 0, max: 9 }))
+        .map(([top, n]): Filter => (top ? { kind: "threshold", path: "data.weight", top: n } : { kind: "threshold", path: "data.weight", above: n })),
+);
 
-const LEAF = fc.oneof(NODE_LEAF, EDGE_LEAF, SCOPE_LEAF);
+/** Leaves that speak both halves: the path's nodes and edges. */
+const BOTH_LEAF: fc.Arbitrary<Filter> = fc.boolean().map((value): Filter => ({ kind: "item", item: { run: "route", key: { field: "onPath", value } } }));
+
+const LEAF = fc.oneof(NODE_LEAF, EDGE_LEAF, SCOPE_LEAF, BOTH_LEAF);
 
 /**
  * A rule tree of at most the given depth.
@@ -126,20 +155,34 @@ function replaced(node: Filter, choices: number[]): Filter {
         case "edges":
         case "scope":
             return node;
-        default: {
-            const choice = choices.shift() ?? 0;
-            return choice === 0 ? node : asScope(node, choice === 2);
-        }
+        case "item":
+            return node.item.key.field === "onPath" ? node : replaceLeaf(node, choices);
+        case "threshold":
+            return node.path === "data.weight" ? node : replaceLeaf(node, choices);
+        default:
+            return replaceLeaf(node, choices);
     }
 }
 
 /**
- * A session over the generated graph.
+ * A node leaf, kept or replaced by its equivalent scope as the next choice says.
+ * @param node - The leaf.
+ * @param choices - The draws, consumed in order.
+ * @returns The leaf or its scope.
+ */
+function replaceLeaf(node: Filter, choices: number[]): Filter {
+    const choice = choices.shift() ?? 0;
+    return choice === 0 ? node : asScope(node, choice === 2);
+}
+
+/**
+ * A session over the generated graph, with its three runs finished.
  * @param graph - The case.
  * @returns The harness.
  */
-function harnessOf(graph: GraphCase): Harness {
-    const harness = makeSession({ directed: graph.directed });
+async function harnessOf(graph: GraphCase): Promise<Harness> {
+    const table = new Map<string, Published>();
+    const harness = makeSession({ directed: graph.directed, runs: { execute: publishing(table) } });
     harness.add(
         Array.from({ length: graph.nodeCount }, (_, i) => ({
             id: idOf(i),
@@ -148,6 +191,21 @@ function harnessOf(graph: GraphCase): Harness {
         })),
         graph.edges.map(([s, t, w]) => ({ src: idOf(s), dst: idOf(t), weight: w })),
     );
+
+    const snapshot = harness.session.data.snapshot();
+    const space = edgeSpaceOf(snapshot);
+    const nodes = (value: (i: number) => Record<string, unknown> | null): Map<NodeId, Record<string, unknown>> =>
+        new Map(Array.from({ length: graph.nodeCount }, (_, i) => [idOf(i), value(i)] as const).filter((entry): entry is [NodeId, Record<string, unknown>] => entry[1] !== null));
+    table.set("lvl", { shape: "layered-grouping", nodes: nodes((i) => ({ level: graph.levels[i] })) });
+    table.set("met", { shape: "node-metric", nodes: nodes((i) => (graph.metric[i] === null ? null : { value: graph.metric[i] })) });
+    table.set("route", {
+        shape: "path",
+        nodes: nodes((i) => ({ onPath: graph.onPath[i] })),
+        edges: new Map(Array.from({ length: snapshot.edgeCount }, (_, e) => [space.idOf(e), { onPath: graph.onPath[e % graph.nodeCount] }] as const)),
+    });
+    for (const as of table.keys()) {
+        await harness.session.runs.start("degree", undefined, { as, scope: "graph", style: false });
+    }
 
     return harness;
 }
@@ -168,7 +226,7 @@ describe("the visibility filter and a rule read clipped are one evaluator", () =
     it("filter = T equals filter = { scope: { define: rule T clipped } }", async () => {
         await fc.assert(
             fc.asyncProperty(GRAPH, TREE, async (graph, filter) => {
-                const harness = harnessOf(graph);
+                const harness = await harnessOf(graph);
                 const direct = await masksOf(harness, filter);
                 const wrapped = await masksOf(harness, {
                     kind: "scope",
@@ -184,7 +242,7 @@ describe("the visibility filter and a rule read clipped are one evaluator", () =
     it("replacing a node leaf with its equivalent scope inside any, all and not changes no mask", async () => {
         await fc.assert(
             fc.asyncProperty(GRAPH, TREE, fc.array(fc.integer({ min: 0, max: 2 }), { minLength: 40, maxLength: 40 }), async (graph, filter, choices) => {
-                const harness = harnessOf(graph);
+                const harness = await harnessOf(graph);
                 const direct = await masksOf(harness, filter);
                 const rewritten = await masksOf(harness, replaced(filter, [...choices]));
 

@@ -16,6 +16,8 @@ const LEAF_KINDS: Record<Filter["kind"], true> = {
     neighborhood: true,
     edges: true,
     scope: true,
+    item: true,
+    threshold: true,
     all: true,
     any: true,
     not: true,

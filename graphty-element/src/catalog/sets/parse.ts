@@ -18,7 +18,8 @@
  *
  * Reserved fields -- names a later release will give a meaning, refused at the doors until then:
  * `weights` on a fixed set, `within` on a rule, `key` and `dataSource` on an edge member, `graph` on
- * `{ set }`. Reserved kinds: the scope keyword `"search"`.
+ * `{ set }`, `percentile`, `z` and `population` on a threshold, `op` on an item key. Reserved kinds:
+ * the scope keyword `"search"`, and the item key forms `{ smallestNode }`, `{ edges }`, `{ binds }`.
  *
  * `parseScope` is the same validator for a `Scope`, which may carry a definition inline.
  *
@@ -27,13 +28,27 @@
 
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { Scope, SetDefinition } from "../types";
-import { canonicalSetDefinition, DEFINITION_FIELDS, EDGE_MEMBER_FIELDS } from "./canonical";
+import { canonicalSetDefinition, DEFINITION_FIELDS, EDGE_MEMBER_FIELDS, runIdOfRef } from "./canonical";
 
 type Loose = Readonly<Record<string, unknown>>;
 type Mode = "door" | "load";
 
 /** Reserved field names, by the node that reserves them, as `<node>.<field>`. */
-const RESERVED = new Set(["fixed.weights", "rule.within", "edgeMember.key", "edgeMember.dataSource", "set.graph", "search"]);
+const RESERVED = new Set([
+    "fixed.weights",
+    "rule.within",
+    "edgeMember.key",
+    "edgeMember.dataSource",
+    "set.graph",
+    "search",
+    "threshold.percentile",
+    "threshold.z",
+    "threshold.population",
+    "itemKey.op",
+    "itemKey.smallestNode",
+    "itemKey.edges",
+    "itemKey.binds",
+]);
 
 /** The scope keywords this element defines. */
 const KEYWORDS = ["visible", "graph", "selection", "largest-component"];
@@ -215,6 +230,99 @@ function checkBounds(node: Loose): void {
 }
 
 /**
+ * Check a result item: a run, a key, and optionally the execution it holds. At a door the run may
+ * be a `Run` or `RunResult` handle, which the canonical form replaces by its id.
+ * @param value - The candidate item.
+ * @param walker - The pass.
+ */
+function checkItem(value: unknown, walker: Walker): void {
+    if (!isObject(value)) {
+        throw bad("An item leaf's item is an object with a run and a key.", { item: value });
+    }
+
+    walker.fields(value, "resultItem", ["run", "key", "execution"]);
+
+    const run = walker.mode === "door" ? runIdOfRef(value.run) : value.run;
+    if (typeof run !== "string" || run === "") {
+        throw bad("An item names its run by the run's id.", { run: value.run });
+    }
+
+    if (value.execution !== undefined && (typeof value.execution !== "string" || value.execution === "")) {
+        throw bad("An item's execution is the token of the execution it holds.", { execution: value.execution });
+    }
+
+    const { key } = value;
+    if (!isObject(key)) {
+        throw bad("An item's key is an object, such as { field: \"group\", value: 3 }.", { key });
+    }
+
+    if (key.field === undefined) {
+        walker.unknown(`itemKey.${Object.keys(key).sort()[0] ?? "{}"}`, "The item key form");
+
+        return;
+    }
+
+    walker.fields(key, "itemKey", ["field", "value"]);
+
+    if (typeof key.field !== "string" || key.field === "") {
+        throw bad("An item key's field names a field of the result.", { key });
+    }
+
+    const { value: wanted } = key;
+    if (typeof wanted !== "string" && typeof wanted !== "boolean" && !isFiniteNumber(wanted)) {
+        throw bad("An item key's value is a string, a finite number or a boolean.", { key });
+    }
+}
+
+/**
+ * Whether a path is a value path a threshold may rank: `data.<field>` or `results.<run>.<field>`.
+ * @param path - The candidate.
+ * @returns True when it names a field.
+ */
+function isValuePath(path: unknown): boolean {
+    if (typeof path !== "string") {
+        return false;
+    }
+
+    if (path.startsWith("data.")) {
+        return path.length > "data.".length;
+    }
+
+    const rest = path.startsWith("results.") ? path.slice("results.".length) : "";
+    const dot = rest.indexOf(".");
+
+    return dot > 0 && dot < rest.length - 1;
+}
+
+/**
+ * Check a threshold leaf: a value path and exactly one cut.
+ * @param value - The leaf.
+ * @param walker - The pass.
+ */
+function checkThreshold(value: Loose, walker: Walker): void {
+    walker.fields(value, "threshold", ["kind", "path", "top", "above"]);
+
+    if (!isValuePath(value.path)) {
+        throw bad('A "threshold" leaf\'s path is "data.<field>" or "results.<run>.<field>".', { path: value.path });
+    }
+
+    // A reserved cut kept opaque on load counts as the leaf's cut.
+    const reservedCut = walker.mode === "load" && (value.percentile !== undefined || value.z !== undefined);
+    const cuts = [value.top, value.above].filter((cut) => cut !== undefined).length;
+    if (cuts !== 1 && !(reservedCut && cuts === 0)) {
+        throw bad('A "threshold" leaf has exactly one cut: top or above.', { top: value.top, above: value.above });
+    }
+
+    if (value.top !== undefined && (!Number.isInteger(value.top) || (value.top as number) < 0)) {
+        throw bad('A "threshold" leaf\'s top is a whole number of elements.', { top: value.top });
+    }
+
+    if (value.above !== undefined && !isFiniteNumber(value.above)) {
+        throw bad('A "threshold" leaf\'s above is a finite number.', { above: value.above });
+    }
+}
+
+/**
  * Check one rule tree node, all the way down.
  * @param value - The candidate node.
  * @param walker - The pass.
@@ -282,6 +390,15 @@ function checkTree(value: unknown, walker: Walker): void {
             checkScope(value.scope, walker);
 
             return;
+        case "item":
+            known(["item"]);
+            checkItem(value.item, walker);
+
+            return;
+        case "threshold":
+            checkThreshold(value, walker);
+
+            return;
         case "all":
         case "any":
             known(["of"]);
@@ -334,13 +451,19 @@ export function readingOfScope(scope: unknown, referent?: (id: string) => string
 }
 
 /**
- * Whether a rule tree holds a leaf that speaks about edges: an `edges` leaf, or a `scope` leaf
- * whose set is read `listed` or `clipped`.
+ * Whether a rule tree holds a leaf that speaks about edges: an `edges` leaf, a `scope` leaf whose
+ * set is read `listed` or `clipped`, or an `item` or `threshold` leaf over a field edges carry.
  * @param node - A validated tree node, or a query.
  * @param referent - The reading of the set an id names, when the caller can look it up.
+ * @param fieldKinds - Which halves carry a value path (`results.<run>.<field>` or `data.<field>`),
+ * when the caller can look it up; without it an `item` or `threshold` leaf is not known to.
  * @returns True when some leaf speaks the edge half.
  */
-export function speaksEdges(node: unknown, referent?: (id: string) => string | undefined): boolean {
+export function speaksEdges(
+    node: unknown,
+    referent?: (id: string) => string | undefined,
+    fieldKinds?: (path: string) => readonly string[],
+): boolean {
     if (!isObject(node)) {
         return false;
     }
@@ -350,11 +473,20 @@ export function speaksEdges(node: unknown, referent?: (id: string) => string | u
             return true;
         case "scope":
             return readingOfScope(node.scope, referent) !== "induced";
+        case "item": {
+            const item = isObject(node.item) ? node.item : {};
+            const key = isObject(item.key) ? item.key : {};
+            const run = runIdOfRef(item.run);
+
+            return typeof run === "string" && typeof key.field === "string" && fieldKinds?.(`results.${run}.${key.field}`).includes("edge") === true;
+        }
+        case "threshold":
+            return typeof node.path === "string" && fieldKinds?.(node.path).includes("edge") === true;
         case "all":
         case "any":
-            return Array.isArray(node.of) && node.of.some((operand) => speaksEdges(operand, referent));
+            return Array.isArray(node.of) && node.of.some((operand) => speaksEdges(operand, referent, fieldKinds));
         case "not":
-            return speaksEdges(node.of, referent);
+            return speaksEdges(node.of, referent, fieldKinds);
         default:
             return false;
     }
@@ -555,6 +687,16 @@ export function loadSetDefinition(value: unknown): { definition: SetDefinition; 
     const definition = canonicalSetDefinition(value as SetDefinition);
 
     return first === undefined ? { definition } : { definition, opaque: { first } };
+}
+
+/**
+ * Check a rule tree in door mode, as the visibility filter's door does for the leaves it shares
+ * with rule sets. Internal.
+ * @param value - The candidate tree.
+ * @throws A `GraphtyError` with code `E_BAD_COMMAND`.
+ */
+export function assertRuleTree(value: unknown): void {
+    checkTree(value, new Walker("door"));
 }
 
 /**

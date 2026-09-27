@@ -94,6 +94,7 @@ import type {
     SessionStatus,
 } from "./types";
 import { createVisibilityApi, type FilterValueSource, type SessionVisibilityApi } from "./visibility";
+import type { FilterRunResult } from "./visibility/filter";
 
 /**
  * What a session with no configuration of its own runs on.
@@ -652,6 +653,33 @@ function valueSourceOf(records: SessionRecordSource, readSnapshot: () => GraphSn
 }
 
 /**
+ * Which halves carry a value path: a run field's declared kinds, or the kinds of the data
+ * attribute at that path.
+ * @param path - `results.<run>.<field>` or `data.<field>`.
+ * @param data - The session's data surface.
+ * @param fieldsOf - A run's published fields, or undefined when it has no result.
+ * @returns The kinds, `"node"`, `"edge"` or both.
+ */
+function fieldKindsOf(
+    path: Path,
+    data: SessionDataApi,
+    fieldsOf: (run: RunId) => readonly { readonly name: string; readonly kind: string }[] | undefined,
+): readonly string[] {
+    if (path.startsWith("results.")) {
+        const rest = path.slice("results.".length);
+        const dot = rest.indexOf(".");
+        const field = rest.slice(dot + 1);
+
+        return (fieldsOf(rest.slice(0, dot)) ?? []).filter((descriptor) => descriptor.name === field).map((descriptor) => descriptor.kind);
+    }
+
+    return data
+        .attributes()
+        .filter((attribute) => attribute.path === path)
+        .map((attribute) => attribute.kind);
+}
+
+/**
  * Which connected component each node belongs to, as the scope resolver and a component filter
  * read it.
  *
@@ -1125,6 +1153,8 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         referent: (id: SetId) => setsStoreOf(sets).get(id)?.definition,
         visibility: () => visibility.filter,
         pathsOf: (where: Query) => requireQuery(query).pathsOf(where),
+        shapeOf: (run: RunId) => runs.get(run)?.result?.shape,
+        fieldKinds: (path: Path) => fieldKindsOf(path, data, (run) => runs.get(run)?.result?.fields),
     };
     const sets = createSetsApi({ edgeMember, dependencies });
     const keptSets = setsStoreOf(sets);
@@ -1136,6 +1166,31 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     // halfway through. A rendered graph hands in the element's own, so a filter also takes its
     // turn among the loads, the layouts and the style passes.
     const queue = runsOptions.queue ?? createLocalRunQueue();
+
+    // The token of the result a predicate reads; a result published with none (an executor
+    // outside the runs API) stands for itself, so a new result is never read as the old one.
+    const executionOf = (run: RunId): string | undefined => {
+        const result = runs.get(run)?.result;
+
+        return result === undefined ? undefined : (resultExecutionOf(results, run) ?? `#${identityOf(result)}`);
+    };
+    // A run's current result as an `item` or `threshold` leaf reads it, by dense index.
+    const resultSource = (run: RunId): FilterRunResult | undefined => {
+        const result = runs.get(run)?.result;
+        if (result === undefined) {
+            return undefined;
+        }
+
+        const graph = snapshot();
+        const space = edgeSpaceOf(graph);
+
+        return {
+            execution: executionOf(run),
+            fields: result.fields,
+            nodeValue: (index: number, field: string): unknown => result.node(graph.ids.idOf(index))?.[field],
+            edgeValue: (index: number, field: string): unknown => result.edge(space.idOf(index))?.[field],
+        };
+    };
 
     const scope: ScopeResolver = createScopeApi({
         snapshot,
@@ -1152,13 +1207,8 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         pathsOf: (where: Query) => requireQuery(query).pathsOf(where),
         revisions: inputs.nodes,
         edgeRevisions: inputs.edges,
-        // The token of the result a predicate reads; a result published with none (an executor
-        // outside the runs API) stands for itself, so a new result is never read as the old one.
-        executionOf: (run: RunId) => {
-            const result = runs.get(run)?.result;
-
-            return result === undefined ? undefined : (resultExecutionOf(results, run) ?? `#${identityOf(result)}`);
-        },
+        executionOf,
+        result: resultSource,
         tick: inputs.tick,
         sets,
         edgeMember,
@@ -1177,6 +1227,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         matchEdges: (where: Query) => requireQuery(query).edges(where),
         unresolvedPathsOf: (where: Query) => requireQuery(query).unresolvedPathsOf(where),
         ...(runsOptions.engine === undefined ? {} : { engine: runsOptions.engine }),
+        result: resultSource,
         ...(options.records === undefined ? {} : { values: valueSourceOf(options.records, snapshot) }),
         onChange: (change) => {
             publish(watchers, "visibility:changed", change);

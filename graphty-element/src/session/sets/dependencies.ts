@@ -9,8 +9,10 @@
  * | a `scope` leaf `{ set: id }`                            | that set (follows it)               |
  * | a `scope` leaf `"visible"`, `"selection"`, `"search"`   | the visibility filter, the selection, the search |
  * | a `scope` leaf `"largest-component"`; `component`, `degree`, `neighborhood` | topology (the snapshot) |
- * | a path `results.<run>.<field>` a query reads            | that run (follows its current execution) |
- * | any other path a query, `range` or `categories` reads   | that top-level attribute field      |
+ * | a path `results.<run>.<field>` a query or `threshold` reads | that run (follows its current execution) |
+ * | an `item` leaf without `execution`                      | that run (follows its current execution) |
+ * | an `item` leaf with `execution`                         | that run's execution (holds it)     |
+ * | any other path a query, `range`, `categories` or `threshold` reads | that top-level attribute field |
  *
  * A query's paths come from the compiled expression, which has no projections or wildcards, so
  * every path is static. The visibility filter and the selection are nodes of this graph: that is
@@ -24,8 +26,10 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
+import { runIdOfRef } from "../../catalog/sets/canonical";
 import { readingOfScope } from "../../catalog/sets/parse";
-import type { Filter, Path, Query, RunId, Scope, SetDefinition, SetId } from "../../catalog/types";
+import type { Filter, Path, Query, ResultItem, RunId, Scope, SetDefinition, SetId } from "../../catalog/types";
+import { GraphtyError } from "../../errors/GraphtyError";
 
 /** One thing a definition reads. */
 type Dependency =
@@ -34,7 +38,8 @@ type Dependency =
     | { readonly kind: "selection" }
     | { readonly kind: "search" }
     | { readonly kind: "topology" }
-    | { readonly kind: "run"; readonly run: RunId }
+    /** `execution` present: the reference holds that execution; absent: it follows the run. */
+    | { readonly kind: "run"; readonly run: RunId; readonly execution?: string }
     | { readonly kind: "attribute"; readonly field: string };
 
 /** A step of a reference chain: a set id, or one of the live keywords `"visible"`, `"selection"`, `"search"`. */
@@ -59,6 +64,20 @@ export interface DependencySources {
      * @returns The paths.
      */
     readonly pathsOf?: (where: Query) => readonly Path[];
+    /**
+     * The shape of a run's current result, which says whether an item's field is a partition
+     * group. Absent, or undefined for a run: nothing is known, and nothing is refused on it.
+     * @param run - The run.
+     * @returns The result shape.
+     */
+    readonly shapeOf?: (run: RunId) => string | undefined;
+    /**
+     * Which halves carry a value path, `results.<run>.<field>` or `data.<field>`, so a rule read
+     * `induced` over an edge field is refused. Absent: nothing is known.
+     * @param path - The path.
+     * @returns `"node"`, `"edge"` or both.
+     */
+    readonly fieldKinds?: (path: Path) => readonly string[];
 }
 
 type Loose = Readonly<Record<string, unknown>>;
@@ -168,6 +187,19 @@ class Collector {
                 return;
             case "scope":
                 this.scope(node.scope);
+                return;
+            case "item":
+                if (isObject(node.item)) {
+                    const run = runIdOfRef(node.item.run);
+                    if (typeof run === "string") {
+                        const { execution } = node.item;
+                        this.add(typeof execution === "string" ? { kind: "run", run, execution } : { kind: "run", run });
+                    }
+                }
+
+                return;
+            case "threshold":
+                this.path(node.path);
                 return;
             case "all":
             case "any":
@@ -325,4 +357,72 @@ export function referentReading(sources: DependencySources): (id: SetId) => stri
     };
 
     return reading;
+}
+
+/**
+ * The first `item` leaf that follows a partition group across re-runs (the `group` field of a
+ * `community` result), in the value itself and the definitions it carries inline. A group number
+ * means nothing across re-runs, so such an item must hold its execution.
+ * @param value - A definition, a scope, or a rule tree.
+ * @param sources - Where a run's result shape is read; without `shapeOf` nothing is found.
+ * @returns The item, or null.
+ */
+export function followedGroup(value: SetDefinition | Scope | Filter, sources: DependencySources): ResultItem | null {
+    const { shapeOf } = sources;
+    if (shapeOf === undefined) {
+        return null;
+    }
+
+    const walk = (node: unknown): ResultItem | null => {
+        if (!isObject(node)) {
+            return null;
+        }
+
+        if (node.kind === "item" && isObject(node.item) && node.item.execution === undefined && isObject(node.item.key)) {
+            const run = runIdOfRef(node.item.run);
+            const isGroup = node.item.key.field === "group" && typeof run === "string" && shapeOf(run) === "community";
+
+            return isGroup ? (node.item as unknown as ResultItem) : null;
+        }
+
+        const children: unknown[] = [];
+        if (node.kind === "rule") {
+            children.push(node.where);
+        } else if (node.kind === "all" || node.kind === "any") {
+            children.push(...(Array.isArray(node.of) ? node.of : []));
+        } else if (node.kind === "not") {
+            children.push(node.of);
+        } else if (node.kind === "scope") {
+            children.push(node.scope);
+        } else if (node.define !== undefined) {
+            children.push(node.define);
+        }
+
+        for (const child of children) {
+            const found = walk(child);
+            if (found !== null) {
+                return found;
+            }
+        }
+
+        return null;
+    };
+
+    return walk(value);
+}
+
+/**
+ * The refusal of an item that follows a partition group.
+ * @param item - The item.
+ * @returns The error to throw.
+ */
+export function followsGroup(item: ResultItem): GraphtyError {
+    return new GraphtyError({
+        code: "E_BAD_COMMAND",
+        message:
+            `Group ${String(item.key.value)} of run "${String(runIdOfRef(item.run))}" is a partition group, and a group number means ` +
+            "nothing after a re-run. Hold this execution (give the item its execution) or create a set from its current members.",
+        source: "data",
+        details: { reason: "follow-group", item },
+    });
 }

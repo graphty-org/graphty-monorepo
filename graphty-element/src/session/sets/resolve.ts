@@ -32,7 +32,7 @@ import { GraphtyError, isGraphtyError } from "../../errors";
 import type { AttributeRevisions, InputTick } from "../attributes";
 import { canonicalize } from "../runs/runId";
 import type { ElementMask } from "../scope/ElementMask";
-import { compileFilter, type FilterValueSource, type ScopeLeaf } from "../visibility/filter";
+import { compileFilter, type FilterSources, type FilterValueSource, type ScopeLeaf } from "../visibility/filter";
 import type { SetsCache } from "./cache";
 import { referentReading } from "./dependencies";
 import { resolvePath } from "./path";
@@ -126,6 +126,8 @@ export interface ResolveContext {
     readonly matchEdges?: (where: Query) => Iterable<EdgeId>;
     /** Attribute values. Absent refuses a rule's `range` and `categories` leaves. */
     readonly values?: FilterValueSource;
+    /** A run's current result. Absent refuses a rule's `item` leaf and a `threshold` over `results.*`. */
+    readonly result?: FilterSources["result"];
     /**
      * The saved scopes `{ set }` names. Absent: no scope is saved. Replaced, never mutated, on
      * every write, so its identity says whether it moved.
@@ -523,6 +525,7 @@ function resolveRule(definition: Extract<SetDefinition, { kind: "rule" }>, conte
         ...(context.match === undefined ? {} : { match: context.match }),
         ...(context.matchEdges === undefined ? {} : { matchEdges: context.matchEdges }),
         ...(context.values === undefined ? {} : { values: context.values }),
+        ...(context.result === undefined ? {} : { result: context.result }),
         ...(context.components === undefined ? {} : { components: context.components }),
         scope: (scope: Scope) => scopeLeafIn(scope, context, seen),
     });

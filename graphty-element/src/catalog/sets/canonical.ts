@@ -187,7 +187,43 @@ function canonicalStep(step: EdgeMember | readonly EdgeMember[] | null): EdgeMem
 }
 
 /** The leaf kinds whose fields this module knows, and the numeric or id-list fields they carry. */
-const KNOWN_LEAVES = new Set(["expression", "edges", "range", "categories", "degree", "component", "neighborhood"]);
+const KNOWN_LEAVES = new Set(["expression", "edges", "range", "categories", "degree", "component", "neighborhood", "threshold"]);
+
+/**
+ * The run id a result item names: the id itself, or the id of a `Run` or `RunResult` handle a
+ * door was passed, so every stored item holds a plain id.
+ * @param run - The item's `run`.
+ * @returns The id, or the value as it was when it is neither.
+ */
+export function runIdOfRef(run: unknown): unknown {
+    if (typeof run !== "object" || run === null) {
+        return run;
+    }
+
+    const handle = run as Loose;
+    if (typeof handle.runId === "string") {
+        return handle.runId;
+    }
+
+    return typeof handle.id === "string" ? handle.id : run;
+}
+
+/**
+ * A result item, canonical: keys sorted, a run handle replaced by its id, `-0` folded in the key.
+ * @param item - The item.
+ * @returns The canonical item.
+ */
+function canonicalItem(item: unknown): unknown {
+    if (typeof item !== "object" || item === null || Array.isArray(item)) {
+        return item;
+    }
+
+    const loose = item as Loose;
+    const { key } = loose;
+    const canonicalKey = typeof key === "object" && key !== null && !Array.isArray(key) ? sortKeys({ ...(key as Loose), value: unsigned((key as Loose).value) }) : key;
+
+    return sortKeys({ ...loose, run: runIdOfRef(loose.run), key: canonicalKey });
+}
 
 /**
  * One rule tree node, canonical. `all`, `any` and `not` recurse; known leaves have their keys
@@ -213,6 +249,10 @@ function canonicalTree(node: unknown): unknown {
 
     if (kind === "scope") {
         return sortKeys({ ...loose, scope: canonicalScope(loose.scope) });
+    }
+
+    if (kind === "item") {
+        return sortKeys({ ...loose, item: canonicalItem(loose.item) });
     }
 
     if (typeof kind === "string" && KNOWN_LEAVES.has(kind)) {

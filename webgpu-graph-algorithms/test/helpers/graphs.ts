@@ -425,6 +425,19 @@ export const FIXTURE_NAMES: readonly string[] = Object.freeze([
 ]);
 
 /**
+ * The first six positions of "nonfinite" (karate, the rest seeded as in "outside5"): NaN and +/-Infinity on different axes. Nodes 0, 1, 2, 3 and 5 are
+ * outside in 2D and 3D; node 4 is non-finite on z only, so it is inside in 2D (z is not keyed) and outside in 3D.
+ */
+const NONFINITE_POSITIONS: readonly (readonly [number, number, number])[] = Object.freeze([
+    [NaN, 0.1, 0.1],
+    [0.2, Infinity, 0],
+    [-Infinity, -0.3, 0],
+    [NaN, NaN, NaN],
+    [0.1, 0.2, NaN],
+    [Infinity, -Infinity, Infinity],
+]);
+
+/**
  * Seeded positions in [-1, 1) for n nodes, 3 per node.
  * @param n - node count
  * @param seed - the generator seed
@@ -506,7 +519,8 @@ function clumpyPositions(n: number, blobs: number): F32 {
  * y = 0.3 x + 0.1, z = 0), "polyline163" (163 nodes on an irregular closed polygon, a cycle), "onecell1k" (1,024
  * nodes inside a 1e-3 box: exactly GRID_HUB_CELL entries in one finest cell), "onecell1025" (one over the
  * threshold), "outside5" (karate with five positions far outside the extent) and "hubcell" (20k nodes, scaled,
- * inside the same box).
+ * inside the same box). "nonfinite" (karate with NaN and infinite coordinates on its first six nodes, the grid
+ * cell key's non-finite case) is positioned too but not listed in FIXTURE_NAMES: only the grid build reads it.
  * @param name - a FIXTURE_NAMES entry
  * @param scale - the size factor (default 1)
  * @returns the snapshot, its positions (null unless the fixture supplies them) and the name
@@ -667,6 +681,15 @@ export function fixture(
             ];
             for (let k = 0; k < far.length; k++) {
                 [p[3 * k], p[3 * k + 1], p[3 * k + 2]] = far[k];
+            }
+            positions = p;
+            break;
+        }
+        case "nonfinite": {
+            snapshot = snapshotOf(KARATE_EDGES, { label: name });
+            const p = seededPositions(34, P4_SEED);
+            for (let k = 0; k < NONFINITE_POSITIONS.length; k++) {
+                [p[3 * k], p[3 * k + 1], p[3 * k + 2]] = NONFINITE_POSITIONS[k];
             }
             positions = p;
             break;

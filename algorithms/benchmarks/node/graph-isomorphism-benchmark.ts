@@ -1,15 +1,16 @@
 #!/usr/bin/env tsx
 
 // Node.js Graph Isomorphism Performance Benchmark using Benchmark.js
-import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
-import { generateTestGraphs } from "../utils/test-data-generator";
-import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { isGraphIsomorphic } from "../../src/algorithms/matching/isomorphism";
+import type { GraphImpl } from "../benchmark-graph";
 import { saveBenchmarkSession } from "../utils/benchmark-result";
+import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
+import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { formatSystemInfo, getSystemInfo } from "../utils/system-info";
+import { generateTestGraphs } from "../utils/test-data-generator";
 
 // Make isGraphIsomorphic available globally for Benchmark.js
-(globalThis as any).isGraphIsomorphic = isGraphIsomorphic;
+Object.assign(globalThis, { isGraphIsomorphic });
 
 // Store test data globally for Benchmark.js
 const globalTestData = new Map();
@@ -32,7 +33,7 @@ const configs = {
 };
 
 // Create an isomorphic graph by permuting vertices
-function createIsomorphicGraph(originalGraph: any) {
+function createIsomorphicGraph(originalGraph: GraphImpl): GraphImpl {
     const n = originalGraph.vertices.length;
     const permutation: number[] = [];
 
@@ -54,9 +55,10 @@ function createIsomorphicGraph(originalGraph: any) {
     }
 
     // Create new edges with permuted vertices
-    const newEdges = originalGraph.edges.map(([from, to]: [number, number]) => {
-        return [inversePermutation[from], inversePermutation[to]];
-    });
+    const newEdges = originalGraph.edges.map(([from, to]): [number, number] => [
+        inversePermutation[from],
+        inversePermutation[to],
+    ]);
 
     // Rebuild adjacency list
     const newAdjacencyList: Record<number, number[]> = {};
@@ -77,15 +79,14 @@ function createIsomorphicGraph(originalGraph: any) {
         adjacencyList: newAdjacencyList,
         metadata: {
             ...originalGraph.metadata,
-            permutation,
-            isIsomorphicTo: "original",
+            parameters: { ...originalGraph.metadata.parameters, permutation, isIsomorphicTo: "original" },
         },
     };
 }
 
 async function runGraphIsomorphismBenchmark(configType: "quick" | "comprehensive") {
     console.log(`🚀 Running ${configType} Graph Isomorphism benchmarks in Node.js`);
-    console.log("=" + "=".repeat(50));
+    console.log(`=${  "=".repeat(50)}`);
     console.log(formatSystemInfo(getSystemInfo()));
     console.log("");
     console.log("⚠️  Note: Graph Isomorphism is NP-complete, using very small graphs");
@@ -158,13 +159,13 @@ async function runGraphIsomorphismBenchmark(configType: "quick" | "comprehensive
 
     // Add benchmark tests
     console.log("\nAdding benchmark tests...");
-    (globalThis as any).globalTestData = globalTestData;
+    Object.assign(globalThis, { globalTestData });
 
     for (const [key, testData] of testGraphs.entries()) {
         const testFn = new Function(
-            'return function() { const data = globalTestData.get("' +
-                key +
-                '"); const result = isGraphIsomorphic(data.graph1, data.graph2); if (result.isIsomorphic !== data.expectedResult) { throw new Error("Graph Isomorphism returned unexpected result: " + result.isIsomorphic); } }',
+            `return function() { const data = globalTestData.get("${ 
+                key 
+                }"); const result = isGraphIsomorphic(data.graph1, data.graph2); if (result.isIsomorphic !== data.expectedResult) { throw new Error("Graph Isomorphism returned unexpected result: " + result.isIsomorphic); } }`,
         )();
 
         benchmark.addTest(`Isomorphism ${testData.graphSize} vertices (${testData.graphType})`, testFn, testData, {
@@ -182,7 +183,7 @@ async function runGraphIsomorphismBenchmark(configType: "quick" | "comprehensive
         const session = await benchmark.run();
 
         // Display summary
-        console.log("\n" + "=".repeat(70));
+        console.log(`\n${  "=".repeat(70)}`);
         console.log("BENCHMARK RESULTS SUMMARY");
         console.log("=".repeat(70));
         console.log("Size\tType\t\t\tTime(ms)\tOps/sec\tResult\tMargin");

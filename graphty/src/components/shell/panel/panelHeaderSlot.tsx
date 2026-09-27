@@ -17,10 +17,9 @@
  * the inspector's footer does.
  */
 
-import React, { createContext, useContext } from "react";
+import React from "react";
 
-/** The header's trailing slot, or null where there is no panel chrome above. */
-const PanelHeaderSlotContext = createContext<HTMLDivElement | null>(null);
+import { PanelHeaderSlotContext } from "./usePanelHeaderSlot";
 
 /**
  * Props of {@link PanelHeaderSlotProvider}.
@@ -42,12 +41,4 @@ export function PanelHeaderSlotProvider(props: PanelHeaderSlotProviderProps): Re
     const { node, children } = props;
 
     return <PanelHeaderSlotContext.Provider value={node}>{children}</PanelHeaderSlotContext.Provider>;
-}
-
-/**
- * The header's trailing slot, for a body that draws a control in the title row.
- * @returns the slot node, or null when there is no panel chrome above.
- */
-export function usePanelHeaderSlot(): HTMLDivElement | null {
-    return useContext(PanelHeaderSlotContext);
 }

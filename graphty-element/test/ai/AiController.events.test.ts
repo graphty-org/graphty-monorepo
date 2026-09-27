@@ -2,10 +2,10 @@
  * Tests for AI Controller event emission (Phase 7)
  */
 
-import { assert, beforeEach, describe, it, vi } from "vitest";
+import { assert, beforeEach, describe, it, type Mock, vi } from "vitest";
 import { z } from "zod";
 
-import { AiController } from "../../src/ai/AiController";
+import { AiController, type AiEventEmitter } from "../../src/ai/AiController";
 import type { AiStatus } from "../../src/ai/AiStatus";
 import { CommandRegistry } from "../../src/ai/commands";
 import type { CommandContext, CommandResult } from "../../src/ai/commands/types";
@@ -30,7 +30,7 @@ describe("AiController Events", () => {
     let mockProvider: MockLlmProvider;
     let registry: CommandRegistry;
     let mockGraph: CommandContext["graph"];
-    let emitEvent: ReturnType<typeof vi.fn>;
+    let emitEvent: Mock<AiEventEmitter>;
     let emittedEvents: AiEvent[];
 
     beforeEach(() => {

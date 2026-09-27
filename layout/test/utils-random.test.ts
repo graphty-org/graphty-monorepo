@@ -2,7 +2,8 @@
  * Tests for random number generator utilities
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, expect,it } from "vitest";
+
 import { RandomNumberGenerator } from "../src/utils/random";
 
 describe("Random Utils", () => {
@@ -10,13 +11,13 @@ describe("Random Utils", () => {
         describe("constructor", () => {
             it("should use provided seed", () => {
                 const rng = new RandomNumberGenerator(12345);
-                expect(rng["seed"]).toBe(12345);
+                expect(rng.seed).toBe(12345);
             });
 
             it("should honour an explicit seed of 0", () => {
                 const rng1 = new RandomNumberGenerator(0);
                 const rng2 = new RandomNumberGenerator(0);
-                expect(rng1["seed"]).toBe(0);
+                expect(rng1.seed).toBe(0);
                 expect([rng1._next(), rng1._next()]).toEqual([rng2._next(), rng2._next()]);
             });
 
@@ -24,18 +25,18 @@ describe("Random Utils", () => {
                 const rng1 = new RandomNumberGenerator();
                 const rng2 = new RandomNumberGenerator();
                 // Seeds should be different (very high probability)
-                expect(rng1["seed"]).not.toBe(rng2["seed"]);
+                expect(rng1.seed).not.toBe(rng2.seed);
             });
 
             it("should initialize state properly", () => {
                 const rng = new RandomNumberGenerator(42);
-                expect(rng["_state"]).toBe(42);
+                expect(rng._state).toBe(42);
             });
 
             it("should handle large seeds", () => {
                 const largeSeed = 999999999;
                 const rng = new RandomNumberGenerator(largeSeed);
-                expect(rng["seed"]).toBe(largeSeed);
+                expect(rng.seed).toBe(largeSeed);
             });
         });
 
@@ -43,7 +44,7 @@ describe("Random Utils", () => {
             it("should generate values between 0 and 1", () => {
                 const rng = new RandomNumberGenerator(123);
                 for (let i = 0; i < 100; i++) {
-                    const value = rng["_next"]();
+                    const value = rng._next();
                     expect(value).toBeGreaterThanOrEqual(0);
                     expect(value).toBeLessThan(1);
                 }
@@ -53,8 +54,8 @@ describe("Random Utils", () => {
                 const rng1 = new RandomNumberGenerator(456);
                 const rng2 = new RandomNumberGenerator(456);
 
-                const sequence1 = Array.from({ length: 10 }, () => rng1["_next"]());
-                const sequence2 = Array.from({ length: 10 }, () => rng2["_next"]());
+                const sequence1 = Array.from({ length: 10 }, () => rng1._next());
+                const sequence2 = Array.from({ length: 10 }, () => rng2._next());
 
                 expect(sequence1).toEqual(sequence2);
             });
@@ -63,8 +64,8 @@ describe("Random Utils", () => {
                 const rng1 = new RandomNumberGenerator(111);
                 const rng2 = new RandomNumberGenerator(222);
 
-                const sequence1 = Array.from({ length: 10 }, () => rng1["_next"]());
-                const sequence2 = Array.from({ length: 10 }, () => rng2["_next"]());
+                const sequence1 = Array.from({ length: 10 }, () => rng1._next());
+                const sequence2 = Array.from({ length: 10 }, () => rng2._next());
 
                 expect(sequence1).not.toEqual(sequence2);
             });

@@ -1,12 +1,12 @@
 #!/usr/bin/env tsx
 
 // Node.js Ford-Fulkerson Performance Benchmark using Benchmark.js
-import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
-import { generateTestGraphs } from "../utils/test-data-generator";
-import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { fordFulkerson } from "../../src/flow/ford-fulkerson";
 import { saveBenchmarkSession } from "../utils/benchmark-result";
+import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
+import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { formatSystemInfo, getSystemInfo } from "../utils/system-info";
+import { generateTestGraphs } from "../utils/test-data-generator";
 
 // Configuration for Node.js benchmarks
 // Ford-Fulkerson complexity: O(E*max_flow)
@@ -27,7 +27,7 @@ const configs = {
 
 async function runFordFulkersonBenchmark(configType: "quick" | "comprehensive") {
     console.log(`🚀 Running ${configType} Ford-Fulkerson benchmarks in Node.js`);
-    console.log("=" + "=".repeat(50));
+    console.log(`=${  "=".repeat(50)}`);
     console.log(formatSystemInfo(getSystemInfo()));
     console.log("");
     console.log("⚠️  Note: Ford-Fulkerson requires directed weighted graphs");
@@ -74,23 +74,11 @@ async function runFordFulkersonBenchmark(configType: "quick" | "comprehensive") 
 
     // Add benchmark tests
     console.log("\nAdding benchmark tests...");
-    for (const [key, testData] of testGraphs.entries()) {
-        // Convert Graph to adjacency list format with string keys expected by fordFulkerson
-        const adjacencyList = new Map<string, Map<string, number>>();
-        for (let i = 0; i < testData.graphSize; i++) {
-            adjacencyList.set(String(i), new Map());
-        }
-        for (const edge of testData.graph.edges()) {
-            const neighbors = adjacencyList.get(String(edge.source));
-            if (neighbors) {
-                neighbors.set(String(edge.target), edge.weight);
-            }
-        }
-
+    for (const testData of testGraphs.values()) {
         benchmark.addTest(
             `Ford-Fulkerson ${testData.graphSize} vertices (${testData.graphType})`,
             () => {
-                const result = fordFulkerson(adjacencyList, "0", String(testData.graphSize - 1));
+                const result = fordFulkerson(testData.graph, "0", String(testData.graphSize - 1));
                 // Verify result to prevent dead code elimination
                 if (result.maxFlow === undefined) {
                     throw new Error("Ford-Fulkerson returned invalid result");
@@ -112,7 +100,7 @@ async function runFordFulkersonBenchmark(configType: "quick" | "comprehensive") 
         const session = await benchmark.run();
 
         // Display summary
-        console.log("\n" + "=".repeat(60));
+        console.log(`\n${  "=".repeat(60)}`);
         console.log("BENCHMARK RESULTS SUMMARY");
         console.log("=".repeat(60));
         console.log("Size\tType\tTime(ms)\tOps/sec\tComplexity\tMargin");

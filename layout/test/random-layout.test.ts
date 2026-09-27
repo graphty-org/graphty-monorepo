@@ -1,5 +1,6 @@
-import { describe, it, assert } from "vitest";
-import { randomLayout, completeGraph, cycleGraph, starGraph, gridGraph } from "../src";
+import { assert,describe, it } from "vitest";
+
+import { completeGraph, cycleGraph, gridGraph,randomLayout, starGraph } from "../src";
 
 describe("Random Layout", () => {
     describe("Basic functionality", () => {

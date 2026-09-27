@@ -5,7 +5,7 @@
  * writers. Imports nothing from node:*; the row type is a type-only import.
  */
 
-import { commands } from "@vitest/browser/context";
+import { commands } from "vitest/browser";
 
 import type { GpuCaps } from "../../src/types/context.js";
 import type { NoiseRow } from "./noise-floor.js";

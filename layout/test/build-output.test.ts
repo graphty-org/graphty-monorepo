@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { readFileSync, existsSync } from "fs";
+import { existsSync,readFileSync } from "fs";
 import { resolve } from "path";
+import { describe, expect,it } from "vitest";
 
 describe("Build Output Tests", () => {
     it("should have correct package.json configuration", () => {

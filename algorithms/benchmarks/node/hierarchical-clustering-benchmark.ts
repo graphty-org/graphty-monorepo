@@ -2,14 +2,15 @@
 
 // Hierarchical Clustering Benchmark
 import Benchmark from "benchmark";
+
 import { hierarchicalClustering, modularityHierarchicalClustering } from "../../src/clustering/hierarchical.js";
-import { saveBenchmarkResult, initBenchmarkSession } from "../utils/benchmark-result.js";
+import { getGraphSizes } from "../algorithm-complexity.js";
 import { BenchmarkResult } from "../benchmark-result.js";
-import { getGraphSizes, getAlgorithmConfig } from "../algorithm-complexity.js";
+import { initBenchmarkSession,saveBenchmarkResult } from "../utils/benchmark-result.js";
 
 // Make functions available globally for Benchmark.js
-(globalThis as any).hierarchicalClustering = hierarchicalClustering;
-(globalThis as any).modularityHierarchicalClustering = modularityHierarchicalClustering;
+Object.assign(globalThis, { hierarchicalClustering });
+Object.assign(globalThis, { modularityHierarchicalClustering });
 
 // Store test data globally for Benchmark.js
 const globalTestData = new Map();
@@ -103,7 +104,6 @@ function createTestGraphs(isQuick: boolean) {
         console.log(`📊 Created hierarchical-structured graph: ${size} nodes, ${edgeCount} edges`);
     });
 
-    const algConfig = getAlgorithmConfig("Hierarchical Clustering", isQuick);
     console.log(`\n⚠️  Note: Hierarchical Clustering has O(n³) complexity`);
     console.log(`   Using adaptive sizing: ${config.sizes.join(", ")} vertices`);
 
@@ -116,7 +116,7 @@ function runBenchmarks(config: ReturnType<typeof createTestGraphs>) {
 
     config.sizes.forEach((size) => {
         const testData = globalTestData.get(`hierarchical-${size}`);
-        if (!testData) return;
+        if (!testData) {return;}
 
         // Test standard hierarchical clustering with single linkage
         const testName1 = `Hierarchical Clustering (Single) - ${testData.graphType} (${size} nodes, ${testData.edges} edges)`;
@@ -128,7 +128,7 @@ function runBenchmarks(config: ReturnType<typeof createTestGraphs>) {
             },
             {
                 onComplete: (event: Benchmark.Event) => {
-                    const benchmark = event.target as Benchmark;
+                    const benchmark = event.target;
                     const hz = benchmark.hz || 0;
                     const stats = benchmark.stats || {
                         mean: 0,
@@ -162,8 +162,6 @@ function runBenchmarks(config: ReturnType<typeof createTestGraphs>) {
                             marginOfError: stats.rme,
                             standardDeviation: stats.deviation,
                             variance: stats.variance,
-                            platform: config.platform,
-                            testType: config.testType,
                             teps: hz * testData.edges, // Traversed Edges Per Second
                         },
                     };
@@ -184,7 +182,7 @@ function runBenchmarks(config: ReturnType<typeof createTestGraphs>) {
             },
             {
                 onComplete: (event: Benchmark.Event) => {
-                    const benchmark = event.target as Benchmark;
+                    const benchmark = event.target;
                     const hz = benchmark.hz || 0;
                     const stats = benchmark.stats || {
                         mean: 0,
@@ -218,8 +216,6 @@ function runBenchmarks(config: ReturnType<typeof createTestGraphs>) {
                             marginOfError: stats.rme,
                             standardDeviation: stats.deviation,
                             variance: stats.variance,
-                            platform: config.platform,
-                            testType: config.testType,
                             teps: hz * testData.edges, // Traversed Edges Per Second
                         },
                     };

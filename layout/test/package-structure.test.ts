@@ -1,8 +1,9 @@
-import { assert, describe, expect, it } from "vitest";
-import { existsSync } from "fs";
 import { readFileSync } from "node:fs";
+
+import { existsSync } from "fs";
 import { readFile } from "fs/promises";
 import { join } from "path";
+import { assert, describe, expect, it } from "vitest";
 
 describe("Package Structure", () => {
     it("should have dist/layout.js as the main entry point", async () => {

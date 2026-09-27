@@ -17,12 +17,13 @@ Graphty uses an event-driven architecture. Subscribe to events for user interact
 | `data-added`           | Incremental data added   | `{ nodes, edges }`         |
 | `selection-changed`    | Node selected/deselected | `{ node, previousNode }`   |
 | `camera-state-changed` | Camera moved             | `{ state }`                |
-| `style-changed`        | Styles updated           | `{ layers }`               |
+| `style-changed`        | Styles updated           | `{ reason, layers, painted, unresolvedPaths }` |
 | `node-click`           | User clicked node        | `{ node, data, event }`    |
 | `node-hover`           | Mouse entered node       | `{ node, data }`           |
 | `node-drag-start`      | Started dragging node    | `{ node, position, pinned }` |
 | `node-drag-end`        | Finished dragging node   | `{ node, position, pinned }` |
 | `elements-removed`     | Nodes and their edges removed | `{ nodes, edges }`    |
+| `data-cleared`         | All data cleared (`clearData()` or a replacing load) | none |
 | `data-loading-progress` | A chunk of a load arrived | `{ nodeRecordsLoaded, edgeRecordsLoaded, chunksProcessed, ... }` |
 | `data-loading-complete` | A load finished          | `{ nodesLoaded, edgesLoaded, report, loadId, ... }` |
 | `data-loading-error`   | A load failed            | `{ error, format, loadId, ... }` |
@@ -310,6 +311,15 @@ graph.on("elements-removed", ({ nodes, edges }) => {
 
 The detail is ids only, and it names every edge that went -- including edges you never mentioned,
 because they were attached to a node you did.
+
+Clearing the whole graph -- `clearData()`, or a load that replaces the dataset -- sends one
+`data-cleared` event instead, with no detail. The layout starts over for the next load.
+
+```typescript
+graph.on("data-cleared", () => {
+    console.log("the graph is empty");
+});
+```
 
 ### Loading Indicator
 

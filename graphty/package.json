@@ -1,6 +1,6 @@
 {
     "name": "@graphty/graphty",
-    "version": "0.8.12",
+    "version": "0.8.15",
     "private": true,
     "description": "React application for graph visualization built with Mantine and graphty-element",
     "author": "Adam Powers <apowers@ato.ms>",
@@ -16,7 +16,7 @@
         "test:coverage": "vitest run --coverage",
         "coverage": "vitest run --coverage",
         "coverage:preview": "npx serve coverage -p ${PORT:?start it through servherd, which sets PORT}",
-        "lint": "eslint && tsc --noEmit",
+        "lint": "eslint --max-warnings 0 && tsc --noEmit",
         "lint:fix": "eslint --fix",
         "lint:knip": "cd .. && pnpm run lint:knip -- --workspace graphty",
         "typecheck": "tsc --noEmit",
@@ -56,12 +56,19 @@
         "@types/react": "^19.1.8",
         "@types/react-dom": "^19.1.6",
         "@vitejs/plugin-react": "^4.3.4",
+        "@vitest/browser-playwright": "catalog:",
+        "axe-core": "^4.13.0",
+        "eslint": "^9.29.0",
         "eslint-plugin-react": "^7.37.3",
         "eslint-plugin-react-hooks": "^5.0.0",
         "eslint-plugin-react-refresh": "^0.4.16",
         "eslint-plugin-storybook": "^0.11.1",
-        "jsdom": "^25.0.1",
-        "storybook": "^9.1.20"
+        "jsdom": "^26.1.0",
+        "storybook": "^9.1.20",
+        "typescript": "^5.9.3",
+        "typescript-eslint": "^8.34.1",
+        "vite": "^7.0.0",
+        "vitest": "catalog:"
     },
     "overrides": {
         "storybook": "$storybook"

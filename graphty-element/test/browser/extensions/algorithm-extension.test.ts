@@ -49,16 +49,23 @@
  * WHAT A CUSTOMER WOULD IMPORT. The imports below are the package's own published entry points
  * -- `@graphty/graphty-element`, `/extend` and `/session` -- reached here through the entry-point
  * source files at the package root rather than through the built `dist`, so the test runs
- * without a build. No deep `src/` path is used anywhere in this file, which is the point: a
- * customer has no deep paths available to them. Everything an extension AUTHOR needs now comes
- * from one entry point, `/extend`; `/session` is read only for the two id types a test's
- * assertions name, which a reader of results needs rather than a writer of algorithms.
+ * without a build. No extension here reaches a deep `src/` path, which is the point: a customer
+ * has no deep paths available to them. Everything an extension AUTHOR needs now comes from one
+ * entry point, `/extend`; `/session` is read only for the two id types a test's assertions name,
+ * which a reader of results needs rather than a writer of algorithms. The one deep import is the
+ * element's fake accelerator, which stands in for a device rather than for plugin code.
+ *
+ * THE FOURTH DUMMY. `SharedRank` asks the element for an accelerator through the protected
+ * `accelerated()` member of the base it extends, and the last block below registers the fake
+ * accelerator through `/extend` and checks where the work ran: on the fake when it implements
+ * the capability, on the CPU port when it does not, and not at all when acceleration is required.
  */
 
 import { InstancedMesh } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import {
+    acceleratorRegistry,
     Algorithm,
     type AlgorithmDescriptor,
     type AlgorithmGraphMode,
@@ -78,12 +85,16 @@ import {
     type OptionDescriptor,
     PATH_FIELD_SPECS,
     type Progress,
+    registerAccelerator,
     type ResultElementValues,
     type ResultFieldSpec,
     type RunId,
 } from "../../../extend";
 import { Graph } from "../../../index";
 import type { EdgeId, GraphSession, NodeId } from "../../../session";
+// The one deep path in this file, and it is not plugin code: the element's own deterministic
+// stand-in for a device, which the tests and the stories share instead of each writing one.
+import { createFakeAccelerator, type FakeAccelerator } from "../../../src/testing/fakeAccelerator";
 
 // ---------------------------------------------------------------------------------------------
 // The graph every test below runs on
@@ -679,6 +690,56 @@ class FaultyCount extends DeclaredAlgorithm {
     }
 }
 
+/**
+ * A third party's metric that asks the element for an accelerator.
+ *
+ * `accelerated(capability, mode)` is the route the element's own PageRank and connected
+ * components take, and it is a protected member of the published base, so a subclass reaches it
+ * with no import at all. The element decides once, before the work starts, whether it runs on
+ * the attached accelerator or on the CPU port, and hands back the arithmetic it ran in -- which
+ * is what the run publishes as its precision.
+ */
+class SharedRank extends DeclaredAlgorithm {
+    static override namespace = "acme";
+
+    static override type = "shared-rank";
+
+    static override descriptor: AlgorithmDescriptor = {
+        key: "shared-rank",
+        plainName: "Shared rank",
+        technicalName: "pagerank through the accelerator seam",
+        description: "Ranks nodes on whatever hardware the element chose for the work.",
+        category: "centrality",
+        shape: "node-metric",
+        fields: nodeMetricFields({ plainName: "Rank", technicalName: "pagerank", type: "number" }),
+        options: [],
+        costClass: "instant",
+        complexity: "O(k * (n + m))",
+    };
+
+    /**
+     * Rank every node, through the element's accelerator decision.
+     * @returns One rank per node, qualified by the arithmetic that produced it.
+     */
+    override async compute(): Promise<AlgorithmOutput | null> {
+        const { snapshot, run } = this.accelerated("pageRank", "directed");
+        const { value, precision } = await run((dispatch, s) => dispatch.pageRank(s));
+        const nodes: ResultElementValues[] = [];
+
+        for (let index = 0; index < snapshot.nodeCount; index++) {
+            nodes.push({ id: snapshot.ids.idOf(index), values: { value: value.scores[index] } });
+        }
+
+        return {
+            shape: "node-metric",
+            fields: metricFieldSpecs("node", "number"),
+            nodes,
+            graph: { normalization: "none" },
+            caveats: declaredCaveats({ direction: "directed", weight: null, method: "power-iteration", precision }),
+        };
+    }
+}
+
 /*
  * Registration is a module side effect, exactly as it is for the element's own algorithms:
  * importing the module is what makes the algorithm available, page-wide, to every session.
@@ -686,6 +747,7 @@ class FaultyCount extends DeclaredAlgorithm {
 DeclaredAlgorithm.register(HopReach);
 DeclaredAlgorithm.register(AlphabetWalk);
 DeclaredAlgorithm.register(FaultyCount);
+DeclaredAlgorithm.register(SharedRank);
 
 // ---------------------------------------------------------------------------------------------
 // Test helpers
@@ -1540,5 +1602,92 @@ describe("an algorithm written outside this package", () => {
         const started = outcome.steps.map((step) => session.runs.get(step.runId ?? "")?.algorithm);
 
         assert.deepStrictEqual(started, ["hop-reach", "alphabet-walk", "degree"], "each member is an ordinary run");
+    });
+});
+
+describe("an algorithm written outside this package, on an accelerator", () => {
+    /** The name the fake is registered under, so each test can take it away again. */
+    const FAKE_NAME = "acme-fake";
+
+    let container: HTMLDivElement;
+    let graph: Graph;
+
+    /**
+     * Register an accelerator the way `./webgpu` registers the real one, and build a graph that
+     * finds it.
+     * @param fake - What the factory hands the element.
+     * @param policy - The acceleration policy, when the case wants one other than `"auto"`.
+     */
+    async function withAccelerator(fake: FakeAccelerator, policy?: "required"): Promise<void> {
+        registerAccelerator({ name: FAKE_NAME, backend: "webgpu", factory: () => Promise.resolve(fake) });
+
+        container = document.createElement("div");
+        container.style.width = "400px";
+        container.style.height = "300px";
+        document.body.appendChild(container);
+        graph = new Graph(container);
+        await graph.init();
+        await graph.addNodes(NODES);
+        await graph.addEdges(EDGES);
+        await graph.operationQueue.waitForCompletion();
+
+        // Nine nodes is far below the size at which a real device beats the CPU, and the
+        // consumer's own threshold is what says "use it anyway".
+        graph.acceleration.setMinNodes(0);
+        if (policy !== undefined) {
+            graph.acceleration.setPolicy(policy);
+        }
+    }
+
+    afterEach(() => {
+        graph.dispose();
+        container.remove();
+        acceleratorRegistry.remove(FAKE_NAME);
+    });
+
+    it("runs on the accelerator the element attached, and says the numbers are single precision", async () => {
+        const fake = createFakeAccelerator();
+        await withAccelerator(fake);
+
+        const result = await graph.run("shared-rank");
+
+        assert.strictEqual(fake.calls.pageRank, 1, "the accelerator did the work, once");
+        assert.strictEqual(result.summary().caveats.precision, "f32");
+
+        // The fake gives every node the same share. PageRank on the CPU cannot, because the ends
+        // of the line and the node with no links do not rank like the middle -- so equal values
+        // are the fake's values and the CPU port never ran.
+        for (const { id } of NODES) {
+            assert.approximately(result.node(id)?.value as number, 1 / NODES.length, 1e-6, `rank of ${id}`);
+        }
+    });
+
+    it("runs on the CPU port when the accelerator does not implement what it asked for", async () => {
+        const fake = createFakeAccelerator({ members: { pageRank: undefined } });
+        await withAccelerator(fake);
+
+        const result = await graph.run("shared-rank");
+
+        assert.strictEqual(result.summary().caveats.precision, "f64");
+        const end = result.node("a")?.value as number;
+        const middle = result.node("d")?.value as number;
+        assert.isAbove(Math.abs(end - middle), 1e-6, "the CPU port ranks an end unlike the middle");
+    });
+
+    it("fails before any work when acceleration is required and the accelerator cannot do it", async () => {
+        const fake = createFakeAccelerator({ members: { pageRank: undefined } });
+        await withAccelerator(fake, "required");
+
+        const run = graph.run("shared-rank");
+        let rejection: unknown;
+
+        try {
+            await run;
+        } catch (error) {
+            rejection = error;
+        }
+
+        assert.strictEqual(codeOf(rejection), "E_NO_ACCELERATOR");
+        assert.strictEqual(run.status, "failed");
     });
 });

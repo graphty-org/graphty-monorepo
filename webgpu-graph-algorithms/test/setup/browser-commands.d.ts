@@ -3,7 +3,7 @@
  * writeNoiseFixture, recordNoiseRow) and the import.meta.env keys the browser project receives through `define`.
  *
  * This file is a MODULE (it imports two types), so the `declare module` block below AUGMENTS
- * @vitest/browser/context's BrowserCommands instead of shadowing the module, and the ImportMetaEnv keys sit
+ * vitest/browser's BrowserCommands instead of shadowing the module, and the ImportMetaEnv keys sit
  * inside `declare global` so they keep merging into vite/client's global interface. Both imports are type-only:
  * benchmarks/harness.ts and test/helpers/noise-floor.ts read node:fs and never enter the browser bundle.
  */
@@ -11,7 +11,7 @@
 import type { BrowserBenchPayload } from "../../benchmarks/harness.js";
 import type { NoiseRow } from "../helpers/noise-floor.js";
 
-declare module "@vitest/browser/context" {
+declare module "vitest/browser" {
     interface BrowserCommands {
         /** Appends one BenchSession to benchmarks/out/<runnerClass>.json (contract 2.5, 6.4); resolves the path written. */
         appendBenchRecord(payload: BrowserBenchPayload): Promise<string>;

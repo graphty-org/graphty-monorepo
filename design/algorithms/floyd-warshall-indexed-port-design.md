@@ -84,8 +84,8 @@ Where the research disagreed: one researcher recommended a pure Floyd-Warshall p
 grounds that Floyd-Warshall is what is being replaced; another recommended the dispatching entry
 point. This design takes the dispatcher. The measured 3-10x on sparse weighted graphs and 20-57x
 on unweighted ones is larger than the whole 30x the port gains over the shipped code, and the two
-extra strategies reuse code that already ships (`indexed.dijkstra`, and a loop of the shape of
-`indexed.breadthFirstSearch`).
+extra strategies are short loops over code that already ships (`IndexedMinHeap`, the heap
+`indexed.dijkstra` uses, and a queue of the shape of `indexed.breadthFirstSearch`'s).
 
 ## 3. The Floyd-Warshall kernel
 
@@ -100,8 +100,7 @@ loop. The i and j loops may be exchanged; k may not (Han, Franchetti, Pueschel, 
 The variant is the textbook one: k-i-j over a row-major `Float64Array(n * n)`, with the row offsets
 `k * n` and `i * n` hoisted, `d[i][k]` loaded once per row, and the whole row skipped when
 `d[i][k]` is `+Infinity`. The skip is Floyd's own and appears in SciPy's kernel (`if
-dist_matrix[i,k] == INFINITY: continue`, `_shortest_path.pyx` `_floyd_warshall`) and in Boost's
-(`floyd_warshall_shortest.hpp`, lines 91-139). k-i-j is the order in which the inner loop walks
+dist_matrix[i,k] == INFINITY: continue`, `_shortest_path.pyx` `_floyd_warshall`). k-i-j is the order in which the inner loop walks
 contiguous memory for a row-major array; igraph, whose matrices are column-major, uses k-j-i for
 the same reason (`igraph/src/paths/floyd_warshall.c`, lines 27-57: "Iteration order matters for
 performance!"). The comparison is a strict `<`, so the earliest k that reaches a minimum wins,
@@ -111,7 +110,7 @@ which is deterministic.
 
 | optimisation | decision | reason |
 | --- | --- | --- |
-| Skip row i when `d[i][k]` is `+Infinity` | chosen | Free, and removes whole rows on disconnected or directed graphs. SciPy, Boost and Floyd's original all do it. |
+| Skip row i when `d[i][k]` is `+Infinity` | chosen | Free, and removes whole rows on disconnected or directed graphs. SciPy and Floyd's original both do it. |
 | `Float64Array`, not `Float32Array` | chosen | A `Float32Array` sweep measured 1.17-1.39x SLOWER in V8: 186 vs 150 ms at 512, 1,380 vs 1,082 ms at 1,024, 10.6 vs 9.0 s at 2,048 (scratch benchmark). V8 does arithmetic in doubles, so every f32 load and store converts. f32 also loses integer exactness above 2^24 and cannot reproduce the shipped function's f64 sums. It would only halve the memory. |
 | Cache blocking (three-phase tiled order) | rejected | Tiles of 32 and 64 measured 5-30 percent SLOWER than plain k-i-j at 256-2,048 nodes; a tile of 128 was within noise (7.96 vs 9.03 s at 2,048; scratch benchmark). The published gains come from small caches and from blocking that enables SIMD: Venkataraman, Sahni, Mukhopadhyaya (ACM JEA 8, 2003) report 1.6-1.9x on a Sun Ultra Enterprise 4000/5000 and bound scalar tiling at about 2x; Han et al. (PACT 2006) report 1.3-1.8x from scalar tiling and unrolling and a further 3.0-5.7x from 4-way SIMD; Rucci, De Giusti, Naiouf (2018, arXiv 1811.01201, Table 1) saved 5 percent from scalar blocking on KNL at n = 4,096, with the 15.5x coming from AVX-512. |
 | Recursive or Morton / block data layout (Park, Penner, Prasanna, IEEE TPDS 15(9), 2004) | rejected | Same reason: the layout pays through cache reuse and vector units that scalar JavaScript does not use. |
@@ -160,6 +159,20 @@ a weight is negative, because Dijkstra is incorrect there. The result reports wh
 (`method: "bfs" | "dijkstra" | "floyd-warshall"`), so a test can pin both sides of the switch and a
 benchmark can say what it timed.
 
+There is no `method` value that forces BFS on weighted input or Dijkstra on unit weights. The
+first is `weighted: false`. The second gives the same answer as BFS, only slower, so it is not
+worth a published option value; the tests reach Dijkstra on the unit-weight fixtures by passing a
+`weights` override of 2 on every arc (section 8).
+
+Both per-source strategies write straight into row i of the result. BFS rows reuse one queue of n
+entries across sources. Dijkstra rows reuse one `IndexedMinHeap(n)` across sources (a drained
+heap is empty again, every slot back to `INVALID_INDEX`) and relax into
+`dist.subarray(i * n, i * n + n)` and the matching `predArc` row. That is the loop the section 2
+figures measured. Calling `indexed.dijkstra` once per source would instead allocate two O(n)
+arrays, a heap and two closures per source and then copy the row, which is not what was measured.
+The benchmark of section 9 times this shipped code path, and it is what confirms the rule 3
+threshold for it; the plan fixes the threshold before the README quotes any figure.
+
 ## 5. Result semantics
 
 ### 5.1 The matrix
@@ -200,7 +213,8 @@ passes `weights: expandEdges(s, shadow.data)`, as the `indexed.dijkstra` tests a
 When the graph has a negative cycle the result has `hasNegativeCycle: true`, every cell of `dist`
 is `NaN`, and `pathTo` / `pathEdges` throw `PathWalkError` (reason `"cycle"`). The sweep stops at
 the round that exposes the cycle (section 3.3), so no `-Infinity` or runaway value is ever
-computed.
+computed. The dispatcher returns the same flag on both of its paths, with or without an
+accelerator (section 6).
 
 Where the research disagreed: NetworkX, SciPy and igraph raise on a negative cycle; Boost returns
 `false`; the shipped function returns the corrupted matrix with a flag. This design returns a flag
@@ -219,9 +233,9 @@ Paths are opt-in (`paths: true`), because they add 4 n^2 bytes. The result then 
 `INVALID_INDEX` on the diagonal and for unreachable pairs. This is the predecessor convention of
 the shipped function, NetworkX (`pred[u][v] = pred[w][v]`) and SciPy (`predecessor_matrix[i, j] =
 predecessor_matrix[k, j]`), generalised from a node to an arc. Floyd-Warshall updates it as
-`predArc[i][j] = predArc[k][j]` on each strict improvement; a Dijkstra row is exactly the
-`SsspResult.predArc` that `indexed.dijkstra` already returns; a BFS row records the arc that
-discovered each node.
+`predArc[i][j] = predArc[k][j]` on each strict improvement; a Dijkstra row records the arc of
+each improving relaxation, as `indexed.dijkstra`'s `SsspResult.predArc` does; a BFS row records
+the arc that discovered each node.
 
 Row i of `predArc` is therefore a single-source predecessor-arc array, and `pathTo(i, j)` /
 `pathEdges(i, j)` are `walkPredArcs` / `walkPredEdges` (`algorithms/src/indexed/dijkstra.ts`)
@@ -315,36 +329,70 @@ Thrown errors: `RangeError` for more than `maxNodes` nodes, a `NaN` or infinite 
 `Error` from `pathTo` / `pathEdges` without `paths: true`; `PathWalkError` from them under a
 negative cycle or on a corrupt `predArc`.
 
-`dist` is declared `F64`, not `NumericVector` as `SsspResult.dist` is. `SsspResult` needs the wider
-type because the dispatcher decorates an accelerator's f32 result into an `SsspResult`. The
-all-pairs dispatcher method returns `ApspResultLike` instead (below), so `ApspResult` is only ever
-built by the CPU port and can promise what it holds. It satisfies `ApspResultLike` structurally
-(`F64` is a `NumericVector`), with no adapter.
+`dist` is declared `F64`, not `NumericVector` as `SsspResult.dist` is, because `ApspResult` is only
+ever built by the CPU port and can promise what it holds. The dispatcher method below returns the
+narrower `ApspCycleResultLike`, which `ApspResult` satisfies structurally (`F64` is a
+`NumericVector`), with no adapter.
 
-In `algorithms/src/index.ts`, flat type exports `ApspOptions` and `ApspResult`. Neither name is
-taken in the flat namespace (the `Indexed` prefix is only used where a legacy type already owns the
-name, as for `IndexedHitsOptions`).
+In `algorithms/src/index.ts`, flat type exports `IndexedApspOptions` and `IndexedApspResult`,
+aliases of the module's `ApspOptions` and `ApspResult`. The `Indexed` prefix is the one
+`src/index.ts` already uses where a flat name would collide (`IndexedHitsOptions`,
+`IndexedPageRankOptions`). Here the collision is across packages: `@graphty/webgpu-graph-algorithms`
+publicly exports its own `ApspOptions`, with `weighted` as its only field (pull request #549,
+`webgpu-graph-algorithms/src/index.ts`), and graphty-element imports both packages. Two published
+types with one name and different fields would confuse every consumer of both, and a type name
+cannot be changed once released.
 
-In `algorithms/src/indexed/accelerator.ts`, one dispatcher method:
+In `algorithms/src/indexed/accelerator.ts`, one seam type and one dispatcher method:
 
 ```typescript
+/** ApspResultLike plus the negative-cycle flag. @public */
+export interface ApspCycleResultLike extends ApspResultLike {
+    readonly hasNegativeCycle: boolean;
+}
+
 interface AcceleratedAlgorithms {
     // ...the ten existing methods...
-    allPairsShortestPath(s: GraphSnapshot, options?: ApspOptions): Promise<ApspResultLike>;
+    allPairsShortestPath(s: GraphSnapshot, options?: ApspOptions): Promise<ApspCycleResultLike>;
 }
 // in accelerated():
 allPairsShortestPath: (s, options) =>
-    acc?.allPairsShortestPath !== undefined
-        ? acc.allPairsShortestPath(s, options)
+    acc?.allPairsShortestPath !== undefined && acceleratorAnswersApsp(s, options)
+        ? acc.allPairsShortestPath(s).then(({ dist, n }) => ({ dist, n, hasNegativeCycle: false }))
         : Promise.resolve(indexed.allPairsShortestPath(s, options)),
 ```
 
-It takes the port's own option type, which is wider than the `SsspOptions` the accelerator member
-declares -- the precedent the Katz and Louvain methods already set, and documented in the
-`AcceleratedAlgorithms` JSDoc. `ApspOptions` is assignable to `SsspOptions` (they share `weights`),
-so no cast is needed. It has no try/catch, like every other method: the GPU kernel refuses a
-`weights` override and negative weights (`E_UNSUPPORTED`), and that refusal propagates. The
-`AlgorithmAccelerator` interface is not changed.
+The accelerator member answers a narrower question than the port. It reads none of the port's
+options: the PR #549 member refuses a defined `cutoff` or `weights` and forwards nothing else to
+its kernel, so even `weighted` never arrives. It refuses negative and non-finite weights with
+`E_UNSUPPORTED`, and it has no negative-cycle flag. Handed the port's options it would answer a
+different question without saying so: `weighted: false` on a weighted snapshot gives hop counts
+on the CPU and weighted distances on the GPU, and `paths`, `method` and `maxNodes` would be
+dropped. So `acceleratorAnswersApsp(s, options)`, a private helper, sends the call to the
+accelerator only when its answer is the port's answer, and otherwise the CPU port runs:
+
+- `options.weights`, `options.method` (other than `"auto"`) and `options.maxNodes` are undefined,
+  `options.paths` is not `true`, and `options.weighted` is not `false`;
+- `s.nodeCount` is at most the port's default bound of 5,792 (section 5.6), so a device with a
+  larger storage binding never accepts a graph the CPU path refuses;
+- the snapshot's weights, if any, are non-negative and finite (`s.flags.nonNegativeWeights` and
+  `s.flags.finiteWeights`; with no override, the flags describe exactly the weights in use).
+
+Under those conditions no negative cycle can exist, so wrapping the accelerator's result with
+`hasNegativeCycle: false` is correct, and a caller reads the flag the same way on both paths. A
+negative-weight graph always runs the CPU port and gets the flag and the `NaN` matrix of section
+5.3, whether or not an accelerator is injected. A non-finite weight gets the port's `RangeError`
+on both paths.
+
+This is routing decided from the inputs before anything runs, as the `auto` rule picks a
+strategy. It is not the fallback the repository forbids: the dispatcher never catches an
+accelerator error and finishes on the CPU. An error the accelerator raises on input it was sent
+(`E_TOO_LARGE` on a device below the default storage binding, device loss) propagates; there is
+no try/catch, as in every other method. The member is called without options, so no cast from
+`ApspOptions` to `SsspOptions` is needed.
+
+The `AlgorithmAccelerator` interface is not changed. The `AcceleratedAlgorithms` JSDoc sentence
+about option types wider than the accelerator's gains the all-pairs case and its routing.
 
 There is no `cutoff`. The accelerator member's `SsspOptions` has one, the GPU kernel refuses it,
 nothing asks for it, and on a graph with negative weights a post-filtered cutoff would leave path
@@ -405,7 +453,8 @@ edge, deliberately; this suite adds its own cases for those.
 | case | what it pins |
 | --- | --- |
 | empty graph (n = 0) | `dist.length === 0`, `n === 0`, no throw |
-| single node, with and without a self-loop | `dist = [0]` |
+| single node, with and without a positive self-loop | `dist = [0]` |
+| single node with a self-loop of weight -1 | `hasNegativeCycle`, `dist = [NaN]`, `pathTo` throws `PathWalkError`: the weight checks run before any small-n shortcut |
 | positive self-loop | the diagonal stays 0, on every strategy |
 | negative self-loop | `hasNegativeCycle`, `dist` all `NaN`, path accessors throw |
 | parallel edges of weights 5 and 2 | distance 2, and `pathEdges` names the weight-2 edge |
@@ -414,7 +463,7 @@ edge, deliberately; this suite adds its own cases for those.
 | undirected graph | `expectSymmetric` on integer weights |
 | unweighted, and weighted with `weighted: false` | hop counts equal the BFS-per-source reference |
 | real weights (0.1, 0.2, ...) through the f64 override | Floyd-Warshall strategy exact against the reference; others within relative 1e-12 |
-| ties (a square with two equal-length routes) | every strategy reports the same distance; each path's weight sum equals `dist` and every step is an arc |
+| ties (a square with two equal-length routes) | Floyd-Warshall and Dijkstra agree on weights of 2, Floyd-Warshall and BFS agree on unit weights; each path's weight sum equals `dist` and every step is an arc |
 | directed negative weights, no cycle | correct distances via Floyd-Warshall; `method: "per-source"` throws |
 | directed negative cycle (A->B 1, B->C 1, C->A -10) | `hasNegativeCycle`, all `NaN` |
 | Hougardy's graph (every edge weight -1), directed and undirected | `hasNegativeCycle`, no `-Infinity` computed, returns promptly |
@@ -422,18 +471,27 @@ edge, deliberately; this suite adds its own cases for those.
 | `NaN`, `+Infinity` weight; override of the wrong length | `RangeError` |
 | `maxNodes: 2` on three nodes | `RangeError` naming 3, 2 and the bytes; nothing allocated |
 | a 20-node graph on each side of `A = n^2 / 4` | `auto` reports `dijkstra` below and `floyd-warshall` at or above |
-| every fixture, each of the three strategies forced | the reference matrix, exactly on integer weights, and the triangle inequality |
-| every fixture, `paths: true` | for every reachable pair the weight sum along `pathEdges` equals `dist`, `pathTo` starts at i and ends at j, consecutive nodes are joined by the named edges |
+| every fixture, `floyd-warshall` and `per-source` forced, on the fixture's own weights and on an override of 2 on every arc | the reference matrix for the same weights, exactly, and the triangle inequality; the override makes `per-source` run Dijkstra on the unit-weight fixtures, which would otherwise take BFS |
+| every fixture, `paths: true`, both forced strategies, own weights and the all-2 override | for every reachable pair the weight sum along `pathEdges` equals `dist`, `pathTo` starts at i and ends at j, consecutive nodes are joined by the named edges |
 | every fixture, Floyd-Warshall strategy, f64 override | bit-identical to the shipped `floydWarshall` distances, mapped through the snapshot's id map |
 
 A browser-project test allocates the default bound's worst case (an edgeless 5,792-node snapshot
 with `paths: true`, 384 MiB) in Chromium, answering the open question of whether a browser accepts
 it; an edgeless graph takes the BFS strategy, so the run is a fill, not a sweep.
 
-The dispatcher gains a CPU case and a delegation case in `test/unit/indexed/accelerated.test.ts`,
-whose "carries exactly the ten methods" test becomes eleven, and
+The dispatcher gets these cases in `test/unit/indexed/accelerated.test.ts`, whose "carries exactly
+the ten methods" test becomes eleven:
+
+- no accelerator: the result equals `indexed.allPairsShortestPath`, `hasNegativeCycle` included;
+- a stub accelerator on a non-negative weighted snapshot with no options: the stub is called once
+  with the snapshot alone, and the result is its `dist` and `n` with `hasNegativeCycle: false`;
+- the stub is NOT called, and the CPU result comes back, for each of `weighted: false`,
+  `paths: true`, `method: "floyd-warshall"`, `maxNodes: 10` and a `weights` override;
+- a directed negative-cycle snapshot, with and without the stub: the same result both times,
+  `hasNegativeCycle: true` and every cell `NaN`, and the stub is not called.
+
 `test/types/accelerator.test-d.ts` pins `indexed.allPairsShortestPath(s)` against
-`ApspResultLike`.
+`ApspCycleResultLike`.
 
 No test asserts a time.
 
@@ -465,9 +523,11 @@ The measured table is added to this document as section 12 when the plan's bench
 
 ## 10. Needs the owner's decision
 
-1. **Approve the new public API** of section 6: `indexed.allPairsShortestPath`, the flat types
-   `ApspOptions` and `ApspResult`, and the dispatcher method `allPairsShortestPath`. These are
-   published contracts.
+1. **Approve the new public API** of section 6: `indexed.allPairsShortestPath`; the flat types
+   `IndexedApspOptions` and `IndexedApspResult` (prefixed because `@graphty/webgpu-graph-algorithms`
+   already publishes a different `ApspOptions`); the seam type `ApspCycleResultLike`; and the
+   dispatcher method `allPairsShortestPath` with its rule for when the accelerator is called. These
+   are published contracts.
 2. **Whether to reroute the shipped `floydWarshall`, `floydWarshallPath` and `transitiveClosure`
    onto the port.** Doing so fixes the two initialisation bugs of section 7 for existing callers,
    changes what they return on multigraphs, self-loops and negative cycles, and needs a changelog
@@ -477,7 +537,8 @@ The measured table is added to this document as section 12 when the plan's bench
 
 - graphty-element's `FloydWarshallAlgorithm` runs the shipped function on the object graph and
   reads only eccentricity, diameter, radius and `hasNegativeCycle`. Moving it onto
-  `this.accelerated("allPairsShortestPath", "undirected")` needs `allPairsShortestPath` added to
+  `this.accelerated("allPairsShortestPath", "undirected")` keeps `hasNegativeCycle` readable (the
+  dispatcher returns it on both paths) and needs `allPairsShortestPath` added to
   `ALGORITHM_MEMBERS` in `graphty-element/src/acceleration/narrow.ts` and a routing floor in
   `ACCELERATION_MIN_NODES_BY_CAPABILITY`. It also declares no `static parallelEdges`, so its input
   merges parallel edges by the default `"sum"` policy and two parallel A-B edges of weight 1 become

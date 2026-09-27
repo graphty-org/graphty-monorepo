@@ -34,11 +34,13 @@ Files:
   `src/`. Takes an explicit per-arc weight vector or `null` for unit weights.
 - `algorithms/src/indexed/all-pairs.ts` (new): `ApspOptions`, `ApspResult` and
   `allPairsShortestPath` with the checks of sections 5.2 and 5.6 and nothing else yet: the
-  `maxNodes` check first (default 5,792), then the weight scan (length, `NaN`, infinite). n = 0 and
-  n = 1 return their trivial results. Any other input throws `Error("not implemented")` for now.
+  `maxNodes` check first (default 5,792), then the weight scan (length, `NaN`, infinite). n = 0
+  returns its trivial result. Any other input, n = 1 included, throws `Error("not implemented")`
+  for now. There is never an n = 1 shortcut: a single node takes the ordinary path, so the
+  negative-self-loop check of step 3 applies to it.
 - `algorithms/test/unit/indexed/all-pairs.test.ts` (new).
 
-Tests: empty graph; one node; one node with a self-loop; `maxNodes: 2` on a three-node path throws
+Tests: empty graph; `maxNodes: 2` on a three-node path throws
 `RangeError` whose message contains `3`, `2` and `72` (8 * 3^2 bytes) and, with `paths: true`,
 `108`; a `NaN` and a `+Infinity` weight through the override throw `RangeError`; an override of the
 wrong length throws `RangeError`. One test of the oracle itself: on a four-node weighted square its
@@ -62,6 +64,7 @@ Tests, all with `method: "floyd-warshall"`:
 - every fixture of `undirectedFixtures()` and `directedFixtures()` (`port-fixtures.ts`) equals
   `floydWarshallOracle` exactly and passes `expectMatrixTriangleInequality`; the undirected ones
   pass `expectSymmetric`;
+- one node, and one node with a positive self-loop: `dist` is `[0]`;
 - a positive self-loop leaves the diagonal 0;
 - parallel edges of weights 5 and 2 give 2;
 - two components plus an isolated node give `+Infinity` across them;
@@ -86,7 +89,8 @@ Tests:
 
 - directed a->b 4, a->c 2, c->b -1: a->b is 1;
 - directed a->b 1, b->c 1, c->a -10: `hasNegativeCycle`, every cell `NaN`;
-- a negative self-loop: `hasNegativeCycle`;
+- a negative self-loop on a four-node graph: `hasNegativeCycle`;
+- one node with a self-loop of weight -1: `hasNegativeCycle` and `dist` is `[NaN]`;
 - an undirected edge of weight -1: `hasNegativeCycle`;
 - Hougardy's graph, a directed complete graph on 12 nodes with every weight -1: `hasNegativeCycle`,
   and no cell is `-Infinity` (all are `NaN`); the same undirected;
@@ -100,23 +104,27 @@ Commit: `feat(algorithms): stop the all-pairs sweep at the first negative cycle`
 Files: `algorithms/src/indexed/all-pairs.ts`, `algorithms/test/unit/indexed/all-pairs.test.ts`.
 
 Implement section 4. BFS rows: one queue of n entries reused across sources, writing hop counts
-straight into row i of `dist` (and, for step 5, the discovering arc). Dijkstra rows: call
-`dijkstra(s, i, { weights })` from `./dijkstra.js` and copy its `dist` into row i with
-`dist.set(r.dist, i * n)`. The `auto` rule: unit weights -> BFS; any negative weight ->
+straight into row i of `dist` (and, for step 5, the discovering arc). Dijkstra rows: one
+`IndexedMinHeap(n)` from `./structures/min-heap.js`, created once and reused across sources (it is
+empty after each drain), relaxing straight into `dist.subarray(i * n, i * n + n)`; do not call
+`indexed.dijkstra` per source (design section 4 says why). The `auto` rule: unit weights -> BFS; any negative weight ->
 Floyd-Warshall; `arcCount < n * n / 4` -> Dijkstra; else Floyd-Warshall. `method: "per-source"`
 with a negative weight throws `Error`. Set `method` in the result to the strategy that ran.
 
 Tests:
 
-- every fixture, `method: "per-source"`, equals the oracle exactly (fixture weights are integers);
+- every fixture, `method: "per-source"`, on its own weights and on a `weights` override of 2 on
+  every arc, equals `floydWarshallOracle` with the same weights exactly; the override run reports
+  `"dijkstra"` on every fixture, the unit-weight ones included;
 - every fixture, default options, equals the oracle exactly;
 - unweighted fixtures report `method: "bfs"` and equal `apspRowsOracle`; a weighted fixture with
   `weighted: false` equals `apspRowsOracle` too;
 - a 20-node directed graph with 99 arcs (below 400 / 4 = 100) reports `"dijkstra"`, and with 100
   arcs reports `"floyd-warshall"`; weights 2 on every arc so rule 1 does not apply;
 - real weights 0.1-0.9 on a 30-node graph: Dijkstra rows equal the oracle within relative 1e-12;
-- the tie case of section 8 (a square with two equal routes): all three forced strategies give the
-  same matrix;
+- the tie case of section 8 (a square with two equal routes): on weights of 2,
+  `method: "floyd-warshall"` and `"per-source"` (Dijkstra) give the same matrix; on unit weights,
+  `"floyd-warshall"` and `"per-source"` (BFS) give the same matrix;
 - `method: "per-source"` on a directed negative weight throws; `auto` on it reports
   `"floyd-warshall"`.
 
@@ -129,21 +137,23 @@ Files: `algorithms/src/indexed/all-pairs.ts`, `algorithms/test/unit/indexed/all-
 
 Implement section 5.4. With `paths: true` allocate `Uint32Array(n * n)` filled with
 `INVALID_INDEX`. Floyd-Warshall: the chosen (cheapest, first on ties) arc per direct pair at
-initialisation, `predArc[ir + j] = predArc[kr + j]` on each strict improvement. Dijkstra rows:
-`predArc.set(r.predArc, i * n)`. BFS rows: the arc that discovered each node. `pathTo(i, j)` and
+initialisation, `predArc[ir + j] = predArc[kr + j]` on each strict improvement. Dijkstra rows: the
+relaxing arc written straight into row i of `predArc`. BFS rows: the arc that discovered each node. `pathTo(i, j)` and
 `pathEdges(i, j)` call `walkPredArcs` / `walkPredEdges` with `predArc.subarray(i * n, i * n + n)`.
 Without `paths: true` both throw an `Error` naming the option; under a negative cycle both throw
 `PathWalkError(i, j, "cycle")`.
 
 Tests:
 
-- on every fixture and each forced strategy, for every reachable pair: `pathTo` starts at i and
+- on every fixture, with `floyd-warshall` and `per-source` forced, on the fixture's own weights and
+  on the all-2 override, for every reachable pair: `pathTo` starts at i and
   ends at j; `pathEdges` has one fewer entry; each edge joins consecutive `pathTo` nodes; the
   weight sum along `pathEdges` equals `dist[i * n + j]` (exactly on integer weights);
 - unreachable pairs give empty arrays; `pathTo(i, i)` is `[i]`, `pathEdges(i, i)` is empty;
 - parallel edges of weights 5 and 2: `pathEdges` names the weight-2 edge on every strategy;
 - `paths` omitted: `predArc` is `null` and `pathTo` throws;
-- negative cycle with `paths: true`: `pathTo` throws `PathWalkError`.
+- negative cycle with `paths: true`: `pathTo` throws `PathWalkError`;
+- one node with a self-loop of weight -1 and `paths: true`: `pathTo(0, 0)` throws `PathWalkError`.
 
 Done when: the tests pass; lint clean.
 Commit: `feat(algorithms): record predecessor arcs and walk all-pairs shortest paths`
@@ -171,18 +181,26 @@ Files:
 
 - `algorithms/src/indexed/index.ts`: export `allPairsShortestPath`, `type ApspOptions`,
   `type ApspResult` from `./all-pairs.js`.
-- `algorithms/src/index.ts`: add `export type { ApspOptions, ApspResult } from
-  "./indexed/all-pairs.js";` beside the other indexed type exports.
-- `algorithms/src/indexed/accelerator.ts`: `allPairsShortestPath(s, options?: ApspOptions):
-  Promise<ApspResultLike>` on `AcceleratedAlgorithms`, and its body in `accelerated()` (section 6);
-  extend the JSDoc sentence about methods whose option type is wider than the accelerator's.
+- `algorithms/src/index.ts`: add `export type { ApspOptions as IndexedApspOptions, ApspResult as
+  IndexedApspResult } from "./indexed/all-pairs.js";` beside the other `Indexed`-prefixed exports,
+  with a one-line comment that `@graphty/webgpu-graph-algorithms` publishes a different
+  `ApspOptions`; add `ApspCycleResultLike` to the existing seam type export list beside
+  `ApspResultLike`.
+- `algorithms/src/indexed/accelerator.ts`: the `ApspCycleResultLike` interface;
+  `allPairsShortestPath(s, options?: ApspOptions): Promise<ApspCycleResultLike>` on
+  `AcceleratedAlgorithms`; the private `acceleratorAnswersApsp(s, options)` helper and the method
+  body in `accelerated()`, exactly as design section 6 states them; extend the JSDoc sentence about
+  option types wider than the accelerator's with the all-pairs routing.
 - `algorithms/test/unit/indexed/accelerated.test.ts`: "ten methods" becomes eleven with
-  `allPairsShortestPath` in the list; a CPU case (no accelerator: the result equals
-  `indexed.allPairsShortestPath`); a delegation case (a stub accelerator's
-  `allPairsShortestPath` is called once with the snapshot and the options, and its result is
-  returned unchanged).
+  `allPairsShortestPath` in the list, plus the four dispatcher cases of design section 8 (CPU
+  path; delegation with no options, the stub called once with the snapshot alone and the result
+  its `dist` and `n` with `hasNegativeCycle: false`; the stub NOT called for `weighted: false`,
+  `paths: true`, `method: "floyd-warshall"`, `maxNodes: 10` or a `weights` override; a directed
+  negative-cycle snapshot giving the same flagged `NaN` result with and without the stub, the stub
+  not called).
 - `algorithms/test/types/accelerator.test-d.ts`:
-  `expectTypeOf(indexed.allPairsShortestPath(s)).toMatchTypeOf<ApspResultLike>();`.
+  `expectTypeOf(indexed.allPairsShortestPath(s)).toMatchTypeOf<ApspCycleResultLike>();` and
+  `expectTypeOf(accelerated(null).allPairsShortestPath(s)).resolves.toMatchTypeOf<ApspCycleResultLike>();`.
 
 Write the two test changes first and watch them fail (the method is missing).
 
@@ -208,7 +226,9 @@ Commit: `test(algorithms): allocate the all-pairs size bound in Chromium`
 
 Files: `algorithms/benchmarks/all-pairs-bench.ts` (new); section 12 of the design document.
 
-Write the script of design section 9: the seeded generator with 10 n unique undirected edges and
+Write the script of design section 9, timing the shipped `indexed.allPairsShortestPath` (not a
+copy of its loops), so the figures and the threshold check describe the code that ships: the
+seeded generator with 10 n unique undirected edges and
 integer weights 1-100; the size ladder and arms of the section 9 table; `uptime` printed before
 the first size and after the last; one discarded warm-up per arm; arms interleaved within each
 pass; median and minimum of N reported per arm and size; every port arm's matrix compared cell by
@@ -231,8 +251,10 @@ Files: `algorithms/README.md`.
 Under the existing "Floyd-Warshall Algorithm" heading, add a short "Index-based all-pairs shortest
 paths" subsection: a five-line example (`toSnapshot(graph)`, `indexed.allPairsShortestPath(s)`,
 reading `dist[i * n + j]`, mapping indices through `s.ids`), one sentence on the strategy rule, one
-on `paths: true`, one on the 5,792-node bound, and one saying it is 20-60x faster than
-`floydWarshall` with the figures from section 12.
+on `paths: true`, one on the 5,792-node bound, and one stating how much faster it is than
+`floydWarshall`, taken from section 12's measured table and given per strategy (forced
+Floyd-Warshall, `auto` on weighted input, `auto` on unweighted input) at the largest size where
+the shipped function was timed. No figure is written before step 9 has run.
 
 Done when: `tools/check-links.sh --offline` passes.
 Commit: `docs(algorithms): document index-based all-pairs shortest paths`

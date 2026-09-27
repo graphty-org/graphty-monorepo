@@ -401,6 +401,10 @@ export class UpdateManager implements Manager {
             return;
         }
 
+        // A mask has just hidden or revealed something, so the cached list of what is drawn is
+        // out of date. See `settleActiveMeshFreeze`.
+        this.sceneChanged = true;
+
         if (nodesMoved) {
             const hiddenState: NodeRenderState = showContext ? "context" : "hidden";
 
@@ -457,6 +461,11 @@ export class UpdateManager implements Manager {
         if (painter === undefined || !painter.hasPending) {
             return;
         }
+
+        // A repaint can change a node's SIZE, which moves where its edges have to stop without
+        // moving the node at all, and it can change an edge's own appearance. Either way the
+        // next frame has to visit every edge, whatever the node positions say.
+        this.forceEdgeWalk();
 
         const nodes = painter.takeNodes();
         const edges = painter.takeEdges();
@@ -783,6 +792,10 @@ export class UpdateManager implements Manager {
 
         this.runUpdatePass();
 
+        // AFTER the pass and BEFORE the frame is drawn, so a change this pass made is drawn on
+        // this frame rather than on the next one.
+        this.settleActiveMeshFreeze();
+
         this.stateIsFinished = this.pictureIsFinished();
 
         if (!this.stateIsFinished) {
@@ -978,16 +991,238 @@ export class UpdateManager implements Manager {
     /**
      * Update all edges.
      */
+    /** Set when something other than a node position means every edge has to be visited. */
+    private edgeWalkForced = true;
+
+    /** How many edges the last walk saw, so an added or removed one forces the next. */
+    private lastWalkedEdgeCount = -1;
+
+    /** Where each node's mesh sat at the last edge walk, as x, y, z per node index. */
+    private lastNodePositions = new Float64Array(0);
+
+    /** Set by anything in this frame that changed what is drawn. See `settleActiveMeshFreeze`. */
+    private sceneChanged = true;
+
+    /** Whether Babylon is currently drawing from a cached list of what is visible. */
+    private activeMeshesFrozen = false;
+
+    /** The camera's place and angles at the last frame, or null before the first. */
+    private lastCameraState: readonly number[] | null = null;
+
     private updateEdges(): void {
         this.statsManager.edgeUpdate.beginMonitoring();
 
-        // Each edge aims its own ray, inside the branch that fires it, so an edge that has not
-        // moved costs nothing here. A pass over the whole graph used to aim all of them first.
-        for (const edge of this.layoutManager.edges) {
-            edge.update();
+        if (this.edgesNeedWalking()) {
+            // Each edge aims its own ray, inside the branch that fires it, so an edge that has not
+            // moved costs nothing here. A pass over the whole graph used to aim all of them first.
+            for (const edge of this.layoutManager.edges) {
+                edge.update();
+            }
         }
 
         this.statsManager.edgeUpdate.endMonitoring();
+    }
+
+    /**
+     * Whether this frame has to visit every edge at all.
+     *
+     * WHY THIS EXISTS. An edge that has not moved decides so in a few field reads, but the graph
+     * is walked whether or not anything moved, and at the declared ceiling that walk is a million
+     * edges: measured at 207 ms a frame on a graph standing perfectly still, against 41 ms for
+     * everything Babylon does to draw it. The walk is the cost, not the decision inside it, so the
+     * only fix is not to walk.
+     *
+     * WHY IT ASKS THE NODES RATHER THAN BEING TOLD. A flag set wherever something moves cannot be
+     * trusted: a node's position is written by the layout, by a drag (which Babylon's own drag
+     * behaviour writes straight onto the mesh, through no method of ours), by the two-dimensional
+     * mode switch, and by a restore. Missing one of those would leave edges hanging in mid-air
+     * with nothing in a test to catch which writer was forgotten. Reading the positions cannot
+     * miss a writer, and it is a walk of the NODES -- a hundred thousand where the edges are a
+     * million, and ten edges per node is the shape of every graph this is about.
+     * @returns True when at least one endpoint may have moved, or the graph itself has changed.
+     */
+    private edgesNeedWalking(): boolean {
+        if (this.edgeWalkForced) {
+            this.edgeWalkForced = false;
+            this.lastWalkedEdgeCount = -1;
+            this.sceneChanged = true;
+
+            return true;
+        }
+
+        // An edge added or removed since the last walk has never been placed, or has left a
+        // neighbour's slot behind. Read off the array's own length -- COUNTING BY ITERATING would
+        // be the million-edge walk this method exists to avoid. A layout engine that hands back
+        // something that is not an array cannot be counted cheaply, so it always walks.
+        const {edges} = this.layoutManager;
+        const edgeCount = Array.isArray(edges) ? edges.length : -1;
+
+        if (edgeCount < 0 || edgeCount !== this.lastWalkedEdgeCount) {
+            this.lastWalkedEdgeCount = edgeCount;
+            this.sceneChanged = true;
+
+            return true;
+        }
+
+        if (this.anyNodeMoved()) {
+            this.sceneChanged = true;
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Whether any node's mesh sits somewhere other than where it sat at the last edge walk.
+     *
+     * The positions are kept in one typed array rather than a vector per node, so the scan is a
+     * linear read of three floats against three floats and allocates nothing. A node whose index
+     * is past the end of the array has never been seen, which counts as moved and grows the array.
+     * @returns True when at least one node has moved.
+     */
+    private anyNodeMoved(): boolean {
+        let moved = false;
+        let highest = -1;
+
+        for (const node of this.layoutManager.nodes) {
+            const {index} = node;
+
+            if (index < 0) {
+                moved = true;
+                continue;
+            }
+
+            if (index > highest) {
+                highest = index;
+            }
+
+            const at = index * 3;
+
+            if (at + 2 >= this.lastNodePositions.length) {
+                moved = true;
+                continue;
+            }
+
+            const { position } = node.mesh;
+
+            if (
+                this.lastNodePositions[at] !== position.x ||
+                this.lastNodePositions[at + 1] !== position.y ||
+                this.lastNodePositions[at + 2] !== position.z
+            ) {
+                moved = true;
+            }
+        }
+
+        if (!moved) {
+            return false;
+        }
+
+        if ((highest + 1) * 3 > this.lastNodePositions.length) {
+            const grown = new Float64Array(Math.max((highest + 1) * 3, this.lastNodePositions.length * 2, 96));
+            grown.set(this.lastNodePositions);
+            this.lastNodePositions = grown;
+        }
+
+        for (const node of this.layoutManager.nodes) {
+            const {index} = node;
+
+            if (index < 0) {
+                continue;
+            }
+
+            const at = index * 3;
+            const { position } = node.mesh;
+
+            this.lastNodePositions[at] = position.x;
+            this.lastNodePositions[at + 1] = position.y;
+            this.lastNodePositions[at + 2] = position.z;
+        }
+
+        return true;
+    }
+
+    /**
+     * Make the next frame visit every edge, whatever the nodes say.
+     *
+     * Called when something other than a position has changed what an edge should draw: a style
+     * pass has repainted, or the dataset has been replaced. A repaint can change a node's SIZE,
+     * which moves where its edges have to stop without moving the node at all.
+     */
+    forceEdgeWalk(): void {
+        this.edgeWalkForced = true;
+        this.sceneChanged = true;
+    }
+
+    /**
+     * Freeze or unfreeze Babylon's list of what is drawn, according to whether this frame changed
+     * anything.
+     *
+     * WHAT FREEZING BUYS. Unfrozen, Babylon walks every mesh in the scene each frame to decide
+     * what is visible, and then copies and uploads a world matrix for every instance whether or
+     * not it moved -- at a hundred thousand nodes that is a walk of a hundred thousand meshes and
+     * 6.4 MB of matrices, measured at 44.7 ms and about 12 ms a frame on a graph that is standing
+     * perfectly still. Frozen, both are skipped.
+     *
+     * WHAT IT COSTS IF IT IS WRONG. A frozen scene draws the list it cached: a node that moves
+     * appears stuck, one that is hidden stays on screen, one that is added never appears, and one
+     * that the camera turns towards is missing because it was culled when the list was taken. So
+     * everything that can change any of those has to say so, and this method trusts nothing it was
+     * not told -- except movement, which it reads off the nodes themselves in `anyNodeMoved`, and
+     * the camera, which it reads here. The frame is drawn AFTER this runs, so an unfreeze decided
+     * here takes effect on the same frame that needed it.
+     */
+    private settleActiveMeshFreeze(): void {
+        const scene = this.graphContext.getScene();
+        const changed = this.sceneChanged || this.cameraMoved();
+
+        this.sceneChanged = false;
+
+        if (changed) {
+            if (this.activeMeshesFrozen) {
+                scene.unfreezeActiveMeshes();
+                this.activeMeshesFrozen = false;
+            }
+
+            return;
+        }
+
+        if (!this.activeMeshesFrozen) {
+            scene.freezeActiveMeshes();
+            this.activeMeshesFrozen = true;
+        }
+    }
+
+    /**
+     * Whether the camera is looking at something other than what it looked at last frame.
+     *
+     * Read rather than signalled, because a camera is moved by a reader's mouse, by an animation,
+     * by zoom-to-fit and by the XR rig, and a frozen scene keeps whatever was inside the frustum
+     * when it froze. Six numbers cover the orbit camera the element uses and the free cameras.
+     * @returns True when the view has changed.
+     */
+    private cameraMoved(): boolean {
+        const camera = this.graphContext.getScene().activeCamera;
+
+        if (!camera) {
+            return true;
+        }
+
+        // ASKED OF THE MATRICES, NOT OF THE CAMERA'S FIELDS. Which fields describe a camera
+        // depends on which camera it is -- an arc-rotate camera has an angle, a radius and a
+        // target, a universal camera has a position and a rotation -- and the element uses more
+        // than one. Reading the wrong fields does not fail loudly: it reports a still camera
+        // while the reader is orbiting, and a frozen scene then draws the list it cached. Babylon
+        // stamps every matrix with an `updateFlag` that increments whenever it is rebuilt, so two
+        // integers answer for every camera there is, and for a zoom as well as a turn.
+        const view = camera.getViewMatrix().updateFlag;
+        const projection = camera.getProjectionMatrix().updateFlag;
+        const before = this.lastCameraState;
+
+        this.lastCameraState = [view, projection];
+
+        return before === null || before[0] !== view || before[1] !== projection;
     }
 
     /**

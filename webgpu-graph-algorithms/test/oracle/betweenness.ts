@@ -5,7 +5,9 @@
  * terms, both UNHALVED and UNNORMALISED (the tests compose the host convention themselves, so a wrong halving cannot
  * hide inside the reference), plus each source's `depth` and `sigma` so the forward pass can be judged on its own.
  * `precision: "f32"` rounds every term and every sum through Math.fround, which is what one f32 operation in a kernel
- * does. Parallel arcs count as distinct paths; weights are ignored.
+ * does. Parallel arcs count as distinct paths, as on the GPU; the CPU package refuses parallel edges or collapses
+ * them to one, so on a multigraph this reference and the CPU differ (design/decisions/
+ * 2026-09-27-betweenness-implementation-choices.md). Weights are ignored.
  */
 
 import { type F64, type GraphSnapshot } from "@graphty/graph-format";

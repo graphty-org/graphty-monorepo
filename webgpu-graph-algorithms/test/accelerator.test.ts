@@ -544,6 +544,14 @@ describe("createAccelerator (contract 3.14; spec 3.3, 9.2, 9.3)", () => {
         );
         expect((await sampled.betweennessCentrality(snapshot, { k: 5 })).sourcesUsed).toBe(5);
         expect((await sampled.edgeBetweennessCentrality(snapshot)).sourcesUsed).toBe(3);
+        // defaults serve graphs of every size: a k above this graph's 34 vertices runs them all, and a list keeps
+        // only the indices this graph has
+        const large = createAccelerator(ctx, { algorithms: { betweenness: { k: 256 } } });
+        const all = await large.betweennessCentrality(snapshot);
+        expect(all.sourcesUsed).toBe(snapshot.nodeCount);
+        expectBitwiseEqual(all.scores, (await plain.betweennessCentrality(snapshot)).scores, "k default above n");
+        const listed = createAccelerator(ctx, { algorithms: { betweenness: { sources: [0, 5, 100] } } });
+        expect((await listed.edgeBetweennessCentrality(snapshot)).sourcesUsed).toBe(2);
         await expect(plain.betweennessCentrality(snapshot, { endpoints: true })).rejects.toMatchObject({
             code: "E_UNSUPPORTED",
             details: { feature: "betweenness.endpoints" },

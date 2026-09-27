@@ -9,7 +9,9 @@
  * limits shrinking k without changing a bit of the scores; sampling (an explicit list equals the reference on the
  * same list, `k` draws the same sources every time, the result is the unscaled sum, and a 256-source sample ranks
  * like the exact scores); edge betweenness (the arcs of an undirected edge equal before the fold, the folded scores
- * against the reference, the path's closed form, NOT halved); and the refusals before any device work.
+ * against the reference, the path's closed form, a sample against the reference on the same sources); parallel edges
+ * counted as distinct paths, unlike the CPU; the edge list left unuploaded by a one-batch run; and the refusals before
+ * any device work.
  */
 
 import {
@@ -128,6 +130,10 @@ describe("betweenness batch planner (design 8.4, 10.1)", () => {
         expect(() => planBatchSize(1000, 1, { maxStorageBufferBindingSize: 3999, maxBufferSize: 2 ** 40 })).toThrow(
             /E_TOO_LARGE|maxStorageBufferBindingSize = 3999/,
         );
+        // `ends` is 4 (n + 2) bytes in one binding: the largest n one source fits is binding / 4 - 2
+        const binding = dawn.maxStorageBufferBindingSize;
+        expect(planBatchSize(binding / 4 - 2, 1, dawn)).toBe(1);
+        expect(() => planBatchSize(binding / 4 - 1, 1, dawn)).toThrow(/maxStorageBufferBindingSize/);
     });
 });
 
@@ -356,7 +362,7 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         expect(spearman(sampled.scores, exact.scores)).toBeGreaterThanOrEqual(0.9);
     }, 120_000);
 
-    it("edge betweenness: both arcs of an undirected edge equal before the fold, the folded scores within 1e-4 of the reference, the path's closed form (i + 1)(n - 1 - i), NOT halved", async (t) => {
+    it("edge betweenness: both arcs of an undirected edge equal before the fold, the folded scores within 1e-4 of the reference, the path's closed form (i + 1)(n - 1 - i), a sample against the reference on the same sources", async (t) => {
         const ctx = await context(t);
         for (const { name, s } of fixtures()) {
             let perArc: Float32Array | null = null;
@@ -376,6 +382,19 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         expect(Array.from(path.scores)).toEqual(Array.from({ length: n - 1 }, (_, i) => (i + 1) * (n - 1 - i)));
         const three = await edgeBetweennessCentrality(ctx, snapshotOf(pathEdges(3)));
         expect(Array.from(three.scores)).toEqual([2, 2]);
+        // a sample: from source 2 alone, edge {1, 2} lies on (2, 1) and (2, 0), edge {0, 1} on (2, 0); halved as the
+        // vertex scores are. Its two arcs differ, so keeping one arc instead of summing both scores {0, 1} as 0.
+        const fromTwo = await edgeBetweennessCentrality(ctx, snapshotOf(pathEdges(3)), { sources: [2] });
+        expect(Array.from(fromTwo.scores)).toEqual([0.5, 1]);
+        const sampledGraph = snapshotOf(randomEdges(1000, 4000, 21));
+        for (const sources of [
+            [5, 17, 17, 400, 999, 3],
+            [0, 2],
+        ]) {
+            const sampled = await edgeBetweennessCentrality(ctx, sampledGraph, { sources });
+            const want = edgeConvention(sampledGraph, brandesOracle(sampledGraph, { sources }).perArc);
+            expect(scoreError(sampled.scores, want), `sources ${sources.join(",")}`).toBeLessThanOrEqual(TOLERANCE);
+        }
         const normalized = await edgeBetweennessCentrality(ctx, snapshotOf(pathEdges(n)), { normalized: true });
         const factor = ((n - 1) * (n - 2)) / 2;
         expect(
@@ -385,6 +404,42 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
             ),
         ).toBeLessThanOrEqual(1e-7);
     }, 300_000);
+
+    it("parallel edges are distinct shortest paths, unlike the CPU package, which collapses them to one", async (t) => {
+        const ctx = await context(t);
+        const edges: EdgeSpec[] = [
+            [0, 1],
+            [0, 1],
+            [1, 2],
+            [0, 3],
+            [3, 2],
+        ];
+        const s = snapshotOf(edges, { nodeCount: 4 });
+        const got = (await betweennessCentrality(ctx, s)).scores;
+        expect(scoreError(got, vertexConvention(s, brandesOracle(s).vertex))).toBeLessThanOrEqual(TOLERANCE);
+        // 0 -> 2 has three shortest paths (two through 1, one through 3): vertex 1 carries 2/3 of the pair
+        expect(got[1]).toBeCloseTo(2 / 3, 6);
+        const graph = new Graph({ allowParallelEdges: true });
+        for (let v = 0; v < 4; v++) {
+            graph.addNode(`v${v}`);
+        }
+        for (const [u, v] of edges) {
+            graph.addEdge(`v${u}`, `v${v}`);
+        }
+        expect(cpuBetweenness(graph).v1).toBeCloseTo(0.5, 6);
+    });
+
+    it("a one-batch run leaves the edge list unuploaded; a pinned edge-parallel run uploads it", async (t) => {
+        const ctx = await context(t);
+        const s = snapshotOf(KARATE_EDGES);
+        ctx.residency.core(s);
+        const coreOnly = ctx.residency.stats().buffers;
+        await betweennessCentrality(ctx, s);
+        expect(ctx.residency.stats().buffers).toBe(coreOnly);
+        await betweennessWithTuning(ctx, s, undefined, { forward: "edge" });
+        expect(ctx.residency.stats().buffers).toBeGreaterThan(coreOnly);
+        ctx.release(s);
+    });
 
     it("the edge cases: the empty graph, one vertex, no sources, dest, onProgress and the signal", async (t) => {
         const ctx = await context(t);

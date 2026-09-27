@@ -32,15 +32,15 @@ export function vertexConvention(s: GraphSnapshot, raw: ArrayLike<number>, norma
 }
 
 /**
- * The published edge scores of raw per-arc sums: folded with "first" (NOT halved), then normalised.
+ * The published edge scores of raw per-arc sums: folded with "sum", halved on an undirected snapshot, then normalised.
  * @param s - the snapshot
  * @param perArc - the per-arc sums
  * @param normalized - the option
  * @returns the per-edge scores
  */
 export function edgeConvention(s: GraphSnapshot, perArc: F64, normalized = false): Float64Array {
-    const divisor = divisorOf(s, normalized);
-    return Float64Array.from(foldArcs(s, perArc, "first"), (x) => x / divisor);
+    const divisor = (s.directed ? 1 : 2) * divisorOf(s, normalized);
+    return Float64Array.from(foldArcs(s, perArc, "sum"), (x) => x / divisor);
 }
 
 /**

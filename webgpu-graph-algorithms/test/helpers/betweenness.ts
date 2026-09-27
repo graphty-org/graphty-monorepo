@@ -24,13 +24,14 @@ import { type CheckReport, mergeReports, ratioOf } from "./sabotage.js";
 const BC_TOLERANCE = 1e-4;
 
 /**
- * Faked limits that make the planner choose exactly `k` sources per batch.
+ * Faked limits that make the planner choose exactly `k` sources per batch: the budget (a quarter of maxBufferSize
+ * over 16 bytes per (node, source)) holds k, and the binding is left large, because `ends` needs 4 (n + 2) bytes.
  * @param n - the vertex count
  * @param k - the batch size
  * @returns the limits
  */
 export function limitsForK(n: number, k: number): BetweennessTuning["limits"] {
-    return { maxStorageBufferBindingSize: 4 * n * k, maxBufferSize: 2 ** 40 };
+    return { maxStorageBufferBindingSize: 2 ** 40, maxBufferSize: 4 * 16 * n * k };
 }
 
 /**

@@ -26,8 +26,8 @@ export interface GpuBetweennessResult extends GpuScoresResult {
 
 /**
  * Edge betweenness (spec 3.3 line 834): one score per logical edge (`edgeCount`), the per-arc scores folded with
- * `foldArcs(s, perArc, "first")` and NOT halved on an undirected snapshot (the fold already counts each unordered
- * pair once). `sourcesUsed` and `sigmaOverflow` mean what they mean on `GpuBetweennessResult`.
+ * `foldArcs(s, perArc, "sum")` and halved on an undirected snapshot (the two arcs carry the pairs crossing the edge
+ * in each direction). `sourcesUsed` and `sigmaOverflow` mean what they mean on `GpuBetweennessResult`.
  * @public
  */
 export interface GpuEdgeScoresResult {

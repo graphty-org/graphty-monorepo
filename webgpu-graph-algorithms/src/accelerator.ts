@@ -84,19 +84,26 @@ function copyBetweenness(defaults: BetweennessDefaults): BetweennessDefaults {
 
 /**
  * A betweenness call's options with the accelerator's `algorithms.betweenness` defaults applied: the defaults supply
- * `sources` / `k` only when the call names neither, so a call's own sampling always wins whole.
+ * `sources` / `k` only when the call names neither, so a call's own sampling always wins whole. The defaults serve
+ * graphs of every size, so they are fitted to this one: a default `sources` list keeps only the indices below
+ * `nodeCount` (and then wins over a default `k`), and a default `k` of `nodeCount` or more runs every vertex.
  * @param defaults - the frozen defaults, if any
  * @param options - the call's options
+ * @param nodeCount - the snapshot's vertex count
  * @returns the options the driver runs with
  */
 function withBetweennessDefaults(
     defaults: BetweennessDefaults | undefined,
     options: BetweennessAcceleratorOptions | undefined,
+    nodeCount: number,
 ): BetweennessAcceleratorOptions | undefined {
     if (defaults === undefined || options?.sources !== undefined || options?.k !== undefined) {
         return options;
     }
-    return { ...options, sources: defaults.sources, k: defaults.k };
+    if (defaults.sources !== undefined) {
+        return { ...options, sources: defaults.sources.filter((v) => v < nodeCount) };
+    }
+    return { ...options, k: defaults.k !== undefined && defaults.k < nodeCount ? defaults.k : undefined };
 }
 
 /**
@@ -314,10 +321,14 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
             o?: BetweennessAcceleratorOptions,
         ): Promise<GpuBetweennessResult> {
             ctx.assertReady();
-            return await betweennessCentrality(ctx, gs, withBetweennessDefaults(frozen.algorithms?.betweenness, o));
+            return await betweennessCentrality(
+                ctx,
+                gs,
+                withBetweennessDefaults(frozen.algorithms?.betweenness, o, gs.nodeCount),
+            );
         },
         /**
-         * Edge betweenness on the device (spec 8.4): one score per edge, folded with "first" and not halved; sampling
+         * Edge betweenness on the device (spec 8.4): one score per edge, arcs summed and halved when undirected; sampling
          * and defaults as `betweennessCentrality`.
          * @param gs - the snapshot
          * @param o - the seam's `BetweennessAcceleratorOptions`
@@ -328,7 +339,11 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
             o?: BetweennessAcceleratorOptions,
         ): Promise<GpuEdgeScoresResult> {
             ctx.assertReady();
-            return await edgeBetweennessCentrality(ctx, gs, withBetweennessDefaults(frozen.algorithms?.betweenness, o));
+            return await edgeBetweennessCentrality(
+                ctx,
+                gs,
+                withBetweennessDefaults(frozen.algorithms?.betweenness, o, gs.nodeCount),
+            );
         },
         /**
          * Closeness centrality on the device (spec 8.4; P8-T13): the bit-parallel multi-source sweep, or one `sssp`

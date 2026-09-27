@@ -25,14 +25,17 @@
  *
  * The host applies the CPU package's convention after the readback (`@graphty/algorithms` betweenness.ts): the vertex
  * scores are halved on an undirected snapshot (the gather counts each unordered pair from both ends); the edge scores
- * are folded with `foldArcs(s, perArc, "first")` and NOT halved, because on an undirected snapshot both arcs of an
- * edge carry the same sum and the fold keeps one of them, which is already the score over unordered pairs (the path
- * 0-1-2: arcs 0->1 and 1->0 both collect 2, and edge {0, 1} lies on the pairs (0, 1) and (0, 2)). `normalized`
+ * are folded with `foldArcs(s, perArc, "sum")` and halved the same way, because an undirected edge's two arcs carry
+ * the pairs that cross it in each direction. Over every source both arcs hold the same sum, but over a sample they do
+ * not: on the path 0-1-2 with the one source 2, arc 1->0 collects 1 and arc 0->1 collects 0, so keeping either arc
+ * alone would lose the pairs crossing the other way. `normalized`
  * divides both by `(n - 1)(n - 2)` directed or half that undirected, when positive. A sampled run (`sources` or `k`)
  * is the UNSCALED sum over the sources run, reported beside `sourcesUsed`. `endpoints: true` is refused: the CPU's
  * endpoints branch (`algorithms/src/algorithms/centrality/betweenness.ts`, `predecessors.length === 0 && w !==
  * source`) can never fire for a vertex on the Brandes stack, so there is no behaviour to be in parity with.
- * Betweenness is breadth-first on both packages; weights are ignored.
+ * Betweenness is breadth-first on both packages; weights are ignored. Parallel edges are distinct shortest paths
+ * here (each arc adds to sigma), where the CPU package refuses them or, with `allowParallelEdges`, collapses them to
+ * one: on a multigraph the two packages' scores differ.
  */
 
 import { type F32, foldArcs, type GraphSnapshot, type U32 } from "@graphty/graph-format";
@@ -139,17 +142,19 @@ interface RawBetweenness {
  * @param remaining - the sources still to run (>= 1)
  * @param limits - the device limits
  * @returns k
- * @throws E_TOO_LARGE when one source's `4n`-byte array exceeds the binding limit
+ * @throws E_TOO_LARGE when one source's `ends` array (`4 (n + 2)` bytes, the largest) exceeds the binding limit
  */
 export function planBatchSize(n: number, remaining: number, limits: BatchLimits): number {
-    const kByBinding = Math.floor(limits.maxStorageBufferBindingSize / (4 * n));
-    if (kByBinding < 1) {
+    // the largest single binding of a one-source batch is `ends`, 4 (n + 2) bytes
+    const needed = 4 * (n + 2);
+    if (needed > limits.maxStorageBufferBindingSize) {
         throw new WebGpuGraphError(
             "E_TOO_LARGE",
-            `${ALGORITHM}: one source needs ${4 * n} bytes per array at n = ${n}, above maxStorageBufferBindingSize = ${limits.maxStorageBufferBindingSize}; a limit of at least ${4 * n} admits one source per batch`,
-            { needed: 4 * n, limit: limits.maxStorageBufferBindingSize, path: "binding", algorithm: ALGORITHM },
+            `${ALGORITHM}: one source needs ${needed} bytes in its largest binding at n = ${n}, above maxStorageBufferBindingSize = ${limits.maxStorageBufferBindingSize}; a limit of at least ${needed} admits one source per batch`,
+            { needed, limit: limits.maxStorageBufferBindingSize, path: "binding", algorithm: ALGORITHM },
         );
     }
+    const kByBinding = Math.floor(limits.maxStorageBufferBindingSize / (4 * n));
     const kByBudget = Math.floor((BC_BATCH_BUDGET_FRACTION * limits.maxBufferSize) / (BYTES_PER_NODE_SOURCE * n));
     return Math.max(1, Math.min(kByBinding, kByBudget, BC_MAX_BATCH, remaining));
 }
@@ -488,7 +493,9 @@ async function runRaw(
     const core = ctx.residency.core(s);
     assertWholeCore(core, s.arcCount, ctx.caps.limits.maxStorageBufferBindingSize, ALGORITHM);
     const { edgeCount } = s;
-    const edgeView = pinned !== "frontier" && edgeCount > 0 ? ctx.residency.view(s, "edgeList") : null;
+    // the edge-parallel form runs only when pinned, or from the second batch on: a one-batch run never uploads the view
+    const mayRunEdge = pinned === "edge" || (pinned === "auto" && sources.length > kMax);
+    const edgeView = mayRunEdge && edgeCount > 0 ? ctx.residency.view(s, "edgeList") : null;
     const scope = algorithmScope(ctx, ALGORITHM, RING_SLOTS);
     try {
         const arrayBytes = 4 * n * kMax;
@@ -684,8 +691,8 @@ export async function edgeBetweennessWithTuning(
     const raw = await runRaw(ctx, s, sources, true, tuning, options);
     const perArc = raw.perArc ?? new Float32Array(s.arcCount);
     onArcs?.(perArc);
-    const folded = foldArcs(s, perArc, "first");
-    const divisor = normaliser(s, options?.normalized);
+    const folded = foldArcs(s, perArc, "sum");
+    const divisor = (s.directed ? 1 : 2) * normaliser(s, options?.normalized);
     for (let e = 0; e < s.edgeCount; e++) {
         scores[e] = folded[e] / divisor;
     }
@@ -714,9 +721,10 @@ export function betweennessCentrality(
 
 /**
  * Edge betweenness centrality on the device (spec 3.3 line 812, design 8.4): the per-arc terms of the same batches,
- * folded to one score per edge with `foldArcs(s, perArc, "first")` and NOT halved on an undirected snapshot (both
- * arcs of an edge carry the same sum and the fold keeps one, which already counts each unordered pair once; this is
- * the CPU package's number). `normalized`, sampling, `endpoints` and `sigmaOverflow` as in `betweennessCentrality`.
+ * folded to one score per edge with `foldArcs(s, perArc, "sum")` and halved on an undirected snapshot (the two arcs
+ * carry the pairs crossing the edge in each direction, so their sum counts each unordered pair twice; this is the CPU
+ * package's number, and it holds for a sample too). `normalized`, sampling, `endpoints` and `sigmaOverflow` as in
+ * `betweennessCentrality`.
  * @param ctx - the context whose device runs the kernels
  * @param s - the snapshot (uploaded through ctx.residency, or found there)
  * @param options - as `betweennessCentrality`, dest a Float32Array of length edgeCount

@@ -53,15 +53,11 @@ export function RunAlgorithmModal({ opened, onClose, graphtyRef }: RunAlgorithmM
     // Fetch graph nodes when modal opens
     useEffect(() => {
         if (opened) {
-            const graph = graphtyRef.current?.graph;
-            if (graph) {
-                const nodeIds = Array.from(graph.dataManager.nodes.keys());
-                setGraphNodes(
-                    nodeIds.map((id) => ({
-                        value: String(id),
-                        label: String(id),
-                    })),
-                );
+            const handle = graphtyRef.current;
+            if (handle) {
+                void handle.getData().then(({ nodes }) => {
+                    setGraphNodes(nodes.map(({ id }) => ({ value: String(id), label: String(id) })));
+                });
             } else {
                 setGraphNodes([]);
             }
@@ -143,7 +139,7 @@ export function RunAlgorithmModal({ opened, onClose, graphtyRef }: RunAlgorithmM
         const hasAlgorithmOptions = Object.keys(runOptions).length > 0;
 
         // Access runAlgorithm method on the graph
-        const runAlgorithm = graph.runAlgorithm as
+        const runAlgorithm = Reflect.get(graph, "runAlgorithm") as
             | ((namespace: string, type: string, options?: Record<string, unknown>) => Promise<void>)
             | undefined;
 
@@ -183,7 +179,7 @@ export function RunAlgorithmModal({ opened, onClose, graphtyRef }: RunAlgorithmM
             });
     }, [graphtyRef, selectedAlgorithm, applySuggestedStyles, selectedSourceNode, selectedTargetNode, optionsValues, onClose]);
 
-    const canRun = graphtyRef.current?.graph !== undefined && selectedAlgorithm !== null && !isExecuting && !success;
+    const canRun = Boolean(graphtyRef.current?.graph) && selectedAlgorithm !== null && !isExecuting && !success;
 
     // Build select data for categories
     const categoryData = categories.map((cat) => ({

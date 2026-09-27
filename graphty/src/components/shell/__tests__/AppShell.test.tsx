@@ -128,6 +128,7 @@ function installGraph(container: HTMLElement, names: readonly string[]): FakeSes
             getSession: () => fake.session,
         },
     });
+    Object.defineProperty(element, "session", { configurable: true, value: fake.session });
 
     return fake;
 }
@@ -1092,6 +1093,18 @@ function installNovicePathGraph(container: HTMLElement, options: NovicePathOptio
         /* Read fresh on every call, because a board can grow the graph under the session
            (`addNode`), and the shape the shell reads has to move with it. */
         statistics: () => fixtureStatistics(nodes, edges, options.directedness ?? "undirected"),
+        /* The records the shell lists through `scope.resolve("graph")` and `data.node` /
+           `data.edge`, spelled the way the element spells them: the element's id written
+           after the record's own keys, and an edge's endpoints as `source` and `target`. */
+        records: () => ({
+            nodes: [...nodes.values()].map((node) => ({ ...node.data, id: node.id })),
+            edges: [...edges.values()].map((edge) => ({
+                ...edge.data,
+                id: edge.id,
+                source: edge.srcId,
+                target: edge.dstId,
+            })),
+        }),
     });
 
     for (const spec of options.extraLayers ?? []) {
@@ -1199,6 +1212,7 @@ function installNovicePathGraph(container: HTMLElement, options: NovicePathOptio
     };
 
     Object.defineProperty(element, "graph", { configurable: true, value: graph });
+    Object.defineProperty(element, "session", { configurable: true, value: styles.session });
 
     /* The ELEMENT's `clearData`, which is what `GraphtyHandle.clearData` calls, and the swap
        a REPLACING load makes once its data has arrived. The stand-in clears the same records

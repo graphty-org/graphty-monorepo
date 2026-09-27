@@ -2,6 +2,8 @@
  * The CPU port's LCG bit for bit (spec 7.2 "Initial positions", 9.3 seedPositions) and the NaN-row seeding rules
  * of contract 3.13: index order, the range box for a fresh layout, the bounding box of the finite rows for a
  * topology change, partial rows keeping their finite axes, 2D writing center.z, and the argument errors.
+ *
+ * run-twice exempt: the seeding LCG runs on the host; no kernel is dispatched.
  */
 
 import type { F32, GraphSnapshot } from "@graphty/graph-format";

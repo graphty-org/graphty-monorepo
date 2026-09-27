@@ -4,6 +4,8 @@
  * slots; release(snapshot) during a live simulation makes the next step() reject E_RELEASED; device loss mid-run
  * rejects the pending step with E_DEVICE_LOST, disposes the simulation and leaves the context "lost"; E_NOT_LOADED
  * before load(); E_DISPOSED after dispose(). (The FR grid tier is P4-T13's grid-law.test.ts.)
+ *
+ * run-twice exempt: it asserts errors, state transitions and leak counts, not a kernel's numbers.
  */
 
 import { GpuContext } from "../../src/context.js";

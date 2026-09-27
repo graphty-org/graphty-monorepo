@@ -5,6 +5,8 @@
  * and a batch maps at most two staging slots; release(snapshot) during a live simulation makes the next step()
  * reject E_RELEASED; device loss mid-run rejects the pending step with E_DEVICE_LOST, disposes the simulation and
  * leaves the context "lost", and a fresh context runs afterwards.
+ *
+ * run-twice exempt: it asserts errors, state transitions and leak counts, not a kernel's numbers.
  */
 
 import { GpuContext } from "../../src/context.js";

@@ -4,12 +4,19 @@ on:
     push:
         branches: [master]
     pull_request:
+        # "labeled" so adding the chromatic label (see the Chromatic jobs) starts a run that publishes.
+        types: [opened, synchronize, reopened, labeled]
     # Manual trigger. GitHub twice declined to queue a run for a push to master
     # (4ca5f8a and 756117b both reached the remote with zero runs created for
     # their SHA, while every workflow showed state=active). Without a dispatch
     # trigger the only way to recover is an empty commit, which puts noise in
     # the history to work around a scheduling hiccup.
     workflow_dispatch:
+        inputs:
+            chromatic:
+                description: "Publish Chromatic builds for the affected projects (billed per snapshot)"
+                type: boolean
+                default: false
 
 # Note: We use local Nx caching only (no Nx Cloud)
 # Cache is stored in .nx/cache and persisted via actions/cache
@@ -426,6 +433,26 @@ jobs:
                       echo "XDG_RUNTIME_DIR=/tmp"
                   } >> "$GITHUB_ENV"
 
+            # A forked vitest worker that crashes must not spend minutes writing a multi-gigabyte core dump.
+            # scripts/run-node-shard.js runs vitest under `ulimit -c 0`, but the runner's default core_pattern
+            # pipes cores to a program, and the kernel ignores RLIMIT_CORE for a piped pattern (core(5)). A plain
+            # file pattern makes the limit bind. Issue #273.
+            - name: Write core dumps to a file so the shard's ulimit -c 0 holds
+              if: matrix.shard == 'webgpu-graph-algorithms-node'
+              run: echo "core_pattern was $(cat /proc/sys/kernel/core_pattern)" && sudo sysctl -w kernel.core_pattern=core
+
+            - name: SCRATCH verify a crash writes no core dump
+              if: matrix.shard == 'webgpu-graph-algorithms-node'
+              working-directory: ${{ runner.temp }}
+              run: |
+                  crash() { sh -c "ulimit -c $1; exec node -e 'process.kill(process.pid, \"SIGSEGV\")'" && rc=0 || rc=$?; }
+                  crash unlimited; echo "control, ulimit unlimited: exit=$rc"; ls -la core* || true
+                  test -n "$(ls core* 2>/dev/null)" || { echo "::error::control wrote no core file; the pattern did not take"; exit 1; }
+                  rm -f core*
+                  start=$(date +%s); crash 0; end=$(date +%s)
+                  echo "ulimit 0: exit=$rc in $((end - start)) s"; ls -la core* || true
+                  test "$rc" = 139 && test -z "$(ls core* 2>/dev/null)"
+
             - name: Run tests
               run: ${{ matrix.test-command }}
 
@@ -481,13 +508,19 @@ jobs:
                   overwrite: true
 
     # Chromatic visual regression testing (graphty-element)
-    # Every Chromatic job runs on a pull request only when its package is affected, which includes a change
-    # to anything the package depends on (nx affected adds dependents). Its Storybook is built in every run
-    # regardless, because the Links job checks the assembled site. On master every Chromatic job runs.
+    # Chromatic bills every snapshot, and running it on every push cost thousands of dollars a month
+    # (September 2026: 481,000 snapshots). So it is opt-in: a Chromatic job runs only on a pull request
+    # that carries the "chromatic" label (and only when its package is affected, which includes a change
+    # to anything it depends on), or on a manual dispatch with the chromatic input set. It never runs on
+    # a push to master. Its Storybook is built in every run regardless, because the Links job checks the
+    # assembled site.
     chromatic-element:
         name: Chromatic (graphty-element)
         needs: build
-        if: github.event_name != 'pull_request' || contains(fromJSON(needs.build.outputs.affected), 'graphty-element')
+        if: >-
+            (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'chromatic')
+            && contains(fromJSON(needs.build.outputs.affected), 'graphty-element'))
+            || (github.event_name == 'workflow_dispatch' && inputs.chromatic)
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
@@ -526,7 +559,10 @@ jobs:
     chromatic-app:
         name: Chromatic (graphty)
         needs: build
-        if: github.event_name != 'pull_request' || contains(fromJSON(needs.build.outputs.affected), 'graphty')
+        if: >-
+            (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'chromatic')
+            && contains(fromJSON(needs.build.outputs.affected), 'graphty'))
+            || (github.event_name == 'workflow_dispatch' && inputs.chromatic)
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
@@ -565,7 +601,10 @@ jobs:
     chromatic-compact-mantine:
         name: Chromatic (compact-mantine)
         needs: build
-        if: github.event_name != 'pull_request' || contains(fromJSON(needs.build.outputs.affected), 'compact-mantine')
+        if: >-
+            (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'chromatic')
+            && contains(fromJSON(needs.build.outputs.affected), 'compact-mantine'))
+            || (github.event_name == 'workflow_dispatch' && inputs.chromatic)
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
@@ -604,7 +643,10 @@ jobs:
     chromatic-algorithms:
         name: Chromatic (algorithms)
         needs: build
-        if: github.event_name != 'pull_request' || contains(fromJSON(needs.build.outputs.affected), 'algorithms')
+        if: >-
+            (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'chromatic')
+            && contains(fromJSON(needs.build.outputs.affected), 'algorithms'))
+            || (github.event_name == 'workflow_dispatch' && inputs.chromatic)
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
@@ -643,7 +685,10 @@ jobs:
     chromatic-layout:
         name: Chromatic (layout)
         needs: build
-        if: github.event_name != 'pull_request' || contains(fromJSON(needs.build.outputs.affected), 'layout')
+        if: >-
+            (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'chromatic')
+            && contains(fromJSON(needs.build.outputs.affected), 'layout'))
+            || (github.event_name == 'workflow_dispatch' && inputs.chromatic)
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
@@ -886,8 +931,9 @@ jobs:
                   ok='["success"]'
                   [[ "$EVENT" == "pull_request" ]] && ok='["success","skipped"]'
                   jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$NEEDS"
+                  # Chromatic jobs are opt-in (see chromatic-element), so a skipped one passes on every event.
                   bad=$(jq -r --argjson ok "$ok" \
-                      'to_entries[] | select(.value.result as $r | ($ok | index($r)) == null or (.key == "build" and $r != "success")) | .key' \
+                      'to_entries[] | select(.value.result as $r | (($ok | index($r)) == null and ((.key | startswith("chromatic-")) and $r == "skipped" | not)) or (.key == "build" and $r != "success")) | .key' \
                       <<<"$NEEDS")
                   if [[ -n "$bad" ]]; then
                       echo "::error::jobs that did not pass: $(echo $bad)"

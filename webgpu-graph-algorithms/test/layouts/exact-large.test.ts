@@ -5,16 +5,18 @@
  * without an error. The kernel now sums at most EXACT_TILES_PER_PASS tiles per dispatch. Each model runs K3 once on an
  * edgeless 70,000-node graph (gravity 0: the force after K3 is repulsion alone) and sampled nodes on both sides of the
  * old cutoff are held to an f64 sum over ALL other nodes of the model's own pair law. Runs on every adapter; the
- * defect showed only on lavapipe (about 7 s per model there).
+ * defect showed only on lavapipe (about 7 s per model there). K3 runs twice per model and the two outputs are
+ * compared bitwise before the oracle.
  */
 
-import { type GraphSnapshot } from "@graphty/graph-format";
+import { type F32, type GraphSnapshot } from "@graphty/graph-format";
 
 import { FA2_COINCIDENT_SQ, FA2_DISTANCE_FLOOR_SQ } from "../../src/constants.js";
 import { type GpuContext } from "../../src/context.js";
 import { BASE_OPTIONS, debugStages, PAPER, type StageIo, startPositions, withSim } from "../helpers/fa2-parity.js";
 import { FR_BASE_OPTIONS, FR_TUNING, frStages, withFrSim } from "../helpers/fr-parity.js";
 import { snapshotOf } from "../helpers/graphs.js";
+import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { SE_BASE_OPTIONS, SE_TUNING, seStages, withSeSim } from "../helpers/se-parity.js";
 import { acquire, requireGpu } from "../setup/gpu.js";
 
@@ -48,8 +50,8 @@ async function runK3(
     ctx: GpuContext,
     model: keyof typeof LAWS,
     s: GraphSnapshot,
-): Promise<{ readonly force: Float32Array; readonly pos: Float32Array }> {
-    const body = async (io: StageIo): Promise<{ readonly force: Float32Array; readonly pos: Float32Array }> => {
+): Promise<{ readonly force: F32; readonly pos: F32 }> {
+    const body = async (io: StageIo): Promise<{ readonly force: F32; readonly pos: F32 }> => {
         await io.run("K3");
         return {
             force: Float32Array.from(await io.read("force")),
@@ -91,7 +93,10 @@ describe("the exact tier sums every node at any n (issue #87)", () => {
                 requireGpu(t);
                 const s = snapshotOf([], { nodeCount: N, arena: false });
                 try {
+                    const first = await runK3(ctx, model, s);
                     const { force, pos } = await runK3(ctx, model, s);
+                    expectBitwiseEqual(first.pos, pos, `${model}: positions, run 1 vs run 2`);
+                    expectBitwiseEqual(first.force, force, `${model}: K3 force, run 1 vs run 2`);
                     const law = LAWS[model];
                     let checked = 0;
                     for (const i of SAMPLES) {

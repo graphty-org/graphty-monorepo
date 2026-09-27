@@ -1,4 +1,4 @@
-import { assert, beforeEach, describe, expect, it, vi } from "vitest";
+import { assert, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 
 import { Algorithm } from "../../src/algorithms/Algorithm";
 import type { Graph } from "../../src/Graph";
@@ -16,7 +16,7 @@ describe("AlgorithmManager", () => {
     let algorithmManager: AlgorithmManager;
     let mockEventManager: EventManager;
     let mockGraph: Graph;
-    let mockAlgorithm: { run: ReturnType<typeof vi.fn> };
+    let mockAlgorithm: { run: Mock<(...args: unknown[]) => Promise<void>> };
 
     beforeEach(() => {
         // Reset mocks

@@ -1,12 +1,12 @@
 #!/usr/bin/env tsx
 
 // Node.js Katz Centrality Performance Benchmark using Benchmark.js
-import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
-import { generateTestGraphs } from "../utils/test-data-generator";
-import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { katzCentrality } from "../../src/algorithms/centrality/katz";
 import { saveBenchmarkSession } from "../utils/benchmark-result";
+import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
+import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { formatSystemInfo, getSystemInfo } from "../utils/system-info";
+import { generateTestGraphs } from "../utils/test-data-generator";
 
 // Configuration for Node.js benchmarks
 // Katz Centrality complexity: O(V*E*iterations)
@@ -27,7 +27,7 @@ const configs = {
 
 async function runKatzCentralityBenchmark(configType: "quick" | "comprehensive") {
     console.log(`🚀 Running ${configType} Katz Centrality benchmarks in Node.js`);
-    console.log("=" + "=".repeat(50));
+    console.log(`=${  "=".repeat(50)}`);
     console.log(formatSystemInfo(getSystemInfo()));
     console.log("");
 
@@ -63,7 +63,7 @@ async function runKatzCentralityBenchmark(configType: "quick" | "comprehensive")
 
     // Add benchmark tests
     console.log("\nAdding benchmark tests...");
-    for (const [key, testData] of testGraphs.entries()) {
+    for (const testData of testGraphs.values()) {
         benchmark.addTest(
             `Katz Centrality ${testData.graphSize} vertices (${testData.graphType})`,
             () => {
@@ -89,7 +89,7 @@ async function runKatzCentralityBenchmark(configType: "quick" | "comprehensive")
         const session = await benchmark.run();
 
         // Display summary
-        console.log("\n" + "=".repeat(60));
+        console.log(`\n${  "=".repeat(60)}`);
         console.log("BENCHMARK RESULTS SUMMARY");
         console.log("=".repeat(60));
         console.log("Size\tType\tTime(ms)\tOps/sec\tComplexity\tMargin");

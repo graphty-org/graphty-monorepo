@@ -24,7 +24,6 @@ export interface GeneratedCert {
  * For browser use, provide valid certificates via --cert and --key flags.
  * @param hostname - Optional hostname to include in the certificate (default: localhost)
  * @returns Object containing PEM-encoded certificate and private key
- * @internal
  */
 export function generateSelfSignedCert(hostname = "localhost"): GeneratedCert {
     const attrs = [

@@ -1,4 +1,5 @@
 import assert from "node:assert";
+
 import { fromEdgeArrays, makeMask, maskSet } from "@graphty/graph-format";
 import { describe, it } from "vitest";
 

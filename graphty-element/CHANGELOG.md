@@ -1,3 +1,30 @@
+## 2.5.2 (2026-09-27)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.9
+- Updated @graphty/remote-logger to 1.3.8
+- Updated graph-format to 1.0.7
+- Updated algorithms to 2.0.6
+- Updated layout to 1.10.2
+
+## 2.5.1 (2026-09-27)
+
+### 🩹 Fixes
+
+- **graph-format:** count every change the next freeze would show in mutationCount ([#100](https://github.com/graphty-org/graphty-monorepo/issues/100))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.8
+- Updated graph-format to 1.0.6
+- Updated algorithms to 2.0.5
+- Updated layout to 1.10.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.5.0 (2026-09-27)
 
 ### 🚀 Features

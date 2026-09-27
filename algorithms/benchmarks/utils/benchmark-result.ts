@@ -1,8 +1,9 @@
-import { BenchmarkResult, BenchmarkSession } from "../benchmark-result";
-import { getSystemInfo, formatSystemInfo } from "./system-info";
-import { writeFileSync, readFileSync, existsSync, mkdirSync } from "fs";
-import { join } from "path";
 import crypto from "crypto";
+import { existsSync, mkdirSync,readFileSync, writeFileSync } from "fs";
+import { join } from "path";
+
+import { BenchmarkResult, BenchmarkSession } from "../benchmark-result";
+import { formatSystemInfo,getSystemInfo } from "./system-info";
 
 const BENCHMARK_DIR = join(process.cwd(), "benchmark-results");
 const RESULTS_FILE = join(BENCHMARK_DIR, "benchmark-results.json");
@@ -37,14 +38,12 @@ export function initBenchmarkSession(testType: "quick" | "comprehensive" = "comp
 
 export function saveBenchmarkResult(results: BenchmarkResult[]) {
     // Ensure we have a session
-    if (!currentSession) {
-        initBenchmarkSession();
-    }
+    const session = currentSession ?? initBenchmarkSession();
 
     // Add system info to each result
     const resultsWithSystem = results.map((r) => ({
         ...r,
-        systemInfo: currentSession!.systemInfo,
+        systemInfo: session.systemInfo,
     }));
 
     // Save individual results (backward compatible)
@@ -53,7 +52,7 @@ export function saveBenchmarkResult(results: BenchmarkResult[]) {
     if (existsSync(RESULTS_FILE)) {
         try {
             existingResults = JSON.parse(readFileSync(RESULTS_FILE, "utf-8"));
-        } catch (e) {
+        } catch {
             console.warn("Could not read existing results, starting fresh");
         }
     }
@@ -62,8 +61,8 @@ export function saveBenchmarkResult(results: BenchmarkResult[]) {
     writeFileSync(RESULTS_FILE, JSON.stringify(allResults, null, 2));
 
     // Save session data
-    currentSession!.results.push(...resultsWithSystem);
-    saveBenchmarkSession(currentSession!);
+    session.results.push(...resultsWithSystem);
+    saveBenchmarkSession(session);
 
     console.log(`✅ Saved ${results.length} benchmark results`);
 }
@@ -74,7 +73,7 @@ export async function saveBenchmarkSession(session: BenchmarkSession): Promise<s
     if (existsSync(SESSIONS_FILE)) {
         try {
             existingSessions = JSON.parse(readFileSync(SESSIONS_FILE, "utf-8"));
-        } catch (e) {
+        } catch {
             console.warn("Could not read existing sessions, starting fresh");
         }
     }

@@ -7,6 +7,9 @@
  * paramsFor across a reheat.
  *
  * Every GPU test acquires a FRESH context (spec 11.2) and releases its snapshots; a wrong result is never a skip.
+ *
+ * run-twice exempt: it asserts option resolution, reheat counters, the pipeline cache and the stats decoder, not a
+ * kernel's numbers.
  */
 
 import { makeMask, maskSet } from "@graphty/graph-format";

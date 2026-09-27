@@ -3,7 +3,7 @@
  *
  * Creates a static site for GitHub Pages that:
  * - Builds a self-contained examples/layout.js (the same entry as dist/layout.js, with
- *   @graphty/graph-format inlined so the raw browser modules of the examples can load it)
+ *   the graph-format package inlined so the raw browser modules of the examples can load it)
  * - Transforms example HTML files to work without Vite
  * - Creates a gh-pages directory ready for deployment
  */
@@ -19,7 +19,7 @@ const __dirname = path.dirname(__filename);
 async function ensureDirectoryExists(dir) {
     try {
         await fs.mkdir(dir, { recursive: true });
-    } catch (error) {
+    } catch {
         // Directory already exists
     }
 }

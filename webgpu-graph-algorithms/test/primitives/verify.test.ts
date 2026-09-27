@@ -11,6 +11,10 @@
  * E_DEVICE_INCORRECT instead of returning a number or a position. A second mutation replaces the same body
  * with one that does not compile, because a check that could not RUN must report what actually happened
  * rather than accusing the device of computing incorrectly.
+ *
+ * run-twice exempt: it asserts the self-check's verdict (pass, or E_DEVICE_INCORRECT / the compile failure), not a
+ * kernel's numbers; the scan-block body the check dispatches runs twice with a bitwise comparison in
+ * test/primitives/scan.test.ts.
  */
 
 import { fromEdgeArrays, type GraphSnapshot } from "@graphty/graph-format";

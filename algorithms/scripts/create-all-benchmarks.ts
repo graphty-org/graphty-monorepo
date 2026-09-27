@@ -25,12 +25,10 @@ const createBenchmarkTemplate = (
         needsDirected = false,
         graphTypes = ["sparse"],
         extraParams = "",
-        resultCheck = "if (!result) { throw new Error('" + algorithmName + " returned empty result') }",
+        resultCheck = `if (!result) { throw new Error('${  algorithmName  } returned empty result') }`,
         minIterations = { quick: 10, comprehensive: 20 },
         additionalInfo = "",
     } = options;
-
-    const filename = algorithmName.toLowerCase().replace(/[^a-z0-9]/g, "-");
 
     return `#!/usr/bin/env tsx
 
@@ -116,7 +114,7 @@ async function run${algorithmName.replace(/[^a-zA-Z0-9]/g, "")}Benchmark(configT
 
   // Add benchmark tests
   console.log('\\nAdding benchmark tests...')
-  for (const [key, testData] of testGraphs.entries()) {
+  for (const testData of testGraphs.values()) {
     benchmark.addTest(
       \`${algorithmName} \${testData.graphSize} vertices (\${testData.graphType})\`,
       () => {
@@ -309,7 +307,7 @@ const algorithms = [
 console.log("🚀 Generating benchmark files for remaining algorithms...\n");
 
 algorithms.forEach((algo) => {
-    const filename = algo.name.toLowerCase().replace(/[^a-z0-9]/g, "-") + "-benchmark.ts";
+    const filename = `${algo.name.toLowerCase().replace(/[^a-z0-9]/g, "-")  }-benchmark.ts`;
     const filepath = join(process.cwd(), "benchmarks", "node", filename);
     const content = createBenchmarkTemplate(
         algo.name,

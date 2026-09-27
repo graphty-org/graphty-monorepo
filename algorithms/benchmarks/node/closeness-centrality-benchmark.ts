@@ -1,12 +1,12 @@
 #!/usr/bin/env tsx
 
 // Node.js Closeness Centrality Performance Benchmark using Benchmark.js
-import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
-import { generateTestGraphs } from "../utils/test-data-generator";
-import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { closenessCentrality } from "../../src/algorithms/centrality/closeness";
 import { saveBenchmarkSession } from "../utils/benchmark-result";
+import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
+import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { formatSystemInfo, getSystemInfo } from "../utils/system-info";
+import { generateTestGraphs } from "../utils/test-data-generator";
 
 // Configuration for Node.js benchmarks
 // Closeness centrality is O(V^2) for unconnected graphs, O(V*E) for connected
@@ -27,7 +27,7 @@ const configs = {
 
 async function runClosenessCentralityBenchmark(configType: "quick" | "comprehensive") {
     console.log(`🚀 Running ${configType} Closeness Centrality benchmarks in Node.js`);
-    console.log("=" + "=".repeat(50));
+    console.log(`=${  "=".repeat(50)}`);
     console.log(formatSystemInfo(getSystemInfo()));
     console.log("");
 
@@ -88,7 +88,7 @@ async function runClosenessCentralityBenchmark(configType: "quick" | "comprehens
 
     // Add benchmark tests
     console.log("\nAdding benchmark tests...");
-    for (const [key, testData] of testGraphs.entries()) {
+    for (const testData of testGraphs.values()) {
         benchmark.addTest(
             `Closeness Centrality ${testData.graphSize} vertices (${testData.graphType})`,
             () => {
@@ -114,7 +114,7 @@ async function runClosenessCentralityBenchmark(configType: "quick" | "comprehens
         const session = await benchmark.run();
 
         // Display summary
-        console.log("\n" + "=".repeat(60));
+        console.log(`\n${  "=".repeat(60)}`);
         console.log("BENCHMARK RESULTS SUMMARY");
         console.log("=".repeat(60));
         console.log("Size\tType\t\tTime(ms)\tOps/sec\tComplexity\tMargin");

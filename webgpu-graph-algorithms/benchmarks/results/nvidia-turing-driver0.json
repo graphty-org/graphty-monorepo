@@ -1,0 +1,76 @@
+[
+    {
+        "date": "2026-09-26T20:31:10.120Z",
+        "host": "localhost",
+        "node": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36",
+        "cpu": "unknown",
+        "exposeGc": false,
+        "gpu": {
+            "vendor": "nvidia",
+            "architecture": "turing",
+            "device": "",
+            "description": "",
+            "driver": "",
+            "limits": {
+                "maxBufferSize": 4294967296,
+                "maxStorageBufferBindingSize": 4294967292,
+                "maxStorageBuffersPerShaderStage": 10,
+                "maxComputeWorkgroupsPerDimension": 65535
+            },
+            "software": false,
+            "runtime": "browser",
+            "subgroupMaxSize": 32
+        },
+        "runnerClass": "nvidia-turing-driver0",
+        "results": [
+            {
+                "group": "layout-browser",
+                "name": "fa2-exact-10k-step1-readback",
+                "medianMs": 2.6000000000931323,
+                "minMs": 2.3999999999068677,
+                "maxMs": 3.5,
+                "runs": 50,
+                "memoryDeltaBytes": 0,
+                "rate": 384.6153846016077,
+                "rateUnit": "frames/s"
+            }
+        ]
+    },
+    {
+        "date": "2026-09-26T20:31:11.679Z",
+        "host": "localhost",
+        "node": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36",
+        "cpu": "unknown",
+        "exposeGc": false,
+        "gpu": {
+            "vendor": "nvidia",
+            "architecture": "turing",
+            "device": "",
+            "description": "",
+            "driver": "",
+            "limits": {
+                "maxBufferSize": 4294967296,
+                "maxStorageBufferBindingSize": 4294967292,
+                "maxStorageBuffersPerShaderStage": 10,
+                "maxComputeWorkgroupsPerDimension": 65535
+            },
+            "software": false,
+            "runtime": "browser",
+            "subgroupMaxSize": 32
+        },
+        "runnerClass": "nvidia-turing-driver0",
+        "results": [
+            {
+                "group": "layout-browser",
+                "name": "fa2-grid-100k-step1-readback",
+                "medianMs": 6.450000000069849,
+                "minMs": 6.199999999953434,
+                "maxMs": 11.399999999906868,
+                "runs": 50,
+                "memoryDeltaBytes": 0,
+                "rate": 155.03875968824352,
+                "rateUnit": "frames/s"
+            }
+        ]
+    }
+]

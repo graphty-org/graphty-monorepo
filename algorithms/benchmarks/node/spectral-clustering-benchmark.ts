@@ -1,12 +1,12 @@
 #!/usr/bin/env tsx
 
 // Node.js Spectral Clustering Performance Benchmark using Benchmark.js
-import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
-import { generateTestGraphs } from "../utils/test-data-generator";
-import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { spectralClustering } from "../../src/clustering/spectral";
 import { saveBenchmarkSession } from "../utils/benchmark-result";
+import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
+import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { formatSystemInfo, getSystemInfo } from "../utils/system-info";
+import { generateTestGraphs } from "../utils/test-data-generator";
 
 // Configuration for Node.js benchmarks
 // Spectral Clustering complexity: O(V³)
@@ -27,7 +27,7 @@ const configs = {
 
 async function runSpectralClusteringBenchmark(configType: "quick" | "comprehensive") {
     console.log(`🚀 Running ${configType} Spectral Clustering benchmarks in Node.js`);
-    console.log("=" + "=".repeat(50));
+    console.log(`=${  "=".repeat(50)}`);
     console.log(formatSystemInfo(getSystemInfo()));
     console.log("");
     console.log("⚠️  Note: Spectral Clustering has O(V³) complexity due to eigenvalue computation");
@@ -65,13 +65,13 @@ async function runSpectralClusteringBenchmark(configType: "quick" | "comprehensi
 
     // Add benchmark tests
     console.log("\nAdding benchmark tests...");
-    for (const [key, testData] of testGraphs.entries()) {
+    for (const testData of testGraphs.values()) {
         benchmark.addTest(
             `Spectral Clustering ${testData.graphSize} vertices (${testData.graphType})`,
             () => {
-                const result = spectralClustering(testData.graph, 3);
+                const result = spectralClustering(testData.graph, { k: 3 });
                 // Verify result to prevent dead code elimination
-                if (!result || !result.clusters) {
+                if (!result || result.communities.length === 0) {
                     throw new Error("Spectral Clustering returned invalid result");
                 }
             },
@@ -91,7 +91,7 @@ async function runSpectralClusteringBenchmark(configType: "quick" | "comprehensi
         const session = await benchmark.run();
 
         // Display summary
-        console.log("\n" + "=".repeat(60));
+        console.log(`\n${  "=".repeat(60)}`);
         console.log("BENCHMARK RESULTS SUMMARY");
         console.log("=".repeat(60));
         console.log("Size\tType\tTime(ms)\tOps/sec\tComplexity\tMargin");

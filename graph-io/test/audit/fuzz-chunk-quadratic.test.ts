@@ -42,7 +42,7 @@ import { charactersExamined, countColumnReads } from "../helpers/work-meter.js";
 const MB = 1024 * 1024;
 const CHUNK = 16 * 1024;
 const BENCH = process.env.IO_BENCH === "1";
-const LONG = { timeout: 600_000 };
+const LONG = 600_000;
 
 /**
  * The most characters a linear reader may examine per input character. The linear readers examine

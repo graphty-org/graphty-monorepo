@@ -144,7 +144,7 @@ graphty-monorepo/
 ├── graphty/              # @graphty/graphty React app
 ├── tools/                # Build scripts
 │   ├── merge-coverage.sh # Coverage report merging
-│   ├── run-tests.sh      # Unified test runner
+│   ├── run-tests.sh      # Runs one CI test shard locally, with CI's command
 │   ├── prepush.sh        # Pre-push gate (build, lint, knip, fast tests)
 │   ├── commit-changes.sh # Conventional-commit runner (--dry-run stages nothing)
 │   └── validate-outputs.cjs  # Build output validation
@@ -170,7 +170,7 @@ pnpm exec nx run-many -t build    # Build with Nx caching
 # Test
 pnpm run test                     # Test all packages
 pnpm exec nx run-many -t test     # Test with Nx caching
-./tools/run-tests.sh              # Run tests with minimal output
+./tools/run-tests.sh <shard>      # Run one CI test shard exactly as CI does (--list names them)
 
 # Coverage
 pnpm run coverage                 # Run all coverage
@@ -244,12 +244,34 @@ The `tools/` directory contains build scripts:
 | File | Purpose |
 |------|---------|
 | `merge-coverage.sh` | Merges coverage from all packages, supports CI artifacts |
-| `run-tests.sh` | Runs all tests with minimal output, parallel execution |
+| `run-tests.sh` | Runs a CI test shard locally with the exact command CI runs, read from `ci-test-matrix.mjs`: `--list`, `<shard>` or `all`. Shards run with coverage, so this also checks the thresholds. Build first |
+| `ci-test-matrix.mjs` | The CI test shards and their commands (ci.yml and `run-tests.sh` both read it) |
 | `validate-outputs.cjs` | Validates build outputs (ES modules, UMD, types, sourcemaps) |
 | `prepush.sh` | The pre-push gate: build, lint, knip and the fast tests. Run by `.husky/pre-push` via `pnpm run prepush:fast` |
 | `commit-changes.sh` | Lands the working tree as a sequence of conventional commits. `--dry-run` first: it stages nothing |
 | `check-links.sh` | Dead-link check (see "Dead Links" under CI/CD). `--offline` for the fast half |
 | `assemble-pages-site.sh` | Builds the graphty.app site from the build outputs; deploy-pages.yml and the link check both run it |
+| `chromatic.sh`, `chromatic-api.sh` | Run Chromatic for one package; read a build's totals with the project token (see `.env.example`) |
+| `chromatic-capture.mjs` | Lists the stories of a Chromatic build and downloads their baseline, head and diff images, using your login cookie `CHROMATIC_SESSION_COOKIE`. Read-only: it never accepts or approves |
+| `diff-stories.mjs` | Renders the same stories from two built Storybooks and saves both screenshots plus camera and node positions |
+| `pixel-diff.mjs` | Per-pixel comparison of two PNGs: changed pixels, bounding box, and whether the change is local or frame-wide |
+| `worktree-new.sh` | `<branch> [base]`: a worktree in `.worktrees/` with the main checkout's `.env` linked in and `pnpm install --frozen-lockfile` done |
+| `worktree-prune.sh` | Lists worktrees whose branch is merged or deleted upstream, with size, uncommitted files and live processes, and removes each on confirmation. `--dry-run` removes nothing |
+
+### Secret Scan and Secret Files
+
+`.husky/pre-commit` runs secretlint (`.secretlintrc.json`, the recommended preset) on the staged
+files and refuses a commit that holds something shaped like a credential. `.husky/pre-push` runs
+the same scan on every file the branch changed since it left `origin/master`, which also covers
+commits made with a temporary `core.hooksPath` that skips pre-commit. Both call
+`tools/scan-secrets.sh`. For a false positive, add the path to `.secretlintignore`; `git commit
+--no-verify` is the last resort. Tokens live in the root `.env` (gitignored); scripts read them
+from there and never print them. The checked-in `.claude/settings.json` denies agents `Read` on
+`.env` files, their backups, `*.pem`, `*.key` and SSH keys; `.env.example` stays readable.
+
+`tools/prepush.sh` stops first if `node_modules` does not match `pnpm-lock.yaml` (pnpm keeps a
+copy of the installed lockfile at `node_modules/.pnpm/lock.yaml`), and `.husky/post-merge` warns
+when a merge or pull changed the lockfile. Either way, run `pnpm install`.
 
 ### Starting Servers
 
@@ -550,7 +572,7 @@ Each package has its own CLAUDE.md with package-specific guidance:
 - Use `assert` instead of `expect` in layout tests
 - Visual tests run sequentially (`--workers=1`) to avoid resource contention
 - Don't increase test coverage for floyd-warshall (causes vitest hang)
-- Use `./tools/run-tests.sh` for quick test runs with minimal output
+- Use `./tools/run-tests.sh <shard>` to run a CI shard (with its coverage thresholds) before pushing
 
 ### Storybook
 
@@ -604,6 +626,20 @@ The `design/` directory contains architecture documentation:
 - Performance benchmarks: `npm run benchmark` (in algorithms/)
 - Coverage preview servers for inspecting coverage reports
 - Nx graph visualization: `pnpm exec nx graph`
+
+## Parallel agents
+
+Several agents often work in this repository at once. They share one disk and one browser, so:
+
+- Work in your own worktree (`./tools/worktree-new.sh <branch>`), never by switching branches in
+  the main checkout.
+- Write scratch files to `tmp/<agent-or-task-name>/`, never to `tmp/` itself, so one agent's
+  screenshots and logs do not overwrite another's.
+- If you drive a browser, open your own tab or browser context and use only that one. Never
+  navigate, close or reuse a tab you did not open.
+- A review or audit reads `git diff <base>...HEAD`, not the whole tree, unless the task is
+  explicitly a whole-repository audit.
+- Report regressions and failures first, then everything else.
 
 ## Claude Session History
 

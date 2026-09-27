@@ -445,4 +445,44 @@ export default tseslint.config(
             },
         },
     },
+
+    // ============================================
+    // VISUAL-REVIEW: NODE TOOL, BROWSER PAGE
+    // ============================================
+    // visual-review is plain .mjs with no build. Its CLI, library, capture and tests run in Node;
+    // only trusted/page/ runs in the owner's browser. The base config declares browser globals
+    // alone, so the Node files need Node's declared. With no TypeScript source, a JSDoc type is
+    // the only type annotation these files have, so it is allowed and read as a TypeScript type.
+    {
+        files: ["visual-review/**/*.{js,mjs}"],
+        settings: {
+            jsdoc: {
+                mode: "typescript",
+            },
+        },
+        rules: {
+            "jsdoc/no-types": "off",
+        },
+    },
+    {
+        files: [
+            "visual-review/trusted/lib/**/*.mjs",
+            "visual-review/trusted/cli.mjs",
+            "visual-review/capture/**/*.mjs",
+            "visual-review/test/**/*.mjs",
+        ],
+        languageOptions: {
+            globals: {
+                ...globals.node,
+            },
+        },
+    },
+    {
+        files: ["visual-review/trusted/page/**/*.js"],
+        languageOptions: {
+            globals: {
+                ...globals.browser,
+            },
+        },
+    },
 );

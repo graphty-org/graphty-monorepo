@@ -238,6 +238,10 @@ affected graphty-element && { (cd graphty-element && npm run test:prepush) || { 
 echo "  Testing remote-logger..."
 affected @graphty/remote-logger && { (cd remote-logger && npm run test:run -- --project=default --project=ui-unit) || { FAILED=1; TESTS_FAILED=1; }; }
 
+# visual-review - Node.js unit tests of the results format and the comparison
+echo "  Testing visual-review..."
+affected visual-review && { (cd visual-review && npm run test:run) || { FAILED=1; TESTS_FAILED=1; }; }
+
 # compact-mantine - run only default project
 echo "  Testing compact-mantine..."
 affected compact-mantine && { (cd compact-mantine && npm run test:run -- --project=default) || { FAILED=1; TESTS_FAILED=1; }; }

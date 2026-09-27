@@ -24,6 +24,9 @@ tmp/
 docs/.vitepress/cache/
 docs/.vitepress/dist/
 
+# Visual-review baselines: PNGs and the JSON records written with them, byte-exact
+visual-baselines/
+
 # Other
 gh-pages/
 

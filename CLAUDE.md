@@ -369,7 +369,7 @@ All packages: 80% lines/functions/statements, 75% branches
 
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
-| `ci.yml` | Push/PR | Build, lint, sharded tests (21 parallel jobs), dead links (the `Links` job) |
+| `ci.yml` | Push/PR | Build, lint, sharded tests (22 parallel jobs), dead links (the `Links` job) |
 | `coverage.yml` | After CI | Merge coverage reports, publish to Coveralls |
 | `release.yml` | After CI (master) | Semantic release with Nx |
 | `deploy-pages.yml` | After CI | Deploy docs to GitHub Pages |
@@ -404,7 +404,7 @@ package has no guide pages, so its documentation link is the generated API refer
 
 ### CI Test Shards
 
-The CI runs 21 parallel test jobs on a push to master or a manual dispatch:
+The CI runs 22 parallel test jobs on a push to master or a manual dispatch:
 - `graph-format`
 - `graph-io`
 - `webgpu-graph-algorithms-node`, `webgpu-graph-algorithms-browser`
@@ -413,6 +413,7 @@ The CI runs 21 parallel test jobs on a push to master or a manual dispatch:
 - `layout`
 - `graphty`
 - `remote-logger`
+- `visual-review`
 - `compact-mantine`
 - `graphty-element-default`
 - `graphty-element-browser-1` through `graphty-element-browser-5`

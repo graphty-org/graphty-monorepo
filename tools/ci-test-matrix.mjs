@@ -130,6 +130,13 @@ export const SHARDS = [
         "test-command": "pnpm exec nx run remote-logger:coverage",
         "needs-browser": true,
     },
+    // visual-review - single shard (Node.js; coverage counts only trusted/lib)
+    {
+        shard: "visual-review",
+        package: "visual-review",
+        "test-command": "pnpm exec nx run visual-review:coverage",
+        "needs-browser": false,
+    },
     // compact-mantine - single shard (uses Playwright for browser-based vitest)
     {
         shard: "compact-mantine",

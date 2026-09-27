@@ -1,0 +1,330 @@
+# What other visual review systems do
+
+Date: 2026-09-27
+
+## Why this document exists
+
+This repository is replacing Chromatic, a hosted service that screenshots every Storybook story,
+compares each screenshot with an approved "baseline" image, and lets a reviewer accept or reject
+each difference. Before designing our own system, this document catalogues what the established
+tools do, grouped by feature, so that we copy the ideas that matter and skip the rest.
+
+The companion document `chromatic-alternatives.md` (same folder) covers price, licensing and
+maintenance status. This one covers features. The last section suggests a priority for each
+feature in our own system: P0 is needed for the first usable version, P1 is a clear improvement
+worth doing soon, P2 is later or optional.
+
+## The products surveyed
+
+| Product | Kind | State in September 2026 |
+|---|---|---|
+| Chromatic | Hosted service, made by the Storybook maintainers | Active; what we use today |
+| Argos | Hosted service, MIT-licensed server; captures happen in your CI | Active, fast-moving |
+| Percy (BrowserStack) | Hosted service, renders in its own browsers | Active |
+| Applitools Eyes | Hosted service, "Visual AI" comparison | Active |
+| Happo | Hosted service, cross-browser rendering farm | Active |
+| Lost Pixel | Open-source engine plus a hosted review platform | Sunset; the team joined Figma and the repository was archived 2026-04 |
+| reg-suit / reg-cli | Open-source CLI and HTML report (reg-cli), plugin pipeline (reg-suit) | reg-cli active (0.19.0-rc3, 2026-09-24); reg-suit's capture tool storycap stale |
+| BackstopJS | Open-source CLI, scenario config, browser report | No npm release since 2024-09 |
+| Loki | Open-source Storybook screenshot CLI | No release since 2024-08 |
+| Playwright `toHaveScreenshot` + HTML report | Test-runner assertion, baselines as files | Active |
+| Vitest 4 `toMatchScreenshot` | Test-runner assertion (browser mode), baselines as files | Active, labelled experimental |
+| Visual Regression Tracker | Self-hosted server (Docker Compose) with review UI | Active (5.8.0, 2026-09-01) |
+| Pixeleye | Hosted or self-hosted platform (Postgres, RabbitMQ, S3, Ory Kratos) | Last push 2025-09 |
+| Meticulous | Hosted; records real user sessions and replays them | Active; not a Storybook tool |
+| GitHub itself | Native image diff in pull requests; Actions environments | Active |
+
+## Feature catalogue
+
+Each table lists a feature, which products have it, and how it works.
+
+### 1. Capture
+
+| Feature | Who has it | How it works |
+|---|---|---|
+| Capture every story from a built Storybook | Chromatic, Argos, Happo, Lost Pixel, Loki, reg-suit (via storycap) | Read the built Storybook's story index (`index.json`), open each story's iframe, screenshot it. Chromatic and Happo do it on their own browsers; Argos, Loki and Lost Pixel do it on yours. |
+| Capture inside the test runner | Playwright, Vitest, Argos SDKs, Percy SDKs, Applitools SDKs | An assertion (`toHaveScreenshot`, `toMatchScreenshot`, `argosScreenshot`) inside a test writes the image; the runner owns parallelism and retries. |
+| Upload a folder of images taken any way you like | Argos (`argos upload <dir>`), Lost Pixel ("custom shots"), reg-cli (compares two folders), Visual Regression Tracker (REST API) | The tool is only a comparer and reviewer; capture is yours. This is what decouples capture from review. |
+| Modes: the same story under several global settings (theme, viewport, locale) | Chromatic (`modes`), Argos ("story modes"), Happo (`themes`, `targets`), Percy (responsive widths) | Each mode is a named combination of Storybook globals. Chromatic: "Chromatic treats each mode as an individual entity, with its own unique baselines ... dependent solely on the name" [C6]. |
+| Viewports / responsive breakpoints | All hosted tools, Lost Pixel, BackstopJS, Playwright | A list of widths per story or per project; each width is a separate image and baseline. |
+| Capture after an interaction (play function, hover, click) | Chromatic (waits for play function), Happo (`forceHappoScreenshot` inside play), BackstopJS (`clickSelector`, `hoverSelector`, `onReadyScript`), Playwright (any test step) | The capture waits until the story's `play` function completes, or a script drives the page first. |
+| Several captures per story ("journeys") | Argos (journey strip), Happo (`forceHappoScreenshot`), Playwright | Argos groups the screenshots a test took into ordered steps and shows a changed step next to its neighbours [A1]. |
+| Opt a story out | Chromatic (`disableSnapshot`), Happo (`happo: false`), Lost Pixel, Loki | A story parameter skips capture. |
+| Multiple browsers | Chromatic (Chrome, Firefox, Safari, Edge), Percy, Happo (Chrome, Firefox, Safari, Edge, iOS Safari), Applitools (Ultrafast Grid), Lost Pixel, Playwright (Chromium, Firefox, WebKit) | Hosted tools render the captured DOM in several real browsers; self-run tools launch several browser engines. Each browser has its own baselines. |
+| Non-image comparison | Argos (ARIA snapshots, JSON, Markdown, CSS text diffs), Chromatic (accessibility data) | Text artefacts are diffed as text next to the screenshots [A2]. |
+| Interactive, inspectable capture | Chromatic ("Canvas": the captured story rendered live and inspectable in the browser) [C9] | The reviewer can open the actual story, not just the pixels. |
+| Published Storybook per build and per branch | Chromatic (`https://<branch>--<appid>.chromatic.com`), Argos (deployments with per-branch URLs) | Every build's static Storybook is hosted, and the review page links to it [C10][A3]. |
+
+### 2. Determinism and flake handling
+
+| Feature | Who has it | How it works |
+|---|---|---|
+| Pinned rendering environment | BackstopJS (`--docker`), Loki (Chrome in Docker), Playwright (official Docker image), hosted tools (their own browser fleet) | Fonts, GPU path and browser version are fixed so the same input gives the same pixels. |
+| Wait for the page to be ready | Chromatic (network quiescence, then play function, then optional `delay`) [C9], Happo (waits for images, fonts, fetch/XHR) [H3], Argos (`aria-busy`, background images, fonts), Playwright (two consecutive identical screenshots) | Heuristics or explicit signals delay the capture until the story has settled. |
+| Retry until stable | Playwright: "wait until two consecutive page screenshots yield the same result" [P1]; Vitest `toMatchScreenshot` does the same | Capture repeatedly; compare only once the page stops changing. |
+| Freeze animations, video, GIFs | Chromatic (CSS animations paused at the last frame via `pauseAnimationAtEnd`; video and GIFs at the first frame) [C4], Playwright (`animations: "disabled"`, `caret: "hide"`), Happo, Argos (`pauseGifs`) | Injected CSS or player control. JavaScript animations (and WebGL canvases) are left to the app, usually through an "is this a visual test" flag such as Chromatic's `isChromatic()`. |
+| Hide or mask dynamic regions | Chromatic (`chromatic-ignore` class, `data-chromatic="ignore"`, `ignoreSelectors`) [C5], Argos (`data-visual-test="transparent|removed|blackout"`) [A4], Happo (`data-happo-hide`), BackstopJS (`hideSelectors`, `removeSelectors`), Playwright (`mask`, `maskColor`, `stylePath`), Percy and Applitools (regions), Visual Regression Tracker (ignore areas drawn in the UI) | Either the element is hidden before capture, or its bounding box is excluded from the comparison. Chromatic warns that a size change of an ignored element still counts as a diff. |
+| Detect flaky snapshots automatically | Chromatic ("renders each test multiple times"; unstable ones are moved to a collapsed section and do not block) [C7]; Argos (flaky badge, stability score, a per-test history page and a project-wide tests dashboard) [A5] | Chromatic re-renders during the build. Argos learns from history: a change that recurs across approved builds is flaky. |
+| Ignore one specific recurring change | Argos ("Ignore" button; the change is identified by a fingerprint of the diff's shape, so a different change to the same screenshot still fails; auto-ignore after N occurrences in 7 days; an "Ignored" tab shows how often each ignore still fires) [A5][A6]; Happo (mark a diff as a flake, recorded as a flake row) [H1] | The review action records "this exact diff is noise" without raising the threshold for everything else. |
+| Hand a flaky test to an AI agent | Argos (test page includes a prompt for an agent; "fix flaky tests with AI agents") [A0] | The agent reads the flakiness history and fixes the story in the repository. |
+
+### 3. Diffing
+
+| Feature | Who has it | How it works |
+|---|---|---|
+| Per-pixel colour threshold | pixelmatch (Playwright default 0.2, Vitest), Chromatic (`diffThreshold`, default 0.063, distance in YIQ colour space) [C3], reg-cli (`--matchingThreshold`, default 0), Happo (`compareThreshold`) | Two pixels count as different only if their colour distance exceeds the threshold. |
+| Allowed count or ratio of differing pixels | Playwright (`maxDiffPixels`, `maxDiffPixelRatio`), reg-cli (`--thresholdPixel`, `--thresholdRate`), BackstopJS (`misMatchThreshold`, percent) | After the per-pixel test, a whole-image tolerance decides pass or fail. |
+| Anti-aliasing detection | pixelmatch, odiff, Chromatic (on by default; `diffIncludeAntiAliasing` turns it off), reg-cli (`--enableAntialias`) | Pixels that look like edge smoothing are excluded. |
+| Noise clustering, multi-pass diff | Argos (odiff, several passes at different thresholds, then clustering "to separate random noise from meaningful change"; the diff code is open source) [A2] | Isolated specks are dropped; clusters are kept. Still deterministic. |
+| Alignment when content shifts | Happo (`lcs-image-diff`: longest-common-subsequence alignment of rows "to prevent unnecessarily big diffs ... where content has shifted up or down") [H4] | Inserting a row at the top no longer marks everything below it as changed. |
+| Size-change detection | BackstopJS (`requireSameDimensions`), GitHub image diff (shows old and new dimensions) | A size change fails even if the overlapping pixels agree. |
+| Perceptual or "AI" comparison | Applitools (match levels Strict, Layout, Ignore Colors, Dynamic) [AP1]; Percy (Visual Engine, "Intelli-Ignore" for carousels, banners and ads; five sensitivity levels) [PE3]; Visual Regression Tracker (looks-same, and a vision-language-model provider that asks whether a difference is noticeable) [V1] | A model decides whether a change matters. Argos argues against this: "AI compensates for flakiness, while Argos removes it" [A2]. |
+| Choice of engine | Visual Regression Tracker (pixelmatch, looks-same, odiff, VLM, per project) [V1] | Per-project setting. |
+| Compare any two builds or commits | Happo (`happo compare <sha1> <sha2>`), reg-cli (any two folders), Argos (`ARGOS_REFERENCE_COMMIT`, `ARGOS_REFERENCE_BRANCH`) [A7] | The baseline is chosen explicitly instead of by git ancestry. |
+| Fallback baseline for a new variant | Argos (`baseName: ["home-variant-b", "home"]`) [A8] | A new screenshot is compared with a related existing one instead of being reported as "added". Useful for a new mode of an existing story. |
+| Diff output format | reg-cli (WebP diffs by default, about 5x smaller than PNG) [R1] | Storage for the diff images themselves. |
+
+### 4. Review UI
+
+| Feature | Who has it | How it works |
+|---|---|---|
+| Side by side (baseline next to new) | Chromatic ("Split view (2 Up)"), Argos ("Split view", default), Happo, Playwright report, reg-cli, GitHub ("2-up") | Two panes; Argos keeps zoom and pan in sync between them [A1]. |
+| Overlay of changed pixels | Chromatic ("Unified view (1 Up)" with highlights), Argos ("Changes overlay", colour and opacity adjustable, key `D`), Playwright report ("Diff"), reg-cli, Happo ("Diff view") | The changed pixels are painted in a strong colour over the image. |
+| Flashing between baseline and new | Chromatic ("Diff strobing", also called "party mode") [C2]; Argos ("Highlight and navigate changes": flash the changed regions, then jump to the next with `J`/`K`) [A1]; reg-cli ("toggle"); Happo ("swipe") | Alternating the two images quickly makes a small change obvious to the eye. |
+| Slider / swipe | Playwright report ("Slider"), reg-cli ("slider"), GitHub ("Swipe"), Happo ("swipe") | A draggable divider shows baseline on one side and new on the other. |
+| Blend / onion skin | reg-cli ("blend"), GitHub ("Onion Skin") [G1] | Adjustable opacity of one image over the other; good for sub-pixel moves. |
+| Zoom to the change | Chromatic ("Autofocus" activates for small diffs; a magnifying glass on hover) [C2]; Argos (fit or full size, key `Space`) | The UI jumps to where the change is instead of making the reviewer hunt. |
+| Keyboard-driven review | Argos (`Y`/`N` accept/reject a change, arrows for next snapshot, `S`, `D`, `H`, `J`/`K`, `I` ignore, `C` comment; `?` lists all) [A1] | Reviewing hundreds of snapshots without the mouse. |
+| Progress indicator | Argos ("2 / 3 reviewed" chip) [A1] | Shows how much of the build has been reviewed. |
+| Filter and tags | Argos (tags on screenshots, filter by tag) | Narrow the list to one component or package. |
+| Group similar changes | Applitools (group steps "with similar differences" and accept or reject the group in one action) [AP2]; Percy (snapshot groups) [PE2] | One accept covers every snapshot that changed the same way, for example a colour token change across 400 stories. |
+| Open the live story from the review | Chromatic (Canvas, and links to the published Storybook) [C9][C10]; Argos (deployment URL per build) [A3] | The reviewer can click into both the baseline Storybook and the new one. |
+| Review inside Storybook | Chromatic's Visual Tests addon: run locally, see diffs and "accept them as baselines locally" in the Storybook sidebar, including uncommitted code [C8] | The developer never leaves the Storybook they are working in. |
+| Static HTML report, no server | Playwright HTML report, reg-cli report, BackstopJS report | A self-contained page that can be published as a CI artifact or on GitHub Pages. BackstopJS needs its `backstop remote` HTTP service to approve from the report [B1]. |
+| Native image diff in the pull request | GitHub (2-up, Swipe, Onion Skin on any changed PNG in a pull request) [G1] | Free and zero-effort when baselines are committed to git. Whether GitHub renders Git LFS-tracked images in this view was not verified. |
+
+### 5. Approval and baselines
+
+| Feature | Who has it | How it works |
+|---|---|---|
+| Accept or reject each snapshot | Chromatic, Argos (`Y`/`N` per change), Percy, Applitools, Happo, Visual Regression Tracker | Accepting makes the new image the baseline for that story and branch; rejecting fails the build. |
+| Accept a whole build at once | Argos (approve the build), Percy (snapshot, group or whole build) [PE4], Happo (approve comparison), BackstopJS (`backstop approve`), Playwright (`--update-snapshots`), reg-cli (`-U`) | One action for everything. |
+| Accept a subset from the command line | BackstopJS (`backstop approve --filter=<regex>`) [B1], Playwright (`--update-snapshots=changed` or `=missing`) [P2] | Useful for a script-driven approval with a list of story ids. |
+| Approve once, apply everywhere | Applitools ("approve them once ... propagating the acceptance across all relevant tests and checkpoints") [AP1][AP2]; Chromatic (accepted baselines carry over when the branch merges; `preferMergedBaselines`) [C1] | An accepted change does not need re-accepting on the target branch or in other browsers. |
+| Baselines per branch, compared against the merge base | Chromatic (most recent ancestor build; for squash and rebase merges uses the PR's head-branch baselines via the git provider's API) [C1]; Argos (baseline is the most recent approved, complete, non-subset build whose commit is an ancestor of the merge base) [A7]; Percy (common-ancestor build) [PE1]; reg-suit (`reg-keygen-git-hash-plugin` finds the commit the topic branch forked from) [R2] | The pull request is judged against what it branched from, not against whatever master is now. |
+| Baselines committed in the repository | Playwright, Vitest, BackstopJS, Loki, Lost Pixel (open-source mode), reg-cli | The branch's own tree is the baseline, so "compared against the merge base" comes free. Two branches that change the same story conflict on a binary file. |
+| Baselines in external storage | Argos, Chromatic, Percy, Applitools, Happo (their servers); reg-suit (S3 or GCS); Visual Regression Tracker and Pixeleye (your own server) | The repository stays small; the bookkeeping across merges and rebases is the tool's problem. Pixeleye makes this a selling point: "we don't store your comparisons directly in the git repo ... avoid scenarios where failing tests are lazily approved with a hand-wavy command" [X1]. |
+| Auto-approved branches | Argos (default branch auto-approved; patterns configurable) [A7], Percy (auto-approve branches) [PE2] | A build on master becomes a baseline without review. |
+| Approval carried across pushes on one branch | Percy ("carry forward approval") [PE2], Chromatic ("we always include accepted baselines from the latest build on the current branch") [C1] | A new push does not ask to re-accept what was already accepted. |
+| Subset builds do not become baselines | Argos (`--subset`: removed screenshots are ignored and the build is never a baseline) [A9] | Lets affected-only runs coexist with correct baselines. |
+| Baseline eligibility shown | Argos (a chip saying whether this build can serve as a future baseline, and why not) [A7] | Makes the baseline logic inspectable. |
+| Approval through a pull request | Lost Pixel open-source mode (a `workflow_dispatch` job runs in update mode and opens a PR with the new baselines, which is then merged) [L2]; Streamlit and Scott Logic patterns cited in `chromatic-alternatives.md` | The approval is a git merge, so it inherits branch protection and review rules. |
+| Approval gated by a GitHub Environment | Pattern, not a product: a job that writes baselines targets an environment with required reviewers [G2] | GitHub pauses the job until a named reviewer approves. See the security note below. |
+
+### 6. Branching and merge behaviour
+
+| Feature | Who has it | How it works |
+|---|---|---|
+| Squash and rebase merge support | Chromatic (uses provider APIs when git history is rewritten) [C1]; Argos (merge-base ancestry plus merged-PR status) [A7] | Needed because a squash merge leaves no ancestor build. |
+| Merged-baseline preference | Chromatic (`preferMergedBaselines`: prefer "incoming" baselines from main so changes approved elsewhere are not re-accepted) [C1] | Resolves the case where master moved on while the branch was open. |
+| Baseline merge with conflict resolution | Applitools ("automatically merge the baselines" on branch merge, with conflict resolution when both sides changed the same element) [AP1] | The branch's accepted baselines are merged into the target's. |
+| Rejected builds never become baselines | Argos ("A build whose changes were rejected ... can never serve as a baseline") [A7] | Prevents a rejected image leaking forward. |
+| Monitoring mode (no git) | Argos (compare with the latest approved build regardless of history) [A10] | For scheduled checks of a deployed site; not needed for us. |
+
+### 7. CI and pull-request integration
+
+| Feature | Who has it | How it works |
+|---|---|---|
+| Commit status / check | All hosted tools; Argos posts `argos/<build-name>` per build [A11] | Required check blocks merge until review. |
+| One summary check over many builds | Argos (`argos/summary`, combining every build on a commit so branch protection can require one name) [A11] | Useful with one build per package. |
+| Pull-request comment | Argos (build status and link, counts such as "4 changed, 3 ignored") [A5]; Chromatic; Happo; reg-actions | A summary in the conversation with a link to review. |
+| Separate builds per package in a monorepo | Argos ("build splitting": one `--build-name` per suite, each with its own baseline and status) [A12]; Chromatic (one project per Storybook); Lost Pixel (platform only) | Packages are reviewed and baselined independently. |
+| Affected-only capture | Chromatic TurboSnap (git diff plus the Storybook dependency graph; full recapture when `preview.js` imports change) [C11]; Happo (`--only`, `--skip`, combined with the baseline report so the report is still complete) [H2]; Argos (subset builds, and "cache the snapshot files as task outputs" in Nx or Turborepo so unchanged packages contribute restored images) [A9][A13]; Playwright (`--only-changed [ref]`) [P2] | Skip work for code the change cannot affect, while still producing a complete comparison. |
+| Parallel and sharded capture | Argos (collect shards into one build), Playwright (`--shard`), hosted farms | Many workers or machines feed one review. |
+| Skip a build but report success | Argos ("skipping a build") | Keeps a required check green on a PR that cannot affect visuals. |
+| Notifications | Argos (Slack, Microsoft Teams, Discord via automations) | Someone learns a build needs review without watching the dashboard. |
+
+### 8. History and audit
+
+| Feature | Who has it | How it works |
+|---|---|---|
+| Baseline history per story | Chromatic ("all previously accepted and unreviewed baselines for a specific story ... when the baseline changed, by who, and in which commit") [C12]; Visual Regression Tracker ("track how baseline image changed since the beginning") [V1] | A timeline of accepted images with the approver and commit. |
+| Per-reviewer verdicts | Argos (each reviewer's latest review counts; states Approved, Rejected, Commented, Pending, Dismissed; "one rejection blocks") [A1] | The build status is derived from every reviewer's current decision. |
+| Build list with filters | Argos, Chromatic, Percy | Every build, its commit, branch, status and reviewer. |
+| Test page with history | Argos (flakiness over time, every change the test produced, its discussion) [A5] | One page per story across all builds. |
+| Analytics | Argos (builds, screenshots, change rate, approval rate; also via API and CLI) | Trend of review load. |
+| Attributed agent actions | Happo (MCP approvals "are recorded under the connected user's account") [H1]; Argos (creating a review needs a user token, not a project token) [A14] | An agent's approval is attributed to the human whose token it used. Neither product distinguishes an agent from the human. |
+
+### 9. Collaboration
+
+| Feature | Who has it | How it works |
+|---|---|---|
+| Comments pinned to a snapshot or a pixel | Argos ("comment on the exact pixel or line that changed", threads, key `C`) [A1]; Chromatic (threaded discussions attached to a snapshot) [C13] | A reviewer marks a spot on the image and writes a note. |
+| Draft reviews | Argos (comments collect in a private pending review and publish together, GitHub-style) [A1] | Avoids a stream of notifications. |
+| Request reviewers, default reviewers | Argos, Chromatic (UI Review with assigned and default reviewers, and a checklist of approved changes, resolved discussions and sign-offs) [C13] | Design review workflow. |
+| Roles, SSO, passkeys | Argos (roles, GitHub and SAML SSO, passkeys) | Account security for hosted review. |
+
+### 10. Performance
+
+| Feature | Who has it | How it works |
+|---|---|---|
+| Faster diff engine | odiff (Argos, Visual Regression Tracker); reg-cli 0.19 (Rust compiled to WebAssembly, 1.1x to 2.9x faster than its JavaScript version) [R1] | Matters for large images; at our ~1,200 small PNGs, capture dominates. |
+| Copy instead of recapture | Chromatic TurboSnap (copied snapshots billed at 0.2) [C11]; Happo (unchanged stories reuse the baseline report) [H2]; Argos (Nx or Turborepo cache restores snapshot files) [A13] | Unchanged stories are not rendered again. |
+| Fast results for session replay | Meticulous ("results delivered in under 120 seconds through parallelized test execution") [M1] | Not applicable to Storybook. |
+
+### 11. Storage
+
+| Feature | Who has it | How it works |
+|---|---|---|
+| Files in git | Playwright, Vitest, BackstopJS, Loki, Lost Pixel open-source mode | Simple; history grows with every accepted change. |
+| Git LFS | Any file-based tool | GitHub's current documentation: Free and Pro include 10 GiB of LFS storage and 10 GiB of bandwidth a month; **Team and Enterprise Cloud include 250 GiB of each**; Actions downloads count against bandwidth; with a $0 budget, LFS "is blocked for the rest of the calendar month" when the quota is exhausted; public and private repositories are treated the same [G3]. The graphty-org organisation is on the Team plan (`gh api orgs/graphty-org` returns plan `team`), so the 250 GiB figure applies. |
+| Object storage | reg-suit (S3, GCS), Visual Regression Tracker, Pixeleye (S3-compatible) | Needs a bucket and credentials. |
+| Vendor storage | Chromatic, Argos, Percy, Applitools, Happo | Included in the service. |
+| Smaller diff images | reg-cli (WebP diffs) [R1] | Diff artefacts only; baselines stay PNG. |
+
+### 12. Developer and agent tooling
+
+| Feature | Who has it | How it works |
+|---|---|---|
+| MCP server for review | Argos (remote server at `mcp.argos-ci.com`: list builds, inspect diffs, approve or reject, comment, ignore flaky changes; permissions by OAuth scope, for example `reviews:write`) [A14]; Happo (list comparisons for a SHA, inspect diffs, approve or reject, flag a flake) [H1]; BrowserStack for Percy (`fetchPercyChanges` summarises changes; `managePercyBuildApproval` approves or rejects) [PE5] | An agent reads diffs and can act on them. |
+| MCP server for component context | Chromatic (publishes a Storybook MCP server so agents reuse approved components) [C14] | Not about review; about generating UI. |
+| Agent skills and review prompts | Argos (`npx skills add https://argos-ci.com`; an `argos-pr-review` skill that summarises visual changes, compares them with the PR's intent, and suggests approve or request changes) [A15] | Argos' stated limit: agents "do not replace your team's ownership of review decisions". |
+| AI-written change summaries | Percy Visual Review Agent ("clear, interpretable summaries for every highlighted change"; filters "up to 40%" of changes as noise) [PE6] | A model narrates the diff for the reviewer. |
+| Local run before push | Chromatic Visual Tests addon (local builds on uncommitted code) [C8]; Playwright, Vitest, BackstopJS, Loki, reg-cli (all local by nature) | Catch changes before CI. |
+| Machine-readable results | reg-cli (`reg.json`, JUnit XML) [R1]; Playwright (JSON reporter); BackstopJS (JUnit, CI report); Argos (REST API, CLI JSON) | Scripts and agents consume results without scraping HTML. |
+
+## Security note: who can approve
+
+Several products and patterns let an agent approve, and this matters because agents in this
+repository run with the owner's GitHub credentials.
+
+- A GitHub Environment with required reviewers pauses a job until a reviewer approves, **but the
+  approval can also be given through the REST API**: `POST
+  /repos/{owner}/{repo}/actions/runs/{run_id}/pending_deployments`, callable by a required
+  reviewer with a classic token that has the `repo` scope [G4]. The GitHub CLI's token on the
+  owner's machine is such a token. An environment gate therefore proves "the owner's credentials
+  approved", not "the owner approved".
+- The environment option "prevent self-reviews" stops the person who triggered the run from
+  approving it [G2]. With the owner as the only reviewer, turning it on would lock the owner out of
+  runs the owner started.
+- Argos and Happo attribute an MCP or CLI approval to the human whose token was used [A14][H1];
+  neither can tell an agent from the human.
+- A mechanism that does need the human: an SSH signing key on a FIDO hardware authenticator
+  (`ed25519-sk`). "FIDO authenticators generally require the user to explicitly authorise
+  operations by touching or tapping them," unless the key was created with `no-touch-required`
+  [S1]. A CI check that verifies an approval record was signed by that specific key (with
+  `ssh-keygen -Y verify` and an allowed-signers file listing only it) would require a physical
+  touch per approval. Whether `ssh-keygen -Y verify` rejects a signature made without the
+  user-presence flag by default was not verified and should be tested before relying on it.
+
+## Suggested priority for our system
+
+The owner's list already fixes the P0s (web diff UI, accept and reject in the UI, baselines
+committed, CI, pre-push hook, multiple projects, review history tied to commits, no hosted server).
+Below are the features from other systems that are not on that list, or where the catalogue
+changes the argument.
+
+| Feature | Suggested tier | Reason |
+|---|---|---|
+| Modes (light and dark as separate named baselines) | P0 | compact-mantine and graphty already declare light and dark; without it half the coverage disappears. |
+| Opt a story out (`disableSnapshot`) | P0 | Stories already use it; honouring it is a few lines. |
+| Pinned rendering environment (one container image) | P0 | Every file-based tool depends on it; our fonts and SwiftShader make it mandatory. |
+| Ready signal plus retry-until-two-identical-captures | P0 | Playwright and Vitest both do it; it is the cheapest flake defence. |
+| Side by side, overlay, and flashing in the review UI | P0 for side by side and overlay; flashing P1 as the owner listed | Side by side and overlay are the minimum every tool ships; flashing is a small addition to the same page. |
+| Keyboard accept and reject, next and previous | P1 | Argos shows it is what makes reviewing hundreds of images fast. |
+| Group identical changes and accept the group | P1 | A theme-token change touches hundreds of compact-mantine stories; grouping by identical diff hash is cheap and turns 800 clicks into one. |
+| Per-change "ignore this exact diff" with a fingerprint | P2 | Useful once flakes appear; our measured run-to-run stability (998 of 999 identical) says not yet. |
+| Automatic flake detection by re-rendering | P1 | Capturing a changed story a second time before reporting it is cheap and removes most noise at review time. |
+| Affected-only capture that still yields a complete comparison | P1 | Argos' approach (cache or restore unchanged packages' images) fits Nx directly. |
+| Subset runs never become baselines | P0 once affected-only exists | Otherwise an affected-only run silently drops baselines. |
+| Summary check across packages | P1 | One required check name that survives adding a package. |
+| Links to the baseline and new live Storybooks | P1 as the owner listed | GitHub Pages already hosts the master Storybooks; the PR's build is a CI artifact. |
+| GitHub's native image diff on committed baselines | P0, free | Comes automatically with baselines in git; a second review surface at no cost. |
+| Baseline history per story (who accepted, which commit) | P0 | git log on the baseline file gives it for free when baselines are in git. |
+| Comments pinned to a pixel | P2 as the owner listed | Argos and Chromatic have it; it needs somewhere to store comments. |
+| MCP or CLI for agents to read diffs | P2 as the owner listed; a JSON result file (like `reg.json`) is P0 | A machine-readable result file is almost free and is what an MCP server would read later. |
+| Agent approval | Never | The owner's rule. The design must prevent it, not only omit it. |
+| Multiple browsers | P2 as the owner listed | Hosted tools do it with a render farm; for us it multiplies baselines. |
+| Perceptual or AI comparison | Not recommended | Deterministic pixel comparison is explainable and our captures are already stable. |
+| Alignment-aware diff (content shifted down) | P2 | Only improves the diff image; the pass or fail result is the same. |
+
+## Sources
+
+Read on 2026-09-27.
+
+Chromatic
+- [C1] https://www.chromatic.com/docs/branching-and-baselines/
+- [C2] https://www.chromatic.com/docs/diff-inspector/
+- [C3] https://www.chromatic.com/docs/threshold/
+- [C4] https://www.chromatic.com/docs/animations/
+- [C5] https://www.chromatic.com/docs/ignoring-elements/
+- [C6] https://www.chromatic.com/docs/modes/
+- [C7] https://www.chromatic.com/docs/flake-filter/
+- [C8] https://www.chromatic.com/docs/visual-tests-addon/
+- [C9] https://www.chromatic.com/docs/snapshots/
+- [C10] https://www.chromatic.com/docs/document/
+- [C11] https://www.chromatic.com/docs/turbosnap/
+- [C12] https://www.chromatic.com/docs/branching-and-baselines/ (baseline history section)
+- [C13] https://www.chromatic.com/docs/review/
+- [C14] https://www.chromatic.com/ai
+
+Argos
+- [A0] https://argos-ci.com/docs/llms.txt (index of every feature page)
+- [A1] https://argos-ci.com/docs/learn/review-workflow/review-a-build.md
+- [A2] https://argos-ci.com/docs/learn/platform-fundamentals/how-argos-detects-visual-differences.md
+- [A3] https://argos-ci.com/docs/learn/deployments.md
+- [A4] https://argos-ci.com/docs/learn/reliability-and-flakiness/flaky-tests/argos-helpers.md
+- [A5] https://argos-ci.com/docs/learn/reliability-and-flakiness/flaky-test-detection.md
+- [A6] https://argos-ci.com/docs/learn/reliability-and-flakiness/ignored-changes.md
+- [A7] https://argos-ci.com/docs/learn/platform-fundamentals/baseline-build.md
+- [A8] https://argos-ci.com/docs/learn/how-to-guides/visual-coverage/fallback-baselines.md
+- [A9] https://argos-ci.com/docs/learn/how-to-guides/ci-pipelines/subset-builds.md
+- [A10] https://argos-ci.com/docs/learn/platform-fundamentals/build-modes.md
+- [A11] https://argos-ci.com/docs/learn/review-workflow/summary-checks.md
+- [A12] https://argos-ci.com/docs/learn/how-to-guides/ci-pipelines/monorepos-setup.md
+- [A13] https://argos-ci.com/docs/learn/how-to-guides/ci-pipelines/cached-pipelines.md
+- [A14] https://argos-ci.com/docs/agents/mcp-server.md
+- [A15] https://argos-ci.com/docs/learn/review-workflow/review-builds-with-ai-agents.md
+
+Percy (BrowserStack)
+- [PE1] https://www.browserstack.com/docs/percy/visual-testing-workflows/baseline-management/git
+- [PE2] https://www.browserstack.com/percy/features/branching-and-merging
+- [PE3] https://www.browserstack.com/docs/percy/set-regions/overview
+- [PE4] https://www.browserstack.com/percy/features/build-review-and-approval
+- [PE5] https://www.browserstack.com/docs/browserstack-mcp-server/tools/percy
+- [PE6] https://www.browserstack.com/release-notes/en/introducing-percys-visual-review-agent-iqB3J3UT
+
+Applitools
+- [AP1] https://applitools.com/docs/eyes/sdks/storybook/core-concepts
+- [AP2] https://applitools.com/docs/eyes/concepts/reviewing-tests/test-maintenance
+
+Happo
+- [H1] https://happo.io/docs/mcp
+- [H2] https://docs.happo.io/docs/storybook
+- [H3] https://docs.happo.io/docs/spurious-diffs
+- [H4] https://github.com/happo/lcs-image-diff
+- [H5] https://docs.happo.io/docs/reviewing-diffs
+
+Playwright and Vitest
+- [P1] https://playwright.dev/docs/api/class-pageassertions#page-assertions-to-have-screenshot-1
+- [P2] https://playwright.dev/docs/test-cli
+- [P3] https://github.com/microsoft/playwright/issues/22425 (HTML report diff, actual, expected, side-by-side and slider views)
+- [P4] https://vitest.dev/api/browser/assertions#tomatchscreenshot
+
+Open-source tools
+- [R1] https://github.com/reg-viz/reg-cli (README, 0.19.0-rc3 released 2026-09-24)
+- [R2] https://github.com/reg-viz/reg-suit/tree/main/packages/reg-keygen-git-hash-plugin
+- [B1] https://github.com/garris/BackstopJS (README; npm `backstopjs` last modified 2024-09-07)
+- [LO1] https://github.com/oblador/loki (last release v0.35.1, 2024-08-27)
+- [L1] https://github.com/lost-pixel/lost-pixel (README, archived)
+- [L2] https://docs.lost-pixel.com/user-docs/recipes/lost-pixel-oss/automatic-baseline-update-pr
+- [V1] https://github.com/Visual-Regression-Tracker/Visual-Regression-Tracker (README; 5.8.0 released 2026-09-01)
+- [X1] https://github.com/pixeleye-io/pixeleye (README; last push 2025-09-29)
+- [M1] https://www.meticulous.ai/
+
+GitHub and OpenSSH
+- [G1] https://docs.github.com/en/repositories/working-with-files/using-files/working-with-non-code-files
+- [G2] https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments
+- [G3] https://docs.github.com/en/billing/concepts/product-billing/git-lfs
+- [G4] https://docs.github.com/en/rest/actions/workflow-runs#review-pending-deployments-for-a-workflow-run
+- [S1] https://man.openbsd.org/ssh-keygen

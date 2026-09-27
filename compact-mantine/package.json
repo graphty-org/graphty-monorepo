@@ -71,7 +71,7 @@
         "build-storybook": "storybook build",
         "lint": "eslint && tsc --noEmit -p tsconfig.json",
         "lint:fix": "eslint --fix",
-        "lint:knip": "cd .. && pnpm run lint:knip -- --workspace compact-mantine"
+        "lint:knip": "cd .. && ./tools/run-knip.sh --workspace compact-mantine"
     },
     "keywords": [
         "mantine",

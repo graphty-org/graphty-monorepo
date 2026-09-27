@@ -166,6 +166,29 @@ drawn by reservoir sampling in a second pass over the node's touched labels (the
 maximum replaces the pick with probability 1/k), so a node with one dominant label draws nothing and
 no candidate array is built. That also removes the shipped duplicate-candidate bias (section 3).
 
+How the stream is consumed is part of the contract, because it decides every partition. A refactor
+that changes any of the following changes results, and the golden test of section 8.2 fails:
+
+- **Seed.** `randomSeed` must be a finite integer, otherwise `RangeError`. The generator state is
+  `randomSeed >>> 0`, so seeds congruent modulo 2^32 give the same stream.
+- **Generator.** mulberry32; each call runs:
+
+    ```ts
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    ```
+
+- **Shuffle.** The queue starts as `0, 1, ..., n - 1`. For `i` from `n - 1` down to 1:
+  `j = Math.floor(rand() * (i + 1))`, swap slots `i` and `j`. That is n - 1 draws; none when n <= 1.
+- **Tie draw.** `touched` holds the labels in the order they were first seen while walking the
+  out-row, then (directed only) the in-row. Pass 1 finds `max`, the largest `acc` value. Pass 2
+  walks `touched` in order and counts the labels with `acc[c] === max`: the first one becomes the
+  pick with no draw; the k-th one (k >= 2) draws `rand()` and replaces the pick when
+  `rand() * k < 1`. The node's current label takes part like any other label; it gets no extra
+  weight and no priority.
+
 One seed gives one result, bit for bit, on every run and platform: the arithmetic is integer except
 the F64 weight sums, and those are summed in a fixed arc order.
 
@@ -176,32 +199,38 @@ flip a node between two dominant labels. The port therefore caps the work at `ma
 node visits (default `maxIterations` 100, as shipped), the same cap shape as the indexed Louvain's
 `maxVisitsPerNode` (`algorithms/src/indexed/louvain.ts:139-214`).
 
-- `converged` is `true` exactly when the queue emptied, i.e. every label is dominant.
+- `converged` is `true` exactly when every label is dominant at return. With a positive cap that is
+  exactly when the queue emptied.
 - `iterations` is `ceil(visits / n)`, the number of full-sweep equivalents, so the figure stays
   comparable with the shipped function's sweep count. It is 0 when `n` is 0.
-- `maxIterations: 0` returns the identity labelling (every node its own community) with
-  `converged: n === 0`, matching the GPU's `maxIterations: 0` identity.
-- `maxIterations` must be a non-negative integer, otherwise `RangeError`.
+- `maxIterations: 0` returns the identity labelling (every node its own community), matching the
+  GPU's `maxIterations: 0` identity. The identity is dominant only when no node has a
+  positive-weight neighbour (self-loops skipped), so `converged` is `true` for an empty or edgeless
+  snapshot, or one whose arcs all weigh 0, and `false` otherwise. The weight scan already walks
+  every arc, so this costs nothing extra.
+- `maxIterations` must be a non-negative integer, otherwise `RangeError`. `maxIterations * n` must
+  not exceed `Number.MAX_SAFE_INTEGER` (2^53 - 1), the largest visit count a number holds exactly;
+  above it, `RangeError`. No real graph reaches that bound.
 
 ## 3. Result semantics against the shipped function
 
 The shipped functions stay exactly as they are (section 6). This table is what a caller moving from
 `labelPropagation(graph, options)` to `indexed.labelPropagation(toSnapshot(graph), options)` sees.
 
-| Aspect                           | Shipped `labelPropagation`                                                                                                                                                                     | Port                                                                   | Why it differs                                                                                                                                                                                                   |
-| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Update order                     | Seeded shuffle, full sweep every iteration                                                                                                                                                     | Seeded shuffle once, then a queue of nodes whose neighbourhood changed | FLPA; same fixed-point guarantee, far fewer visits                                                                                                                                                               |
-| Stop rule                        | A sweep with no label change                                                                                                                                                                   | Queue empty (every label dominant), or the visit cap                   | The shipped rule never fires on tie-rich graphs because ties are redrawn every sweep (section 1); Raghavan's stop criterion is dominance, not "no change"                                                        |
-| Tie draw                         | Uniform over a candidate list in which the current label appears twice when it ties (label-propagation.ts:88-109), so it is kept with probability 2/(k+1); zero-weight arcs can add duplicates | Uniform over the dominant labels (reservoir sampling)                  | Shipped bias is a defect                                                                                                                                                                                         |
-| Random stream                    | `SeededRandom` (section 2.4)                                                                                                                                                                   | mulberry32                                                             | Shipped generator is not the LCG it claims; for the same `randomSeed` the two return different partitions on any graph with more than one valid answer                                                           |
-| Parallel edges                   | Last weight wins (`graphToMap` uses `Map.set`)                                                                                                                                                 | Summed                                                                 | Shipped behaviour is a defect; graphty-element already merges parallel edges with summed weights before it dispatches (`graphty-element/src/algorithms/Algorithm.ts:419-445`), so the element sees no difference |
-| Self-loops                       | Vote for the node's own label                                                                                                                                                                  | Ignored                                                                | Same graph as the GPU (section 2.3)                                                                                                                                                                              |
-| Directed graph                   | Out-neighbours only                                                                                                                                                                            | Out- and in-neighbours                                                 | NetworkX FLPA, igraph advice, the GPU; out-only labels circulate only within strongly connected components                                                                                                       |
-| Negative / NaN / infinite weight | Accepted silently                                                                                                                                                                              | `RangeError`                                                           | igraph's rule; a negative vote has no meaning here                                                                                                                                                               |
-| Label numbering                  | Dense, first-seen in node order                                                                                                                                                                | Dense, first-seen in node index order (`renumberPartition`)            | Same convention; `toSnapshot` keeps node order                                                                                                                                                                   |
-| `iterations`                     | Sweeps run                                                                                                                                                                                     | `ceil(visits / n)`                                                     | Comparable scale                                                                                                                                                                                                 |
-| Empty graph                      | `{ communities: empty, iterations: 0, converged: true }`                                                                                                                                       | `{ count: 0, iterations: 0, converged: true }`                         | Identical                                                                                                                                                                                                        |
-| Single node, isolated nodes      | Own community; `iterations: 1`, `converged: true` for an edgeless graph                                                                                                                        | Same                                                                   | Identical                                                                                                                                                                                                        |
+| Aspect                           | Shipped `labelPropagation`                                                                                                                                                                     | Port                                                                   | Why it differs                                                                                                                                                                                                                                                             |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Update order                     | Seeded shuffle, full sweep every iteration                                                                                                                                                     | Seeded shuffle once, then a queue of nodes whose neighbourhood changed | FLPA; same fixed-point guarantee, far fewer visits                                                                                                                                                                                                                         |
+| Stop rule                        | A sweep with no label change                                                                                                                                                                   | Queue empty (every label dominant), or the visit cap                   | The shipped rule never fires on tie-rich graphs because ties are redrawn every sweep (section 1); Raghavan's stop criterion is dominance, not "no change"                                                                                                                  |
+| Tie draw                         | Uniform over a candidate list in which the current label appears twice when it ties (label-propagation.ts:88-109), so it is kept with probability 2/(k+1); zero-weight arcs can add duplicates | Uniform over the dominant labels (reservoir sampling)                  | Shipped bias is a defect                                                                                                                                                                                                                                                   |
+| Random stream                    | `SeededRandom` (section 2.4)                                                                                                                                                                   | mulberry32                                                             | Shipped generator is not the LCG it claims; for the same `randomSeed` the two return different partitions on any graph with more than one valid answer                                                                                                                     |
+| Parallel edges                   | Cannot occur: the legacy `Graph` holds one edge per pair, and a repeated `addEdge` throws or, with `allowParallelEdges`, replaces the earlier edge (`algorithms/src/core/graph.ts:127-132`)    | Summed                                                                 | Only a snapshot built directly (`GraphBuilder`, graph-io) can carry parallel arcs, so `toSnapshot(graph)` never shows a difference; graphty-element merges parallel edges with summed weights before it dispatches (`graphty-element/src/algorithms/Algorithm.ts:419-445`) |
+| Self-loops                       | Vote for the node's own label                                                                                                                                                                  | Ignored                                                                | Same graph as the GPU (section 2.3)                                                                                                                                                                                                                                        |
+| Directed graph                   | Out-neighbours only                                                                                                                                                                            | Out- and in-neighbours                                                 | NetworkX FLPA, igraph advice, the GPU; out-only labels circulate only within strongly connected components                                                                                                                                                                 |
+| Negative / NaN / infinite weight | Accepted silently                                                                                                                                                                              | `RangeError`                                                           | igraph's rule; a negative vote has no meaning here                                                                                                                                                                                                                         |
+| Label numbering                  | Dense, first-seen in node order                                                                                                                                                                | Dense, first-seen in node index order (`renumberPartition`)            | Same convention; `toSnapshot` keeps node order                                                                                                                                                                                                                             |
+| `iterations`                     | Sweeps run                                                                                                                                                                                     | `ceil(visits / n)`                                                     | Comparable scale                                                                                                                                                                                                                                                           |
+| Empty graph                      | `{ communities: empty, iterations: 0, converged: true }`                                                                                                                                       | `{ count: 0, iterations: 0, converged: true }`                         | Identical                                                                                                                                                                                                                                                                  |
+| Single node, isolated nodes      | Own community; `iterations: 1`, `converged: true` for an edgeless graph                                                                                                                        | Same                                                                   | Identical                                                                                                                                                                                                                                                                  |
 
 **Identical** results are guaranteed only where the partition is determined by the graph: disjoint
 cliques (one community per clique), a complete graph (one community), isolated nodes (singletons).
@@ -212,15 +241,15 @@ Everywhere else both functions are randomised heuristics and the comparison is b
 
 All scratch space is allocated once per call; nothing is allocated per node or per arc.
 
-| Array     | Type, length                                 | Role                                                                              |
-| --------- | -------------------------------------------- | --------------------------------------------------------------------------------- |
-| `label`   | `Uint32Array(n)`                             | Current label per node, starts as the identity                                    |
-| `acc`     | `Float64Array(n)`                            | Summed weight per label for the node being visited                                |
-| `stamp`   | `Int32Array(n)`, filled with -1              | Visit number that last wrote `acc[c]`; replaces a clearing pass                   |
-| `touched` | `Uint32Array(n)`                             | Labels written during the current visit                                           |
-| `seen`    | `Int32Array(n)`, only when `weighted: false` | Visit number that last counted neighbour v, so each distinct neighbour votes once |
-| `queue`   | `Uint32Array(n + 1)` ring                    | Nodes waiting; `queued` keeps a node in it at most once, so n + 1 slots suffice   |
-| `queued`  | `Uint8Array(n)`                              | In-queue flag                                                                     |
+| Array     | Type, length                                   | Role                                                                              |
+| --------- | ---------------------------------------------- | --------------------------------------------------------------------------------- |
+| `label`   | `Uint32Array(n)`                               | Current label per node, starts as the identity                                    |
+| `acc`     | `Float64Array(n)`                              | Summed weight per label for the node being visited                                |
+| `stamp`   | `Float64Array(n)`, filled with -1              | Visit number that last wrote `acc[c]`; replaces a clearing pass                   |
+| `touched` | `Uint32Array(n)`                               | Labels written during the current visit                                           |
+| `seen`    | `Float64Array(n)`, only when `weighted: false` | Visit number that last counted neighbour v, so each distinct neighbour votes once |
+| `queue`   | `Uint32Array(n + 1)` ring                      | Nodes waiting; `queued` keeps a node in it at most once, so n + 1 slots suffice   |
+| `queued`  | `Uint8Array(n)`                                | In-queue flag                                                                     |
 
 This is the stamp / accumulator / touched-list idiom of the indexed Louvain's local move
 (`algorithms/src/indexed/louvain.ts:139-214`), igraph's dense `label_weights` with its
@@ -228,14 +257,14 @@ This is the stamp / accumulator / touched-list idiom of the indexed Louvain's lo
 a key list plus a full-size value array (`rak.hxx#L118-L139`, reported 15.8x faster than a map in
 Sahu 2023 section 4.1). A label is a node index, so `acc` is indexed directly with no hashing.
 
-The stamp is a signed `Int32Array` initialised to -1 and the visit counter starts at 0, so label 0
-is an ordinary label. GVE-LPA uses community id 0 as "none" (`if (c && c != d)`, `rak.hxx` line 298),
+The stamp is a `Float64Array` initialised to -1 and the visit counter starts at 0, so label 0 is an
+ordinary label. GVE-LPA uses community id 0 as "none" (`if (c && c != d)`, `rak.hxx` line 298),
 which means no vertex can ever adopt vertex 0's label; the port must not copy that.
 
-The visit counter is bounded by the cap `maxIterations * n`. It is stored in a plain number and
-compared against `Int32Array` entries, so the cap must stay below 2^31: with the default cap of 100
-that allows n up to about 21 million, and the port throws a `RangeError` for a larger
-`maxIterations * n` rather than wrapping.
+The visit counter is bounded by the cap `maxIterations * n` (at most 2^53 - 1, section 2.5), and a
+`Float64Array` stamp holds every such count exactly, so the stamp never wraps and never needs a
+reset. An `Int32Array` would halve the stamp's memory but would cap the default run at about 21
+million nodes, a limit the algorithm does not have.
 
 The result is `renumberPartition(label)` from `@graphty/graph-format`
 (`graph-format/src/snapshot/derived.ts:1155`) wrapped by `withGroups` from
@@ -301,8 +330,10 @@ Defects in the shipped functions, to be filed as separate issues (none is fixed 
    empty map every unseeded node gets label `-Infinity` and the whole graph becomes one community;
    with about 100k or more seeds the spread throws `RangeError`. It also returns labels without
    renumbering.
-6. `graphToMap` lets the last parallel edge's weight win instead of summing.
-7. `SeededRandom` loses precision above 2^53 and can return 1.0 (section 2.4).
+6. `SeededRandom` loses precision above 2^53 and can return 1.0 (section 2.4).
+
+Not a defect: the legacy functions never see a parallel edge, because the legacy `Graph` cannot hold
+one (section 3). That is the `Graph` data model, documented in `algorithms/src/core/graph.ts`.
 
 ## 7. Public API
 
@@ -373,30 +404,55 @@ File: `algorithms/test/unit/indexed/label-propagation.test.ts`.
 A test helper recomputes, from `s.edgeList()` (a different view than the CSR rows the port reads)
 and plain arrays, each node's summed weight per neighbour label under the conventions of section
 2.3, and asserts that the node's final label is at the maximum. Every `converged: true` result on
-every fixture must pass it. This is the paper's own correctness criterion (Raghavan section III;
+every fixture must pass it, including every entry of `directedFixtures()` and the random graphs of
+both fixture lists, for seeds 1..10. This is the paper's own correctness criterion (Raghavan section
+III;
 Traag and Subelj's maximality proof) and it does not depend on the RNG.
 
 ### 8.2 Fixtures and what each pins
 
-| Fixture                                                                                                                            | Pins                                                                                                                                            |
-| ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Empty snapshot                                                                                                                     | `count` 0, `iterations` 0, `converged` true, `groups()` empty                                                                                   |
-| Single node; edgeless graph of 5                                                                                                   | Singletons, `iterations` 1, `converged` true                                                                                                    |
-| Two triangles plus an isolated node                                                                                                | Labels exactly `[0,0,0,1,1,1,2]`                                                                                                                |
-| Complete graph K6; two disjoint five-cliques                                                                                       | One community per clique, for seeds 1..10                                                                                                       |
-| Self-loop on a node of a triangle; a self-loop-only node                                                                           | Result equals the same graph without the loop (same seed)                                                                                       |
-| Parallel edges: a node joined to A by two edges and to B by one                                                                    | Weighted: joins A on every seed. `weighted: false`: A and B tie                                                                                 |
-| Weighted: a node with arcs 3 to A, 1+1 to B                                                                                        | Joins A                                                                                                                                         |
-| Directed: two triangles T1 and T2 (arcs both ways), plus node x with a reciprocal pair to A in T1 and a single arc x->B to B in T2 | x counts A twice and B once, so it lands in T1's community on every seed; the dominance oracle, run on the symmetrised view, passes             |
-| Directed: two directed triangles, one arc per edge, one direction each                                                             | Same partition as the undirected triangles (in-arcs are read, so each node sees both neighbours)                                                |
-| Directed, `weighted: false`, reciprocal pair                                                                                       | Counts the pair once                                                                                                                            |
-| Zero-weight arcs only                                                                                                              | Node keeps its own label                                                                                                                        |
-| Negative, NaN, infinite weight                                                                                                     | `RangeError`; nothing written                                                                                                                   |
-| Even path of 1,000; star; complete bipartite K(3,4) (tie-heavy)                                                                    | `converged: true` on seeds 1..10 under the default cap, and the dominance oracle passes -- the case where the shipped function spins to its cap |
-| `maxIterations: 0`                                                                                                                 | Identity labelling, `converged: false` (n > 0)                                                                                                  |
-| `maxIterations: 1` on a 1,000-node random graph                                                                                    | Stops at `iterations` <= 1 with `converged: false`, and the cap is honoured exactly                                                             |
-| `maxIterations` negative or fractional; `maxIterations * n` >= 2^31                                                                | `RangeError`                                                                                                                                    |
-| Same seed twice; different seeds                                                                                                   | Bitwise identical labels; at least one differing partition across seeds 1..10 on the karate club                                                |
+| Fixture                                                                                                                            | Pins                                                                                                                                                                                                              |
+| ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Empty snapshot                                                                                                                     | `count` 0, `iterations` 0, `converged` true, `groups()` empty                                                                                                                                                     |
+| Single node; edgeless graph of 5                                                                                                   | Singletons, `iterations` 1, `converged` true                                                                                                                                                                      |
+| Two triangles plus an isolated node                                                                                                | Labels exactly `[0,0,0,1,1,1,2]`                                                                                                                                                                                  |
+| Complete graph K6; two disjoint five-cliques                                                                                       | One community per clique, for seeds 1..10                                                                                                                                                                         |
+| Self-loop on a node of a triangle; a self-loop-only node                                                                           | Result equals the same graph without the loop (same seed)                                                                                                                                                         |
+| Two five-cliques A and B; x joined to A's member a1 by two parallel edges and to B's member b1 by one                              | Weighted, seeds 1..10: each clique holds one label, `label(x) === label(a1)`, and the dominance oracle passes. `weighted: false`, seeds 1..50: x ends with A on some seeds and with B on others (the tie is real) |
+| The same two five-cliques; x with arc weight 3 to a1 and 1 + 1 to b1 and b2                                                        | Seeds 1..10: each clique holds one label, `label(x) === label(a1)`, and the dominance oracle passes                                                                                                               |
+| Directed: two triangles T1 and T2 (arcs both ways), plus node x with a reciprocal pair to A in T1 and a single arc x->B to B in T2 | x counts A twice and B once, so it lands in T1's community on every seed; the dominance oracle, run on the symmetrised view, passes                                                                               |
+| Directed: two directed triangles, one arc per edge, one direction each                                                             | Same partition as the undirected triangles (in-arcs are read, so each node sees both neighbours)                                                                                                                  |
+| Directed, `weighted: false`, reciprocal pair                                                                                       | Counts the pair once                                                                                                                                                                                              |
+| Zero-weight arcs only                                                                                                              | Node keeps its own label                                                                                                                                                                                          |
+| Negative, NaN, infinite weight                                                                                                     | `RangeError`; nothing written                                                                                                                                                                                     |
+| Even path of 1,000; star; complete bipartite K(3,4) (tie-heavy)                                                                    | `converged: true` on seeds 1..10 under the default cap, and the dominance oracle passes -- the case where the shipped function spins to its cap                                                                   |
+| `maxIterations: 0`                                                                                                                 | Identity labelling; `converged: false` when some node has a positive-weight neighbour, `true` on an edgeless or all-zero-weight graph                                                                             |
+| `maxIterations: 1` on a 1,000-node random graph                                                                                    | Stops at `iterations` <= 1 with `converged: false`, and the cap is honoured exactly                                                                                                                               |
+| `maxIterations` negative or fractional; `maxIterations * n` above 2^53 - 1; `randomSeed` fractional, NaN or infinite               | `RangeError`                                                                                                                                                                                                      |
+| Same seed twice; different seeds                                                                                                   | Bitwise identical labels; at least one differing partition across seeds 1..10 on the karate club                                                                                                                  |
+| Karate club, `randomSeed` 42                                                                                                       | Golden: the labels equal an array stored in the test, so a change to how the random stream is consumed (section 2.4) fails                                                                                        |
+| Reference FLPA (below) on the karate club, both random fixtures, and `directedFixtures()`, seeds 1..20                             | The port's labels equal the reference's exactly                                                                                                                                                                   |
+
+Why the cliques are five-cliques: in a triangle, a member a1 that x pulls with weight 3 (or two
+parallel edges) sees x's label outweigh its two triangle neighbours, so a valid end state splits the
+triangle, and a correct port fails a test that expects x to join the whole triangle. In a
+five-clique a1 sees 4 clique votes against x's 3, and a clique member can hold its label only while
+at least three of the five share it, so every end state keeps each clique whole. The cliques may
+still merge through x (about 1 seed in 100 in a simulation of these rules), so the tests assert
+`label(x) === label(a1)`, not that the cliques differ.
+
+**The reference FLPA pins the tie rule.** The test file carries a plain reference implementation
+(about 25 lines: `Map` accumulators, plain arrays, the neighbour lists read from `s.edgeList()`)
+that follows sections 2.1 and 2.4 literally, stream consumption included. The port must match it
+label for label. The tie rule is what separates FLPA from its alternatives, and none of the
+quality tests catch a wrong one: retention also ends with every label dominant, and it recovers the
+planted partition too. So the reference takes a `tieRule` argument that only the test sets, and
+the test also asserts that the "retain the current label when it is dominant" variant and the
+"current label counted twice" variant (the shipped bias) each differ from the port on at least one
+seed. That proves the fixtures reach a tie that involves the current label. In a simulation of
+these rules on the karate club, retention differed on 9 and double counting on 10 of seeds 1..10.
+A port that requeues only the out-row on a directed graph fails the equality on
+`directedFixtures()`.
 
 ### 8.3 Differential against the shipped function
 
@@ -429,10 +485,19 @@ checks the namespace and the flat type exports resolve.
 
 ## 9. Benchmark
 
-New script `algorithms/benchmarks/label-propagation-bench.ts`, run from `algorithms/` with
-`npx tsx benchmarks/label-propagation-bench.ts`. It is separate from `benchmarks/port-bench.ts`
-because that harness takes the minimum of consecutive runs of one side, while this one must
-interleave the two sides so the ratio survives background load on a shared machine.
+Two measurements, because they answer different questions.
+
+- **`benchmarks/port-bench.ts` gains label propagation rows**, the same `[name, legacy, ported]`
+  pattern and minimum-of-N protocol as the four ports PR #507 measured, so the cost record's
+  re-derivation uses one protocol for every row: "label propagation" (shipped against the port at
+  its defaults) and "label propagation, one sweep" (the port with `maxIterations: 1`, legacy side
+  empty). A `maxIterations: 1` run makes exactly n visits -- the whole shuffled initial queue -- so
+  it is one full-sweep equivalent. The first sweep is expected to be the costliest, because labels
+  are still diverse and each visit touches the most distinct labels.
+- **New script `algorithms/benchmarks/label-propagation-bench.ts`**, run from `algorithms/` with
+  `npx tsx benchmarks/label-propagation-bench.ts`, for the "vs shipped" story on a shared machine:
+  it interleaves the two sides so the ratio survives background load, which `port-bench.ts`'s
+  consecutive minima do not.
 
 - **Size ladder:** 1k, 10k, 100k and 1M nodes, undirected, 10 edges per node from the seeded LCG
   `port-bench.ts` uses -- the graphs the GPU cost record measured. The shipped function runs at
@@ -447,14 +512,30 @@ interleave the two sides so the ratio survives background load on a shared machi
   pass counts differ (the port visits only what changed), so a wall-time ratio alone would hide
   where the time went. No means.
 - **What it establishes:** the measured "vs shipped" ratio at each size, split into the tie-heavy
-  and structured tiers so the stop-rule effect is visible separately from the per-arc cost; and the
-  measured CPU port baseline that replaces the cost record's estimate. The record's GPU ratios
+  and structured tiers so the stop-rule effect is visible separately from the per-arc cost. The
+  cost record's port baseline comes from `port-bench.ts`, not from this script. The record's GPU
+  ratios
   compare against a synchronous, lowest-label kernel that does a different amount of work per
   answer (the GPU plan's rule for label propagation); the benchmark states which semantics each
   side ran.
-- **Follow-up in the same pull request:** re-derive the cost record's "label propagation vs a port"
-  row from the measured port, through the appendix B script of `tmp/gpu-cost-model/final-model.md`
-  with only the label propagation port baseline replaced, as PR #507 did for its four ports
-  (record lines 81-107). The re-derived row must say that the GPU model costs 100 synchronous
-  passes while the measured port ran to convergence in the sweep-equivalents the benchmark
-  reports, so the ratio compares a converged CPU answer with a capped GPU run.
+- **Follow-up in the same pull request: the cost record, like for like.** The GPU model costs 100
+  synchronous passes; the port at its defaults runs to convergence, often a few sweep-equivalents.
+  Feeding the converged time into the record would mostly measure the algorithm switch, not the
+  hardware, and could get the GPU label propagation dropped for the wrong reason. So the "label
+  propagation vs a port" row in the "Re-derived against the measured ports" table uses 100 times
+  the port's one-sweep minimum from `port-bench.ts` as the port baseline -- the same work the GPU
+  is costed at, and expected to overstate the CPU side, since later sweeps touch fewer labels.
+  It goes through the appendix B script of `tmp/gpu-cost-model/final-model.md` with only that
+  baseline replaced, as PR #507 did for its four ports (record lines 81-107). The converged
+  port's time goes on a separate "time to answer" line below the table, stating the
+  sweep-equivalents it ran, and is never used as a ratio in the table.
+
+## 10. Decisions
+
+- Tie-rule test: an exact match against a reference FLPA, with the retention and double-count
+  variants shown to differ, rather than a frequency test over many seeds. It is exact where a
+  frequency test is statistical, and it also pins the requeue rule and stream consumption.
+- Visit stamps are `Float64Array`, rather than an `Int32Array` reset when the counter nears 2^31. It
+  removes the size limit with no reset branch, which no test could reach without 2^31 visits.
+- `randomSeed` is validated as a finite integer, rather than coerced silently, so a fractional or
+  NaN seed is reported instead of quietly aliasing seed 0.

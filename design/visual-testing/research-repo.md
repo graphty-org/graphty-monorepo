@@ -12,13 +12,13 @@ be made to genuinely require the owner.
 
 ## 1. How each Storybook is built
 
-| Storybook | Directory | Storybook version | Builder | Build command | Local build size |
-|---|---|---|---|---|---|
-| graphty-element | `graphty-element/` | 9 (`@storybook/addon-vitest ^9.0.11`) | web components on Vite | `storybook build` | 16 MB |
-| graphty (the app) | `graphty/` | 9 (`storybook ^9.1.20`) | React on Vite | `storybook build` | 11 MB |
-| compact-mantine | `compact-mantine/` | 8 (`storybook ^8.6.12`) | React on Vite | `storybook build` | 9.9 MB |
-| algorithms | `algorithms/` | 9 (`@storybook/html-vite ^9.0.11`) | HTML on Vite | `storybook build` | 7.0 MB |
-| layout | `layout/` | 9 (`@storybook/html-vite ^9.0.11`) | HTML on Vite | `storybook build` | 7.5 MB |
+| Storybook         | Directory          | Storybook version                     | Builder                | Build command     | Local build size |
+| ----------------- | ------------------ | ------------------------------------- | ---------------------- | ----------------- | ---------------- |
+| graphty-element   | `graphty-element/` | 9 (`@storybook/addon-vitest ^9.0.11`) | web components on Vite | `storybook build` | 16 MB            |
+| graphty (the app) | `graphty/`         | 9 (`storybook ^9.1.20`)               | React on Vite          | `storybook build` | 11 MB            |
+| compact-mantine   | `compact-mantine/` | 8 (`storybook ^8.6.12`)               | React on Vite          | `storybook build` | 9.9 MB           |
+| algorithms        | `algorithms/`      | 9 (`@storybook/html-vite ^9.0.11`)    | HTML on Vite           | `storybook build` | 7.0 MB           |
+| layout            | `layout/`          | 9 (`@storybook/html-vite ^9.0.11`)    | HTML on Vite           | `storybook build` | 7.5 MB           |
 
 Sources: each package's `package.json` (`build-storybook` script; graphty-element line 160, graphty
 line 24, compact-mantine line 71, algorithms line 75, layout line 58); sizes from `du -sh` of the
@@ -45,8 +45,8 @@ All in `.github/workflows/ci.yml`.
   and `test-count` (lines 31-34). Any new job can gate on
   `contains(fromJSON(needs.build.outputs.affected), '<package>')`, exactly as the Chromatic jobs do
   (for example lines 520-523).
-  - What counts as "everything" is nx.json's `sharedGlobals`: a change to root configs, the
-    lockfile or any workflow file affects every project (comment at lines 59-63).
+    - What counts as "everything" is nx.json's `sharedGlobals`: a change to root configs, the
+      lockfile or any workflow file affects every project (comment at lines 59-63).
 - **All five Storybooks are built on every run, affected or not** (lines 167-180), because the
   Links job checks links into all of them. So a visual job for an affected package never has to
   build; it downloads.
@@ -96,14 +96,14 @@ All in `.github/workflows/ci.yml`.
   example an orphan `visual-review` branch, and the master deploy copies that branch into
   `/review/pr-<n>/`. The page then appears only after the next master deploy, which is too late for
   reviewing an open PR. Two workable alternatives:
-  1. A second public repository in the org (for example `graphty-org/visual-review`) whose Pages
-     site is published from a branch that the monorepo's CI pushes to on every PR run. Its site
-     lives at `https://graphty-org.github.io/visual-review/` or a subdomain such as
-     `review.graphty.app` (a new CNAME record). Its deploy is independent of master.
-  2. No Pages at all for the report: images on an orphan branch of this repository, linked from the
-     PR comment by `raw.githubusercontent.com` URLs (the repository is public), and a static HTML
-     report built so it can be opened straight from that branch through a raw-HTML viewer, or
-     downloaded as an artifact.
+    1. A second public repository in the org (for example `graphty-org/visual-review`) whose Pages
+       site is published from a branch that the monorepo's CI pushes to on every PR run. Its site
+       lives at `https://graphty-org.github.io/visual-review/` or a subdomain such as
+       `review.graphty.app` (a new CNAME record). Its deploy is independent of master.
+    2. No Pages at all for the report: images on an orphan branch of this repository, linked from the
+       PR comment by `raw.githubusercontent.com` URLs (the repository is public), and a static HTML
+       report built so it can be opened straight from that branch through a raw-HTML viewer, or
+       downloaded as an artifact.
 - **Pages limits** [G1]: published site at most 1 GB; source repository recommended at most 1 GB;
   soft bandwidth limit 100 GB a month; the soft limit of 10 builds per hour "does not apply if you
   build and publish your site with a custom GitHub Actions workflow"; a deploy times out after 10
@@ -176,11 +176,11 @@ and worktree scripts"):
   the user agent contains "Chromatic" **or the URL contains `chromatic=true`**. A capture tool can
   therefore add `&chromatic=true` to the iframe URL instead of faking a user agent, with no story
   change. It is used by:
-  - `graphty-element/.storybook/preview.ts:97-99`: a decorator sets
-    `layoutBehavior = { layout: { preSteps: 1000 } }` on every element that did not set its own.
-  - `graphty-element/stories/helpers.ts:324`: `preStepsHere()` returns a story's own pre-step count
-    under Chromatic and 0 otherwise.
-  - `graphty-element/stories/assertions.ts:508`: an assertion that is relaxed under Chromatic.
+    - `graphty-element/.storybook/preview.ts:97-99`: a decorator sets
+      `layoutBehavior = { layout: { preSteps: 1000 } }` on every element that did not set its own.
+    - `graphty-element/stories/helpers.ts:324`: `preStepsHere()` returns a story's own pre-step count
+      under Chromatic and 0 otherwise.
+    - `graphty-element/stories/assertions.ts:508`: an assertion that is relaxed under Chromatic.
 - **Settling.** `graphty-element/.storybook/preview.ts:34` defines `waitForGraphSettled`, and a
   global `play` (lines 122-124) waits for the element's `graph-settled` event. Storybook marks the
   story's render phase complete only after `play` finishes, so "render phase completed" already
@@ -204,13 +204,13 @@ and worktree scripts"):
 These are the only `chromatic` story parameters in the repository (grep of `*.ts`/`*.tsx`
 excluding `node_modules`). A replacement capture tool must honour each one.
 
-| Parameter | Where | Meaning to replicate |
-|---|---|---|
-| `modes: { light, dark }` | `compact-mantine/.storybook/preview.tsx:110-113` (global `theme`), `graphty/.storybook/preview.tsx:114-117` (global `colorScheme`) | capture every story twice, setting the named global through `&globals=...` |
-| `delay` | element preview 500 ms (`preview.ts:117-118`), algorithms and layout previews 300 ms (`preview.ts:22-24` in each), several graphty-element stories 500-1000 ms (`EdgeStyles.stories.ts:61`, `:955`, `:1273`, `:1513`, `:1750`), 800 ms in two algorithms stories | extra wait after render completes |
-| `pauseAnimationAtEnd: true` | graphty-element preview (`preview.ts:119`) | CSS animations jumped to their end state |
-| `disableSnapshot: true` | `PerformanceTest.stories.ts:24-25`, `LayoutGpu.stories.ts:355-356`, three algorithms stories (`FloydWarshall`, `BellmanFord`, `FordFulkerson`) and others in `LabelStyles.stories.ts` | skip the story |
-| `diffThreshold`, `diffIncludeAntiAliasing` | `Layout.stories.ts:212-215` (0.3), `:298-300` (0.8) | per-story tolerance on the comparison |
+| Parameter                                  | Where                                                                                                                                                                                                                                                            | Meaning to replicate                                                       |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `modes: { light, dark }`                   | `compact-mantine/.storybook/preview.tsx:110-113` (global `theme`), `graphty/.storybook/preview.tsx:114-117` (global `colorScheme`)                                                                                                                               | capture every story twice, setting the named global through `&globals=...` |
+| `delay`                                    | element preview 500 ms (`preview.ts:117-118`), algorithms and layout previews 300 ms (`preview.ts:22-24` in each), several graphty-element stories 500-1000 ms (`EdgeStyles.stories.ts:61`, `:955`, `:1273`, `:1513`, `:1750`), 800 ms in two algorithms stories | extra wait after render completes                                          |
+| `pauseAnimationAtEnd: true`                | graphty-element preview (`preview.ts:119`)                                                                                                                                                                                                                       | CSS animations jumped to their end state                                   |
+| `disableSnapshot: true`                    | `PerformanceTest.stories.ts:24-25`, `LayoutGpu.stories.ts:355-356`, three algorithms stories (`FloydWarshall`, `BellmanFord`, `FordFulkerson`) and others in `LabelStyles.stories.ts`                                                                            | skip the story                                                             |
+| `diffThreshold`, `diffIncludeAntiAliasing` | `Layout.stories.ts:212-215` (0.3), `:298-300` (0.8)                                                                                                                                                                                                              | per-story tolerance on the comparison                                      |
 
 Chromatic features the repository depends on beyond parameters: per-story accept/deny in its web
 app, per-branch baselines that follow merges, a PR status check (`exitZeroOnChanges: false` makes
@@ -281,19 +281,15 @@ What would genuinely require the owner:
 - **Git LFS allowances** [G5]: GitHub Free and Pro 10 GiB storage and 10 GiB bandwidth a month;
   **GitHub Team and Enterprise Cloud 250 GiB storage and 250 GiB bandwidth a month**. The org is
   on Team, so the 10 GiB figure in `chromatic-alternatives.md` was the wrong plan; the correct
-  allowance is 250 GiB.
-  - Downloads count against the repository owner's bandwidth "for both public and private
-    repositories", including GitHub Actions downloads [G5]. On a public repository, clones by
-    anyone, including forks' CI, spend the org's quota.
-  - With a $0 budget (the org has one): "You are not charged for overages, but Git LFS usage is
-    blocked for the rest of the calendar month" [G5]. Blocked LFS means checkouts get pointer files
-    instead of images, which would fail every visual job until the first of the month.
-  - Estimate: ~22 MB of baselines x ~800 CI checkouts a month is about 17 GB, 7% of the Team
-    allowance. Fetching only the affected package's baselines (`git lfs pull --include
-    <pkg>/visual-baselines/**`) and caching the LFS objects with `actions/cache` keyed on the
-    `.gitattributes`-tracked tree cuts it further. LFS is viable on Team; it was not on Free.
-  - `git lfs` is **not installed** on this development machine (`git: 'lfs' is not a git
-    command`). The repository has no LFS-tracked files today.
+  allowance is 250 GiB. - Downloads count against the repository owner's bandwidth "for both public and private
+  repositories", including GitHub Actions downloads [G5]. On a public repository, clones by
+  anyone, including forks' CI, spend the org's quota. - With a $0 budget (the org has one): "You are not charged for overages, but Git LFS usage is
+  blocked for the rest of the calendar month" [G5]. Blocked LFS means checkouts get pointer files
+  instead of images, which would fail every visual job until the first of the month. - Estimate: ~22 MB of baselines x ~800 CI checkouts a month is about 17 GB, 7% of the Team
+  allowance. Fetching only the affected package's baselines (`git lfs pull --include
+<pkg>/visual-baselines/**`) and caching the LFS objects with `actions/cache` keyed on the
+  `.gitattributes`-tracked tree cuts it further. LFS is viable on Team; it was not on Free. - `git lfs` is **not installed** on this development machine (`git: 'lfs' is not a git
+command`). The repository has no LFS-tracked files today.
 - **Plain git.** The packed repository is 89.5 MiB today (`git count-objects -vH`). 22 MB of
   baselines plus 10-45 KB per accepted image change is a modest addition; no quota, no bandwidth
   meter, no blocking at a limit. Pages' "source repositories" 1 GB recommendation [G1] does not

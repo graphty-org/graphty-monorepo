@@ -17,17 +17,17 @@ algorithms and 17 layout. Each Storybook was captured twice.
 
 ## Summary of choices
 
-| Part | Choice | Main reason |
-|---|---|---|
-| Capture | A Playwright script over each built Storybook's `index.json` | Works the same on Storybook 8 and 9, reuses CI's build artifacts, 1,198 captures in about 3 minutes |
-| Settling | Storybook's render phase, then the story's own play function; `?chromatic=true` in the URL | The existing `graph-settled` play function and pre-steps already make 998 of 999 captures identical |
-| Comparing | SHA-256 of the PNG bytes first; pixelmatch only on the files that differ | Hashing all 1,198 files takes 30 ms; almost every capture is byte-identical |
-| Image format | PNG as Chromium writes it | GitHub's pull request view diffs PNG (2-up, swipe, onion skin) and does not diff WebP |
-| Baseline storage | Plain git, next to each package | 14 MB packed today, about 13 KB per accepted image; Git LFS is viable on our plan but buys nothing |
-| Review UI | A static React single-page app, served locally through servherd, later also on GitHub Pages | No server to run; flashing and pixel highlighting computed in the browser |
-| Approval | A WebAuthn (hardware security key) signature over a manifest of accepted image hashes, verified in CI | A GitHub Environment approval can be given through the API with the credentials agents already hold |
-| History | JSON approval records committed next to the baselines | Travels with the code, readable with `git log`, verifiable offline |
-| MCP | A small stdio server over the same manifests and images | No new data; Claude reads exactly what the owner reviews |
+| Part             | Choice                                                                                                | Main reason                                                                                         |
+| ---------------- | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Capture          | A Playwright script over each built Storybook's `index.json`                                          | Works the same on Storybook 8 and 9, reuses CI's build artifacts, 1,198 captures in about 3 minutes |
+| Settling         | Storybook's render phase, then the story's own play function; `?chromatic=true` in the URL            | The existing `graph-settled` play function and pre-steps already make 998 of 999 captures identical |
+| Comparing        | SHA-256 of the PNG bytes first; pixelmatch only on the files that differ                              | Hashing all 1,198 files takes 30 ms; almost every capture is byte-identical                         |
+| Image format     | PNG as Chromium writes it                                                                             | GitHub's pull request view diffs PNG (2-up, swipe, onion skin) and does not diff WebP               |
+| Baseline storage | Plain git, next to each package                                                                       | 14 MB packed today, about 13 KB per accepted image; Git LFS is viable on our plan but buys nothing  |
+| Review UI        | A static React single-page app, served locally through servherd, later also on GitHub Pages           | No server to run; flashing and pixel highlighting computed in the browser                           |
+| Approval         | A WebAuthn (hardware security key) signature over a manifest of accepted image hashes, verified in CI | A GitHub Environment approval can be given through the API with the credentials agents already hold |
+| History          | JSON approval records committed next to the baselines                                                 | Travels with the code, readable with `git log`, verifiable offline                                  |
+| MCP              | A small stdio server over the same manifests and images                                               | No new data; Claude reads exactly what the owner reviews                                            |
 
 ## Capture
 
@@ -59,13 +59,13 @@ not against the build that ships. Revisit when the addon supports it officially.
 
 Workers are separate browser pages in one headless Chromium.
 
-| Storybook | Captures | Workers | Wall time | Per capture |
-|---|---|---|---|---|
-| graphty-element | 171 | 4 | 80 s, 77 s | median 1.49 s, 95th percentile 4.8 s, worst 8.9 s |
-| compact-mantine | 828 | 8 | 55 s, 49 s | median 0.53 s, 95th percentile 0.69 s |
-| graphty | 152 | 8 | 12 s | |
-| algorithms | 30 | 8 | 21 s | |
-| layout | 17 | 8 | 3 s | |
+| Storybook       | Captures | Workers | Wall time  | Per capture                                       |
+| --------------- | -------- | ------- | ---------- | ------------------------------------------------- |
+| graphty-element | 171      | 4       | 80 s, 77 s | median 1.49 s, 95th percentile 4.8 s, worst 8.9 s |
+| compact-mantine | 828      | 8       | 55 s, 49 s | median 0.53 s, 95th percentile 0.69 s             |
+| graphty         | 152      | 8       | 12 s       |                                                   |
+| algorithms      | 30       | 8       | 21 s       |                                                   |
+| layout          | 17       | 8       | 3 s        |                                                   |
 
 A standard GitHub-hosted runner for a public repository has 4 vCPUs, and SwiftShader renders on
 the CPU, so expect two to four times these wall times per project in CI. Running one job per
@@ -126,24 +126,24 @@ the merge base (same machine, so deterministic), and leave the baseline check to
 
 ### Measured
 
-| What | Time |
-|---|---|
-| SHA-256 of all 1,198 PNG files | 30 ms total |
-| Decode both PNGs with pngjs and run pixelmatch, 999 identical pairs | 25.3 s, of which 24.6 s is decoding |
-| Decode 1,198 PNGs with sharp (libvips) | 5.2 s |
-| 100 fully changed pairs (compact-mantine light versus dark), pngjs + pixelmatch, writing a diff image | 5.4 s (54 ms per pair) |
-| The same 100 pairs, odiff (native binary, one process per pair) | 2.4 s (24 ms per pair) |
-| The same 100 pairs, looks-same | 8.4 s (84 ms per pair) |
+| What                                                                                                  | Time                                |
+| ----------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| SHA-256 of all 1,198 PNG files                                                                        | 30 ms total                         |
+| Decode both PNGs with pngjs and run pixelmatch, 999 identical pairs                                   | 25.3 s, of which 24.6 s is decoding |
+| Decode 1,198 PNGs with sharp (libvips)                                                                | 5.2 s                               |
+| 100 fully changed pairs (compact-mantine light versus dark), pngjs + pixelmatch, writing a diff image | 5.4 s (54 ms per pair)              |
+| The same 100 pairs, odiff (native binary, one process per pair)                                       | 2.4 s (24 ms per pair)              |
+| The same 100 pairs, looks-same                                                                        | 8.4 s (84 ms per pair)              |
 
 On the one unstable story (1,080,000 pixels):
 
-| Engine and setting | Pixels reported changed |
-|---|---|
-| pixelmatch, threshold 0.1, anti-aliasing ignored (default) | 27,271 |
-| pixelmatch, threshold 0, anti-aliasing ignored | 30,693 |
-| pixelmatch, threshold 0.1, anti-aliasing counted | 41,590 |
-| odiff, threshold 0.1, anti-aliasing ignored | 26,719 (2.47%) |
-| looks-same, tolerance 2.3 | not equal; bounding box 157,110 to 630,873 |
+| Engine and setting                                         | Pixels reported changed                    |
+| ---------------------------------------------------------- | ------------------------------------------ |
+| pixelmatch, threshold 0.1, anti-aliasing ignored (default) | 27,271                                     |
+| pixelmatch, threshold 0, anti-aliasing ignored             | 30,693                                     |
+| pixelmatch, threshold 0.1, anti-aliasing counted           | 41,590                                     |
+| odiff, threshold 0.1, anti-aliasing ignored                | 26,719 (2.47%)                             |
+| looks-same, tolerance 2.3                                  | not equal; bounding box 157,110 to 630,873 |
 
 All three engines agree on what changed; they differ only at the edges.
 
@@ -171,12 +171,12 @@ All three engines agree on what changed; they differ only at the edges.
 
 Measured on a sample of 200 captures (every sixth file, across all five projects):
 
-| Format | Bytes | Relative | Encode time for 200 | Exact round trip |
-|---|---|---|---|---|
-| PNG as Chromium writes it | 3.97 MB | 100% | 0 | yes |
-| PNG through oxipng `-o 2 --strip safe` | 3.09 MB | 78% | 27.9 s | yes |
-| WebP lossless (sharp, effort 4) | 1.70 MB | 43% | 7.3 s | yes, pixel for pixel |
-| AVIF lossless (sharp, effort 4) | 4.08 MB | 103% | 396 s | yes |
+| Format                                 | Bytes   | Relative | Encode time for 200 | Exact round trip     |
+| -------------------------------------- | ------- | -------- | ------------------- | -------------------- |
+| PNG as Chromium writes it              | 3.97 MB | 100%     | 0                   | yes                  |
+| PNG through oxipng `-o 2 --strip safe` | 3.09 MB | 78%      | 27.9 s              | yes                  |
+| WebP lossless (sharp, effort 4)        | 1.70 MB | 43%      | 7.3 s               | yes, pixel for pixel |
+| AVIF lossless (sharp, effort 4)        | 4.08 MB | 103%     | 396 s               | yes                  |
 
 All 1,198 PNGs together are 19.4 MB (about 22 MB on disk, counting block size).
 
@@ -198,10 +198,10 @@ Recommendation: **keep Chromium's PNG unchanged.**
 A throwaway repository was seeded with all 1,198 captures, then ten "accept" commits each changed
 a 40 x 20 pixel region in 30 random images (300 accepted images), then `git gc --aggressive`:
 
-| Stored as | Packed size after seeding | After 300 accepted images | Growth per accepted image |
-|---|---|---|---|
-| PNG | 14.0 MB | 18.0 MB | about 13.5 KB |
-| WebP lossless | 6.7 MB | 8.7 MB | about 6.6 KB |
+| Stored as     | Packed size after seeding | After 300 accepted images | Growth per accepted image |
+| ------------- | ------------------------- | ------------------------- | ------------------------- |
+| PNG           | 14.0 MB                   | 18.0 MB                   | about 13.5 KB             |
+| WebP lossless | 6.7 MB                    | 8.7 MB                    | about 6.6 KB              |
 
 (The accepted PNGs in this test were re-encoded by sharp; Chromium's own PNGs would be a little
 larger.) Git's delta compression recovers about half of a changed PNG's size, and none of a WebP's.
@@ -212,14 +212,14 @@ year, to every full clone.
 
 ### Options
 
-| Option | CI cost | Merge-base comparison | Works offline | Verdict |
-|---|---|---|---|---|
-| Plain git, `<package>/visual-baselines/` | none; the checkout already has them | free: the PR's tree holds the baselines it branched from | yes | **Choose** |
-| Git LFS | about 20 MB of LFS bandwidth per CI checkout that fetches them | same as plain git | needs `git lfs` installed (it is not on the development server) | viable, no benefit yet |
-| Orphan baselines branch | a second fetch | lost; must be rebuilt by commit mapping | yes | only if clone size becomes a problem |
-| Separate repository | a second checkout, a second token | lost | yes | no |
-| GitHub release assets | API calls per file; no per-branch view | lost | no | no |
-| Actions artifacts or cache | free | lost; artifacts expire after at most 90 days, unused cache after 7 | no | for review bundles only, never baselines |
+| Option                                   | CI cost                                                        | Merge-base comparison                                              | Works offline                                                   | Verdict                                  |
+| ---------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------- | ---------------------------------------- |
+| Plain git, `<package>/visual-baselines/` | none; the checkout already has them                            | free: the PR's tree holds the baselines it branched from           | yes                                                             | **Choose**                               |
+| Git LFS                                  | about 20 MB of LFS bandwidth per CI checkout that fetches them | same as plain git                                                  | needs `git lfs` installed (it is not on the development server) | viable, no benefit yet                   |
+| Orphan baselines branch                  | a second fetch                                                 | lost; must be rebuilt by commit mapping                            | yes                                                             | only if clone size becomes a problem     |
+| Separate repository                      | a second checkout, a second token                              | lost                                                               | yes                                                             | no                                       |
+| GitHub release assets                    | API calls per file; no per-branch view                         | lost                                                               | no                                                              | no                                       |
+| Actions artifacts or cache               | free                                                           | lost; artifacts expire after at most 90 days, unused cache after 7 | no                                                              | for review bundles only, never baselines |
 
 Git LFS, verified against GitHub's current docs [7]: GitHub Free and Pro include 10 GiB of storage
 and 10 GiB of bandwidth a month; **GitHub Team and Enterprise Cloud include 250 GiB of each**.
@@ -269,20 +269,20 @@ measured runs that is a few hundred kilobytes; a full rebaseline of compact-mant
   compact-mantine components (the repository rule is to use the shared components, not bespoke
   ones). It reads a manifest and image URLs; it has no backend.
 - **Where it runs:**
-  - Locally through servherd (P0). A small companion script downloads the CI artifact for a pull
-    request, serves UI plus images, and, on accept, writes the accepted PNGs into the working tree
-    together with the signed approval record. The owner or an agent commits and pushes; that is
-    safe because CI verifies the signature, not who pushed.
-  - On GitHub Pages at a path under graphty.app (P1), reading the `visual-review` branch.
+    - Locally through servherd (P0). A small companion script downloads the CI artifact for a pull
+      request, serves UI plus images, and, on accept, writes the accepted PNGs into the working tree
+      together with the signed approval record. The owner or an agent commits and pushes; that is
+      safe because CI verifies the signature, not who pushed.
+    - On GitHub Pages at a path under graphty.app (P1), reading the `visual-review` branch.
 - **Views per changed story:** side by side, a slider, a diff overlay, and flashing.
-  - Flashing: two stacked `<img>` elements with a CSS animation toggling the top one's opacity
-    at 2 to 4 Hz, with a pause key. No JavaScript per frame.
-  - Pixel-level highlighting: decode both images into canvases and run pixelmatch in the browser
-    (about 20 to 50 ms for a 1200 x 900 pair) with `diffMask` and `diffColorAlt`, drawn on an
-    overlay canvas. Group changed pixels into boxes and draw an outline around each so a
-    three-pixel change is findable at full-page zoom (Chromatic's "spotlight"). Zoom with
-    `image-rendering: pixelated`.
-  - Because the highlight is computed client-side, CI does not need to store diff images at all.
+    - Flashing: two stacked `<img>` elements with a CSS animation toggling the top one's opacity
+      at 2 to 4 Hz, with a pause key. No JavaScript per frame.
+    - Pixel-level highlighting: decode both images into canvases and run pixelmatch in the browser
+      (about 20 to 50 ms for a 1200 x 900 pair) with `diffMask` and `diffColorAlt`, drawn on an
+      overlay canvas. Group changed pixels into boxes and draw an outline around each so a
+      three-pixel change is findable at full-page zoom (Chromatic's "spotlight"). Zoom with
+      `image-rendering: pixelated`.
+    - Because the highlight is computed client-side, CI does not need to store diff images at all.
 - **Keyboard-first:** next/previous change, accept, reject, toggle flash. With about 1,200
   captures the realistic review is tens of changes, not hundreds; bulk "accept all in this
   project" is still needed for an intended rebaseline and must produce one signature over the
@@ -315,9 +315,13 @@ The approval is a record committed next to the baselines:
 
 ```json
 {
-  "manifest": { "repo": "graphty-org/graphty-monorepo", "pr": 123, "head": "<commit>",
-                "accepted": [{ "story": "button--primary", "mode": "dark", "sha256": "<new png hash>" }] },
-  "webauthn": { "credentialId": "...", "authenticatorData": "...", "clientDataJSON": "...", "signature": "..." }
+    "manifest": {
+        "repo": "graphty-org/graphty-monorepo",
+        "pr": 123,
+        "head": "<commit>",
+        "accepted": [{ "story": "button--primary", "mode": "dark", "sha256": "<new png hash>" }]
+    },
+    "webauthn": { "credentialId": "...", "authenticatorData": "...", "clientDataJSON": "...", "signature": "..." }
 }
 ```
 
@@ -331,7 +335,7 @@ The approval is a record committed next to the baselines:
   file. CI then recaptures and requires the committed baseline to equal its own capture byte for
   byte, so an approved image is also a true render.
 - The verifier is about 15 lines of `node:crypto` (ES256 over `authenticatorData ||
-  SHA-256(clientDataJSON)`), no library needed.
+SHA-256(clientDataJSON)`), no library needed.
 
 Proven locally, not just argued: a Playwright script created a WebAuthn credential on a Chromium
 virtual authenticator, signed the SHA-256 of a sample manifest, and verified it offline with
@@ -367,29 +371,29 @@ WebAuthn details that constrain the design:
 - **Not guaranteed on its own:** an agent with administrator credentials can change the rules
   around the check -- edit the trusted-keys file or the verifier in a pull request and merge it,
   or remove the required status check from the ruleset. Two mitigations close most of that:
-  1. The verifier accepts a change to the trusted-keys file or to itself only when that change is
-     covered by a signature from a key trusted before the change. Run it from the base branch's
-     definition (a `pull_request_target` job that only reads files and never runs the PR's code),
-     so a pull request cannot swap in its own verifier.
-  2. The retrospective audit above runs on every push to master and in the pre-push hook, so a
-     bypass is discovered at the next run rather than never.
-  What remains is an administrator removing the required check and merging anyway. That is
-  visible in the ruleset history and the organisation audit log, and is detected by the audit,
-  but not prevented. Fully preventing it needs agents to run with a token that is not an
-  administrator's (for example a fine-grained token without administration permission), which is
-  a change to how agents are set up, outside this system.
+    1. The verifier accepts a change to the trusted-keys file or to itself only when that change is
+       covered by a signature from a key trusted before the change. Run it from the base branch's
+       definition (a `pull_request_target` job that only reads files and never runs the PR's code),
+       so a pull request cannot swap in its own verifier.
+    2. The retrospective audit above runs on every push to master and in the pre-push hook, so a
+       bypass is discovered at the next run rather than never.
+       What remains is an administrator removing the required check and merging anyway. That is
+       visible in the ruleset history and the organisation audit log, and is detected by the audit,
+       but not prevented. Fully preventing it needs agents to run with a token that is not an
+       administrator's (for example a fine-grained token without administration permission), which is
+       a change to how agents are set up, outside this system.
 - Adding a new signing key to the owner's GitHub account needs the `write:ssh_signing_key` or
   GPG-key scopes [12], which the agents' token does not have. This matters only if GitHub's own
   "verified" badge is ever used; the design above does not rely on it.
 
 ## History
 
-| Option | Where it lives | Visible on GitHub | Survives squash merge | Verdict |
-|---|---|---|---|---|
-| JSON approval records in `<package>/visual-baselines/approvals/` | the repository | yes, as files | yes, they are files | **Choose** |
-| git notes | `refs/notes/*` | no; GitHub stopped showing notes in 2014 [13] | no; notes attach to commits that a squash discards | no |
-| Pull request metadata (comments, reviews) | GitHub only | yes | yes | not offline, and forgeable by the agent's token |
-| A log on the `visual-review` branch | the repository | yes | yes | for rejections and comments, which need no signature |
+| Option                                                           | Where it lives | Visible on GitHub                             | Survives squash merge                              | Verdict                                              |
+| ---------------------------------------------------------------- | -------------- | --------------------------------------------- | -------------------------------------------------- | ---------------------------------------------------- |
+| JSON approval records in `<package>/visual-baselines/approvals/` | the repository | yes, as files                                 | yes, they are files                                | **Choose**                                           |
+| git notes                                                        | `refs/notes/*` | no; GitHub stopped showing notes in 2014 [13] | no; notes attach to commits that a squash discards | no                                                   |
+| Pull request metadata (comments, reviews)                        | GitHub only    | yes                                           | yes                                                | not offline, and forgeable by the agent's token      |
+| A log on the `visual-review` branch                              | the repository | yes                                           | yes                                                | for rejections and comments, which need no signature |
 
 Each approval record already names the pull request, the head commit, and every accepted image
 hash, so "who accepted this image and when" is `git log` on the baseline plus the record that

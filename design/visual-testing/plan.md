@@ -25,12 +25,12 @@ soon as its harness pull request (#519) merges: the review of #519 is its seed.
   Phases 6 and 7 need the owner and phase 4a only; phase 4b lands after the seed if the day runs
   short. Nothing in 4a is ever cut to make time.
 
-| Agent | Phases | Rough time |
-|---|---|---|
-| First | 1, then 2, then 5 once 3 is merged | 2 to 2.5 hours |
-| Second | 3 (capture) | 1.5 to 2 hours |
-| Third | 4a (serve, the page's core), then 4b (the page's extras) | 1.5 to 2 hours, then about 1 hour |
-| All, with the owner | 6 (seed), 7 (first real review) | about 1 hour, most of it CI and the owner's review |
+| Agent               | Phases                                                   | Rough time                                         |
+| ------------------- | -------------------------------------------------------- | -------------------------------------------------- |
+| First               | 1, then 2, then 5 once 3 is merged                       | 2 to 2.5 hours                                     |
+| Second              | 3 (capture)                                              | 1.5 to 2 hours                                     |
+| Third               | 4a (serve, the page's core), then 4b (the page's extras) | 1.5 to 2 hours, then about 1 hour                  |
+| All, with the owner | 6 (seed), 7 (first real review)                          | about 1 hour, most of it CI and the owner's review |
 
 Every phase is written test-first: the tests in "Tests first" are written and seen failing before
 the code. Every phase ends with `pnpm exec nx run visual-review:lint`,
@@ -42,19 +42,19 @@ checkout, never reset a shared branch, and never push to master.
 
 These keep milestone 1 small. Each is reversed in a later milestone without rework.
 
-| Decision | Why | Changed in |
-|---|---|---|
-| Capture runs as a `visual` job inside `ci.yml`, after the existing build job, reusing the Storybook artifacts it already uploads for all five projects | A `workflow_run` workflow only runs once it is on master, so the design's separate `storybooks.yml` and `visual.yml` could not be tested in the tooling pull request itself. Inside `ci.yml` the pull request's code could alter its own capture; that only matters once approval is enforced | Milestone 3 |
-| The capture job has `continue-on-error: true` | release.yml, deploy-pages.yml and coverage.yml gate on the CI run's overall conclusion, so without it a tool crash on master would block the release, the graphty.app deploy and coverage | Milestone 3, when capture moves to its own workflow and `continue-on-error` is dropped |
-| On pull requests only, "All Checks Pass" fails while a seeded project's `results.json` holds `changed`, `new`, `removed`, `unstable` or `failed` items, and passes when `results.json` is missing (a tool crash blocks nothing) | Without it, pull requests merge before the owner opens the page (about a dozen merged on 2026-09-27 alone), master drifts from its baselines, and every later pull request shows those changes as its own. An accept commit turns the items `unchanged`, so the check clears exactly when the owner presses Finish. It blocks unreviewed merges; it does not prove who reviewed, since an agent with the owner's credentials could press Accept (records stay `unproven`) | Milestone 3, when the signed "Visual review" check replaces it |
-| graphty-element is not seeded from master (`"seedFromMaster": false` in projects.json); the owner's review of #519 is its seed | design.md section 6: seeding before #519 (which deletes the 1,000-pre-step Chromatic decorator and pins the label font) gives baselines under a harness known to be unstable, and the owner would review about 171 images twice. The job still captures graphty-element (every item `new`) to measure its time on the runner | Milestone 1, when #519 merges |
-| `serve` listens on servherd's hostname over HTTPS, with a per-session token and an Origin check, not on 127.0.0.1 | The owner's browser is on another machine; the token and Origin check stop other network clients and cross-site requests. They do not stop a local agent, which is why records are `unproven` | Milestone 3 (`sign` runs on the owner's computer) |
-| Both projects are captured on every run | About 5 free CI minutes; affected-only planning is a separate piece of work | Milestone 2 |
-| Baselines are captured only in CI, on the `ubuntu-24.04` runner; no pinned font set yet | Only CI captures can be accepted, so every baseline comes from one environment. Pinned fonts matter once local captures must match CI | Milestone 2, as one planned re-baseline |
-| The comparison uses `pngjs`, already in the lockfile | The design wants the verifying code dependency-free, which matters only once it verifies signatures | Milestone 3 |
-| An accept writes an unsigned record marked `"unproven": true` | Signing needs hardware keys the owner has not bought yet | Milestone 3 |
-| Pull requests from forks are not supported by accept | Every waiting pull request is on this repository | Milestone 3 |
-| Viewport-only screenshots (1200 x 900) for both projects | A full-page capture can resize a Babylon canvas mid-frame; compact-mantine full height waits for a stability measurement | Milestone 2 |
+| Decision                                                                                                                                                                                                                                                                                            | Why                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Changed in                                                                             |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Capture runs as a `visual` job inside `ci.yml`, after the existing build job, reusing the Storybook artifacts it already uploads for all five projects                                                                                                                                              | A `workflow_run` workflow only runs once it is on master, so the design's separate `storybooks.yml` and `visual.yml` could not be tested in the tooling pull request itself. Inside `ci.yml` the pull request's code could alter its own capture; that only matters once approval is enforced                                                                                                                                                                             | Milestone 3                                                                            |
+| The capture job has `continue-on-error: true`                                                                                                                                                                                                                                                       | release.yml, deploy-pages.yml and coverage.yml gate on the CI run's overall conclusion, so without it a tool crash on master would block the release, the graphty.app deploy and coverage                                                                                                                                                                                                                                                                                 | Milestone 3, when capture moves to its own workflow and `continue-on-error` is dropped |
+| On pull requests only, "All Checks Pass" fails while a project with baselines on the base branch has, at the newest attempt of the run, a `results.json` holding `changed`, `new`, `removed`, `unstable` or `failed` items, or none at all, or an unfinished one (`visual-review/trusted/gate.mjs`) | Without it, pull requests merge before the owner opens the page (about a dozen merged on 2026-09-27 alone), master drifts from its baselines, and every later pull request shows those changes as its own. An accept commit turns the items `unchanged`, so the check clears exactly when the owner presses Finish. It blocks unreviewed merges; it does not prove who reviewed, since an agent with the owner's credentials could press Accept (records stay `unproven`) | Milestone 3, when the signed "Visual review" check replaces it                         |
+| graphty-element is not seeded from master (`"seedFromMaster": false` in projects.json); the owner's review of #519 is its seed                                                                                                                                                                      | design.md section 6: seeding before #519 (which deletes the 1,000-pre-step Chromatic decorator and pins the label font) gives baselines under a harness known to be unstable, and the owner would review about 171 images twice. The job still captures graphty-element (every item `new`) to measure its time on the runner                                                                                                                                              | Milestone 1, when #519 merges                                                          |
+| `serve` listens on servherd's hostname over HTTPS, with a per-session token and an Origin check, not on 127.0.0.1                                                                                                                                                                                   | The owner's browser is on another machine; the token and Origin check stop other network clients and cross-site requests. They do not stop a local agent, which is why records are `unproven`                                                                                                                                                                                                                                                                             | Milestone 3 (`sign` runs on the owner's computer)                                      |
+| Both projects are captured on every run                                                                                                                                                                                                                                                             | About 5 free CI minutes; affected-only planning is a separate piece of work                                                                                                                                                                                                                                                                                                                                                                                               | Milestone 2                                                                            |
+| Baselines are captured only in CI, on the `ubuntu-24.04` runner; no pinned font set yet                                                                                                                                                                                                             | Only CI captures can be accepted, so every baseline comes from one environment. Pinned fonts matter once local captures must match CI                                                                                                                                                                                                                                                                                                                                     | Milestone 2, as one planned re-baseline                                                |
+| The comparison uses `pngjs`, already in the lockfile                                                                                                                                                                                                                                                | The design wants the verifying code dependency-free, which matters only once it verifies signatures                                                                                                                                                                                                                                                                                                                                                                       | Milestone 3                                                                            |
+| An accept writes an unsigned record marked `"unproven": true`                                                                                                                                                                                                                                       | Signing needs hardware keys the owner has not bought yet                                                                                                                                                                                                                                                                                                                                                                                                                  | Milestone 3                                                                            |
+| Pull requests from forks are not supported by accept                                                                                                                                                                                                                                                | Every waiting pull request is on this repository                                                                                                                                                                                                                                                                                                                                                                                                                          | Milestone 3                                                                            |
+| Viewport-only screenshots (1200 x 900) for both projects                                                                                                                                                                                                                                            | A full-page capture can resize a Babylon canvas mid-frame; compact-mantine full height waits for a stability measurement                                                                                                                                                                                                                                                                                                                                                  | Milestone 2                                                                            |
 
 ### Files
 
@@ -93,20 +93,41 @@ The `trusted/` and `capture/` split follows `design.md` so nothing moves when si
 Written by capture, read by CI, the review page and later the MCP server:
 
 ```json
-{ "version": 1, "project": "compact-mantine",
-  "commit": "<sha the Storybook was built from>", "headSha": "<pull request head or null>",
-  "pr": 123, "runId": 987654, "runAttempt": 1, "local": null,
-  "seeded": true, "complete": true, "expected": 828,
-  "capturedAt": "2026-09-27T12:00:00Z",
-  "clock": { "start": "2026-01-01T12:00:00Z", "running": true },
-  "environment": { "chromium": "...", "renderer": "...", "gpu": false, "tool": "<sha>" },
-  "items": [
-    { "id": "button--primary", "mode": "dark", "file": "button--primary.dark.png",
-      "status": "changed", "flaky": false,
-      "baseline": "<sha256 or null>", "capture": "<sha256 or null>",
-      "size": [1200, 900], "baselineSize": [1200, 900],
-      "changedPixels": 412, "bbox": [10, 20, 90, 44],
-      "threshold": 0.063, "includeAA": false, "reason": null, "console": [] } ] }
+{
+    "version": 1,
+    "project": "compact-mantine",
+    "commit": "<sha the Storybook was built from>",
+    "headSha": "<pull request head or null>",
+    "pr": 123,
+    "runId": 987654,
+    "runAttempt": 1,
+    "local": null,
+    "seeded": true,
+    "complete": true,
+    "expected": 828,
+    "capturedAt": "2026-09-27T12:00:00Z",
+    "clock": { "start": "2026-01-01T12:00:00Z", "running": true },
+    "environment": { "chromium": "...", "renderer": "...", "gpu": false, "tool": "<sha>" },
+    "items": [
+        {
+            "id": "button--primary",
+            "mode": "dark",
+            "file": "button--primary.dark.png",
+            "status": "changed",
+            "flaky": false,
+            "baseline": "<sha256 or null>",
+            "capture": "<sha256 or null>",
+            "size": [1200, 900],
+            "baselineSize": [1200, 900],
+            "changedPixels": 412,
+            "bbox": [10, 20, 90, 44],
+            "threshold": 0.063,
+            "includeAA": false,
+            "reason": null,
+            "console": []
+        }
+    ]
+}
 ```
 
 `seeded` is true when the captured commit holds any baseline for the project. Capture rewrites
@@ -189,12 +210,12 @@ and `modes` from a story's `parameters.chromatic`, with a settings file in
 Chromium flags). For each story and mode:
 
 1. A fresh page at 1200 x 900, device scale factor 1, `TZ=UTC`, `page.clock.install({ time:
-   "2026-01-01T12:00:00Z" })` then `page.clock.resume()` before navigation, so time starts at a
+"2026-01-01T12:00:00Z" })` then `page.clock.resume()` before navigation, so time starts at a
    fixed instant but still advances. `setFixedTime` is not used: it freezes `Date.now()`, which
    hangs graphty-element's input playback (`InputManager.ts`) and recording
    (`MediaRecorderCapture.ts`), both of which measure elapsed time with it. Chromium flags
    `--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader --force-color-profile=srgb
-   --disable-lcd-text --font-render-hinting=none`. `chromatic=true` in the URL makes the existing
+--disable-lcd-text --font-render-hinting=none`. `chromatic=true` in the URL makes the existing
    `isChromatic()` calls return true, so graphty-element's layout pre-steps apply with no story
    change.
 2. Wait for `__STORYBOOK_PREVIEW__.currentRender.phase === "completed"` (it includes play
@@ -208,13 +229,14 @@ Chromium flags). For each story and mode:
 4. Wait the story's `delay`; screenshot with `animations: "disabled"` (matches
    `pauseAnimationAtEnd`) and `caret: "hide"`.
 
-   Parameters are read once per run, before any capture, from
-   `__STORYBOOK_PREVIEW__.extract()` (Storybook 9.1; it is what Chromatic reads too), not from each
-   story's current render: a story's modes decide which URLs to open, so they are needed before
-   the story is opened. The render counts as done at `completed` or any later phase (`afterEach`,
-   `finished`). Each worker has its own browser: every page of one browser shares its GPU process,
-   and with SwiftShader one busy WebGL page stalled the other workers' renders and screenshots for
-   minutes, past Playwright's own timeouts.
+    Parameters are read once per run, before any capture, from
+    `__STORYBOOK_PREVIEW__.extract()` (Storybook 9.1; it is what Chromatic reads too), not from each
+    story's current render: a story's modes decide which URLs to open, so they are needed before
+    the story is opened. The render counts as done at `completed` or any later phase (`afterEach`,
+    `finished`). Each worker has its own browser: every page of one browser shares its GPU process,
+    and with SwiftShader one busy WebGL page stalled the other workers' renders and screenshots for
+    minutes, past Playwright's own timeouts.
+
 5. Compare with phase 2. Every `changed` or `new` item is captured once more in a new browser
    context before it is classified.
 6. Write `results.json` (after every item, `complete: true` at the end), and copy only `changed`,
@@ -250,11 +272,11 @@ These local images are previews only and are never committed.
   `capture`; when a pull request's head has moved past the captured head ("capture is stale, wait
   for CI"; pull request targets only); when `origin/master` has a commit touching
   `visual-baselines/<project>/` that is not reachable from the captured head (`git merge-base
-  --is-ancestor`; "merge master into the branch first", since otherwise every accepted PNG is an
+--is-ancestor`; "merge master into the branch first", since otherwise every accepted PNG is an
   add/add conflict with master's); and when an item is `unstable` or `failed`. Exclude writes
   `{"disableSnapshot": true, "reason": ...}` to `<id>.json` and a record item for it. Accepting
   `removed` deletes the PNG. The generated commit message (`test(workspace): accept visual
-  baselines for #N`, `test(workspace): seed visual baselines` for master) passes the repository's
+baselines for #N`, `test(workspace): seed visual baselines` for master) passes the repository's
   commitlint config. With a failing `commit-msg`, `pre-commit` and `prepare-commit-msg` hook
   installed, accept still commits, and the commit is signed when signing is configured. When
   `git commit` fails, nothing is pushed, the decisions stay in state, and git's stderr is returned.
@@ -278,7 +300,7 @@ These local images are previews only and are never committed.
   go to a new branch `visual/seed-<date>` created at that run's `results.commit` (not at
   `origin/master`, so the branch holds exactly the captured tree), and a pull request titled
   `test(workspace): seed visual baselines`. Every call goes through `gh api` (and `gh run
-  download`), not `gh pr list`, `gh run list --commit` or `gh pr create`: the development server
+download`), not `gh pr list`, `gh run list --commit` or `gh pr create`: the development server
   has gh 2.4, which lacks those flags and most `--json` fields.
 - `trusted/lib/accept.mjs`: works in `.worktrees/visual-accept-<pr>` (`git worktree add --detach`
   at the captured head), never in the main checkout. The worktree has no `node_modules`, and the
@@ -356,18 +378,22 @@ attempt in the name avoids v4's same-name conflict on a re-run), and write count
 the job summary. The job exits non-zero only when the tool itself crashes; changes are not
 failures.
 
-"All Checks Pass" gets `visual` in its `needs` (its result is always success) and one step, only
-when `github.event_name == 'pull_request'`: download `visual-*-${{ github.run_attempt }}` and fail,
-naming the project and counts, when any `results.json` with `seeded: true` holds an item that is
-not `unchanged` or `excluded`. A missing or unseeded `results.json` passes. It never runs on
-master, so release, deploy and coverage are unaffected.
+"All Checks Pass" gets `visual` in its `needs` (its result is always success) and three steps, only
+when `github.event_name == 'pull_request'`: a sparse checkout of `visual-review/`, a download of
+every `visual-*` artifact of the run (all attempts), and `visual-review/trusted/gate.mjs`, which
+fetches the base branch tip's tree (no blobs) and, for every project with baseline PNGs there,
+fails, naming the project and counts, when the newest attempt's `results.json` holds an item that
+is not `unchanged` or `excluded`, or is missing or unfinished. An unseeded project passes. It never
+runs on master, so release, deploy and coverage are unaffected.
 
 **Done when.** The tooling pull request's own CI run shows both `visual` jobs green, each artifact
 holds a valid, complete `results.json` with every item `new` and `seeded: false`, "All Checks
 Pass" is green, and the wall time of each job (graphty-element's included, still under the
 1,000-pre-step decorator) is written in the pull request description. Two temporary commits,
-reverted before merge: one that makes capture throw leaves the run's conclusion `success`; one that
-commits a single compact-mantine baseline different from its capture makes "All Checks Pass" fail.
+reverted before merge: one that makes capture throw leaves the run's conclusion `success`. Because
+"seeded" is read from the base branch, a baseline planted in this pull request does not arm the
+gate; its logic is covered by `test/gate.test.mjs`, and the first pull request after the seed is
+its live check.
 
 ### Phase 6: seed compact-mantine (with the owner)
 
@@ -423,7 +449,7 @@ has no remaining Chromatic review to do for these two projects.
 ### Milestone 2: every project, and the local hook
 
 1. Affected-only planning: a `plan` step computes the projects to capture from `git diff
-   --name-only` against `inputs` globs in `projects.json`; an unknown path plans everything. Test:
+--name-only` against `inputs` globs in `projects.json`; an unknown path plans everything. Test:
    each project's `inputs` cover its Nx dependency closure.
 2. Pinned fonts: a committed font set and `fontconfig` file used by every capture; a check story
    that renders each font family, an emoji and the time. Then one planned re-baseline of both

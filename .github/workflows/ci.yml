@@ -904,7 +904,7 @@ jobs:
     # in visual-baselines/ (visual-review/, design in design/visual-testing/design.md). The owner reviews
     # the uploaded captures in the page `visual-review serve` runs on their machine; that page finds this
     # job by its name ("visual (<project>)") and the artifact by "visual-<project>-<attempt>" (the attempt
-    # avoids upload-artifact v4's same-name conflict on a re-run). Changes are never a failure here:
+    # avoids upload-artifact v4's same-name conflict on a re-run; readers take the highest attempt). Changes are never a failure here:
     # the job fails only when the tool itself crashes, and continue-on-error keeps even that from failing
     # the run, because release.yml, deploy-pages.yml and coverage.yml gate on the run's conclusion. What
     # blocks a pull request is the step in "All Checks Pass" that reads the results.
@@ -1030,35 +1030,32 @@ jobs:
                   fi
                   echo "All checks passed!"
 
-            # Until the owner has reviewed a pull request's visual changes, it does not merge: a seeded
-            # project (one with baselines in visual-baselines/) whose capture holds anything but
-            # unchanged or excluded items fails here. The owner's accept commit turns those items
-            # unchanged, so this clears when the owner presses Finish. A project with no baselines yet,
-            # or no results.json (capture crashed), blocks nothing. It shows that a review happened,
-            # not who did it. Pull requests only, so master's release, deploy and coverage never wait.
+            # Until the owner has reviewed a pull request's visual changes, it does not merge. A project
+            # with baselines on the base branch fails here when its newest capture (the highest attempt
+            # of this run, so "Re-run failed jobs" cannot skip it) holds anything but unchanged or
+            # excluded items, or when that capture is missing or unfinished. The owner's accept commit
+            # turns the items unchanged, so this clears when the owner presses Finish. It shows that a
+            # review happened, not who did it. Pull requests only, so master's release, deploy and
+            # coverage never wait. The logic is visual-review/trusted/gate.mjs (standard library only).
+            - name: Check out the gate
+              if: github.event_name == 'pull_request'
+              uses: actions/checkout@v4
+              with:
+                  sparse-checkout: visual-review
+
             - name: Download visual captures
               if: github.event_name == 'pull_request'
               continue-on-error: true
               uses: actions/download-artifact@v4
               with:
-                  pattern: visual-*-${{ github.run_attempt }}
+                  pattern: visual-*
                   path: ${{ runner.temp }}/visual
 
             - name: Check visual changes were reviewed
               if: github.event_name == 'pull_request'
+              env:
+                  BASE_REF: ${{ github.base_ref }}
               run: |
-                  if [[ ! -d "$RUNNER_TEMP/visual" ]]; then
-                      echo "No visual captures in this run."
-                      exit 0
-                  fi
-                  unreviewed=$(find "$RUNNER_TEMP/visual" -name results.json -exec jq -r 'select(.seeded)
-                      | .project as $p
-                      | [.items[].status | select(. != "unchanged" and . != "excluded")]
-                      | select(length > 0)
-                      | "\($p): " + (group_by(.) | map("\(length) \(.[0])") | join(", "))' {} +)
-                  if [[ -n "$unreviewed" ]]; then
-                      while IFS= read -r line; do echo "::error::visual changes not reviewed -- $line"; done <<<"$unreviewed"
-                      echo "Review them with visual-review serve (CLAUDE.md, \"Visual review\")."
-                      exit 1
-                  fi
-                  echo "No unreviewed visual changes."
+                  # Trees only: seeded is read from the base tip's file list, never its PNGs.
+                  git fetch -q --depth=1 --filter=blob:none --no-tags origin "$BASE_REF"
+                  node visual-review/trusted/gate.mjs --captures "$RUNNER_TEMP/visual" --base FETCH_HEAD

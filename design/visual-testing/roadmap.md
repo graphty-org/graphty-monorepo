@@ -25,33 +25,33 @@ other tools (Argos, Percy, Happo, Applitools, reg-cli, Playwright, BackstopJS) a
 `feature-analysis.md`. P0 is must have, P1 nice to have, P2 later. Where this roadmap moves an item
 from the owner's tier, the reason is given.
 
-| Feature | Owner | Recommended | Milestone | Reason for a change |
-|---|---|---|---|---|
-| Web diff UI | P0 | P0 | 1 | |
-| Accept and reject in the UI, with a reason | P0 | P0 | 1 | |
-| Baselines committed to git | P0, probably LFS | P0, plain git | 1 | See "Storage" below |
-| Run in CI | P0 | P0 | 1 blocks unreviewed merges, 3 requires a signed review | |
-| Run in the pre-push hook | P0 | P0 | 2 | Needs the pinned fonts first, or a local capture disagrees with CI |
-| Multiple projects | P0 | P0 | 1 (two), 2 (all five) | |
-| Review history tied to git hashes | P0 | P0 | 1 | |
-| ...and dirty state | P0 | answered by a rule | 1 | Only a CI capture of a pushed commit can be accepted; local captures are labelled as previews |
-| No hosted server | P0 | P0 | 1 | |
-| Only run changed projects (Nx affected) | P1 | P1 | 2 | Capturing both projects on every pull request costs a few free CI minutes |
-| Flashing between old and new | P1 | **P0** | 1 | A few lines, and canvas changes are often a few pixels |
-| Pixel-level highlighting | P1 | **P0** | 1 | Same reason |
-| Zoom, keyboard review, accept a whole project | -- | **P0** | 1 | The first review is about 1,000 images |
-| Capture twice; an unstable story cannot be accepted, only excluded with a reason | -- | **P0** | 1 | One unstable graphty-element story is already known; accepting it makes every later run fail |
-| Chromatic story parameters in use: light and dark modes, `delay`, `disableSnapshot`, `diffThreshold`, `diffIncludeAntiAliasing`, `pauseAnimationAtEnd`, and the `isChromatic()` signal | -- | P0 | 1 | This is the whole Chromatic surface the stories use |
-| Links to the baseline and new live Storybooks | P1 | P1 | 2 | |
-| Per-story history panel, "previously rejected" | -- | P1 | 2 | Records hold the data from milestone 1 |
-| Recapture failed or unstable stories from the UI | -- | P1 | 2 | |
-| Owner-only approval that an AI agent with the owner's credentials cannot forge | -- | **P0** | 3 | Agents here hold the owner's GitHub token and signing key; see "What approval proves" |
-| Compare any two built Storybooks (for example a past release against master) | -- | P1 | 4 | Already done by hand with `tools/diff-stories.mjs` |
-| Comments and annotations Claude can pick up | P2 | P2 | 5 | Reject reasons cover much of it from milestone 1 |
-| Optimise time, CPU and storage | P2 | P2, except hashing before pixel comparison | 1 (hashing), 5 | Hashing all captures takes milliseconds |
-| MCP server | P2 | P2 | 5 | Reads the same `results.json` everything else reads |
-| Other browsers | P2 | P2 | 5 | compact-mantine on WebKit first; it has no canvas |
-| Auto-approve, several reviewers, perceptual or AI diffing | -- | never | -- | Conflict with owner-only approval, or hide few-pixel changes |
+| Feature                                                                                                                                                                                | Owner            | Recommended                                | Milestone                                              | Reason for a change                                                                                                                                                  |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- | ------------------------------------------ | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Web diff UI                                                                                                                                                                            | P0               | P0                                         | 1                                                      |                                                                                                                                                                      |
+| Accept and reject in the UI, with a reason                                                                                                                                             | P0               | P0                                         | 1                                                      |                                                                                                                                                                      |
+| Baselines committed to git                                                                                                                                                             | P0, probably LFS | P0, plain git                              | 1                                                      | See "Storage" below                                                                                                                                                  |
+| Run in CI                                                                                                                                                                              | P0               | P0                                         | 1 blocks unreviewed merges, 3 requires a signed review |                                                                                                                                                                      |
+| Run in the pre-push hook                                                                                                                                                               | P0               | P0                                         | 2; milestone 1 has no pre-push visual check            | The blocking step checks review records, which are only worth checking once they are signed; the local capture needs the pinned fonts first, or it disagrees with CI |
+| Multiple projects                                                                                                                                                                      | P0               | P0                                         | 1 (two), 2 (all five)                                  |                                                                                                                                                                      |
+| Review history tied to git hashes                                                                                                                                                      | P0               | P0                                         | 1                                                      |                                                                                                                                                                      |
+| ...and dirty state                                                                                                                                                                     | P0               | answered by a rule                         | 1                                                      | Only a CI capture of a pushed commit can be accepted; local captures are labelled as previews                                                                        |
+| No hosted server                                                                                                                                                                       | P0               | P0                                         | 1                                                      |                                                                                                                                                                      |
+| Only run changed projects (Nx affected)                                                                                                                                                | P1               | P1                                         | 2                                                      | Capturing both projects on every pull request costs a few free CI minutes                                                                                            |
+| Flashing between old and new                                                                                                                                                           | P1               | **P0**                                     | 1                                                      | A few lines, and canvas changes are often a few pixels                                                                                                               |
+| Pixel-level highlighting                                                                                                                                                               | P1               | **P0**                                     | 1                                                      | Same reason                                                                                                                                                          |
+| Zoom, keyboard review, accept a whole project                                                                                                                                          | --               | **P0**                                     | 1                                                      | The first review is about 1,000 images                                                                                                                               |
+| Capture twice; an unstable story cannot be accepted, only excluded with a reason                                                                                                       | --               | **P0**                                     | 1                                                      | One unstable graphty-element story is already known; accepting it makes every later run fail                                                                         |
+| Chromatic story parameters in use: light and dark modes, `delay`, `disableSnapshot`, `diffThreshold`, `diffIncludeAntiAliasing`, `pauseAnimationAtEnd`, and the `isChromatic()` signal | --               | P0                                         | 1                                                      | This is the whole Chromatic surface the stories use                                                                                                                  |
+| Links to the baseline and new live Storybooks                                                                                                                                          | P1               | P1                                         | 2                                                      |                                                                                                                                                                      |
+| Per-story history panel, "previously rejected"                                                                                                                                         | --               | P1                                         | 2                                                      | Records hold the data from milestone 1                                                                                                                               |
+| Recapture failed or unstable stories from the UI                                                                                                                                       | --               | P1                                         | 2                                                      |                                                                                                                                                                      |
+| Owner-only approval that an AI agent with the owner's credentials cannot forge                                                                                                         | --               | **P0**                                     | 3                                                      | Agents here hold the owner's GitHub token and signing key; see "What approval proves"                                                                                |
+| Compare any two built Storybooks (for example a past release against master)                                                                                                           | --               | P1                                         | 4                                                      | Already done by hand with `tools/diff-stories.mjs`                                                                                                                   |
+| Comments and annotations Claude can pick up                                                                                                                                            | P2               | P2                                         | 5                                                      | Reject reasons cover much of it from milestone 1                                                                                                                     |
+| Optimise time, CPU and storage                                                                                                                                                         | P2               | P2, except hashing before pixel comparison | 1 (hashing), 5                                         | Hashing all captures takes milliseconds                                                                                                                              |
+| MCP server                                                                                                                                                                             | P2               | P2                                         | 5                                                      | Reads the same `results.json` everything else reads                                                                                                                  |
+| Other browsers                                                                                                                                                                         | P2               | P2                                         | 5                                                      | compact-mantine on WebKit first; it has no canvas                                                                                                                    |
+| Auto-approve, several reviewers, perceptual or AI diffing                                                                                                                              | --               | never                                      | --                                                     | Conflict with owner-only approval, or hide few-pixel changes                                                                                                         |
 
 ## Storage: plain git, not Git LFS (for now)
 
@@ -98,6 +98,12 @@ has unreviewed items, which blocks unreviewed merges but does not prove who revi
 projects; a review record per accept session in `visual-baselines/reviews/`, tied
 to the captured commit and CI run; dirty state answered by the "CI captures only" rule; no hosted
 server. Promoted from P1: flash and highlight.
+
+**Not in milestone 1.** No pre-push visual check: `tools/prepush.sh` runs only the package's own
+tests until milestone 2. A raised `diffThreshold` or a changed `delay` in a story's own parameters
+is not a review item until milestone 2 (a newly excluded story and a dropped mode are). The gate
+is inactive until the first baselines are committed on master. `design.md` section 1a lists
+everything milestone 1 does differently from the full design.
 
 **How it works.** A new private package, `visual-review/` (plain `.mjs`, no build step), holds the
 capture script, the comparison library, a vendored copy of pixelmatch and the review page. A
@@ -204,14 +210,14 @@ after it, reverting the removal commit.
 
 ## Cost
 
-| Item | Cost a month |
-|---|---|
-| Actions minutes on standard runners (public repository) | $0 |
-| Baselines and records in plain git | $0 |
-| Actions artifacts (results 30 days, Storybooks 1 day) | $0 expected; the organisation's $0 budget blocks rather than bills. Check the organisation's storage in billing after the first week |
-| Git LFS, hosted review site | not used |
-| Chromatic on the Free plan with no payment method | $0 |
-| **Total** | **$0**, plus two security keys once, before milestone 3 |
+| Item                                                    | Cost a month                                                                                                                         |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Actions minutes on standard runners (public repository) | $0                                                                                                                                   |
+| Baselines and records in plain git                      | $0                                                                                                                                   |
+| Actions artifacts (results 30 days, Storybooks 1 day)   | $0 expected; the organisation's $0 budget blocks rather than bills. Check the organisation's storage in billing after the first week |
+| Git LFS, hosted review site                             | not used                                                                                                                             |
+| Chromatic on the Free plan with no payment method       | $0                                                                                                                                   |
+| **Total**                                               | **$0**, plus two security keys once, before milestone 3                                                                              |
 
 The only path past $200 a month is turning a paid Chromatic plan back on. If this system ever
 proves too thin, the fallback is Argos Pro with its spend pause on, about $100 a month, fed by the

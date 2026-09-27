@@ -18,6 +18,11 @@ signature covers. Section 8 states exactly what this does and does not guarantee
 is that the Storybook being captured is built by pull request code, so a pull request can still
 hide a visual change from the capture, and that is detected only after it merges.
 
+Timing words map to `roadmap.md`'s milestones: "today" is milestone 1, "within days" milestone 2,
+"this week" milestone 3, "weeks two and three" milestone 4. Milestone 1 was built smaller than
+this document's target in several deliberate ways; section 1a lists what exists now, and where it
+and the rest of this document disagree, section 1a describes the code.
+
 The research behind the numbers is in the same folder: `chromatic-alternatives.md` (options and
 measurements), `feature-analysis.md` (every candidate feature with its tier), `research-chromatic-use.md`
 (what we use from Chromatic, with file references), `research-other-systems.md`, `research-repo.md`
@@ -25,18 +30,69 @@ measurements), `feature-analysis.md` (every candidate feature with its tier), `r
 
 ## 1. Summary
 
-| Part | Choice |
-|---|---|
-| Code | A new private workspace package, `@graphty/visual-review` in `visual-review/`, written as plain `.mjs` with no build step. `trusted/` holds verify, audit, sign, serve, compare and the review page, using only node built-ins, `git`, `gh`, `ssh-keygen` and a vendored copy of pixelmatch, under a line budget the owner can read. `capture/` adds Playwright. It absorbs `tools/diff-stories.mjs` and `tools/pixel-diff.mjs`. |
-| Capture | Runs in `visual.yml`, a workflow that runs master's code after a new `storybooks.yml` workflow has built the pull request's Storybooks, never the pull request's code. Playwright and Chromium with SwiftShader open each story at 1200 x 900, with `&chromatic=true` and a frozen clock. The pull request's JavaScript runs only inside Chromium. |
-| Compare | SHA-256 of the PNG first; pixelmatch only on files whose bytes differ. Every differing story is captured a second time in a fresh browser context, which separates real changes, unstable stories and one-off flakes. |
-| Baselines | PNG files in plain git (not Git LFS), in a root `visual-baselines/<project>/` directory that belongs to no Nx project, with one settings file per story that is the source of truth for its capture settings. About 16 MB for the first two projects; WebP or LFS may be needed within the first year (section 7). |
-| Approval | Today: an unsigned record marked "unproven", written from the review page on the development server. This week: `visual-review sign` on the owner's own computer, from a pinned commit, shows every before and after image and signs the record with `ssh-keygen -Y sign` and an `ed25519-sk` security key (touch and PIN). Rejects are never signed. |
-| Records | One JSON file per review session in `visual-baselines/reviews/`, covering every project reviewed in it, committed with the images, and recording the capture environment. |
-| Pull request check | A "Visual review" status posted by `visual.yml`. Advisory at first; required once enforcement starts. |
-| Audit | `visual-review audit` flags every baseline or protected-file change on master that no valid signature covers. The owner runs it from a root commit they recorded outside the repository; `visual-audit.yml`, which `release.yml` waits for, runs it on every master push together with a drift capture. |
-| Pre-push | Blocks on a baseline change without a valid signature (seconds). A capture comparison is opt-in until measured. |
-| Cost | $0 a month. Two FIDO2 security keys (about $25 to $60 each, once) are needed before signing starts. |
+| Part               | Choice                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Code               | A new private workspace package, `@graphty/visual-review` in `visual-review/`, written as plain `.mjs` with no build step. `trusted/` holds verify, audit, sign, serve, compare and the review page, using only node built-ins, `git`, `gh`, `ssh-keygen` and a vendored copy of pixelmatch, under a line budget the owner can read. `capture/` adds Playwright. It absorbs `tools/diff-stories.mjs` and `tools/pixel-diff.mjs`. |
+| Capture            | Runs in `visual.yml`, a workflow that runs master's code after a new `storybooks.yml` workflow has built the pull request's Storybooks, never the pull request's code. Playwright and Chromium with SwiftShader open each story at 1200 x 900, with `&chromatic=true` and a frozen clock. The pull request's JavaScript runs only inside Chromium.                                                                               |
+| Compare            | SHA-256 of the PNG first; pixelmatch only on files whose bytes differ. Every differing story is captured a second time in a fresh browser context, which separates real changes, unstable stories and one-off flakes.                                                                                                                                                                                                            |
+| Baselines          | PNG files in plain git (not Git LFS), in a root `visual-baselines/<project>/` directory that belongs to no Nx project, with one settings file per story that is the source of truth for its capture settings. About 16 MB for the first two projects; WebP or LFS may be needed within the first year (section 7).                                                                                                               |
+| Approval           | Today: an unsigned record marked "unproven", written from the review page on the development server. This week: `visual-review sign` on the owner's own computer, from a pinned commit, shows every before and after image and signs the record with `ssh-keygen -Y sign` and an `ed25519-sk` security key (touch and PIN). Rejects are never signed.                                                                            |
+| Records            | One JSON file per review session in `visual-baselines/reviews/`, covering every project reviewed in it, committed with the images, and recording the capture environment.                                                                                                                                                                                                                                                        |
+| Pull request check | A "Visual review" status posted by `visual.yml`. Advisory at first; required once enforcement starts.                                                                                                                                                                                                                                                                                                                            |
+| Audit              | `visual-review audit` flags every baseline or protected-file change on master that no valid signature covers. The owner runs it from a root commit they recorded outside the repository; `visual-audit.yml`, which `release.yml` waits for, runs it on every master push together with a drift capture.                                                                                                                          |
+| Pre-push           | Blocks on a baseline change without a valid signature (seconds). A capture comparison is opt-in until measured.                                                                                                                                                                                                                                                                                                                  |
+| Cost               | $0 a month. Two FIDO2 security keys (about $25 to $60 each, once) are needed before signing starts.                                                                                                                                                                                                                                                                                                                              |
+
+## 1a. Milestone 1 as built
+
+What is in the repository today, where it differs from the target above. `plan.md`, "Decisions
+for this milestone", gives the reason for each.
+
+- **Capture is a `visual` job in `.github/workflows/ci.yml`**, one per project (compact-mantine and
+  graphty-element), after the existing build job and using the Storybooks it uploads. There is no
+  `storybooks.yml` or `visual.yml` yet. So the pull request's own code runs the capture, including
+  `visual-review/capture/` and `ci.yml` itself: a pull request could change how it is captured or
+  judged, and only code review would notice. That ends in milestone 3.
+- **The merge gate blocks.** On pull requests the "All Checks Pass" job runs
+  `visual-review/trusted/gate.mjs`. For every project that has baseline PNGs on the base branch it
+  reads the newest attempt's `results.json` of this CI run, and fails when that capture holds any
+  item other than `unchanged` or `excluded`, or is missing or unfinished. "Seeded" is read from
+  the base branch, so deleting a project's baselines in the pull request does not switch the gate
+  off; the newest attempt is used, so "Re-run failed jobs" cannot skip it. The owner's accept
+  commit turns the items `unchanged`, which clears it. It shows that a review happened, not who
+  did it, and it lives in `ci.yml`, which the pull request controls. Master pushes are not gated,
+  and the `visual` job has `continue-on-error: true`, so a capture crash never fails master's run
+  (release, deploy and coverage wait on it); on a pull request a crash blocks through the gate.
+- **The gate is inactive until the first baselines are on master.** No `visual-baselines/`
+  directory exists yet, so no project is seeded and nothing is blocked.
+- **`trusted/` has one dependency**, `pngjs`, for decoding PNGs in the comparison. The
+  dependency-free rule matters once `trusted/` verifies signatures (milestone 3).
+- **No pinned fonts.** Captures use the CI runner's system fonts. The clock starts at a fixed
+  instant and keeps running. Pinned fonts arrive in milestone 2 as one planned re-baseline.
+- **No pre-push visual step.** `tools/prepush.sh` runs only the visual-review package's own tests.
+  The signature check and the opt-in local capture arrive in milestone 2.
+- **Every pull request captures both projects.** Affected-only planning is milestone 2.
+- **Story parameters are read on every capture.** A story's `parameters.chromatic`
+  (`disableSnapshot`, `diffThreshold`, `diffIncludeAntiAliasing`, `delay`, `modes`) applies, with
+  the story's settings file in `visual-baselines/<project>/<id>.json` taking precedence where one
+  exists. A story newly excluded by its own parameters while it still has a baseline is reported
+  as `removed`, with that reason, so it blocks until the owner decides; a dropped mode is reported
+  as `removed` the same way. **A raised `diffThreshold`, a new `diffIncludeAntiAliasing` or a
+  changed `delay` in a story's parameters is not a review item in milestone 1.** CLAUDE.md forbids
+  agents to change these parameters; milestone 2 makes the settings file the source of truth and
+  milestone 3 puts it under signing.
+- **WebGPU is removed from every captured page** (`navigator.gpu` is deleted before any page
+  script runs), so graphty-element always takes its CPU path. No Chromium switch hides WebGPU.
+- **A failed capture is retried once** in a fresh browser context before it is reported `failed`.
+- **Records are `"unproven": true`.** An agent holding the owner's credentials could press Accept.
+- **Rejects are one pull request comment** with a machine-readable block; nothing is committed.
+- **Tests.** The unit tests cover `trusted/lib/`, `trusted/gate.mjs` and `capture/capture.mjs`
+  (against a stand-in Storybook) under the 80/75 thresholds. The review page is driven in Chromium
+  by `test/page.test.mjs`, but browser code is not counted in coverage, and `trusted/cli.mjs` is
+  only argument parsing around them. The CI workflow semantics (the gate across attempts,
+  `continue-on-error`) are proven only by a run of the pull request itself.
+
+The owner's guide to reviewing is `visual-review/README.md`.
 
 ## 2. Goals and non-goals
 
@@ -69,38 +125,38 @@ systems (Argos, Percy, Happo, Applitools, reg-cli, Playwright, BackstopJS, Visua
 Tracker, GitHub) are analysed row by row in `feature-analysis.md`. This table is the result, with
 the changes from the owner's tiers explained.
 
-| Feature | Owner | Recommended | When | Why the change, if any |
-|---|---|---|---|---|
-| Web diff UI | P0 | P0 | today | |
-| Accept and reject in the UI, with a reason | P0 | P0 | today | The reason is the history's "why" |
-| Baselines committed to git | P0 (probably LFS) | P0, plain git | today | See section 7: LFS adds failure modes and is not needed at seed size; revisit within the year |
-| Run in CI | P0 | P0 | today (advisory), this week (required) | |
-| Pre-push hook | P0 | P0: signature check blocks; capture comparison opt-in | within days | A local capture can only block once it matches CI byte for byte |
-| Multiple projects | P0 | P0 | compact-mantine today, graphty-element once its harness fix merges, the rest within days | |
-| History tied to git hashes | P0 | P0 as records today; a per-story history panel P1 | today, panel within days | The records hold the data; the panel only reads them |
-| ...and dirty state | P0 (question) | answered by a rule | today | Only CI captures of a pushed commit can be accepted (section 9) |
-| No hosted server | P0 | P0 | today | Review runs on the development server today and on the owner's computer from this week; nothing is hosted |
-| Affected-only runs | P1 | P1, delivered today | today | Planned by master's rules, not the pull request's Nx settings (section 12) |
-| Flashing | P1 | **P0** | today | A few lines; graphty-element's canvas changes are often a few pixels |
-| Pixel highlighting | P1 | **P0** | today | Same reason |
-| Zoom to the change, keyboard review | -- | **P0** | today | A few lines each; few-pixel changes are invisible without zoom |
-| Exclude a flaky story with a reason | -- | **P0** | today | One flaky story among about 1,000 would otherwise block the seed |
-| Links to baseline and new live Storybooks | P1 | P1 | within days | |
-| Comments Claude can pick up | P2 | P2 | later | Reject reasons cover much of it, as untrusted data (section 8) |
-| Optimise time, CPU, storage | P2 | P2, except hash-before-pixels at P0 | today (hashing) | Hashing all 1,198 captures takes 30 ms |
-| MCP server | P2 | P2; the machine-readable `results.json` it reads is **P0** | later | Everything reads that file: the UI, CI, pre-push |
-| Other browsers | P2 | P2 | later | Start with compact-mantine on WebKit, which has no canvas |
-| Owner-only approval an agent cannot forge (no vendor has this) | -- | **P0** | unproven records today, signed and enforced this week | Agents here hold the owner's GitHub token and signing key |
-| Accept a whole project at once, progress count | -- | P0 | today | The seed is about 1,000 images |
-| Light and dark modes, `delay`, `disableSnapshot`, `diffThreshold`, `diffIncludeAntiAliasing`, `pauseAnimationAtEnd` (Chromatic parameters in use) | -- | P0 | today | Five story parameters are the whole story-level surface we use |
-| The `isChromatic()` signal | -- | P0 | today | Physics layouts pre-step and a label animation stops; `&chromatic=true` in the URL keeps it working |
-| Settings changes are review items | -- | P0 | today | A raised threshold or a new `disableSnapshot` changes what is checked |
-| Retrospective audit from a pinned root | -- | P0 | this week | The only check an agent cannot rewrite (section 8) |
-| Modes grouped per story, pull request context on the review screens | -- | P1 | within days | Halves the key presses on compact-mantine; shows whether a diff is intended |
-| Recapture of failed and unstable stories, re-apply after a rebase | -- | P1 | within days | Without them one timeout blocks a clean pull request |
-| Compare any two built Storybooks (for example the last 1.x release against master) | -- | P1 | week two | A real past need (issue #518); `diff-stories.mjs` already does it |
-| Hosted review site, group identical changes, mask regions, full history page, WebP baselines, alignment-aware diff, agent review summary | -- | P2 | later | |
-| Auto-approve, multiple reviewers, perceptual diffing, agent approval | -- | never | -- | Conflict with owner-only acceptance or hide real changes |
+| Feature                                                                                                                                           | Owner             | Recommended                                                | When                                                                                                                 | Why the change, if any                                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Web diff UI                                                                                                                                       | P0                | P0                                                         | today                                                                                                                |                                                                                                                              |
+| Accept and reject in the UI, with a reason                                                                                                        | P0                | P0                                                         | today                                                                                                                | The reason is the history's "why"                                                                                            |
+| Baselines committed to git                                                                                                                        | P0 (probably LFS) | P0, plain git                                              | today                                                                                                                | See section 7: LFS adds failure modes and is not needed at seed size; revisit within the year                                |
+| Run in CI                                                                                                                                         | P0                | P0                                                         | today (blocks unreviewed merges, proves nothing about who), this week (signed and required)                          |                                                                                                                              |
+| Pre-push hook                                                                                                                                     | P0                | P0: signature check blocks; capture comparison opt-in      | within days; today there is no pre-push visual step                                                                  | A local capture can only block once it matches CI byte for byte, which needs the pinned fonts                                |
+| Multiple projects                                                                                                                                 | P0                | P0                                                         | compact-mantine today, graphty-element once its harness fix merges, the rest within days                             |                                                                                                                              |
+| History tied to git hashes                                                                                                                        | P0                | P0 as records today; a per-story history panel P1          | today, panel within days                                                                                             | The records hold the data; the panel only reads them                                                                         |
+| ...and dirty state                                                                                                                                | P0 (question)     | answered by a rule                                         | today                                                                                                                | Only CI captures of a pushed commit can be accepted (section 9)                                                              |
+| No hosted server                                                                                                                                  | P0                | P0                                                         | today                                                                                                                | Review runs on the development server today and on the owner's computer from this week; nothing is hosted                    |
+| Affected-only runs                                                                                                                                | P1                | P1                                                         | within days                                                                                                          | Planned by master's rules, not the pull request's Nx settings (section 12); both projects cost a few free minutes until then |
+| Flashing                                                                                                                                          | P1                | **P0**                                                     | today                                                                                                                | A few lines; graphty-element's canvas changes are often a few pixels                                                         |
+| Pixel highlighting                                                                                                                                | P1                | **P0**                                                     | today                                                                                                                | Same reason                                                                                                                  |
+| Zoom to the change, keyboard review                                                                                                               | --                | **P0**                                                     | today                                                                                                                | A few lines each; few-pixel changes are invisible without zoom                                                               |
+| Exclude a flaky story with a reason                                                                                                               | --                | **P0**                                                     | today                                                                                                                | One flaky story among about 1,000 would otherwise block the seed                                                             |
+| Links to baseline and new live Storybooks                                                                                                         | P1                | P1                                                         | within days                                                                                                          |                                                                                                                              |
+| Comments Claude can pick up                                                                                                                       | P2                | P2                                                         | later                                                                                                                | Reject reasons cover much of it, as untrusted data (section 8)                                                               |
+| Optimise time, CPU, storage                                                                                                                       | P2                | P2, except hash-before-pixels at P0                        | today (hashing)                                                                                                      | Hashing all 1,198 captures takes 30 ms                                                                                       |
+| MCP server                                                                                                                                        | P2                | P2; the machine-readable `results.json` it reads is **P0** | later                                                                                                                | Everything reads that file: the UI, CI, pre-push                                                                             |
+| Other browsers                                                                                                                                    | P2                | P2                                                         | later                                                                                                                | Start with compact-mantine on WebKit, which has no canvas                                                                    |
+| Owner-only approval an agent cannot forge (no vendor has this)                                                                                    | --                | **P0**                                                     | unproven records today, signed and enforced this week                                                                | Agents here hold the owner's GitHub token and signing key                                                                    |
+| Accept a whole project at once, progress count                                                                                                    | --                | P0                                                         | today                                                                                                                | The seed is about 1,000 images                                                                                               |
+| Light and dark modes, `delay`, `disableSnapshot`, `diffThreshold`, `diffIncludeAntiAliasing`, `pauseAnimationAtEnd` (Chromatic parameters in use) | --                | P0                                                         | today                                                                                                                | Five story parameters are the whole story-level surface we use                                                               |
+| The `isChromatic()` signal                                                                                                                        | --                | P0                                                         | today                                                                                                                | Physics layouts pre-step and a label animation stops; `&chromatic=true` in the URL keeps it working                          |
+| Settings changes are review items                                                                                                                 | --                | P0                                                         | today for a newly excluded story or a dropped mode; within days for thresholds, anti-aliasing and delay (section 1a) | A raised threshold or a new `disableSnapshot` changes what is checked                                                        |
+| Retrospective audit from a pinned root                                                                                                            | --                | P0                                                         | this week                                                                                                            | The only check an agent cannot rewrite (section 8)                                                                           |
+| Modes grouped per story, pull request context on the review screens                                                                               | --                | P1                                                         | within days                                                                                                          | Halves the key presses on compact-mantine; shows whether a diff is intended                                                  |
+| Recapture of failed and unstable stories, re-apply after a rebase                                                                                 | --                | P1                                                         | within days                                                                                                          | Without them one timeout blocks a clean pull request                                                                         |
+| Compare any two built Storybooks (for example the last 1.x release against master)                                                                | --                | P1                                                         | week two                                                                                                             | A real past need (issue #518); `diff-stories.mjs` already does it                                                            |
+| Hosted review site, group identical changes, mask regions, full history page, WebP baselines, alignment-aware diff, agent review summary          | --                | P2                                                         | later                                                                                                                |                                                                                                                              |
+| Auto-approve, multiple reviewers, perceptual diffing, agent approval                                                                              | --                | never                                                      | --                                                                                                                   | Conflict with owner-only acceptance or hide real changes                                                                     |
 
 ## 4. Architecture
 
@@ -193,7 +249,8 @@ canonical JSON, so the on-disk layout does not matter.
 **Why no dependencies in `trusted/`.** `verify` and `audit` decide what counts as signed. If they
 ran on `node_modules` installed from the root lockfile, any merged pull request could change a
 resolved dependency and weaken the check without touching a protected path. `trusted/` runs with
-`node` alone, in the workflows and on the owner's computer.
+`node` alone, in the workflows and on the owner's computer. (Milestone 1's comparison still
+imports `pngjs`; see section 1a.)
 
 **Settings files are the source of truth.** A story's parameters are only the default written
 when the story is first captured. A later change to those parameters is proposed as a settings
@@ -245,9 +302,11 @@ that environment, so every measurement is rerun under them before a seed.
    timer-driven state such as Mantine Transition phases; if those flake, compact-mantine's preview
    sets Mantine's transition durations to 0 when `chromatic=true`.
 7. **Chromium flags:** `--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader
-   --force-color-profile=srgb --disable-lcd-text --font-render-hinting=none`, matching
-   `tools/diff-stories.mjs`. WebGPU stays off, so every story takes graphty-element's CPU path the
-   same way on every host. `TZ=UTC`, `LANG=en_US.UTF-8`.
+--force-color-profile=srgb --disable-lcd-text --font-render-hinting=none`, matching
+   `tools/diff-stories.mjs`. No Chromium switch hides WebGPU (`navigator.gpu` stays defined, and
+   whether an adapter request fails differs by host), so capture deletes `navigator.gpu` in an init
+   script before any page script runs. Every story then takes graphty-element's CPU path the same
+   way on every host. `TZ=UTC`, `LANG=en_US.UTF-8`.
 8. **Pinned environment.** The `ubuntu-24.04` runner label, and the exact `playwright-core`
    version in `visual-review/package.json`, bumped only by a deliberate upkeep pull request
    (quarterly), independent of other lockfile changes. The browser directory is restored from a
@@ -314,15 +373,15 @@ Two more measurements run in parallel and never block a seed:
    with a fixed checkerboard. The padded area counts as changed, and the item carries both sizes.
 4. **Second capture.** Every item that differs from its baseline, and every new item, is captured
    again in a new browser context. With the same pixelmatch rule:
-   - both captures agree and differ from the baseline: `changed` (or `new`);
-   - the two disagree and neither equals the baseline: `unstable`. It cannot be accepted, since
-     the next run could capture the other image. The owner resolves it with **Exclude with
-     reason**, which writes `disableSnapshot: true` and the reason to the settings file as an
-     ordinary settings item, or the story is fixed and recaptured;
-   - one differs and the other equals the baseline, and that baseline and settings file are
-     unchanged in this pull request: `flaky`. It passes the gate, is not a review item, and adds
-     one to that story's flake count in the weekly issue. A story over three flakes in a week gets
-     its own issue.
+    - both captures agree and differ from the baseline: `changed` (or `new`);
+    - the two disagree and neither equals the baseline: `unstable`. It cannot be accepted, since
+      the next run could capture the other image. The owner resolves it with **Exclude with
+      reason**, which writes `disableSnapshot: true` and the reason to the settings file as an
+      ordinary settings item, or the story is fixed and recaptured;
+    - one differs and the other equals the baseline, and that baseline and settings file are
+      unchanged in this pull request: `flaky`. It passes the gate, is not a review item, and adds
+      one to that story's flake count in the weekly issue. A story over three flakes in a week gets
+      its own issue.
 5. **Failed items** (an errored render, a settle timeout) are never acceptable. They are resolved
    by a recapture (section 10), by fixing the story, or by Exclude with reason.
 6. **Two comparisons.** Each item is compared with the baseline in the merged tree (the gate: is
@@ -339,13 +398,13 @@ Two more measurements run in parallel and never block a seed:
 
 ### Storage and its size over a year
 
-| What | Where | Size | Retention |
-|---|---|---|---|
-| Baselines | monorepo, plain git | graphty-element 7.4 MB (171 images) and compact-mantine 8.9 MB (828), measured: about 16 MB. algorithms, layout and graphty (75 stories, light and dark, full height) are not yet measured; estimate 22 to 26 MB for all five | forever |
-| Review records | monorepo | about 1 to 2 KB a session; a seed manifest about 250 KB | forever |
-| `visual-results-<project>` | Actions artifact, `results.json` only | a few KB | 90 days |
-| `visual-<project>` | Actions artifact, PNGs of differing and new items only | small | 30 days |
-| Storybook artifacts | Actions artifacts from `storybooks.yml` | 7 to 16 MB each | 7 days on pull requests, 1 on master |
+| What                       | Where                                                  | Size                                                                                                                                                                                                                          | Retention                            |
+| -------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| Baselines                  | monorepo, plain git                                    | graphty-element 7.4 MB (171 images) and compact-mantine 8.9 MB (828), measured: about 16 MB. algorithms, layout and graphty (75 stories, light and dark, full height) are not yet measured; estimate 22 to 26 MB for all five | forever                              |
+| Review records             | monorepo                                               | about 1 to 2 KB a session; a seed manifest about 250 KB                                                                                                                                                                       | forever                              |
+| `visual-results-<project>` | Actions artifact, `results.json` only                  | a few KB                                                                                                                                                                                                                      | 90 days                              |
+| `visual-<project>`         | Actions artifact, PNGs of differing and new items only | small                                                                                                                                                                                                                         | 30 days                              |
+| Storybook artifacts        | Actions artifacts from `storybooks.yml`                | 7 to 16 MB each                                                                                                                                                                                                               | 7 days on pull requests, 1 on master |
 
 **Growth.** The earlier growth test changed small regions and let git's deltas recover half, which
 is not how these baselines change: a canvas re-render or a Chromium bump changes whole frames, and
@@ -427,19 +486,42 @@ that has both, so an image review never includes a tool diff.
 ### The record
 
 ```json
-{ "version": 1, "pr": 123,
-  "subject": { "builtMerge": "<sha>", "base": "<sha>", "head": "<sha>", "mergedTree": "<sha>",
-               "baseTip": "<sha>", "runId": 987654,
-               "environment": { "chromium": "...", "renderer": "...", "gpu": false,
-                                "cpu": "...", "fonts": "<sha256>", "tool": "<sha>" } },
-  "notOpened": 3,
-  "items": [
-    { "path": "visual-baselines/compact-mantine/button--primary.dark.png",
-      "from": "<sha256 on the base tip, or null>", "to": "<sha256, or null for a removal>",
-      "reason": "new focus ring" },
-    { "path": "visual-baselines/graphty-element/chart--line.json",
-      "from": "<sha256>", "to": "<sha256>", "reason": "exclude: settle timeout under load" } ],
-  "reviewedAt": "2026-09-27T12:00:00Z" }
+{
+    "version": 1,
+    "pr": 123,
+    "subject": {
+        "builtMerge": "<sha>",
+        "base": "<sha>",
+        "head": "<sha>",
+        "mergedTree": "<sha>",
+        "baseTip": "<sha>",
+        "runId": 987654,
+        "environment": {
+            "chromium": "...",
+            "renderer": "...",
+            "gpu": false,
+            "cpu": "...",
+            "fonts": "<sha256>",
+            "tool": "<sha>"
+        }
+    },
+    "notOpened": 3,
+    "items": [
+        {
+            "path": "visual-baselines/compact-mantine/button--primary.dark.png",
+            "from": "<sha256 on the base tip, or null>",
+            "to": "<sha256, or null for a removal>",
+            "reason": "new focus ring"
+        },
+        {
+            "path": "visual-baselines/graphty-element/chart--line.json",
+            "from": "<sha256>",
+            "to": "<sha256>",
+            "reason": "exclude: settle timeout under load"
+        }
+    ],
+    "reviewedAt": "2026-09-27T12:00:00Z"
+}
 ```
 
 - Every item is an accept. The signature, in the `.sig` file beside the record, covers the
@@ -596,6 +678,9 @@ change signed since, was read by the owner and is honest; and while the owner si
 their computer has no agent with a shell, no computer use and no Claude in Chrome session.
 
 **Before signing starts (today):** nothing is guaranteed against an agent. Accepts are "unproven".
+A pull request can also loosen its own check without a review item by raising a story's
+`diffThreshold` or `delay` in its parameters, or by editing the gate in `ci.yml` (section 1a);
+only code review and the CLAUDE.md rules stand in the way until milestone 3.
 The seed manifest replaces them all with one signed record at enforcement.
 
 **Guaranteed, as detection, from the root, for an owner who runs the pinned audit:** every file under
@@ -679,21 +764,21 @@ boundary the owner must be able to read (section 18).
    thumbnail grid, filtered by status. The grid is the seed view. **Accept all in this project**
    accepts every acceptable item.
 4. **Story.**
-   - The modes as tabs, or a grid of baseline and new per mode. Accept and Reject act on the
-     whole story, with a per-mode override. Unstable and failed items offer **Exclude with
-     reason** instead of Accept.
-   - Two comparisons when they differ: **vs master** (the default, what the signature covers) and
-     **vs last accepted on this pull request**.
-   - Side by side; **flash** at about 1.5 Hz, adjustable, plus hold-to-toggle; **pixel
-     highlight** over a dimmed baseline, a box around each cluster; a "size changed WxH -> WxH"
-     badge with padded images.
-   - **Zoom** with `image-rendering: pixelated`, jumping to each box.
-   - **Live Storybook links** with the mode and `&chromatic=true` in the URL, which Storybook
-     passes to the preview iframe, so the live story renders as captured; a "live behaviour"
-     toggle removes it. One link is the pull request's Storybook, served by the development
-     server's content server on another origin (never from the signing page's origin); the other
-     is `https://graphty.app/storybook/<path>/?path=/story/<id>`, labelled "current master (may be
-     newer than this comparison)". A link to the pull request's Files tab for this image.
+    - The modes as tabs, or a grid of baseline and new per mode. Accept and Reject act on the
+      whole story, with a per-mode override. Unstable and failed items offer **Exclude with
+      reason** instead of Accept.
+    - Two comparisons when they differ: **vs master** (the default, what the signature covers) and
+      **vs last accepted on this pull request**.
+    - Side by side; **flash** at about 1.5 Hz, adjustable, plus hold-to-toggle; **pixel
+      highlight** over a dimmed baseline, a box around each cluster; a "size changed WxH -> WxH"
+      badge with padded images.
+    - **Zoom** with `image-rendering: pixelated`, jumping to each box.
+    - **Live Storybook links** with the mode and `&chromatic=true` in the URL, which Storybook
+      passes to the preview iframe, so the live story renders as captured; a "live behaviour"
+      toggle removes it. One link is the pull request's Storybook, served by the development
+      server's content server on another origin (never from the signing page's origin); the other
+      is `https://graphty.app/storybook/<path>/?path=/story/<id>`, labelled "current master (may be
+      newer than this comparison)". A link to the pull request's Files tab for this image.
 5. **Sign.** Counts per project, "N accepted without being opened", the rejects, and the record
    hash. Only in `sign`, and in `serve` before enforcement as "Save unproven accept".
 
@@ -715,14 +800,14 @@ zoom, Shift+A accept the project.
 
 ## 11. CI and the pull request check
 
-| Workflow | Trigger | Code that runs | Does |
-|---|---|---|---|
-| `ci.yml` | pull request, push to master, dispatch | the pull request's | Unchanged, except: `persist-credentials: false` on every checkout; `filter: blob:none` where only trees are read; a push whose diff from its previous head touches only `visual-baselines/` plans no build or test job, and "All Checks Pass" passes only if the previous head's CI run succeeded |
-| `storybooks.yml` | pull request, push to master | the pull request's; `contents: read`, no secrets | Builds the five Storybooks and uploads them (7 days on pull requests, 1 on master) with `build.json`: `github.sha` and its two parents. A baselines-only push builds nothing and uploads only `build.json` |
-| `visual.yml` | `workflow_run` of `storybooks.yml` (pull requests) | master's | Resolve, plan, capture (`actions: read`, no secrets; graphty-element as two shards), verify; post "Visual review"; update one comment. A baselines-only push with the same built base reuses the last capture |
-| `visual.yml` dispatch | `workflow_dispatch` on master (pull request number and story ids, or master) | master's | Recapture overlay; capture master for a seed |
-| `visual.yml` weekly | schedule | master's | Capture all five projects on master with the drift rule; flake counts, baseline size and clone time into one issue |
-| `visual-audit.yml` | `workflow_run` of `storybooks.yml` on master | master's (protected) | Audits and captures `github.event.workflow_run.head_sha` explicitly, with that sha in its `run-name`. Audit of the pushed range; drift capture of only the projects master's plan rules select for that range |
+| Workflow              | Trigger                                                                      | Code that runs                                   | Does                                                                                                                                                                                                                                                                                              |
+| --------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ci.yml`              | pull request, push to master, dispatch                                       | the pull request's                               | Unchanged, except: `persist-credentials: false` on every checkout; `filter: blob:none` where only trees are read; a push whose diff from its previous head touches only `visual-baselines/` plans no build or test job, and "All Checks Pass" passes only if the previous head's CI run succeeded |
+| `storybooks.yml`      | pull request, push to master                                                 | the pull request's; `contents: read`, no secrets | Builds the five Storybooks and uploads them (7 days on pull requests, 1 on master) with `build.json`: `github.sha` and its two parents. A baselines-only push builds nothing and uploads only `build.json`                                                                                        |
+| `visual.yml`          | `workflow_run` of `storybooks.yml` (pull requests)                           | master's                                         | Resolve, plan, capture (`actions: read`, no secrets; graphty-element as two shards), verify; post "Visual review"; update one comment. A baselines-only push with the same built base reuses the last capture                                                                                     |
+| `visual.yml` dispatch | `workflow_dispatch` on master (pull request number and story ids, or master) | master's                                         | Recapture overlay; capture master for a seed                                                                                                                                                                                                                                                      |
+| `visual.yml` weekly   | schedule                                                                     | master's                                         | Capture all five projects on master with the drift rule; flake counts, baseline size and clone time into one issue                                                                                                                                                                                |
+| `visual-audit.yml`    | `workflow_run` of `storybooks.yml` on master                                 | master's (protected)                             | Audits and captures `github.event.workflow_run.head_sha` explicitly, with that sha in its `run-name`. Audit of the pushed range; drift capture of only the projects master's plan rules select for that range                                                                                     |
 
 - **Resolving the pull request.** `workflow_run` payloads have no pull request for forks, and
   `github.head_ref` is empty. `visual.yml` asks `gh api repos/{o}/{r}/pulls?head=<owner>:<branch>&state=open`
@@ -733,7 +818,7 @@ zoom, Shift+A accept the project.
   `build.json` claims the merge commit the Storybook was built from and its parents. `visual.yml`
   treats it as untrusted: the second parent must equal `head_sha` and the first must be on the
   base branch's first-parent history. It then computes the merged tree itself with `git merge-tree
-  --write-tree <first parent> <head>` and compares against that tree's baselines. A conflict, or a
+--write-tree <first parent> <head>` and compares against that tree's baselines. A conflict, or a
   claim that fails the checks, is the environment error "stale build, re-run", never diffs.
 - **Drift.** An item counts as drift only when it differs from the baseline above its threshold,
   is captured again in a fresh context, and both captures agree. An item unstable on master goes
@@ -753,8 +838,14 @@ zoom, Shift+A accept the project.
   `visual-baselines/<project>/`, `visual-audit.yml` sets "Visual review" to pending ("base
   baselines changed, re-run") on open pull requests whose last plan included that project.
 - **Required status.** Advisory until enforcement; then "Visual review" is required.
-- **Time.** Locally 80 s for graphty-element and about 55 s for compact-mantine on 4 workers; on a
-  4-vCPU runner per-story time can grow more than 3 times. Because `visual.yml` follows
+- **Time.** Measured on the development server while other agents kept its load average near
+  40: graphty-element (171 items, 4 workers) took 551 s with no baselines, where every item is
+  captured twice, and 346 s against baselines; an earlier run took 8 min 38 s. compact-mantine
+  (828 items, 8 workers) took 133 s with no baselines and 81 s against them. In one graphty-element
+  run a single story (`layout-gpu--spring-fake`) hit Playwright's 30 s screenshot timeout on its
+  second capture and captured normally on the next run; a failed capture is now retried once
+  before it is reported. The CI job's 30-minute timeout has room for these times; a 4-vCPU runner
+  is not yet measured, and graphty-element splits into two shards if it passes about 20 minutes. Because `visual.yml` follows
   `storybooks.yml` instead of the whole test suite, push to reviewable is expected at about 10 to
   15 minutes (install and build, then capture), against 30 or more if it waited for CI; it is
   measured on the tooling pull request and recorded here. ci.yml notes an organisation limit of
@@ -769,17 +860,18 @@ Storybook global, viewport or full-height capture, the worker and shard count, t
 Storybook path (`app` for the graphty app), and `inputs`: the path globs whose change can alter
 its rendering. Adding a Storybook is one entry plus a seed.
 
-| Project | Modes | Capture | When |
-|---|---|---|---|
-| compact-mantine | light, dark | full height, once measured | today |
-| graphty-element | default | viewport | once the harness branch merges |
-| algorithms, layout | default | viewport | within days |
-| graphty | light, dark | full height, once measured | after its `colorScheme` and eruda fixes |
+| Project            | Modes       | Capture                    | When                                    |
+| ------------------ | ----------- | -------------------------- | --------------------------------------- |
+| compact-mantine    | light, dark | full height, once measured | today                                   |
+| graphty-element    | default     | viewport                   | once the harness branch merges          |
+| algorithms, layout | default     | viewport                   | within days                             |
+| graphty            | light, dark | full height, once measured | after its `colorScheme` and eruda fixes |
 
 A project that was not captured keeps its baselines untouched; a partial run never deletes a
 baseline, and a removed story is a review item, never a silent delete.
 
 **The visual plan** is computed by master's code in `visual.yml` from `git diff --name-only
+
 <base> <head>`, never from the pull request's `nx.json`, `.nxignore` or `tools/ci-test-matrix.mjs`.
 A project is planned when:
 
@@ -805,7 +897,7 @@ story almost free.
 Two steps in `tools/prepush.sh`:
 
 1. **"Visual baselines are signed" (blocking, seconds, no browser).** `node
-   visual-review/trusted/cli.mjs verify --local` over `merge-base..HEAD`, run whenever that diff
+visual-review/trusted/cli.mjs verify --local` over `merge-base..HEAD`, run whenever that diff
    touches `visual-baselines/` or a protected path. It sits before the gate's "No package is
    affected" early exit, because a baselines-only push affects no Nx project. It catches an agent
    that copies PNGs into `visual-baselines/` by hand; it is a convenience, because `--no-verify`
@@ -839,6 +931,9 @@ Two steps in `tools/prepush.sh`:
 ## 15. Roadmap and plan
 
 ### Today: approving again, unproven
+
+What was built for milestone 1 differs from the steps below (a job in `ci.yml` instead of two new
+workflows, no pinned fonts or `.nxignore` yet); section 1a and `plan.md` describe what exists.
 
 **The owner (about 15 minutes):** Chromatic to the Free plan, confirm it stops, remove the payment
 method; order a FIDO2 security key and a backup.
@@ -893,7 +988,7 @@ contention measurement passes, the same day if possible (about 10 to 20 minutes 
    them to `trusted-keys.json`.
 4. **The seed manifest, a second full pass the owner should budget for (about 1 to 2 hours):** the
    owner first reads `trusted/` at that pull request's commit (under 2,500 lines), then runs `sign
-   --manifest` from it. The grid lists first the images whose hash differs from the unproven
+--manifest` from it. The grid lists first the images whose hash differs from the unproven
    record that accepted them, labelled "changed since you accepted it (unproven)"; everything else
    follows for a quick skim. The unproven records only set the order. The owner signs one record
    covering every baseline and protected file. Once it merges, the owner records that merge commit
@@ -931,15 +1026,15 @@ commit they sign from, they take it from the pinned audit's output.
 
 ## 16. Cost per month
 
-| Item | Cost |
-|---|---|
-| Actions minutes on standard runners, public repository | $0 |
-| Baselines and records in plain git | $0 |
-| Actions artifacts and cache | $0 expected, not confirmed. GitHub's billing page says Actions minutes are free for public repositories but states artifact storage quotas only for private ones. The organisation's $0 budget blocks rather than bills. Results are kept 90 days, images 30, Storybooks 7 on pull requests; check the organisation's storage in billing after the first week |
-| Git LFS, hosted review site | not used |
-| FIDO2 security key and backup | $0 a month; about $25 to $60 each, once |
-| Chromatic until removal | $0 on the Free plan, once its stop-at-limit behaviour is confirmed and the payment method removed |
-| **Total** | **$0 a month** |
+| Item                                                   | Cost                                                                                                                                                                                                                                                                                                                                                          |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Actions minutes on standard runners, public repository | $0                                                                                                                                                                                                                                                                                                                                                            |
+| Baselines and records in plain git                     | $0                                                                                                                                                                                                                                                                                                                                                            |
+| Actions artifacts and cache                            | $0 expected, not confirmed. GitHub's billing page says Actions minutes are free for public repositories but states artifact storage quotas only for private ones. The organisation's $0 budget blocks rather than bills. Results are kept 90 days, images 30, Storybooks 7 on pull requests; check the organisation's storage in billing after the first week |
+| Git LFS, hosted review site                            | not used                                                                                                                                                                                                                                                                                                                                                      |
+| FIDO2 security key and backup                          | $0 a month; about $25 to $60 each, once                                                                                                                                                                                                                                                                                                                       |
+| Chromatic until removal                                | $0 on the Free plan, once its stop-at-limit behaviour is confirmed and the payment method removed                                                                                                                                                                                                                                                             |
+| **Total**                                              | **$0 a month**                                                                                                                                                                                                                                                                                                                                                |
 
 The only way past $200 a month is to switch a paid Chromatic plan back on. If the self-hosted
 review ever proves too thin, the fallback is Argos Pro with its spend pause switched on, about $100
@@ -947,25 +1042,25 @@ a month at opt-in volume, fed by the same capture directory.
 
 ## 17. Risks
 
-| Risk | Mitigation |
-|---|---|
-| graphty-element captures before it settles | Capture waits on `waitForStableFrame()` and fails, never pictures, on a timeout; every project measured under contention before its seed |
-| A timeout or flaky story blocks a clean pull request | Second capture separates `flaky` (passes, counted) from `unstable`; recapture overlays; Exclude with reason |
-| A new story is flaky and gets accepted | New items are captured twice and cannot be accepted when unstable |
-| CI runners differ by CPU model | Environment recorded in every signed record; measured over up to 10 runs; threshold or the Playwright container, as a planned re-baseline |
+| Risk                                                                  | Mitigation                                                                                                                                                      |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| graphty-element captures before it settles                            | Capture waits on `waitForStableFrame()` and fails, never pictures, on a timeout; every project measured under contention before its seed                        |
+| A timeout or flaky story blocks a clean pull request                  | Second capture separates `flaky` (passes, counted) from `unstable`; recapture overlays; Exclude with reason                                                     |
+| A new story is flaky and gets accepted                                | New items are captured twice and cannot be accepted when unstable                                                                                               |
+| CI runners differ by CPU model                                        | Environment recorded in every signed record; measured over up to 10 runs; threshold or the Playwright container, as a planned re-baseline                       |
 | The runner image, fonts or clock drift and everything changes at once | Pinned runner label, fonts, `playwright-core` and clock; a renderer change plans every project; drift needs two agreeing captures and blocks releases, never CI |
-| A pull request's Storybook hides a change from its capture | Not prevented; master's drift capture catches it after the merge; code review |
-| Two green pull requests combine into an unreviewed change | Not prevented; drift capture; the baselines-changed pending guard |
-| Pull request code fakes the capture, the plan or the status | Plan, capture and verify run master's code; only master's `visual.yml` runs count; no agent can push a workflow |
-| The release job pushes baselines with the deploy key | Split release: the key meets no repository code and pushes only version files |
-| The page the owner reviews shows one image and signs another | The tool, not the page, builds the record from bytes it re-hashed; the page is small source the owner has read |
-| An agent runs code on the owner's computer through the tool | The tool runs from a pinned, read commit, with no install and no repository hooks |
-| An agent with the admin token routes around the check | The pinned audit detects it; the owner settings prevent it |
-| Signed work expires with its artifacts | The current capture reproducing `to` also counts; results kept 90 days |
-| Losing the only key | A registered backup key; a lost key only stops new approvals |
-| The seed is a large review, twice | Grids, modes grouped, accept all per project; the second pass lists changed images first |
-| Baseline history slows every CI clone | Blob-filtered checkouts; the weekly run reports size and time; WebP or LFS at 300 MB |
-| The package is ours to maintain | Upkeep cadence in section 15, instead of a vendor with no spending cap |
+| A pull request's Storybook hides a change from its capture            | Not prevented; master's drift capture catches it after the merge; code review                                                                                   |
+| Two green pull requests combine into an unreviewed change             | Not prevented; drift capture; the baselines-changed pending guard                                                                                               |
+| Pull request code fakes the capture, the plan or the status           | Plan, capture and verify run master's code; only master's `visual.yml` runs count; no agent can push a workflow                                                 |
+| The release job pushes baselines with the deploy key                  | Split release: the key meets no repository code and pushes only version files                                                                                   |
+| The page the owner reviews shows one image and signs another          | The tool, not the page, builds the record from bytes it re-hashed; the page is small source the owner has read                                                  |
+| An agent runs code on the owner's computer through the tool           | The tool runs from a pinned, read commit, with no install and no repository hooks                                                                               |
+| An agent with the admin token routes around the check                 | The pinned audit detects it; the owner settings prevent it                                                                                                      |
+| Signed work expires with its artifacts                                | The current capture reproducing `to` also counts; results kept 90 days                                                                                          |
+| Losing the only key                                                   | A registered backup key; a lost key only stops new approvals                                                                                                    |
+| The seed is a large review, twice                                     | Grids, modes grouped, accept all per project; the second pass lists changed images first                                                                        |
+| Baseline history slows every CI clone                                 | Blob-filtered checkouts; the weekly run reports size and time; WebP or LFS at 300 MB                                                                            |
+| The package is ours to maintain                                       | Upkeep cadence in section 15, instead of a vendor with no spending cap                                                                                          |
 
 ## 18. Alternatives rejected
 

@@ -471,6 +471,7 @@ export default tseslint.config(
         files: [
             "visual-review/trusted/lib/**/*.mjs",
             "visual-review/trusted/cli.mjs",
+            "visual-review/trusted/gate.mjs",
             "visual-review/capture/**/*.mjs",
             "visual-review/test/**/*.mjs",
         ],

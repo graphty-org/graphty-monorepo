@@ -320,6 +320,14 @@ export interface ScopeApi {
  */
 export interface ScopeResolver extends ScopeApi {
     /**
+     * A write position's scope in canonical form: session edge ids inside `{ define }` replaced by
+     * their stable members, the definition validated.
+     * @param spec - The scope as given.
+     * @returns The canonical scope.
+     * @throws `E_BAD_COMMAND` when it is not a scope.
+     */
+    canonical(spec: ScopeInput): Scope;
+    /**
      * The elements a specification covers, answered without a promise.
      * @param spec - What to resolve.
      * @returns The resolved scope.
@@ -793,6 +801,8 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
 
     return {
         resolveNow,
+
+        canonical: scopeOf,
 
         sets,
 

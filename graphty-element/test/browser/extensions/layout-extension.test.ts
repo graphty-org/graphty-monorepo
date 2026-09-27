@@ -69,6 +69,7 @@ import {
     LayoutEngine,
     type Node,
     type NodeIdType,
+    type NodeMask,
     type OptionDescriptor,
     type Position,
     SimpleLayoutEngine,
@@ -691,7 +692,37 @@ function refusalOf(act: () => void): GraphtyError {
     throw new Error("the registration was accepted when it should have been refused");
 }
 
+/**
+ * The ring, declared able to lay out a scope. It keeps the contract `static scoped` states: a held
+ * node is fixed in the engine's own state -- here, the ring's own pin list -- and not only kept
+ * from being written, so the ring never walks it anywhere.
+ */
+class ScopedRingLayout extends RingLayout {
+    static type = "test-scoped-ring";
+    static scoped = true;
+    static descriptor: AuthoredLayoutDescriptor = {
+        ...RingLayout.descriptor,
+        id: "test-scoped-ring",
+        engine: "test-scoped-ring",
+    };
+
+    /** The ids the element asked this engine to hold, at the last `setHoldMask`. */
+    heldIds: NodeIdType[] = [];
+
+    override setHoldMask(mask: NodeMask | null, rows: number): void {
+        super.setHoldMask(mask, rows);
+        this.heldIds = [];
+        for (const node of this.nodes) {
+            if (this.isHeld(node.index)) {
+                this.heldIds.push(node.id);
+                this.pin(node);
+            }
+        }
+    }
+}
+
 LayoutEngine.register(RingLayout);
+LayoutEngine.register(ScopedRingLayout);
 LayoutEngine.register(GridLayout);
 LayoutEngine.register(RefusingLayout);
 LayoutEngine.register(LateFailureLayout);
@@ -1339,6 +1370,31 @@ describe("a third party's layout engine", () => {
                 "f",
                 "and named the node that had just arrived",
             );
+        });
+    });
+
+    describe("a scope", () => {
+        it("is handed to an engine that declares `static scoped`, as the hold mask over every other node", async () => {
+            assert.isTrue(offeredLayout("test-scoped-ring").scoped, "the catalogue says it takes a scope");
+            assert.isFalse(offeredLayout("test-ring").scoped, "and an engine that says nothing does not");
+            const before = { c: { ...nodeById("c").getPosition() }, e: { ...nodeById("e").getPosition() } };
+
+            await graph.setLayout("test-scoped-ring", {}, { scope: { nodes: ["a", "b"] } });
+            const engine = graph.getLayoutManager().layoutEngine;
+            assert.instanceOf(engine, ScopedRingLayout);
+            await waitForRedraw("the scoped ring to settle");
+
+            assert.isNotNull(engine.holdMask, "the element handed the engine a hold mask");
+            assert.sameMembers(engine.heldIds, ["c", "d", "e"], "holding every node outside the scope");
+            assert.deepStrictEqual(nodeById("c").getPosition(), before.c, "a held node did not move");
+            assert.deepStrictEqual(nodeById("e").getPosition(), before.e);
+            assert.isFalse(nodeById("c").isPinned(), "and the hold is not a pin");
+        });
+
+        it("is refused by an engine that does not declare `static scoped`", async () => {
+            const error = await failureOf(() => graph.setLayout("test-ring", {}, { scope: { nodes: ["a"] } }));
+
+            assert.strictEqual(error.code, "E_UNSUPPORTED");
         });
     });
 

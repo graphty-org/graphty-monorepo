@@ -21,7 +21,7 @@ import {
     type GraphAccelerator,
 } from "../acceleration";
 import { readingOfScope } from "../catalog/sets/parse";
-import type { EdgeId, EdgeMember, EdgeReading, NodeId, Path, Query, ResultItem, RunId, Scope, SetId, StaticStyle } from "../catalog/types";
+import type { EdgeId, EdgeMember, EdgeReading, Filter, NodeId, Path, Query, ResultItem, RunId, Scope, SetId, StaticStyle } from "../catalog/types";
 import { DataConfig } from "../config/DataConfig";
 import { defaultEdgeStyle } from "../config/EdgeStyle";
 import { defaultNodeStyle } from "../config/NodeStyle";
@@ -71,7 +71,7 @@ import { createOffering } from "./sets/offers";
 import { createSetsApi, sessionEdgeMember, setsStoreOf } from "./sets/SetsApi";
 import { identityOf, scopeSignature } from "./sets/signature";
 import type { StatusRun } from "./sets/status";
-import type { SetsApi } from "./sets/types";
+import type { SetsApi, SetUser } from "./sets/types";
 import {
     createAutoApplyPolicy,
     createStylesApi,
@@ -1195,6 +1195,8 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         context: () => scope.contextNow(),
         sets: () => keptSets.list(),
     });
+    // Users of sets the element adds from outside the session: its running layout.
+    const hostUsers: SetsUsersProvider[] = [];
     const sets = createSetsApi({
         edgeMember,
         dependencies,
@@ -1216,6 +1218,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
                 layer.selector.match === "scope" ? [{ user: { kind: "layer" as const, id: layer.id, label: layer.name }, scope: layer.selector.scope }] : [],
             ),
             ...(visibility.filter === null ? [] : [{ user: { kind: "filter" as const, label: "Visibility filter" }, scope: visibility.filter }]),
+            ...hostUsers.flatMap((provider) => [...provider()]),
         ],
         materialise: createMaterialiser({
             snapshot,
@@ -1618,6 +1621,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     sessionInputs.set(session, inputs);
     sessionScopes.set(session, scope);
     sessionNotifiers.set(session, notifier);
+    sessionHostUsers.set(session, hostUsers);
 
     return session;
 }
@@ -1629,6 +1633,28 @@ function buildSession(options: CreateGraphSessionOptions): Session {
  */
 function layerScopesOf(stack: SessionStylesApi | null): Scope[] {
     return (stack?.list() ?? []).flatMap((layer) => (layer.selector.match === "scope" ? [layer.selector.scope] : []));
+}
+
+/** What names a set from outside the session, for `usedBy`. */
+type SetsUsersProvider = () => Iterable<{ readonly user: SetUser; readonly scope: Scope | Filter }>;
+
+/** Each session's outside users of sets. */
+const sessionHostUsers = new WeakMap<GraphSession, SetsUsersProvider[]>();
+
+/**
+ * Add users of sets that live outside the session -- the element's running layout -- to what
+ * `sets.usedBy` reports. Internal.
+ * @param session - a session this module built
+ * @param provider - reads the users now
+ * @throws An Error for a session this module did not build.
+ */
+export function addSetsUsers(session: GraphSession, provider: SetsUsersProvider): void {
+    const providers = sessionHostUsers.get(session);
+    if (providers === undefined) {
+        throw new Error("Not a session built by createGraphSession.");
+    }
+
+    providers.push(provider);
 }
 
 /** Each session's change notifier, for the live users of sets and the element's frame source. */

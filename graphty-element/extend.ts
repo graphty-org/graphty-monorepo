@@ -143,9 +143,10 @@ export { KNOWN_CAMERA_IDS } from "./src/catalog/types";
  * twice and `layoutIdForEngine` answers a plugin's own id.
  *
  * A plugin's `static descriptor` is an `AuthoredLayoutDescriptor`, which is the published
- * `LayoutDescriptor` minus `honoursWeights`. That one fact is declared on the class instead, as
- * `static honoursWeights`, and `LayoutEngine.register` copies it onto what the catalogue
- * publishes -- so whether an engine reads edge weights is written once, where it is true.
+ * `LayoutDescriptor` minus `honoursWeights` and `scoped`. Those two facts are declared on the
+ * class instead, as `static honoursWeights` and `static scoped`, and `LayoutEngine.register`
+ * copies them onto what the catalogue publishes -- so whether an engine reads edge weights, and
+ * whether it can lay out a set while holding the rest still, is written once, where it is true.
  */
 export type { RegisteredLayout } from "./src/catalog/layoutRegistry";
 export { clearRegisteredLayoutsForTesting, registeredLayoutDescriptors } from "./src/catalog/layoutRegistry";

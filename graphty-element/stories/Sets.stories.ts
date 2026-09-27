@@ -6,7 +6,8 @@
  * layer follows the set: redefine it, combine it, or change the data a rule set reads, and the
  * picture moves with it. Colouring a set is an ordinary layer -- a set has no colour of its own.
  * The visibility filter names a set with the leaf `{ kind: "scope", scope: { set: id } }` and
- * follows it the same way.
+ * follows it the same way. A live layout lays out one set with `setLayout(type, options, { scope })`
+ * and holds every other node where it is.
  *
  * Each story builds its sets and layers in its play function, through the element's session, and
  * then reads back what every node is drawn.
@@ -18,7 +19,7 @@ import type { LayerSpec, SetId } from "../src/catalog/types";
 // Importing the module is what defines the <graphty-element> custom element, so this line is
 // load-bearing even though only the type is named.
 import { type Graphty } from "../src/graphty-element";
-import { assertDrawnColour, assertGraphLoaded, assertNodesShown, drawn } from "./assertions";
+import { assertDrawnColour, assertGraphLoaded, assertNodesShown, drawn, holds } from "./assertions";
 import { eventWaitingDecorator, setLayoutPreSteps, waitForGraphSettled } from "./helpers";
 
 /** Eight nodes on a ring, each with a score. */
@@ -169,5 +170,34 @@ export const FilterToASet: Story = {
 
         const after = await drawn(canvasElement, "Sets/Kept Sets FilterToASet");
         await assertNodesShown(after, ["n5", "n6", "n7", "n8"]);
+    },
+};
+
+/**
+ * One set laid out on its own: `setLayout("ngraph", ..., { scope: { set } })` rearranges n1 to n4
+ * and holds n5 to n8 exactly where the first layout left them.
+ */
+export const LayoutOneSet: Story = {
+    play: async ({ canvasElement }) => {
+        const element = await settled(canvasElement);
+        const before = await drawn(canvasElement, "Sets/Kept Sets LayoutOneSet, before");
+        const cluster = element.session.sets.create({ kind: "fixed", nodes: ["n1", "n2", "n3", "n4"], reading: "induced" }, { name: "Cluster" });
+
+        await element.setLayout("ngraph", { seed: 7 }, { scope: { set: cluster } });
+        await waitForGraphSettled(canvasElement);
+
+        const after = await drawn(canvasElement, "Sets/Kept Sets LayoutOneSet");
+        await assertGraphLoaded(after, { nodes: 8, edges: 8 });
+        const at = (scene: typeof before, id: string): readonly number[] => scene.nodes.find((node) => node.id === id)?.position ?? [];
+        for (const id of ["n5", "n6", "n7", "n8"]) {
+            const [was, is] = [at(before, id), at(after, id)];
+            await holds(
+                was.length === 3 && was.every((value, axis) => Math.abs(value - is[axis]) < 1e-3),
+                `${id} is outside the set, so the layout must not move it: it was at ${String(was)} and is at ${String(is)}`,
+            );
+        }
+
+        const moved = ["n1", "n2", "n3", "n4"].filter((id) => at(before, id).some((value, axis) => Math.abs(value - at(after, id)[axis]) > 1e-3));
+        await holds(moved.length > 0, "the set's own nodes were laid out again, so at least one of them moved");
     },
 };

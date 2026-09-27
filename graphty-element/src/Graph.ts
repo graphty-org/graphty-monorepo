@@ -55,7 +55,7 @@ import { TwoDCameraController } from "./cameras/TwoDCameraController";
 import { algorithmByKey, algorithmByLegacyKey } from "./catalog/algorithms";
 import { undetectedFormat } from "./catalog/detect";
 import { registeredAlgorithmByKey } from "./catalog/registry";
-import type { AlgorithmKey, Scope } from "./catalog/types";
+import type { AlgorithmKey, Scope, ScopeInput } from "./catalog/types";
 import {
     AdHocData,
     DEFAULT_SELECTION_STYLE,
@@ -107,7 +107,7 @@ import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
 import { inputCountersOf, writeUpdates } from "./session/attributes";
-import { scopeResolverOfSession, setsNotifierOfSession } from "./session/GraphSession";
+import { addSetsUsers, scopeResolverOfSession, setsNotifierOfSession } from "./session/GraphSession";
 import type { Run, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionTarget, SetOp } from "./session/selection";
 import type { Layer, StyleSuggestion } from "./session/styles";
@@ -116,7 +116,7 @@ import type { Layer, StyleSuggestion } from "./session/styles";
 const BUILT_IN_ALGORITHM_NAMESPACE = "graphty";
 import { Styles } from "./Styles";
 import { XRUIManager } from "./ui/XRUIManager";
-import type { QueueableOptions, RunAlgorithmOptions } from "./utils/queue-migration";
+import type { QueueableOptions, RunAlgorithmOptions, SetLayoutOptions } from "./utils/queue-migration";
 import { XRSessionManager } from "./xr/XRSessionManager";
 // import {createXrButton} from "./xr-button";
 
@@ -634,6 +634,31 @@ export class Graph implements GraphContext {
         // Set GraphContext on managers
         this.dataManager.setGraphContext(this);
         this.layoutManager.setGraphContext(this);
+
+        // A layout scope is canonicalised and resolved through the session, and a layout holding
+        // nodes for one is a user of the sets it names.
+        const resolver = scopeResolverOfSession(this.session);
+        this.layoutManager.setScopeSource({
+            canonical: (input) => resolver.canonical(input),
+            members: (scope) => resolver.nodeIdsOf(scope),
+            detached: (scope) => {
+                try {
+                    return this.session.sets.status(scope).freshness === "detached";
+                } catch {
+                    // A reference to a set never issued cannot mean anything either.
+                    return true;
+                }
+            },
+        });
+        addSetsUsers(this.session, () => {
+            const user = this.layoutManager.scopeUser();
+            return user === undefined ? [] : [user];
+        });
+        this.session.on("set:changed", (change) => {
+            if (change.change === "removed") {
+                this.layoutManager.releaseDetachedScope();
+            }
+        });
 
         // Setup lifecycle manager
         const managers = new Map<string, Manager>([
@@ -1628,8 +1653,10 @@ export class Graph implements GraphContext {
      * animate nodes from their current positions to new positions.
      * @param type - Layout algorithm name
      * @param opts - Layout-specific configuration options
-     * @param options - Options for operation queue behavior
+     * @param options - Options for operation queue behavior, and `scope`: what the layout runs
+     *   over (see {@link SetLayoutOptions.scope})
      * @returns Promise that resolves when layout is initialized
+     * @throws A `GraphtyError` with `E_UNSUPPORTED` for a scope on a layout that is not scoped.
      * @since 1.0.0
      * @see {@link waitForSettled} to wait for layout completion
      * @see {@link https://graphty.app/storybook/graphty-element/?path=/story/layout-3d--circular | 3D Layout Examples}
@@ -1652,9 +1679,12 @@ export class Graph implements GraphContext {
      * await graph.setLayout('circular', { radius: 5 });
      * ```
      */
-    async setLayout(type: string, opts: object = {}, options?: QueueableOptions): Promise<void> {
-        if (options?.skipQueue) {
-            await this.layoutManager.setLayout(type, opts);
+    async setLayout(type: string, opts: object = {}, options: SetLayoutOptions = {}): Promise<void> {
+        // The scope is the manager's, not the queue's: spread into the queue options it would be
+        // taken for a queue setting and never reach the layout.
+        const { scope, ...queueOptions } = options;
+        if (queueOptions.skipQueue) {
+            await this.layoutManager.setLayout(type, opts, scope);
             return;
         }
 
@@ -1665,12 +1695,51 @@ export class Graph implements GraphContext {
                     throw new Error("Operation cancelled");
                 }
 
-                await this.layoutManager.setLayout(type, opts);
+                await this.layoutManager.setLayout(type, opts, scope);
             },
             {
                 description: `Setting layout to ${type}`,
-                ...options,
+                ...queueOptions,
             },
+        );
+    }
+
+    /**
+     * What layouts run over: the scope the running layout was given, carried to the next one.
+     * @returns The canonical scope, or undefined when layouts run over the whole graph.
+     * @since 2.5.0
+     */
+    getLayoutScope(): Scope | undefined {
+        return this.layoutManager.scope;
+    }
+
+    /**
+     * Change what layouts run over, and restart the running layout over it.
+     *
+     * The scope is carried at once, so a layout set after this call runs over it too. It never
+     * refuses a scope that cannot be laid out -- one naming a removed set, or a running layout
+     * that is not scoped -- because it is not an explicit `setLayout`: such a scope is inactive,
+     * and the layout runs over the whole graph.
+     * @param scope - The scope; undefined or `"graph"` for the whole graph.
+     * @returns A promise that resolves once the running layout has restarted.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` when the value is not a scope.
+     * @since 2.5.0
+     */
+    async setLayoutScope(scope: ScopeInput | undefined): Promise<void> {
+        this.layoutManager.carryScope(scope);
+
+        // `layout-update`, not `layout-set`: a pending `layout-set` must not be cancelled by this
+        // -- it carries the new scope anyway -- and a later one cancelling this loses nothing.
+        await this.operationQueue.queueOperationAsync(
+            "layout-update",
+            async (context) => {
+                if (context.signal.aborted) {
+                    throw new Error("Operation cancelled");
+                }
+
+                await this.layoutManager.rescope();
+            },
+            { description: "Changing what the layout runs over" },
         );
     }
 

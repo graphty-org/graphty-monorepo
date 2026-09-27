@@ -94,6 +94,7 @@
         "Sets/Kept Sets::ColorASet",
         "Sets/Kept Sets::CombineTwoSets",
         "Sets/Kept Sets::FilterToASet",
+        "Sets/Kept Sets::LayoutOneSet",
         "Sets/Kept Sets::RuleSetFollowsData",
         "Styles/Edge::ArrowColor",
         "Styles/Edge::ArrowHead",

@@ -1,3 +1,4 @@
+import { INVALID_INDEX, makeMask, maskSet, type NodeMask } from "@graphty/graph-format";
 import type {
     ForceAtlas2Options,
     FruchtermanReingoldOptions,
@@ -8,7 +9,7 @@ import type {
 import type { AccelerationController } from "../acceleration/AccelerationController";
 import { LAYOUT_DESCRIPTORS, layoutDescriptor } from "../catalog/layouts";
 import { resolveOptionValues } from "../catalog/options";
-import type { AuthoredLayoutDescriptor } from "../catalog/types";
+import type { AuthoredLayoutDescriptor, Scope, ScopeInput } from "../catalog/types";
 import type { GraphLayoutBehavior } from "../config/GraphBehavior";
 import { type OptionsSchema, toZodSchema } from "../config/OptionsSchema";
 import type { Edge } from "../Edge";
@@ -24,7 +25,7 @@ import {
 import { SpringElectricalLayout } from "../layout/SpringElectricalLayoutEngine";
 import { SpringLayout } from "../layout/SpringLayoutEngine";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
-import type { Node } from "../Node";
+import type { Node, NodeIdType } from "../Node";
 import type { Styles } from "../Styles";
 import type { DataManager } from "./DataManager";
 import type { EventManager } from "./EventManager";
@@ -292,6 +293,49 @@ function engineForLayout(type: string): string {
 }
 
 /**
+ * What a layout manager reads of the session to scope a layout. `Graph` hands its session's in.
+ */
+export interface LayoutScopeSource {
+    /**
+     * A write position's scope in canonical form.
+     * @param input - The scope as a consumer gave it.
+     * @returns The canonical scope.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` when it is not a scope.
+     */
+    canonical(input: ScopeInput): Scope;
+    /**
+     * The ids of the nodes a scope covers now.
+     * @param scope - The scope.
+     * @returns The ids.
+     * @throws A `GraphtyError` when the scope cannot be resolved, such as a removed set.
+     */
+    members(scope: Scope): readonly NodeIdType[];
+    /**
+     * Whether something the scope names was removed, so it can no longer mean what it meant.
+     * @param scope - The scope.
+     * @returns True when it is detached.
+     */
+    detached(scope: Scope): boolean;
+}
+
+/**
+ * The refusal for an explicit scope on a layout whose engine cannot hold nodes still.
+ * @param type - The engine name.
+ * @returns The error to throw.
+ */
+function unscopedLayout(type: string): GraphtyError {
+    return new GraphtyError({
+        code: "E_UNSUPPORTED",
+        message:
+            `the layout "${type}" cannot lay out a scope: it computes every position from scratch, so it has ` +
+            "no way to hold the nodes outside the scope still. Use a live simulation such as \"ngraph\", " +
+            "\"d3\" or \"forceatlas2\", whose catalogue entry reads `scoped: true`",
+        source: "layout",
+        details: { layout: type, field: "scope" },
+    });
+}
+
+/**
  * Manages layout engines and their lifecycle
  * Coordinates layout updates and transitions
  */
@@ -321,6 +365,23 @@ export class LayoutManager implements Manager {
     private engineDimension?: 2 | 3;
 
     private logger: Logger = GraphtyLogger.getLogger(["graphty", "layout"]);
+
+    /** Where a scope is canonicalised and resolved, once `Graph` has a session to hand in. */
+    private scopeSource: LayoutScopeSource | null = null;
+
+    /**
+     * The scope layouts run over, CARRIED from one `setLayout` to the next: an explicit scope sets
+     * it, `"graph"` clears it, and a call that names none keeps it, so changing one force
+     * parameter never un-scopes the layout. Undefined is the whole graph.
+     */
+    private carriedScope: Scope | undefined;
+
+    /**
+     * The members the running layout captured when it started, or null when it holds nothing:
+     * no scope, an engine that is not scoped, or a scope that could not be resolved. Every node
+     * outside it is held, including one that arrives later.
+     */
+    private members: ReadonlySet<NodeIdType> | null = null;
 
     /**
      * Gets the running state of the layout
@@ -470,6 +531,13 @@ export class LayoutManager implements Manager {
      */
     private onSnapshotReplaced(event: GraphSnapshotReplacedEvent): void {
         const engine = this.layoutEngine;
+
+        // A FREEZE RENUMBERS THE ROWS the hold mask indexes, so it is rebuilt from the captured
+        // members -- before a simulation reloads, so that its reload packs the new mask.
+        if (engine !== undefined && this.members !== null) {
+            engine.setHoldMask(...this.holdMaskOf(this.members));
+        }
+
         if (!(engine instanceof SimulationLayoutEngine)) {
             return;
         }
@@ -537,8 +605,10 @@ export class LayoutManager implements Manager {
      * Used by operations that are already queued to prevent nested queueing
      * @param layout - A registered engine name, or a catalogue layout id
      * @param opts - Layout-specific options
+     * @param explicitScope - Whether the carried scope was named in this call, which is the only
+     * case in which a scope the engine cannot use, or cannot resolve, is refused
      */
-    private async _setLayoutInternal(layout: string, opts: object = {}): Promise<void> {
+    private async _setLayoutInternal(layout: string, opts: object = {}, explicitScope = false): Promise<void> {
         this.logger.info("Setting layout", { type: layout, options: opts });
 
         // Everything below -- option validation, dimension options, the stored layout type --
@@ -549,6 +619,17 @@ export class LayoutManager implements Manager {
         if (!engineClass) {
             throw unknownLayout(type);
         }
+
+        // Which engines accept a scope is a fact of the class. Only a scope named in THIS call is
+        // refused; a carried one is inactive under an engine that cannot hold nodes still.
+        const scoped = engineClass.scoped === true;
+        if (explicitScope && !scoped) {
+            throw unscopedLayout(type);
+        }
+
+        // THE MEMBERS ARE FROZEN HERE, when the layout starts, as a run freezes its scope: a later
+        // click, filter change or attribute edit does not move what the running layout holds.
+        const members = this.captureMembers(scoped, explicitScope);
 
         // The CONSUMER'S options are checked on their own, before the element adds anything: the
         // dimension options below are the element's to add and are not the layout's to declare,
@@ -633,6 +714,7 @@ export class LayoutManager implements Manager {
         const previousEngine = this.layoutEngine;
         const previousOptions = this.currentLayoutOptions;
         const previousDimension = this.engineDimension;
+        const previousMembers = this.members;
 
         // THE CONSUMER'S OPTIONS, not the merged ones: a 2D/3D switch rebuilds the engine from
         // these, and the element re-derives the dimension options for the new mode itself.
@@ -651,6 +733,10 @@ export class LayoutManager implements Manager {
 
             // AFTER init(), and before any step runs. See `replayPins`.
             this.replayPins(engine, nodeArray);
+            this.members = members;
+            if (members !== null) {
+                this.applyHold(engine, members, nodeArray);
+            }
 
             // Update DataManager with new layout engine
             this.dataManager.setLayoutEngine(engine);
@@ -700,6 +786,7 @@ export class LayoutManager implements Manager {
             this.layoutEngine = previousEngine;
             this.currentLayoutOptions = previousOptions;
             this.engineDimension = previousDimension;
+            this.members = previousMembers;
             this.dataManager.setLayoutEngine(previousEngine);
 
             throw this.reportLayoutFailure(type, error, "initialised");
@@ -790,10 +877,196 @@ export class LayoutManager implements Manager {
      * This goes through the queue when called from Graph
      * @param type - Layout type identifier
      * @param opts - Layout-specific options
+     * @param scope - What the layout runs over. Absent keeps the carried scope, `"graph"` clears
+     * it, and anything else becomes the carried scope for this and later layouts.
      * @returns Promise that resolves when layout is set
+     * @throws A `GraphtyError` with `E_UNSUPPORTED` for a scope on an engine that is not scoped,
+     * or `E_BAD_COMMAND` for a scope that is malformed or names a removed set.
      */
-    async setLayout(type: string, opts: object = {}): Promise<void> {
-        return this._setLayoutInternal(type, opts);
+    async setLayout(type: string, opts: object = {}, scope?: ScopeInput): Promise<void> {
+        if (scope === undefined) {
+            await this._setLayoutInternal(type, opts);
+            return;
+        }
+
+        const previous = this.carriedScope;
+        this.carriedScope = scope === "graph" ? undefined : this.requireScopeSource().canonical(scope);
+        try {
+            await this._setLayoutInternal(type, opts, this.carriedScope !== undefined);
+        } catch (error) {
+            this.carriedScope = previous;
+            throw error;
+        }
+    }
+
+    /**
+     * Hand the manager the session it resolves scopes through.
+     * @param source - The session's canonicaliser and resolver.
+     */
+    setScopeSource(source: LayoutScopeSource): void {
+        this.scopeSource = source;
+    }
+
+    /**
+     * The scope layouts run over, as the consumer last set it; undefined for the whole graph.
+     * @returns The canonical scope.
+     */
+    get scope(): Scope | undefined {
+        return this.carriedScope;
+    }
+
+    /**
+     * Change the carried scope without starting a layout. The next layout, and
+     * {@link LayoutManager.rescope}, run over it. It never refuses a scope that cannot be resolved:
+     * a carried scope that means nothing is inactive.
+     * @param scope - The scope; undefined or `"graph"` for the whole graph.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` when it is not a scope.
+     */
+    carryScope(scope: ScopeInput | undefined): void {
+        this.carriedScope = scope === undefined || scope === "graph" ? undefined : this.requireScopeSource().canonical(scope);
+    }
+
+    /**
+     * Restart the running layout, with its options, over the carried scope.
+     * @returns A promise that resolves once the layout has restarted; at once when none is set.
+     */
+    async rescope(): Promise<void> {
+        const engine = this.layoutEngine;
+        if (engine === undefined) {
+            return;
+        }
+
+        await this._setLayoutInternal(engine.type, this.currentLayoutOptions ?? {});
+    }
+
+    /**
+     * The layout as a user of the sets it names, for "Used by": present only while a layout
+     * is actually holding nodes for its scope.
+     * @returns The user and the scope, or undefined.
+     */
+    scopeUser(): { readonly user: { readonly kind: "layout"; readonly id?: string; readonly label: string }; readonly scope: Scope } | undefined {
+        const scope = this.carriedScope;
+        const type = this.layoutType;
+        if (this.members === null || scope === undefined || type === undefined) {
+            return undefined;
+        }
+
+        return { user: { kind: "layout", id: type, label: `Layout (${type})` }, scope };
+    }
+
+    /**
+     * Let go of every held node when the scope the running layout captured names something that was
+     * removed, so the layout runs over the whole graph instead. Nothing throws.
+     */
+    releaseDetachedScope(): void {
+        const scope = this.carriedScope;
+        const source = this.scopeSource;
+        if (this.members === null || scope === undefined || source === null || !source.detached(scope)) {
+            return;
+        }
+
+        this.members = null;
+        this.layoutEngine?.setHoldMask(null, 0);
+        this.running = true;
+    }
+
+    /**
+     * The source, or the refusal a manager built without a graph gives for a scope.
+     * @returns The source.
+     */
+    private requireScopeSource(): LayoutScopeSource {
+        if (this.scopeSource === null) {
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message: "a scope is resolved through the graph's session, and this layout manager has none",
+                source: "layout",
+                details: { field: "scope" },
+            });
+        }
+
+        return this.scopeSource;
+    }
+
+    /**
+     * Capture the members the next layout runs over, or null when it holds nothing.
+     * @param scoped - Whether the engine about to be built accepts a scope.
+     * @param explicit - Whether the scope came in this call, which is the only case that refuses.
+     * @returns The members.
+     * @throws The resolver's `GraphtyError` for an explicit scope that cannot be resolved.
+     */
+    private captureMembers(scoped: boolean, explicit: boolean): ReadonlySet<NodeIdType> | null {
+        const scope = this.carriedScope;
+        const source = this.scopeSource;
+        if (scope === undefined || source === null || !scoped) {
+            return null;
+        }
+
+        try {
+            if (source.detached(scope)) {
+                throw new GraphtyError({
+                    code: "E_BAD_COMMAND",
+                    message: "the scope names a set that was removed, so there is nothing to lay out",
+                    source: "layout",
+                    details: { field: "scope", reason: "detached" },
+                });
+            }
+
+            return new Set(source.members(scope));
+        } catch (error) {
+            // A CARRIED SCOPE NEVER THROWS: a property setter or the assistant's layout command
+            // restarts a layout with it, and a refusal there would reach nobody.
+            if (explicit || !isGraphtyError(error)) {
+                throw error;
+            }
+
+            this.logger.debug("The carried layout scope is inactive", { reason: error.message });
+            return null;
+        }
+    }
+
+    /**
+     * The hold mask for the graph as it stands: every row whose node is not a member.
+     * @param members - The captured members.
+     * @returns The mask and the rows it covers.
+     */
+    private holdMaskOf(members: ReadonlySet<NodeIdType>): [NodeMask, number] {
+        let rows = 0;
+        for (const node of this.dataManager.nodes.values()) {
+            if (validRow(node.index)) {
+                rows = Math.max(rows, node.index + 1);
+            }
+        }
+
+        const mask = makeMask(rows);
+        for (const node of this.dataManager.nodes.values()) {
+            if (validRow(node.index) && !members.has(node.id)) {
+                maskSet(mask, node.index, true);
+            }
+        }
+
+        return [mask, rows];
+    }
+
+    /**
+     * Tell a freshly built scoped engine where every held node is, and then hold them.
+     *
+     * Placed first for the reason `replayPins` places before it pins: a live simulation's own idea
+     * of where a node is starts wherever its initialisation put it, and d3 fixes a node at that.
+     * @param engine - The engine about to become current.
+     * @param members - The members it lays out.
+     * @param nodes - Every node in the graph.
+     */
+    private applyHold(engine: LayoutEngine, members: ReadonlySet<NodeIdType>, nodes: readonly Node[]): void {
+        const { positions } = this.dataManager;
+        const placed = { x: 0, y: 0, z: 0 };
+        for (const node of nodes) {
+            if (!members.has(node.id) && positions.isPlaced(node.index)) {
+                positions.read(node.index, placed);
+                engine.setNodePosition(node, { x: placed.x, y: placed.y, z: placed.z });
+            }
+        }
+
+        engine.setHoldMask(...this.holdMaskOf(members));
     }
 
     /**
@@ -1137,4 +1410,13 @@ export class LayoutManager implements Manager {
 
         return Promise.resolve();
     }
+}
+
+/**
+ * Whether a node index is a row of the graph.
+ * @param index - `Node.index`, which is `INVALID_INDEX` for a node with no row.
+ * @returns True for a row.
+ */
+function validRow(index: number): boolean {
+    return Number.isInteger(index) && index >= 0 && index !== INVALID_INDEX;
 }

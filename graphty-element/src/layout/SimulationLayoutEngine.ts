@@ -330,6 +330,12 @@ function missingController(): GraphtyError {
  * class could not be handed.
  */
 export class SimulationLayoutEngine extends LayoutEngine {
+    /**
+     * Every simulation accepts a scope: a held row is OR-ed into the fixed-node mask, so the
+     * simulation stops integrating it as well as publishing it. See `LayoutEngineStatics.scoped`.
+     */
+    static override scoped = true;
+
     /** Which simulation this bridge drives. */
     readonly simulationType: SimulationType;
 
@@ -810,7 +816,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      */
     endDrag(n: Node, pin: boolean): void {
         this.#dragging.delete(n);
-        this.#setFixed(n.index, pin || n.isPinned());
+        this.#setFixed(n.index, pin || n.isPinned() || this.isHeld(n.index));
     }
 
     /**
@@ -826,7 +832,18 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * @param n - The node that was unpinned.
      */
     unpin(n: Node): void {
-        this.#setFixed(n.index, false);
+        // A node a scoped layout is holding stays fixed: the hold is not the reader's pin to lift.
+        this.#setFixed(n.index, this.isHeld(n.index));
+    }
+
+    /**
+     * Holds the rows a scoped layout may not move, in the simulation's own fixed-node mask too.
+     * @param mask - One bit per row to hold, or null to hold nothing.
+     * @param rows - How many rows the mask covers.
+     */
+    override setHoldMask(mask: NodeMask | null, rows: number): void {
+        super.setHoldMask(mask, rows);
+        this.#applyPins();
     }
 
     /**
@@ -1096,7 +1113,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
     }
 
     /**
-     * Packs the store's pin lane into the simulation's mask.
+     * Packs the store's pin lane, the dragged nodes and the scope hold into the simulation's mask.
      *
      * A PACK, not a copy: the lane is one byte per node and the mask is one bit. It runs after
      * every load, because a freeze renumbers the rows and the lane is remapped with them. The
@@ -1125,6 +1142,16 @@ export class SimulationLayoutEngine extends LayoutEngine {
             if (this.#hasRow(held.index)) {
                 maskSet(mask, held.index, true);
                 rows.add(held.index);
+            }
+        }
+
+        // The rows a scoped layout holds, which the lane never carries: a hold is not a pin.
+        if (this.holdMask !== null) {
+            for (let i = 0; i < nodeCount; i += 1) {
+                if (this.isHeld(i)) {
+                    maskSet(mask, i, true);
+                    rows.add(i);
+                }
             }
         }
 

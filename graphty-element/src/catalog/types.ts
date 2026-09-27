@@ -615,16 +615,25 @@ export interface LayoutDescriptor {
      * nothing.
      */
     honoursWeights: boolean;
+    /**
+     * Whether the default engine accepts a scope: `setLayout(type, opts, { scope })` moves only
+     * the scope's nodes and holds every other node still.
+     *
+     * A picker reads it to know where a "Lay out this set" control does something. Of the
+     * element's own engines, the five live simulations answer true; a one-shot arrangement
+     * refuses a scope with `E_UNSUPPORTED`.
+     */
+    scoped: boolean;
 }
 
 /**
  * A layout descriptor as a third party's engine class authors it.
  *
- * `honoursWeights` is missing from it because the engine class already declares that fact as a
- * static, and a fact written in two places is a fact that can disagree with itself.
- * `LayoutEngine.register` reads the static and publishes the complete descriptor.
+ * `honoursWeights` and `scoped` are missing from it because the engine class already declares
+ * those facts as statics, and a fact written in two places is a fact that can disagree with
+ * itself. `LayoutEngine.register` reads the statics and publishes the complete descriptor.
  */
-export type AuthoredLayoutDescriptor = Omit<LayoutDescriptor, "honoursWeights">;
+export type AuthoredLayoutDescriptor = Omit<LayoutDescriptor, "honoursWeights" | "scoped">;
 
 /** One file format the element can read, write, or both. */
 export interface FormatDescriptor {

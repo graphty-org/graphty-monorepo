@@ -1162,7 +1162,21 @@ after a layout write -- goes to the **seal target**:
   becomes its step's after-capture, unless a history call has restored the lane since the
   provisional was taken, in which case the provisional is dropped and the next rest point seals
   into the new top step. If the group rolls back, the provisional is dropped;
-- otherwise the after-capture of the top applied step.
+- otherwise the after-capture of the newest applied step that has to do with the arrangement:
+  one that holds a before-capture, an after-capture or a row patch, or whose graph writes added
+  or removed nodes or edges or changed an edge's weight (the changes that set a running layout
+  moving). Steps that moved nothing -- a setting, a style, a visibility filter -- are skipped;
+- otherwise the baseline.
+
+Skipping steps that moved nothing is what keeps an undo from producing an arrangement the reader
+never saw. If the reader adds nodes and changes a setting while the layout is still moving, where
+the layout comes to rest belongs to the add, not to the setting. Filed under the setting, undoing
+the setting would restore the arrangement from before the add for every older node while the new
+nodes stayed where they settled. The same holds for a transport `play` after an unrelated step:
+its movement lands in the newest step that has to do with the arrangement, or in the baseline,
+and undoing the unrelated step moves nothing. A round-trip fixture adds a node, makes a style
+edit before the layout settles, lets it settle, and asserts that undoing the style edit leaves
+the lane where it settled.
 
 A rest point therefore never writes into a step at or below an open group's before-arrangement.
 Without this rule, a transaction whose `tx.layout.set` took the current arrangement as its before,
@@ -1527,14 +1541,31 @@ interface SessionDataApi {
 
 /**
  * A source to import: the same pair the element takes as `dataSource` / `dataSourceConfig`.
- * `type` is a registered data-source name ("json", "csv", "graphml", ...); `config` is that
- * source's options over the existing `BaseDataSourceConfig` (`data/DataSource.ts:14`: inline
- * `data`, a `file`, or a `url`).
+ * `type` is a registered data-source name ("json", "csv", "graphml", ...), detected from the
+ * file name, the URL or the content when absent; `config` is that source's options (inline
+ * `data`, a `file`, or a `url`, and what the source reads besides).
  */
 interface DataSourceInput {
-    readonly type: string;
-    readonly config: BaseDataSourceConfig & Readonly<Record<string, unknown>>;
+    readonly type?: string;
+    readonly config: Readonly<Record<string, unknown>>;
+    /** What the reader calls the data; the file's name or the URL's last part when absent. */
+    readonly name?: string;
 }
+
+/**
+ * Where the graph was loaded from, as the graph keeps it: never the inline text or the file
+ * itself, which the loaded rows already hold. Part of the `graph` slice, so undo and redo move
+ * it with the rows, and `clear` takes it away.
+ */
+interface DataSourceDescriptor {
+    readonly type?: string;      // the format named, or the one detected
+    readonly name?: string;
+    readonly size?: number;      // bytes, when a file was read
+    readonly config?: Readonly<Record<string, unknown>>;  // without `data` and `file`
+}
+
+// SessionDataApi also gains a reader:
+//     source(): DataSourceDescriptor | null;   // null before any load and after `clear`
 
 interface ImportOptions {
     /** "replace" (default) clears the graph first, in the same step; "merge" adds to it. */
@@ -1882,7 +1913,7 @@ Op names follow `element-api-design.md` section 4.11.1. New ops are marked.
 |---|---|
 | `view.camera` | Camera is view state |
 | `view.immersive` (new) | `{ mode: "vr" \| "ar" \| null }`; a device session. Replaces the VR/AR half of `view.mode`. Entering from 2D is one transaction with a `view.dimension` that rolls back if entry fails (section 6.4). A failed entry no longer writes `config.graph.viewMode = "3d"` (`Graph.ts:2822`, `:2833`) |
-| `layout.transport` | In-flight computation. Where the layout comes to rest is sealed into the top step (section 6.4) |
+| `layout.transport` | In-flight computation. Where the layout comes to rest is sealed into the seal target (section 6.4) |
 
 Section 4.11.1 lists further ops (`data.inspect`, `data.export`, `view.capture`, `report`, ...)
 that do not exist in code. `COMMANDS` lists only implemented ops; each future op declares itself
@@ -2202,24 +2233,34 @@ linted. The rule asks the type checker where each accessed member is declared. I
 that is a renderer-side element type (`GraphtyElement`, `Graph`, `Node`, a manager) or an app-local
 copy of one (next paragraph), so that `session.*` and `tx.*` are never reported:
 
-- a call of any non-exempt door not reached through `session` or `tx` (`addNode(s)`, `addEdge(s)`,
-  `removeNodes`, `removeEdges`, `updateNodes`, `setData`, `applySuggestedStyles`,
+- any read of a non-exempt door method not reached through `session` or `tx` (`addNode(s)`,
+  `addEdge(s)`, `removeNodes`, `removeEdges`, `updateNodes`, `setData`, `applySuggestedStyles`,
   `saveCameraPreset`, `importCameraPresets`, `clearData`, `loadFromFile`, `loadFromUrl`,
-  `addDataFromSource`, `runAlgorithm`, `setLayout`, `setViewMode`, ...);
+  `addDataFromSource`, `runAlgorithm`, `setLayout`, `setViewMode`, ...): called, optionally
+  chained, reached with a literal computed key (`element["addNodes"]`), passed on, `.call`ed,
+  `.apply`d, bound, or destructured (`const { addNodes } = element`);
 - `getDataManager`, `getStyles`, `getLayoutManager`, `getUpdateManager`, and any member access of
-  `dataManager`, `layoutManager`, `operationQueue`, `layoutEngine`;
+  `dataManager`, `layoutManager`, `operationQueue`, `layoutEngine`, and of the element's internal
+  `graph`;
 - an assignment to an element property that dispatches (`dataSource`, `dataSourceConfig`,
   `nodeData`, `edgeData`, `layout`, `layoutConfig`, `viewMode`, `layoutBehavior`, `background`,
   `selectionStyle`, `algorithmsOnLoad`, `runAlgorithmsOnLoad`, `directed`, the id-path setters);
-- a `JSXAttribute` for the props removed from `<Graphty>` (`layout`, `layoutConfig`, `viewMode`);
 - a local type or interface named after an element type, with or without an `Element` prefix or
   a `Like` or `Type` suffix (`ElementGraph`, `ElementNodeLike`, `GraphtyElementType`). The members
   of such a copy count as the element's for the checks above, so a call made through a duck type
   is reported where it is made.
 
 Camera, screenshot, XR configuration and acceleration are not on the list, because they are
-exempt. `GraphtyHandle.graph` is removed (section 13), so the app has no `Graph` receiver at all
-outside the element.
+exempt. `GraphtyHandle.graph` is removed (section 13), and the app reaches the AI assistant
+through the element's own `enableAiControl`, `aiCommand`, `onAiStatusChange`,
+`cancelAiCommand` and `disableAiControl`, so the app has no `Graph` receiver at all outside the
+element.
+
+Attributes on the `<graphty-element>` tag and `setAttribute` are not checked. The element's
+`layoutBehavior` carries view preferences (label declutter) and project settings (`preSteps`,
+`stepMultiplier`, `minDelta`) in one property, so a check by name would report the app's
+view-only declutter setting. A project key written that way is still recorded as a step inside
+the element; only the grouping of one gesture into one step is at stake.
 
 ---
 
@@ -2237,9 +2278,11 @@ Paths under `graphty/src`.
    `AppShell.tsx` feeds `TopBar`, `UndoSplitButton` and `HistoryPopover`
    (`AppShell.tsx:5127-5157`) from it; `onUndo` / `onRedo` call `session.undo()` / `redo()`;
    `onRestore` calls `history.restoreTo`. The Undo button's tooltip reads `history.nextUndo`. The
-   rows are retyped over `HistoryStep`. The row's panel, its XR grouping (from `provenance.xr`) and
-   the Data panel's Cleaning steps view (steps whose `slices` include `"graph"`) are presentation
-   over the step, kept in `topbar/historyRows.ts`.
+   rows are retyped over `HistoryStep`. The row's panel and its XR grouping (from
+   `provenance.xr`) are presentation over the step, kept in `topbar/historyRows.ts`. The Data
+   panel's Cleaning steps view (steps whose `slices` include `"graph"`) is deferred until
+   something draws it: nothing in the app shows that view today, so the filter would have no
+   reader. It goes in `historyRows.ts` when the view is built.
 3. **Remove the manual pushes** at `AppShell.tsx:2896` and `:3215`.
 4. **Keys.** The bindings at `AppShell.tsx:3654` / `:3660` call `session.undo()` / `redo()`. While
    the canvas has focus the element handles the keys and marks them `preventDefault`, and
@@ -2290,7 +2333,11 @@ Paths under `graphty/src`.
      (`:56-58`).
    - "Remove result" (`AppShell.tsx:4275`) dispatches `algo.remove`, which fixes the bug where
      the run stayed behind after its layers were removed.
-   - `selectNode` / `deselectNode` (`graphCommands.ts:211-221`) move to `session.selection`.
+   - `selectNode` / `deselectNode` (`graphCommands.ts`) stay on the element's doors. Selection is
+     not a step, both doors write through the same selection model `session.selection` does, and
+     `selectNode` also retries the other spelling of an integer id (a GML file's `1` against a
+     row's `"1"`), which `session.selection.apply` does not. They are the supported path for
+     selecting one node.
    - `GraphtyHandle` drops `graph`. Every camera and XR-configuration call the app made through it
      moves to the element door that already exists for it (section 10.2).
 7. **Mirrors are re-read, not held.** `layers` and `legendChannels` are re-read on
@@ -2306,8 +2353,11 @@ Paths under `graphty/src`.
    `session.history`.
 10. Close #197.
 
-The app sniffs file formats itself (`components/Graphty.tsx:108-186`), which is element work in
-the app. It is outside this design and is filed as its own element issue.
+The app used to sniff file formats itself (`components/Graphty.tsx:108-186`), which is element
+work in the app. That moved into the element with this work: `DataSourceInput.type` is optional
+and detected from the file name, the URL or the content, `DataSourceInput.name` defaults to the
+file name or the URL's last part, and `session.data.source()` reads back what was loaded (section
+10.1). The app passes neither `type` nor `name` unless the reader chose one.
 
 ---
 
@@ -2355,7 +2405,9 @@ These are one-way doors: published names and shapes, or breaking changes.
    `SessionCommand`; graph-format's `seal()` and `E_FROZEN`.
    Also: `CommandOutcomeMap` (no entry a promise of a thenable); `SessionLayout.engine` stored in
    the slice and the `{ engine?, options? }` argument of `layout.set`; `ProjectConfig` in the
-   existing `SessionDataConfig` shape and `ProjectConfigPatch`; `DataSourceInput`, `ImportOptions`
+   existing `SessionDataConfig` shape and `ProjectConfigPatch`; `DataSourceInput` (with `type`
+   optional, detected when absent, `name`, and `config` typed as a plain record rather than
+   `BaseDataSourceConfig & Record`), `DataSourceDescriptor` and `session.data.source()`; `ImportOptions`
    (with `mode` and `layout: "recommended"`), `NodeRecordInput`, `EdgeRecordInput`,
    `RowUpdate`, `PositionEntry`; `applySuggestedStyles` on `algo.run` and `algo.legacy`;
    `cause` on the element's `data-added`, `elements-removed` and `data-loaded` events;
@@ -2454,7 +2506,7 @@ Everything else in this document is reversible and decided here.
 | Keeping `batchOperations`' calls on the element grouped by time for the callback's duration | Time-based membership: other element calls during the callback, including the reader's, would join and roll back with it. The callback's `tx` and a warning are used instead |
 | A 2.4.0 minor with the closures deferred to 3.0.0 | Most of it is already breaking, and history over writable records is unsafe (section 15.3) |
 | A capture per `moves` command, including adds | At a million nodes with a running layout, adding nodes one at a time would copy 12 MB per add. Captures at rest points and deliberate moves cost one copy per thing a person does |
-| Recording a layout re-run from transport as its own step | Every settle after an add or a drag would then need its own step as well. Sealing rest points into the top step covers all of them; the app's explicit "Re-run" uses `layout.set` to be its own step |
+| Recording a layout re-run from transport as its own step | Every settle after an add or a drag would then need its own step as well. Sealing rest points into the seal target covers all of them; the app's explicit "Re-run" uses `layout.set` to be its own step |
 | Showing a 2D layout flat in a VR or AR headset | Keeps XR free of steps, but a flat graph in a device whose point is depth is a regression from today |
 | Undo cancelling the newest pending item regardless of age | A run started minutes ago would be cancelled by the press meant for the colour change after it, and a queued colour-picker frame would absorb a press with no visible effect |
 | Demoting old steps to "not undoable" before evicting them (section 4.11.2) | Undo is last in, first out: a step that cannot be undone makes every older step unreachable while still paying for it |

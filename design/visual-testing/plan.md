@@ -67,8 +67,9 @@ visual-review/                       @graphty/visual-review, private, plain .mjs
                                      shard runs it) and lint
   vitest.config.mjs
   projects.json                      compact-mantine and graphty-element: Storybook artifact name,
-                                     package directory, modes and their Storybook globals, workers,
-                                     seedFromMaster
+                                     package directory, workers, stableFrame (wait for
+                                     graphty-element), seedFromMaster. Modes are not listed here:
+                                     they come from each story's parameters.chromatic.modes
   capture/capture.mjs                Playwright capture (phase 3)
   trusted/cli.mjs                    subcommands: capture, compare, serve
   trusted/lib/results.mjs            results.json format and its validator (phase 1)
@@ -206,15 +207,29 @@ Chromium flags). For each story and mode:
    "Graph settled timeout" console warning is `failed`.
 4. Wait the story's `delay`; screenshot with `animations: "disabled"` (matches
    `pauseAnimationAtEnd`) and `caret: "hide"`.
+
+   Parameters are read once per run, before any capture, from
+   `__STORYBOOK_PREVIEW__.extract()` (Storybook 9.1; it is what Chromatic reads too), not from each
+   story's current render: a story's modes decide which URLs to open, so they are needed before
+   the story is opened. The render counts as done at `completed` or any later phase (`afterEach`,
+   `finished`). Each worker has its own browser: every page of one browser shares its GPU process,
+   and with SwiftShader one busy WebGL page stalled the other workers' renders and screenshots for
+   minutes, past Playwright's own timeouts.
 5. Compare with phase 2. Every `changed` or `new` item is captured once more in a new browser
    context before it is classified.
-6. Write `results.json` (after every item, `complete: true` at the end), and copy only `changed`, `new` and `unstable` PNGs (both captures for
-   unstable) to the output directory, plus, under `baselines/`, the baseline PNG the comparison
+6. Write `results.json` (after every item, `complete: true` at the end), and copy only `changed`,
+   `new` and `unstable` PNGs to the output directory (the second capture of an unstable item goes
+   to `second/<file>`), plus, under `baselines/`, the baseline PNG the comparison
    used for every `changed`, `unstable` and `removed` item. The review page then shows exactly the
    before image CI compared against, whatever the development server's checkout holds.
 
 Workers from `projects.json` (4 for graphty-element, 8 for compact-mantine locally; CI measures 2
 against 4).
+
+Command: `node visual-review/trusted/cli.mjs capture --project <id> --out <dir> [--storybook <dir>]
+[--baselines <dir>] [--workers <n>]`; the Storybook defaults to `<package>/storybook-static` and
+the baselines to `visual-baselines/<id>`. It exits 0 whatever it finds, and non-zero only when the
+tool itself fails.
 
 **Done when.** Built locally (`pnpm exec nx run compact-mantine:build-storybook` and the same for
 graphty-element), each project is captured, then captured again with the first run's PNGs as

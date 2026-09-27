@@ -239,7 +239,7 @@ const config: KnipConfig = {
         // visual-review tool (plain .mjs, no build)
         "visual-review": {
             entry: ["test/**/*.test.mjs"],
-            project: ["trusted/**/*.mjs!", "test/**/*.mjs"],
+            project: ["trusted/**/*.mjs!", "capture/**/*.mjs!", "test/**/*.mjs"],
             ignore: ["coverage/**", "node_modules/**"],
         },
 

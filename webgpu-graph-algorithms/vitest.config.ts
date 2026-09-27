@@ -142,13 +142,15 @@ const DEVICE_ERROR_TESTS: readonly string[] = [
 ];
 
 /**
- * Whether this run selected the device-error project. It then runs ONE FILE AT A TIME. The setting sits at the root
- * because Vitest 3 listed `fileParallelism` (like the `maxWorkers` of nodeForks below) among its NonProjectOptions and
- * ignored it inside a project; Vitest 4 accepts both per project, and moving them there is a separate change. At the
- * root, selecting the project together with another one makes the WHOLE run serial, which is why the lanes give it
- * an invocation of its own.
+ * Whether this run selected the device-error project or the limits project. Either one then runs ONE FILE AT A
+ * TIME. The device-error files break a device on purpose; the limits files allocate up to the adapter's whole
+ * buffer limit (oom-scope asks for exactly `maxBufferSize`), and two of them side by side on one GPU starve each
+ * other. The setting sits at the root because Vitest 3 listed `fileParallelism` (like the `maxWorkers` of nodeForks
+ * below) among its NonProjectOptions and ignored it inside a project; Vitest 4 accepts both per project, and moving
+ * them there is a separate change. At the root, selecting either project together with another one makes the WHOLE
+ * run serial, which is why the lanes give each an invocation of its own.
  */
-const deviceErrorRun = projects.includes("node-device-errors");
+const serialRun = projects.includes("node-device-errors") || projects.includes("node-limits");
 
 /**
  * The browser-side benchmark bridge (spec 11.6 item 8, 11.7): a browser test cannot write files, so it calls
@@ -247,8 +249,8 @@ export default defineConfig({
         // Root, not per project (see nodeForks above). It applies to every project, and the node ones are the
         // only ones it binds: the browser project runs its files one at a time through its own fileParallelism.
         maxWorkers: nodeForks,
-        // Root, not per project, likewise: one file at a time for the device-error run (see deviceErrorRun).
-        fileParallelism: deviceErrorRun ? false : undefined,
+        // Root, not per project, likewise: one file at a time for the device-error and limits runs (see serialRun).
+        fileParallelism: serialRun ? false : undefined,
         // verbose prints a line per test: useful locally, needless noise in CI
         reporters: process.env.CI ? ["default"] : ["verbose"],
         coverage: {
@@ -289,13 +291,14 @@ export default defineConfig({
             {
                 test: {
                     // The files that break a device on purpose (DEVICE_ERROR_TESTS above), one file at a time, in
-                    // the `node` project's environment. It does NOT stop a worker dying: the graphics lane's abort
-                    // on 2026-09-23 came three seconds after this set's last four validation errors, and nothing
-                    // here changes what the driver does. What it changes is the blast radius. A worker that dies
-                    // here takes eleven files with it instead of the hundred and ten that were running beside it,
-                    // the `node` project still reports and still writes its coverage, and the file that died is the
-                    // one the run was on -- which is the whole of the diagnosis, since a dead worker leaves only
-                    // "Channel closed" with no file name (G4-F14).
+                    // the `node` project's environment. The graphics lane's worker abort on 2026-09-23, three
+                    // seconds after this set's last four validation errors, was not the errors themselves: it was
+                    // dawn-node polling a Dawn instance that had already been freed once its GPU handle was
+                    // dropped, which PR #451 fixed in createNodeGpu (one instance per flag list, never freed). The
+                    // project stays because it keeps the blast radius small at no cost: a worker that dies here
+                    // takes eleven files with it instead of the hundred and ten that were running beside it, the
+                    // `node` project still reports and still writes its coverage, and the file that died is the one
+                    // the run was on -- a dead worker leaves only "Channel closed" with no file name.
                     name: "node-device-errors",
                     globals: true,
                     environment: "node",
@@ -309,6 +312,8 @@ export default defineConfig({
             },
             {
                 test: {
+                    // The multi-gigabyte limit files. One file at a time, in an invocation of their own (serialRun
+                    // above), so an out-of-memory test never shares the GPU with the main suite.
                     name: "node-limits",
                     globals: true,
                     environment: "node",

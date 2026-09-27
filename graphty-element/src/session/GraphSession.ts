@@ -1617,6 +1617,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     sessionInputs.set(session, inputs);
     sessionScopes.set(session, scope);
     sessionNotifiers.set(session, notifier);
+    sessionPlanning.set(session, planning);
 
     return session;
 }
@@ -1646,6 +1647,26 @@ export function setsNotifierOfSession(session: GraphSession): SetsNotifier {
     }
 
     return notifier;
+}
+
+/** Each session's planning context, so the element can tell it which algorithms compute over their scope. */
+const sessionPlanning = new WeakMap<GraphSession, PlanningContext>();
+
+/**
+ * Tell a session's planner which algorithms compute over their scope, so it estimates every other
+ * run over a scope on the whole graph (design/sets 10.2). Internal: the element holds the classes
+ * that declare it and a Node-safe session cannot.
+ * @param session - a session this module built
+ * @param probe - whether the class a command would build declares a scoped input
+ * @throws An Error for a session this module did not build.
+ */
+export function declareScopedInputs(session: GraphSession, probe: NonNullable<PlanningContext["scopedInput"]>): void {
+    const planning = sessionPlanning.get(session);
+    if (planning === undefined) {
+        throw new Error("Not a session built by createGraphSession.");
+    }
+
+    planning.scopedInput = probe;
 }
 
 /** Each session's input counters, beside it rather than on it so the published type gains nothing. */

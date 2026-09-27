@@ -1,8 +1,8 @@
 /**
  * @file Who gets a scoped input (design/sets/sets-design.md section 10.1): only a class that
  * declares `static scopeInput = "subgraph"`, through both seams, and only while it runs as a run.
- * Every other class reads the whole graph, so no built-in's output moves in this phase: each is
- * run bound to a scope and unbound, and must publish the same values.
+ * Every other class reads the whole graph and is masked back to its scope: each built-in is run
+ * bound to a scope and unbound, and the bound run publishes the unbound values for the scope only.
  */
 
 import { assert, describe, it } from "vitest";
@@ -120,6 +120,26 @@ function publishedOf(result: RunResult | undefined, graph: InputGraph): Publishe
     return { nodes, edges };
 }
 
+/** Fields the result fills from the population it publishes, rather than the algorithm. */
+const FILLED_FROM_POPULATION = new Set(["groupSize", "levelSize"]);
+
+/**
+ * Published values without the fields filled from the population.
+ * @param published - The values.
+ * @returns The algorithm's own fields.
+ */
+function ownFields(published: Published): Published {
+    const strip = (values: Record<string, unknown>): Record<string, unknown> =>
+        Object.fromEntries(
+            Object.entries(values).map(([id, value]) => [
+                id,
+                value === undefined ? undefined : Object.fromEntries(Object.entries(value as object).filter(([name]) => !FILLED_FROM_POPULATION.has(name))),
+            ]),
+        );
+
+    return { nodes: strip(published.nodes), edges: strip(published.edges) };
+}
+
 /** Every built-in with an accelerated seam, and Degree, with the options each needs. */
 const BUILT_INS: readonly (readonly [string, (g: Graph) => Algorithm])[] = [
     ["pagerank", (g) => new PageRankAlgorithm(g)],
@@ -130,22 +150,34 @@ const BUILT_INS: readonly (readonly [string, (g: Graph) => Algorithm])[] = [
     ["kruskal", (g) => new KruskalAlgorithm(g)],
 ];
 
-describe("no built-in's output moves: none declares a scoped input yet", () => {
+describe("no built-in declares a scoped input yet: each computes on the whole graph and is masked back", () => {
     for (const [name, build] of BUILT_INS) {
-        it(`${name} publishes the same values bound to a three-node scope as unbound`, async () => {
+        it(`${name} bound to a three-node scope publishes its whole-graph values for the scope only`, async () => {
             const graph = ring();
             const unbound = publishedOf(await build(graph.asGraph()).publishResult(detachedRunContext(), "r"), graph);
 
             const scoped = build(graph.asGraph());
-            const scope = graph.scope(["a", "b", "c"]);
+            const members = new Set(["a", "b", "c"]);
+            const scope = graph.scope([...members]);
             const bound = publishedOf(
                 await withRunInput(scoped, graph, () => scope, undefined, () => scoped.publishResult(detachedRunContext(), "r")),
                 graph,
             );
 
-            assert.deepStrictEqual(bound, unbound);
+            const expected: Published = {
+                nodes: Object.fromEntries(Object.entries(unbound.nodes).map(([id, value]) => [id, members.has(id) ? value : undefined])),
+                edges: Object.fromEntries(
+                    [...graph.edges.values()].map((edge) => [
+                        edge.id,
+                        members.has(edge.srcId) && members.has(edge.dstId) ? unbound.edges[edge.id] : undefined,
+                    ]),
+                ),
+            };
+            // The fields the element fills from the published population (a group's size, a
+            // level's size) are counted over the scope, which is the point of masking first.
+            assert.deepStrictEqual(ownFields(bound), ownFields(expected));
             const filled = [...Object.values(unbound.nodes), ...Object.values(unbound.edges)].filter((value) => value !== undefined);
-            assert.isAbove(filled.length, 3, "values outside the scope too, so a scoped computation would differ");
+            assert.isAbove(filled.length, 3, "values outside the scope too, so the mask has something to drop");
         });
     }
 

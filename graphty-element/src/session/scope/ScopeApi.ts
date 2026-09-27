@@ -401,6 +401,8 @@ interface Membership {
 
 /** What stands behind a resolved scope: its bitmaps, and how to resolve the same spec again now. */
 interface ScopeBehind extends Membership {
+    /** How the scope reads its edges. */
+    readonly reading: EdgeReading;
     /**
      * The same specification resolved against the graph as it stands now.
      * @returns The resolution and its snapshot.
@@ -784,7 +786,7 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
         assertScope(spec);
         const { resolution, graph } = membershipOf(spec);
         const resolved = resolvedScopeOf(resolution, graph, spec);
-        resolutionsBehind.set(resolved, { resolution, graph, now: () => membershipOf(spec) });
+        resolutionsBehind.set(resolved, { resolution, graph, reading: readingOf(spec), now: () => membershipOf(spec) });
 
         return resolved;
     };

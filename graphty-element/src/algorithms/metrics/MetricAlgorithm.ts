@@ -18,6 +18,7 @@
 import type { FieldDescriptor, NodeId } from "../../catalog/types";
 import { createRunResult, type RunResult } from "../../session/results";
 import { Algorithm } from "../Algorithm";
+import { maskBack } from "../input/maskBack";
 import { nodeLabelReader } from "../results/labels";
 import type { AlgorithmRunContext } from "../results/types";
 import { detachedRunContext } from "./context";
@@ -96,7 +97,7 @@ export abstract class MetricAlgorithm<
            built-in metric and a third party's would come to name the same node differently. */
         const labelOf = nodeLabelReader(this.graph);
 
-        const result = createRunResult({
+        const result = createRunResult(maskBack(this, {
             ...(labelOf === undefined ? {} : { labelOf }),
             runId: context.runId,
             shape: "node-metric",
@@ -109,7 +110,7 @@ export abstract class MetricAlgorithm<
             nodes: measurement.nodes,
             caveats: measurement.caveats,
             durationMs: Date.now() - startedAt,
-        });
+        }));
 
         this.#result = result;
 

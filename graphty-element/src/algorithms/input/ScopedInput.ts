@@ -32,6 +32,7 @@ import {
     type U32,
 } from "@graphty/graph-format";
 
+import type { EdgeReading } from "../../catalog/types";
 import type { Resolution } from "../../session/sets/resolve";
 import {
     type DerivedInput,
@@ -91,6 +92,8 @@ interface SnapshotSource {
 export interface ResolvedInputScope {
     readonly resolution: Resolution;
     readonly graph: GraphSnapshot;
+    /** How the scope reads its edges, when the resolver knows; the run's caveat is worded from it. */
+    readonly reading?: EdgeReading;
 }
 
 /** What one run hands its algorithm: the scope, the cache it derives into, and its holder identity. */
@@ -115,7 +118,7 @@ const bindings = new WeakMap<object, RunInput>();
  * @param algorithm - The instance.
  * @returns True when it computes over its scope.
  */
-function declaresScopedInput(algorithm: object): boolean {
+export function declaresScopedInput(algorithm: object): boolean {
     return (algorithm.constructor as { scopeInput?: unknown }).scopeInput === "subgraph";
 }
 
@@ -126,6 +129,16 @@ function declaresScopedInput(algorithm: object): boolean {
  */
 export function runInputOf(algorithm: object): RunInput | undefined {
     return declaresScopedInput(algorithm) ? bindings.get(algorithm) : undefined;
+}
+
+/**
+ * The scope of the run an algorithm is publishing for, whatever its class declares: what mask-back
+ * masks against.
+ * @param algorithm - The instance.
+ * @returns The scope over the current snapshot, or null outside a run or for the whole graph.
+ */
+export function runScopeOf(algorithm: object): ResolvedInputScope | null {
+    return bindings.get(algorithm)?.scope() ?? null;
 }
 
 /**

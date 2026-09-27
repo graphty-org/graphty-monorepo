@@ -11,6 +11,7 @@ import { resolveOptionValues } from "../../catalog/options";
 import type { AlgorithmDescriptor, FieldDescriptor, RunId } from "../../catalog/types";
 import { createRunResult, resultPath, type RunResult } from "../../session/results";
 import { Algorithm } from "../Algorithm";
+import { maskBack } from "../input/maskBack";
 import { nodeLabelReader } from "./labels";
 import { type AlgorithmOutput, type AlgorithmRunContext, detachedRunContext, type ResultFieldSpec } from "./types";
 
@@ -193,7 +194,7 @@ export abstract class DeclaredAlgorithm<
            through the shared reader rather than inline, because the metric pipeline needs the
            same answer and a second copy is how the two would come to disagree about it. */
         const labelOf = nodeLabelReader(this.graph);
-        const result: RunResult = createRunResult({
+        const result: RunResult = createRunResult(maskBack(this, {
             ...(labelOf === undefined ? {} : { labelOf }),
             runId,
             shape: output.shape,
@@ -204,7 +205,7 @@ export abstract class DeclaredAlgorithm<
             edges: output.edges,
             caveats: output.caveats,
             durationMs: Date.now() - startedAt,
-        });
+        }));
 
         this.#result = result;
 

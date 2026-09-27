@@ -281,6 +281,11 @@ export interface CostInput {
      * same rule written once.
      */
     readonly sample?: number;
+    /**
+     * Seconds spent deriving a scoped run's compact input before the algorithm starts, added to
+     * the algorithm's own estimate. Absent for a run over the whole graph.
+     */
+    readonly derivationSeconds?: number;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -711,8 +716,9 @@ export function estimateCost(input: CostInput): CostEstimate {
             ownUnits !== undefined,
         );
     const confidence = iterationsAreGuessed && modelled.confidence !== "modelled" ? "modelled" : modelled.confidence;
+    const derivation = input.derivationSeconds ?? 0;
     const seconds =
-        Number.isFinite(modelled.seconds) && modelled.seconds >= 0 ? modelled.seconds : Number.POSITIVE_INFINITY;
+        Number.isFinite(modelled.seconds) && modelled.seconds >= 0 ? modelled.seconds + derivation : Number.POSITIVE_INFINITY;
 
     const notes = [
         sizes,
@@ -730,6 +736,10 @@ export function estimateCost(input: CostInput): CostEstimate {
 
     if (iterationsAreGuessed) {
         notes.push(`no iteration bound is declared, so ${group(ASSUMED_ITERATION_BOUND)} is assumed`);
+    }
+
+    if (derivation > 0) {
+        notes.push(`plus about ${String(Math.round(derivation * 1000))} ms to derive the scope's subgraph`);
     }
 
     notes.push(modelled.provenance);

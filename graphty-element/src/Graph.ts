@@ -107,7 +107,7 @@ import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
 import { inputCountersOf, writeUpdates } from "./session/attributes";
-import { scopeResolverOfSession, setsNotifierOfSession } from "./session/GraphSession";
+import { declareScopedInputs, scopeResolverOfSession, setsNotifierOfSession } from "./session/GraphSession";
 import type { Run, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionTarget, SetOp } from "./session/selection";
 import type { Layer, StyleSuggestion } from "./session/styles";
@@ -406,6 +406,10 @@ export class Graph implements GraphContext {
         // pass has run, an element draws itself from the element's own defaults; see
         // `bootstrapNodePaint` in StylePainter.
         this.stylePainter.bind(this.session.paint);
+
+        // The planner estimates a run over a scope on the whole graph unless the class it would
+        // build computes over its scope; only the element holds the classes that say so.
+        declareScopedInputs(this.session, (algorithm, params) => this.algorithmManager.declaresScopedInput(algorithm, params, algorithmByKey(algorithm)));
 
         // Live sets re-resolve after a freeze a frame at a time, on the render loop's frames
         // (design/sets 6.2): a held frame holds that work too.

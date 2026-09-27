@@ -211,7 +211,43 @@ export interface PlanningContext {
     readonly calibration?: () => MachineCalibration | undefined;
     /** Reads the most recent timing of each algorithm on this machine. */
     readonly measurements?: () => ReadonlyMap<AlgorithmKey, CostMeasurement> | undefined;
+    /**
+     * Whether the class a command would build computes over its scope (declares `scopeInput`).
+     * Absent, or answering false, a run over a scope computes on the whole graph and is estimated
+     * over it. Filled by the element, which holds the classes; a session built without one has
+     * none, and estimating over the whole graph never admits a run that should be refused.
+     */
+    scopedInput?: (algorithm: AlgorithmKey, params: Readonly<Record<string, unknown>>) => boolean;
 }
+
+// ---------------------------------------------------------------------------------------------
+// Deriving a scope's input
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The cost of deriving a scope's compact input, in seconds: a + b(N + E) + c(kept edges).
+ *
+ * Not proportional to the scope: `inducedSubgraph` allocates full-length remaps and scans every
+ * edge of the whole graph, then builds the kept edges. Fitted to the design's measured rows
+ * (design/sets 6.5, Barabasi-Albert m = 5): 64 ms at 1M / 5M keeping 10% of the nodes and 273 ms
+ * keeping 50%, which gives about 9 ns per element of the whole graph and 170 ns per kept edge.
+ * ponytail: fixed coefficients from one machine; the timing runners re-fit them, and a calibrated
+ * rate replaces them when a derivation is ever timed on the device.
+ * @param nodes - Nodes in the whole graph.
+ * @param edges - Edges in the whole graph.
+ * @param keptEdges - Edges in the scope.
+ * @returns The seconds.
+ */
+export function derivationSeconds(nodes: number, edges: number, keptEdges: number): number {
+    return DERIVATION_FIXED_SECONDS + DERIVATION_PER_ELEMENT_SECONDS * (nodes + edges) + DERIVATION_PER_KEPT_EDGE_SECONDS * keptEdges;
+}
+
+/** a: the fixed part of a derivation. */
+const DERIVATION_FIXED_SECONDS = 0.0005;
+/** b: per node and edge of the whole graph. */
+const DERIVATION_PER_ELEMENT_SECONDS = 9e-9;
+/** c: per edge kept in the scope. */
+const DERIVATION_PER_KEPT_EDGE_SECONDS = 1.7e-7;
 
 // ---------------------------------------------------------------------------------------------
 // Estimating
@@ -241,6 +277,12 @@ function costInput(
 
     const calibration = context.calibration?.();
     const measurements = context.measurements?.();
+    /* A run computes over a scope smaller than the graph only when its class declares a scoped
+       input; every other one computes on the whole graph and is masked back, so it is estimated
+       -- and refused -- over the whole graph: a small scope must not admit a whole-graph run. A
+       scoped one pays for deriving its input on top. */
+    const whole = scope.nodeCount === statistics.nodeCount && scope.edgeCount === statistics.edgeCount;
+    const scoped = !whole && (context.scopedInput?.(command.algorithm, command.params ?? {}) ?? false);
 
     return {
         input: {
@@ -248,7 +290,10 @@ function costInput(
             ...(descriptor === undefined ? {} : { descriptor }),
             ...(command.params === undefined ? {} : { params: command.params }),
             statistics,
-            scope: { nodes: scope.nodeCount, edges: scope.edgeCount, spec, exact: true },
+            scope: scoped || whole
+                ? { nodes: scope.nodeCount, edges: scope.edgeCount, spec, exact: true }
+                : { nodes: statistics.nodeCount, edges: statistics.edgeCount, spec, exact: true },
+            ...(scoped ? { derivationSeconds: derivationSeconds(statistics.nodeCount, statistics.edgeCount, scope.edgeCount) } : {}),
             ...(calibration === undefined ? {} : { calibration }),
             ...(measurements === undefined ? {} : { measurements }),
             acceleratorAvailable: context.acceleratorAvailable(),

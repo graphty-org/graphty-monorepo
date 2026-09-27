@@ -25,7 +25,7 @@ import { type GraphSnapshot, INVALID_INDEX, maskTest } from "@graphty/graph-form
 import { compareIds } from "../../catalog/sets/canonical";
 import { parseSetDefinition } from "../../catalog/sets/parse";
 import type { EdgeId, Filter, NodeId, ResultItem, ResultShape, RunId, SetDefinition } from "../../catalog/types";
-import { edgeCounterOf } from "../../data/edgeIdentity";
+import { edgeRowOf } from "../../data/edgeIdentity";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { RunResult } from "../results/types";
 import type { FilterRunResult } from "../visibility/filter";
@@ -488,18 +488,6 @@ export function createOffering(sources: OfferSources): Offering {
             return Object.freeze({ sets: Object.freeze(sets), items: Object.freeze(items) });
         },
     };
-}
-
-/**
- * The row of a session edge in a snapshot: its `Edge.index`.
- * @param graph - The snapshot.
- * @param id - The session edge id.
- * @returns The row, or `INVALID_INDEX`.
- */
-function edgeRowOf(graph: GraphSnapshot, id: EdgeId): number {
-    const counter = edgeCounterOf(id);
-
-    return counter === INVALID_INDEX ? INVALID_INDEX : graph.edgeIndexOf(counter);
 }
 
 /**

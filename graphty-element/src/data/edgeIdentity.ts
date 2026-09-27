@@ -47,6 +47,18 @@ export function edgeCounterOf(id: EdgeId): number {
     return Number.isSafeInteger(counter) ? counter : INVALID_INDEX;
 }
 
+/**
+ * The row of a session edge in a snapshot: its `Edge.index`.
+ * @param graph - the snapshot
+ * @param id - the session edge id
+ * @returns the row, or `INVALID_INDEX`
+ */
+export function edgeRowOf(graph: GraphSnapshot, id: EdgeId): number {
+    const counter = edgeCounterOf(id);
+
+    return counter === INVALID_INDEX ? INVALID_INDEX : graph.edgeIndexOf(counter);
+}
+
 // ---------------------------------------------------------------------------------------------
 // Stable edge identity (design/sets/sets-design.md sections 4.2, 12.2 and 12.3).
 //

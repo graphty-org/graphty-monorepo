@@ -1,4 +1,5 @@
 import { Algorithm } from "../algorithms/Algorithm";
+import { checkNodeOptions } from "../algorithms/input/maskBack";
 import { type ResolvedInputScope, withRunInput } from "../algorithms/input/ScopedInput";
 import { mergedParallelEdges } from "../algorithms/utils/snapshotGraph";
 import type { BuiltInAlgorithmDescriptor, LegacyAlgorithmKey } from "../catalog/algorithms";
@@ -308,6 +309,24 @@ export class AlgorithmManager implements Manager {
     }
 
     /**
+     * Whether the class a run of one algorithm would build computes over its scope: what the
+     * planner asks before estimating a run over a scope.
+     * @param algorithm - The catalogue key.
+     * @param params - The parameters, which pick the class for a folded key.
+     * @param builtIn - The built-in catalogue entry for the key, when it has one, as for `execute`.
+     * @returns True when that class declares `scopeInput = "subgraph"`.
+     */
+    declaresScopedInput(algorithm: string, params: Readonly<Record<string, unknown>>, builtIn?: BuiltInAlgorithmDescriptor): boolean {
+        const registered = builtIn === undefined ? registeredAlgorithmByKey(algorithm) : undefined;
+        const target = builtIn !== undefined ? this.targetFor(builtIn, params) : registered;
+        if (target === undefined) {
+            return false;
+        }
+
+        return (Algorithm.getClass(target.namespace, target.type) as { scopeInput?: unknown } | null)?.scopeInput === "subgraph";
+    }
+
+    /**
      * Which registered class to build for one run, and with what.
      * @param descriptor - The algorithm's catalogue entry.
      * @param params - The parameters the run is starting with.
@@ -338,7 +357,9 @@ export class AlgorithmManager implements Manager {
             return null;
         }
 
-        return behind.graph === this.graph.getDataManager().getSnapshot() ? behind : behind.now();
+        const { reading } = behind;
+
+        return { ...(behind.graph === this.graph.getDataManager().getSnapshot() ? behind : behind.now()), reading };
     }
 
     /**
@@ -360,9 +381,12 @@ export class AlgorithmManager implements Manager {
         context: RunExecutionContext,
         descriptor: AlgorithmDescriptor,
     ): Promise<RunResult> {
+        // A node option naming a node outside the scope is refused before any work starts.
+        checkNodeOptions(descriptor.options, context.params, this.scopeOf(context));
+
         // The run's scope is handed to the algorithm through the input accessor, which gives it to a
         // class that declares a scoped input and the whole graph to every other; whatever it
-        // derives is held until the work settles.
+        // derives is held until the work settles, and what it publishes is masked back to it.
         const published = await withRunInput(algorithm, this.graph, () => this.scopeOf(context), context.signal, () =>
             algorithm.publishResult(
                 {

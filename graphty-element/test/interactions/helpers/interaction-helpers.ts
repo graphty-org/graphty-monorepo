@@ -155,7 +155,7 @@ export async function setupTestGraph(options: TestGraphOptions = {}): Promise<Gr
     const { mode = "3d", pinOnDrag = true, layout = "ngraph", nodes = [], edges = [] } = options;
 
     // Use real WebGL engine for interaction tests - NullEngine doesn't support picking
-    const graph = await createTestGraph({ useRealEngine: true });
+    const graph = await createTestGraph();
 
     // Configure the graph, one setting at a time
     graph.setBackground({ backgroundType: "color", color: "#2D2D2D" });

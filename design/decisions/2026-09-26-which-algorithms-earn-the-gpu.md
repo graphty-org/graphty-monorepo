@@ -248,6 +248,20 @@ the table above, each figure is given from the loaded medians of the first CPU r
 The BFS floor has two parts because the per-level cost is what kills it: a level costs 0.2 ms on
 the device however small the frontier is, and a road network or a grid has thousands of levels.
 
+**What graphty-element ships, measured through the element on 2026-09-27.** The element now carries
+a floor per capability in `ACCELERATION_MIN_NODES_BY_CAPABILITY`: PageRank 50,000 nodes, shortest
+paths 107,000, connected components 132,000, breadth-first search 141,000. Only the first comes
+from a measurement taken through the element, because the element refuses a graph past 50,000 nodes
+or 100,000 edges with `E_TOO_LARGE` and the other three cross above that. Inside the band it can
+hold, PageRank beats the CPU port by 1.23x at 50,000 nodes and loses below 20,000; breadth-first
+search, shortest paths and connected components lose at every size, the device's best showing being
+0.78x, 0.70x and 0.51x at 50,000 nodes with 100,000 edges. The three floors above the ceiling are
+this record's resident crossovers, which the element can only exceed: an accelerated call through
+the element never returned in under about 12 ms, because each traversal level and each convergence
+test is a readback and a Chromium readback is about 2 ms of round trip, while the CPU port answered
+a 1,000-node search in 1.2 ms. So the element declines the device for those three at every size a
+consumer can reach today, and raising the render ceiling is what would let them be measured here.
+
 ## What in the design this overrules, and how
 
 - **8.4, Bellman-Ford (lines 2690-2693).** The design runs it as an edge-parallel relax for

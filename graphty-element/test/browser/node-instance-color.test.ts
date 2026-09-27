@@ -32,12 +32,6 @@ const WIDTH = 200;
 /** How tall the offscreen canvas is. */
 const HEIGHT = 100;
 
-/** How many frames to render before reading. Babylon compiles a shader asynchronously. */
-const FRAMES = 60;
-
-/** How long to wait between frames so the shader compilation the first frame started can land. */
-const FRAME_MS = 10;
-
 /** The channel value above which a sampled pixel counts as carrying that colour. */
 const STRONG = 100;
 
@@ -111,12 +105,10 @@ describe("node instance colour", () => {
      * @returns The pixels, four bytes per pixel, bottom row first.
      */
     async function readFrame(): Promise<Uint8Array> {
-        for (let frame = 0; frame < FRAMES; frame++) {
-            scene.render();
-            await new Promise<void>((done) => {
-                setTimeout(done, FRAME_MS);
-            });
-        }
+        // Babylon compiles a shader asynchronously; ask the scene when every one is ready
+        // instead of guessing how many frames that takes.
+        await scene.whenReadyAsync();
+        scene.render();
 
         const pixels = await engine.readPixels(0, 0, WIDTH, HEIGHT);
 

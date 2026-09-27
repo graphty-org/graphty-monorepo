@@ -57,18 +57,6 @@ const WIDTH = 640;
 const HEIGHT = 480;
 
 /**
- * How many frames to render before reading the buffer.
- *
- * Babylon compiles a shader asynchronously and the instanced colour buffer is a define on that
- * shader, so the first frames draw in the source material's own colour. This is the same wait
- * `node-instance-color.test.ts` makes, for the same reason.
- */
-const FRAMES = 60;
-
-/** How long to leave between frames so the compilation the first one started can land. */
-const FRAME_MS = 10;
-
-/**
  * How far apart two channel readings may be, once normalised, and still be the same colour.
  *
  * NORMALISED, because a lit sphere is not painted its own colour: diffuse shading scales all
@@ -120,12 +108,11 @@ describe("what the style system says, and what the canvas shows", () => {
     async function readFrame(): Promise<Uint8Array> {
         const { engine } = graph;
 
-        for (let frame = 0; frame < FRAMES; frame++) {
-            graph.scene.render();
-            await new Promise<void>((done) => {
-                setTimeout(done, FRAME_MS);
-            });
-        }
+        // The element's own word that the picture is final -- the queue drained, the layout
+        // converged, the paint applied and every shader compiled -- then one more frame so
+        // the buffer read below is a frame of that picture.
+        await graph.waitForStableFrame();
+        graph.scene.render();
 
         return (await engine.readPixels(0, 0, engine.getRenderWidth(), engine.getRenderHeight())) as unknown as Uint8Array;
     }

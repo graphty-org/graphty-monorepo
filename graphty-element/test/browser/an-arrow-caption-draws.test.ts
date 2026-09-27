@@ -42,12 +42,6 @@ const WIDTH = 640;
 /** How tall it is. */
 const HEIGHT = 480;
 
-/** How many frames to render before reading one. */
-const FRAMES = 8;
-
-/** How long to leave between them. */
-const FRAME_MS = 10;
-
 /** How many buckets the frame histogram has: four bits per channel, three channels. */
 const BUCKETS = 16 * 16 * 16;
 
@@ -120,14 +114,11 @@ describe("a caption at the end of an arrow", () => {
      * @returns How many pixels fall in each coarse colour bucket.
      */
     async function frame(): Promise<Uint32Array> {
-        await graph.operationQueue.waitForCompletion();
-
-        for (let at = 0; at < FRAMES; at++) {
-            graph.scene.render();
-            await new Promise<void>((done) => {
-                setTimeout(done, FRAME_MS);
-            });
-        }
+        // The element's own word that the picture is final -- the queue drained, the layout
+        // converged, the paint applied and every shader compiled -- then one more frame so
+        // the buffer read below is a frame of that picture.
+        await graph.waitForStableFrame();
+        graph.scene.render();
 
         const { engine } = graph;
         const pixels = (await engine.readPixels(

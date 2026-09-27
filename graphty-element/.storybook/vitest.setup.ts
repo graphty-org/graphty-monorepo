@@ -326,7 +326,5 @@ async function assertStoryDrewWhatItAskedFor(context: StoryContextLike): Promise
 // More info at: https://storybook.js.org/docs/api/portable-stories/portable-stories-vitest#setprojectannotations
 //
 // The hook below is a PROJECT-LEVEL afterEach, which `prepareStory` merges with the meta's and the
-// story's own. `parameters.play` in preview.ts looks like it does this already and does not:
-// Storybook resolves a play function as `story.play ?? meta.play` and never reads one out of
-// parameters, so that block has never run.
+// story's own.
 setProjectAnnotations([projectAnnotations, { afterEach: assertStoryDrewWhatItAskedFor }]);

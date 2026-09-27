@@ -3,6 +3,7 @@ import { afterEach, beforeAll, expect, vi } from "vitest";
 
 import type { Graph } from "../src/Graph";
 import { MockDeviceInputSystem } from "../src/input/mock-device-input-system";
+import { pinLabelFont } from "./helpers/pin-label-font";
 
 // Mock CreateScreenshotAsync to return a valid 1x1 PNG data URL
 // This allows testing screenshot logic without requiring actual WebGL rendering
@@ -26,6 +27,12 @@ declare global {
             jsHeapSizeLimit: number;
         };
     }
+}
+
+// In a real browser, draw labels in the committed test font rather than whatever the machine has
+// installed as "Verdana" (see helpers/pin-label-font.ts). happy-dom has no font loading to pin.
+if (typeof FontFace !== "undefined") {
+    beforeAll(pinLabelFont);
 }
 
 // Suppress Babylon.js logs during tests - must use dynamic import since we mock @babylonjs/core

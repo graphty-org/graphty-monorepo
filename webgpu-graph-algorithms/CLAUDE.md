@@ -179,6 +179,11 @@ for the node projects and `scripts/gpu-report.js`; `GRAPHTY_EGL_LIB_DIR=<that di
 SwiftShader -- which the tests turn RED under `GRAPHTY_GPU_REQUIRE=hardware` / `nvidia` and under
 `GRAPHTY_BROWSER_GPU=nvidia`, never into a silent pass. The tree is extracted per docs/HEADLESS_GPU_REPORT.md
 appendix D into the monorepo's gitignored tmp/egl/; Task M1-T5 of the integration plan re-extracts it.
+The pre-push gate (`tools/prepush.sh`) prepends `GRAPHTY_EGL_LIB_DIR`, or the main checkout's
+`tmp/egl/root/usr/lib/x86_64-linux-gnu` when the variable is unset, to `LD_LIBRARY_PATH` for the node
+tests, so it runs on the NVIDIA GPU when the tree exists and on lavapipe otherwise. The node project's
+global setup prints the adapter it ran on (`[gpu] node project adapter: <vendor> / <architecture>`)
+whenever `GRAPHTY_GPU_REQUIRE` is set.
 
 ## WGSL Conventions
 

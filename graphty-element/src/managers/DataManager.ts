@@ -11,7 +11,7 @@ import { unknownFormat } from "../catalog/detect";
 import type { EdgeId } from "../catalog/types";
 import type { AdHocData } from "../config";
 import { DataSource, type DeclaredDirection } from "../data/DataSource";
-import { createEdgeCounter, edgeIdOf } from "../data/edgeIdentity";
+import { createEdgeCounter, decideRepeat, edgeIdOf } from "../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints } from "../data/endpoints";
 import { GraphStore } from "../data/GraphStore";
 import {
@@ -105,28 +105,6 @@ interface ExistingEdge {
  */
 function isStorableRecordId(value: unknown): value is string | number {
     return typeof value === "string" || (typeof value === "number" && Number.isFinite(value));
-}
-
-/**
- * Fold a repeat's weight into the weight of the edge that survives it.
- * @param policy - the merging repeat policy; "keep", "first" and "error" never reach here
- * @param survivor - the weight the edge already carries
- * @param repeat - the repeating record's weight
- * @returns the weight the surviving edge should carry
- */
-function mergeWeights(policy: DuplicatePolicy, survivor: number, repeat: number): number {
-    switch (policy) {
-        case "sum":
-            return survivor + repeat;
-        case "min":
-            return Math.min(survivor, repeat);
-        case "max":
-            return Math.max(survivor, repeat);
-        default:
-            // "last": the repeat's weight replaces the survivor's, which is the same statement its
-            // attributes make one line up in `mergeRepeat`.
-            return repeat;
-    }
 }
 
 /**
@@ -1006,7 +984,13 @@ export class DataManager implements Manager {
             // The STORE takes the edge now, whether or not the endpoints have render objects:
             // the builder creates a missing endpoint itself, so the snapshot is complete while
             // the scene is still catching up.
-            const { index: edgeIndex, edgeId } = ingestEdge(this.store, srcNodeId, dstNodeId, weight.weight);
+            const { index: edgeIndex, edgeId } = ingestEdge(
+                this.store,
+                srcNodeId,
+                dstNodeId,
+                weight.weight,
+                isStorableRecordId(recordId) ? recordId : undefined,
+            );
             if (edgeIndex === INVALID_INDEX) {
                 // graph-format will not hold an edge between these ids -- most often because the
                 // record does not answer the endpoint expressions at all, so both came back null.
@@ -1190,12 +1174,13 @@ export class DataManager implements Manager {
         targetId: NodeIdType,
         tally: ImportTally,
     ): boolean {
-        if (policy === "keep") {
+        const decision = decideRepeat(policy, this.store.builder.edgeWeight(known.edgeIndex), weight);
+        if (decision.kind === "add") {
             tally.repeatedKept++;
             return false;
         }
 
-        if (policy === "error") {
+        if (decision.kind === "refuse") {
             throw new GraphtyError({
                 code: "E_DUPLICATE_EDGE",
                 source: "data",
@@ -1207,20 +1192,15 @@ export class DataManager implements Manager {
             });
         }
 
-        if (policy === "first") {
+        if (decision.kind === "drop") {
             tally.repeatedDropped++;
             return true;
         }
 
-        const survivorWeight = this.store.builder.edgeWeight(known.edgeIndex);
-        const merged = mergeWeights(policy, survivorWeight, weight);
-        this.store.builder.setEdgeWeight(known.edgeIndex, merged);
+        this.store.builder.setEdgeWeight(known.edgeIndex, decision.weight);
         this.store.touch();
 
-        if (policy === "last") {
-            // "the repeat's weight and attributes replace the existing edge's". The other three
-            // reducers keep the survivor's attributes, because there is no reading of `sum` under
-            // which the last record's colour is the group's colour.
+        if (decision.replaceRecord) {
             if (known.edge) {
                 known.edge.data = record as AdHocData;
             } else if (known.pending) {
@@ -1511,6 +1491,14 @@ export class DataManager implements Manager {
         const tally = newImportTally();
         this.loadTally = tally;
         this.loadEndpoints = null;
+        // The store this load's edges went into, bracketed as ONE load however many chunks it
+        // takes, so its edge ordinals are counted over the whole import (design/sets 12.3). A
+        // replacing load opens it on the store its Clear builds.
+        let loadStore: GraphStore | null = null;
+        const openLoad = (): void => {
+            loadStore = this.store;
+            loadStore.openLoad();
+        };
 
         const named = opts as { edgeSource?: unknown; edgeTarget?: unknown };
         const endpointOverrides: AddEdgesOptions = {
@@ -1537,6 +1525,9 @@ export class DataManager implements Manager {
                 // What a replacing load has read and not yet added: see the method comment.
                 const heldNodes: Record<string | number, unknown>[] = [];
                 const heldEdges: Record<string | number, unknown>[] = [];
+                if (!replace) {
+                    openLoad();
+                }
 
                 for await (const chunk of source.getData()) {
                     if (replace) {
@@ -1660,6 +1651,7 @@ export class DataManager implements Manager {
                     // `clear` leaves the load's tally and its endpoint answer alone, so the
                     // records below are counted and read exactly as a streamed load's would be.
                     this.clear();
+                    openLoad();
                     this.applyDeclaredDirection(type, source.declaredDirection);
                     this.addNodes(heldNodes);
                     this.addEdges(heldEdges, endpointOverrides);
@@ -1771,6 +1763,7 @@ export class DataManager implements Manager {
                 `Error initializing data source '${type}': ${error instanceof Error ? error.message : String(error)}`,
             );
         } finally {
+            (loadStore as GraphStore | null)?.closeLoad();
             // Whatever happened, this load is over: the next one probes for itself and counts into
             // its own tally. Unless another load has taken the fields over since.
             if (this.loadTally === tally) {

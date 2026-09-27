@@ -23,6 +23,8 @@
  * it; this one invoked it from 27 scripts and relied on hoisting.
  */
 
+import { appendFileSync, mkdirSync } from "node:fs";
+import { hostname } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -185,8 +187,26 @@ function browserInstance(): ChromiumInstance {
  */
 const FAILURE_SCREENSHOT_DIR = path.resolve(dirname, "tmp/vitest-screenshots");
 
+/**
+ * Append a `bench-browser` timing row to `benchmarks/results/browser-<host>.jsonl`. Every other
+ * console line is left to the reporter.
+ * @param log - one console line from a test
+ * @returns undefined, so the line is still printed
+ */
+function appendBenchRow(log: string): undefined {
+    const prefix = "bench-row ";
+    if (log.startsWith(prefix)) {
+        const dir = path.resolve(dirname, "benchmarks/results");
+        mkdirSync(dir, { recursive: true });
+        appendFileSync(path.join(dir, `browser-${hostname()}.jsonl`), `${log.slice(prefix.length).trim()}\n`);
+    }
+
+    return undefined;
+}
+
 export default defineConfig({
     test: {
+        onConsoleLog: appendBenchRow,
         projects: [
             {
                 test: {
@@ -471,6 +491,29 @@ export default defineConfig({
                         instances: [browserInstance()],
                         // Disable file parallelism to prevent route.fulfill errors
                         // when browser contexts are garbage collected during parallel execution
+                        fileParallelism: false,
+                    },
+                },
+            },
+            {
+                // Browser timing rows for the sets work (design/sets/sets-plan.md 1.4): rows that need
+                // the element's store, a DataManager or a run, which the Node runner in benchmarks/
+                // cannot reach. Never asserts, never in CI or the pre-push gate, and its suffix is one
+                // no other project includes. Run with: npx vitest run --project=bench-browser, and
+                // GRAPHTY_BENCH_SCALE=large for the 1M and 10M rows. A row is a console line starting
+                // "bench-row ", appended to benchmarks/results/browser-<host>.jsonl by the root
+                // onConsoleLog below (vitest reads that hook from the root config only).
+                envPrefix: ["VITE_", "GRAPHTY_BENCH_SCALE"],
+                test: {
+                    name: "bench-browser",
+                    include: ["test/bench-browser/**/*.bench-browser.ts"],
+                    testTimeout: 0,
+                    browser: {
+                        enabled: true,
+                        headless: true,
+                        screenshotDirectory: FAILURE_SCREENSHOT_DIR,
+                        provider: "playwright",
+                        instances: [{ browser: "chromium" }],
                         fileParallelism: false,
                     },
                 },

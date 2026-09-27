@@ -83,7 +83,7 @@ function compareStrings(a: string, b: string): number {
  * @param b - The other.
  * @returns Negative, zero or positive.
  */
-function compareIds(a: unknown, b: unknown): number {
+export function compareIds(a: unknown, b: unknown): number {
     if (typeof a === "number") {
         return typeof b === "number" ? a - b : -1;
     }

@@ -114,7 +114,7 @@ function withCaption(element: Graphty): HTMLElement {
  * @param configure - What this story does to the element before it is mounted.
  * @returns The decorator.
  */
-function acceleratedStory(configure: (element: Graphty) => void): Decorator {
+function acceleratedStory(configure: (element: Graphty) => void): Decorator<StoryArgs> {
     return (story) => {
         const rendered = story();
 

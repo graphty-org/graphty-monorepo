@@ -286,24 +286,7 @@ export default tseslint.config(
     // relax a rule here instead.
     {
         files: ["**/*.stories.ts", "**/*.stories.tsx", "**/stories/**/*.ts"],
-        // No type information for stories, and that is what makes linting them possible at all.
-        // The root TypeScript block above turns on `projectService`, which needs every file it
-        // lints to belong to a tsconfig. Story files belong to none -- they are excluded from the
-        // package tsconfig -- so a type-aware pass reports "was not found by the project service"
-        // on all 30 of them and nothing else. Disabling the service here trades the type-aware
-        // rules for the syntactic ones, which still catch real defects: turning this on for the
-        // first time found a nested ternary in a story.
-        //
-        // The type-aware half is not lost, merely elsewhere: `.storybook/**/*.ts` IS in the
-        // tsconfig and imports these files, so `tsc --noEmit` does typecheck them.
-        languageOptions: {
-            parserOptions: {
-                projectService: false,
-                project: false,
-            },
-        },
         rules: {
-            ...tseslint.configs.disableTypeChecked.rules,
             // A story's exported const name is a USER-FACING IDENTIFIER, not an internal one:
             // Storybook derives both the displayed story name and the story id from it, so
             // `CsvAdjacencyList` becomes the id `data--csv-adjacency-list`. Renaming an export to
@@ -320,6 +303,30 @@ export default tseslint.config(
             "jsdoc/check-tag-names": "off",
             "jsdoc/tag-lines": "off",
         },
+    },
+
+    // ============================================
+    // STORIES WITH NO TSCONFIG: SYNTACTIC RULES ONLY
+    // ============================================
+    // The root TypeScript block turns on `projectService`, which needs every file it lints to
+    // belong to a tsconfig. The stories of algorithms, layout, graphty and compact-mantine are
+    // excluded from their package tsconfigs, so a type-aware pass reports "was not found by the
+    // project service" on every one of them and nothing else. Turning the service off here keeps
+    // the syntactic rules over those files, and nothing more: they are not type-checked at all.
+    //
+    // graphty-element's stories ARE in its tsconfig, so `tsc --noEmit` type-checks them and the
+    // type-aware rules apply. graphty-element/eslint.config.js drops this block by its name.
+    // A package that adds its stories to its tsconfig should drop it the same way.
+    {
+        name: "stories/no-type-information",
+        files: ["**/*.stories.ts", "**/*.stories.tsx", "**/stories/**/*.ts"],
+        languageOptions: {
+            parserOptions: {
+                projectService: false,
+                project: false,
+            },
+        },
+        rules: tseslint.configs.disableTypeChecked.rules,
     },
 
     // ============================================

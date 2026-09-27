@@ -14,8 +14,10 @@ import rootConfig from "../eslint.config.js";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-    // Inherit all rules from root config (includes JSDoc)
-    ...rootConfig,
+    // Inherit all rules from root config (includes JSDoc). All but one block: this package's
+    // stories are in its tsconfig, so they keep the type-aware rules the root turns off for
+    // stories that belong to no TypeScript project.
+    ...rootConfig.filter((block) => block.name !== "stories/no-type-information"),
 
     // ============================================
     // PACKAGE-SPECIFIC IGNORES
@@ -46,7 +48,8 @@ export default tseslint.config(
                 {
                     selector:
                         'MemberExpression[property.name="layers"] CallExpression[callee.property.name=/^(push|splice|unshift|pop|shift)$/]',
-                    message: "Do not mutate layers directly. Use StyleManager.addLayer() or StyleManager.insertLayer().",
+                    message:
+                        "Do not mutate layers directly. Use StyleManager.addLayer() or StyleManager.insertLayer().",
                 },
             ],
         },

@@ -221,6 +221,25 @@ export async function holds(condition: boolean, complaint: string): Promise<void
 }
 
 /**
+ * The story's `<graphty-element>`, or a failure naming the story when it rendered none.
+ * @param canvasElement - Where the story was rendered.
+ * @param complaint - What to say when there is no element.
+ * @returns The element.
+ */
+export async function renderedElement(canvasElement: HTMLElement, complaint: string): Promise<Graphty> {
+    const element = canvasElement.querySelector("graphty-element");
+
+    await holds(element !== null, complaint);
+
+    // `holds` is async, and an async function cannot be a type assertion, so it cannot narrow.
+    if (element === null) {
+        throw new Error(complaint);
+    }
+
+    return element;
+}
+
+/**
  * Cut a list of offenders down to something a person can read.
  * @param offenders - What went wrong.
  * @returns The list, with a count when it was cut.
@@ -604,7 +623,7 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
         graph,
         session,
         nodes,
-        edgeIds: [...scope.edges].map((id) => String(id)),
+        edgeIds: [...scope.edges],
         nodeCount: session.status.counts.nodes,
         edgeCount: session.status.counts.edges,
         curvedEdges: curves.length,
@@ -1089,8 +1108,9 @@ export async function assertAlgorithmPainted(
     await holds(
         counted >= atLeast,
         `${scene.story}: "${algorithm}" has a layer in the stack and it painted ${String(paintedNodes)} nodes ` +
-            `and ${String(paintedEdges)} edges, where the story says it paints at least ${String(atLeast)} ` +
-            `${paints === "either" ? "elements" : `${paints}s`}`,
+            `and ${String(paintedEdges)} edges, where the story says it paints at least ${String(atLeast)} ${
+                paints === "either" ? "elements" : `${paints}s`
+            }`,
     );
 }
 /**

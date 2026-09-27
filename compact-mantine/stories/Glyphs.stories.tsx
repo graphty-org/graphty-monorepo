@@ -91,6 +91,7 @@ const UI_GLYPH_MEANINGS: Record<UiGlyphName, string> = {
     refresh: "Run it again.",
     copy: "Copy to the clipboard.",
     pin: "Keep this on screen.",
+    keepOpen: "Keep this panel open, instead of letting it close on its own.",
     info: "An explanation, revealed on hover, on focus or on tap.",
     reset: "Return this value to its default. The same drawing as close: the two differ by their accessible name, not by their shape.",
 };

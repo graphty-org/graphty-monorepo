@@ -86,7 +86,6 @@ describe("PopoutAnchor", () => {
             expect(() => {
                 render(
                     <MantineProvider theme={compactTheme}>
-                        {/* @ts-expect-error - Testing invalid children */}
                         <Popout.Anchor>{"invalid string child"}</Popout.Anchor>
                     </MantineProvider>,
                 );

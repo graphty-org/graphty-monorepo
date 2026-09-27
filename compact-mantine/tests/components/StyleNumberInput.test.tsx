@@ -1,7 +1,7 @@
 import { DirectionProvider, MantineProvider } from "@mantine/core";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import React, { type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { compactTheme, StyleNumberInput } from "../../src";

@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import React, { createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { compactTheme } from "../../../src";
+import { type ActivationEvent, compactTheme } from "../../../src";
 import {
     AdvancedButton,
     holdsSomething,
@@ -182,7 +182,7 @@ describe("AdvancedButton", () => {
             // event has finished propagating, which is exactly where a
             // consumer reads it from too.
             let seen: { canPreventDefault: boolean; currentTarget: EventTarget | null } | undefined;
-            const onClick = vi.fn((event: React.MouseEvent) => {
+            const onClick = vi.fn((event: ActivationEvent) => {
                 seen = {
                     canPreventDefault: typeof event.preventDefault === "function",
                     currentTarget: event.currentTarget,

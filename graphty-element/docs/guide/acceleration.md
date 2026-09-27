@@ -137,15 +137,25 @@ The last row is routed but not accelerated: it asks the accelerator for a member
 implement yet, and takes the CPU path with `caveats.precision` reading `"f64"`. It gains the
 hardware the day the member exists, with no change to your page.
 
-An algorithm is accelerated only above a measured node count: `pagerank` from 5,000 nodes,
-`connected-components` from 50,000, and `bfs` and `dijkstra` from 300,000. An algorithm is one
-call, and on the device that call costs several round trips whatever the size, so below those
-counts the CPU has finished before the device has started -- and a traversal, which is one
+An algorithm is accelerated only above a measured node count: `pagerank` from 50,000 nodes,
+`dijkstra` from 107,000, `connected-components` from 132,000 and `bfs` from 141,000. An algorithm
+is one call, and on the device that call costs several round trips whatever the size, so below
+those counts the CPU has finished before the device has started -- and a traversal, which is one
 round trip per level, stays behind for longest. Under the floor the run takes the CPU path,
 `caveats.precision` reads `"f64"`, and the state stays `idle`. The numbers were measured on one
 card (see `acceleration-min-nodes` below for how to replace them with your own), and
 `acceleration="required"` ignores them, so a benchmark can put a small graph on the device on
 purpose.
+
+Three of those four floors are above the 50,000 nodes this renderer will draw, so `dijkstra`,
+`connected-components` and `bfs` take the CPU path at every size the element will hold today. That
+is the measurement, not caution: through the element an accelerated call never returned in under
+about 12 milliseconds, because every level of a traversal and every convergence test is a readback
+worth roughly 2 milliseconds of round trip, and on a graph of 50,000 nodes and 100,000 edges the
+CPU implementations of all three finish well inside that. PageRank is the one that crosses, and it
+crosses at the top of what the element can hold. Raising the renderer's ceiling is what would put
+the others in reach; until then, `acceleration="required"` or your own
+`acceleration-min-nodes` is how to put them on the device deliberately.
 
 PageRank is the exception in the table. A run that sets `personalization` or `initialRanks`, and
 any run over an undirected graph, takes the CPU implementation whatever hardware is attached:

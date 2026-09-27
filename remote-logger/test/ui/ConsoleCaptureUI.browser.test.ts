@@ -6,19 +6,6 @@ import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 import { ConsoleCaptureUI, initConsoleCaptureUI } from "../../src/ui/index.js";
 
-// Extended window interface for global console methods
-declare global {
-    interface Window {
-        __console__?: {
-            copy: () => Promise<void>;
-            download: () => void;
-            clear: () => void;
-            get: () => string;
-            logs: unknown[];
-        };
-    }
-}
-
 describe("ConsoleCaptureUI Browser Tests", () => {
     let ui: ConsoleCaptureUI | null = null;
 

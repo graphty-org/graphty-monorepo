@@ -34,7 +34,7 @@
 import type { Channel, LegendBlock, LegendSwatch } from "@graphty/graphty-element/session";
 
 import { defaultNodeHex } from "../../../utils/channelControls";
-import { CANVAS_METRICS, type LegendChannelId } from "./canvasLayout";
+import { CANVAS_METRICS, LEGEND_BLOCK_ORDER, type LegendChannelId } from "./canvasLayout";
 import type { LegendCategory, LegendChannel, LegendStop } from "./Legend";
 
 /**
@@ -255,4 +255,24 @@ export function legendChannels(blocks: readonly LegendBlock[]): readonly LegendC
     }
 
     return channels;
+}
+
+/**
+ * Puts the encoded channels into the legend's fixed block order and drops anything
+ * that is not one of the five channels. A channel with no encoding never reaches here.
+ * @param channels - the encoded channels, in any order.
+ * @returns the channels in the order Color, Size, Outline, Edge width, Arrow.
+ */
+export function orderLegendChannels(channels: readonly LegendChannel[]): readonly LegendChannel[] {
+    return LEGEND_BLOCK_ORDER.flatMap((id) => channels.filter((channel) => channel.channel === id));
+}
+
+/**
+ * Applies the canvas's own categorical cap: the five largest categories, and the Other
+ * row that follows carries the coverage footer for everything else.
+ * @param categories - the categories the encoding model supplies, largest first.
+ * @returns at most five of them.
+ */
+export function capLegendCategories(categories: readonly LegendCategory[]): readonly LegendCategory[] {
+    return categories.slice(0, CANVAS_METRICS.LEGEND_MAX_CATEGORY_ROWS);
 }

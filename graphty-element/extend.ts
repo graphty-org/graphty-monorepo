@@ -146,6 +146,10 @@ export { KNOWN_CAMERA_IDS } from "./src/catalog/types";
  * `LayoutDescriptor` minus `honoursWeights`. That one fact is declared on the class instead, as
  * `static honoursWeights`, and `LayoutEngine.register` copies it onto what the catalogue
  * publishes -- so whether an engine reads edge weights is written once, where it is true.
+ *
+ * A REGISTERED LAYOUT IS NOT ACCELERATED. Its own code runs on the CPU even when an accelerator
+ * is attached; only the element's built-in simulation layouts (`forceatlas2`, `spring`,
+ * `spring-electrical`) run on one. `test/browser/extensions/layout-extension.test.ts` pins this.
  */
 export type { RegisteredLayout } from "./src/catalog/layoutRegistry";
 export { clearRegisteredLayoutsForTesting, registeredLayoutDescriptors } from "./src/catalog/layoutRegistry";

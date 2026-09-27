@@ -35,8 +35,9 @@ import {
     INSPECTOR_RESIZE_KEYBOARD_STEP,
     kindTakesPin,
 } from "./inspectorConstants";
-import { InspectorStateProvider, useInspectorPin } from "./inspectorContext";
+import { InspectorStateProvider } from "./inspectorContext";
 import { InspectorHeader } from "./InspectorHeader";
+import { useInspectorPin } from "./inspectorState";
 import { PinnedCard } from "./PinnedCard";
 
 /**

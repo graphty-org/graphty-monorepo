@@ -2,14 +2,15 @@
 
 // MCL (Markov Clustering) Benchmark
 import Benchmark from "benchmark";
-import { Graph } from "../../src/core/graph.js";
+
 import { markovClustering } from "../../src/clustering/mcl.js";
-import { saveBenchmarkResult, initBenchmarkSession } from "../utils/benchmark-result.js";
+import { Graph } from "../../src/core/graph.js";
+import { getGraphSizes, getMaxIterations } from "../algorithm-complexity.js";
 import { BenchmarkResult } from "../benchmark-result.js";
-import { getGraphSizes, getMaxIterations, getAlgorithmConfig } from "../algorithm-complexity.js";
+import { initBenchmarkSession,saveBenchmarkResult } from "../utils/benchmark-result.js";
 
 // Make markovClustering available globally for Benchmark.js
-(globalThis as any).markovClustering = markovClustering;
+Object.assign(globalThis, { markovClustering });
 
 // Store test data globally for Benchmark.js
 const globalTestData = new Map();
@@ -85,7 +86,6 @@ function createTestGraphs(isQuick: boolean) {
         console.log(`📊 Created clustered graph: ${size} nodes, ${edgeCount} edges`);
     });
 
-    const algConfig = getAlgorithmConfig("MCL", isQuick);
     const maxIter = getMaxIterations("MCL") || 50;
     console.log(`\n⚠️  Note: MCL has O(V³) complexity`);
     console.log(`   Using adaptive sizing: ${config.sizes.join(", ")} vertices`);
@@ -100,7 +100,7 @@ function runBenchmarks(config: ReturnType<typeof createTestGraphs>) {
 
     config.sizes.forEach((size) => {
         const testData = globalTestData.get(`mcl-${size}`);
-        if (!testData) return;
+        if (!testData) {return;}
 
         // Test MCL with standard parameters
         const testName1 = `MCL (Standard) - ${testData.graphType} (${size} nodes, ${testData.edges} edges)`;
@@ -118,7 +118,7 @@ function runBenchmarks(config: ReturnType<typeof createTestGraphs>) {
             },
             {
                 onComplete: (event: Benchmark.Event) => {
-                    const benchmark = event.target as Benchmark;
+                    const benchmark = event.target;
                     const hz = benchmark.hz || 0;
                     const stats = benchmark.stats || {
                         mean: 0,
@@ -158,8 +158,6 @@ function runBenchmarks(config: ReturnType<typeof createTestGraphs>) {
                             marginOfError: stats.rme,
                             standardDeviation: stats.deviation,
                             variance: stats.variance,
-                            platform: config.platform,
-                            testType: config.testType,
                             teps: hz * testData.edges, // Traversed Edges Per Second
                         },
                     };
@@ -186,7 +184,7 @@ function runBenchmarks(config: ReturnType<typeof createTestGraphs>) {
             },
             {
                 onComplete: (event: Benchmark.Event) => {
-                    const benchmark = event.target as Benchmark;
+                    const benchmark = event.target;
                     const hz = benchmark.hz || 0;
                     const stats = benchmark.stats || {
                         mean: 0,
@@ -226,8 +224,6 @@ function runBenchmarks(config: ReturnType<typeof createTestGraphs>) {
                             marginOfError: stats.rme,
                             standardDeviation: stats.deviation,
                             variance: stats.variance,
-                            platform: config.platform,
-                            testType: config.testType,
                             teps: hz * testData.edges, // Traversed Edges Per Second
                         },
                     };

@@ -714,6 +714,17 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             minFactor: 10,
             test: GRID_TEST,
         },
+        {
+            // a runtime whose clamp lets a NaN through as 0: the non-finite nodes of the nonfinite fixture land in a
+            // real cell instead of an outside pseudo-cell (issue #269). The NaN test is a bit pattern: the compilers
+            // fold a float `q != q` away, as WGSL lets them assume no NaN
+            name: "nan-in-cell-zero",
+            find: "let c = vec3<i32>(floor(clamp(q, vec3f(-1.0), vec3f(gf + 1.0))));",
+            replace:
+                "let c = vec3<i32>(floor(clamp(select(q, vec3f(0.0), (bitcast<vec3<u32>>(q) & vec3<u32>(0x7fffffffu)) > vec3<u32>(F32_INF_BITS)), vec3f(-1.0), vec3f(gf + 1.0))));",
+            minFactor: 10,
+            test: GRID_TEST,
+        },
     ]),
 
     "grid-centroid": Object.freeze([

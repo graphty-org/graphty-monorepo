@@ -2,14 +2,14 @@
  * Tests for the logs_receive MCP tool.
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { beforeEach,describe, expect, it } from "vitest";
 
-import { LogStorage } from "../../../src/server/log-storage.js";
 import {
     logsReceiveHandler,
-    logsReceiveTool,
     logsReceiveInputSchema,
+    logsReceiveTool,
 } from "../../../src/mcp/tools/logs-receive.js";
+import { LogStorage } from "../../../src/server/log-storage.js";
 
 describe("logs_receive tool", () => {
     let storage: LogStorage;

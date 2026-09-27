@@ -10,7 +10,7 @@
 
 import { useCallback } from "react";
 
-import { useShell } from "../ShellContext";
+import { useShell } from "../useShell";
 
 /**
  * One section's open state and the handler that writes it back to the store.

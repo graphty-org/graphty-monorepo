@@ -20,11 +20,11 @@
  * "networkx" as well -- the mode whose free-running leg fa2-trace-parity.test.ts also asserts. At k = 50 the
  * ACCURACY comparison is printed only; run-to-run bitwise determinism and finiteness are still asserted there.
  *
- * The tolerance is toleranceOf("fa2-trace-parity.f64") (never a literal, CLAUDE.md:441): its committed value is the
- * spec cap 5e-2, the plan's number. NOTE, deliberately: that id is BORROWED. Its noise-floor basis row
- * (fa2-trace-parity.oracle-f64, factor 1.0101) is the karate networkx 50-record TRACE comparison, not this
- * positions comparison, and it carries no headroom for a second borrower. Giving this test its own
- * `fa2-layout-oracle` id needs a recording run under GRAPHTY_NOISE_FLOOR_WRITE=1; it is an open owner item.
+ * The tolerance is toleranceOf("fa2-layout-oracle") (never a literal): min(5e-2, 10 x the floor of its basis row
+ * fa2-layout-oracle.oracle-f64, recorded from this file's own noise member. The member (NOISE_FIXTURES.layout5) is
+ * the UNSCALED random1k in paper mode after 5 iterations, the asserted case furthest from the CPU class (4.1e-3 on
+ * the RTX 4070 SUPER, where every other asserted case is at or under 1.2e-3), so the derived tolerance covers the
+ * whole asserted set; its cross-adapter pair records fa2-layout-oracle.cross.
  *
  * The metric is stageError(true, ...) of test/helpers/fa2-parity.ts, the ONE implementation of spec 11.4's floored
  * per-node position error (its FLOOR_FRACTION is module-private; never re-derive it). Every case runs at scale 1
@@ -44,6 +44,8 @@ import type { ForceAtlas2Options } from "../../src/types/options.js";
 import {
     BASE_OPTIONS,
     NETWORKX,
+    NOISE_FIXTURES,
+    ORACLE_F64_CLASS,
     PAPER,
     type ParityGraph,
     paritySnapshot,
@@ -53,6 +55,7 @@ import {
     withSim,
 } from "../helpers/fa2-parity.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
+import { adapterClass, writeNoiseFixture } from "../helpers/noise-floor.js";
 import { assertCheckPasses, ratioOf } from "../helpers/sabotage.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
@@ -68,6 +71,9 @@ const ASSERTED: Readonly<Record<"paper" | "networkx", readonly number[]>> = Obje
 /** The horizon whose accuracy is measured and PRINTED, never asserted (G3-F3); determinism and finiteness still are. */
 const PRINTED = 50;
 const CASE_TIMEOUT = 300_000;
+/** The graph and horizon of the layout5 noise member (paper mode; the file header). */
+const LAYOUT5_GRAPH: ParityGraph = "random1k";
+const LAYOUT5_HORIZON = 5;
 
 /**
  * The compat mode of a tuning ("paper" when unset), the value layout's constructor takes.
@@ -188,17 +194,13 @@ describe("FA2 vs @graphty/layout's ForceAtlas2Simulation: the second reference (
         ctx = await acquire({ label: "fa2-layout-oracle" });
     });
 
-    it("the borrowed tolerance is traced to the noise-floor file and sits at the spec cap of the free-running f64 leg", () => {
-        expect(toleranceOf("fa2-trace-parity.f64")).toBeLessThanOrEqual(5e-2);
-    });
-
     for (const graph of GRAPHS) {
         for (const tuning of MODES) {
             const compat = compatOf(tuning);
             const label = `${graph}/${compat}`;
             const asserted = ASSERTED[compat];
             it(
-                `${label}: twice bitwise; within the traced tolerance of the layout simulation after ${asserted.join(", ")} iterations; ${PRINTED} printed (chaotic, G3-F3)`,
+                `${label}: twice bitwise; within fa2-layout-oracle of the layout simulation after ${asserted.join(", ")} iterations; ${PRINTED} printed (chaotic, G3-F3)`,
                 async (t) => {
                     requireGpu(t);
                     const s = paritySnapshot(graph, gpuScale(), false);
@@ -213,7 +215,7 @@ describe("FA2 vs @graphty/layout's ForceAtlas2Simulation: the second reference (
                             expectBitwiseEqual(at(a, k), at(b, k), `${label}: iteration ${k}, run 1 vs run 2`);
                         }
                         const cpu = layoutTrajectory(s, start, BASE_OPTIONS, tuning, checkpoints, label);
-                        const tolerance = toleranceOf("fa2-trace-parity.f64");
+                        const tolerance = toleranceOf("fa2-layout-oracle");
                         const measured = checkpoints.map((k) => {
                             const err = stageError(true, at(a, k), at(cpu, k));
                             return { k, rel: err.rel, abs: err.abs };
@@ -256,4 +258,31 @@ describe("FA2 vs @graphty/layout's ForceAtlas2Simulation: the second reference (
             );
         }
     }
+
+    it(
+        `writes the GPU's and the CPU class's ${LAYOUT5_GRAPH}/paper positions after ${LAYOUT5_HORIZON} iterations as the layout5 noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)`,
+        async (t) => {
+            requireGpu(t);
+            const s = paritySnapshot(LAYOUT5_GRAPH, 1, false);
+            try {
+                const start = startPositions(s, BASE_OPTIONS, false);
+                const gpu = await gpuTrajectory(ctx, s, start, BASE_OPTIONS, PAPER, [LAYOUT5_HORIZON]);
+                const cpu = layoutTrajectory(s, start, BASE_OPTIONS, PAPER, [LAYOUT5_HORIZON], "noise/layout5");
+                const { kernel, fixture } = NOISE_FIXTURES.layout5;
+                expect(fixture).toBe(`${LAYOUT5_GRAPH}-paper-layout${LAYOUT5_HORIZON}`);
+                writeNoiseFixture(kernel, fixture, adapterClass(ctx.caps), at(gpu, LAYOUT5_HORIZON), "f32");
+                writeNoiseFixture(kernel, fixture, ORACLE_F64_CLASS, at(cpu, LAYOUT5_HORIZON), "f32");
+                const err = stageError(true, at(gpu, LAYOUT5_HORIZON), at(cpu, LAYOUT5_HORIZON));
+                console.warn(`[fa2-layout-oracle] noise/layout5: error ${err.rel.toExponential(3)}`);
+                assertCheckPasses({
+                    worst: ratioOf(err.rel, toleranceOf("fa2-layout-oracle")),
+                    worstLabel: "noise/layout5",
+                    samples: s.nodeCount,
+                });
+            } finally {
+                ctx.release(s);
+            }
+        },
+        CASE_TIMEOUT,
+    );
 });

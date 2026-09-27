@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect,it } from "vitest";
+
 import { rescaleLayout } from "../src/utils/rescale";
 
 describe("Bug Report #1: rescaleLayout causes NaN for Z coordinates in 3D", () => {
@@ -17,7 +18,7 @@ describe("Bug Report #1: rescaleLayout causes NaN for Z coordinates in 3D", () =
         expect(Object.keys(rescaled)).toHaveLength(3);
 
         // Check each position
-        Object.entries(rescaled).forEach(([node, pos]) => {
+        Object.values(rescaled).forEach((pos) => {
             expect(pos).toHaveLength(3); // Should have 3 coordinates
 
             // X and Y should be valid numbers
@@ -42,7 +43,7 @@ describe("Bug Report #1: rescaleLayout causes NaN for Z coordinates in 3D", () =
         // Workaround: provide 3D center
         const rescaled = rescaleLayout(positions3D, 1, [0, 0, 0]);
 
-        Object.entries(rescaled).forEach(([node, pos]) => {
+        Object.values(rescaled).forEach((pos) => {
             expect(pos).toHaveLength(3);
             // All coordinates should be valid numbers
             expect(isNaN(pos[0])).toBe(false);

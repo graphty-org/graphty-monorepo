@@ -8,7 +8,6 @@
  */
 
 import * as fs from "fs";
-import * as http from "http";
 import * as https from "https";
 import * as path from "path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -47,8 +46,8 @@ describe("Protocol selection", () => {
         storage.stopCleanupTimer();
         // Cleanup cert files
         try {
-            if (fs.existsSync(certPath)) fs.unlinkSync(certPath);
-            if (fs.existsSync(keyPath)) fs.unlinkSync(keyPath);
+            if (fs.existsSync(certPath)) {fs.unlinkSync(certPath);}
+            if (fs.existsSync(keyPath)) {fs.unlinkSync(keyPath);}
         } catch {
             // Ignore cleanup errors
         }

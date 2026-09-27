@@ -342,9 +342,13 @@ export interface GraphBuilderContract extends GraphSink {
     readonly nodeBound: number;
     /** Next logical edge index to be assigned. */
     readonly edgeBound: number;
-    /** Increments on every topology or weight mutation; column writes and freeze() do not count. */
+    /**
+     * Increments on every change that makes the next freeze() differ (topology, weights, cell and
+     * column writes, declarations, graph values, meta, extension tables, record and graph merges);
+     * freeze() itself does not count, so a snapshot cache can be keyed on this value alone.
+     */
     readonly mutationCount: number;
-    /** Mutated since the last freeze(). */
+    /** Changed since the last freeze(): true whenever a new freeze() would differ from the last one. */
     readonly dirty: boolean;
     /** Fix the direction so importers cannot change it; every later changing setDirected() is E_DIRECTED. */
     lockDirected(): void;

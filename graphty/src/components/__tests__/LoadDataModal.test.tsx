@@ -14,11 +14,12 @@
  * refusals still land in the one error line it already had.
  */
 
+import { FORMAT_DESCRIPTORS, formatDescriptor } from "@graphty/graphty-element/catalog";
 import React, { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { fireEvent, render, screen, waitFor } from "../../test/test-utils";
-import { LoadDataModal, type LoadDataModalProps, type LoadDataRequest } from "../LoadDataModal";
+import { type InputMethod, LoadDataModal, type LoadDataModalProps, type LoadDataRequest } from "../LoadDataModal";
 
 /** What the dialog says when a refusal carried no message of its own. */
 const UNREADABLE_LOAD_ERROR = "The data could not be loaded, and the loader gave no reason.";
@@ -153,7 +154,9 @@ describe("LoadDataModal", () => {
             );
 
             // And the next opening starts clean, which is what `resetState` is for.
+            // It reopens on its initial tab (File), so go back to URL to look.
             fireEvent.click(screen.getByRole("button", { name: REOPEN }));
+            fireEvent.click(await screen.findByText("URL"));
 
             expect(await screen.findByLabelText("Data URL")).toHaveValue("");
         });
@@ -207,6 +210,105 @@ describe("LoadDataModal", () => {
             fireEvent.click(screen.getByText("Paste"));
 
             expect(screen.queryByText("Failed to fetch URL: 404 Not Found")).toBeNull();
+        });
+    });
+
+    describe("formats come from graphty-element's catalog", () => {
+        it("lists every format the element can import, and nothing else", async () => {
+            renderModal(
+                vi.fn(async () => {
+                    await Promise.resolve();
+                }),
+            );
+
+            fireEvent.click(screen.getByRole("textbox", { name: "Format" }));
+
+            const options = (await screen.findAllByRole("option", { hidden: true })).map(
+                (option) => option.textContent,
+            );
+
+            expect(options).toEqual([
+                "Auto-detect",
+                ...FORMAT_DESCRIPTORS.filter((descriptor) => descriptor.canImport).map(
+                    (descriptor) => descriptor.plainName,
+                ),
+            ]);
+        });
+
+        it("recognises a URL by every extension the element claims, such as .tsv for CSV", () => {
+            renderModal(
+                vi.fn(async () => {
+                    await Promise.resolve();
+                }),
+            );
+
+            fireEvent.click(screen.getByText("URL"));
+            fireEvent.change(screen.getByLabelText("Data URL"), {
+                target: { value: "https://example.com/edges.tsv" },
+            });
+
+            expect(screen.getByText(`Detected: ${formatDescriptor("csv")?.plainName}`)).toBeInTheDocument();
+        });
+
+        it("recognises pasted text with the element's detector", () => {
+            renderModal(
+                vi.fn(async () => {
+                    await Promise.resolve();
+                }),
+            );
+
+            fireEvent.click(screen.getByText("Paste"));
+            fireEvent.change(screen.getByLabelText("Paste graph data"), {
+                target: { value: "graph [\n  node [ id 1 ]\n]" },
+            });
+
+            expect(screen.getByText(`Detected: ${formatDescriptor("gml")?.plainName}`)).toBeInTheDocument();
+        });
+    });
+
+    describe("the tab it opens on", () => {
+        it("opens on the tab its caller asked for, each time it opens", async () => {
+            function Harness(): React.JSX.Element {
+                const [method, setMethod] = useState<InputMethod | null>(null);
+
+                return (
+                    <>
+                        {(["file", "url", "paste"] as const).map((each) => (
+                            <button
+                                key={each}
+                                type="button"
+                                onClick={() => {
+                                    setMethod(each);
+                                }}
+                            >
+                                {`open ${each}`}
+                            </button>
+                        ))}
+                        <LoadDataModal
+                            opened={method !== null}
+                            initialMethod={method ?? "file"}
+                            onClose={() => {
+                                setMethod(null);
+                            }}
+                            onLoad={vi.fn(async () => {
+                                await Promise.resolve();
+                            })}
+                        />
+                    </>
+                );
+            }
+
+            render(<Harness />);
+
+            fireEvent.click(screen.getByRole("button", { name: "open paste" }));
+            expect(await screen.findByLabelText("Paste graph data")).toBeInTheDocument();
+            fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+            await waitFor(() => {
+                expect(screen.queryByRole("dialog")).toBeNull();
+            });
+
+            fireEvent.click(screen.getByRole("button", { name: "open url" }));
+            expect(await screen.findByLabelText("Data URL")).toBeInTheDocument();
         });
     });
 

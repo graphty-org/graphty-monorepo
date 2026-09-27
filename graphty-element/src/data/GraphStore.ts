@@ -304,8 +304,8 @@ export class GraphStore {
     }
 
     /**
-     * Close a load. When the last open load closes, the next freeze completes it. A disposed store
-     * ignores this, so a load's cleanup may run after a Clear replaced its store.
+     * Close a load. When the last open load closes, it is completed there and then. A disposed
+     * store ignores this, so a load's cleanup may run after a Clear replaced its store.
      */
     closeLoad(): void {
         if (this.disposed || this.loadDepth === 0) {
@@ -314,6 +314,10 @@ export class GraphStore {
 
         this.loadDepth--;
         if (this.loadDepth === 0) {
+            // Completed now rather than at the next freeze: the load is over, so an edit made
+            // before that freeze (a removal, or a second load opened straight after) belongs to
+            // no load and must not move this one's ordinals or merge into it.
+            this.completeIdentity();
             // Column writes do not move the builder, so without this a snapshot frozen during the
             // load would keep being served without the load's identity values.
             this.touch();

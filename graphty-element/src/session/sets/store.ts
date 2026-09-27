@@ -12,6 +12,10 @@
  *   removes it. A tombstone is authoritative only while its id is absent from the slice, and the
  *   records they keep are capped by bytes (this module's own accounting), oldest dropped first,
  *   id and name kept.
+ * - the SEEDS, per set id: for each edge member a door added from a session edge id, the counter
+ *   it came through (design 4.2). A binding cache, not state a command writes: never in a record,
+ *   never rolled back, kept after a removal so an undo that restores the record binds the same
+ *   edges. Counters are never reissued in a session, so a seed can only ever name its own edge.
  * - the ORDER high-water mark: a new set's order is one past the highest order the store has
  *   held, so a restored record can never share its order with a set created after it was removed.
  *
@@ -24,7 +28,8 @@
 
 import { compareIds } from "../../catalog/sets/canonical";
 import type { SetId } from "../../catalog/types";
-import { recordBytes,type RecordView } from "./prepare";
+import { recordBytes, type RecordView } from "./prepare";
+import type { EdgeSeeds } from "./resolve";
 import type { ElementSet, SetChange } from "./types";
 
 /** A removed set's id and last name, and its last record while the byte cap allows. */
@@ -77,6 +82,7 @@ export class SetsStore implements RecordView {
     private readonly issued = new Set<SetId>();
     private readonly tombstones = new Map<SetId, Tombstone>();
     private readonly listeners = new Set<(change: SetChange) => void>();
+    private readonly seeds = new Map<SetId, { readonly counters: Map<string, number>; version: number }>();
     private tombstoneBytes = 0;
     private highestOrder = 0;
     private group: Group | null = null;
@@ -133,6 +139,36 @@ export class SetsStore implements RecordView {
      */
     tombstone(id: SetId): Tombstone | undefined {
         return this.records.has(id) ? undefined : this.tombstones.get(id);
+    }
+
+    /**
+     * A set's seeds.
+     * @param id - The set.
+     * @returns The seeds, or undefined when no door has seeded the set.
+     */
+    seedsOf(id: SetId): EdgeSeeds | undefined {
+        return this.seeds.get(id);
+    }
+
+    /**
+     * Record the counters edge members entered a set through, replacing earlier ones for the same
+     * members. Moves the seeds' version, so a binding plan built before is rebuilt.
+     * @param id - The set.
+     * @param entries - Member key and counter pairs.
+     */
+    seed(id: SetId, entries: Iterable<readonly [key: string, counter: number]>): void {
+        // ponytail: one string-keyed Map entry per seeded member; a typed-array form keyed like the
+        // edge columns when million-edge sets from createFrom make its memory matter.
+        let seeds = this.seeds.get(id);
+        for (const [key, counter] of entries) {
+            if (seeds === undefined) {
+                seeds = { counters: new Map(), version: 0 };
+                this.seeds.set(id, seeds);
+            }
+
+            seeds.counters.set(key, counter);
+            seeds.version++;
+        }
     }
 
     /**

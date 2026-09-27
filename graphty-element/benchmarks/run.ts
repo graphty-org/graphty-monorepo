@@ -20,8 +20,11 @@ import { barabasiAlbertGraph } from "@graphty/graph-samples/generators";
 
 import { revisionOf } from "../src/catalog/sets/hash";
 import type { EdgeMember, NodeId, SetDefinition } from "../src/catalog/types";
+import { EDGE_ID_COLUMN, stableEdgeMember } from "../src/data/edgeIdentity";
+import { GraphStore } from "../src/data/GraphStore";
+import { ingestEdge, ingestNode } from "../src/data/ingest";
 import { createScopeApi, edgeSpaceOf, ElementMask, nodeSpaceOf } from "../src/session/scope/index";
-import { digestOf, resolveFixed, resolveScope } from "../src/session/sets/resolve";
+import { digestOf, edgeMemberKey, resolveFixed, resolveScope } from "../src/session/sets/resolve";
 import { appendSession, bench, type BenchResult, printTable } from "./harness";
 
 const LARGE = process.env.GRAPHTY_BENCH_SCALE === "large";
@@ -138,9 +141,63 @@ function runResolveBenchmarks(): BenchResult[] {
     ];
 }
 
+/**
+ * The listed rows (design 6.5, "first resolution of a 1M-edge fixed set"): a listed set's first
+ * resolution, which builds its binding plan, over a graph ingested through the element's store so
+ * every edge carries its counter and identity columns. Every other edge at 100k scale; one million
+ * edges at the large scale. Bound by identity (a set loaded from a file, no seeds) and seeded (a
+ * set built through the doors in this session: one merge of the edge-id column).
+ * @returns The results.
+ */
+function runListedBenchmarks(): BenchResult[] {
+    const graph = barabasiAlbertGraph({ n: NODES, m: 5, seed: 1 });
+    const store = new GraphStore({
+        directed: false,
+        positionScale: () => 1,
+        onReplaced: () => undefined,
+        onNodeRemap: () => undefined,
+        onEdgeRemap: () => undefined,
+    });
+    for (let i = 0; i < NODES; i++) {
+        ingestNode(store, i, {});
+    }
+
+    store.openLoad();
+    for (let e = 0; e < graph.src.length; e++) {
+        ingestEdge(store, graph.src[e], graph.dst[e], 1);
+    }
+
+    store.closeLoad();
+    const snapshot = store.getSnapshot();
+    const step = LARGE ? 5 : 2;
+    const members: EdgeMember[] = [];
+    const seeds = new Map<string, number>();
+    const counters = snapshot.edges.requireTyped(EDGE_ID_COLUMN, "u32").data;
+    for (let e = 0; e < snapshot.edgeCount; e += step) {
+        const member = stableEdgeMember(snapshot, e);
+        members.push(member);
+        seeds.set(edgeMemberKey(member), counters[e]);
+    }
+
+    const fresh = (): Extract<SetDefinition, { kind: "fixed" }> => ({ kind: "fixed", nodes: [], edges: members, reading: "listed" });
+    const opts = { items: members.length, unit: "members" };
+    const label = `${members.length} of ${snapshot.edgeCount} edges`;
+
+    return [
+        bench("listed", `first resolution, by identity, ${label}`, { setup: fresh, run: (d) => resolveFixed(d, { snapshot }).edgeCount }, opts),
+        bench(
+            "listed",
+            `first resolution, seeded (merge), ${label}`,
+            { setup: fresh, run: (d) => resolveFixed(d, { snapshot }, { counters: seeds, version: 1 }).edgeCount },
+            opts,
+        ),
+    ];
+}
+
 const GROUPS: Readonly<Record<string, () => BenchResult[]>> = {
     sets: runSetsBenchmarks,
     resolve: runResolveBenchmarks,
+    listed: runListedBenchmarks,
 };
 
 const args = process.argv.slice(2);

@@ -1,6 +1,7 @@
 /**
- * @file Synchronous bitmap resolution of every `Scope` form and of fixed definitions
- * (design/sets/sets-design.md sections 4.1, 4.2, 6.1, 6.3 and 6.4).
+ * @file Synchronous bitmap resolution of every `Scope` form and of fixed definitions, and the
+ * edge-member binding a listed set and a path share (design/sets/sets-design.md sections 4.1,
+ * 4.2, 6.1, 6.3, 6.4 and 12.3).
  *
  * A resolution is two packed bitmaps in graph-format's mask layout, one over the context
  * snapshot's nodes and one over its edges, tagged with the snapshot serial and the store it was
@@ -23,9 +24,9 @@ import {
     type U32,
 } from "@graphty/graph-format";
 
-import { EMPTY_SUM, type LanePair, membershipDigestOf } from "../../catalog/sets/hash";
-import type { EdgeId, NodeId, Query, Scope, ScopeId, SetDefinition } from "../../catalog/types";
-import { identityColumnsOf } from "../../data/edgeIdentity";
+import { EMPTY_SUM, hashEdgeMember, type LanePair, membershipDigestOf } from "../../catalog/sets/hash";
+import type { EdgeId, EdgeMember, NodeId, Query, Scope, ScopeId, SetDefinition } from "../../catalog/types";
+import { EDGE_ID_COLUMN, identityColumnsOf, pairsOrdered } from "../../data/edgeIdentity";
 import { GraphtyError } from "../../errors";
 import { canonicalize } from "../runs/runId";
 import type { ElementMask } from "../scope/ElementMask";
@@ -37,7 +38,21 @@ import type { ElementMask } from "../scope/ElementMask";
  * - `digestSums`: masked sums over the hash columns.
  * - `idSetBuilds`: id `Set`s materialised from a bitmap.
  */
-export const resolveCounters = { edgePasses: 0, edgeRowVisits: 0, maskPacks: 0, digestSums: 0, idSetBuilds: 0 };
+export const resolveCounters = {
+    edgePasses: 0,
+    edgeRowVisits: 0,
+    maskPacks: 0,
+    digestSums: 0,
+    idSetBuilds: 0,
+    /** Binding plans built: one per definition and seed version. */
+    bindingPlans: 0,
+    /** Edge-id column scans that merged against the sorted seeded counters. */
+    bindMerges: 0,
+    /** Edge-id column scans that binary-searched them, because the column was not monotonic. */
+    bindSearches: 0,
+    /** Edge passes matching unseeded members by stable identity. */
+    identityPasses: 0,
+};
 
 /** One resolution: what a scope or a definition covers in one snapshot. */
 export interface Resolution {
@@ -55,8 +70,15 @@ export interface Resolution {
     readonly store: object | null;
     /** Named node ids the graph does not hold, one per unresolved entry. */
     readonly missingNodes: number;
-    /** Named edge members no edge matches. */
+    /**
+     * Named edge members no edge matches; for a path, the steps none of whose edges are there.
+     */
     readonly missingEdges: number;
+    /**
+     * Of the unmatched edge members, those more than one edge carries (`ambiguous-parallel-edge`):
+     * two loads gave two edges the same pair, ordinal and among, and neither is bound.
+     */
+    readonly ambiguousEdges: number;
 }
 
 /** Which connected component each node belongs to. */
@@ -321,9 +343,10 @@ function deriveEdges(half: NodeHalf, snapshot: GraphSnapshot): U32 {
  * @param edges - The edge bitmap.
  * @param context - What was resolved against.
  * @param missingEdges - Unmatched edge members.
+ * @param ambiguousEdges - Of those, the ones more than one edge carries.
  * @returns The resolution.
  */
-function resolutionOf(half: NodeHalf, edges: U32, context: ResolveContext, missingEdges: number): Resolution {
+export function resolutionOf(half: NodeHalf, edges: U32, context: ResolveContext, missingEdges: number, ambiguousEdges = 0): Resolution {
     const { snapshot } = context;
 
     return Object.freeze({
@@ -335,6 +358,7 @@ function resolutionOf(half: NodeHalf, edges: U32, context: ResolveContext, missi
         store: context.store ?? null,
         missingNodes: half.missingNodes,
         missingEdges,
+        ambiguousEdges,
     });
 }
 
@@ -352,31 +376,299 @@ export function resolveScope(scope: Scope, context: ResolveContext): Resolution 
     return resolutionOf(half, deriveEdges(half, context.snapshot), context, 0);
 }
 
+// ---------------------------------------------------------------------------------------------
+// Edge-member binding (design/sets/sets-design.md sections 4.2, 6.3 and 12.3).
+//
+// A member names an edge by its stable identity; a resolution needs the edge's row. Two routes:
+//
+// - SEEDED: a door that turned a session edge id into a member recorded the counter it came
+//   through (the set's seeds). While the snapshot holds that counter, the member is that edge.
+//   Counters are never reissued in a session, so a seed can never name a different edge; one
+//   whose edge is gone (deleted, or its store replaced) simply is not found.
+// - BY IDENTITY: any other member, and a seeded one whose counter is not in the snapshot, binds
+//   the one edge whose stable identity it is -- an `id` member the edge whose hash column equals
+//   the member's hash, an ordinal member the edge of its pair with that ordinal and among. No
+//   edge: missing. More than one: missing, `ambiguous-parallel-edge`, never a guess.
+//
+// Seeds are what keep two identical-looking edges apart inside a session (two Add data loads each
+// giving one id-less edge to one pair have the same identity); by identity is what rebinds after
+// a replacing import, a reload or an undo that rebuilds the store.
+// ---------------------------------------------------------------------------------------------
+
+/** A member no edge carries. */
+const EDGE_MISSING = -1;
+/** A member more than one edge carries. */
+export const EDGE_AMBIGUOUS = -2;
+
+/**
+ * One set's seeds: member key to the session edge counter the member entered the set through.
+ * `version` moves on every write, so a binding plan built from an older version is rebuilt.
+ */
+export interface EdgeSeeds {
+    readonly counters: ReadonlyMap<string, number>;
+    readonly version: number;
+}
+
+/**
+ * The key a seed is filed under: the member's fields, types kept, so `1` and `"1"` differ.
+ * @param member - The member.
+ * @returns The key.
+ */
+export function edgeMemberKey(member: EdgeMember): string {
+    return JSON.stringify([member.source, member.target, member.id ?? null, member.key ?? null, member.ordinal ?? null, member.among ?? null]);
+}
+
+/**
+ * The binding table's entry for one definition: which members have seeds, sorted by counter, and
+ * which do not. Built once per definition and seed version; the snapshot is read per resolution.
+ */
+interface BindingPlan {
+    readonly seeds: EdgeSeeds | undefined;
+    readonly version: number;
+    /** Seeded counters, ascending. */
+    readonly counters: Float64Array;
+    /** The member each entry of `counters` belongs to. */
+    readonly seeded: Uint32Array;
+    /** Members with no seed. */
+    readonly unseeded: Uint32Array;
+}
+
+const plans = new WeakMap<object, BindingPlan>();
+const monotonic = new WeakMap<GraphSnapshot, boolean>();
+
+/**
+ * A definition's binding plan, from the table or built.
+ * @param key - The frozen definition the members belong to.
+ * @param members - Its edge members.
+ * @param seeds - Its seeds, if any.
+ * @returns The plan.
+ */
+function planOf(key: object, members: readonly EdgeMember[], seeds: EdgeSeeds | undefined): BindingPlan {
+    const cached = plans.get(key);
+    if (cached !== undefined && cached.seeds === seeds && cached.version === (seeds?.version ?? 0)) {
+        return cached;
+    }
+
+    resolveCounters.bindingPlans++;
+    const pairs: [counter: number, member: number][] = [];
+    const unseeded: number[] = [];
+    for (let i = 0; i < members.length; i++) {
+        const counter = seeds === undefined || seeds.counters.size === 0 ? undefined : seeds.counters.get(edgeMemberKey(members[i]));
+        if (counter === undefined) {
+            unseeded.push(i);
+        } else {
+            pairs.push([counter, i]);
+        }
+    }
+
+    pairs.sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+    const plan: BindingPlan = {
+        seeds,
+        version: seeds?.version ?? 0,
+        counters: Float64Array.from(pairs, (pair) => pair[0]),
+        seeded: Uint32Array.from(pairs, (pair) => pair[1]),
+        unseeded: Uint32Array.from(unseeded),
+    };
+    plans.set(key, plan);
+
+    return plan;
+}
+
+/**
+ * Whether a snapshot's edge-id column ascends with the row, checked once per snapshot.
+ * @param snapshot - The snapshot.
+ * @param column - Its edge-id column.
+ * @returns True when every row's counter is above the one before.
+ */
+function isMonotonic(snapshot: GraphSnapshot, column: ArrayLike<number>): boolean {
+    let answer = monotonic.get(snapshot);
+    if (answer === undefined) {
+        answer = true;
+        for (let e = 1; e < snapshot.edgeCount; e++) {
+            if (column[e] <= column[e - 1]) {
+                answer = false;
+                break;
+            }
+        }
+
+        monotonic.set(snapshot, answer);
+    }
+
+    return answer;
+}
+
+/**
+ * Bind seeded members: one scan of the edge-id column against the sorted seeded counters, a
+ * linear merge when the column ascends, a binary search per row otherwise.
+ * @param plan - The binding plan.
+ * @param snapshot - The context snapshot.
+ * @param rowOf - Written: the row of each member found.
+ */
+function bindSeeded(plan: BindingPlan, snapshot: GraphSnapshot, rowOf: Int32Array): void {
+    const column = snapshot.edges.typed(EDGE_ID_COLUMN, "u32");
+    const { counters, seeded } = plan;
+    if (column === null || counters.length === 0) {
+        return;
+    }
+
+    const ids = column.data;
+    const count = snapshot.edgeCount;
+    resolveCounters.edgeRowVisits += count;
+    if (isMonotonic(snapshot, ids)) {
+        resolveCounters.bindMerges++;
+        let at = 0;
+        for (let e = 0; e < count && at < counters.length; e++) {
+            while (at < counters.length && counters[at] < ids[e]) {
+                at++;
+            }
+
+            for (; at < counters.length && counters[at] === ids[e]; at++) {
+                rowOf[seeded[at]] = e;
+            }
+        }
+
+        return;
+    }
+
+    resolveCounters.bindSearches++;
+    for (let e = 0; e < count; e++) {
+        let low = 0;
+        let high = counters.length;
+        while (low < high) {
+            const mid = (low + high) >>> 1;
+            if (counters[mid] < ids[e]) {
+                low = mid + 1;
+            } else {
+                high = mid;
+            }
+        }
+
+        for (let at = low; at < counters.length && counters[at] === ids[e]; at++) {
+            rowOf[seeded[at]] = e;
+        }
+    }
+}
+
+/**
+ * Bind members by stable identity: one edge pass, candidates found by endpoint pair.
+ * @param members - Every member.
+ * @param which - The members to bind.
+ * @param context - What the resolution reads.
+ * @param rowOf - Written: each bound member's row, or {@link EDGE_AMBIGUOUS}.
+ */
+function bindByIdentity(members: readonly EdgeMember[], which: readonly number[], context: ResolveContext, rowOf: Int32Array): void {
+    const { snapshot } = context;
+    const ids = context.ids ?? snapshot.ids;
+    const ordered = pairsOrdered(snapshot);
+    const n = snapshot.nodeCount;
+    const pairKey = (s: number, t: number): number => (ordered || s <= t ? s * n + t : t * n + s);
+    const byPair = new Map<number, number[]>();
+    const hashes = new Map<number, LanePair>();
+    for (const i of which) {
+        const member = members[i];
+        const s = ids.indexOf(member.source);
+        const t = ids.indexOf(member.target);
+        if (s === INVALID_INDEX || t === INVALID_INDEX) {
+            continue;
+        }
+
+        if (member.id !== undefined) {
+            hashes.set(i, hashEdgeMember(member, ordered));
+        }
+
+        const key = pairKey(s, t);
+        const list = byPair.get(key);
+        if (list === undefined) {
+            byPair.set(key, [i]);
+        } else {
+            list.push(i);
+        }
+    }
+
+    if (byPair.size === 0) {
+        return;
+    }
+
+    resolveCounters.identityPasses++;
+    resolveCounters.edgeRowVisits += snapshot.edgeCount;
+    const { edgeHash, edgeOrdinal, edgeAmong } = identityColumnsOf(snapshot);
+    const { src, dst } = snapshot.edgeList();
+    for (let e = 0; e < snapshot.edgeCount; e++) {
+        const candidates = byPair.get(pairKey(src[e], dst[e]));
+        if (candidates === undefined) {
+            continue;
+        }
+
+        for (const i of candidates) {
+            const member = members[i];
+            const hash = hashes.get(i);
+            const match =
+                hash === undefined
+                    ? member.ordinal !== undefined && edgeOrdinal[e] === member.ordinal && edgeAmong[e] === member.among
+                    : edgeHash[2 * e] === hash.a && edgeHash[2 * e + 1] === hash.b;
+            if (match) {
+                rowOf[i] = rowOf[i] === EDGE_MISSING ? e : EDGE_AMBIGUOUS;
+            }
+        }
+    }
+}
+
+/**
+ * The row each edge member binds in the context snapshot: seeded first, then by identity.
+ * @param key - The frozen definition the members belong to; the binding table is keyed by it.
+ * @param members - The members.
+ * @param context - What the resolution reads.
+ * @param seeds - The set's seeds, if any.
+ * @returns One entry per member: its row, {@link EDGE_MISSING} or {@link EDGE_AMBIGUOUS}.
+ */
+export function bindEdgeMembers(key: object, members: readonly EdgeMember[], context: ResolveContext, seeds?: EdgeSeeds): Int32Array {
+    const rowOf = new Int32Array(members.length).fill(EDGE_MISSING);
+    if (members.length === 0) {
+        return rowOf;
+    }
+
+    const plan = planOf(key, members, seeds);
+    bindSeeded(plan, context.snapshot, rowOf);
+    const rest: number[] = Array.from(plan.unseeded);
+    for (const i of plan.seeded) {
+        if (rowOf[i] === EDGE_MISSING) {
+            rest.push(i);
+        }
+    }
+
+    bindByIdentity(members, rest, context, rowOf);
+
+    return rowOf;
+}
+
+/**
+ * Set a row's edge bit and its endpoints' node bits.
+ * @param row - The edge row.
+ * @param snapshot - The context snapshot.
+ * @param nodes - The node bitmap.
+ * @param edges - The edge bitmap.
+ */
+export function addEdgeRow(row: number, snapshot: GraphSnapshot, nodes: U32, edges: U32): void {
+    const s = snapshot.edgeSource(row);
+    const t = snapshot.edgeTarget(row);
+    edges[row >>> 5] |= 1 << (row & 31);
+    nodes[s >>> 5] |= 1 << (s & 31);
+    nodes[t >>> 5] |= 1 << (t & 31);
+}
+
 /**
  * What a fixed definition covers. Its node half is its nodes plus the endpoints of its edges;
- * `induced` derives the edges between them, `listed` with no edge members has none.
+ * `induced` derives the edges between them, `listed` binds its edge members.
  * @param definition - A canonical fixed definition.
  * @param context - What the resolution reads.
+ * @param seeds - The set's seeds, for a kept set.
  * @returns The resolution.
- * @throws A `GraphtyError` with `E_UNSUPPORTED` for listed edge members, which bind through the
- *     edge binding table rather than by endpoints.
  */
-export function resolveFixed(definition: Extract<SetDefinition, { kind: "fixed" }>, context: ResolveContext): Resolution {
+export function resolveFixed(definition: Extract<SetDefinition, { kind: "fixed" }>, context: ResolveContext, seeds?: EdgeSeeds): Resolution {
     const { snapshot } = context;
     const nodes = makeMask(snapshot.nodeCount);
     const missingNodes = addIds(definition.nodes, nodes, context);
     const listed = definition.edges ?? [];
-
-    if (definition.reading === "listed" && listed.length > 0) {
-        // ponytail: listed edge members bind through the session's edge binding table, which the
-        // next plan phase builds; nothing reaches this before then.
-        throw new GraphtyError({
-            code: "E_UNSUPPORTED",
-            message: "A fixed set's listed edge members cannot be resolved yet.",
-            source: "run",
-            details: { edges: listed.length },
-        });
-    }
 
     for (const member of listed) {
         // Endpoints join the node half; one the graph no longer holds is simply not there.
@@ -389,9 +681,23 @@ export function resolveFixed(definition: Extract<SetDefinition, { kind: "fixed" 
     }
 
     const half: NodeHalf = { nodes, constraint: null, all: false, missingNodes };
-    const edges = definition.reading === "induced" ? deriveEdges(half, snapshot) : makeMask(snapshot.edgeCount);
+    if (definition.reading === "induced") {
+        return resolutionOf(half, deriveEdges(half, snapshot), context, 0);
+    }
 
-    return resolutionOf(half, edges, context, 0);
+    const edges = makeMask(snapshot.edgeCount);
+    let missing = 0;
+    let ambiguous = 0;
+    for (const row of bindEdgeMembers(definition, listed, context, seeds)) {
+        if (row >= 0) {
+            addEdgeRow(row, snapshot, nodes, edges);
+        } else {
+            missing++;
+            ambiguous += row === EDGE_AMBIGUOUS ? 1 : 0;
+        }
+    }
+
+    return resolutionOf(half, edges, context, missing, ambiguous);
 }
 
 /**

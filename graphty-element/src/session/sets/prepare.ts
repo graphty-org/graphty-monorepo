@@ -945,3 +945,31 @@ export function recordBytes(record: ElementSet): number {
 
     return 64 + 2 * record.name.length + body;
 }
+
+/**
+ * Whether a definition holds an edge member: a binary search over a fixed set's edge columns, a
+ * scan of anything else's edges (a path's steps, a restored fixed set).
+ * @param definition - The definition.
+ * @param member - A canonical member.
+ * @returns True when some edge member equals it.
+ */
+export function holdsEdgeMember(definition: SetDefinition, member: EdgeMember): boolean {
+    const columns = columnsOf.get(definition);
+    if (columns !== undefined) {
+        return columns.has(member);
+    }
+
+    if (definition.kind !== "fixed" && definition.kind !== "path") {
+        return false;
+    }
+
+    const same = (other: EdgeMember): boolean =>
+        other.source === member.source &&
+        other.target === member.target &&
+        other.id === member.id &&
+        other.key === member.key &&
+        other.ordinal === member.ordinal &&
+        other.among === member.among;
+
+    return (definition.edges ?? []).some((step) => (Array.isArray(step) ? (step as readonly EdgeMember[]).some(same) : step !== null && same(step as EdgeMember)));
+}

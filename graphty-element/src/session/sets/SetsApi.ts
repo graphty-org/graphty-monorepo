@@ -19,6 +19,7 @@ import { GraphtyError } from "../../errors/GraphtyError";
 import type { SessionAttributes } from "../types";
 import {
     defaultName,
+    holdsEdgeMember,
     MAX_EDGE_MEMBER_EDIT,
     prepareCreate,
     prepareMembers,
@@ -26,6 +27,7 @@ import {
     prepareRemove,
     prepareRename,
 } from "./prepare";
+import { edgeMemberKey } from "./resolve";
 import { SetsStore } from "./store";
 import type { ElementSet, SetMemberDelta, SetsApi } from "./types";
 
@@ -70,6 +72,23 @@ export function sessionEdgeMember(
     return stableEdgeMember(snapshot, row, usable ? fileId : undefined);
 }
 
+const storesOf = new WeakMap<SetsApi, SetsStore>();
+
+/**
+ * The store behind a set of doors, for the internal readers that resolve kept sets. Internal.
+ * @param api - Doors {@link createSetsApi} built.
+ * @returns The store.
+ * @throws An Error for doors it did not build.
+ */
+export function setsStoreOf(api: SetsApi): SetsStore {
+    const store = storesOf.get(api);
+    if (store === undefined) {
+        throw new Error("Not a SetsApi built by createSetsApi.");
+    }
+
+    return store;
+}
+
 /**
  * Build the synchronous doors over a store.
  * @param dependencies - Where session edge ids are looked up.
@@ -78,6 +97,8 @@ export function sessionEdgeMember(
  */
 export function createSetsApi(dependencies: SetsDependencies, store: SetsStore = new SetsStore()): SetsApi {
     const limit = dependencies.maxEdgeMembers ?? MAX_EDGE_MEMBER_EDIT;
+    /** The session edges the write in progress named, with the members they became, in order. */
+    let named: [EdgeId, EdgeMember][] = [];
 
     /**
      * An edge reference in stable form.
@@ -100,7 +121,49 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
             });
         }
 
+        named.push([ref, member]);
+
         return member;
+    };
+
+    /**
+     * Run a conversion to stable form and collect the session edges it named.
+     * @param convert - The conversion.
+     * @returns What it returned, and the session edges with the members they became, in order.
+     */
+    const collect = <T>(convert: () => T): [T, [EdgeId, EdgeMember][]] => {
+        named = [];
+        try {
+            return [convert(), named];
+        } finally {
+            named = [];
+        }
+    };
+
+    /**
+     * Seed the members a committed write brought into a set through session edge ids: each binds
+     * the edge it was named by while the graph holds that edge (design 4.2). A member the set
+     * already held keeps its seed, so a no-op or a repeat changes no binding; the first session
+     * edge naming a member wins.
+     * @param id - The set written.
+     * @param prior - Its record before the write.
+     * @param refs - The session edges the write named, with their members.
+     */
+    const seed = (id: SetId, prior: ElementSet | undefined, refs: readonly [EdgeId, EdgeMember][]): void => {
+        const next = store.get(id);
+        if (next === undefined || next === prior || refs.length === 0) {
+            return;
+        }
+
+        const entries = new Map<string, number>();
+        for (const [ref, member] of refs) {
+            const key = edgeMemberKey(member);
+            if (!entries.has(key) && (prior === undefined || !holdsEdgeMember(prior.definition, member)) && holdsEdgeMember(next.definition, member)) {
+                entries.set(key, edgeCounterOf(ref));
+            }
+        }
+
+        store.seed(id, entries);
     };
 
     /**
@@ -141,21 +204,23 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
         }
     };
 
-    return {
+    const api: SetsApi = {
         list: () => store.list(),
 
         get: (id: SetId) => store.get(id),
 
         create(definition: SetDefinitionInput, options: { readonly name?: string } = {}): SetId {
-            const concrete = stabilise(definition);
-
-            return store.transact(() => {
+            const [concrete, refs] = collect(() => stabilise(definition));
+            const id = store.transact(() => {
                 const name = options.name ?? defaultName(store);
-                const id = store.mint(typeof name === "string" ? name.trim() : "");
-                store.put(prepareCreate(store, { id, name, order: store.nextOrder(), definition: concrete, createdFrom: { kind: "user" } }));
+                const minted = store.mint(typeof name === "string" ? name.trim() : "");
+                store.put(prepareCreate(store, { id: minted, name, order: store.nextOrder(), definition: concrete, createdFrom: { kind: "user" } }));
 
-                return id;
+                return minted;
             });
+            seed(id, undefined, refs);
+
+            return id;
         },
 
         rename(id: SetId, name: string): void {
@@ -165,17 +230,21 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
         },
 
         redefine(id: SetId, definition: SetDefinitionInput): void {
-            const concrete = stabilise(definition);
+            const [concrete, refs] = collect(() => stabilise(definition));
+            const prior = store.get(id);
             store.transact(() => {
                 write(prepareRedefine(store, { id, definition: concrete }));
             });
+            seed(id, prior, refs);
         },
 
         addMembers(id: SetId, members: SetMemberDelta): void {
-            const add = stableDelta(members);
+            const [add, refs] = collect(() => stableDelta(members));
+            const prior = store.get(id);
             store.transact(() => {
                 write(prepareMembers(store, { id, add }, limit));
             });
+            seed(id, prior, refs);
         },
 
         removeMembers(id: SetId, members: SetMemberDelta): void {
@@ -191,4 +260,7 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
             });
         },
     };
+    storesOf.set(api, store);
+
+    return api;
 }

@@ -434,8 +434,9 @@ export default defineConfig({
                 // Naming it as a prefix is what puts it on `import.meta.env` in the browser --
                 // Vite copies every matching variable out of the process environment -- and
                 // test/browser/webgpu-layout.test.ts skips itself when it is absent, so the five
-                // CI shards never try to use a WebGPU that is not there.
-                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU"],
+                // CI shards never try to use a WebGPU that is not there. GRAPHTY_FC_ carries a
+                // property test's reproduction seed and path (test/helpers/fc-params.ts).
+                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_FC_"],
                 // Pre-bundle IWER up front: discovered mid-run, Vite re-optimizes and reloads the
                 // page under the running test (test/browser/xr-session.test.ts imports it).
                 optimizeDeps: { include: ["iwer", ...BABYLON_SIDE_EFFECTS] },

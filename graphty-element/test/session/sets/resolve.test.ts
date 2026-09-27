@@ -1,13 +1,15 @@
 /**
- * @file Bitmap resolution of every Scope form and of fixed induced sets
- * (design/sets/sets-design.md sections 4.1, 4.2, 6.1 and 6.3), and its work counts.
+ * @file Bitmap resolution of every Scope form, of fixed sets (induced, and listed edge members
+ * through the binding table) and of paths (design/sets/sets-design.md sections 4.1, 4.2, 4.4,
+ * 6.1 and 6.3), and its work counts.
  */
 
 import { fromEdgeArrays, type GraphSnapshot, maskToIndices, type U32 } from "@graphty/graph-format";
 import { assert, describe, it } from "vitest";
 
-import type { EdgeId, NodeId } from "../../../src/catalog/types";
+import type { EdgeId, NodeId, SetDefinition } from "../../../src/catalog/types";
 import { createScopeApi, edgeSpaceOf, ElementMask, nodeSpaceOf } from "../../../src/session/scope/index";
+import { resolvePath } from "../../../src/session/sets/path";
 import {
     type Resolution,
     type ResolveContext,
@@ -16,6 +18,7 @@ import {
     resolveScope,
 } from "../../../src/session/sets/resolve";
 import { edgeBetween, type EdgeRow, type Harness, makeSession, type NodeRow } from "../helpers";
+import { TestGraph } from "./graphs";
 
 /** A session with data in it. */
 function harnessOf(nodes: readonly NodeRow[], edges: readonly EdgeRow[] = [], directed = false): Harness {
@@ -315,4 +318,201 @@ describe("work counts at two sizes", () => {
             assert.strictEqual(listed.passes, 0, "a listed node-only set derives no edges");
         });
     }
+});
+
+describe("listed edge members bind through the binding table", () => {
+    /** The counters a resolution's edge bits carry, ascending. */
+    const countersOf = (graph: TestGraph, resolution: Resolution): number[] =>
+        Array.from(maskToIndices(resolution.edges, graph.snapshot().edgeCount), (e) => graph.counterAt(e)).sort((a, b) => a - b);
+
+    /** Three a-b edges and one b-c edge in one load, plus one session edge c-d. */
+    function threeParallel(): { graph: TestGraph; ab: number[]; bc: number; cd: number } {
+        const graph = new TestGraph();
+        const [ab0, ab1, ab2, bc] = graph.load([
+            { s: "a", t: "b" },
+            { s: "a", t: "b" },
+            { s: "a", t: "b" },
+            { s: "b", t: "c" },
+        ]);
+        const [cd] = graph.load([{ s: "c", t: "d" }], { asLoad: false });
+
+        return { graph, ab: [ab0, ab1, ab2], bc, cd };
+    }
+
+    it("binds unseeded members by identity: an ordinal member and a minted id", () => {
+        const { graph, ab, cd } = threeParallel();
+        const snapshot = graph.snapshot();
+        const before = { ...resolveCounters };
+        const resolution = resolveFixed(
+            {
+                kind: "fixed",
+                nodes: [],
+                edges: [
+                    { source: "a", target: "b", ordinal: 1, among: 3 },
+                    { id: `graphty:e${cd}`, source: "c", target: "d" },
+                ],
+                reading: "listed",
+            },
+            { snapshot },
+        );
+
+        assert.deepStrictEqual(countersOf(graph, resolution), [ab[1], cd]);
+        assert.deepStrictEqual(nodeIds(resolution, snapshot), ["a", "b", "c", "d"]);
+        assert.strictEqual(resolution.missingEdges, 0);
+        assert.strictEqual(resolveCounters.identityPasses - before.identityPasses, 1);
+        assert.strictEqual(resolveCounters.bindMerges - before.bindMerges, 0, "nothing seeded, nothing merged");
+        assertEndpoints(resolution, snapshot);
+    });
+
+    it("binds seeded members by a linear merge when the edge-id column ascends", () => {
+        const { graph, ab, bc } = threeParallel();
+        const id = graph.sets.create({ kind: "fixed", nodes: [], edges: [graph.edgeId(ab[2]), graph.edgeId(bc)], reading: "listed" });
+        const record = graph.sets.get(id);
+        assert.isDefined(record);
+        const definition = record?.definition as Extract<SetDefinition, { kind: "fixed" }>;
+
+        const before = { ...resolveCounters };
+        const resolution = resolveFixed(definition, { snapshot: graph.snapshot() }, graph.setsStore.seedsOf(id));
+
+        assert.deepStrictEqual(countersOf(graph, resolution), [ab[2], bc]);
+        assert.strictEqual(resolveCounters.bindMerges - before.bindMerges, 1);
+        assert.strictEqual(resolveCounters.bindSearches - before.bindSearches, 0);
+        assert.strictEqual(resolveCounters.identityPasses - before.identityPasses, 0, "every member was seeded and found");
+    });
+
+    it("binds seeded members by binary search when the edge-id column does not ascend", () => {
+        const { graph, ab, bc, cd } = threeParallel();
+        const id = graph.sets.create({ kind: "fixed", nodes: [], edges: [graph.edgeId(ab[0]), graph.edgeId(cd)], reading: "listed" });
+        const definition = graph.sets.get(id)?.definition as Extract<SetDefinition, { kind: "fixed" }>;
+        // Rebuilt with the edges shuffled: the restored counters no longer ascend with the row.
+        for (let seed = 1; ; seed++) {
+            graph.rebuildEmbedded(seed);
+            const column = graph.snapshot().edges.requireTyped("graphty.edgeId", "u32").data;
+            if (column.some((value, e) => e > 0 && value < column[e - 1])) {
+                break;
+            }
+        }
+
+        const before = { ...resolveCounters };
+        const resolution = resolveFixed(definition, { snapshot: graph.snapshot() }, graph.setsStore.seedsOf(id));
+
+        assert.deepStrictEqual(countersOf(graph, resolution), [ab[0], cd]);
+        assert.strictEqual(resolveCounters.bindSearches - before.bindSearches, 1);
+        assert.strictEqual(resolveCounters.bindMerges - before.bindMerges, 0);
+        assert.notInclude(countersOf(graph, resolution), bc);
+    });
+
+    it("counts a member two edges carry as missing and ambiguous, and binds neither", () => {
+        const graph = new TestGraph();
+        graph.load([{ s: "a", t: "b" }]);
+        graph.load([{ s: "a", t: "b" }]);
+        const resolution = resolveFixed(
+            { kind: "fixed", nodes: [], edges: [{ source: "a", target: "b", ordinal: 0, among: 1 }], reading: "listed" },
+            { snapshot: graph.snapshot() },
+        );
+
+        assert.strictEqual(resolution.edgeCount, 0);
+        assert.strictEqual(resolution.missingEdges, 1);
+        assert.strictEqual(resolution.ambiguousEdges, 1);
+    });
+
+    it("keeps a seeded twin bound to the edge it was added through", () => {
+        const graph = new TestGraph();
+        const [first] = graph.load([{ s: "a", t: "b" }]);
+        const id = graph.sets.create({ kind: "fixed", nodes: [], edges: [graph.edgeId(first)], reading: "listed" });
+        graph.load([{ s: "a", t: "b" }]);
+        const definition = graph.sets.get(id)?.definition as Extract<SetDefinition, { kind: "fixed" }>;
+
+        const resolution = resolveFixed(definition, { snapshot: graph.snapshot() }, graph.setsStore.seedsOf(id));
+        assert.deepStrictEqual(countersOf(graph, resolution), [first]);
+        assert.strictEqual(resolution.missingEdges, 0);
+
+        graph.removeEdge(first);
+        const gone = resolveFixed(definition, { snapshot: graph.snapshot() }, graph.setsStore.seedsOf(id));
+        // Its own edge is gone; the one edge left carrying its identity is the twin, and the
+        // identity rule binds exactly what it names.
+        assert.strictEqual(gone.edgeCount, 1);
+        assert.strictEqual(gone.missingEdges, 0);
+    });
+});
+
+describe("paths", () => {
+    /** a-b twice, b-a once, b-c once, c-d once, all one load, in a store declared directed. */
+    function walkGraph(): { graph: TestGraph; ab: number[]; ba: number; bc: number; cd: number } {
+        const graph = new TestGraph(true);
+        const [ab0, ab1, ba, bc, cd] = graph.load([
+            { s: "a", t: "b" },
+            { s: "a", t: "b" },
+            { s: "b", t: "a" },
+            { s: "b", t: "c" },
+            { s: "c", t: "d" },
+        ]);
+
+        return { graph, ab: [ab0, ab1], ba, bc, cd };
+    }
+
+    const countersOf = (graph: TestGraph, resolution: Resolution): number[] =>
+        Array.from(maskToIndices(resolution.edges, graph.snapshot().edgeCount), (e) => graph.counterAt(e)).sort((a, b) => a - b);
+
+    it("resolves distinct nodes and the named edges, a null step every edge between the pair", () => {
+        const { graph, ab, ba, bc } = walkGraph();
+        const snapshot = graph.snapshot();
+        const resolution = resolvePath(
+            {
+                kind: "path",
+                nodes: ["a", "b", "a", "b", "c"],
+                edges: [{ source: "a", target: "b", ordinal: 1, among: 2 }, null, [{ source: "a", target: "b", ordinal: 0, among: 2 }], null],
+            },
+            { snapshot },
+        );
+
+        assert.deepStrictEqual(nodeIds(resolution, snapshot), ["a", "b", "c"]);
+        // Step 2 (b to a, null) takes every edge between the pair, in both directions.
+        assert.deepStrictEqual(countersOf(graph, resolution), [ab[0], ab[1], ba, bc].sort((x, y) => x - y));
+        assert.strictEqual(resolution.missingEdges, 0);
+        assertEndpoints(resolution, snapshot);
+    });
+
+    it("takes only forward edges when directed", () => {
+        const { graph, ab, bc } = walkGraph();
+        const resolution = resolvePath(
+            { kind: "path", nodes: ["a", "b", "c"], directed: true },
+            { snapshot: graph.snapshot() },
+        );
+        assert.deepStrictEqual(countersOf(graph, resolution), [ab[0], ab[1], bc]);
+
+        // A named edge against its step is not walked, so that step is missing.
+        const against = resolvePath(
+            { kind: "path", nodes: ["a", "b"], edges: [{ source: "b", target: "a", ordinal: 0, among: 1 }], directed: true },
+            { snapshot: graph.snapshot() },
+        );
+        assert.strictEqual(against.edgeCount, 0);
+        assert.strictEqual(against.missingEdges, 1);
+    });
+
+    it("counts a step whose edges are all gone as missing, and a missing node once", () => {
+        const { graph, ab, cd } = walkGraph();
+        const definition: SetDefinition = {
+            kind: "path",
+            nodes: ["a", "b", "c", "d", "zz", "d"],
+            edges: [[{ source: "a", target: "b", ordinal: 0, among: 2 }, { source: "a", target: "b", ordinal: 1, among: 2 }], null, null, null, null],
+        };
+        graph.removeEdge(ab[0]);
+        let resolution = resolvePath(definition, { snapshot: graph.snapshot() });
+        assert.strictEqual(resolution.missingEdges, 2, "one of the group is left; the two steps through zz are missing");
+        assert.strictEqual(resolution.missingNodes, 1);
+        assert.include(countersOf(graph, resolution), cd);
+
+        graph.removeEdge(ab[1]);
+        resolution = resolvePath(definition, { snapshot: graph.snapshot() });
+        assert.strictEqual(resolution.missingEdges, 3, "now the whole group is gone too");
+    });
+
+    it("gives a one-node path its node and no steps", () => {
+        const { graph } = walkGraph();
+        const resolution = resolvePath({ kind: "path", nodes: ["c"] }, { snapshot: graph.snapshot() });
+        assert.strictEqual(resolution.nodeCount, 1);
+        assert.strictEqual(resolution.edgeCount, 0);
+        assert.strictEqual(resolution.missingEdges, 0);
+    });
 });

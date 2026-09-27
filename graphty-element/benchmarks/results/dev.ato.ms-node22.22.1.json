@@ -124,5 +124,67 @@
                 "rateUnit": "edges/s"
             }
         ]
+    },
+    {
+        "date": "2026-09-27T03:09:53.878Z",
+        "host": "dev.ato.ms",
+        "node": "v22.22.1",
+        "cpu": "Intel(R) Core(TM) i9-14900KF",
+        "exposeGc": false,
+        "results": [
+            {
+                "group": "listed",
+                "name": "first resolution, by identity, 249988 of 499975 edges",
+                "medianMs": 67.313085,
+                "minMs": 56.42970500000001,
+                "maxMs": 74.83522499999981,
+                "runs": 5,
+                "memoryDeltaBytes": 29774224,
+                "rate": 3713809.878123993,
+                "rateUnit": "members/s"
+            },
+            {
+                "group": "listed",
+                "name": "first resolution, seeded (merge), 249988 of 499975 edges",
+                "medianMs": 81.16617999999994,
+                "minMs": 78.408549,
+                "maxMs": 92.17978399999993,
+                "runs": 5,
+                "memoryDeltaBytes": 25821256,
+                "rate": 3079952.758648986,
+                "rateUnit": "members/s"
+            }
+        ]
+    },
+    {
+        "date": "2026-09-27T03:10:15.693Z",
+        "host": "dev.ato.ms",
+        "node": "v22.22.1",
+        "cpu": "Intel(R) Core(TM) i9-14900KF",
+        "exposeGc": false,
+        "results": [
+            {
+                "group": "listed",
+                "name": "first resolution, by identity, 999995 of 4999975 edges",
+                "medianMs": 733.0659590000014,
+                "minMs": 704.2987389999998,
+                "maxMs": 867.7349679999988,
+                "runs": 5,
+                "memoryDeltaBytes": 148942816,
+                "rate": 1364126.9079853673,
+                "rateUnit": "members/s"
+            },
+            {
+                "group": "listed",
+                "name": "first resolution, seeded (merge), 999995 of 4999975 edges",
+                "medianMs": 405.7032880000006,
+                "minMs": 391.2895549999994,
+                "maxMs": 472.2451209999999,
+                "runs": 5,
+                "memoryDeltaBytes": 133365096,
+                "rate": 2464843.223060096,
+                "rateUnit": "members/s"
+            }
+        ]
     }
 ]

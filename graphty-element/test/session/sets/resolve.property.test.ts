@@ -1,20 +1,34 @@
 /**
- * @file The oracle: on generated graphs of up to 300 nodes with parallel and reciprocal edges, a
- * naive model (plain Sets and loops) and the bitmap resolver agree for every legacy Scope form and
- * for fixed induced definitions, and distinct memberships never share a digest
- * (design/sets/sets-design.md sections 4.1, 4.2, 6.3 and 6.4).
+ * @file The oracle: on generated graphs with parallel and reciprocal edges, a naive model (plain
+ * Sets and loops) and the bitmap resolver agree for every legacy Scope form, for fixed induced,
+ * listed and clipped definitions and for paths, and distinct memberships never share a digest
+ * (design/sets/sets-design.md sections 4.1, 4.2, 4.4, 6.3, 6.4 and 12.3). Edge members are drawn
+ * from every identity rule (file id, ordinal, minted id), bent into near misses, and seeded to
+ * their own edge, another one, or one that is gone.
  */
 
-import { type GraphSnapshot, maskToIndices } from "@graphty/graph-format";
+import { type GraphSnapshot, INVALID_INDEX, maskToIndices } from "@graphty/graph-format";
 import fc from "fast-check";
 import { assert, describe, it } from "vitest";
 
-import type { EdgeId, NodeId, Scope, SetDefinition } from "../../../src/catalog/types";
+import { compareIds } from "../../../src/catalog/sets/canonical";
+import { parseSetDefinition } from "../../../src/catalog/sets/parse";
+import type { EdgeId, EdgeMember, NodeId, Scope, SetDefinition } from "../../../src/catalog/types";
+import { pairsOrdered } from "../../../src/data/edgeIdentity";
 import { GraphStore } from "../../../src/data/GraphStore";
 import { ingestEdge, ingestNode } from "../../../src/data/ingest";
 import { createScopeApi, edgeSpaceOf, ElementMask, type MaskIdSpace, nodeSpaceOf } from "../../../src/session/scope/index";
-import { type ComponentLabels, digestOf, type Resolution, resolveFixed } from "../../../src/session/sets/resolve";
+import { resolvePath } from "../../../src/session/sets/path";
+import {
+    type ComponentLabels,
+    digestOf,
+    edgeMemberKey,
+    type EdgeSeeds,
+    type Resolution,
+    resolveFixed,
+} from "../../../src/session/sets/resolve";
 import { fcParams } from "../../helpers/fc-params";
+import { stepMembers, verdict } from "./refreeze-model";
 
 /** A generated case: the graph, and the membership inputs every scope form reads. */
 interface Case {
@@ -294,6 +308,402 @@ describe("the resolver against a naive model", () => {
                     // The digest rule is the resolver's; the model checks membership and distinctness.
                     check(`fixed ${reading}`, resolution, definition, digestOf(resolution, snapshot), nodes, edgeIds);
                 }
+            }),
+            fcParams(1000),
+        );
+    });
+});
+
+// ---------------------------------------------------------------------------------------------
+// Listed and clipped fixed sets and paths: edge members bound through the binding table.
+// ---------------------------------------------------------------------------------------------
+
+/** One generated edge member: which row it is drawn from, how it is bent, and its seed. */
+interface MemberSpec {
+    readonly row: number;
+    readonly bend: "none" | "ordinal" | "reverse" | "other-id" | "missing-node";
+    readonly seed: "none" | "right" | "other" | "gone";
+    readonly other: number;
+}
+
+/** A generated case for the listed readings and paths. */
+interface EdgeCase {
+    readonly nodeCount: number;
+    readonly directed: boolean;
+    readonly src: number[];
+    readonly dst: number[];
+    /** The first `loadCut` edges arrive as one load; the rest are session edges. */
+    readonly loadCut: number;
+    /** A file id per edge, or null. */
+    readonly fileIds: (string | number | null)[];
+    readonly fixedNodes: NodeId[];
+    readonly members: MemberSpec[];
+    readonly reading: "listed" | "clipped";
+    readonly walk: number[];
+    readonly steps: { kind: "null" | "one" | "group"; picks: MemberSpec[] }[];
+    readonly pathDirected: boolean;
+}
+
+const MEMBER: fc.Arbitrary<MemberSpec> = fc.record({
+    row: fc.nat(),
+    bend: fc.constantFrom("none", "none", "ordinal", "reverse", "other-id", "missing-node"),
+    seed: fc.constantFrom("none", "none", "right", "other", "gone"),
+    other: fc.nat(),
+});
+
+const EDGE_CASE: fc.Arbitrary<EdgeCase> = fc
+    .record({ nodeCount: fc.integer({ min: 1, max: 60 }), directed: fc.boolean(), edges: fc.integer({ min: 0, max: 150 }) })
+    .chain(({ nodeCount, directed, edges }) => {
+        const node = fc.integer({ min: 0, max: nodeCount - 1 });
+
+        return fc.record({
+            nodeCount: fc.constant(nodeCount),
+            directed: fc.constant(directed),
+            pairs: fc.array(fc.tuple(fc.tuple(node, node), fc.constantFrom("fresh", "parallel", "parallel", "reciprocal")), { maxLength: edges }),
+            loadCut: fc.nat({ max: edges }),
+            fileIds: fc.array(fc.constantFrom<string | number | null>(null, null, "x", "y", 7, "7"), { minLength: edges, maxLength: edges }),
+            fixedNodes: fc.uniqueArray(fc.oneof(node.map(idOf), fc.constant<NodeId>("gone")), { maxLength: 8 }),
+            members: fc.array(MEMBER, { maxLength: 12 }),
+            reading: fc.constantFrom<"listed" | "clipped">("listed", "clipped"),
+            walk: fc.array(fc.integer({ min: 0, max: nodeCount + 1 }), { minLength: 1, maxLength: 7 }),
+            steps: fc.array(
+                fc.record({ kind: fc.constantFrom<"null" | "one" | "group">("null", "one", "group"), picks: fc.array(MEMBER, { minLength: 1, maxLength: 3 }) }),
+                { minLength: 6, maxLength: 6 },
+            ),
+            pathDirected: fc.boolean(),
+        });
+    })
+    .map(({ pairs, ...rest }) => {
+        const src: number[] = [];
+        const dst: number[] = [];
+        for (const [[s, d], kind] of pairs) {
+            const at = src.length - 1;
+            if (kind !== "fresh" && at >= 0) {
+                src.push(kind === "parallel" ? src[at] : dst[at]);
+                dst.push(kind === "parallel" ? dst[at] : src[at]);
+            } else {
+                src.push(s);
+                dst.push(d);
+            }
+        }
+
+        return { ...rest, src, dst, loadCut: Math.min(rest.loadCut, src.length) };
+    });
+
+/** The naive identity of every edge: what it was ingested as, computed with plain loops. */
+interface NaiveEdge {
+    readonly s: NodeId;
+    readonly t: NodeId;
+    readonly counter: number;
+    readonly fileId: string | number | undefined;
+    readonly ordinal: number;
+    readonly among: number;
+}
+
+/**
+ * Ingest a case: its first `loadCut` edges as one load, the rest as session edges.
+ * @param c - The case.
+ * @returns The snapshot and the naive identity table, one entry per row.
+ */
+function ingestEdgeCase(c: EdgeCase): { snapshot: GraphSnapshot; table: NaiveEdge[] } {
+    const store = new GraphStore({
+        directed: c.directed,
+        positionScale: () => 1,
+        onReplaced: () => undefined,
+        onNodeRemap: () => undefined,
+        onEdgeRemap: () => undefined,
+    });
+    for (let i = 0; i < c.nodeCount; i++) {
+        ingestNode(store, idOf(i), {});
+    }
+
+    const fileIdOf = (e: number): string | number | undefined => c.fileIds[e] ?? undefined;
+    store.openLoad();
+    for (let e = 0; e < c.src.length; e++) {
+        if (e === c.loadCut) {
+            store.closeLoad();
+        }
+
+        ingestEdge(store, idOf(c.src[e]), idOf(c.dst[e]), 1, fileIdOf(e));
+    }
+
+    store.closeLoad();
+
+    // Ordinals by hand: per pair (unordered unless the store is directed), over the load's edges,
+    // in ingest order.
+    const pairOf = (e: number): string => {
+        const [s, t] = [c.src[e], c.dst[e]];
+        return c.directed || s <= t ? `${s}:${t}` : `${t}:${s}`;
+    };
+    const table: NaiveEdge[] = [];
+    for (let e = 0; e < c.src.length; e++) {
+        let ordinal = -1;
+        let among = -1;
+        if (e < c.loadCut) {
+            const group = Array.from({ length: c.loadCut }, (_, k) => k).filter((k) => pairOf(k) === pairOf(e));
+            ordinal = group.indexOf(e);
+            among = group.length;
+        }
+
+        table.push({ s: idOf(c.src[e]), t: idOf(c.dst[e]), counter: e, fileId: fileIdOf(e), ordinal, among });
+    }
+
+    return { snapshot: store.getSnapshot(), table };
+}
+
+/**
+ * The stable member a naive edge was ingested as: its file id, else its ordinal, else its minted
+ * id; ends in comparator order unless pairs are ordered.
+ * @param edge - The naive edge.
+ * @param ordered - Whether pairs are ordered.
+ * @returns The member.
+ */
+function naiveMember(edge: NaiveEdge, ordered: boolean): EdgeMember {
+    const [source, target] = ordered || compareIds(edge.s, edge.t) <= 0 ? [edge.s, edge.t] : [edge.t, edge.s];
+    if (edge.fileId !== undefined) {
+        return { source, target, id: edge.fileId };
+    }
+
+    return edge.ordinal >= 0 ? { source, target, ordinal: edge.ordinal, among: edge.among } : { source, target, id: `graphty:e${edge.counter}` };
+}
+
+/**
+ * The naive binding of one member: its seed's edge when that edge is there, else the one edge
+ * whose identity it is.
+ * @param member - The member.
+ * @param seed - Its seeded counter, if any.
+ * @param table - The naive identity table.
+ * @param ordered - Whether pairs are ordered.
+ * @returns The row, or -1 missing, or -2 ambiguous.
+ */
+function naiveBind(member: EdgeMember, seed: number | undefined, table: readonly NaiveEdge[], ordered: boolean): number {
+    if (seed !== undefined) {
+        const at = table.findIndex((edge) => edge.counter === seed);
+        if (at >= 0) {
+            return at;
+        }
+    }
+
+    const hits = table
+        .map((edge, row) => ({ edge, row }))
+        .filter(({ edge }) => {
+            const pair = ordered
+                ? edge.s === member.source && edge.t === member.target
+                : (edge.s === member.source && edge.t === member.target) || (edge.s === member.target && edge.t === member.source);
+            if (!pair) {
+                return false;
+            }
+
+            if (member.id !== undefined) {
+                return (edge.fileId ?? (edge.ordinal < 0 ? `graphty:e${edge.counter}` : undefined)) === member.id;
+            }
+
+            return edge.ordinal >= 0 && edge.ordinal === member.ordinal && edge.among === member.among;
+        });
+
+    return verdict(hits.map((hit) => hit.row));
+}
+
+/**
+ * A generated member spec, made concrete against the table, with its seed.
+ * @param spec - The spec.
+ * @param table - The naive identity table.
+ * @param ordered - Whether pairs are ordered.
+ * @returns The member and its seed, or null when the graph has no edges to draw from.
+ */
+function concrete(spec: MemberSpec, table: readonly NaiveEdge[], ordered: boolean): { member: EdgeMember; seed?: number } | null {
+    if (table.length === 0) {
+        return null;
+    }
+
+    const edge = table[spec.row % table.length];
+    let member = naiveMember(edge, ordered);
+    if (spec.bend === "ordinal") {
+        member = { source: member.source, target: member.target, ordinal: Math.max(0, edge.ordinal) + 1, among: Math.max(1, edge.among) + 1 };
+    } else if (spec.bend === "reverse") {
+        member = { ...member, source: member.target, target: member.source };
+    } else if (spec.bend === "other-id") {
+        member = { source: member.source, target: member.target, id: ["x", "y", 7, "graphty:e0"][spec.other % 4] };
+    } else if (spec.bend === "missing-node") {
+        member = { ...member, target: "gone" };
+    }
+
+    const seeds = { none: undefined, right: edge.counter, other: table[spec.other % table.length].counter, gone: 1_000_000 };
+    const seed = seeds[spec.seed];
+
+    return seed === undefined ? { member } : { member, seed };
+}
+
+/**
+ * A generated step as a definition names it: null, one member, or a group.
+ * @param step - The step's members, or null.
+ * @returns The step.
+ */
+function stepDefinition(step: readonly { member: EdgeMember }[] | null): EdgeMember | EdgeMember[] | null {
+    if (step === null) {
+        return null;
+    }
+
+    return step.length === 1 ? step[0].member : step.map((entry) => entry.member);
+}
+
+/** Seeds as the store files them. */
+function seedsOf(entries: readonly { member: EdgeMember; seed?: number }[]): EdgeSeeds {
+    const counters = new Map<string, number>();
+    for (const { member, seed } of entries) {
+        if (seed !== undefined && !counters.has(edgeMemberKey(member))) {
+            counters.set(edgeMemberKey(member), seed);
+        }
+    }
+
+    return { counters, version: 1 };
+}
+
+describe("the resolver against a naive model, for edge members and paths", () => {
+    it("agrees for listed and clipped fixed sets and for paths", () => {
+        fc.assert(
+            fc.property(EDGE_CASE, (c) => {
+                const { snapshot, table } = ingestEdgeCase(c);
+                const ordered = c.directed;
+                assert.strictEqual(pairsOrdered(snapshot), ordered);
+                const present = (id: NodeId): number => snapshot.ids.indexOf(id);
+                const digests = new Map<string, string>();
+
+                const check = (label: string, resolution: Resolution, nodes: Set<number>, edges: Set<number>, missingNodes: number, missingEdges: number, ambiguous: number): void => {
+                    const gotNodes = new Set(maskToIndices(resolution.nodes, snapshot.nodeCount));
+                    const gotEdges = new Set(maskToIndices(resolution.edges, snapshot.edgeCount));
+                    assert.deepStrictEqual(gotNodes, nodes, `${label} nodes`);
+                    assert.deepStrictEqual(gotEdges, edges, `${label} edges`);
+                    assert.strictEqual(resolution.missingNodes, missingNodes, `${label} missing nodes`);
+                    assert.strictEqual(resolution.missingEdges, missingEdges, `${label} missing edges`);
+                    assert.strictEqual(resolution.ambiguousEdges, ambiguous, `${label} ambiguous`);
+                    for (const e of gotEdges) {
+                        assert.isTrue(gotNodes.has(snapshot.edgeSource(e)) && gotNodes.has(snapshot.edgeTarget(e)), `${label} endpoint invariant`);
+                    }
+
+                    // The digest sums stable identities, so two edges that share one (twins: one
+                    // pair, one file id) are one member to it. Memberships are keyed the same way.
+                    const key = keyOf(
+                        [...nodes].map((i) => snapshot.ids.idOf(i)),
+                        [...edges].map((e) => JSON.stringify(naiveMember(table[e], ordered))),
+                    );
+                    const digest = digestOf(resolution, snapshot);
+                    const held = digests.get(key);
+                    if (held === undefined) {
+                        for (const [other, value] of digests) {
+                            assert.notStrictEqual(value, digest, `${label}: ${key} and ${other} share a digest`);
+                        }
+
+                        digests.set(key, digest);
+                    } else {
+                        assert.strictEqual(digest, held, `${label}: one membership, two digests`);
+                    }
+                };
+
+                // A fixed set, listed (or clipped, stored listed).
+                const entries = c.members.flatMap((spec) => concrete(spec, table, ordered) ?? []);
+                const definition = parseSetDefinition({ kind: "fixed", nodes: c.fixedNodes, edges: entries.map((entry) => entry.member), reading: c.reading });
+                assert.strictEqual(definition.kind === "fixed" && definition.reading, "listed");
+                const fixed = definition as Extract<SetDefinition, { kind: "fixed" }>;
+                const seeds = seedsOf(entries);
+                const nodes = new Set<number>();
+                let missingNodes = 0;
+                for (const id of fixed.nodes) {
+                    if (present(id) === INVALID_INDEX) {
+                        missingNodes++;
+                    } else {
+                        nodes.add(present(id));
+                    }
+                }
+
+                const edges = new Set<number>();
+                let missingEdges = 0;
+                let ambiguous = 0;
+                for (const member of fixed.edges ?? []) {
+                    for (const end of [member.source, member.target]) {
+                        if (present(end) !== INVALID_INDEX) {
+                            nodes.add(present(end));
+                        }
+                    }
+
+                    const row = naiveBind(member, seeds.counters.get(edgeMemberKey(member)), table, ordered);
+                    if (row >= 0) {
+                        edges.add(row);
+                        nodes.add(snapshot.edgeSource(row));
+                        nodes.add(snapshot.edgeTarget(row));
+                    } else {
+                        missingEdges++;
+                        ambiguous += row === -2 ? 1 : 0;
+                    }
+                }
+
+                check("fixed listed", resolveFixed(fixed, { snapshot }, seeds), nodes, edges, missingNodes, missingEdges, ambiguous);
+
+                // A path over the walk.
+                const walk = c.walk.map((i) => (i < c.nodeCount ? idOf(i) : `n${c.nodeCount + 5}`));
+                const stepEntries = walk.slice(1).map((_, i) => {
+                    const step = c.steps[i];
+                    if (step.kind === "null") {
+                        return null;
+                    }
+
+                    const picks = step.picks.flatMap((spec) => concrete(spec, table, ordered) ?? []);
+                    if (picks.length === 0) {
+                        return null;
+                    }
+
+                    return step.kind === "one" ? [picks[0]] : picks;
+                });
+                const path = parseSetDefinition({
+                    kind: "path",
+                    nodes: walk,
+                    ...(walk.length > 1 ? { edges: stepEntries.map(stepDefinition) } : {}),
+                    directed: c.pathDirected,
+                }) as Extract<SetDefinition, { kind: "path" }>;
+                const pathSeeds = seedsOf(stepEntries.flatMap((step) => step ?? []));
+                const pathNodes = new Set<number>();
+                const absent = new Set<NodeId>();
+                for (const id of path.nodes) {
+                    if (present(id) === INVALID_INDEX) {
+                        absent.add(id);
+                    } else {
+                        pathNodes.add(present(id));
+                    }
+                }
+
+                const pathEdges = new Set<number>();
+                let missingSteps = 0;
+                let pathAmbiguous = 0;
+                for (let i = 0; i + 1 < path.nodes.length; i++) {
+                    const [from, to] = [present(path.nodes[i]), present(path.nodes[i + 1])];
+                    const step = path.edges?.[i] ?? null;
+                    const rows: number[] = [];
+                    if (step === null) {
+                        for (let e = 0; e < snapshot.edgeCount && from !== INVALID_INDEX && to !== INVALID_INDEX; e++) {
+                            const [s, t] = [snapshot.edgeSource(e), snapshot.edgeTarget(e)];
+                            if ((s === from && t === to) || (!path.directed && s === to && t === from)) {
+                                rows.push(e);
+                            }
+                        }
+                    } else {
+                        for (const member of stepMembers(step)) {
+                            const row = naiveBind(member, pathSeeds.counters.get(edgeMemberKey(member)), table, ordered);
+                            pathAmbiguous += row === -2 ? 1 : 0;
+                            if (row >= 0 && (!path.directed || (snapshot.edgeSource(row) === from && snapshot.edgeTarget(row) === to))) {
+                                rows.push(row);
+                            }
+                        }
+                    }
+
+                    missingSteps += rows.length === 0 ? 1 : 0;
+                    for (const row of rows) {
+                        pathEdges.add(row);
+                        pathNodes.add(snapshot.edgeSource(row));
+                        pathNodes.add(snapshot.edgeTarget(row));
+                    }
+                }
+
+                check("path", resolvePath(path, { snapshot }, pathSeeds), pathNodes, pathEdges, absent.size, missingSteps, pathAmbiguous);
             }),
             fcParams(1000),
         );

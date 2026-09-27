@@ -21,6 +21,7 @@
 import type { DrawingMode } from "../camera/types";
 import type { EdgeStyleConfig } from "../config/EdgeStyle";
 import type { GraphtyErrorCode } from "../errors/codes";
+import type { Filter } from "../session/visibility/filter";
 import type { LabelStyle } from "./label-style";
 
 /**
@@ -57,8 +58,14 @@ export type RunId = string;
 /** The identity of a style layer. Element-minted and stable; never an array index. */
 export type LayerId = string;
 
-/** The identity of a saved scope. */
-export type ScopeId = string;
+/**
+ * The identity of a kept set. Element-minted; every minted id starts with `set_` and everything
+ * after that prefix is opaque. An id is never reissued within a project, and a rename keeps it.
+ */
+export type SetId = string;
+
+/** The identity of a saved scope: a kept set, so the same type as {@link SetId}. */
+export type ScopeId = SetId;
 
 /** A JMESPath expression over the published result root. */
 export type Path = string;
@@ -752,6 +759,180 @@ export type Scope =
     | { set: ScopeId }
     | { where: Query }
     | { nodes: readonly NodeId[] };
+
+// ---------------------------------------------------------------------------------------------
+// Sets: what a kept set holds, and how it came to exist
+//
+// Every value here is plain, frozen-friendly and structured-cloneable, so a definition can be
+// stored, posted to a worker, hashed and compared by value. `parseSetDefinition` (in
+// `./sets/parse`) is the one validator that turns an unknown value into one of these.
+//
+// No kind, reading or keyword the element defines will ever contain a colon. A plugin's kind is
+// spelled `<package>:<kind>`, so it can never collide with a later built-in.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Which edges come with a set's nodes. Stored, never inferred from whether edges are present.
+ *
+ * - `induced`: the node half plus every edge between its nodes (NetworkX `G.subgraph(nodes)`).
+ * - `listed`: the edge half plus its endpoints, plus the node half (NetworkX
+ *   `G.edge_subgraph(edges)` plus any listed nodes). Paths, edge sets and edge rules.
+ * - `clipped`: the node half, plus the edge half clipped to edges whose endpoints are both in the
+ *   node half. Rules only: exactly what the visibility filter shows. A fixed set given `clipped`
+ *   is stored `listed`, which holds the same members.
+ *
+ * OPEN UNION: kinds may be added in a minor release; handle unknown kinds.
+ */
+export type EdgeReading = "induced" | "listed" | "clipped";
+
+/**
+ * An edge member, by its stable identity: the endpoints plus exactly one discriminator, `id`,
+ * `key` or the pair `ordinal` and `among`. The validator refuses any other combination.
+ *
+ * OPEN: may gain optional members in a minor release.
+ */
+export interface EdgeMember {
+    readonly source: NodeId;
+    readonly target: NodeId;
+    /**
+     * The file's edge id, read at the element's configured `edgeIdPath`, or for an edge added in
+     * the session without one, the id the element minted for it (`graphty:e<n>`).
+     */
+    readonly id?: string | number;
+    /** The file's parallel-edge key. Reserved: refused until the element reads one. */
+    readonly key?: string | number;
+    /**
+     * Last resort, for a file edge without an id: the edge's position, counting from 0, among
+     * every edge of its pair in the load that ingested it, in ingest order. Present with `among`
+     * or not at all.
+     */
+    readonly ordinal?: number;
+    /** That pair's edge count in that load. Present with `ordinal` or not at all. */
+    readonly among?: number;
+}
+
+/**
+ * An edge as a write position accepts it: a session {@link EdgeId}, or its stable
+ * {@link EdgeMember}. The element stores the stable form; every getter returns it.
+ */
+export type EdgeRef = EdgeId | EdgeMember;
+
+/**
+ * What a set holds.
+ *
+ * - `fixed`: a member list. Ids, never row indices; ids the graph no longer holds read missing
+ *   and are never pruned. A fixed set read `induced` stores no edges unless some were listed.
+ * - `rule`: a query or a rule tree, re-evaluated as the data changes.
+ * - `path`: a walk, in order, node-first. Repeats allowed; one node is a zero-length path. It
+ *   resolves to its distinct nodes and the edges its steps name, read `listed`.
+ *
+ * OPEN UNION: kinds may be added in a minor release; handle unknown kinds.
+ */
+export type SetDefinition =
+    | {
+          readonly kind: "fixed";
+          /** Canonical order, no duplicates. */
+          readonly nodes: readonly NodeId[];
+          /** Canonical order, no duplicates. Only edges listed explicitly; an induced set derives its edges. */
+          readonly edges?: readonly EdgeMember[];
+          readonly reading: "induced" | "listed";
+      }
+    | {
+          readonly kind: "rule";
+          /** A JMESPath predicate over nodes, or a rule tree (the visibility filter's {@link Filter}). */
+          readonly where: Query | Filter;
+          readonly reading: EdgeReading;
+      }
+    | {
+          readonly kind: "path";
+          /** The walk, in order. */
+          readonly nodes: readonly NodeId[];
+          /**
+           * Optional; when present, exactly `nodes.length - 1` entries. Entry i names the edge, or
+           * the group of parallel or reciprocal edges, joining `nodes[i]` and `nodes[i + 1]`.
+           * `null`: every edge between that pair.
+           */
+          readonly edges?: readonly (EdgeMember | readonly EdgeMember[] | null)[];
+          /** Steps must follow declared edge direction. Default false. */
+          readonly directed?: boolean;
+      };
+
+/**
+ * A {@link SetDefinition} as a write position accepts it: edges may be named by session
+ * {@link EdgeId} wherever an {@link EdgeMember} appears, and a fixed set may say `clipped` (stored
+ * as `listed`). Every getter returns the canonical {@link SetDefinition}.
+ */
+export type SetDefinitionInput =
+    | {
+          readonly kind: "fixed";
+          readonly nodes: readonly NodeId[];
+          readonly edges?: readonly EdgeRef[];
+          readonly reading: EdgeReading;
+      }
+    | Extract<SetDefinition, { kind: "rule" }>
+    | {
+          readonly kind: "path";
+          readonly nodes: readonly NodeId[];
+          readonly edges?: readonly (EdgeRef | readonly EdgeRef[] | null)[];
+          readonly directed?: boolean;
+      };
+
+/**
+ * How an item is found in a result. A field matches when it equals the value or, for an
+ * array-valued field, contains it.
+ *
+ * OPEN UNION: forms may be added in a minor release; handle unknown forms.
+ */
+export type ItemKey = { readonly field: string; readonly value: string | number | boolean };
+
+/**
+ * One item of a result: community 3 of a Louvain run, the path of a Dijkstra run.
+ *
+ * OPEN: may gain optional members in a minor release.
+ */
+export interface ResultItem {
+    readonly run: RunId;
+    readonly key: ItemKey;
+    /**
+     * Present: holds that execution of the run. Absent: follows the run's current execution.
+     * Opaque; compare for equality only.
+     */
+    readonly execution?: string;
+}
+
+/**
+ * How two or more sets combine into one.
+ *
+ * OPEN UNION: operations may be added in a minor release; handle unknown operations.
+ */
+export type SetCombine = "union" | "intersection" | "difference" | "symmetric-difference";
+
+/**
+ * A reference as {@link SetCreatedFrom} records it: a scope, or an inline member list replaced by
+ * its sizes, so a large operand is never stored twice.
+ */
+export type SetOperand = Scope | { readonly inline: { readonly nodes: number; readonly edges: number } };
+
+/**
+ * How a set came to exist. Written once, when the set is created.
+ *
+ * OPEN UNION: kinds may be added in a minor release; handle unknown kinds.
+ */
+export type SetCreatedFrom =
+    | { readonly kind: "user" }
+    | { readonly kind: "selection" }
+    | { readonly kind: "scope"; readonly from: SetOperand }
+    /** `item.execution` is always present: the set holds the execution it was created from. */
+    | { readonly kind: "result"; readonly item: ResultItem }
+    | { readonly kind: "combine"; readonly op: SetCombine; readonly of: readonly SetOperand[] };
+
+/**
+ * What kind of walk a path set is, most specific first: `cycle` (a closed trail), `simple` (no
+ * node repeats), `trail` (no edge repeats), `walk` (anything else).
+ *
+ * OPEN UNION: kinds may be added in a minor release; handle unknown kinds.
+ */
+export type PathKind = "simple" | "trail" | "walk" | "cycle";
 
 /**
  * The catalogue: everything the element can offer, as data.

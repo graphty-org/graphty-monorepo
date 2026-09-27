@@ -60,3 +60,26 @@ export { SCALE_DESCRIPTORS, scaleDescriptor, scalesForDomain } from "./src/catal
 // `src/session/styles/channels.ts`; it is plain data and carries no renderer.
 export type { ChannelDescriptor, ChannelValueKind } from "./src/session/styles/channels";
 export { CHANNEL_DESCRIPTORS, channelDescriptor, CHANNELS, channelsFor } from "./src/session/styles/channels";
+
+// ---------------------------------------------------------------------------------------------
+// Sets: what a kept set holds, and the one validator for it
+//
+// `parseSetDefinition` checks any value -- from a form, a file or an assistant -- and returns the
+// canonical definition, or refuses it with `E_BAD_COMMAND`. It reaches no graph.
+// ---------------------------------------------------------------------------------------------
+
+export { parseSetDefinition } from "./src/catalog/sets/parse";
+export type {
+    EdgeMember,
+    EdgeReading,
+    EdgeRef,
+    ItemKey,
+    PathKind,
+    ResultItem,
+    SetCombine,
+    SetCreatedFrom,
+    SetDefinition,
+    SetDefinitionInput,
+    SetId,
+    SetOperand,
+} from "./src/catalog/types";

@@ -231,7 +231,7 @@ async function apply(op: Op, model: Model, real: Real): Promise<void> {
                 made = { kind: "from-louv", execution: louv };
                 id = createSetAs(session.sets, { kind: "fixed", nodes: ["a"], reading: "induced" }, undefined, {
                     kind: "result",
-                    item: { run: "louv", key: { field: "group", value: 0 }, execution: token },
+                    item: { result: "louv", key: { field: "group", value: 0 }, run: token },
                 });
             } else if (op.make === 2) {
                 made = { kind: "follow-pr" };
@@ -240,13 +240,13 @@ async function apply(op: Op, model: Model, real: Real): Promise<void> {
                 made = { kind: "hold-louv", execution: louv, group: op.group };
                 id = session.sets.create({
                     kind: "rule",
-                    where: { kind: "item", item: { run: "louv", key: { field: "group", value: op.group }, execution: token } },
+                    where: { kind: "item", item: { result: "louv", key: { field: "group", value: op.group }, run: token } },
                     reading: "induced",
                 });
             } else if (op.make === 4 && live.length > 0) {
                 const target = live[op.pick % live.length];
                 made = { kind: "reads", target };
-                id = session.sets.create({ kind: "rule", where: { kind: "scope", scope: { set: target } }, reading: "induced" });
+                id = session.sets.create({ kind: "rule", where: { kind: "member", of: { set: target } }, reading: "induced" });
             } else {
                 made = { kind: "fixed" };
                 id = session.sets.create({ kind: "fixed", nodes: ["b"], reading: "induced" });
@@ -265,16 +265,21 @@ async function apply(op: Op, model: Model, real: Real): Promise<void> {
 
             return;
         case "restore-set": {
+            // A removed set's record is kept exactly while a live set still reads it; one nothing
+            // reads was dropped at the removal that let go of it, and can never come back.
+            const store = setsStoreOf(session.sets);
+            for (const id of [...model.removed.keys()]) {
+                const read = [...model.live.values()].some((made) => made.kind === "reads" && made.target === id);
+                assert.strictEqual(store.tombstone(id)?.record !== undefined, read, `the record of ${id} is kept while it is read`);
+                if (!read) {
+                    model.removed.delete(id);
+                }
+            }
+
             const removed = [...model.removed.keys()];
             if (removed.length > 0) {
-                // What an undo of the removal does: put the last record back.
                 const id = removed[op.pick % removed.length];
-                const store = setsStoreOf(session.sets);
-                const record = store.tombstone(id)?.record;
-                assert.isDefined(record);
-                store.transact(() => {
-                    store.put(record);
-                });
+                session.sets.restore(id);
                 model.live.set(id, model.removed.get(id) as Made);
                 model.removed.delete(id);
             }

@@ -407,8 +407,8 @@ export function createMaterialiser(sources: MaterialiseSources): Materialiser {
         }
 
         const { resolution, graph } = sources.resolve({ define: offer.definition });
-        sources.offering?.countEdges(offer.item.run);
-        const order = sources.offering?.orderOf(offer.item.run);
+        sources.offering?.countEdges(offer.item.result);
+        const order = sources.offering?.orderOf(offer.item.result);
         const indices = Array.from(maskToIndices(resolution.nodes, graph.nodeCount));
         if (indices.length === 0) {
             throw emptySource({ define: offer.definition });
@@ -452,7 +452,7 @@ export function createMaterialiser(sources: MaterialiseSources): Materialiser {
                 if (isOffer(source)) {
                     const { resolution, graph } = sources.resolve({ define: source.definition });
                     // The first resolution of an offer runs its execution's edge-count pass.
-                    sources.offering?.countEdges(source.item.run);
+                    sources.offering?.countEdges(source.item.result);
                     if (resolution.nodeCount === 0 && resolution.edgeCount === 0) {
                         throw emptySource({ define: source.definition });
                     }

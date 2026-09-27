@@ -69,7 +69,7 @@ describe("a style layer naming a set, on screen", () => {
     it("colours the set, and a redefinition repaints only the nodes that moved", async () => {
         const session = graph.getSession() as ElementSession;
         const id = session.sets.create({ kind: "fixed", nodes: ["n1", "n2", "n3", "n4"], reading: "induced" }, { name: "Suspects" });
-        await session.styles.add({ name: "Suspects", selector: { match: "scope", scope: { set: id } }, set: { "node.color": RED } });
+        await session.styles.add({ name: "Suspects", selector: { match: "member", of: { set: id } }, set: { "node.color": RED } });
         await frames();
         assert.deepStrictEqual(drawnRed(), ["n1", "n2", "n3", "n4"]);
 

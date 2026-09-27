@@ -146,15 +146,20 @@ describe("reading and counting a kept set through session.scope", () => {
         h.session.dispose();
     });
 
-    it("counts a removed set, and a rule over one, as nothing without throwing", async () => {
+    it("counts a removed set, and a rule over one, from its kept record; once the record is dropped, as nothing", async () => {
         const h = harnessOf();
         const inner = h.session.sets.create({ kind: "fixed", nodes: ["a"], reading: "induced" }, { name: "Inner" });
-        const outer = h.session.sets.create({ kind: "rule", where: { kind: "scope", scope: { set: inner } }, reading: "induced" }, { name: "Outer" });
+        const outer = h.session.sets.create({ kind: "rule", where: { kind: "member", of: { set: inner } }, reading: "induced" }, { name: "Outer" });
         h.session.sets.remove(inner);
 
+        assert.deepStrictEqual(await h.session.scope.count({ set: inner }), { nodes: 1, edges: 0, exact: true });
+        assert.deepStrictEqual(await h.session.scope.count({ set: outer }), { nodes: 1, edges: 0, exact: true });
+        assert.strictEqual((await h.session.scope.resolve({ set: inner })).nodeCount, 1, "a reading of a removed set reads its kept record");
+
+        // Nothing names either any more, so neither record is kept.
+        h.session.sets.remove(outer);
         assert.deepStrictEqual(await h.session.scope.count({ set: inner }), { nodes: 0, edges: 0, exact: true });
-        assert.deepStrictEqual(await h.session.scope.count({ set: outer }), { nodes: 0, edges: 0, exact: true });
-        assert.strictEqual(await codeOf(() => h.session.scope.resolve({ set: inner })), "E_BAD_COMMAND", "resolving a removed set refuses");
+        assert.strictEqual(await codeOf(() => h.session.scope.resolve({ set: inner })), "E_BAD_COMMAND", "a dropped record resolves to nothing");
         h.session.dispose();
     });
 
@@ -240,9 +245,9 @@ describe("scope.save, list and remove keep sets", () => {
         const base = scope.save("Base", { nodes: ["b", "a"] });
         await h.session.selection.apply({ nodes: ["c"] });
         const forms: [string, Scope, SetDefinition][] = [
-            ["graph", "graph", { kind: "rule", where: { kind: "scope", scope: "graph" }, reading: "induced" }],
-            ["largest", "largest-component", { kind: "rule", where: { kind: "scope", scope: "largest-component" }, reading: "induced" }],
-            ["named", { set: base }, { kind: "rule", where: { kind: "scope", scope: { set: base } }, reading: "induced" }],
+            ["graph", "graph", { kind: "rule", where: { kind: "member", of: "graph" }, reading: "induced" }],
+            ["largest", "largest-component", { kind: "rule", where: { kind: "member", of: "largest-component" }, reading: "induced" }],
+            ["named", { set: base }, { kind: "rule", where: { kind: "member", of: { set: base } }, reading: "induced" }],
             ["matched", { where: "id == 'a'" }, { kind: "rule", where: "id == 'a'", reading: "induced" }],
             ["path", { define: { kind: "path", nodes: ["a", "b"] } }, { kind: "path", nodes: ["a", "b"] }],
             ["picked", "selection", { kind: "fixed", nodes: ["c"], reading: "induced" }],
@@ -298,8 +303,8 @@ describe("scope.save, list and remove keep sets", () => {
         assert.isUndefined(sets.get(base));
         assert.deepStrictEqual(
             scope.list().filter((entry) => entry.name === "Named").map((entry) => entry.bound),
-            [false],
-            "a set naming a removed one is unbound",
+            [true],
+            "a set naming a removed one keeps resolving through the removed set's kept record",
         );
         h.session.dispose();
     });

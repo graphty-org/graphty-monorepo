@@ -10,7 +10,7 @@ import { type GraphSnapshot, makeMask, maskToIndices } from "@graphty/graph-form
 import fc from "fast-check";
 import { assert, describe, it } from "vitest";
 
-import type { Filter, Scope, SetCombine } from "../../../src/catalog/types";
+import type { RuleTree, Scope, SetCombine } from "../../../src/catalog/types";
 import { stableEdgeMember } from "../../../src/data/edgeIdentity";
 import { GraphStore } from "../../../src/data/GraphStore";
 import { ingestEdge, ingestNode } from "../../../src/data/ingest";
@@ -352,9 +352,9 @@ describe("combine against the live rule over scope leaves", () => {
 
                     return { nodes: resolution.nodes, edges: resolution.edges, induced };
                 });
-                const leaves: Filter[] = scopes.map((scope) => ({ kind: "scope", scope }));
+                const leaves: RuleTree[] = scopes.map((scope) => ({ kind: "member", of: scope }));
                 const [first, ...rest] = leaves;
-                let where: Filter;
+                let where: RuleTree;
                 if (op === "union") {
                     where = { kind: "any", of: leaves };
                 } else if (op === "intersection") {

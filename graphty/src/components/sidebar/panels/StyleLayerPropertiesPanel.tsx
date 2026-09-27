@@ -107,7 +107,7 @@ function selectorSummary(selector: Selector): string | undefined {
             return `the top ${String(selector.n)} by ${selector.path}, whole ties only`;
         case "ids":
             return `${String((selector.nodes?.length ?? 0) + (selector.edges?.length ?? 0))} named elements`;
-        case "scope":
+        case "member":
             return "the members of a set";
         default:
             // Selector is an open union: a kind this panel does not know yet is shown read-only.

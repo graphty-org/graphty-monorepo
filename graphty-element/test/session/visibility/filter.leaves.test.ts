@@ -9,7 +9,7 @@
 import { assert, describe, it } from "vitest";
 
 import { parseSetDefinition } from "../../../src/catalog/sets/parse";
-import type { Filter, NodeId, Scope, SetDefinition } from "../../../src/catalog/types";
+import type { NodeId, RuleTree, Scope, SetDefinition } from "../../../src/catalog/types";
 import { type GraphtyError, isGraphtyError } from "../../../src/errors";
 import { resultExecutionOf } from "../../../src/session/results/ResultsApi";
 import type { Run } from "../../../src/session/runs";
@@ -108,7 +108,7 @@ async function withRuns(): Promise<{ harness: Harness; table: Map<string, Publis
  * @param filter - The filter.
  * @returns Nodes and edges.
  */
-async function visible(harness: Harness, filter: Filter): Promise<{ nodes: NodeId[]; edges: string[] }> {
+async function visible(harness: Harness, filter: RuleTree): Promise<{ nodes: NodeId[]; edges: string[] }> {
     await harness.session.visibility.set(filter);
 
     return { nodes: [...harness.session.visibility.nodes].sort(), edges: [...harness.session.visibility.edges].sort() };
@@ -132,7 +132,7 @@ async function members(harness: Harness, scope: Scope): Promise<{ nodes: NodeId[
  * @param reading - Its reading.
  * @returns The scope.
  */
-function rule(where: Filter, reading: "induced" | "listed" | "clipped"): Scope {
+function rule(where: RuleTree, reading: "induced" | "listed" | "clipped"): Scope {
     return { define: { kind: "rule", where, reading } };
 }
 
@@ -159,13 +159,13 @@ describe("the item leaf", () => {
     it("holds the nodes of one group, following the run's current execution", async () => {
         const { harness } = await withRuns();
 
-        assert.deepStrictEqual((await members(harness, rule({ kind: "item", item: { run: "louv", key: { field: "group", value: 1 } } }, "induced"))).nodes, ["c", "d", "e"]);
+        assert.deepStrictEqual((await members(harness, rule({ kind: "item", item: { result: "louv", key: { field: "group", value: 1 } } }, "induced"))).nodes, ["c", "d", "e"]);
         harness.session.dispose();
     });
 
     it("counts an element whose value is an array holding the key", async () => {
         const { harness } = await withRuns();
-        const tagged = await members(harness, rule({ kind: "item", item: { run: "louv", key: { field: "tags", value: 0 } } }, "induced"));
+        const tagged = await members(harness, rule({ kind: "item", item: { result: "louv", key: { field: "tags", value: 0 } } }, "induced"));
 
         assert.deepStrictEqual(tagged.nodes, ["a", "b", "c"]);
         harness.session.dispose();
@@ -175,8 +175,8 @@ describe("the item leaf", () => {
         const { harness, table, louv } = await withRuns();
         const execution = resultExecutionOf(harness.session.results, "louv");
         assert.isString(execution);
-        const held = rule({ kind: "item", item: { run: "louv", key: { field: "group", value: 0 }, execution } }, "induced");
-        const followed = rule({ kind: "item", item: { run: "louv", key: { field: "group", value: 0 } } }, "induced");
+        const held = rule({ kind: "item", item: { result: "louv", key: { field: "group", value: 0 }, run: execution } }, "induced");
+        const followed = rule({ kind: "item", item: { result: "louv", key: { field: "group", value: 0 } } }, "induced");
 
         assert.deepStrictEqual((await members(harness, held)).nodes, ["a", "b"]);
 
@@ -191,7 +191,7 @@ describe("the item leaf", () => {
 
     it("speaks both halves for onPath: the path's nodes and exactly its edges", async () => {
         const { harness } = await withRuns();
-        const onPath: Filter = { kind: "item", item: { run: "route", key: { field: "onPath", value: true } } };
+        const onPath: RuleTree = { kind: "item", item: { result: "route", key: { field: "onPath", value: true } } };
 
         assert.deepStrictEqual(await visible(harness, onPath), { nodes: ["a", "b", "c"], edges: edgesOf(harness, "ab", "bc") });
         assert.deepStrictEqual(await members(harness, rule(onPath, "listed")), { nodes: ["a", "b", "c"], edges: edgesOf(harness, "ab", "bc") });
@@ -209,7 +209,7 @@ describe("the item leaf", () => {
 
     it("holds nothing for a run with no result, in a filter and in a rule, and throws nowhere", async () => {
         const { harness } = await withRuns();
-        const gone: Filter = { kind: "item", item: { run: "never", key: { field: "group", value: 0 } } };
+        const gone: RuleTree = { kind: "item", item: { result: "never", key: { field: "group", value: 0 } } };
 
         assert.deepStrictEqual(await visible(harness, gone), { nodes: [], edges: [] });
         assert.deepStrictEqual(await visible(harness, { kind: "not", of: gone }), {
@@ -229,12 +229,12 @@ describe("the item leaf", () => {
         for (const handle of handles) {
             const id = harness.session.sets.create({
                 kind: "rule",
-                where: { kind: "item", item: { run: handle as string, key: { field: "tags", value: 1 } } },
+                where: { kind: "item", item: { result: handle as string, key: { field: "tags", value: 1 } } },
                 reading: "induced",
             });
             const stored = harness.session.sets.get(id)?.definition;
 
-            assert.deepStrictEqual(stored, { kind: "rule", where: { kind: "item", item: { key: { field: "tags", value: 1 }, run: "louv" } }, reading: "induced" });
+            assert.deepStrictEqual(stored, { kind: "rule", where: { kind: "item", item: { key: { field: "tags", value: 1 }, result: "louv" } }, reading: "induced" });
             assert.strictEqual(JSON.stringify(stored), JSON.stringify(structuredClone(stored)));
         }
 
@@ -245,7 +245,7 @@ describe("the item leaf", () => {
 describe("the threshold leaf", () => {
     it("takes the top n of a data field over the nodes carrying it, whole tie groups only", async () => {
         const harness = harnessOf();
-        const top = (n: number): Filter => ({ kind: "threshold", path: "data.score", top: n });
+        const top = (n: number): RuleTree => ({ kind: "threshold", path: "data.score", top: n });
 
         assert.deepStrictEqual((await visible(harness, top(2))).nodes, ["b", "c"], "b and c tie at 5 and both fit");
         assert.deepStrictEqual((await visible(harness, top(1))).nodes, [], "the tie at 5 does not fit in one");
@@ -263,7 +263,7 @@ describe("the threshold leaf", () => {
 
     it("ranks an edge attribute over the edges, and speaks only the edge half", async () => {
         const harness = harnessOf();
-        const strongest: Filter = { kind: "threshold", path: "data.weight", top: 2 };
+        const strongest: RuleTree = { kind: "threshold", path: "data.weight", top: 2 };
 
         // 0.95 is first; a-b and c-d tie at 0.9, and taking them would make three.
         assert.deepStrictEqual(await visible(harness, strongest), { nodes: ["a", "b", "c", "d", "e"], edges: edgesOf(harness, "de") });
@@ -282,7 +282,7 @@ describe("the threshold leaf", () => {
 
     it("all [degree >= 3, edges strong] read listed is every strong edge with its endpoints, plus the hubs", async () => {
         const harness = harnessOf();
-        const tree: Filter = { kind: "all", of: [{ kind: "degree", min: 3 }, { kind: "edges", where: STRONG }] };
+        const tree: RuleTree = { kind: "all", of: [{ kind: "degree", min: 3 }, { kind: "edges", where: STRONG }] };
 
         assert.deepStrictEqual(await members(harness, rule(tree, "listed")), {
             nodes: ["a", "b", "c", "d", "e"],
@@ -296,30 +296,30 @@ describe("the threshold leaf", () => {
 describe("refusals at the doors", () => {
     it("refuses an item that follows a partition group, and accepts one that holds it or follows onPath", async () => {
         const { harness } = await withRuns();
-        const group = { run: "louv", key: { field: "group", value: 1 } };
+        const group = { result: "louv", key: { field: "group", value: 1 } };
         const followed: SetDefinition = { kind: "rule", where: { kind: "item", item: group }, reading: "induced" };
 
         const error = refusal(() => harness.session.sets.create(followed));
         assert.strictEqual(error.code, "E_BAD_COMMAND");
         assert.strictEqual(error.details?.reason, "follow-group");
 
-        const inline = refusal(() => harness.session.sets.create({ kind: "rule", where: { kind: "scope", scope: { define: followed } }, reading: "induced" }));
+        const inline = refusal(() => harness.session.sets.create({ kind: "rule", where: { kind: "member", of: { define: followed } }, reading: "induced" }));
         assert.strictEqual(inline.details?.reason, "follow-group", "found inside an inline definition");
 
         const filterError = refusal(() => harness.session.visibility.set({ kind: "not", of: { kind: "item", item: group } }));
         assert.strictEqual(filterError.details?.reason, "follow-group");
 
         const execution = resultExecutionOf(harness.session.results, "louv") ?? "";
-        harness.session.sets.create({ kind: "rule", where: { kind: "item", item: { ...group, execution } }, reading: "induced" });
-        harness.session.sets.create({ kind: "rule", where: { kind: "item", item: { run: "louv", key: { field: "tags", value: 1 } } }, reading: "induced" });
-        harness.session.sets.create({ kind: "rule", where: { kind: "item", item: { run: "route", key: { field: "onPath", value: true } } }, reading: "listed" });
+        harness.session.sets.create({ kind: "rule", where: { kind: "item", item: { ...group, run: execution } }, reading: "induced" });
+        harness.session.sets.create({ kind: "rule", where: { kind: "item", item: { result: "louv", key: { field: "tags", value: 1 } } }, reading: "induced" });
+        harness.session.sets.create({ kind: "rule", where: { kind: "item", item: { result: "route", key: { field: "onPath", value: true } } }, reading: "listed" });
         harness.session.dispose();
     });
 
     it("refuses an induced rule whose item or threshold speaks edges", async () => {
         const { harness } = await withRuns();
-        const leaves: Filter[] = [
-            { kind: "item", item: { run: "route", key: { field: "onPath", value: true } } },
+        const leaves: RuleTree[] = [
+            { kind: "item", item: { result: "route", key: { field: "onPath", value: true } } },
             { kind: "threshold", path: "data.weight", top: 2 },
         ];
 
@@ -342,8 +342,8 @@ describe("refusals at the doors", () => {
         ["a path that is not a value path", { kind: "rule", reading: "clipped", where: { kind: "threshold", path: "score", top: 1 } }],
         ["a results path with no field", { kind: "rule", reading: "clipped", where: { kind: "threshold", path: "results.pr", top: 1 } }],
         ["an item with no run", { kind: "rule", reading: "clipped", where: { kind: "item", item: { key: { field: "group", value: 1 } } } }],
-        ["an item key with an object value", { kind: "rule", reading: "clipped", where: { kind: "item", item: { run: "r", key: { field: "group", value: {} } } } }],
-        ["an item with an empty execution", { kind: "rule", reading: "clipped", where: { kind: "item", item: { run: "r", execution: "", key: { field: "g", value: 1 } } } }],
+        ["an item key with an object value", { kind: "rule", reading: "clipped", where: { kind: "item", item: { result: "r", key: { field: "group", value: {} } } } }],
+        ["an item with an empty execution", { kind: "rule", reading: "clipped", where: { kind: "item", item: { result: "r", run: "", key: { field: "g", value: 1 } } } }],
     ];
 
     it.each(MALFORMED)("refuses %s", (_what, value) => {
@@ -354,8 +354,8 @@ describe("refusals at the doors", () => {
         ["a percentile", threshold({ percentile: 0.9 }), "threshold.percentile"],
         ["a z score", threshold({ z: 2 }), "threshold.z"],
         ["a population", threshold({ top: 3, population: "group" }), "threshold.population"],
-        ["an op on an item key", { kind: "rule", reading: "clipped", where: { kind: "item", item: { run: "r", key: { field: "level", op: "le", value: 2 } } } }, "itemKey.op"],
-        ["a keyed item form", { kind: "rule", reading: "clipped", where: { kind: "item", item: { run: "r", key: { smallestNode: "a" } } } }, "itemKey.smallestNode"],
+        ["an op on an item key", { kind: "rule", reading: "clipped", where: { kind: "item", item: { result: "r", key: { field: "level", op: "le", value: 2 } } } }, "itemKey.op"],
+        ["a keyed item form", { kind: "rule", reading: "clipped", where: { kind: "item", item: { result: "r", key: { smallestNode: "a" } } } }, "itemKey.smallestNode"],
     ];
 
     it.each(RESERVED)("refuses %s as reserved", (_what, value, field) => {
@@ -372,7 +372,7 @@ describe("a pass never throws on a leaf it cannot evaluate", () => {
         const api = harness.session.sets;
         const store = setsStoreOf(api);
         const beyond = api.create({ kind: "rule", where: { kind: "component", id: 9 }, reading: "induced" });
-        const missing = api.create({ kind: "rule", where: { kind: "item", item: { run: "never", key: { field: "in", value: true } } }, reading: "induced" });
+        const missing = api.create({ kind: "rule", where: { kind: "item", item: { result: "never", key: { field: "in", value: true } } }, reading: "induced" });
 
         for (const id of [beyond, missing]) {
             const record = store.get(id);

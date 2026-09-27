@@ -9,9 +9,11 @@
  *   pending in the open group, so an id is never issued twice even when a group creates, removes
  *   and re-creates one name.
  * - the TOMBSTONES, `{ id, name, record? }` for each removed id, rewritten at every commit that
- *   removes it. A tombstone is authoritative only while its id is absent from the slice, and the
- *   records they keep are capped by bytes (this module's own accounting), oldest dropped first,
- *   id and name kept.
+ *   removes it. A tombstone is authoritative only while its id is absent from the slice. Its
+ *   record is kept while anything still names the id -- a reference to a removed set resolves
+ *   through it, and `sets.restore` brings it back -- and dropped by {@link SetsStore.forget} once
+ *   nothing does, id and name kept. There is no byte cap: a cap could drop the one record a
+ *   visible Detached mark needs.
  * - the SEEDS, per set id: for each edge member a door added from a session edge id, the counter
  *   it came through (design 4.2). A binding cache, not state a command writes: never in a record,
  *   never rolled back, kept after a removal so an undo that restores the record binds the same
@@ -29,11 +31,11 @@
 import { compareIds } from "../../catalog/sets/canonical";
 import type { SetId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
-import { loadRecord, recordBytes, type RecordView } from "./prepare";
+import { loadRecord, type RecordView } from "./prepare";
 import type { EdgeSeeds } from "./resolve";
 import type { ElementSet, SetChange } from "./types";
 
-/** A removed set's id and last name, and its last record while the byte cap allows. */
+/** A removed set's id and last name, and its last record while anything names the id. */
 interface Tombstone {
     readonly id: SetId;
     readonly name: string;
@@ -52,12 +54,9 @@ interface LogicalSets {
     readonly records: readonly ElementSet[];
     /** Every id ever issued. */
     readonly register: readonly SetId[];
-    /** Removed ids, oldest first, with their last name and, while the byte cap allowed, record. */
+    /** Removed ids, oldest first, with their last name and, while anything named them, record. */
     readonly tombstones: readonly Tombstone[];
 }
-
-/** The default byte cap on tombstoned records. */
-const TOMBSTONE_BYTES = 8 * 1024 * 1024;
 
 /**
  * The slug a name mints its id from. The same function `ScopeApi` has always minted with, so a
@@ -102,17 +101,9 @@ export class SetsStore implements RecordView {
     private readonly listeners = new Set<(change: SetChange) => void>();
     private readonly commitListeners = new Set<(changes: readonly SetChange[]) => void>();
     private readonly seeds = new Map<SetId, { readonly counters: Map<string, number>; version: number }>();
-    private tombstoneBytes = 0;
     private highestOrder = 0;
     private group: Group | null = null;
     private listed: readonly ElementSet[] | null = null;
-
-    /**
-     * An empty store.
-     * @param options - Store settings.
-     * @param options.tombstoneBytes - The byte cap on tombstoned records.
-     */
-    constructor(private readonly options: { readonly tombstoneBytes?: number } = {}) {}
 
     /**
      * One live record.
@@ -202,11 +193,15 @@ export class SetsStore implements RecordView {
     }
 
     /**
-     * The bytes the tombstoned records hold, by this module's accounting.
-     * @returns The byte count.
+     * Drop the kept record of every removed id nothing names any more, keeping its id and name.
+     * @param named - Whether anything live still names an id.
      */
-    tombstoneRecordBytes(): number {
-        return this.tombstoneBytes;
+    forget(named: (id: SetId) => boolean): void {
+        for (const [id, tombstone] of this.tombstones) {
+            if (tombstone.record !== undefined && !this.records.has(id) && !named(id)) {
+                this.tombstones.set(id, Object.freeze({ id, name: tombstone.name }));
+            }
+        }
     }
 
     /**
@@ -379,7 +374,6 @@ export class SetsStore implements RecordView {
         for (const tombstone of tombstones) {
             this.tombstones.set(tombstone.id, tombstone);
             if (tombstone.record !== undefined) {
-                this.tombstoneBytes += recordBytes(tombstone.record);
                 this.highestOrder = Math.max(this.highestOrder, tombstone.record.order);
             }
         }
@@ -509,30 +503,12 @@ export class SetsStore implements RecordView {
     }
 
     /**
-     * Tombstone a removed record, newest last, then drop the oldest records past the byte cap.
+     * Tombstone a removed record, newest last.
      * @param record - The record removed.
      */
     private bury(record: ElementSet): void {
-        const prior = this.tombstones.get(record.id);
-        if (prior?.record !== undefined) {
-            this.tombstoneBytes -= recordBytes(prior.record);
-        }
-
         this.tombstones.delete(record.id);
         this.tombstones.set(record.id, Object.freeze({ id: record.id, name: record.name, record }));
-        this.tombstoneBytes += recordBytes(record);
-
-        const cap = this.options.tombstoneBytes ?? TOMBSTONE_BYTES;
-        for (const [id, tombstone] of this.tombstones) {
-            if (this.tombstoneBytes <= cap) {
-                break;
-            }
-
-            if (tombstone.record !== undefined) {
-                this.tombstoneBytes -= recordBytes(tombstone.record);
-                this.tombstones.set(id, Object.freeze({ id, name: tombstone.name }));
-            }
-        }
     }
 }
 

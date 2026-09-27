@@ -1,7 +1,7 @@
 /**
  * @file Held-item captures (design/sets/sets-design.md section 5.2).
  *
- * A rule's `item` leaf that carries an `execution` HOLDS that execution of its run. When the run
+ * A rule's `item` leaf that carries a `run` HOLDS that run (execution) of its result. When the run
  * re-executes in place, the values that execution published are replaced, so before they go the
  * re-run captures the members of every item a live reference holds: a sorted id list per item,
  * stored on the run under the execution, as `held: { [execution]: { [itemKey]: capture } }`. The
@@ -74,10 +74,10 @@ export function heldItems(holders: Iterable<unknown>, run: RunId): Map<string, M
 
         if (node.kind === "item") {
             const item = node.item as Partial<ResultItem> | undefined;
-            if (isObject(item) && typeof item.execution === "string" && isObject(item.key) && runIdOfRef(item.run) === run) {
-                const keys = found.get(item.execution) ?? new Map<string, ItemKey>();
+            if (isObject(item) && typeof item.run === "string" && isObject(item.key) && runIdOfRef(item.result) === run) {
+                const keys = found.get(item.run) ?? new Map<string, ItemKey>();
                 keys.set(itemKeyOf(item.key), item.key);
-                found.set(item.execution, keys);
+                found.set(item.run, keys);
             }
 
             return;
@@ -91,8 +91,8 @@ export function heldItems(holders: Iterable<unknown>, run: RunId): Map<string, M
             }
         } else if (node.kind === "not") {
             walk(node.of);
-        } else if (node.kind === "scope") {
-            walk(node.scope);
+        } else if (node.kind === "member") {
+            walk(node.of);
         } else if (node.define !== undefined) {
             walk(node.define);
         }
@@ -202,7 +202,7 @@ export function nextCaptures(
  * @returns The capture, or undefined.
  */
 export function captureOf(captures: HeldCaptures, item: ResultItem): Capture | undefined {
-    return item.execution === undefined ? undefined : captures.get(item.execution)?.get(itemKeyOf(item.key));
+    return item.run === undefined ? undefined : captures.get(item.run)?.get(itemKeyOf(item.key));
 }
 
 const bitmaps = new WeakMap<Capture, { readonly serial: number; readonly store: object | null; readonly halves: CapturedHalves }>();

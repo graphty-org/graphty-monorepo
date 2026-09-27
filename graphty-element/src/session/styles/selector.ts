@@ -4,7 +4,7 @@
  *
  * THE SPLIT IS THE POINT. Only `{match:"expression"}` reaches an evaluator.
  * `{match:"has"}` is a column presence test, `{match:"ids"}` is a set membership test,
- * `{match:"scope"}` is one bit test against a scope's live bitmap, and
+ * `{match:"member"}` is one bit test against a scope's live bitmap, and
  * `{match:"everything"}` is no test at all. Measured on this machine, the presence test costs
  * 7.3 ns per element against 1,322 ns for a `jmespath.search()` call, so the kind a layer is
  * written in is a performance decision and not only an ergonomic one. That is why `encode()`
@@ -89,13 +89,13 @@ export type Selector =
      * The members of a scope, usually a kept set. One bit test per element against the scope's
      * live bitmap, which follows the set; a scope that cannot be resolved paints nothing.
      */
-    | { readonly match: "scope"; readonly scope: Scope };
+    | { readonly match: "member"; readonly of: Scope };
 
 /** The path list every selector that reads no column shares. */
 const EMPTY_PATHS: readonly Path[] = Object.freeze([]);
 
 /** Every selector kind, for a refusal that lists what was allowed. */
-const SELECTOR_KINDS = ["everything", "expression", "has", "ids", "top", "scope"] as const;
+const SELECTOR_KINDS = ["everything", "expression", "has", "ids", "top", "member"] as const;
 
 /** The prefix of the only paths a top selector ranks: a run's published fields. */
 const RESULT_PATH_PREFIX = "results.";
@@ -238,15 +238,15 @@ function assertSelector(selector: Selector): void {
             }
 
             return;
-        case "scope":
+        case "member":
             try {
-                parseScope(selector.scope);
+                parseScope(selector.of);
             } catch (error) {
                 if (!isGraphtyError(error)) {
                     throw error;
                 }
 
-                throw badShape(`A "scope" selector names a scope: ${error.message}`, { scope: selector.scope, reason: error.details });
+                throw badShape(`A "member" selector names a scope: ${error.message}`, { of: selector.of, reason: error.details });
             }
 
             return;
@@ -314,20 +314,20 @@ export function compileSelector(
                 paths: Object.freeze([path]),
             };
         }
-        case "scope": {
+        case "member": {
             if (source.scope === undefined) {
                 throw new GraphtyError({
                     code: "E_UNSUPPORTED",
-                    message: 'This session cannot evaluate a "scope" selector, because it holds no sets to resolve one against.',
+                    message: 'This session cannot evaluate a "member" selector, because it holds no sets to resolve one against.',
                     source: "style",
-                    details: { match: "scope" },
+                    details: { match: "member" },
                 });
             }
 
-            const live = source.scope(parseScope(selector.scope));
+            const live = source.scope(parseScope(selector.of));
 
             return {
-                match: "scope",
+                match: "member",
                 target,
                 test: scopePredicate(live, target),
                 paths: EMPTY_PATHS,

@@ -15,15 +15,15 @@ import { DataConfig } from "../../../src/config/DataConfig";
 import { isGraphtyError } from "../../../src/errors";
 import { setsOfSession } from "../../../src/session/GraphSession";
 import { createScopeApi } from "../../../src/session/scope/ScopeApi";
-import { loadRecord, recordBytes } from "../../../src/session/sets/prepare";
+import { loadRecord } from "../../../src/session/sets/prepare";
 import { createSetsApi } from "../../../src/session/sets/SetsApi";
 import { SetsStore } from "../../../src/session/sets/store";
 import type { SetChange, SetsApi } from "../../../src/session/sets/types";
 import { edgeBetween, makeSession } from "../helpers";
 
 /** A store and its doors, with no graph behind them. */
-function harness(options: { tombstoneBytes?: number } = {}): { store: SetsStore; sets: SetsApi; changes: SetChange[] } {
-    const store = new SetsStore(options);
+function harness(): { store: SetsStore; sets: SetsApi; changes: SetChange[] } {
+    const store = new SetsStore();
     const sets = createSetsApi({ edgeMember: () => undefined }, store);
     const changes: SetChange[] = [];
     store.onChange((change) => changes.push(change));
@@ -296,6 +296,8 @@ describe("tombstones", () => {
     it("keeps { id, name, record } for a removed id, authoritative only while the id is absent", () => {
         const { store, sets } = harness();
         const id = sets.create(NODES, { name: "Gone" });
+        // A live rule names it, so its record is kept.
+        sets.create({ kind: "rule", where: { kind: "member", of: { set: id } }, reading: "induced" }, { name: "Naming" });
         const record = sets.get(id);
         sets.remove(id);
         assert.deepStrictEqual(store.tombstone(id), { id, name: "Gone", record });
@@ -311,19 +313,51 @@ describe("tombstones", () => {
         assert.strictEqual(store.tombstone(id)?.name, "Gone again");
     });
 
-    it("caps the kept records by bytes, dropping the oldest first and keeping id and name", () => {
-        const probe = harness();
-        const size = recordBytes(probe.sets.get(probe.sets.create({ kind: "fixed", nodes: ["a", "b"], reading: "induced" }, { name: "N0" }))!);
-        const { store, sets } = harness({ tombstoneBytes: 2 * size });
-        const ids = ["N0", "N1", "N2"].map((name) => sets.create({ kind: "fixed", nodes: ["a", "b"], reading: "induced" }, { name }));
-        for (const id of ids) {
-            sets.remove(id);
-        }
+    it("keeps a removed record while a set names it, and drops it, keeping id and name, once nothing does", () => {
+        const { store, sets } = harness();
+        const base = sets.create({ kind: "fixed", nodes: ["a", "b"], reading: "induced" }, { name: "Base" });
+        const over = sets.create({ kind: "rule", where: { kind: "member", of: { set: base } }, reading: "induced" }, { name: "Over" });
+        const alone = sets.create({ kind: "fixed", nodes: ["c"], reading: "induced" }, { name: "Alone" });
 
-        assert.deepStrictEqual(store.tombstone(ids[0]), { id: ids[0], name: "N0" });
-        assert.isDefined(store.tombstone(ids[1])?.record);
-        assert.isDefined(store.tombstone(ids[2])?.record);
-        assert.strictEqual(store.tombstoneRecordBytes(), 2 * size);
+        sets.remove(base);
+        sets.remove(alone);
+        assert.isDefined(store.tombstone(base)?.record, "a live rule names it");
+        assert.deepStrictEqual(store.tombstone(alone), { id: alone, name: "Alone" }, "nothing names it");
+
+        sets.remove(over);
+        assert.deepStrictEqual(store.tombstone(base), { id: base, name: "Base" }, "its last user went");
+    });
+
+    it("restores a removed set from its kept record, telling created, and refuses when it cannot", () => {
+        const { sets, changes } = harness();
+        const base = sets.create({ kind: "fixed", nodes: ["a", "b"], reading: "induced" }, { name: "Base" });
+        const over = sets.create({ kind: "rule", where: { kind: "member", of: { set: base } }, reading: "induced" }, { name: "Over" });
+        const record = sets.get(base);
+        sets.remove(base);
+        changes.length = 0;
+
+        sets.restore(base);
+        assert.strictEqual(sets.get(base), record, "the same record, recomputed from nothing");
+        assert.deepStrictEqual(
+            changes.map((change) => [change.id, change.change, change.cause]),
+            [[base, "created", "command"]],
+        );
+
+        const reasonOf = (call: () => void): unknown => {
+            try {
+                call();
+            } catch (error) {
+                return isGraphtyError(error) ? [error.code, error.details?.reason] : error;
+            }
+
+            return null;
+        };
+        assert.deepStrictEqual(reasonOf(() => sets.restore(base)), ["E_BAD_COMMAND", "live"]);
+        assert.deepStrictEqual(reasonOf(() => sets.restore("set_never")), ["E_BAD_COMMAND", "unknown-id"]);
+        sets.remove(over);
+        const alone = sets.create({ kind: "fixed", nodes: ["c"], reading: "induced" }, { name: "Alone" });
+        sets.remove(alone);
+        assert.deepStrictEqual(reasonOf(() => sets.restore(alone)), ["E_BAD_COMMAND", "record-dropped"]);
     });
 });
 

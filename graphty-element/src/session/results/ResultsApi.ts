@@ -149,7 +149,7 @@ export interface ResultsRunEntry {
     /**
      * The token of the execution that produced `result`, written with it so whatever restores the
      * result restores its token (design/sets 5.2). Internal: surfaced later only as the opaque
-     * `ResultItem.execution`.
+     * `ResultItem.run`.
      */
     readonly execution?: string;
 }

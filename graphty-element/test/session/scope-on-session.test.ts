@@ -1,7 +1,7 @@
 import { assert, describe, it } from "vitest";
 
 import { isGraphtyError } from "../../src/errors";
-import type { Filter } from "../../src/session/visibility";
+import type { RuleTree } from "../../src/session/visibility";
 import { edgeBetween, type Harness, makeSession } from "./helpers";
 
 /** Three hosts, two services, and four edges between them. */
@@ -27,7 +27,7 @@ function harnessOf(): Harness {
 }
 
 /** Only the hosts. */
-const HOSTS: Filter = { kind: "categories", attribute: "data.type", values: ["host"] };
+const HOSTS: RuleTree = { kind: "categories", attribute: "data.type", values: ["host"] };
 
 /** The code a call refused with, or null when it did not refuse. */
 function codeOf(call: () => unknown): string | null {

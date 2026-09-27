@@ -320,7 +320,7 @@ export interface RepaintEngine extends ElementPaint {
     renumbered(): void;
     /**
      * Repaint named elements from the whole stack, because what a layer matches moved without the
-     * layer changing: a `{match:"scope"}` layer whose set was redefined repaints exactly the
+     * layer changing: a `{match:"member"}` layer whose set was redefined repaints exactly the
      * elements that entered or left it (design/sets 11).
      *
      * Indices at or past the element count are skipped, and repeats are painted once.

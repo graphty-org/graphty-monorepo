@@ -67,11 +67,11 @@ const EMPTY_PATHS: readonly Path[] = Object.freeze([]);
 // The surface
 // ---------------------------------------------------------------------------------------------
 
-/** What a mutation does with the elements a target named. */
-export type SetOp = "replace" | "add" | "remove" | "toggle" | "intersect";
+/** What a selection change does with the elements a target named. */
+export type SelectionOp = "replace" | "add" | "remove" | "toggle" | "intersect";
 
 /** Every set operation, for a caller that wants to check one before passing it on. */
-export const SET_OPS: readonly SetOp[] = Object.freeze(["replace", "add", "remove", "toggle", "intersect"]);
+export const SET_OPS: readonly SelectionOp[] = Object.freeze(["replace", "add", "remove", "toggle", "intersect"]);
 
 /**
  * Who asked for a selection change.
@@ -211,7 +211,7 @@ export interface SelectionApi {
      *     does.
      * @returns What changed.
      */
-    apply(target: SelectionTarget, op?: SetOp): Promise<SelectionDelta>;
+    apply(target: SelectionTarget, op?: SelectionOp): Promise<SelectionDelta>;
     /**
      * Empty the selection.
      * @returns What changed.
@@ -254,7 +254,7 @@ export interface SelectionOwner extends SelectionApi {
      * @param cause - Who asked; the API itself when absent.
      * @returns What changed.
      */
-    applyNow(target: SelectionTarget, op?: SetOp, cause?: SelectionCause): SelectionDelta;
+    applyNow(target: SelectionTarget, op?: SelectionOp, cause?: SelectionCause): SelectionDelta;
     /**
      * The node mask itself, for the scope resolver's `selection` source.
      * @returns The live mask, which the caller must not mutate.
@@ -633,7 +633,7 @@ class Selection implements SelectionOwner {
      * @param op - What to do with it; replace when absent.
      * @returns What changed.
      */
-    apply(target: SelectionTarget, op?: SetOp): Promise<SelectionDelta> {
+    apply(target: SelectionTarget, op?: SelectionOp): Promise<SelectionDelta> {
         return Promise.resolve(this.applyNow(target, op));
     }
 
@@ -652,7 +652,7 @@ class Selection implements SelectionOwner {
      *   `E_UNSUPPORTED` when the target names a capability this session lacks, or
      *   `E_OPTION_RANGE` when one of the target's options is outside the permitted range.
      */
-    applyNow(target: SelectionTarget, op: SetOp = "replace", cause: SelectionCause = "api"): SelectionDelta {
+    applyNow(target: SelectionTarget, op: SelectionOp = "replace", cause: SelectionCause = "api"): SelectionDelta {
         this.#sync();
         assertOp(op);
         // The cap is read BEFORE anything is mutated: a session configured with a cap that is not
@@ -1081,7 +1081,7 @@ function describeAttribute(
  * @param op - The value to check.
  * @throws A `GraphtyError` coded `E_BAD_COMMAND` when it is not.
  */
-function assertOp(op: SetOp): void {
+function assertOp(op: SelectionOp): void {
     if (!SET_OPS.includes(op)) {
         throw new GraphtyError({
             code: "E_BAD_COMMAND",

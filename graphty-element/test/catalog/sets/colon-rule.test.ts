@@ -2,12 +2,12 @@ import { assert, describe, it } from "vitest";
 
 import { loadSetDefinition, parseSetDefinition } from "../../../src/catalog/sets/parse";
 import type { EdgeReading, Scope, SetCombine, SetCreatedFrom, SetDefinition } from "../../../src/catalog/types";
-import type { Filter } from "../../../src/session/visibility/filter";
+import type { RuleTree } from "../../../src/session/visibility/filter";
 
 // Each record is typed by the union it lists, so the compiler fails this file when a union gains
 // or loses a member and the list here is not updated with it.
 const DEFINITION_KINDS: Record<SetDefinition["kind"], true> = { fixed: true, rule: true, path: true };
-const LEAF_KINDS: Record<Filter["kind"], true> = {
+const LEAF_KINDS: Record<RuleTree["kind"], true> = {
     expression: true,
     range: true,
     categories: true,
@@ -15,7 +15,7 @@ const LEAF_KINDS: Record<Filter["kind"], true> = {
     component: true,
     neighborhood: true,
     edges: true,
-    scope: true,
+    member: true,
     item: true,
     threshold: true,
     all: true,

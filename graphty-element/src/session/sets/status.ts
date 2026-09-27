@@ -330,8 +330,8 @@ class StatusWalk {
             return;
         }
 
-        const run = this.sources.run?.(from.item.run);
-        if (run !== undefined && from.item.execution !== undefined && run.execution !== from.item.execution) {
+        const run = this.sources.run?.(from.item.result);
+        if (run !== undefined && from.item.run !== undefined && run.execution !== from.item.run) {
             builder.earlier.add(run.id);
         }
     }

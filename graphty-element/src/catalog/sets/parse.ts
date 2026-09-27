@@ -9,7 +9,7 @@
  * a malformed node of a kind this element knows, but an unknown kind, an unknown field or a
  * reserved field is kept instead of refused, and the definition is flagged OPAQUE with the first
  * such name. Ignoring it instead would be wrong in both directions: an older element that
- * dropped a rule's `within` or an item key's `op` would resolve silently wrong members, and would
+ * dropped a rule's `scope` or an item key's `op` would resolve silently wrong members, and would
  * lose the field on the next save. The whole definition is the opaque unit
  * (design/sets/sets-design.md section 12.5): it round-trips value-identical, resolves to nothing
  * and reads `unresolvable`.
@@ -17,7 +17,7 @@
  * One walker serves both modes, so the two can never disagree about what a known node is.
  *
  * Reserved fields -- names a later release will give a meaning, refused at the doors until then:
- * `weights` on a fixed set, `within` on a rule, `key` and `dataSource` on an edge member, `graph` on
+ * `weights` on a fixed set, `scope` on a rule, `key` and `dataSource` on an edge member, `graph` on
  * `{ set }`, `percentile`, `z` and `population` on a threshold, `op` on an item key. Reserved kinds:
  * the scope keyword `"search"`, and the item key forms `{ smallestNode }`, `{ edges }`, `{ binds }`.
  *
@@ -36,7 +36,7 @@ type Mode = "door" | "load";
 /** Reserved field names, by the node that reserves them, as `<node>.<field>`. */
 const RESERVED = new Set([
     "fixed.weights",
-    "rule.within",
+    "rule.scope",
     "edgeMember.key",
     "edgeMember.dataSource",
     "set.graph",
@@ -231,25 +231,25 @@ function checkBounds(node: Loose): void {
 }
 
 /**
- * Check a result item: a run, a key, and optionally the execution it holds. At a door the run may
+ * Check a result item: a result, a key, and optionally the run it holds. At a door the result may
  * be a `Run` or `RunResult` handle, which the canonical form replaces by its id.
  * @param value - The candidate item.
  * @param walker - The pass.
  */
 function checkItem(value: unknown, walker: Walker): void {
     if (!isObject(value)) {
-        throw bad("An item leaf's item is an object with a run and a key.", { item: value });
+        throw bad("An item leaf's item is an object with a result and a key.", { item: value });
     }
 
-    walker.fields(value, "resultItem", ["run", "key", "execution"]);
+    walker.fields(value, "resultItem", ["result", "run", "key"]);
 
-    const run = walker.mode === "door" ? runIdOfRef(value.run) : value.run;
-    if (typeof run !== "string" || run === "") {
-        throw bad("An item names its run by the run's id.", { run: value.run });
+    const result = walker.mode === "door" ? runIdOfRef(value.result) : value.result;
+    if (typeof result !== "string" || result === "") {
+        throw bad("An item names its result by the result's id.", { result: value.result });
     }
 
-    if (value.execution !== undefined && (typeof value.execution !== "string" || value.execution === "")) {
-        throw bad("An item's execution is the token of the execution it holds.", { execution: value.execution });
+    if (value.run !== undefined && (typeof value.run !== "string" || value.run === "")) {
+        throw bad("An item's run is the token of the run it holds.", { run: value.run });
     }
 
     const { key } = value;
@@ -302,6 +302,7 @@ function isValuePath(path: unknown): boolean {
  */
 function checkThreshold(value: Loose, walker: Walker): void {
     walker.fields(value, "threshold", ["kind", "path", "top", "above"]);
+    checkRoot(value.path);
 
     if (!isValuePath(value.path)) {
         throw bad('A "threshold" leaf\'s path is "data.<field>" or "results.<run>.<field>".', { path: value.path });
@@ -320,6 +321,43 @@ function checkThreshold(value: Loose, walker: Walker): void {
 
     if (value.above !== undefined && !isFiniteNumber(value.above)) {
         throw bad('A "threshold" leaf\'s above is a finite number.', { above: value.above });
+    }
+}
+
+/** The roots a field path may start with. Any other root is reserved for a later release. */
+const FIELD_ROOTS = ["data", "results"];
+
+/**
+ * Refuse a field path whose root is reserved: `graph.<measure>` and every other root but `data`
+ * and `results` may be given a meaning later, and a stored path must not change meaning when it
+ * is (design/sets 15.3, item 36).
+ * @param path - The candidate path.
+ * @throws `E_BAD_COMMAND` with `details.reason: "reserved-root"`.
+ */
+function checkRoot(path: unknown): void {
+    if (typeof path !== "string" || path === "") {
+        return;
+    }
+
+    const root = path.split(".")[0];
+    if (!FIELD_ROOTS.includes(root)) {
+        throw bad(`A field path starts with "data." or "results.", so "${path}" is refused: the root "${root}" is reserved.`, {
+            path,
+            root,
+            reason: "reserved-root",
+        });
+    }
+}
+
+/**
+ * {@link checkRoot} at a door only: a stored `range` or `categories` leaf written before roots
+ * were reserved still loads, and reads its path as an attribute as it always has.
+ * @param path - The candidate path.
+ * @param walker - The pass.
+ */
+function checkDoorRoot(path: unknown, walker: Walker): void {
+    if (walker.mode === "door") {
+        checkRoot(path);
     }
 }
 
@@ -348,12 +386,14 @@ function checkTree(value: unknown, walker: Walker): void {
         case "range":
             known(["attribute", "min", "max"]);
             checkQuery(value.attribute, 'A "range" leaf\'s attribute');
+            checkDoorRoot(value.attribute, walker);
             checkBounds(value);
 
             return;
         case "categories":
             known(["attribute", "values"]);
             checkQuery(value.attribute, 'A "categories" leaf\'s attribute');
+            checkDoorRoot(value.attribute, walker);
 
             if (!Array.isArray(value.values) || !value.values.every((entry) => typeof entry === "string")) {
                 throw bad('A "categories" leaf\'s values are a list of strings.', { values: value.values });
@@ -386,9 +426,9 @@ function checkTree(value: unknown, walker: Walker): void {
             }
 
             return;
-        case "scope":
-            known(["scope"]);
-            checkScope(value.scope, walker);
+        case "member":
+            known(["of"]);
+            checkScope(value.of, walker);
 
             return;
         case "item":
@@ -452,7 +492,7 @@ export function readingOfScope(scope: unknown, referent?: (id: string) => string
 }
 
 /**
- * Whether a rule tree holds a leaf that speaks about edges: an `edges` leaf, a `scope` leaf whose
+ * Whether a rule tree holds a leaf that speaks about edges: an `edges` leaf, a `member` leaf whose
  * set is read `listed` or `clipped`, or an `item` or `threshold` leaf over a field edges carry.
  * @param node - A validated tree node, or a query.
  * @param referent - The reading of the set an id names, when the caller can look it up.
@@ -472,12 +512,12 @@ export function speaksEdges(
     switch (node.kind) {
         case "edges":
             return true;
-        case "scope":
-            return readingOfScope(node.scope, referent) !== "induced";
+        case "member":
+            return readingOfScope(node.of, referent) !== "induced";
         case "item": {
             const item = isObject(node.item) ? node.item : {};
             const key = isObject(item.key) ? item.key : {};
-            const run = runIdOfRef(item.run);
+            const run = runIdOfRef(item.result);
 
             return typeof run === "string" && typeof key.field === "string" && fieldKinds?.(`results.${run}.${key.field}`).includes("edge") === true;
         }
@@ -743,7 +783,7 @@ export function parseScope(value: unknown): Scope {
  * A write door's value with every edge reference inside an inline definition passed through
  * `stable` (a session edge id becomes its stable member; an object member is handed over as
  * given, for the door to canonicalise), at any depth: a scope's `{ define }`, a fixed or path definition's edges, a
- * rule's tree, the `scope` leaves of a rule tree and a `{ match: "scope" }` selector. Everything
+ * rule's tree, the `member` leaves of a rule tree and a `{ match: "member" }` selector. Everything
  * else is returned as given for the validator to judge, and a value `stable` changes nothing in is
  * returned unchanged (the same object).
  * @param value - A scope, a set definition, a rule tree or a selector, as given.
@@ -773,8 +813,8 @@ export function stabiliseEdgeRefs<T>(value: T, stable: (ref: string) => unknown)
             return swap("define", walk(node.define));
         }
 
-        if (node.match === "scope") {
-            return swap("scope", walk(node.scope));
+        if (node.match === "member") {
+            return swap("of", walk(node.of));
         }
 
         switch (node.kind) {
@@ -783,8 +823,8 @@ export function stabiliseEdgeRefs<T>(value: T, stable: (ref: string) => unknown)
                 return swap("edges", each(node.edges, (step) => (Array.isArray(step) ? each(step, ref) : ref(step))));
             case "rule":
                 return swap("where", walk(node.where));
-            case "scope":
-                return swap("scope", walk(node.scope));
+            case "member":
+                return swap("of", walk(node.of));
             case "all":
             case "any":
                 return swap("of", each(node.of, walk));

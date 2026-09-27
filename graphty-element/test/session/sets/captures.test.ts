@@ -75,7 +75,7 @@ async function rerun(harness: Harness, run: string): Promise<void> {
  * @returns The set id.
  */
 function holdGroup(harness: Harness, execution: string, value: number): SetId {
-    return harness.session.sets.create({ kind: "rule", where: { kind: "item", item: { run: "louv", key: { field: "group", value }, execution } }, reading: "induced" });
+    return harness.session.sets.create({ kind: "rule", where: { kind: "item", item: { result: "louv", key: { field: "group", value }, run: execution } }, reading: "induced" });
 }
 
 /**
@@ -149,7 +149,7 @@ describe("held-item captures", () => {
         const execution = resultExecutionOf(harness.session.results, "route") ?? "";
         const held = harness.session.sets.create({
             kind: "rule",
-            where: { kind: "item", item: { run: "route", key: { field: "onPath", value: true }, execution } },
+            where: { kind: "item", item: { result: "route", key: { field: "onPath", value: true }, run: execution } },
             reading: "listed",
         });
 
@@ -217,7 +217,7 @@ describe("held-item captures", () => {
         table.set("louv", SECOND);
         await rerun(harness, "louv");
         assert.deepStrictEqual(heldOf(harness, "louv"), {});
-        const inline: Scope = { define: { kind: "rule", where: { kind: "item", item: { run: "louv", key: { field: "group", value: 1 }, execution: first } }, reading: "induced" } };
+        const inline: Scope = { define: { kind: "rule", where: { kind: "item", item: { result: "louv", key: { field: "group", value: 1 }, run: first } }, reading: "induced" } };
         assert.deepStrictEqual(await nodesOf(harness, inline), []);
     });
 });

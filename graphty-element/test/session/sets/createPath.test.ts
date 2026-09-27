@@ -9,6 +9,7 @@ import { assert, describe, it } from "vitest";
 import type { EdgeMember } from "../../../src/catalog/types";
 import { isGraphtyError } from "../../../src/errors";
 import { edgeBetween, type EdgeRow, type Harness, makeSession } from "../helpers";
+import { builtInRuns } from "./algorithms";
 
 /** A session over the given edges; nodes are their endpoints plus any extra ids. */
 function harnessOf(edges: readonly [string, string][], directed: boolean | "auto" = "auto", extra: readonly string[] = []): Harness {
@@ -188,5 +189,37 @@ describe("sets.createPath: an ambiguous selection is refused, saying why", () =>
         const h = harnessOf(CHAIN);
 
         assert.strictEqual((await refusalOf(() => h.session.sets.createPath("graph" as "selection")))?.code, "E_BAD_COMMAND");
+    });
+});
+
+describe("sets.createPath from a shortest-path offer", () => {
+    it("names the one parallel edge the route took at each step, never a group", async () => {
+        let harness: Harness | null = null;
+        const h = makeSession({ directed: true, runs: { execute: builtInRuns(() => harness as Harness) } });
+        harness = h;
+        h.add(
+            ["a", "b", "c"].map((id) => ({ id })),
+            [
+                { src: "a", dst: "b", weight: 4 },
+                { src: "a", dst: "b", weight: 1 },
+                { src: "b", dst: "c", weight: 1 },
+            ],
+        );
+        const run = h.session.runs.start("shortest-path", { method: "dijkstra", source: "a", target: "c" }, { scope: "graph", style: false });
+        await run;
+        const offer = h.session.sets.offers(run.id).offers.find((entry) => entry.path);
+        assert.isDefined(offer);
+
+        const id = await h.session.sets.createPath(offer);
+        const definition = h.session.sets.get(id)?.definition as unknown as { nodes: string[]; edges: (EdgeMember | EdgeMember[])[] };
+
+        assert.deepStrictEqual(definition.nodes, ["a", "b", "c"]);
+        assert.isTrue(definition.edges.every((step) => !Array.isArray(step)), "one edge per step");
+        // Edges added in the session carry minted ids in the order they arrived: e0 is a-b at 4.
+        assert.deepStrictEqual(
+            definition.edges.map((step) => (step as EdgeMember).id),
+            ["graphty:e1", "graphty:e2"],
+            "the second a-b edge, the cheaper one, then the only b-c edge",
+        );
     });
 });

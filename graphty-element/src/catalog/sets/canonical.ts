@@ -194,7 +194,8 @@ function canonicalEdgeList(edges: readonly EdgeMember[] | undefined): EdgeMember
 }
 
 /**
- * One path step, canonical: `null` kept, a group sorted, a single member's keys sorted.
+ * One path step, canonical: `null` kept, a group sorted, a single member's keys sorted, and a
+ * group of one edge stored as that edge, so the two spellings of one step have one revision.
  * @param step - The step.
  * @returns The canonical step.
  */
@@ -203,7 +204,13 @@ function canonicalStep(step: EdgeMember | readonly EdgeMember[] | null): EdgeMem
         return null;
     }
 
-    return Array.isArray(step) ? canonicalMembers(step as readonly EdgeMember[]) : canonicalMember(step as EdgeMember);
+    if (!Array.isArray(step)) {
+        return canonicalMember(step as EdgeMember);
+    }
+
+    const group = canonicalMembers(step as readonly EdgeMember[]);
+
+    return group.length === 1 ? group[0] : group;
 }
 
 /** The leaf kinds whose fields this module knows, and the numeric or id-list fields they carry. */
@@ -212,7 +219,7 @@ const KNOWN_LEAVES = new Set(["expression", "edges", "range", "categories", "deg
 /**
  * The run id a result item names: the id itself, or the id of a `Run` or `RunResult` handle a
  * door was passed, so every stored item holds a plain id.
- * @param run - The item's `run`.
+ * @param run - The item's `result`.
  * @returns The id, or the value as it was when it is neither.
  */
 export function runIdOfRef(run: unknown): unknown {
@@ -242,7 +249,7 @@ function canonicalItem(item: unknown): unknown {
     const { key } = loose;
     const canonicalKey = typeof key === "object" && key !== null && !Array.isArray(key) ? sortKeys({ ...(key as Loose), value: unsigned((key as Loose).value) }) : key;
 
-    return sortKeys({ ...loose, run: runIdOfRef(loose.run), key: canonicalKey });
+    return sortKeys({ ...loose, result: runIdOfRef(loose.result), key: canonicalKey });
 }
 
 /**
@@ -267,8 +274,8 @@ function canonicalTree(node: unknown): unknown {
         return sortKeys({ ...loose, of: canonicalTree(loose.of) });
     }
 
-    if (kind === "scope") {
-        return sortKeys({ ...loose, scope: canonicalScope(loose.scope) });
+    if (kind === "member") {
+        return sortKeys({ ...loose, of: canonicalScope(loose.of) });
     }
 
     if (kind === "item") {

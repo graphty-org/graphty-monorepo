@@ -1,6 +1,6 @@
 import { assert, describe, it } from "vitest";
 
-import type { EdgeId, NodeId, Path } from "../../../src/catalog/types";
+import type { EdgeId, NodeId, Path, SelectionDirection } from "../../../src/catalog/types";
 import { isGraphtyError } from "../../../src/errors";
 import { edgeSpaceOf, ElementMask, nodeSpaceOf } from "../../../src/session/scope/index";
 import {
@@ -8,10 +8,9 @@ import {
     type CompiledVisibility,
     compileVisibility,
     type ElementTest,
-    type Filter,
-    type FilterDirection,
     type FilterSources,
     type FilterValueSource,
+    type RuleTree,
     runPass,
     runPassInSlices,
     type TimeStep,
@@ -40,7 +39,7 @@ function valuesOf(harness: Harness): FilterValueSource {
 /** What a filter and a window leave visible, as two sorted id lists. */
 function applied(
     harness: Harness,
-    filter: Filter | null,
+    filter: RuleTree | null,
     window: TimeWindow | null,
     sources: FilterSources = {},
 ): { nodes: readonly NodeId[]; edges: readonly EdgeId[]; unresolved: readonly Path[] } {
@@ -136,7 +135,7 @@ describe("a filter over nodes", () => {
     it("counts only the arcs a direction names", () => {
         const harness = makeSession({ directed: true });
         harness.add([{ id: "a" }, { id: "b" }], [{ src: "a", dst: "b" }]);
-        const expected: readonly (readonly [FilterDirection, readonly NodeId[]])[] = [
+        const expected: readonly (readonly [SelectionDirection, readonly NodeId[]])[] = [
             ["out", ["a"]],
             ["in", ["b"]],
             ["all", ["a", "b"]],
@@ -493,7 +492,7 @@ describe("paths nothing answered", () => {
 
 describe("refusing a filter that is not one", () => {
     it("checks a filter without touching the graph, so a form can gate its own button", () => {
-        assert.strictEqual(codeOf(() => assertVisibility({ kind: "nope" } as unknown as Filter, null)), "E_BAD_COMMAND");
+        assert.strictEqual(codeOf(() => assertVisibility({ kind: "nope" } as unknown as RuleTree, null)), "E_BAD_COMMAND");
         assert.strictEqual(
             codeOf(() => assertVisibility(null, { attribute: "data.at", from: 9, to: 1 })),
             "E_OPTION_RANGE",
@@ -505,9 +504,9 @@ describe("refusing a filter that is not one", () => {
     it("refuses an unknown kind, a missing query and an inverted range", () => {
         const harness = harnessOf([{ id: "a" }]);
         const graph = harness.store.getSnapshot();
-        const compile = (filter: Filter): unknown => compileVisibility(graph, filter, null, {});
+        const compile = (filter: RuleTree): unknown => compileVisibility(graph, filter, null, {});
 
-        assert.strictEqual(codeOf(() => compile({ kind: "nope" } as unknown as Filter)), "E_BAD_COMMAND");
+        assert.strictEqual(codeOf(() => compile({ kind: "nope" } as unknown as RuleTree)), "E_BAD_COMMAND");
         assert.strictEqual(codeOf(() => compile({ kind: "expression", where: "  " })), "E_BAD_QUERY");
         assert.strictEqual(
             codeOf(() => compile({ kind: "range", attribute: "data.x", min: 9, max: 1 })),
@@ -538,7 +537,7 @@ describe("refusing a filter that is not one", () => {
     it("refuses a filter this session cannot evaluate rather than widening it", () => {
         const harness = harnessOf([{ id: "a" }]);
         const graph = harness.store.getSnapshot();
-        const compile = (filter: Filter): unknown => compileVisibility(graph, filter, null, {});
+        const compile = (filter: RuleTree): unknown => compileVisibility(graph, filter, null, {});
 
         assert.strictEqual(codeOf(() => compile({ kind: "expression", where: "q" })), "E_UNSUPPORTED");
         assert.strictEqual(codeOf(() => compile({ kind: "edges", where: "q" })), "E_UNSUPPORTED");

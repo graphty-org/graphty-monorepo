@@ -402,7 +402,7 @@ describe("the signature memo, input by input", () => {
         const f = new Fixture();
         const { sets } = f.graph;
         const named = sets.create({ kind: "fixed", nodes: ["a"], reading: "induced" }, { name: "named" });
-        const tree: Scope = { define: { kind: "rule", where: { kind: "any", of: [{ kind: "scope", scope: { set: named } }, { kind: "degree", min: 3 }] }, reading: "induced" } };
+        const tree: Scope = { define: { kind: "rule", where: { kind: "any", of: [{ kind: "member", of: { set: named } }, { kind: "degree", min: 3 }] }, reading: "induced" } };
         const first = f.scope(tree);
         assert.strictEqual(f.scope(tree), first, "unchanged inputs: a hit");
 
@@ -420,10 +420,10 @@ describe("the signature memo, input by input", () => {
             const f = new Fixture();
             const { sets } = f.graph;
             const base = sets.create({ kind: "fixed", nodes: Array.from({ length: size }, (_, i) => `n${i}`), reading: "induced" }, { name: "base" });
-            const left = sets.create({ kind: "rule", where: { kind: "scope", scope: { set: base } }, reading: "induced" }, { name: "left" });
-            const right = sets.create({ kind: "rule", where: { kind: "not", of: { kind: "scope", scope: { set: base } } }, reading: "induced" }, { name: "right" });
+            const left = sets.create({ kind: "rule", where: { kind: "member", of: { set: base } }, reading: "induced" }, { name: "left" });
+            const right = sets.create({ kind: "rule", where: { kind: "not", of: { kind: "member", of: { set: base } } }, reading: "induced" }, { name: "right" });
             const top = sets.create(
-                { kind: "rule", where: { kind: "any", of: [{ kind: "scope", scope: { set: left } }, { kind: "scope", scope: { set: right } }] }, reading: "induced" },
+                { kind: "rule", where: { kind: "any", of: [{ kind: "member", of: { set: left } }, { kind: "member", of: { set: right } }] }, reading: "induced" },
                 { name: "top" },
             );
             const before = signatureCounters.walks;

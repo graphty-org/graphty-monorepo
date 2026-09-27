@@ -7,7 +7,7 @@
 
 import { assert, describe, it } from "vitest";
 
-import type { EdgeMember, Filter, Scope, ScopeInput, SetId } from "../../../src/catalog/types";
+import type { EdgeMember, RuleTree, Scope, ScopeInput, SetId } from "../../../src/catalog/types";
 import { isGraphtyError } from "../../../src/errors";
 import { setsStoreOf } from "../../../src/session/sets/SetsApi";
 import { edgeBetween, type Harness, makeSession } from "../helpers";
@@ -73,22 +73,22 @@ describe("a session edge id inside an inline definition", () => {
         await h.session.selection.apply({ scope: edgeScope(h) });
         assert.deepStrictEqual([...h.session.selection.edges].length, 1);
 
-        await h.session.visibility.set({ kind: "scope", scope: edgeScope(h) as Scope });
-        const leaf = h.session.visibility.filter as unknown as { scope: { define: { edges: unknown[] } } };
-        assert.strictEqual(typeof leaf.scope.define.edges[0], "object", "the filter holds the stable member");
+        await h.session.visibility.set({ kind: "member", of: edgeScope(h) as Scope });
+        const leaf = h.session.visibility.filter as unknown as { of: { define: { edges: unknown[] } } };
+        assert.strictEqual(typeof leaf.of.define.edges[0], "object", "the filter holds the stable member");
 
-        const layer = await h.session.styles.add({ name: "Edge", selector: { match: "scope", scope: edgeScope(h) as Scope }, set: { "node.color": "#ff0000" } });
-        const held = layer.selector as unknown as { scope: { define: { edges: unknown[] } } };
-        assert.strictEqual(typeof held.scope.define.edges[0], "object", "the layer holds the stable member");
+        const layer = await h.session.styles.add({ name: "Edge", selector: { match: "member", of: edgeScope(h) as Scope }, set: { "node.color": "#ff0000" } });
+        const held = layer.selector as unknown as { of: { define: { edges: unknown[] } } };
+        assert.strictEqual(typeof held.of.define.edges[0], "object", "the layer holds the stable member");
     });
 
     it("is accepted in a nested scope leaf of a kept rule", () => {
         const h = fixture();
-        const where: Filter = { kind: "scope", scope: edgeScope(h) as Scope };
+        const where: RuleTree = { kind: "member", of: edgeScope(h) as Scope };
         const id = h.session.sets.create({ kind: "rule", where, reading: "listed" });
 
-        const stored = h.session.sets.get(id)?.definition as unknown as { where: { scope: { define: { edges: unknown[] } } } };
-        assert.strictEqual(typeof stored.where.scope.define.edges[0], "object");
+        const stored = h.session.sets.get(id)?.definition as unknown as { where: { of: { define: { edges: unknown[] } } } };
+        assert.strictEqual(typeof stored.where.of.define.edges[0], "object");
     });
 });
 
@@ -111,14 +111,14 @@ describe("a set id never issued", () => {
     it("is refused at every write door", async () => {
         const h = fixture();
         assert.strictEqual(await codeOf(() => h.session.selection.apply({ scope: nope })), "E_BAD_COMMAND");
-        assert.strictEqual(await codeOf(() => h.session.visibility.set({ kind: "scope", scope: nope })), "E_BAD_COMMAND");
+        assert.strictEqual(await codeOf(() => h.session.visibility.set({ kind: "member", of: nope })), "E_BAD_COMMAND");
         assert.strictEqual(await codeOf(() => h.session.runs.start("degree", {}, { scope: nope, style: false })), "E_BAD_COMMAND");
         assert.strictEqual(
-            await codeOf(() => h.session.sets.create({ kind: "rule", where: { kind: "scope", scope: nope }, reading: "induced" })),
+            await codeOf(() => h.session.sets.create({ kind: "rule", where: { kind: "member", of: nope }, reading: "induced" })),
             "E_BAD_COMMAND",
         );
         assert.notStrictEqual(
-            await codeOf(() => h.session.styles.add({ name: "Nope", selector: { match: "scope", scope: nope }, set: { "node.color": "#ff0000" } })),
+            await codeOf(() => h.session.styles.add({ name: "Nope", selector: { match: "member", of: nope }, set: { "node.color": "#ff0000" } })),
             null,
         );
     });
@@ -128,11 +128,32 @@ describe("a set id never issued", () => {
         const id = h.session.sets.create({ kind: "fixed", nodes: ["a"], reading: "induced" });
         h.session.sets.remove(id);
 
-        assert.strictEqual(await codeOf(() => h.session.visibility.set({ kind: "scope", scope: { set: id } })), null);
+        assert.strictEqual(await codeOf(() => h.session.visibility.set({ kind: "member", of: { set: id } })), null);
         assert.strictEqual(
-            await codeOf(() => h.session.styles.add({ name: "Gone", selector: { match: "scope", scope: { set: id } }, set: { "node.color": "#ff0000" } })),
+            await codeOf(() => h.session.styles.add({ name: "Gone", selector: { match: "member", of: { set: id } }, set: { "node.color": "#ff0000" } })),
             null,
         );
+    });
+
+    it("refuses new work over a removed set whose record is kept, while a filter naming it keeps working", async () => {
+        const h = fixture();
+        const id = h.session.sets.create({ kind: "fixed", nodes: ["a", "b"], reading: "induced" });
+        await h.session.visibility.set({ kind: "member", of: { set: id } });
+        h.session.sets.remove(id);
+
+        let refusal: unknown = null;
+        try {
+            await h.session.runs.start("degree", {}, { scope: { set: id }, style: false });
+        } catch (error) {
+            refusal = error;
+        }
+
+        assert.isTrue(isGraphtyError(refusal));
+        assert.strictEqual((refusal as { details: { reason: string } }).details.reason, "missing-set");
+        assert.deepStrictEqual([...h.session.visibility.nodes].sort(), ["a", "b"], "the filter still reads the kept record");
+        const unscoped = h.session.runs.start("degree", {}, { style: false });
+        await unscoped;
+        assert.strictEqual(unscoped.scope.nodeCount, 2, "a run over what the filter shows is not work over the removed set");
     });
 });
 
@@ -218,14 +239,14 @@ describe("an undirected edge member spelt with its ends reversed", () => {
         const h = fixture();
         const [ab, ba] = spellings(h);
         const inline = { define: { kind: "fixed", nodes: [], edges: [ba, ab], reading: "listed" } } as const;
-        const id = h.session.sets.create({ kind: "rule", where: { kind: "scope", scope: inline }, reading: "listed" });
-        const {where} = (h.session.sets.get(id)?.definition as unknown as { where: { scope: { define: { edges: EdgeMember[] } } } });
-        assert.deepStrictEqual(where.scope.define.edges, [ab]);
+        const id = h.session.sets.create({ kind: "rule", where: { kind: "member", of: inline }, reading: "listed" });
+        const {where} = (h.session.sets.get(id)?.definition as unknown as { where: { of: { define: { edges: EdgeMember[] } } } });
+        assert.deepStrictEqual(where.of.define.edges, [ab]);
 
-        await h.session.visibility.set({ kind: "scope", scope: inline });
-        const leaf = h.session.visibility.filter as unknown as { scope: { define: { edges: EdgeMember[] } } };
+        await h.session.visibility.set({ kind: "member", of: inline });
+        const leaf = h.session.visibility.filter as unknown as { of: { define: { edges: EdgeMember[] } } };
         // The filter door stores the tree as given, so both entries remain; each has canonical ends.
-        assert.deepStrictEqual(leaf.scope.define.edges, [ab, ab]);
+        assert.deepStrictEqual(leaf.of.define.edges, [ab, ab]);
     });
 
     it("is canonical as a path step", () => {
@@ -263,7 +284,7 @@ describe("rename", () => {
         });
     }
 
-    const over = (scope: Scope): unknown => ({ kind: "rule", where: { kind: "scope", scope }, reading: "induced" });
+    const over = (scope: Scope): unknown => ({ kind: "rule", where: { kind: "member", of: scope }, reading: "induced" });
 
     it("renames a loaded set in a cycle, one naming a set never issued, and one reading the selection", () => {
         const h = fixture();

@@ -37,7 +37,7 @@ const REFUSED: readonly (readonly [string, unknown])[] = [
     ["a plugin kind", { kind: "acme:bag", nodes: [] }],
     ["an unknown field", { kind: "fixed", nodes: [], reading: "induced", colour: "red" }],
     ["a reserved weights on fixed", { kind: "fixed", nodes: ["a"], reading: "induced", weights: [1] }],
-    ["a reserved within on a rule", { kind: "rule", where: "x", reading: "clipped", within: "visible" }],
+    ["a reserved scope on a rule", { kind: "rule", where: "x", reading: "clipped", scope: "visible" }],
     ["a reserved dataSource on a definition", { kind: "fixed", nodes: [], reading: "induced", dataSource: "s" }],
     // Fixed
     ["fixed without nodes", { kind: "fixed", reading: "induced" }],
@@ -115,8 +115,33 @@ describe("parseSetDefinition, the door-mode validator", () => {
         }
     });
 
+    it("refuses a field path whose root is not data or results, with reason reserved-root", () => {
+        for (const where of [
+            { kind: "threshold", path: "graph.degree", top: 3 },
+            { kind: "threshold", path: "runs.pr.value", above: 1 },
+            { kind: "range", attribute: "graph.degree", min: 1 },
+            { kind: "categories", attribute: "colour", values: ["red"] },
+        ]) {
+            const error = refusal({ kind: "rule", where, reading: "induced" });
+
+            assert.strictEqual(error.code, "E_BAD_COMMAND", JSON.stringify(where));
+            assert.strictEqual(error.details.reason, "reserved-root", JSON.stringify(where));
+        }
+
+        // An imported column called "graph" lives under data., so nothing is renamed.
+        assert.doesNotThrow(() => parseSetDefinition({ kind: "rule", where: { kind: "range", attribute: "data.graph", min: 1 }, reading: "induced" }));
+        assert.doesNotThrow(() => parseSetDefinition({ kind: "rule", where: { kind: "threshold", path: "results.pr.value", top: 1 }, reading: "induced" }));
+    });
+
+    it("stores a path step's one-edge group as that edge, so both spellings have one revision", () => {
+        const one = { source: "a", target: "b", id: "x" };
+
+        expect(parseSetDefinition({ kind: "path", nodes: ["a", "b"], edges: [[one]] })).toEqual(parseSetDefinition({ kind: "path", nodes: ["a", "b"], edges: [one] }));
+        expect(parseSetDefinition({ kind: "path", nodes: ["a", "b"], edges: [[one, one]] })).toEqual({ kind: "path", nodes: ["a", "b"], edges: [one] });
+    });
+
     it("names the reserved field it refused, so a caller knows what this element does not read yet", () => {
-        assert.strictEqual(refusal({ kind: "rule", where: "x", reading: "clipped", within: "visible" }).details.field, "rule.within");
+        assert.strictEqual(refusal({ kind: "rule", where: "x", reading: "clipped", scope: "visible" }).details.field, "rule.scope");
         assert.strictEqual(refusal({ kind: "fixed", nodes: [], edges: [{ source: "a", target: "b", key: 1 }], reading: "listed" }).details.field, "edgeMember.key");
     });
 

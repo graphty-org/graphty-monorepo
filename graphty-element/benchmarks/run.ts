@@ -30,11 +30,11 @@ import { EDGE_ID_COLUMN, stableEdgeMember } from "../src/data/edgeIdentity";
 import { GraphStore } from "../src/data/GraphStore";
 import { ingestEdge, ingestNode } from "../src/data/ingest";
 import { createGraphSession, scopeResolverOfSession } from "../src/session/GraphSession";
-import type { GraphSession } from "../src/session/types";
 import { createScopeApi, edgeSpaceOf, ElementMask, nodeSpaceOf } from "../src/session/scope/index";
 import { combineMasks, createMaterialiser } from "../src/session/sets/algebra";
 import { addEdgeRow, digestOf, edgeMemberKey, resolveFixed, resolveScope } from "../src/session/sets/resolve";
 import { createSetsApi, sessionEdgeMember } from "../src/session/sets/SetsApi";
+import type { GraphSession } from "../src/session/types";
 import { appendSession, bench, type BenchResult, benchTimed, printTable } from "./harness";
 
 const LARGE = process.env.GRAPHTY_BENCH_SCALE === "large";

@@ -457,7 +457,7 @@ describe("AnalyzePanel", () => {
         /* Spec 4670-4684: reported text may not go behind an info circle. A warning a
            reader has to open a door to read is a warning they will not read. */
         it("draws the cost warning as visible text under the row it is about", () => {
-            const sentence = "About 3 h at this size. Filter to a part, and run it there.";
+            const sentence = "About 3 h at this size. RuleTree to a part, and run it there.";
 
             renderPanel({ runWarnings: { bridges: sentence } });
 

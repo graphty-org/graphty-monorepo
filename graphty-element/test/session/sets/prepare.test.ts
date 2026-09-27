@@ -70,7 +70,7 @@ describe("records", () => {
         const edges = [edge("a", "b", "x")];
         const values = ["red"];
         const fixed = sets.create({ kind: "fixed", nodes, edges, reading: "listed" }, { name: "F" });
-        const rule = sets.create({ kind: "rule", where: { kind: "categories", attribute: "colour", values }, reading: "induced" }, { name: "R" });
+        const rule = sets.create({ kind: "rule", where: { kind: "categories", attribute: "data.colour", values }, reading: "induced" }, { name: "R" });
         nodes.push("c");
         (edges[0] as { id: string }).id = "changed";
         values.push("blue");
@@ -84,7 +84,7 @@ describe("records", () => {
         assert.deepStrictEqual(sets.get(rule)?.definition, {
             kind: "rule",
             reading: "induced",
-            where: { attribute: "colour", kind: "categories", values: ["red"] },
+            where: { attribute: "data.colour", kind: "categories", values: ["red"] },
         });
         assert.isFalse(Object.isFrozen(values));
         assert.isTrue(deeplyFrozen(sets.get(fixed)));

@@ -172,8 +172,6 @@ const config: KnipConfig = {
                 "stories/**/*.stories.ts",
                 "scripts/**/*.{ts,js}",
                 ".storybook/*.js",
-                // The Node timing runner (`npm run benchmark`); records, never asserts.
-                "benchmarks/run.ts",
             ],
             project: [
                 "*.ts!",

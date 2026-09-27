@@ -95,7 +95,7 @@ async function tick(): Promise<void> {
  * @returns the layer
  */
 function layerOver(id: SetId): LayerSpec {
-    return { name: `over ${id}`, selector: { match: "scope", scope: { set: id } }, set: { "node.color": "#ff0000" } };
+    return { name: `over ${id}`, selector: { match: "member", of: { set: id } }, set: { "node.color": "#ff0000" } };
 }
 
 /**

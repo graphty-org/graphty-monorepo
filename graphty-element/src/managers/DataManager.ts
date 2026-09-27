@@ -1034,6 +1034,9 @@ export class DataManager implements Manager {
 
             if (isStorableRecordId(recordId)) {
                 this.edgesByRecordId.set(recordId, edgeIndex);
+                tally.edgesById++;
+            } else {
+                tally.edgesByPosition++;
             }
 
             collectKeys(written, edge);
@@ -1106,6 +1109,7 @@ export class DataManager implements Manager {
                 format: "records",
                 endpoints,
                 policy,
+                idPath: recordIdPath,
                 ...this.heldCounts(),
             });
         }
@@ -1834,6 +1838,7 @@ export class DataManager implements Manager {
             format,
             endpoints,
             policy: this.styles.config.data.knownFields.repeatedEdges,
+            idPath: this.styles.config.data.knownFields.edgeIdPath,
             ...this.heldCounts(),
         });
         this.importReport = report;

@@ -26,6 +26,8 @@
  * module's import graph and fails if Babylon.js, Lit or a DOM global appears in it.
  */
 
+import type { RuleTree, SelectionDirection } from "./src/catalog/types";
+
 export * from "./src/catalog/index";
 
 // ---------------------------------------------------------------------------------------------
@@ -74,14 +76,15 @@ export type {
     EdgeMember,
     EdgeReading,
     EdgeRef,
-    Filter,
-    FilterDirection,
     ItemKey,
     PathKind,
+    ResultId,
     ResultItem,
+    RuleTree,
     Scope,
     ScopeId,
     ScopeInput,
+    SelectionDirection,
     SetCombine,
     SetCreatedFrom,
     SetDefinition,
@@ -89,3 +92,18 @@ export type {
     SetId,
     SetOperand,
 } from "./src/catalog/types";
+
+/**
+ * A rule tree: what the visibility filter keeps.
+ * @deprecated Use {@link RuleTree}, the same type under the name the rule grammar uses: a rule
+ * tree is also what a rule set holds, not only what the visibility filter keeps. Removed in the
+ * major version that ships the project file.
+ */
+export type Filter = RuleTree;
+
+/**
+ * Which arcs a degree filter counts.
+ * @deprecated Use {@link SelectionDirection}, the same type under the name the rule grammar uses.
+ * Removed in the major version that ships the project file.
+ */
+export type FilterDirection = SelectionDirection;

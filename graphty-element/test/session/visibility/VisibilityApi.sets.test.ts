@@ -10,7 +10,7 @@
 
 import { assert, describe, it } from "vitest";
 
-import type { EdgeId, Filter, LayerSpec, NodeId, SetDefinition, SetDefinitionInput } from "../../../src/catalog/types";
+import type { EdgeId, LayerSpec, NodeId, RuleTree, SetDefinition, SetDefinitionInput } from "../../../src/catalog/types";
 import { setsNotifierOfSession, setsOfSession } from "../../../src/session/GraphSession";
 import { resultExecutionOf } from "../../../src/session/results/ResultsApi";
 import type { SessionRunsApi } from "../../../src/session/runs";
@@ -65,7 +65,7 @@ describe("the visibility filter follows the sets it names", () => {
     it("redefining a named set moves the visible masks and announces it, with no new visibility.set", async () => {
         const h = path();
         const id = h.session.sets.create({ kind: "fixed", nodes: ["a", "b"], reading: "induced" });
-        await h.session.visibility.set({ kind: "scope", scope: { set: id } });
+        await h.session.visibility.set({ kind: "member", of: { set: id } });
         assert.deepStrictEqual(shown(h), ["a", "b"]);
         const kinds: string[] = [];
         h.session.on("visibility:changed", (change) => kinds.push(change.filterKind));
@@ -74,13 +74,13 @@ describe("the visibility filter follows the sets it names", () => {
 
         assert.deepStrictEqual(shown(h), ["c", "d", "e"], "synchronously, before any await");
         assert.deepStrictEqual(shownEdges(h), ["cd", "de"]);
-        assert.deepStrictEqual(kinds, ["scope"]);
+        assert.deepStrictEqual(kinds, ["member"]);
     });
 
     it("a rename moves nothing and announces nothing", async () => {
         const h = path();
         const id = h.session.sets.create({ kind: "fixed", nodes: ["a"], reading: "induced" }, { name: "S" });
-        await h.session.visibility.set({ kind: "scope", scope: { set: id } });
+        await h.session.visibility.set({ kind: "member", of: { set: id } });
         const kinds: string[] = [];
         h.session.on("visibility:changed", (change) => kinds.push(change.filterKind));
 
@@ -90,31 +90,46 @@ describe("the visibility filter follows the sets it names", () => {
         assert.deepStrictEqual(shown(h), ["a"]);
     });
 
-    it("removing a set the filter and a layer both name throws nowhere; the filter's leaf speaks nothing", async () => {
+    it("removing a set the filter and a layer both name throws nowhere, and changes nothing either shows", async () => {
         const h = path();
         const id = h.session.sets.create({ kind: "fixed", nodes: ["b", "c"], reading: "induced" });
-        const layer: LayerSpec = { name: "Painted", selector: { match: "scope", scope: { set: id } }, set: { "node.color": "#ff0000" } };
+        const layer: LayerSpec = { name: "Painted", selector: { match: "member", of: { set: id } }, set: { "node.color": "#ff0000" } };
         await h.session.styles.add(layer);
         const session = h.session as ElementSession;
         await session.paint.repaintAll(session.styles.compiled(), { signal: new AbortController().signal, report: () => undefined });
-        await h.session.visibility.set({ kind: "not", of: { kind: "scope", scope: { set: id } } });
+        await h.session.visibility.set({ kind: "not", of: { kind: "member", of: { set: id } } });
         assert.deepStrictEqual(shown(h), ["a", "d", "e"]);
+        const edgesBefore = shownEdges(h);
 
         h.session.sets.remove(id);
         await new Promise((resolve) => setTimeout(resolve, 0));
 
-        // A removed set holds nothing, so "not S" shows everything: deleting a set never blanks the graph.
-        assert.deepStrictEqual(shown(h), ["a", "b", "c", "d", "e"]);
-        assert.deepStrictEqual(shownEdges(h), ["ab", "bc", "cd", "de"]);
+        // The filter reads the removed set's kept record, so "not S" shows what it showed:
+        // deleting a set never changes a filter and never blanks the graph.
+        assert.deepStrictEqual(shown(h), ["a", "d", "e"]);
+        assert.deepStrictEqual(shownEdges(h), edgesBefore);
+        assert.strictEqual(h.session.sets.status({ set: id }).freshness, "detached");
         await session.paint.repaintAll(session.styles.compiled(), { signal: new AbortController().signal, report: () => undefined });
     });
 
-    const LOOP: SetDefinition = { kind: "rule", where: { kind: "scope", scope: "visible" }, reading: "clipped" };
+    it("a new filter naming a removed set shows the set's kept members, never a blank graph", async () => {
+        const h = path();
+        const id = h.session.sets.create({ kind: "fixed", nodes: ["b", "c"], reading: "induced" });
+        await h.session.styles.add({ name: "Painted", selector: { match: "member", of: { set: id } }, set: { "node.color": "#ff0000" } });
+        h.session.sets.remove(id);
+
+        await h.session.visibility.set({ kind: "member", of: { set: id } });
+
+        assert.deepStrictEqual(shown(h), ["b", "c"]);
+        assert.deepStrictEqual(shownEdges(h), ["bc"]);
+    });
+
+    const LOOP: SetDefinition = { kind: "rule", where: { kind: "member", of: "visible" }, reading: "clipped" };
 
     it("a loop a load or an undo makes through the filter neither re-evaluates for ever nor reads the masks it writes", async () => {
         const h = path();
         const id = h.session.sets.create({ kind: "fixed", nodes: ["a", "b"], reading: "induced" });
-        await h.session.visibility.set({ kind: "not", of: { kind: "scope", scope: { set: id } } });
+        await h.session.visibility.set({ kind: "not", of: { kind: "member", of: { set: id } } });
 
         // The door refuses the loop; a load or an undo writes the store directly and can make one.
         assert.throws(() => h.session.sets.redefine(id, LOOP));
@@ -141,9 +156,9 @@ describe("the visibility filter follows the sets it names", () => {
         for (const { name, define, hidden } of cases) {
             const h = path();
             const id = h.session.sets.create(define(h));
-            const without: Filter = {
-                kind: "scope",
-                scope: { define: { kind: "rule", where: { kind: "not", of: { kind: "scope", scope: { set: id } } }, reading: "clipped" } },
+            const without: RuleTree = {
+                kind: "member",
+                of: { define: { kind: "rule", where: { kind: "not", of: { kind: "member", of: { set: id } } }, reading: "clipped" } },
             };
             await h.session.visibility.set(without);
 
@@ -157,7 +172,7 @@ describe("the visibility filter follows the sets it names", () => {
     it("usedBy lists the filter, once, and stops when the filter no longer names the set", async () => {
         const h = path();
         const id = h.session.sets.create({ kind: "fixed", nodes: ["a"], reading: "induced" });
-        await h.session.visibility.set({ kind: "any", of: [{ kind: "scope", scope: { set: id } }, { kind: "not", of: { kind: "scope", scope: { set: id } } }] });
+        await h.session.visibility.set({ kind: "any", of: [{ kind: "member", of: { set: id } }, { kind: "not", of: { kind: "member", of: { set: id } } }] });
 
         assert.deepStrictEqual(h.session.sets.usedBy(id), [{ kind: "filter", label: "Visibility filter" }]);
 
@@ -174,7 +189,7 @@ describe("the visibility filter follows the sets it names", () => {
         await run;
         const execution = resultExecutionOf(h.session.results, "louv") as string;
         const key = { field: "group", value: 1 };
-        await h.session.visibility.set({ kind: "item", item: { run: "louv", key, execution } });
+        await h.session.visibility.set({ kind: "item", item: { result: "louv", key, run: execution } });
         assert.deepStrictEqual(shown(h), ["c", "d", "e"]);
 
         table.set("louv", second);

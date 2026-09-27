@@ -144,7 +144,7 @@ describe("sets.offers: one row per result shape", () => {
         ]);
         assert.deepStrictEqual(await nodeIds(h, offers[0].definition), ["a", "b", "c", "d", "e", "f"], "the first offer is the largest component");
         assert.deepStrictEqual(await counts(h, offers[0].definition), { nodes: 6, edges: 7 });
-        assert.strictEqual(offers[0].item.execution, resultExecutionOf(h.session.results, id), "the item holds the execution it was read from");
+        assert.strictEqual(offers[0].item.run, resultExecutionOf(h.session.results, id), "the item holds the execution it was read from");
     });
 
     it("layered-grouping (breadth-first search): one offer per level", async () => {
@@ -363,7 +363,7 @@ describe("sets.offers: using and keeping an offer", () => {
         const set = h.session.sets.get(kept);
         assert.deepStrictEqual(set?.definition, { kind: "fixed", nodes: ["a", "b", "c", "d", "e", "f"], reading: "induced" });
         assert.deepStrictEqual(set?.createdFrom, { kind: "result", item: offer.item });
-        assert.isString(offer.item.execution);
+        assert.isString(offer.item.run);
     });
 
     it("keeps a followable offer as a rule over the item without its execution", async () => {
@@ -374,7 +374,7 @@ describe("sets.offers: using and keeping an offer", () => {
         const kept = await h.session.sets.createFrom(offer, { follow: true });
 
         const set = h.session.sets.get(kept);
-        assert.deepStrictEqual(set?.definition, { kind: "rule", where: { kind: "item", item: { run: id, key: { field: "level", value: 1 } } }, reading: "induced" });
+        assert.deepStrictEqual(set?.definition, { kind: "rule", where: { kind: "item", item: { result: id, key: { field: "level", value: 1 } } }, reading: "induced" });
         assert.deepStrictEqual(set?.createdFrom, { kind: "result", item: offer.item });
     });
 

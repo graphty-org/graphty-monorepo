@@ -170,7 +170,7 @@ describe("status, row by row of the design's table", () => {
         const f = fixture();
         await run(f, "louv");
         const execution = resultExecutionOf(f.harness.session.results, "louv") ?? "";
-        const createdFrom: SetCreatedFrom = { kind: "result", item: { run: "louv", key: { field: "group", value: 1 }, execution } };
+        const createdFrom: SetCreatedFrom = { kind: "result", item: { result: "louv", key: { field: "group", value: 1 }, run: execution } };
         const id = createSetAs(f.harness.session.sets, { kind: "fixed", nodes: ["c", "d", "e"], reading: "induced" }, "Community 1", createdFrom);
         assert.deepStrictEqual(statusOfSet(f, id), status("current"));
 
@@ -185,7 +185,7 @@ describe("status, row by row of the design's table", () => {
         const f = fixture();
         await run(f, "louv");
         const execution = resultExecutionOf(f.harness.session.results, "louv") ?? "";
-        const id = f.harness.session.sets.create({ kind: "rule", where: { kind: "item", item: { run: "louv", key: { field: "group", value: 1 }, execution } }, reading: "induced" });
+        const id = f.harness.session.sets.create({ kind: "rule", where: { kind: "item", item: { result: "louv", key: { field: "group", value: 1 }, run: execution } }, reading: "induced" });
 
         f.table.set("louv", LOUVAIN_2);
         await rerun(f, "louv");
@@ -200,7 +200,7 @@ describe("status, row by row of the design's table", () => {
         // A token no live execution carries, and no capture: what a file written without them holds.
         const id = f.harness.session.sets.create({
             kind: "rule",
-            where: { kind: "item", item: { run: "louv", key: { field: "group", value: 1 }, execution: "saved.3" } },
+            where: { kind: "item", item: { result: "louv", key: { field: "group", value: 1 }, run: "saved.3" } },
             reading: "induced",
         });
 
@@ -290,7 +290,7 @@ describe("status, row by row of the design's table", () => {
     it("names a removed set or run: detached, missing-set or missing-run, nothing, never throws", async () => {
         const f = fixture();
         const gone = f.harness.session.sets.create({ kind: "fixed", nodes: ["a"], reading: "induced" }, { name: "Gone" });
-        const readsSet = f.harness.session.sets.create({ kind: "rule", where: { kind: "scope", scope: { set: gone } }, reading: "induced" });
+        const readsSet = f.harness.session.sets.create({ kind: "rule", where: { kind: "member", of: { set: gone } }, reading: "induced" });
         await run(f, "pr");
         const readsRun = f.harness.session.sets.create(OVER_PR);
         f.harness.session.sets.remove(gone);
@@ -299,15 +299,15 @@ describe("status, row by row of the design's table", () => {
         assert.deepStrictEqual(statusOfSet(f, readsSet), status("detached", [{ kind: "missing-set", id: gone, name: "Gone" }]));
         assert.deepStrictEqual(statusOfSet(f, readsRun), status("detached", [{ kind: "missing-run", run: "pr" }]));
         assert.deepStrictEqual(statusOfSet(f, gone), status("detached", [{ kind: "missing-set", id: gone, name: "Gone" }]), "the removed set itself");
-        assert.deepStrictEqual(await countOf(f, readsSet), [0, 0]);
+        assert.deepStrictEqual(await countOf(f, readsSet), [1, 0], "a removed set is read from its kept record");
         assert.deepStrictEqual(await countOf(f, readsRun), [0, 0]);
     });
 
     it("caught in a cycle, its last compile failed, or holds an unknown kind: unresolvable, nothing, never throws", async () => {
         const f = fixture();
         // Two sets reading each other: the doors refuse this, a load or an undo can make it.
-        const a = put(f, "ring a", { kind: "rule", where: { kind: "scope", scope: { set: "set_ring-b" } }, reading: "induced" });
-        const b = put(f, "ring b", { kind: "rule", where: { kind: "scope", scope: { set: a } }, reading: "induced" });
+        const a = put(f, "ring a", { kind: "rule", where: { kind: "member", of: { set: "set_ring-b" } }, reading: "induced" });
+        const b = put(f, "ring b", { kind: "rule", where: { kind: "member", of: { set: a } }, reading: "induced" });
         assert.deepStrictEqual(statusOfSet(f, a), status("unresolvable", [{ kind: "cycle", through: [b, a] }]));
         assert.deepStrictEqual(await countOf(f, a), [0, 0]);
 
@@ -400,14 +400,14 @@ describe("status, row by row of the design's table", () => {
         const stale = f.harness.session.sets.create(OVER_PR);
         const stuck = f.harness.session.sets.create({ kind: "rule", where: "results.plug.value > `2`", reading: "induced" });
         const gone = f.harness.session.sets.create({ kind: "fixed", nodes: ["a"], reading: "induced" });
-        const orphan = f.harness.session.sets.create({ kind: "rule", where: { kind: "scope", scope: { set: gone } }, reading: "induced" });
-        const reader = (input: SetId): SetId => f.harness.session.sets.create({ kind: "rule", where: { kind: "scope", scope: { set: input } }, reading: "induced" });
+        const orphan = f.harness.session.sets.create({ kind: "rule", where: { kind: "member", of: { set: gone } }, reading: "induced" });
+        const reader = (input: SetId): SetId => f.harness.session.sets.create({ kind: "rule", where: { kind: "member", of: { set: input } }, reading: "induced" });
         const readsStale = reader(stale);
         const readsStuck = reader(stuck);
         const readsOrphan = reader(orphan);
         const readsAll = f.harness.session.sets.create({
             kind: "rule",
-            where: { kind: "any", of: [{ kind: "scope", scope: { set: stale } }, { kind: "scope", scope: { set: orphan } }] },
+            where: { kind: "any", of: [{ kind: "member", of: { set: stale } }, { kind: "member", of: { set: orphan } }] },
             reading: "induced",
         });
 
@@ -460,8 +460,8 @@ describe("status beyond the table", () => {
         for (let i = 0; i < 50; i++) {
             ids.push(f.harness.session.sets.create({ kind: "fixed", nodes: ["a", "b"], reading: "induced" }));
             ids.push(f.harness.session.sets.create(OVER_PR));
-            ids.push(f.harness.session.sets.create({ kind: "rule", where: { kind: "item", item: { run: "louv", key: { field: "group", value: i % 2 }, execution } }, reading: "induced" }));
-            ids.push(f.harness.session.sets.create({ kind: "rule", where: { kind: "scope", scope: { set: ids[ids.length - 2] } }, reading: "induced" }));
+            ids.push(f.harness.session.sets.create({ kind: "rule", where: { kind: "item", item: { result: "louv", key: { field: "group", value: i % 2 }, run: execution } }, reading: "induced" }));
+            ids.push(f.harness.session.sets.create({ kind: "rule", where: { kind: "member", of: { set: ids[ids.length - 2] } }, reading: "induced" }));
         }
 
         assert.strictEqual(ids.length, 200);
@@ -479,13 +479,13 @@ describe("status beyond the table", () => {
         const f = fixture();
         const { session } = f.harness;
         const referent = session.sets.create({ kind: "fixed", nodes: ["a", "b"], reading: "induced" });
-        const rule = session.sets.create({ kind: "rule", where: { kind: "scope", scope: { set: referent } }, reading: "induced" });
+        const rule = session.sets.create({ kind: "rule", where: { kind: "member", of: { set: referent } }, reading: "induced" });
         session.sets.redefine(referent, { kind: "fixed", nodes: ["a", "b"], reading: "listed" });
 
         assert.strictEqual(statusOfSet(f, rule).freshness, "unresolvable");
         assert.strictEqual(statusOfSet(f, rule).reasons[0]?.kind, "invalid");
         assert.deepStrictEqual(await countOf(f, rule), [0, 0]);
-        await session.visibility.set({ kind: "scope", scope: { set: rule } });
+        await session.visibility.set({ kind: "member", of: { set: rule } });
         assert.strictEqual([...session.visibility.nodes].length, 0, "a filter over it shows nothing");
         let refused: unknown = null;
         try {
@@ -529,8 +529,8 @@ describe("usedBy", () => {
     it("lists the sets naming the id and the runs whose scope names it", async () => {
         const f = fixture();
         const base = f.harness.session.sets.create({ kind: "fixed", nodes: ["a", "b", "c"], reading: "induced" }, { name: "Base" });
-        const reader = f.harness.session.sets.create({ kind: "rule", where: { kind: "scope", scope: { set: base } }, reading: "induced" }, { name: "Reader" });
-        f.harness.session.sets.create({ kind: "rule", where: { kind: "scope", scope: { set: reader } }, reading: "induced" }, { name: "Indirect" });
+        const reader = f.harness.session.sets.create({ kind: "rule", where: { kind: "member", of: { set: base } }, reading: "induced" }, { name: "Reader" });
+        f.harness.session.sets.create({ kind: "rule", where: { kind: "member", of: { set: reader } }, reading: "induced" }, { name: "Indirect" });
         await run(f, "pr", { set: base });
         await run(f, "louv");
 

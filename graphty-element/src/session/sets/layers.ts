@@ -1,7 +1,7 @@
 /**
  * @file The live scopes style layers name (design/sets/sets-design.md section 11). Internal.
  *
- * A `{match:"scope"}` layer tests one bit per element against its scope's live bitmap. Layers
+ * A `{match:"member"}` layer tests one bit per element against its scope's live bitmap. Layers
  * naming the same scope share one live entry, keyed by the scope's canonical form. An entry starts
  * watching the first time a pass reads it: it subscribes to the session's change notifier with
  * the scope's input signature, and holds the resolution it last took, pinned in the resolution

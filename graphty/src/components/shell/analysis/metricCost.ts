@@ -285,7 +285,7 @@ export function metricCostFromEstimate(metric: NodeMetricId, cost: CostEstimate)
     const { seconds } = cost;
 
     if (!Number.isFinite(seconds)) {
-        const warningSentence = "How long this will take at this size is not known. Filter to a part, and run it there.";
+        const warningSentence = "How long this will take at this size is not known. RuleTree to a part, and run it there.";
 
         return {
             metric,
@@ -301,7 +301,7 @@ export function metricCostFromEstimate(metric: NodeMetricId, cost: CostEstimate)
     const duration = formatEstimateDuration(seconds);
 
     if (seconds > WARN_LIMIT_SECONDS) {
-        const warningSentence = `${capitaliseDuration(duration)} at this size. Filter to a part, and run it there.`;
+        const warningSentence = `${capitaliseDuration(duration)} at this size. RuleTree to a part, and run it there.`;
         const runLabel = `Run anyway (${duration})`;
 
         return {

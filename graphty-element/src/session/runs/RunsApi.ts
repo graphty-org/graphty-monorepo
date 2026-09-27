@@ -47,10 +47,14 @@ import {
 } from "./Run";
 import {
     assertRunId,
-    canonicalIdentity,
     canonicalize,
     canonicalizeParams,
+    canonicalResultIdentity,
+    deriveResultId,
     deriveRunId,
+    freezeScope,
+    type LiveKeyword,
+    type ResultIdentity,
     type RunIdentity,
 } from "./runId";
 import {
@@ -190,6 +194,14 @@ export interface RunsApiOptions {
      * @returns The scope to record.
      */
     readonly admitScope?: (spec: ScopeInput) => Scope;
+    /**
+     * The definition a live scope keyword stands for now, which a derived run id hashes in its
+     * place: the visibility filter and window for `"visible"`, the selected nodes for
+     * `"selection"`. Absent, the keyword itself is hashed.
+     * @param keyword - The keyword.
+     * @returns Plain data that changes exactly when the keyword's definition does.
+     */
+    readonly liveScope?: (keyword: LiveKeyword) => unknown;
     /** The caveats a run starts from, before the work refines them. */
     readonly defaultCaveats?: Caveats;
     /** The style layers that read runs, once there are any. */
@@ -471,7 +483,10 @@ class Runs implements SessionRunsApi {
     /** Every algorithm run this session holds, in the order they were started. */
     private readonly runs = new Map<RunId, ManagedRun>();
 
-    /** What each run IS, so that reusing an id for different work is caught rather than silent. */
+    /**
+     * The result each run answers, so that reusing an id for different work is caught rather than
+     * silent. Parameters and the seed are not in it: a change of either re-runs the result.
+     */
     private readonly identities = new Map<RunId, string>();
 
     /** The ids the element minted, which are the ones a saved document may not reference. */
@@ -541,16 +556,22 @@ class Runs implements SessionRunsApi {
             sample: options.sample ?? null,
             exact: options.exact ?? null,
         };
+        const result: ResultIdentity = {
+            algorithm: identity.algorithm,
+            scope: freezeScope(spec, (keyword) => this.options.liveScope?.(keyword) ?? null),
+            sample: identity.sample,
+            exact: identity.exact,
+        };
         const assignedId = options.as;
         const derived = assignedId === undefined;
-        const id = assignedId === undefined ? deriveRunId(identity) : assertRunId(assignedId);
+        const id = assignedId === undefined ? deriveResultId(result) : assertRunId(assignedId);
         const existing = this.runs.get(id);
 
         if (existing !== undefined) {
-            return this.reuse(existing, identity);
+            return this.reuse(existing, identity, canonicalResultIdentity(result), descriptor);
         }
 
-        return this.create(id, identity, descriptor, spec, options, derived);
+        return this.create(id, identity, canonicalResultIdentity(result), descriptor, spec, options, derived);
     }
 
     /**
@@ -729,6 +750,7 @@ class Runs implements SessionRunsApi {
      * Build, register and start a run that does not exist yet.
      * @param id - The id it will answer to.
      * @param identity - What the run is.
+     * @param result - The canonical identity of the result it answers.
      * @param descriptor - The algorithm's catalogue entry.
      * @param spec - The scope specification it was asked for.
      * @param options - What the caller passed.
@@ -738,6 +760,7 @@ class Runs implements SessionRunsApi {
     private create(
         id: RunId,
         identity: RunIdentity,
+        result: string,
         descriptor: AlgorithmDescriptor,
         spec: Scope,
         options: StartOptions,
@@ -761,11 +784,7 @@ class Runs implements SessionRunsApi {
             shape: descriptor.shape,
             fields: descriptor.fields,
             engine: engineVersionsFor(descriptor.key, this.options.engine),
-            caveats: Object.freeze({
-                ...this.defaultCaveats,
-                seed: identity.seed,
-                method: descriptor.technicalName,
-            }),
+            caveats: this.caveatsFor(identity, descriptor),
             execute: this.options.execute,
             ...(options.signal === undefined ? {} : { signal: options.signal }),
             ...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),
@@ -792,7 +811,7 @@ class Runs implements SessionRunsApi {
         const run = new ManagedRun<RunResult>(definition, surroundings);
 
         this.runs.set(id, run);
-        this.identities.set(id, canonicalIdentity(identity));
+        this.identities.set(id, result);
 
         if (derived) {
             this.derivedIds.add(id);
@@ -804,16 +823,27 @@ class Runs implements SessionRunsApi {
     }
 
     /**
-     * Hand back a run that already answers this question, re-executing it if the data moved.
+     * The caveats a run starts from.
+     * @param identity - What the run is.
+     * @param descriptor - The algorithm's catalogue entry.
+     * @returns The caveats.
+     */
+    private caveatsFor(identity: RunIdentity, descriptor: AlgorithmDescriptor): Caveats {
+        return Object.freeze({ ...this.defaultCaveats, seed: identity.seed, method: descriptor.technicalName });
+    }
+
+    /**
+     * Hand back the run that already answers this result: re-run with the new parameters or seed
+     * when they changed, else re-executed only if the data moved.
      * @param existing - The run this session already holds under that id.
      * @param identity - What the caller asked for.
+     * @param result - The canonical identity of the result the caller asked for.
+     * @param descriptor - The algorithm's catalogue entry.
      * @returns The existing run.
-     * @throws A `GraphtyError` with code `E_DUPLICATE_ID` when the id names different work.
+     * @throws A `GraphtyError` with code `E_DUPLICATE_ID` when the id names a different result.
      */
-    private reuse(existing: ManagedRun, identity: RunIdentity): Run {
-        const wanted = canonicalIdentity(identity);
-
-        if (this.identities.get(existing.id) !== wanted) {
+    private reuse(existing: ManagedRun, identity: RunIdentity, result: string, descriptor: AlgorithmDescriptor): Run {
+        if (this.identities.get(existing.id) !== result) {
             throw new GraphtyError({
                 code: "E_DUPLICATE_ID",
                 message:
@@ -823,6 +853,10 @@ class Runs implements SessionRunsApi {
                 target: { kind: "run", id: existing.id },
                 details: { id: existing.id, held: existing.algorithm, wanted: identity.algorithm },
             });
+        }
+
+        if (canonicalize(existing.params) !== canonicalize(identity.params) || existing.seed !== identity.seed) {
+            return existing.retune(identity.params, identity.seed, this.caveatsFor(identity, descriptor));
         }
 
         if (this.shouldReexecute(existing)) {

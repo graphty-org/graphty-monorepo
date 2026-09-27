@@ -6,12 +6,12 @@
  *
  * | Found                                                   | Dependency                          |
  * |---------------------------------------------------------|-------------------------------------|
- * | a `scope` leaf `{ set: id }`                            | that set (follows it)               |
- * | a `scope` leaf `"visible"`, `"selection"`, `"search"`   | the visibility filter, the selection, the search |
- * | a `scope` leaf `"largest-component"`; `component`, `degree`, `neighborhood` | topology (the snapshot) |
+ * | a `member` leaf `{ set: id }`                            | that set (follows it)               |
+ * | a `member` leaf `"visible"`, `"selection"`, `"search"`   | the visibility filter, the selection, the search |
+ * | a `member` leaf `"largest-component"`; `component`, `degree`, `neighborhood` | topology (the snapshot) |
  * | a path `results.<run>.<field>` a query or `threshold` reads | that run (follows its current execution) |
- * | an `item` leaf without `execution`                      | that run (follows its current execution) |
- * | an `item` leaf with `execution`                         | that run's execution (holds it)     |
+ * | an `item` leaf without `run`                            | that result (follows its current run) |
+ * | an `item` leaf with `run`                               | that run of the result (holds it)   |
  * | any other path a query, `range`, `categories` or `threshold` reads | that top-level attribute field |
  *
  * A query's paths come from the compiled expression, which has no projections or wildcards, so
@@ -28,7 +28,7 @@
 
 import { runIdOfRef } from "../../catalog/sets/canonical";
 import { readingOfScope } from "../../catalog/sets/parse";
-import type { Filter, Path, Query, ResultItem, RunId, Scope, SetDefinition, SetId } from "../../catalog/types";
+import type { Path, Query, ResultItem, RuleTree, RunId, Scope, SetDefinition, SetId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 
 /** One thing a definition reads. */
@@ -57,7 +57,7 @@ export interface DependencySources {
      * The visibility filter in force, which is what `"visible"` depends on.
      * @returns The filter, or null.
      */
-    readonly visibility?: () => Filter | null;
+    readonly visibility?: () => RuleTree | null;
     /**
      * The paths a query's compiled expression reads. Absent: a query's paths are not listed.
      * @param where - The query.
@@ -185,14 +185,14 @@ class Collector {
             case "neighborhood":
                 this.add({ kind: "topology" });
                 return;
-            case "scope":
-                this.scope(node.scope);
+            case "member":
+                this.scope(node.of);
                 return;
             case "item":
                 if (isObject(node.item)) {
-                    const run = runIdOfRef(node.item.run);
+                    const run = runIdOfRef(node.item.result);
                     if (typeof run === "string") {
-                        const { execution } = node.item;
+                        const execution = node.item.run;
                         this.add(typeof execution === "string" ? { kind: "run", run, execution } : { kind: "run", run });
                     }
                 }
@@ -230,7 +230,7 @@ class Collector {
  * @param pathsOf - The paths a query reads; absent, queries list nothing.
  * @returns The dependencies.
  */
-export function dependenciesOf(value: SetDefinition | Scope | Filter, pathsOf?: (where: Query) => readonly Path[]): readonly Dependency[] {
+export function dependenciesOf(value: SetDefinition | Scope | RuleTree, pathsOf?: (where: Query) => readonly Path[]): readonly Dependency[] {
     const collector = new Collector(pathsOf);
     const loose: unknown = value;
     if (isObject(loose) && (loose.kind === "rule" || loose.kind === "fixed" || loose.kind === "path")) {
@@ -256,14 +256,14 @@ export function dependenciesOf(value: SetDefinition | Scope | Filter, pathsOf?: 
  * @returns The steps followed, ending with the one the target accepted, or null when none is reached.
  */
 function findChain(
-    from: SetDefinition | Scope | Filter,
+    from: SetDefinition | Scope | RuleTree,
     target: (dependency: Dependency) => boolean,
     sources: DependencySources,
     throughVisible: boolean,
 ): ChainStep[] | null {
     const entered = new Set<string>();
 
-    const walk = (value: SetDefinition | Scope | Filter, chain: readonly ChainStep[]): ChainStep[] | null => {
+    const walk = (value: SetDefinition | Scope | RuleTree, chain: readonly ChainStep[]): ChainStep[] | null => {
         for (const dependency of dependenciesOf(value, sources.pathsOf)) {
             if (dependency.kind !== "set" && dependency.kind !== "visible" && dependency.kind !== "selection" && dependency.kind !== "search") {
                 continue;
@@ -280,7 +280,7 @@ function findChain(
             }
 
             entered.add(key);
-            let next: SetDefinition | Scope | Filter | null | undefined;
+            let next: SetDefinition | Scope | RuleTree | null | undefined;
             if (dependency.kind === "set") {
                 next = sources.referent(dependency.id);
             } else if (dependency.kind === "visible" && throughVisible) {
@@ -317,7 +317,7 @@ export function setCycle(id: SetId, definition: SetDefinition, sources: Dependen
  * @param sources - Where references are looked up.
  * @returns The chain, ending with `"visible"` or `"search"`, or null.
  */
-export function visibilityCycle(filter: Filter | Scope, sources: DependencySources): ChainStep[] | null {
+export function visibilityCycle(filter: RuleTree | Scope, sources: DependencySources): ChainStep[] | null {
     return findChain(filter, (dependency) => dependency.kind === "visible" || dependency.kind === "search", sources, false);
 }
 
@@ -367,7 +367,7 @@ export function referentReading(sources: DependencySources): (id: SetId) => stri
  * @param sources - Where a run's result shape is read; without `shapeOf` nothing is found.
  * @returns The item, or null.
  */
-export function followedGroup(value: SetDefinition | Scope | Filter, sources: DependencySources): ResultItem | null {
+export function followedGroup(value: SetDefinition | Scope | RuleTree, sources: DependencySources): ResultItem | null {
     const { shapeOf } = sources;
     if (shapeOf === undefined) {
         return null;
@@ -378,8 +378,8 @@ export function followedGroup(value: SetDefinition | Scope | Filter, sources: De
             return null;
         }
 
-        if (node.kind === "item" && isObject(node.item) && node.item.execution === undefined && isObject(node.item.key)) {
-            const run = runIdOfRef(node.item.run);
+        if (node.kind === "item" && isObject(node.item) && node.item.run === undefined && isObject(node.item.key)) {
+            const run = runIdOfRef(node.item.result);
             const isGroup = node.item.key.field === "group" && typeof run === "string" && shapeOf(run) === "community";
 
             return isGroup ? (node.item as unknown as ResultItem) : null;
@@ -392,8 +392,8 @@ export function followedGroup(value: SetDefinition | Scope | Filter, sources: De
             children.push(...(Array.isArray(node.of) ? node.of : []));
         } else if (node.kind === "not") {
             children.push(node.of);
-        } else if (node.kind === "scope") {
-            children.push(node.scope);
+        } else if (node.kind === "member") {
+            children.push(node.of);
         } else if (node.define !== undefined) {
             children.push(node.define);
         }
@@ -420,8 +420,8 @@ export function followsGroup(item: ResultItem): GraphtyError {
     return new GraphtyError({
         code: "E_BAD_COMMAND",
         message:
-            `Group ${String(item.key.value)} of run "${String(runIdOfRef(item.run))}" is a partition group, and a group number means ` +
-            "nothing after a re-run. Hold this execution (give the item its execution) or create a set from its current members.",
+            `Group ${String(item.key.value)} of run "${String(runIdOfRef(item.result))}" is a partition group, and a group number means ` +
+            "nothing after a re-run. Hold this run (give the item its run) or create a set from its current members.",
         source: "data",
         details: { reason: "follow-group", item },
     });
@@ -440,7 +440,7 @@ export function followsGroup(item: ResultItem): GraphtyError {
  * @throws `E_BAD_COMMAND` with `details.reason` `"unknown-set"`.
  */
 export function assertIssued(
-    value: SetDefinition | Scope | Filter,
+    value: SetDefinition | Scope | RuleTree,
     ids: { get(id: SetId): unknown; register(): ReadonlySet<SetId> },
     self?: SetId,
 ): void {

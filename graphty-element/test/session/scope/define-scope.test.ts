@@ -79,7 +79,7 @@ describe("parseScope, door mode", () => {
     });
 
     it("refuses an inline rule read induced that holds an edge-speaking leaf", () => {
-        const error = refusal(() => parseScope({ define: { kind: "rule", where: { kind: "scope", scope: "visible" }, reading: "induced" } }));
+        const error = refusal(() => parseScope({ define: { kind: "rule", where: { kind: "member", of: "visible" }, reading: "induced" } }));
         assert.strictEqual(error.details?.reason, "induced-edge-leaf");
     });
 });

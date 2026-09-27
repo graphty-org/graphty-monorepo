@@ -83,12 +83,12 @@ describe("sets.containing", () => {
         const steps = h.session.runs.get("steps");
         assert.deepStrictEqual(found.items, [
             {
-                item: { run: "pieces", key: { field: "group", value: 0 }, execution: resultExecutionOf(h.session.results, "pieces") },
+                item: { result: "pieces", key: { field: "group", value: 0 }, run: resultExecutionOf(h.session.results, "pieces") },
                 label: `${pieces?.label ?? ""}: community 0 of 3`,
                 of: 3,
             },
             {
-                item: { run: "steps", key: { field: "level", value: 1 }, execution: resultExecutionOf(h.session.results, "steps") },
+                item: { result: "steps", key: { field: "level", value: 1 }, run: resultExecutionOf(h.session.results, "steps") },
                 label: `${steps?.label ?? ""}: level 1 of 4`,
                 of: 4,
             },

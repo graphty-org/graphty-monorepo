@@ -30,7 +30,7 @@
 
 import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
-import type { EdgeId, NodeId, Path, Query, Scope, ScopeInput } from "../../catalog/types";
+import type { EdgeId, NodeId, Path, Query, Scope, ScopeInput, SelectionDirection } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import type { RankingEntry, ResultsApi, RunRef, RunResult } from "../results/types";
 import { ElementMask, type MaskIdSpace } from "../scope/ElementMask";
@@ -62,8 +62,7 @@ const EMPTY_PATHS: readonly Path[] = Object.freeze([]);
  */
 export type SelectionTextMode = "substring" | "exact" | "regex" | "attribute";
 
-/** Which way a neighbourhood target follows an edge. */
-export type SelectionDirection = "in" | "out" | "all";
+export type { SelectionDirection } from "../../catalog/types";
 
 // ---------------------------------------------------------------------------------------------
 // The target grammar

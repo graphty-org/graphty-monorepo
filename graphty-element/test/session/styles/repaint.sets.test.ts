@@ -30,7 +30,7 @@ const RED = "#ff0000";
  * @returns The layer.
  */
 function redLayer(scope: Scope): LayerSpec {
-    return { name: "Painted", selector: { match: "scope", scope }, set: { "node.color": RED } };
+    return { name: "Painted", selector: { match: "member", of: scope }, set: { "node.color": RED } };
 }
 
 /**
@@ -339,7 +339,7 @@ describe("a layer naming a set repaints only what moved", () => {
         await run;
         const execution = resultExecutionOf(h.session.results, "louv") as string;
         const key = { field: "group", value: 1 };
-        await h.session.styles.add(redLayer({ define: { kind: "rule", where: { kind: "item", item: { run: "louv", key, execution } }, reading: "induced" } }));
+        await h.session.styles.add(redLayer({ define: { kind: "rule", where: { kind: "item", item: { result: "louv", key, run: execution } }, reading: "induced" } }));
         await paintAll(h);
         assert.deepStrictEqual(red(h), ["c", "d", "e"]);
 

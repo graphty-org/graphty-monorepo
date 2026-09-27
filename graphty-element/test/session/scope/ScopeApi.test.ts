@@ -484,9 +484,10 @@ describe("saving a scope under a name", () => {
 
         assert.deepStrictEqual(
             scope.list().map((entry) => ({ name: entry.name, bound: entry.bound })),
-            [{ name: "outer", bound: false }],
-            "a set whose reference is gone is unbound, not silently empty",
+            [{ name: "outer", bound: true }],
+            "a set whose reference was removed keeps resolving through the removed set's kept record",
         );
+        assert.strictEqual(scope.sets.status({ set: scope.list()[0].id }).freshness, "detached", "and says it is detached");
         harness.session.dispose();
     });
 
@@ -522,15 +523,15 @@ describe("saving a scope under a name", () => {
         // A removed id is never issued again, so the ring can only be closed by redefining the
         // first to name the second: first -> second -> first. That write is refused.
         assert.strictEqual(
-            codeOf(() => scope.sets.redefine(first, { kind: "rule", where: { kind: "scope", scope: { set: second } }, reading: "induced" })),
+            codeOf(() => scope.sets.redefine(first, { kind: "rule", where: { kind: "member", of: { set: second } }, reading: "induced" })),
             "E_BAD_COMMAND",
         );
         scope.remove(first);
         assert.notStrictEqual(scope.save("first", { set: second }), first, "a removed id is never issued again");
         assert.deepStrictEqual(
             scope.list().map((entry) => entry.bound),
-            [false, false],
-            "the second names a removed set, and the new first names the second",
+            [true, true],
+            "the second names a removed set through its kept record, and the new first names the second",
         );
         harness.session.dispose();
     });

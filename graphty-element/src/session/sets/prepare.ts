@@ -1036,7 +1036,7 @@ export function compactEdgeMembers(members: readonly EdgeMember[]): EdgeMemberLi
 }
 
 /**
- * A record's size by this module's own accounting, which the tombstone store caps: 64 bytes of
+ * A record's size by this module's own accounting, which the scale tests hold to a budget: 64 bytes of
  * fields plus two a name character, 8 a node member plus the edge columns for a fixed set, two a
  * JSON character of the definition for anything else.
  * @param record - The record.

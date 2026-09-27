@@ -2,10 +2,10 @@
  * Kept sets painted by style layers, and shown by the visibility filter.
  *
  * A kept set is a named group of nodes the session holds (`element.session.sets`). A style layer
- * paints one with the selector `{ match: "scope", scope: { set: id } }`, and from then on the
+ * paints one with the selector `{ match: "member", of: { set: id } }`, and from then on the
  * layer follows the set: redefine it, combine it, or change the data a rule set reads, and the
  * picture moves with it. Colouring a set is an ordinary layer -- a set has no colour of its own.
- * The visibility filter names a set with the leaf `{ kind: "scope", scope: { set: id } }` and
+ * The visibility filter names a set with the leaf `{ kind: "member", of: { set: id } }` and
  * follows it the same way. A live layout lays out one set with `setLayout(type, options, { scope })`
  * and holds every other node where it is. A finished run OFFERS sets -- one per community, one for
  * a path -- and keeping one is `sets.createFrom(offer)` or, for a path, `sets.createPath(offer)`.
@@ -49,7 +49,7 @@ const CLIQUES = [
  * @returns The element.
  */
 function build(nodes: readonly Record<string, unknown>[], edges: readonly Record<string, unknown>[]): Element {
-    const element = document.createElement("graphty-element") as Graphty;
+    const element = document.createElement("graphty-element");
     setLayoutPreSteps(element, 2000);
     element.nodeData = [...nodes];
     element.edgeData = [...edges];
@@ -111,7 +111,7 @@ async function settled(canvasElement: HTMLElement): Promise<Graphty> {
  * @returns The layer.
  */
 function paintSet(name: string, set: SetId, color: string): LayerSpec {
-    return { name, selector: { match: "scope", scope: { set } }, set: { "node.color": color } };
+    return { name, selector: { match: "member", of: { set } }, set: { "node.color": color } };
 }
 
 /**
@@ -193,7 +193,7 @@ export const FilterToASet: Story = {
         const element = await settled(canvasElement);
         const { sets, visibility } = element.session;
         const focus = sets.create({ kind: "fixed", nodes: ["n1", "n2", "n3"], reading: "induced" }, { name: "Focus" });
-        await visibility.set({ kind: "scope", scope: { set: focus } });
+        await visibility.set({ kind: "member", of: { set: focus } });
 
         const before = await drawn(canvasElement, "Sets/Kept Sets FilterToASet, before");
         await assertGraphLoaded(before, { nodes: 8, edges: 8 });

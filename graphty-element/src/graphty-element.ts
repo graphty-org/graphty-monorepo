@@ -13,7 +13,7 @@ import { Graph } from "./Graph";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
 import type { Run, RunChange, StartOptions } from "./session/runs";
-import type { SelectionDelta, SelectionTarget, SetOp } from "./session/selection";
+import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
 import type { VisibilityChange } from "./session/visibility";
 
 /**
@@ -165,7 +165,7 @@ export class Graphty extends LitElement {
      * </script>
      * ```
      */
-    select(target: SelectionTarget, op?: SetOp): Promise<SelectionDelta> {
+    select(target: SelectionTarget, op?: SelectionOp): Promise<SelectionDelta> {
         return this.#graph.select(target, op);
     }
 

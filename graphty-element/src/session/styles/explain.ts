@@ -416,7 +416,7 @@ export function explainStyle(target: ExplainTarget, sources: ExplainSources): St
  * not been started yet is a correct layer over a session that will answer it later, and a layer
  * imported with a style document may name a column the next dataset does have. What it must never
  * be is invisible -- a confident empty screen reads exactly like a correct answer of zero.
- * A `{match:"scope"}` layer whose scope cannot be resolved -- a set this project does not hold --
+ * A `{match:"member"}` layer whose scope cannot be resolved -- a set this project does not hold --
  * is reported as detached, whatever the directory says.
  * @param sources - The stack and the path directory. With no directory only detached layers are
  *     reported.

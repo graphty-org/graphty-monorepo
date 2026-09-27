@@ -61,7 +61,7 @@ describe("the sets store under random operations", () => {
     it("never reissues an id, keeps records valid and orders distinct, and only grows the register", () => {
         fc.assert(
             fc.property(fc.array(OP, { maxLength: 25 }), (ops) => {
-                const store = new SetsStore({ tombstoneBytes: 600 });
+                const store = new SetsStore();
                 const sets = createSetsApi({ edgeMember: () => undefined }, store);
                 // Every id a create returned, and the ones returned inside the open group.
                 const returned = new Set<SetId>();

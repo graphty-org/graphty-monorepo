@@ -59,6 +59,9 @@
 // The session itself
 // ---------------------------------------------------------------------------------------------
 
+import type { RuleTree, SelectionDirection } from "./src/catalog/types";
+import type { SelectionOp } from "./src/session/selection";
+
 export type {
     ComponentStatistics,
     CreateGraphSessionOptions,
@@ -203,10 +206,10 @@ export type {
     SelectionCause,
     SelectionDelta,
     SelectionDirection,
+    SelectionOp,
     SelectionStatistics,
     SelectionTarget,
     SelectionTextMode,
-    SetOp,
 } from "./src/session/selection";
 export { DEFAULT_SELECTION_CAP, SET_OPS } from "./src/session/selection";
 
@@ -215,9 +218,8 @@ export { DEFAULT_SELECTION_CAP, SET_OPS } from "./src/session/selection";
 // ---------------------------------------------------------------------------------------------
 
 export type {
-    Filter,
-    FilterDirection,
     FilterResult,
+    RuleTree,
     TimeStep,
     TimeWindow,
     VisibilityApi,
@@ -272,6 +274,7 @@ export type {
     PathKind,
     Query,
     QueryValidation,
+    ResultId,
     ResultItem,
     ResultShape,
     RunId,
@@ -360,3 +363,25 @@ export type {
     GraphtyErrorTarget,
 } from "./src/errors";
 export { ACCELERATION_ERROR_CODES, GRAPHTY_ERROR_CODES, GraphtyError, isGraphtyError, isGraphtyErrorCode } from "./src/errors";
+
+/**
+ * A rule tree: what the visibility filter keeps.
+ * @deprecated Use {@link RuleTree}, the same type under the name the rule grammar uses: a rule
+ * tree is also what a rule set holds, not only what the visibility filter keeps. Removed in the
+ * major version that ships the project file.
+ */
+export type Filter = RuleTree;
+
+/**
+ * Which arcs a degree filter counts.
+ * @deprecated Use {@link SelectionDirection}, the same type under the name the rule grammar uses.
+ * Removed in the major version that ships the project file.
+ */
+export type FilterDirection = SelectionDirection;
+
+/**
+ * What a mutation does with the elements a target named.
+ * @deprecated Use {@link SelectionOp}, the same type under a name that does not read as a set
+ * operation. Removed in the major version that ships the project file.
+ */
+export type SetOp = SelectionOp;

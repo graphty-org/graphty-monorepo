@@ -276,7 +276,7 @@ describe("selector refusals", () => {
         );
 
         assert.strictEqual(refusal.code, "E_BAD_SELECTOR");
-        assert.deepStrictEqual(refusal.details.kinds, ["everything", "expression", "has", "ids", "top", "scope"]);
+        assert.deepStrictEqual(refusal.details.kinds, ["everything", "expression", "has", "ids", "top", "member"]);
     });
 
     it("refuses an id list that is not a list of ids", () => {

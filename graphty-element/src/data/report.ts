@@ -64,6 +64,20 @@ export interface ImportReport {
         /** The record key weights were read from, or null when no record carried one. */
         readonly attribute: string | null;
     };
+    /**
+     * How a set, a style layer or a saved reference will find the edges this load stored again:
+     * by the file's own edge id, or, without one, by position among the edges of the same pair.
+     * A reference by position matches a different edge if a later file lists that pair's edges
+     * in another order, which is why the report says how many there are.
+     */
+    readonly edgeIdentity: {
+        /** The record key file ids were read at (`knownFields.edgeIdPath`), or null when none is configured. */
+        readonly idPath: string | null;
+        /** Edges stored with a file id. */
+        readonly byId: number;
+        /** Edges stored without one, matched by position among their pair's edges. */
+        readonly byPosition: number;
+    };
 }
 
 /**
@@ -91,6 +105,10 @@ export interface ImportTally {
     weightsResolvedFrom: "path" | "legacy" | "none";
     /** The record key that weight came from. */
     weightsAttribute: string | null;
+    /** Edges stored with a file id. */
+    edgesById: number;
+    /** Edges stored without one. */
+    edgesByPosition: number;
 }
 
 /**
@@ -108,6 +126,8 @@ export function newImportTally(): ImportTally {
         repeatedMerged: 0,
         weightsResolvedFrom: "none",
         weightsAttribute: null,
+        edgesById: 0,
+        edgesByPosition: 0,
     };
 }
 
@@ -123,6 +143,8 @@ interface ImportReportContext {
     readonly nodes: number;
     /** Edges the graph holds now. */
     readonly edges: number;
+    /** The configured file-id path, or null. */
+    readonly idPath: string | null;
 }
 
 /**
@@ -153,5 +175,6 @@ export function sealImportReport(tally: ImportTally, context: ImportReportContex
             resolvedFrom: tally.weightsResolvedFrom,
             attribute: tally.weightsAttribute,
         }),
+        edgeIdentity: Object.freeze({ idPath: context.idPath, byId: tally.edgesById, byPosition: tally.edgesByPosition }),
     });
 }

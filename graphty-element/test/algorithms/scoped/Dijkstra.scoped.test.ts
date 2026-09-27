@@ -52,4 +52,24 @@ describe("dijkstra over a weighted multigraph takes the shortest of parallel edg
         assert.deepInclude(result?.node("c"), { distance: 3 });
         assert.deepInclude(result?.graph, { cost: 3 });
     });
+
+    it("marks only the parallel edge the route took, so a path set names one edge per step", async () => {
+        const result = await runWhole(route, multigraph());
+
+        assert.deepStrictEqual(
+            ["0", "1", "2", "3"].map((id) => result?.edge(id)?.onPath),
+            [false, true, true, false],
+            "a to b at 4 is not taken, a to b at 1 is",
+        );
+    });
+
+    it("marks one edge of each direction of a reciprocal pair read undirected", async () => {
+        const graph = new InputGraph(["a", "b", "c"], [["a", "b", 1], ["b", "a", 1], ["a", "b", 3], ["b", "c", 1]], true);
+        const result = await runWhole(route, graph);
+
+        assert.deepStrictEqual(
+            ["0", "1", "2", "3"].map((id) => result?.edge(id)?.onPath),
+            [true, true, false, true],
+        );
+    });
 });

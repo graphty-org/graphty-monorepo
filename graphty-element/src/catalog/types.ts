@@ -512,12 +512,12 @@ export type Selector =
     | { match: "top"; path: Path; n: number }
     | { match: "everything" }
     /**
-     * The members of a scope, usually a kept set: `{ match: "scope", scope: { set: id } }`. The
-     * layer follows the set: a redefinition repaints exactly the elements that moved. A set that
-     * was removed, or a scope that cannot be evaluated, paints nothing and never throws. Spelled
-     * `scope` because {@link LayerSpec.set} already means a layer's static style.
+     * The members of a scope, usually a kept set: `{ match: "member", of: { set: id } }`. The
+     * layer follows the set: a redefinition repaints exactly the elements that moved. A removed
+     * set paints from its kept record, so removing a set never blanks a layer; a scope that
+     * cannot be evaluated paints nothing and never throws.
      */
-    | { match: "scope"; scope: Scope };
+    | { match: "member"; of: Scope };
 
 /** Who put a layer in the stack. Every layer names its source. */
 export type LayerSource =
@@ -818,21 +818,24 @@ export type Scope =
  */
 export type ScopeInput = Exclude<Scope, { define: unknown }> | { define: SetDefinitionInput };
 
-/** Which arcs a degree filter counts. */
-export type FilterDirection = "in" | "out" | "all";
+/**
+ * Which way an edge is followed: arriving (`in`), leaving (`out`) or both (`all`). What a degree
+ * leaf counts and which way a neighbourhood selection walks.
+ */
+export type SelectionDirection = "in" | "out" | "all";
 
 /**
  * A rule tree: what the visibility filter keeps, and what a rule set holds.
  *
  * Every leaf speaks about nodes, edges or both, and is SILENT about the rest: `all` and `any` fold
- * the halves that are not silent, and `not` negates only those. `edges` speaks edges; `scope`
+ * the halves that are not silent, and `not` negates only those. `edges` speaks edges; `member`
  * speaks the referenced set's nodes, and its edges only when that set is read `listed` or
  * `clipped` (`"visible"` is); `item` and `threshold` speak the half or halves their field lives
  * on; every other leaf speaks nodes. A group with no members constrains nothing.
  *
  * OPEN UNION: leaf kinds may be added in a minor release; handle unknown kinds.
  */
-export type Filter =
+export type RuleTree =
     | { readonly kind: "expression"; readonly where: Query }
     | { readonly kind: "range"; readonly attribute: Path; readonly min?: number; readonly max?: number }
     | { readonly kind: "categories"; readonly attribute: Path; readonly values: readonly string[] }
@@ -840,12 +843,16 @@ export type Filter =
           readonly kind: "degree";
           readonly min?: number;
           readonly max?: number;
-          readonly direction?: FilterDirection;
+          readonly direction?: SelectionDirection;
       }
     | { readonly kind: "component"; readonly id: number }
     | { readonly kind: "neighborhood"; readonly seeds: readonly NodeId[]; readonly depth: number }
     | { readonly kind: "edges"; readonly where: Query }
-    | { readonly kind: "scope"; readonly scope: Scope }
+    /**
+     * The members of a scope, usually a kept set: `{ kind: "member", of: { set: id } }`. A removed
+     * set is read from its kept record, so removing a set never changes what a rule holds.
+     */
+    | { readonly kind: "member"; readonly of: Scope }
     /**
      * The elements one item of a result holds: community 3, the path's nodes and edges. Speaks
      * the half or halves the result publishes the key's field on (`onPath` speaks both).
@@ -865,9 +872,9 @@ export type Filter =
           /** Strictly above this value. Exactly one cut. */
           readonly above?: number;
       }
-    | { readonly kind: "all"; readonly of: readonly Filter[] }
-    | { readonly kind: "any"; readonly of: readonly Filter[] }
-    | { readonly kind: "not"; readonly of: Filter };
+    | { readonly kind: "all"; readonly of: readonly RuleTree[] }
+    | { readonly kind: "any"; readonly of: readonly RuleTree[] }
+    | { readonly kind: "not"; readonly of: RuleTree };
 
 // ---------------------------------------------------------------------------------------------
 // Sets: what a kept set holds, and how it came to exist
@@ -950,8 +957,8 @@ export type SetDefinition =
       }
     | {
           readonly kind: "rule";
-          /** A JMESPath predicate over nodes, or a rule tree (the visibility filter's {@link Filter}). */
-          readonly where: Query | Filter;
+          /** A JMESPath predicate over nodes, or a rule tree ({@link RuleTree}). */
+          readonly where: Query | RuleTree;
           readonly reading: EdgeReading;
       }
     | {
@@ -1002,20 +1009,27 @@ export type ItemKey = {
 };
 
 /**
- * One item of a result: community 3 of a Louvain run, the path of a Dijkstra run.
+ * The id of a result: what a style layer, a rule or an item address binds to. The same string as
+ * the {@link RunId} a run answers to, because a result is named by its first run and keeps the
+ * name while later runs replace its values.
+ */
+export type ResultId = RunId;
+
+/**
+ * One item of a result: community 3 of a Louvain result, the path of a Dijkstra result.
  *
  * OPEN: may gain optional members in a minor release.
  */
 export interface ResultItem {
-    /** The run whose result holds the item. */
-    readonly run: RunId;
+    /** The result that holds the item. */
+    readonly result: ResultId;
+    /**
+     * Present: holds that one run of the result, as it was. Absent: follows the result's current
+     * run. Opaque; compare for equality only.
+     */
+    readonly run?: string;
     /** How the item's elements are found in that result. */
     readonly key: ItemKey;
-    /**
-     * Present: holds that execution of the run. Absent: follows the run's current execution.
-     * Opaque; compare for equality only.
-     */
-    readonly execution?: string;
 }
 
 /**
@@ -1040,7 +1054,7 @@ export type SetCreatedFrom =
     | { readonly kind: "user" }
     | { readonly kind: "selection" }
     | { readonly kind: "scope"; readonly from: SetOperand }
-    /** `item.execution` is always present: the set holds the execution it was created from. */
+    /** `item.run` is always present: the set holds the run it was created from. */
     | { readonly kind: "result"; readonly item: ResultItem }
     | { readonly kind: "combine"; readonly op: SetCombine; readonly of: readonly SetOperand[] };
 

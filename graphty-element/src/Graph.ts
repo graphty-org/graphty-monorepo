@@ -109,7 +109,7 @@ import { createElementSession, type ElementSession, type GraphSession } from "./
 import { inputCountersOf, writeUpdates } from "./session/attributes";
 import { addSetsUsers, scopeResolverOfSession, setsNotifierOfSession } from "./session/GraphSession";
 import type { Run, StartOptions } from "./session/runs";
-import type { SelectionDelta, SelectionTarget, SetOp } from "./session/selection";
+import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
 import type { Layer, StyleSuggestion } from "./session/styles";
 
 /** The namespace every algorithm this package ships is registered under. */
@@ -2745,7 +2745,7 @@ export class Graph implements GraphContext {
      *     does.
      * @returns What changed: what joined, what left, and what the selection holds now.
      */
-    select(target: SelectionTarget, op?: SetOp): Promise<SelectionDelta> {
+    select(target: SelectionTarget, op?: SelectionOp): Promise<SelectionDelta> {
         return this.session.selection.apply(target, op);
     }
 

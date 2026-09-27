@@ -427,15 +427,17 @@ describe("the adapters that run through accelerated()", () => {
     });
 
     describe("over a multigraph, a parallel group is one edge", () => {
-        it("dijkstra costs the cheapest edge of the group and flags every member of the group", async () => {
+        it("dijkstra costs the cheapest edge of the group and flags only the edge the route took", async () => {
             const graph = await graphWith(PARALLEL);
             const output = await computed(new DijkstraAlgorithm(graph, { source: "A", target: "C" }));
 
             // A route takes one of the parallel edges, the cheapest: A-B at 1, then B-C at 1.
             assert.strictEqual(output.graph?.cost, 2);
 
+            // The two A-B edges tie, so the route took the first; the other is off the route, and a
+            // path set made from the run names one edge per step (design/sets 4.4).
             const values = valuesOf(output.edges);
-            assert.deepStrictEqual([...values.values()].map((value) => value.onPath), [true, true, true]);
+            assert.deepStrictEqual([...values.values()].map((value) => value.onPath), [true, false, true]);
         });
 
         it("kruskal costs the merged weight and flags every member of the group", async () => {

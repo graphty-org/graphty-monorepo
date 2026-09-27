@@ -21,7 +21,7 @@ import {
     type GraphAccelerator,
 } from "../acceleration";
 import { readingOfScope } from "../catalog/sets/parse";
-import type { EdgeId, EdgeMember, EdgeReading, Filter, NodeId, Path, Query, ResultItem, RunId, Scope, ScopeInput, SetId, StaticStyle } from "../catalog/types";
+import type { EdgeId, EdgeMember, EdgeReading, NodeId, Path, Query, ResultItem, RuleTree, RunId, Scope, ScopeInput, SetId, StaticStyle } from "../catalog/types";
 import { DataConfig } from "../config/DataConfig";
 import { defaultEdgeStyle } from "../config/EdgeStyle";
 import { defaultNodeStyle } from "../config/NodeStyle";
@@ -51,7 +51,7 @@ import {
     type RunsApi,
     type SessionRunsApi,
 } from "./runs";
-import { canonicalize } from "./runs/runId";
+import { canonicalize, frozenSelection, type LiveKeyword } from "./runs/runId";
 import {
     type ComponentLabels,
     createScopeApi,
@@ -1216,7 +1216,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         // So is the visibility filter, once however many of its leaves name the set.
         users: () => [
             ...(stack?.list() ?? []).flatMap((layer) =>
-                layer.selector.match === "scope" ? [{ user: { kind: "layer" as const, id: layer.id, label: layer.name }, scope: layer.selector.scope }] : [],
+                layer.selector.match === "member" ? [{ user: { kind: "layer" as const, id: layer.id, label: layer.name }, scope: layer.selector.of }] : [],
             ),
             ...(visibility.filter === null ? [] : [{ user: { kind: "filter" as const, label: "Visibility filter" }, scope: visibility.filter }]),
             ...hostUsers.flatMap((provider) => [...provider()]),
@@ -1301,7 +1301,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         edgeRevisions: inputs.edges,
         executionOf,
         result: resultSource,
-        captured: (item: ResultItem) => captureOf(runs.heldOf(item.run), item),
+        captured: (item: ResultItem) => captureOf(runs.heldOf(item.result), item),
         cache: setsCache,
         tick: inputs.tick,
         sets,
@@ -1316,7 +1316,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         components,
         queue,
         dependencies,
-        admit: (filter: Filter) => scope.admit(filter),
+        admit: (filter: RuleTree) => scope.admit(filter),
         scope: (spec: Scope) => scope.leafOf(spec),
         // The resolver's context turns a capture into bitmaps over the current snapshot.
         captured: (item: ResultItem) => scope.contextNow().captured?.(item),
@@ -1342,11 +1342,39 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     const defaultScope: Scope = runsOptions.defaultScope ?? "visible";
     /** The result each run last announced, so the tick advances when one is published or cleared. */
     const resultsSeen = new Map<RunId, unknown>();
+    /**
+     * A run's scope, refused when it reads a removed set. A layer or filter naming a removed set
+     * keeps reading its kept record, but new work over one is refused (design/sets 15.3, item 33).
+     * @param spec - The scope.
+     * @returns The same scope.
+     */
+    const attached = (spec: Scope): Scope => {
+        if (typeof spec === "object" && ("set" in spec || "define" in spec)) {
+            const gone = sets.status(spec).reasons.find((reason) => reason.kind === "missing-set");
+            if (gone !== undefined) {
+                throw new GraphtyError({
+                    code: "E_BAD_COMMAND",
+                    message: `The set "${gone.name}" was removed, so a run cannot read it. Restore it or choose another set.`,
+                    source: "run",
+                    target: { kind: "scope", id: gone.id },
+                    details: { scope: spec, reason: "missing-set", id: gone.id, name: gone.name },
+                });
+            }
+        }
+
+        return spec;
+    };
     const runs = createRunsApi({
         queue,
         catalog: SESSION_CATALOG_TABLES,
-        resolveScope: (spec: Scope) => scope.resolveNow(spec),
+        resolveScope: (spec: Scope) => scope.resolveNow(attached(spec)),
         admitScope: (spec: ScopeInput) => scope.admit(spec) as Scope,
+        // A derived run id hashes what a live keyword stands for now, so the same unscoped call
+        // under another filter or selection is another result (design/sets 15.3, item 34).
+        liveScope: (keyword: LiveKeyword) =>
+            keyword === "visible"
+                ? { filter: visibility.filter, window: visibility.window }
+                : frozenSelection(requireSelection(selection).nodeMembers().ids()),
         scopeFacts: (spec: Scope) => {
             const reading = readingOfScope(spec, referentReading(dependencies)) as EdgeReading;
             const kept = typeof spec === "object" && "set" in spec ? sets.get(spec.set) : undefined;
@@ -1530,7 +1558,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     forgetPreparedBindings = painter.invalidate;
 
     const teardown = new AbortController();
-    // The live scopes `{match:"scope"}` layers test (design/sets 11): each watches its scope and
+    // The live scopes `{match:"member"}` layers test (design/sets 11): each watches its scope and
     // repaints exactly the elements that moved, or both halves whole after a freeze.
     const layerScopes = new LayerScopes({
         snapshot,
@@ -1632,16 +1660,16 @@ function buildSession(options: CreateGraphSessionOptions): Session {
 }
 
 /**
- * The scopes a stack's `{match:"scope"}` layers name.
+ * The scopes a stack's `{match:"member"}` layers name.
  * @param stack - The stack, or null before it exists.
  * @returns The scopes.
  */
 function layerScopesOf(stack: SessionStylesApi | null): Scope[] {
-    return (stack?.list() ?? []).flatMap((layer) => (layer.selector.match === "scope" ? [layer.selector.scope] : []));
+    return (stack?.list() ?? []).flatMap((layer) => (layer.selector.match === "member" ? [layer.selector.of] : []));
 }
 
 /** What names a set from outside the session, for `usedBy`. */
-type SetsUsersProvider = () => Iterable<{ readonly user: SetUser; readonly scope: Scope | Filter }>;
+type SetsUsersProvider = () => Iterable<{ readonly user: SetUser; readonly scope: Scope | RuleTree }>;
 
 /** Each session's outside users of sets. */
 const sessionHostUsers = new WeakMap<GraphSession, SetsUsersProvider[]>();

@@ -219,7 +219,7 @@ export interface LayerCheckOptions {
     /** Which paths this session answers. Absent means it cannot say, and none are reported. */
     readonly paths?: PathDirectory;
     /**
-     * A write door's check of a `{ match: "scope" }` selector's scope: session edge ids to stable
+     * A write door's check of a `{ match: "member" }` selector's scope: session edge ids to stable
      * members, set ids checked as issued. Absent, the scope is taken as given.
      * @param scope - The scope as given.
      * @returns The scope the layer holds.
@@ -875,7 +875,7 @@ function checkSelector(
 }
 
 /**
- * The specification with a `{ match: "scope" }` selector's scope admitted, so the layer holds,
+ * The specification with a `{ match: "member" }` selector's scope admitted, so the layer holds,
  * lists and persists the stable form. A refusal is reported like any selector problem.
  * @param spec - The specification as given.
  * @param options - Where the admission is.
@@ -883,14 +883,14 @@ function checkSelector(
  * @returns The specification to check and build from.
  */
 function admitSelectorScope(spec: LayerSpec, options: LayerCheckOptions, log: ProblemLog): LayerSpec {
-    const selector = spec.selector as { match?: unknown; scope?: unknown } | undefined;
-    if (options.admitScope === undefined || typeof selector !== "object" || selector === null || selector.match !== "scope") {
+    const selector = spec.selector as { match?: unknown; of?: unknown } | undefined;
+    if (options.admitScope === undefined || typeof selector !== "object" || selector === null || selector.match !== "member") {
         return spec;
     }
 
     try {
-        const scope = options.admitScope(selector.scope);
-        return scope === selector.scope ? spec : ({ ...spec, selector: { ...selector, scope } } as LayerSpec);
+        const of = options.admitScope(selector.of);
+        return of === selector.of ? spec : ({ ...spec, selector: { ...selector, of } } as LayerSpec);
     } catch (error) {
         report(log, problemFrom(error, "selector"));
 

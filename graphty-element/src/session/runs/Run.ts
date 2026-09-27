@@ -406,10 +406,6 @@ export class ManagedRun<T = RunResult> implements Run<T> {
 
     readonly algorithm: AlgorithmKey;
 
-    readonly params: Readonly<Record<string, unknown>>;
-
-    readonly seed: number | null;
-
     readonly shape: ResultShape;
 
     readonly engine: EngineVersions;
@@ -424,7 +420,8 @@ export class ManagedRun<T = RunResult> implements Run<T> {
     /** The journal has not landed, so every run reports that it wrote no entry. */
     readonly journalId: JournalId | null = null;
 
-    private readonly definition: RunDefinition<T>;
+    /** What the run is. Replaced only by {@link ManagedRun.retune}, which changes the parameters and seed. */
+    private definition: RunDefinition<T>;
 
     private readonly surroundings: RunSurroundings;
 
@@ -489,8 +486,6 @@ export class ManagedRun<T = RunResult> implements Run<T> {
         this.surroundings = surroundings;
         this.id = definition.id;
         this.algorithm = definition.algorithm;
-        this.params = definition.params;
-        this.seed = definition.seed;
         this.shape = definition.shape;
         this.engine = definition.engine;
         this.style = definition.style;
@@ -501,6 +496,22 @@ export class ManagedRun<T = RunResult> implements Run<T> {
     }
 
     // -- the facts ----------------------------------------------------------------------------
+
+    /**
+     * The parameters the current execution uses, canonicalised.
+     * @returns The parameters.
+     */
+    get params(): Readonly<Record<string, unknown>> {
+        return this.definition.params;
+    }
+
+    /**
+     * The seed the current execution uses, or null.
+     * @returns The seed.
+     */
+    get seed(): number | null {
+        return this.definition.seed;
+    }
 
     /**
      * What to call this run, computed by the element rather than by the consumer.
@@ -777,6 +788,26 @@ export class ManagedRun<T = RunResult> implements Run<T> {
     }
 
     /**
+     * Run the same result again with other parameters or another seed, keeping its id, so every
+     * style layer and reference bound to the result repaints from the new values. Work still
+     * queued or running is cancelled first: only the latest parameters' answer matters.
+     * @param params - The new parameters, canonicalised.
+     * @param seed - The new seed, or null.
+     * @param caveats - The caveats the new execution starts from.
+     * @returns This run, restarted.
+     * @internal
+     */
+    retune(params: Readonly<Record<string, unknown>>, seed: number | null, caveats: Caveats): Run<T> {
+        if (!isTerminalRunStatus(this.statusValue)) {
+            this.cancel(`Run "${this.id}" was restarted with other parameters.`);
+        }
+
+        this.definition = { ...this.definition, params, seed, caveats };
+
+        return this.rerun();
+    }
+
+    /**
      * What this run suggests be drawn from it.
      *
      * Derived from the shape and the fields, so there is nothing per algorithm to get wrong and
@@ -847,11 +878,19 @@ export class ManagedRun<T = RunResult> implements Run<T> {
                 },
             });
 
-            this.succeed(outcome, timeBox);
+            // A retune cancels this execution and starts the next one on the same run; an answer
+            // that arrives after that belongs to parameters nobody asked for any more.
+            if (this.executionController === execution) {
+                this.succeed(outcome, timeBox);
+            }
         } catch (error) {
-            this.fail(error);
+            if (this.executionController === execution) {
+                this.fail(error);
+            }
         } finally {
-            this.clearTimeBox();
+            if (this.executionController === execution) {
+                this.clearTimeBox();
+            }
         }
     }
 

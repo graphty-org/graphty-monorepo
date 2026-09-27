@@ -346,8 +346,21 @@ export interface SetsApi {
      */
     removeMembers(id: SetId, members: { readonly nodes?: readonly NodeId[]; readonly edges?: readonly EdgeRef[] }): void;
     /**
-     * Remove the set itself. Anything that names it becomes detached.
+     * Remove the set itself. Anything that names it becomes detached, and keeps working: a style
+     * layer, filter or rule that names a removed set reads it from the set's kept record, so
+     * removing a set never blanks a layer or changes what a filter shows. New work over a removed
+     * set -- a run, an explicit layout scope -- is refused. The record is kept while anything
+     * names the set, and dropped once nothing does.
      * @param id - The set.
      */
     remove(id: SetId): void;
+    /**
+     * Bring a removed set back from its kept record, under the same id, name and definition.
+     * Tells one `set:changed` with change `"created"`.
+     * @param id - The removed set.
+     * @throws `E_BAD_COMMAND` when the id names a live set (`details.reason: "live"`), was never
+     * issued (`"unknown-id"`), or its record was dropped because nothing named it any more
+     * (`"record-dropped"`).
+     */
+    restore(id: SetId): void;
 }

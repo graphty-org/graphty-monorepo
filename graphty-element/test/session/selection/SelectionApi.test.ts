@@ -11,11 +11,11 @@ import {
     type SelectionAttributeStatistics,
     type SelectionCause,
     type SelectionDelta,
+    type SelectionOp,
     type SelectionOwner,
     type SelectionSources,
     type SelectionStatistics,
     SET_OPS,
-    type SetOp,
 } from "../../../src/session/selection/index";
 import type { SessionRecordSource } from "../../../src/session/types";
 import { edgeBetween, type EdgeRow, type Harness, makeSession, type NodeRow } from "../helpers";
@@ -186,7 +186,7 @@ describe("the five set operations", () => {
         const selection = selectionOf(harness);
 
         assert.deepStrictEqual([...SET_OPS], ["replace", "add", "remove", "toggle", "intersect"]);
-        assert.strictEqual(codeOf(() => selection.applyNow({ nodes: ["a"] }, "union" as SetOp)), "E_BAD_COMMAND");
+        assert.strictEqual(codeOf(() => selection.applyNow({ nodes: ["a"] }, "union" as SelectionOp)), "E_BAD_COMMAND");
         harness.session.dispose();
     });
 });

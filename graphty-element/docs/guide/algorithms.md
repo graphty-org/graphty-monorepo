@@ -177,6 +177,14 @@ console.log(run.record.scope.set); // the set's id, and its revision when the ru
 
 With no `scope`, a run is over `"visible"`: the whole graph, or what the visibility filter shows.
 
+**A run's id names its result.** The element derives it from the algorithm, whether the run is
+exact or sampled, and the scope -- with `"visible"` and `"selection"` frozen to the filter and the
+selection in force when the run started. So the same call under another filter is another result,
+with its own id, and a layer painting the first result keeps painting what the first run read.
+Parameters and the seed are not part of the id: starting a result again with new ones re-runs that
+result in place, and every layer bound to it repaints from the new values. To keep two parameter
+settings side by side, name them with `as:`.
+
 **This changed in 2.5.** Before, a run recorded its scope but computed over the whole graph, so a
 run scoped to less than the graph -- including a default run while a visibility filter was hiding
 something -- reported values that contradicted its own record. It now computes over its scope, so

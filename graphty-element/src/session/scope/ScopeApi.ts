@@ -203,7 +203,7 @@ export interface ScopeSources {
     readonly tick?: InputTick;
     /** The resolution cache. A private one when absent. */
     readonly cache?: SetsCache;
-    /** The kept sets `{ set }` and a rule's `scope` leaf may name, beside the saved scopes. */
+    /** The kept sets `{ set }` and a rule's `member` leaf may name, beside the saved scopes. */
     readonly sets?: SetsApi;
     /** The edges a predicate matches. Absent refuses a rule's `edges` leaf. */
     readonly matchEdges?: (where: Query) => Iterable<EdgeId>;
@@ -356,7 +356,7 @@ export interface ScopeResolver extends ScopeApi {
      */
     nodeIdsOf(spec: Scope): readonly NodeId[];
     /**
-     * What a rule's `scope` leaf speaks, for a pass: never throws, and a reference that cannot be
+     * What a rule's `member` leaf speaks, for a pass: never throws, and a reference that cannot be
      * resolved (a cycle, a missing set) speaks nothing.
      * @param spec - The referenced set.
      * @returns The leaf.
@@ -757,7 +757,7 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
         }
 
         if (spec === "graph" || spec === "largest-component" || "set" in spec) {
-            return { kind: "rule", where: { kind: "scope", scope: spec }, reading: readingOf(spec) };
+            return { kind: "rule", where: { kind: "member", of: spec }, reading: readingOf(spec) };
         }
 
         if ("where" in spec) {
@@ -786,8 +786,8 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
             return { where: definition.where };
         }
 
-        if (definition.kind === "rule" && typeof definition.where === "object" && definition.where.kind === "scope") {
-            const { scope } = definition.where;
+        if (definition.kind === "rule" && typeof definition.where === "object" && definition.where.kind === "member") {
+            const { of: scope } = definition.where;
             const named = scope === "graph" || scope === "largest-component" || (typeof scope === "object" && "set" in scope);
             if (named && definition.reading === readingOf(scope)) {
                 return scope;
@@ -874,15 +874,16 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
             }
 
             // A kept set is counted from its resolution, which says what it names that is gone. A
-            // removed set, or one whose definition cannot be evaluated, counts nothing rather than
-            // throwing, so a panel counting every row never throws; an id never issued refuses.
+            // removed set counts from its kept record; one whose record was dropped, or whose
+            // definition cannot be evaluated, counts nothing rather than throwing, so a panel
+            // counting every row never throws; an id never issued refuses.
             if (typeof spec === "object" && "set" in spec) {
                 const record = kept.get(spec.set);
                 if (record !== undefined) {
                     return Promise.resolve(countOf(resolveSet(record, context()), record.definition.kind));
                 }
 
-                if (kept.register().has(spec.set)) {
+                if (kept.register().has(spec.set) && kept.tombstone(spec.set)?.record === undefined) {
                     return Promise.resolve({ nodes: 0, edges: 0, exact: true });
                 }
             }

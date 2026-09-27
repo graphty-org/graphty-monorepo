@@ -29,9 +29,21 @@
  */
 
 import { runIdOfRef } from "../../catalog/sets/canonical";
-import type { Filter, Query, Scope, ScopeId, SetDefinition, SetId } from "../../catalog/types";
+import type { Query, RuleTree, Scope, ScopeId, SetDefinition, SetId } from "../../catalog/types";
 import { dependencyOf } from "./dependencies";
 import type { EdgeSeeds, ResolveContext } from "./resolve";
+
+/**
+ * The definition of the kept set an id names, when the context holds one: the live set's, else
+ * the removed set's kept record, so a reference to a removed set reads what it read before the
+ * removal (design/sets 15.3, item 33).
+ * @param id - The id.
+ * @param context - What the resolution reads.
+ * @returns The definition, or undefined.
+ */
+export function keptDefinition(id: SetId, context: ResolveContext): SetDefinition | undefined {
+    return (context.sets?.get(id) as { readonly definition?: SetDefinition } | undefined)?.definition ?? context.sets?.tombstone?.(id)?.record?.definition;
+}
 
 /** Invocation counts the complexity tests read. `walks`: saved-scope and kept-set parts computed, not memoised. */
 export const signatureCounters = { walks: 0 };
@@ -220,7 +232,7 @@ function contentPart(definition: SetDefinition, context: ResolveContext, parts: 
  * @param seen - The ids followed so far.
  * @returns The part, or null when some leaf's inputs cannot be enumerated.
  */
-function rulePart(where: Query | Filter, context: ResolveContext, parts: Map<unknown, string | null> | null, seen: Set<ScopeId>): string | null {
+function rulePart(where: Query | RuleTree, context: ResolveContext, parts: Map<unknown, string | null> | null, seen: Set<ScopeId>): string | null {
     if (typeof where === "string") {
         return queryPart(where, context);
     }
@@ -245,7 +257,7 @@ function rulePart(where: Query | Filter, context: ResolveContext, parts: Map<unk
         }
         case "item": {
             // Follow or hold, the members move exactly when the run's current execution does.
-            const run = String(runIdOfRef(where.item.run));
+            const run = String(runIdOfRef(where.item.result));
             return context.executionOf === undefined ? null : `r${JSON.stringify(run)}=${context.executionOf(run) ?? "-"}`;
         }
         case "threshold": {
@@ -265,8 +277,8 @@ function rulePart(where: Query | Filter, context: ResolveContext, parts: Map<unk
         case "neighborhood":
             // Topology and ids: the serial and the key say it all.
             return "t";
-        case "scope": {
-            const part = scopePart(where.scope, context, parts, seen);
+        case "member": {
+            const part = scopePart(where.of, context, parts, seen);
             return part === null ? null : `(${part})`;
         }
         case "all":
@@ -307,7 +319,8 @@ function savedPart(id: ScopeId, context: ResolveContext, parts: Map<unknown, str
 
     let part: string | null;
     const record = context.saved?.get(id);
-    const kept = record === undefined ? context.sets?.get(id) : undefined;
+    const definitionOf = record === undefined ? keptDefinition(id, context) : undefined;
+    const kept = definitionOf === undefined ? undefined : { definition: definitionOf };
     if (kept !== undefined) {
         // A kept set named by `{ set }`: keyed by its definition's identity, so a rename hits.
         if (seen.has(id)) {

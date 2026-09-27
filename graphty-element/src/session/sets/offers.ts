@@ -24,7 +24,7 @@ import { type GraphSnapshot, INVALID_INDEX, maskTest } from "@graphty/graph-form
 
 import { compareIds } from "../../catalog/sets/canonical";
 import { parseSetDefinition } from "../../catalog/sets/parse";
-import type { EdgeId, Filter, NodeId, ResultItem, ResultShape, RunId, SetDefinition } from "../../catalog/types";
+import type { EdgeId, NodeId, ResultItem, ResultShape, RuleTree, RunId, SetDefinition } from "../../catalog/types";
 import { edgeRowOf } from "../../data/edgeIdentity";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { RunResult } from "../results/types";
@@ -191,7 +191,7 @@ function unknownRun(run: RunId, available: readonly RunId[]): GraphtyError {
  * @param filter - A rule tree.
  * @returns True when every leaf is element-local.
  */
-function elementLocal(filter: Filter): boolean {
+function elementLocal(filter: RuleTree): boolean {
     switch (filter.kind) {
         case "expression":
         case "edges":
@@ -405,9 +405,9 @@ export function createOffering(sources: OfferSources): Offering {
             const kept = items.slice(0, Math.max(0, Math.floor(limit)));
             const offers = kept.map(([key, { value, count }]): SetOffer => {
                 const item: ResultItem = {
-                    run,
+                    result: run,
                     key: { field: spec.field, value },
-                    ...(values.execution === undefined ? {} : { execution: values.execution }),
+                    ...(values.execution === undefined ? {} : { run: values.execution }),
                 };
                 const passed = counts.pass?.get(key);
                 const nodes = reading === "induced" ? count : passed?.nodes;
@@ -475,9 +475,9 @@ export function createOffering(sources: OfferSources): Offering {
                     items.push(
                         Object.freeze({
                             item: {
-                                run: run.id,
+                                result: run.id,
                                 key: { field: spec.field, value },
-                                ...(values.execution === undefined ? {} : { execution: values.execution }),
+                                ...(values.execution === undefined ? {} : { run: values.execution }),
                             },
                             label: `${run.label}: ${spec.name(value)} of ${of.toLocaleString("en-US")}`,
                             of,

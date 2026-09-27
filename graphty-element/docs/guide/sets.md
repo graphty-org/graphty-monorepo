@@ -14,7 +14,7 @@ const suspects = sets.create({ kind: "fixed", nodes: ["alice", "bob", "carol"], 
 // Paint them
 await element.session.styles.add({
     name: "Suspects",
-    selector: { match: "scope", scope: { set: suspects } },
+    selector: { match: "member", of: { set: suspects } },
     set: { "node.color": "#e53935" },
 });
 
@@ -99,6 +99,12 @@ const top = sets.create(
     { name: "Top ten" },
 );
 ```
+
+A field path in a rule -- a `threshold`'s `path`, a `range` or `categories` leaf's `attribute` --
+starts with `data.` (an attribute the data carries) or `results.` (a value a run published). Any
+other root is refused with `E_BAD_COMMAND`, reason `reserved-root`, because a later release may give
+it a meaning (`graph.degree`, say), and a stored path must not change meaning when that happens.
+An imported column is always under `data.`, so a column called `graph` is `data.graph`.
 
 ## Readings: which edges come with the nodes
 
@@ -194,26 +200,26 @@ The members are captured when the layout starts: a node added later is held too.
 layouts (`ngraph`, `d3`, `forceatlas2`, `spring`, `spring-electrical`) accept a scope; any other
 refuses one with `E_UNSUPPORTED`. `session.catalog.layouts()` says which, as `scoped`.
 
-**A style layer** paints the set with the selector `{ match: "scope", scope }`. The layer follows
+**A style layer** paints the set with the selector `{ match: "member", of: scope }`. The layer follows
 the set: redefine it and the picture moves. A set has no colour of its own; colouring one is an
 ordinary layer.
 
 ```typescript
 await element.session.styles.add({
     name: "Team",
-    selector: { match: "scope", scope: { set: team } },
+    selector: { match: "member", of: { set: team } },
     set: { "node.color": "#1e88e5" },
 });
 ```
 
-**The visibility filter** shows the set with the leaf `{ kind: "scope", scope }`, alone or combined
+**The visibility filter** shows the set with the leaf `{ kind: "member", of: scope }`, alone or combined
 with other leaves:
 
 ```typescript
-await element.session.visibility.set({ kind: "scope", scope: { set: team } });
+await element.session.visibility.set({ kind: "member", of: { set: team } });
 await element.session.visibility.set({
     kind: "all",
-    of: [{ kind: "scope", scope: { set: team } }, { kind: "degree", min: 2 }],
+    of: [{ kind: "member", of: { set: team } }, { kind: "degree", min: 2 }],
 });
 ```
 
@@ -273,8 +279,10 @@ switch (status.freshness) {
 its `reasons`. `status.earlierRuns` lists runs whose values the set holds from an earlier execution.
 
 `usedBy(id)` lists what names a set -- other sets, layers, the filter, the layout, runs -- so you can
-say what removing it will affect. Removing a set never breaks those users: they read it as
-detached, and `status` explains why.
+say what removing it will affect. Removing a set never breaks those users and never changes what
+they show: a layer, a filter or a rule that names a removed set keeps reading it from the set's
+kept record, and `status` reports it `detached`, saying why. New work over a removed set -- a run,
+an explicit layout scope -- is refused.
 
 ## Combining sets
 
@@ -329,10 +337,10 @@ An offer from a run that has since been re-run is refused with `E_BAD_COMMAND`, 
 
 An offer's definition is a rule with one `item` leaf: "this item of this run's result". The leaf
 can be used in any rule, so a community can be combined with other conditions. Here, the
-high-PageRank nodes of community 3, held at the execution the offer came from:
+high-PageRank nodes of community 3, held at the run the offer came from:
 
 ```typescript
-const community = offers[1].item; // { run, key: { field: "group", value: 3 }, execution }
+const community = offers[1].item; // { result, key: { field: "group", value: 3 }, run }
 const pagerank = element.run("pagerank");
 await pagerank;
 
@@ -352,9 +360,11 @@ const hubs = element.session.sets.create(
 );
 ```
 
-An item without `execution` follows the run's latest result. That is refused for a community
-number, which means nothing in another run, and allowed for fields that mean the same in every run
-(`onPath`, a category, a level).
+An item address is `{ result, run?, key }`: `result` is the result's id (a `ResultId`, the same
+string as the `RunId` it answers to), `run` the one run of that result the item holds. An item
+without `run` follows the result's latest run. That is refused for a community number, which means
+nothing in another run, and allowed for fields that mean the same in every run (`onPath`, a
+category, a level).
 
 ## Paths
 
@@ -370,6 +380,11 @@ const route = await element.session.sets.createPath(offer, { name: "Route" });
 element.session.sets.get(route)?.definition; // { kind: "path", nodes: ["a", "c", "d", "f"], edges: [...] }
 element.session.sets.pathKind(route); // "simple"
 ```
+
+Each step names the edge the route took. Between two nodes joined by parallel edges, that is the
+cheapest one (the first, on a tie); a reciprocal pair read undirected is one step over both
+directions, so that step names a group of two. A step given as a group of one edge is stored as
+that edge.
 
 `createPath("selection")` orders the selected edges into a walk instead, and refuses a selection
 that is not one open chain with `E_BAD_COMMAND`, reason `ambiguous-path`, saying why in
@@ -388,10 +403,16 @@ sets.redefine(team, { kind: "rule", where: "data.role == 'lead'", reading: "indu
 sets.addMembers(picked, { nodes: ["d"] });
 sets.removeMembers(picked, { nodes: ["a"] }); // also removes a's edges from the set
 sets.remove(picked);
+sets.restore(picked); // back, with the same id, name and definition
 ```
 
 `addMembers` and `removeMembers` work on fixed sets only. Every change is one step, and a change
 that changes nothing does nothing.
+
+A removed set's record is kept while anything still names it -- a layer, the filter, another set,
+the layout, a run -- and `restore` brings the set back from it, telling `set:changed` with change
+`"created"`. Once nothing names a removed set its record is dropped, and `restore` is refused with
+`E_BAD_COMMAND`, reason `record-dropped`; undo is the way back then.
 
 ## Hearing about changes
 

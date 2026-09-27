@@ -162,7 +162,7 @@ describe("metricCostFromEstimate", () => {
         expect(bridges.verdict).toBe("warn");
         expect(bridges.runLabel.startsWith("Run anyway (")).toBe(true);
         expect(bridges.runLabel).toBe("Run anyway (about 3 h)");
-        expect(bridges.warningSentence).toBe("About 3 h at this size. Filter to a part, and run it there.");
+        expect(bridges.warningSentence).toBe("About 3 h at this size. RuleTree to a part, and run it there.");
         // The card and the dialog say ONE thing (spec 2043-2047).
         expect(bridges.confirmSentence).toBe(bridges.warningSentence);
 
@@ -253,7 +253,7 @@ describe("metricCostFromEstimate", () => {
         expect(estimate.verdict).toBe("warn");
         expect(estimate.runLabel).toBe("Run anyway");
         expect(estimate.warningSentence).toBe(
-            "How long this will take at this size is not known. Filter to a part, and run it there.",
+            "How long this will take at this size is not known. RuleTree to a part, and run it there.",
         );
         expect(estimate.confirmSentence).toBe(estimate.warningSentence);
         for (const text of allStrings(estimate)) {

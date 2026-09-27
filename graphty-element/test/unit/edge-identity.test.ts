@@ -183,6 +183,25 @@ describe("the id an edge carries", () => {
         assert.strictEqual(harness.dataManager.lastImport?.counts.rejected, 1, "and the rejection is reported");
     });
 
+    it("reports how many edges carry a file id and how many are matched by position", () => {
+        harness = createHarness();
+        harness.dataManager.addNodes([{ id: "a" }, { id: "b" }]);
+        harness.dataManager.addEdges([{ source: "a", target: "b" }, { source: "b", target: "a" }]);
+
+        assert.deepStrictEqual(harness.dataManager.lastImport?.edgeIdentity, { idPath: null, byId: 0, byPosition: 2 }, "no id path: every edge by position");
+
+        const withIds = createHarness();
+        try {
+            (withIds.context.getStyles().config.data.knownFields as { edgeIdPath: string | null }).edgeIdPath = "key";
+            withIds.dataManager.addNodes([{ id: "a" }, { id: "b" }]);
+            withIds.dataManager.addEdges([{ source: "a", target: "b", key: "e1" }, { source: "a", target: "b" }]);
+
+            assert.deepStrictEqual(withIds.dataManager.lastImport?.edgeIdentity, { idPath: "key", byId: 1, byPosition: 1 });
+        } finally {
+            withIds.dispose();
+        }
+    });
+
     it("is on a fresh Edge before the store has seen it, with no index yet", () => {
         // What an `Edge` is on its own: the id is handed in, the index is not, and INVALID_INDEX
         // is the honest answer until the manager registers it.

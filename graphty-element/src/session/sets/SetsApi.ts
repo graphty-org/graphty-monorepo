@@ -18,9 +18,9 @@ import type {
     EdgeMember,
     EdgeReading,
     EdgeRef,
-    Filter,
     NodeId,
     PathKind,
+    RuleTree,
     RunId,
     Scope,
     ScopeInput,
@@ -111,7 +111,7 @@ interface SetsDependencies {
      * each with the scope or filter tree it names, for `usedBy`. Absent: none.
      * @returns The users.
      */
-    readonly users?: () => Iterable<{ readonly user: SetUser; readonly scope: Scope | Filter }>;
+    readonly users?: () => Iterable<{ readonly user: SetUser; readonly scope: Scope | RuleTree }>;
 }
 
 /**
@@ -471,7 +471,7 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
      * @throws `E_BAD_COMMAND` with `details.reason: "stale-offer"`.
      */
     const requireCurrent = (offer: SetOffer): SetOffer => {
-        const { run, execution } = offer.item;
+        const { result: run, run: execution } = offer.item;
         const current = dependencies.executionOf === undefined ? dependencies.runs?.get(run)?.execution : dependencies.executionOf(run);
         if (execution === undefined || execution !== current) {
             throw new GraphtyError({
@@ -499,12 +499,12 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
      * @throws `E_BAD_COMMAND` with `details.reason: "follow-group"` for a partition group.
      */
     const follow = (offer: SetOffer, name: string | undefined, reading: EdgeReading = offer.reading): SetId => {
-        const { run, key } = offer.item;
+        const { result, key } = offer.item;
         if (!offer.followable) {
-            throw followsGroup({ run, key });
+            throw followsGroup({ result, key });
         }
 
-        return createAs({ kind: "rule", where: { kind: "item", item: { run, key } }, reading }, name, { kind: "result", item: offer.item });
+        return createAs({ kind: "rule", where: { kind: "item", item: { result, key } }, reading }, name, { kind: "result", item: offer.item });
     };
 
     const statusSources: StatusSources = {
@@ -704,6 +704,34 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
         remove(id: SetId): void {
             store.transact(() => {
                 store.delete(prepareRemove(store, { id }));
+            });
+            // ponytail: records nothing names are dropped at the next removal, not the moment
+            // the last layer or filter lets go; bound per removal by the tombstones held.
+            store.forget((removed) => api.usedBy(removed).length > 0);
+        },
+
+        restore(id: SetId): void {
+            const refuse = (reason: string, message: string): GraphtyError =>
+                new GraphtyError({ code: "E_BAD_COMMAND", message, source: "data", target: { kind: "scope", id }, details: { id, reason } });
+            if (store.get(id) !== undefined) {
+                throw refuse("live", `The set "${store.get(id)?.name ?? id}" was not removed, so there is nothing to restore.`);
+            }
+
+            const tombstone = store.tombstone(id);
+            if (tombstone === undefined) {
+                throw refuse("unknown-id", `No set with the id "${id}" was ever removed.`);
+            }
+
+            const { record } = tombstone;
+            if (record === undefined) {
+                throw refuse(
+                    "record-dropped",
+                    `The set "${tombstone.name}" cannot be restored: nothing named it any more, so its record was not kept.`,
+                );
+            }
+
+            store.transact(() => {
+                store.put(record);
             });
         },
     };

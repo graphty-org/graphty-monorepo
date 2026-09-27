@@ -24,6 +24,8 @@
 // The style document vocabulary: what a layer is, and what it may say
 // ---------------------------------------------------------------------------------------------
 
+import type { RuleTree, SelectionDirection } from "./src/catalog/types";
+
 export type {
     Binding,
     BindingOverflow,
@@ -35,8 +37,6 @@ export type {
     EdgeReading,
     EdgeRef,
     Encoding,
-    Filter,
-    FilterDirection,
     ItemKey,
     LabelStyle,
     LayerId,
@@ -47,13 +47,16 @@ export type {
     Path,
     PathKind,
     Query,
+    ResultId,
     ResultItem,
     ResultShape,
     Rgba,
+    RuleTree,
     RunId,
     Scope,
     ScopeId,
     ScopeInput,
+    SelectionDirection,
     Selector,
     SetCombine,
     SetCreatedFrom,
@@ -121,3 +124,18 @@ export {
 } from "./src/utils/styleHelpers/accessibility/colorblindSimulation";
 export type { RgbColor } from "./src/utils/styleHelpers/color/interpolation";
 export { hexToRgb, interpolatePalette, MISSING_DATA_COLOR } from "./src/utils/styleHelpers/color/interpolation";
+
+/**
+ * A rule tree: what the visibility filter keeps.
+ * @deprecated Use {@link RuleTree}, the same type under the name the rule grammar uses: a rule
+ * tree is also what a rule set holds, not only what the visibility filter keeps. Removed in the
+ * major version that ships the project file.
+ */
+export type Filter = RuleTree;
+
+/**
+ * Which arcs a degree filter counts.
+ * @deprecated Use {@link SelectionDirection}, the same type under the name the rule grammar uses.
+ * Removed in the major version that ships the project file.
+ */
+export type FilterDirection = SelectionDirection;

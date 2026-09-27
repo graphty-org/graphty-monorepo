@@ -26,7 +26,7 @@ import {
 
 import { EMPTY_SUM, hashEdgeMember, type LanePair, membershipDigestOf } from "../../catalog/sets/hash";
 import { inducedEdgeLeaf, readingOfScope, speaksEdges } from "../../catalog/sets/parse";
-import type { EdgeId, EdgeMember, Filter, NodeId, Path, Query, RunId, Scope, ScopeId, SetDefinition, SetId } from "../../catalog/types";
+import type { EdgeId, EdgeMember, NodeId, Path, Query, RuleTree, RunId, Scope, ScopeId, SetDefinition, SetId } from "../../catalog/types";
 import { EDGE_ID_COLUMN, identityColumnsOf, pairsOrdered } from "../../data/edgeIdentity";
 import { GraphtyError, isGraphtyError } from "../../errors";
 import type { AttributeRevisions, InputTick } from "../attributes";
@@ -37,7 +37,7 @@ import type { SetsCache } from "./cache";
 import { referentReading } from "./dependencies";
 import { resolvePath } from "./path";
 import { type EdgeMemberList, listedEdgesOf, opaqueName } from "./prepare";
-import { scopeSignature } from "./signature";
+import { keptDefinition, scopeSignature } from "./signature";
 
 /**
  * Invocation counts the complexity tests read (design/sets plan 1.4). Internal; never reset here.
@@ -105,7 +105,7 @@ export interface ComponentLabels {
 
 /** Everything a resolution reads that it does not compute. */
 export interface ResolveContext {
-    /** The context snapshot: the full graph today; a future `within` evaluates here. */
+    /** The context snapshot: the full graph today; a rule's future `scope` evaluates here. */
     readonly snapshot: GraphSnapshot;
     /** The node id map; the snapshot's own unless a caller (a counting test) wraps it. */
     readonly ids?: { indexOf(id: NodeId): number };
@@ -140,8 +140,11 @@ export interface ResolveContext {
         list(): readonly unknown[];
         get(id: SetId): unknown;
         seedsOf(id: SetId): EdgeSeeds | undefined;
-        /** A removed id's tombstone, so a refusal names the set by the name it had. */
-        tombstone?(id: SetId): { readonly name: string } | undefined;
+        /**
+         * A removed id's tombstone: the name it had, and its record while anything names it, which
+         * a reference to the removed set resolves through.
+         */
+        tombstone?(id: SetId): { readonly name: string; readonly record?: { readonly definition: SetDefinition } } | undefined;
     };
     // What an input signature reads (./signature). Without them a query is resolved, never cached.
     /**
@@ -338,10 +341,11 @@ export function resolveNodeHalf(scope: Scope, context: ResolveContext, seen: Set
 
         const removed = record === undefined ? context.sets?.tombstone?.(scope.set) : undefined;
         if (removed !== undefined) {
-            // Detached: a pass resolves it to nothing; a caller that needs members is refused.
+            // Detached, and its record dropped because nothing named it: a pass resolves it to
+            // nothing; a caller that needs members is refused.
             throw new GraphtyError({
                 code: "E_BAD_COMMAND",
-                message: `The set "${removed.name}" was removed, so it holds nothing. Restore it or choose another set.`,
+                message: `The set "${removed.name}" was removed and its record was not kept, so it holds nothing. Choose another set.`,
                 source: "run",
                 target: { kind: "scope", id: scope.set },
                 details: { scope, reason: "missing-set", id: scope.set, name: removed.name },
@@ -398,15 +402,6 @@ function halfOf(resolution: Resolution): NodeHalf {
     return { nodes: resolution.nodes, constraint: resolution.edges, all: false, missingNodes: resolution.missingNodes };
 }
 
-/**
- * The definition of the kept set an id names, when the context holds one.
- * @param id - The id.
- * @param context - What the resolution reads.
- * @returns The definition, or undefined.
- */
-function keptDefinition(id: SetId, context: ResolveContext): SetDefinition | undefined {
-    return (context.sets?.get(id) as { readonly definition?: SetDefinition } | undefined)?.definition;
-}
 
 /**
  * The refusal of a chain of references that reaches a set already on it.
@@ -501,7 +496,7 @@ function referentsIn(context: ResolveContext): (id: SetId) => string | undefined
 }
 
 /**
- * What a `scope` leaf speaks: the referenced set's nodes, and its edges when its reading is
+ * What a `member` leaf speaks: the referenced set's nodes, and its edges when its reading is
  * `listed` or `clipped`.
  * @param scope - The referenced set.
  * @param context - What the resolution reads.
@@ -549,7 +544,7 @@ function resolveIn(scope: Scope, context: ResolveContext, seen: readonly SetId[]
  * @throws A `GraphtyError` when a leaf needs a capability the context lacks.
  */
 export function ruleHalves(definition: Extract<SetDefinition, { kind: "rule" }>, context: ResolveContext, seen: readonly SetId[] = []): CompiledHalves {
-    const tree: Filter = typeof definition.where === "string" ? { kind: "expression", where: definition.where } : definition.where;
+    const tree: RuleTree = typeof definition.where === "string" ? { kind: "expression", where: definition.where } : definition.where;
 
     return compileFilter(context.snapshot, tree, {
         ...(context.match === undefined ? {} : { match: context.match }),

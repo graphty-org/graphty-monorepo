@@ -19,7 +19,7 @@
 import fc from "fast-check";
 import { assert, describe, it } from "vitest";
 
-import type { Filter, NodeId, Scope } from "../../../src/catalog/types";
+import type { NodeId, RuleTree, Scope } from "../../../src/catalog/types";
 import { edgeSpaceOf } from "../../../src/session/scope";
 import { fcParams } from "../../helpers/fc-params";
 import { type Harness, makeSession } from "../helpers";
@@ -59,28 +59,28 @@ const GRAPH: fc.Arbitrary<GraphCase> = fc.integer({ min: 1, max: 10 }).chain((no
 );
 
 /** Node leaves: each speaks nodes only. */
-const NODE_LEAF: fc.Arbitrary<Filter> = fc.oneof(
-    fc.integer({ min: 0, max: 5 }).map((k): Filter => ({ kind: "expression", where: `data.score > \`${k}\`` })),
+const NODE_LEAF: fc.Arbitrary<RuleTree> = fc.oneof(
+    fc.integer({ min: 0, max: 5 }).map((k): RuleTree => ({ kind: "expression", where: `data.score > \`${k}\`` })),
     fc
         .tuple(fc.option(fc.integer({ min: 0, max: 5 }), { nil: undefined }), fc.option(fc.integer({ min: 0, max: 5 }), { nil: undefined }))
-        .map(([a, b]): Filter => {
+        .map(([a, b]): RuleTree => {
             const [min, max] = a !== undefined && b !== undefined && a > b ? [b, a] : [a, b];
             return { kind: "range", attribute: "data.score", ...(min === undefined ? {} : { min }), ...(max === undefined ? {} : { max }) };
         }),
-    fc.subarray(["x", "y"]).map((values): Filter => ({ kind: "categories", attribute: "data.type", values })),
-    fc.record({ min: fc.integer({ min: 0, max: 4 }), direction: fc.constantFrom<"in" | "out" | "all">("in", "out", "all") }).map((d): Filter => ({ kind: "degree", ...d })),
-    fc.constant<Filter>({ kind: "component", id: 0 }),
+    fc.subarray(["x", "y"]).map((values): RuleTree => ({ kind: "categories", attribute: "data.type", values })),
+    fc.record({ min: fc.integer({ min: 0, max: 4 }), direction: fc.constantFrom<"in" | "out" | "all">("in", "out", "all") }).map((d): RuleTree => ({ kind: "degree", ...d })),
+    fc.constant<RuleTree>({ kind: "component", id: 0 }),
     fc
         .record({ seeds: fc.array(fc.integer({ min: 0, max: 12 }), { maxLength: 3 }), depth: fc.integer({ min: 0, max: 2 }) })
-        .map((n): Filter => ({ kind: "neighborhood", seeds: n.seeds.map(idOf), depth: n.depth })),
-    fc.integer({ min: 0, max: 3 }).map((level): Filter => ({ kind: "item", item: { run: "lvl", key: { field: "level", value: level } } })),
+        .map((n): RuleTree => ({ kind: "neighborhood", seeds: n.seeds.map(idOf), depth: n.depth })),
+    fc.integer({ min: 0, max: 3 }).map((level): RuleTree => ({ kind: "item", item: { result: "lvl", key: { field: "level", value: level } } })),
     fc
         .tuple(fc.constantFrom("data.score", "results.met.value"), fc.boolean(), fc.integer({ min: 0, max: 5 }))
-        .map(([path, top, n]): Filter => (top ? { kind: "threshold", path, top: n } : { kind: "threshold", path, above: n - 1 })),
+        .map(([path, top, n]): RuleTree => (top ? { kind: "threshold", path, top: n } : { kind: "threshold", path, above: n - 1 })),
 );
 
 /** Scope leaves over the forms that exist today, inline definitions included. */
-const SCOPE_LEAF: fc.Arbitrary<Filter> = fc
+const SCOPE_LEAF: fc.Arbitrary<RuleTree> = fc
     .oneof(
         fc.constantFrom<Scope>("graph", "largest-component"),
         fc.array(fc.integer({ min: 0, max: 12 }), { maxLength: 4 }).map((ids): Scope => ({ nodes: ids.map(idOf) })),
@@ -89,17 +89,17 @@ const SCOPE_LEAF: fc.Arbitrary<Filter> = fc
             .tuple(fc.integer({ min: 0, max: 9 }), fc.constantFrom<"listed" | "clipped">("listed", "clipped"))
             .map(([w, reading]): Scope => ({ define: { kind: "rule", where: { kind: "edges", where: `data.weight > \`${w}\`` }, reading } })),
     )
-    .map((scope): Filter => ({ kind: "scope", scope }));
+    .map((scope): RuleTree => ({ kind: "member", of: scope }));
 
-const EDGE_LEAF: fc.Arbitrary<Filter> = fc.oneof(
-    fc.integer({ min: 0, max: 9 }).map((w): Filter => ({ kind: "edges", where: `data.weight > \`${w}\`` })),
+const EDGE_LEAF: fc.Arbitrary<RuleTree> = fc.oneof(
+    fc.integer({ min: 0, max: 9 }).map((w): RuleTree => ({ kind: "edges", where: `data.weight > \`${w}\`` })),
     fc
         .tuple(fc.boolean(), fc.integer({ min: 0, max: 9 }))
-        .map(([top, n]): Filter => (top ? { kind: "threshold", path: "data.weight", top: n } : { kind: "threshold", path: "data.weight", above: n })),
+        .map(([top, n]): RuleTree => (top ? { kind: "threshold", path: "data.weight", top: n } : { kind: "threshold", path: "data.weight", above: n })),
 );
 
 /** Leaves that speak both halves: the path's nodes and edges. */
-const BOTH_LEAF: fc.Arbitrary<Filter> = fc.boolean().map((value): Filter => ({ kind: "item", item: { run: "route", key: { field: "onPath", value } } }));
+const BOTH_LEAF: fc.Arbitrary<RuleTree> = fc.boolean().map((value): RuleTree => ({ kind: "item", item: { result: "route", key: { field: "onPath", value } } }));
 
 const LEAF = fc.oneof(NODE_LEAF, EDGE_LEAF, SCOPE_LEAF, BOTH_LEAF);
 
@@ -108,7 +108,7 @@ const LEAF = fc.oneof(NODE_LEAF, EDGE_LEAF, SCOPE_LEAF, BOTH_LEAF);
  * @param depth - Levels of combinators still allowed.
  * @returns The arbitrary.
  */
-function tree(depth: number): fc.Arbitrary<Filter> {
+function tree(depth: number): fc.Arbitrary<RuleTree> {
     if (depth === 0) {
         return LEAF;
     }
@@ -117,9 +117,9 @@ function tree(depth: number): fc.Arbitrary<Filter> {
 
     return fc.oneof(
         { weight: 2, arbitrary: LEAF },
-        { weight: 1, arbitrary: fc.array(inner, { maxLength: 3 }).map((of): Filter => ({ kind: "all", of })) },
-        { weight: 1, arbitrary: fc.array(inner, { maxLength: 3 }).map((of): Filter => ({ kind: "any", of })) },
-        { weight: 1, arbitrary: inner.map((of): Filter => ({ kind: "not", of })) },
+        { weight: 1, arbitrary: fc.array(inner, { maxLength: 3 }).map((of): RuleTree => ({ kind: "all", of })) },
+        { weight: 1, arbitrary: fc.array(inner, { maxLength: 3 }).map((of): RuleTree => ({ kind: "any", of })) },
+        { weight: 1, arbitrary: inner.map((of): RuleTree => ({ kind: "not", of })) },
     );
 }
 
@@ -131,12 +131,12 @@ const TREE = tree(4);
  * @param where - Whether an expression leaf becomes `{ where }` rather than an inline rule.
  * @returns The scope leaf.
  */
-function asScope(leaf: Filter, where: boolean): Filter {
+function asScope(leaf: RuleTree, where: boolean): RuleTree {
     if (leaf.kind === "expression" && where) {
-        return { kind: "scope", scope: { where: leaf.where } };
+        return { kind: "member", of: { where: leaf.where } };
     }
 
-    return { kind: "scope", scope: { define: { kind: "rule", where: leaf, reading: "induced" } } };
+    return { kind: "member", of: { define: { kind: "rule", where: leaf, reading: "induced" } } };
 }
 
 /**
@@ -145,7 +145,7 @@ function asScope(leaf: Filter, where: boolean): Filter {
  * @param choices - One draw per leaf, consumed in order: 0 keeps, 1 replaces, 2 replaces an expression with `{ where }`.
  * @returns The rewritten tree.
  */
-function replaced(node: Filter, choices: number[]): Filter {
+function replaced(node: RuleTree, choices: number[]): RuleTree {
     switch (node.kind) {
         case "all":
         case "any":
@@ -153,7 +153,7 @@ function replaced(node: Filter, choices: number[]): Filter {
         case "not":
             return { kind: "not", of: replaced(node.of, choices) };
         case "edges":
-        case "scope":
+        case "member":
             return node;
         case "item":
             return node.item.key.field === "onPath" ? node : replaceLeaf(node, choices);
@@ -170,7 +170,7 @@ function replaced(node: Filter, choices: number[]): Filter {
  * @param choices - The draws, consumed in order.
  * @returns The leaf or its scope.
  */
-function replaceLeaf(node: Filter, choices: number[]): Filter {
+function replaceLeaf(node: RuleTree, choices: number[]): RuleTree {
     const choice = choices.shift() ?? 0;
     return choice === 0 ? node : asScope(node, choice === 2);
 }
@@ -216,7 +216,7 @@ async function harnessOf(graph: GraphCase): Promise<Harness> {
  * @param filter - The filter.
  * @returns The node and edge bytes, as arrays.
  */
-async function masksOf(harness: Harness, filter: Filter): Promise<{ nodes: number[]; edges: number[] }> {
+async function masksOf(harness: Harness, filter: RuleTree): Promise<{ nodes: number[]; edges: number[] }> {
     await harness.session.visibility.set(filter);
 
     return { nodes: [...harness.session.visibility.nodeMask()], edges: [...harness.session.visibility.edgeMask()] };
@@ -229,8 +229,8 @@ describe("the visibility filter and a rule read clipped are one evaluator", () =
                 const harness = await harnessOf(graph);
                 const direct = await masksOf(harness, filter);
                 const wrapped = await masksOf(harness, {
-                    kind: "scope",
-                    scope: { define: { kind: "rule", where: filter, reading: "clipped" } },
+                    kind: "member",
+                    of: { define: { kind: "rule", where: filter, reading: "clipped" } },
                 });
 
                 assert.deepStrictEqual(wrapped, direct);

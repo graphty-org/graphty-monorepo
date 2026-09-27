@@ -77,8 +77,8 @@ import type { SetWatch } from "../sets/notify";
 import {
     assertVisibility,
     compileVisibility,
-    type Filter,
     type FilterSources,
+    type RuleTree,
     runPass,
     runPassInSlices,
     type ScopeLeaf,
@@ -194,7 +194,7 @@ export interface VisibilityApi {
     /** How much of the graph is showing. */
     readonly summary: VisibilitySummary;
     /** The filter in force, or null when no filter is hiding anything. */
-    readonly filter: Filter | null;
+    readonly filter: RuleTree | null;
     /** The time window in force, or null when no window is hiding anything. */
     readonly window: TimeWindow | null;
     /**
@@ -216,7 +216,7 @@ export interface VisibilityApi {
      * @returns The run, which resolves with the counts.
      * @throws A `GraphtyError` when the filter is malformed or needs something this session lacks.
      */
-    set(filter: Filter | null, options?: RunOptions): Run<FilterResult>;
+    set(filter: RuleTree | null, options?: RunOptions): Run<FilterResult>;
     /**
      * Apply a time window, or clear it with null.
      *
@@ -296,18 +296,18 @@ export interface VisibilitySources extends FilterSources {
     /** Called on every version bump of either mask, which is what advances the session input tick. */
     readonly onMaskVersion?: () => void;
     /**
-     * Where the sets a `scope` leaf names are looked up, so a filter that reads `"visible"` or
+     * Where the sets a `member` leaf names are looked up, so a filter that reads `"visible"` or
      * `"search"` through them is refused, and a pass never reads the masks it is writing.
      */
     readonly dependencies?: DependencySources;
     /**
-     * A write door's check of a filter: session edge ids inside a `scope` leaf's inline
+     * A write door's check of a filter: session edge ids inside a `member` leaf's inline
      * definition to stable members, and every set id it names checked as issued. Absent, the
      * filter is taken as given.
      * @param filter - The filter as given.
      * @returns The filter to hold.
      */
-    readonly admit?: (filter: Filter) => Filter;
+    readonly admit?: (filter: RuleTree) => RuleTree;
     /**
      * How the filter follows the sets its `scope` leaves name (design/sets 11). Absent, a filter
      * is re-evaluated only when it is set again or the snapshot moves.
@@ -338,16 +338,16 @@ interface FilterWatchSources {
 }
 
 /**
- * The scopes a filter tree's `scope` leaves name, outermost first. Not followed into a scope: its
+ * The scopes a filter tree's `member` leaves name, outermost first. Not followed into a scope: its
  * own signature covers what it reads.
  * @param filter - The filter, or null.
  * @returns The scopes.
  */
-function filterScopes(filter: Filter | null): Scope[] {
+function filterScopes(filter: RuleTree | null): Scope[] {
     const found: Scope[] = [];
-    const walk = (node: Filter): void => {
-        if (node.kind === "scope") {
-            found.push(node.scope);
+    const walk = (node: RuleTree): void => {
+        if (node.kind === "member") {
+            found.push(node.of);
         } else if (node.kind === "all" || node.kind === "any") {
             node.of.forEach(walk);
         } else if (node.kind === "not") {
@@ -435,7 +435,7 @@ function sealedSet<TId>(values: readonly TId[]): ReadonlySet<TId> {
  * @param window - The window it applies, or null.
  * @returns The label.
  */
-function labelFor(filter: Filter | null, window: TimeWindow | null): string {
+function labelFor(filter: RuleTree | null, window: TimeWindow | null): string {
     if (filter !== null && window !== null) {
         return `Filter (${filter.kind}) and time window`;
     }
@@ -453,7 +453,7 @@ function labelFor(filter: Filter | null, window: TimeWindow | null): string {
  * @param window - The window it applies, or null.
  * @returns The caveats.
  */
-function caveatsFor(filter: Filter | null, window: TimeWindow | null): Caveats {
+function caveatsFor(filter: RuleTree | null, window: TimeWindow | null): Caveats {
     const caveats: Caveats = {
         direction: "as-loaded",
         exact: true,
@@ -489,7 +489,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
     let frame: VisibilityFrame | null = null;
     let evaluated: GraphSnapshot | null = null;
-    let filterValue: Filter | null = null;
+    let filterValue: RuleTree | null = null;
     let windowValue: TimeWindow | null = null;
     let showContextValue = false;
     let unresolvedValue: readonly Path[] = NO_PATHS;
@@ -533,7 +533,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      * @param filter - The filter, or null.
      * @returns The signature: "" for none, null when one cannot be enumerated.
      */
-    const signatureOf = (filter: Filter | null): string | null => {
+    const signatureOf = (filter: RuleTree | null): string | null => {
         const { watch, dependencies } = sources;
         if (watch === undefined) {
             return "";
@@ -541,7 +541,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
         const parts: string[] = [];
         for (const scope of filterScopes(filter)) {
-            if (dependencies !== undefined && visibilityCycle({ kind: "scope", scope }, dependencies) !== null) {
+            if (dependencies !== undefined && visibilityCycle({ kind: "member", of: scope }, dependencies) !== null) {
                 continue;
             }
 
@@ -582,7 +582,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     };
 
     /**
-     * The sources a pass compiles against: a `scope` leaf that reaches `"visible"` or `"search"`
+     * The sources a pass compiles against: a `member` leaf that reaches `"visible"` or `"search"`
      * (a cycle a later redefine or a load made) speaks nothing, so a pass never reads the masks
      * it is writing and never recurses.
      * @param graph - The snapshot the pass walks.
@@ -597,7 +597,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         return {
             ...sources,
             scope: (spec): ScopeLeaf =>
-                dependencies !== undefined && visibilityCycle({ kind: "scope", scope: spec }, dependencies) !== null
+                dependencies !== undefined && visibilityCycle({ kind: "member", of: spec }, dependencies) !== null
                     ? { nodes: makeMask(graph.nodeCount), edges: null }
                     : scope(spec),
         };
@@ -790,7 +790,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      * @throws A `GraphtyError` when either is malformed, or when a dry run was asked for.
      */
     const startPass = (
-        nextFilter: Filter | null,
+        nextFilter: RuleTree | null,
         nextWindow: TimeWindow | null,
         options: RunOptions,
         filterKind: string,
@@ -968,7 +968,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             return summaryOf();
         },
 
-        get filter(): Filter | null {
+        get filter(): RuleTree | null {
             return filterValue;
         },
 
@@ -976,7 +976,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             return windowValue;
         },
 
-        set(filter: Filter | null, options: RunOptions = {}): Run<FilterResult> {
+        set(filter: RuleTree | null, options: RunOptions = {}): Run<FilterResult> {
             const admitted = filter === null || sources.admit === undefined ? filter : sources.admit(filter);
             return startPass(admitted, windowValue, options, admitted === null ? "none" : admitted.kind);
         },

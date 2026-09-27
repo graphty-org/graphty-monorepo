@@ -70,16 +70,17 @@ rather than implied:
 { match: "ids", nodes: ["alice", "bob"] }        // exactly these
 { match: "top", path: "results.degree.value", n: 10 } // the top 10 by a run's field, whole ties only
 { match: "expression", where: "data.type == 'server'" }
-{ match: "scope", scope: { set: id } }           // the members of a set, or any other scope
+{ match: "member", of: { set: id } }           // the members of a set, or any other scope
 ```
 
 ### A set
 
-`{ match: "scope", scope }` paints the members of a kept [set](./sets), or of anything else a
+`{ match: "member", of: scope }` paints the members of a kept [set](./sets), or of anything else a
 scope names (`"selection"`, `{ define }`). The layer follows its scope: redefine the set, change
 the data a rule set reads, or re-run the run a followed set reads, and the layer repaints the
 elements that joined or left without being touched. A set has no colour of its own -- colouring
-one is this layer. A scope naming a set that was removed paints nothing.
+one is this layer. A layer naming a set that was removed keeps painting the members the set's
+kept record names, so removing a set never blanks a layer.
 
 ### The top N
 

@@ -42,7 +42,7 @@ import { type GraphSnapshot, INVALID_INDEX, maskTest, type U32 } from "@graphty/
 
 import { runIdOfRef } from "../../catalog/sets/canonical";
 import { assertRuleTree, parseScope } from "../../catalog/sets/parse";
-import type { EdgeId, Filter, FilterDirection, NodeId, Path, Query, ResultItem, RunId, Scope } from "../../catalog/types";
+import type { EdgeId, NodeId, Path, Query, ResultItem, RuleTree, RunId, Scope, SelectionDirection } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import { rankEntries, topOfRanking } from "../results/statistics";
 import { type ComponentLabels, edgeSpaceOf,type ElementMask } from "../scope/index";
@@ -53,7 +53,7 @@ import { type ChainStep, type DependencySources, followedGroup, followsGroup, vi
 // ---------------------------------------------------------------------------------------------
 
 // The rule tree and its direction live with the other definition types; this module compiles them.
-export type { Filter, FilterDirection } from "../../catalog/types";
+export type { RuleTree } from "../../catalog/types";
 
 /** How wide a step a time window advances by, when something advances it. */
 export type TimeStep = number | "hour" | "day" | "week" | "month" | "quarter" | "year";
@@ -146,7 +146,7 @@ export interface FilterSources {
      */
     readonly unresolvedPathsOf?: (where: Query) => readonly Path[];
     /**
-     * What a `scope` leaf's set covers. Absent refuses a `scope` leaf.
+     * What a `member` leaf's set covers. Absent refuses a `member` leaf.
      * @param scope - The referenced set.
      * @returns Its node half, and its edge half when its reading speaks edges.
      */
@@ -197,7 +197,7 @@ export interface FilterRunResult {
 }
 
 /**
- * What a `scope` leaf speaks: the referenced set's nodes, and its edges only when the set is read
+ * What a `member` leaf speaks: the referenced set's nodes, and its edges only when the set is read
  * `listed` or `clipped`. `edges: null` is silent, exactly as a node leaf is.
  */
 export interface ScopeLeaf {
@@ -249,7 +249,7 @@ const FILTER_KINDS = [
     "component",
     "neighborhood",
     "edges",
-    "scope",
+    "member",
     "item",
     "threshold",
     "all",
@@ -377,7 +377,7 @@ function assertQuery(where: unknown, kind: string): void {
  * @param filter - The filter to check.
  * @throws A `GraphtyError` when any part of it is not a filter.
  */
-function assertFilter(filter: Filter): void {
+function assertFilter(filter: RuleTree): void {
     if (typeof filter !== "object" || filter === null || typeof filter.kind !== "string") {
         throw malformed(`A filter is an object with a "kind" of ${FILTER_KINDS.join(", ")}.`, { filter });
     }
@@ -435,14 +435,14 @@ function assertFilter(filter: Filter): void {
             }
 
             return;
-        case "scope":
+        case "member":
             // The filter computes "visible", and "search" will read the filter: either one here is
             // a filter reading itself.
-            if (filter.scope === "visible" || (filter.scope as unknown) === "search") {
-                throw readsItself([filter.scope as ChainStep]);
+            if (filter.of === "visible" || (filter.of as unknown) === "search") {
+                throw readsItself([filter.of as ChainStep]);
             }
 
-            parseScope(filter.scope);
+            parseScope(filter.of);
 
             return;
         case "item":
@@ -550,12 +550,12 @@ function assertTimeWindow(window: TimeWindow): void {
  * Check a filter and a window before anything starts working on them.
  * @param filter - The filter, or null for none.
  * @param window - The time window, or null for none.
- * @param dependencies - Where the references a `scope` leaf makes are looked up, so a filter that
+ * @param dependencies - Where the references a `member` leaf makes are looked up, so a filter that
  *     reaches `"visible"` or `"search"` through kept sets is refused (`details.reason: "cycle"`), and
  *     one whose item follows a partition group (`"follow-group"`).
  * @throws A `GraphtyError` when either is malformed.
  */
-export function assertVisibility(filter: Filter | null, window: TimeWindow | null, dependencies?: DependencySources): void {
+export function assertVisibility(filter: RuleTree | null, window: TimeWindow | null, dependencies?: DependencySources): void {
     if (filter !== null) {
         assertFilter(filter);
 
@@ -801,7 +801,7 @@ function degreeTest(
     context: CompileContext,
     min: number | undefined,
     max: number | undefined,
-    direction: FilterDirection | undefined,
+    direction: SelectionDirection | undefined,
 ): ElementTest {
     const { graph } = context;
     let degrees: U32;
@@ -957,14 +957,14 @@ function itemTest(read: (index: number) => unknown, wanted: unknown, mark: PathM
  * @returns The halves the field lives on.
  */
 function compileItem(context: CompileContext, item: ResultItem): CompiledHalves {
-    const run = runIdOfRef(item.run) as RunId;
+    const run = runIdOfRef(item.result) as RunId;
     const { field, value } = item.key;
     const result = resultOf(context, "item", run);
     const mark = markFor(context, `results.${run}.${field}`);
 
     // A held execution that is no longer current reads what its run's re-run captured, and
     // nothing when no capture was kept.
-    if (item.execution !== undefined && item.execution !== result?.execution) {
+    if (item.run !== undefined && item.run !== result?.execution) {
         const held = context.sources.captured?.(item);
         if (held === undefined || (held.nodes === null && held.edges === null)) {
             return NOTHING;
@@ -1006,7 +1006,7 @@ function compileItem(context: CompileContext, item: ResultItem): CompiledHalves 
 function thresholdHalf(
     count: number,
     read: (index: number) => unknown,
-    filter: Extract<Filter, { kind: "threshold" }>,
+    filter: Extract<RuleTree, { kind: "threshold" }>,
     mark: PathMark,
 ): Uint8Array | null {
     const population: { id: number; value: number }[] = [];
@@ -1046,7 +1046,7 @@ function thresholdHalf(
  * @param filter - The threshold.
  * @returns The halves.
  */
-function compileThreshold(context: CompileContext, filter: Extract<Filter, { kind: "threshold" }>): CompiledHalves {
+function compileThreshold(context: CompileContext, filter: Extract<RuleTree, { kind: "threshold" }>): CompiledHalves {
     const { graph } = context;
     const mark = markFor(context, filter.path);
     let readNode: ((index: number) => unknown) | null;
@@ -1135,7 +1135,7 @@ function fold(tests: readonly (ElementTest | null)[], mode: "all" | "any"): Elem
  * @returns The two halves, either of which may be null.
  * @throws A `GraphtyError` when the filter needs a capability this session does not have.
  */
-function compileOne(filter: Filter, context: CompileContext): CompiledHalves {
+function compileOne(filter: RuleTree, context: CompileContext): CompiledHalves {
     switch (filter.kind) {
         case "expression":
             return { node: expressionTest(context, filter.where), edge: null };
@@ -1151,12 +1151,12 @@ function compileOne(filter: Filter, context: CompileContext): CompiledHalves {
             return { node: neighborhoodTest(context, filter.seeds, filter.depth), edge: null };
         case "edges":
             return { node: null, edge: edgeQueryTest(context, filter.where) };
-        case "scope": {
+        case "member": {
             if (context.sources.scope === undefined) {
-                throw unsupported("scope", "a scope resolver");
+                throw unsupported("member", "a scope resolver");
             }
 
-            const leaf = context.sources.scope(filter.scope);
+            const leaf = context.sources.scope(filter.of);
             const { edges } = leaf;
 
             return { node: (index) => maskTest(leaf.nodes, index), edge: edges === null ? null : (index) => maskTest(edges, index) };
@@ -1200,7 +1200,7 @@ function compileOne(filter: Filter, context: CompileContext): CompiledHalves {
  * @returns The node test and the edge test, either null when the tree is silent about it.
  * @throws A `GraphtyError` when the tree needs a capability the sources lack.
  */
-export function compileFilter(graph: GraphSnapshot, filter: Filter, sources: FilterSources): CompiledHalves {
+export function compileFilter(graph: GraphSnapshot, filter: RuleTree, sources: FilterSources): CompiledHalves {
     return compileOne(filter, { graph, sources, marks: new Map<Path, PathMark>(), unresolvedQueries: new Set<Path>() });
 }
 
@@ -1260,7 +1260,7 @@ function compileWindow(window: TimeWindow, context: CompileContext): CompiledHal
  */
 export function compileVisibility(
     graph: GraphSnapshot,
-    filter: Filter | null,
+    filter: RuleTree | null,
     window: TimeWindow | null,
     sources: FilterSources,
 ): CompiledVisibility {

@@ -745,7 +745,7 @@ export class Graphty extends LitElement {
     set dataSource(value: string | undefined) {
         const oldValue = this.dataSource;
         if (typeof value === "string" && value !== "") {
-            this.#importSource({ type: value, config: this.#source().config });
+            this.#importSource({ type: value, config: this.#source().config ?? this.#assigned.config });
         }
 
         this.requestUpdate("dataSource", oldValue);
@@ -770,7 +770,7 @@ export class Graphty extends LitElement {
     set dataSourceConfig(value: Record<string, unknown> | undefined) {
         const oldValue = this.dataSourceConfig;
         if (value !== undefined && value !== null) {
-            this.#importSource({ type: this.#source().type, config: value });
+            this.#importSource({ type: this.#source().type ?? this.#assigned.type, config: value });
         }
 
         this.requestUpdate("dataSourceConfig", oldValue);
@@ -787,6 +787,7 @@ export class Graphty extends LitElement {
 
         this.#graph.clearData();
         this.#loadedPair = undefined;
+        this.#assigned = {};
 
         this.requestUpdate("dataSource", oldDataSource);
         this.requestUpdate("dataSourceConfig", oldDataSourceConfig);
@@ -800,6 +801,12 @@ export class Graphty extends LitElement {
      * again start no load. Forgotten by `clearData` and by a history call, which move the source.
      */
     #loadedPair: { type: string; config: Record<string, unknown> } | undefined;
+
+    /**
+     * The pair as last assigned, whether or not its load arrived: the half a later assignment
+     * pairs with when a failed load left the graph without a source.
+     */
+    #assigned: ImportSource = {};
 
     /** The records `nodeData` and `edgeData` last read, for the graph they were read from. */
     #rowRecords: { token: number; node?: readonly unknown[]; edge?: readonly unknown[] } | null = null;
@@ -838,6 +845,7 @@ export class Graphty extends LitElement {
      */
     #importSource(source: ImportSource): void {
         const { type, config } = source;
+        this.#assigned = source;
         if (type !== undefined && config !== undefined) {
             // The pair already loaded, assigned again by a host that re-renders: no load.
             const last = this.#loadedPair;

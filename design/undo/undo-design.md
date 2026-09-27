@@ -2457,6 +2457,8 @@ Each with the migration a consumer makes:
 | The element's `layout` getter returns the engine name stored in the layout slice; after an undo it reports the restored engine | None for a host that reads what it wrote; a two-way binding sees undo as a change, which is the point |
 | The `Run` returned by a style or visibility verb settles when the repaint covering the edit finishes; `cancel()` or an abort after the call does not revert the edit | Use `session.undo()` to take an edit back; an already-aborted signal still prevents the write |
 | Adding nodes or edges with `algorithmsOnLoad` set starts the on-load runs once per command, not once per `data-added` event, and undo and redo fire `data-added` / `elements-removed` with a `cause` without starting any work | None for most consumers; a listener that started work on `data-added` should check `cause` |
+| `LayoutEngine.nodePositions` and `DataManager.positions` hand out `ReadonlyElementPositions`; `LayoutEngine`'s `addNode`, `addEdge`, `addNodes`, `addEdges`, `removeNode`, `removeEdge` and `attachPositions` are protected | Place and pin through `session.positions`; change the graph through `session.data`. A custom engine still implements the membership methods, and the element calls them |
+| A settings getter (`nodeIdPath`, `repeatedEdges`, `edgeWeightPath`, `directed`, `runAlgorithmsOnLoad`, `background`, `selectionStyle`, `algorithmsOnLoad`, ...) returns the value in effect when none was set, instead of `undefined`; `layoutBehavior` always carries `preSteps`, `stepMultiplier` and `minDelta` | Compare with the default instead of `undefined`; assigning a default reads back and records no step |
 
 ### 15.3 Release
 

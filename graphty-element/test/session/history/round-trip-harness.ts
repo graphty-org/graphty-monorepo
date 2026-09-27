@@ -33,11 +33,19 @@ export function pictureDigest(session: GraphSession): string {
     // Every session is built as an element session, which is where the paint is read.
     const { paint } = session as ElementSession;
     const snapshot = session.snapshot();
-    const painted = (target: "node" | "edge", count: number): unknown[] =>
-        Array.from({ length: count }, (_, index) => [
-            paint.meshKeyOf(target, index),
-            JSON.stringify(paint.styleOf(target, index)),
-        ]);
+    // A mesh key is compared by which elements share it, numbered in order of first use: the
+    // number itself also counts how often its slot was reused, which says nothing about the picture.
+    const painted = (target: "node" | "edge", count: number): unknown[] => {
+        const canonical = new Map<unknown, number>();
+        return Array.from({ length: count }, (_, index) => {
+            const key = paint.meshKeyOf(target, index);
+            if (!canonical.has(key)) {
+                canonical.set(key, canonical.size);
+            }
+
+            return [canonical.get(key), JSON.stringify(paint.styleOf(target, index))];
+        });
+    };
 
     return JSON.stringify({
         nodes: painted("node", snapshot.nodeCount),

@@ -544,6 +544,19 @@ export class Ingest<K extends KnownEdge> {
     }
 
     /**
+     * Refuse a replacement node set the renderer cannot hold, before the caller removes anything:
+     * the node half of {@link Ingest.refuseReplacement}, counted against an emptied graph.
+     * @param nodes - the nodes the graph should hold afterwards
+     * @param idPath - where a record's id is; the configured node id path when unset
+     * @throws A `GraphtyError` with `E_TOO_LARGE` when the new set is past the ceiling.
+     */
+    refuseNodeReplacement(nodes: readonly Record<string | number, unknown>[], idPath?: string): void {
+        const query = idPath ?? this.host.dataConfig().knownFields.nodeIdPath;
+        const ids = new Set(nodes.map((node) => jmespath.search(node, query) as unknown));
+        this.refuseAboveCeiling("nodes", 0, ids.size, DEFAULT_LIMITS.renderCeiling);
+    }
+
+    /**
      * Refuse a replacement edge set the renderer cannot hold, before the caller removes anything.
      *
      * Removing first and letting `addEdges` refuse would leave a host that assigned too many edges

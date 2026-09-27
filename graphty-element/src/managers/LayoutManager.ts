@@ -496,8 +496,6 @@ export class LayoutManager implements Manager {
         const observer = this.eventManager.onGraphEvent.add((event) => {
             if (event.type === "snapshot-replaced") {
                 this.onSnapshotReplaced(event);
-            } else if (event.type === "data-cleared") {
-                this.reset();
             }
         });
         this.unsubscribeSnapshot = (): void => {
@@ -575,25 +573,6 @@ export class LayoutManager implements Manager {
             this.running = false;
             this.reportSimulationFailure(error);
         }
-    }
-
-    /**
-     * Forget the cleared graph: stop the engine and build a fresh one of the same type with the
-     * consumer's own options, so the next load lays out from scratch instead of inheriting the old
-     * engine's bodies and its settled state. A failure is already reported on the error channel
-     * by `_setLayoutInternal`, which also leaves the old engine in place.
-     */
-    private reset(): void {
-        const choice = this.#built;
-        // A history call emptying the graph restores an arrangement, which a fresh engine would
-        // move; the layout it restores to is the one built.
-        if (this.layoutEngine === undefined || choice === null || this.restoring()) {
-            return;
-        }
-
-        this.running = false;
-        this.#built = null;
-        this.apply(choice, { restoring: false }).catch(() => undefined);
     }
 
     /**

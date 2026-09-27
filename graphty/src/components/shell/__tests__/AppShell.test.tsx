@@ -357,8 +357,10 @@ async function dropFile(zone: HTMLElement, file: File): Promise<void> {
         const refused =
             document.querySelector("[data-welcome-error]") !== null ||
             document.querySelector("[data-status-float]") !== null;
+        // A drop on a drawn dataset asks before it replaces it, and loads nothing until answered.
+        const asked = screen.queryByRole("dialog", { name: "Replace the current graph?" }) !== null;
 
-        expect(reached || refused).toBe(true);
+        expect(reached || refused || asked).toBe(true);
     });
 
     await act(async () => {
@@ -4341,7 +4343,7 @@ describe("AppShell", () => {
             await dropFile(screen.getByTestId("data-drop-zone"), notes);
 
             expect(inlineLoadError(container)?.textContent).toMatch(
-                /^Could not load notes\.txt\. nothing recognised the format of "notes\.txt"\. The formats this element can read are: json, /,
+                /^Could not load notes\.txt\. Its format was not recognised\. Open it with Open file and pick the format from the list\./,
             );
             expect(statusToast(container)?.textContent).toContain("Could not load notes.txt.");
 

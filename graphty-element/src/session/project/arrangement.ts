@@ -55,8 +55,8 @@ interface LaneSource {
     readonly positions: ElementPositions;
     /** Whether the graph holds no node rows, answered without freezing; absent, records decide. */
     holdsNoRows?(): boolean;
-    /** Whether structural changes wait for the next read, which a check must not force. */
-    readonly deferring?: boolean;
+    /** Whether the next read of the graph would freeze a snapshot, which a check must not force. */
+    readonly stale?: boolean;
 }
 
 /** What moves the lane besides history: the layout engine, as the renderer hands it in. */
@@ -426,8 +426,9 @@ export class Arrangement {
      */
     checkPins(): void {
         const { source } = this;
-        // A deferred rebuild waits for a reader; the check is not one, and the next check sees it.
-        if (!this.strict || source === null || this.lane.restoring || source.deferring === true) {
+        // A freeze waits for a reader, and a check is not one: it would freeze a snapshot no one
+        // asked for. The next check made while the graph is frozen sees what this one skipped.
+        if (!this.strict || source === null || this.lane.restoring || source.stale === true) {
             return;
         }
 

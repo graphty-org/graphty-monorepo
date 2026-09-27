@@ -133,6 +133,8 @@ export interface LaneStore extends Omit<SessionGraphStore, "positions"> {
     readonly positions: ElementPositions;
     /** Whether structural changes wait for the next read of the graph; see `GraphStore.deferring`. */
     readonly deferring?: boolean;
+    /** Whether the next read of the graph would freeze a snapshot; see `GraphStore.stale`. */
+    readonly stale?: boolean;
 }
 
 /**
@@ -1701,8 +1703,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             return store.store.positions;
         },
         holdsNoRows: () => (store.store instanceof GraphStore ? store.store.holdsNoRows : true),
-        get deferring() {
-            return store.store instanceof GraphStore && store.store.deferring;
+        get stale() {
+            return (store.store as { readonly stale?: boolean }).stale === true;
         },
     });
     const slice = (): GraphSlice => dispatcher.state.graph;

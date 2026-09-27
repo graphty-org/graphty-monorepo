@@ -7,8 +7,8 @@
 
 import "../../src/graphty-element";
 
-import { userEvent } from "@vitest/browser/context";
 import { afterEach, assert, describe, it } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";

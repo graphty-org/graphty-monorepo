@@ -83,6 +83,9 @@ export function laneStoreOf(manager: DataManager): LaneStore {
         get lastImport() {
             return manager.lastImport;
         },
+        get stale() {
+            return manager.snapshotStale;
+        },
     };
 }
 
@@ -325,8 +328,11 @@ export class DataManager implements Manager {
     /** The loads dispatched and not yet settled, so a newer replacing load can withdraw them. */
     private readonly inFlight = new Set<{ generation: number; controller: AbortController; type: string }>();
 
-    /** The id each load's events carry, by its import command. */
-    private readonly loadIds = new WeakMap<DataImportCommand, number>();
+    /**
+     * The id each load's events carry, by its source's configuration: the dispatcher hands the
+     * command on as a frozen copy, and `data.import` keeps only the configuration by reference.
+     */
+    private readonly loadIds = new WeakMap<object, number>();
 
     /** The id of the import running now, for the events it emits. */
     private loadId: number | undefined = undefined;
@@ -356,6 +362,14 @@ export class DataManager implements Manager {
      */
     getSnapshot(): GraphSnapshot {
         return this.store.getSnapshot();
+    }
+
+    /**
+     * Whether the next {@link getSnapshot} would freeze a new snapshot.
+     * @returns True when the store is not settled.
+     */
+    get snapshotStale(): boolean {
+        return this.store.stale;
     }
 
     /**
@@ -470,7 +484,7 @@ export class DataManager implements Manager {
                 this.cause = "command";
                 hooks.loading(true);
                 // Imports hold the whole graph, so one runs at a time and one field is enough.
-                this.loadId = this.loadIds.get(command);
+                this.loadId = command.source.config === undefined ? undefined : this.loadIds.get(command.source.config);
                 try {
                     await this.ingest.importSource(command, writer, signal);
                 } finally {
@@ -1109,6 +1123,7 @@ export class DataManager implements Manager {
      * @param idPath - JMESPath expression to extract the id; the configured node id path when unset
      */
     setNodes(nodes: Record<string | number, unknown>[], idPath?: string): void {
+        this.ingest.refuseNodeReplacement(nodes, idPath);
         const query = idPath ?? this.styles.config.data.knownFields.nodeIdPath;
         const command = replaceNodesCommand([...this.nodes.keys()], nodes, query);
         if (this.dispatcher === null) {
@@ -1599,11 +1614,11 @@ export class DataManager implements Manager {
      * @param generation - What `beginLoad` returned when the load was asked for.
      * @param loadId - The id its events carry.
      */
-    async runLoad(command: DataImportCommand, generation: number, loadId?: number): Promise<void> {
+    private async runLoad(command: DataImportCommand, generation: number, loadId?: number): Promise<void> {
         const type = command.source.type ?? "data";
         this.throwIfSuperseded(generation, type);
-        if (loadId !== undefined) {
-            this.loadIds.set(command, loadId);
+        if (loadId !== undefined && command.source.config !== undefined) {
+            this.loadIds.set(command.source.config, loadId);
         }
 
         if (this.dispatcher === null) {

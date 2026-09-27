@@ -10,7 +10,8 @@
  * `cellKey` / `cellVal` pair, so after a full build that pair holds the sort's even-pass intermediate.
  *
  * Three kinds of fixture take a frame of their own: `outside5` is framed by the unit box `[-1, 1)` (its five far
- * positions would otherwise widen the bbox and land inside), the one-cell fixtures (`onecell1k`, `onecell1025`,
+ * positions would otherwise widen the bbox and land inside) and so is `nonfinite` (a NaN or infinite coordinate
+ * would otherwise poison the frame itself), the one-cell fixtures (`onecell1k`, `onecell1025`,
  * `hubcell`) are framed by the unit box too (their bbox IS the 1e-3 box, which would spread them over the grid), and
  * `coincident` collapses every position onto node 0's (the `GRID_EXTENT_FLOOR` case: an extent of 1e-6, every node in
  * one cell).
@@ -44,6 +45,7 @@ export const GRID_FIXTURES: readonly string[] = Object.freeze([
     "clumpy100",
     "line",
     "outside5",
+    "nonfinite",
     "onecell1k",
     "coincident",
 ]);
@@ -91,10 +93,10 @@ function gridPositions(name: string, scale: number): { readonly n: number; reado
 /**
  * Whether a fixture is framed by the unit box `[-1, 1)` instead of its bbox.
  * @param name - the fixture name
- * @returns true for `outside5` and the one-cell fixtures
+ * @returns true for `outside5`, `nonfinite` and the one-cell fixtures
  */
 function unitFramed(name: string): boolean {
-    return name === "outside5" || name === "hubcell" || name.startsWith("onecell");
+    return name === "outside5" || name === "nonfinite" || name === "hubcell" || name.startsWith("onecell");
 }
 
 /**

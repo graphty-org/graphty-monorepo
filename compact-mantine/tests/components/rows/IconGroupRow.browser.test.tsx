@@ -15,9 +15,9 @@
  */
 import { DirectionProvider, MantineProvider } from "@mantine/core";
 import { act, cleanup, render, screen } from "@testing-library/react";
-import { userEvent } from "@vitest/browser/context";
 import React from "react";
 import { afterEach, describe, expect, it } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { compactTheme, IconGroupRow, PANEL_GRID } from "../../../src";
 import type { IconGroupOption } from "../../../src/components/rows/IconGroupRow";

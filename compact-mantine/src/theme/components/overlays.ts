@@ -1,7 +1,9 @@
 import {
+    Drawer,
     HoverCard,
     type MantineThemeComponents,
     Menu,
+    Modal,
     Popover,
     Tooltip,
 } from "@mantine/core";
@@ -35,10 +37,28 @@ export const overlayComponentExtensions: MantineThemeComponents = {
     Menu: Menu.extend({
         defaultProps: {
             zIndex: FLOATING_UI_Z_INDEX,
+            // Mantine's placeholder is a role-less focusable div inside role="menu", which
+            // a menu may not own (axe: aria-required-children). Without it, focus lands on
+            // the first item on open, as the WAI-ARIA menu pattern asks.
+            withInitialFocusPlaceholder: false,
         },
         vars: () => ({
             dropdown: compactMenuVars,
         }),
+    }),
+
+    // Mantine's close button is an icon with no text and no label, so it has no
+    // accessible name (axe: button-name). A caller's own closeButtonProps still win.
+    Modal: Modal.extend({
+        defaultProps: {
+            closeButtonProps: { "aria-label": "Close" },
+        },
+    }),
+
+    Drawer: Drawer.extend({
+        defaultProps: {
+            closeButtonProps: { "aria-label": "Close" },
+        },
     }),
 
     Tooltip: Tooltip.extend({

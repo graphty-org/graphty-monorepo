@@ -1,12 +1,12 @@
 #!/usr/bin/env tsx
 
 // Node.js Prim's MST Performance Benchmark using Benchmark.js
-import { CrossPlatformBenchmark } from '../utils/benchmark-runner'
-import { generateTestGraphs } from '../utils/test-data-generator'
-import { convertToLibraryGraph } from '../utils/graph-adapter'
 import { primMST } from '../../src/algorithms/mst/prim'
 import { saveBenchmarkSession } from '../utils/benchmark-result'
+import { CrossPlatformBenchmark } from '../utils/benchmark-runner'
+import { convertToLibraryGraph } from '../utils/graph-adapter'
 import { formatSystemInfo, getSystemInfo } from '../utils/system-info'
+import { generateTestGraphs } from '../utils/test-data-generator'
 
 // Configuration for Node.js benchmarks
 // Prim's MST complexity: O(E log V)
@@ -27,11 +27,10 @@ const configs = {
 
 async function runPrimsMSTBenchmark(configType: 'quick' | 'comprehensive') {
   console.log(`🚀 Running ${configType} Prim's MST benchmarks in Node.js`)
-  console.log('=' + '='.repeat(50))
+  console.log(`=${  '='.repeat(50)}`)
   console.log(formatSystemInfo(getSystemInfo()))
   console.log('')
   
-
   const config = configs[configType]
   const benchmark = new CrossPlatformBenchmark(config, `Prim's MST ${configType} Performance`)
 
@@ -60,7 +59,7 @@ async function runPrimsMSTBenchmark(configType: 'quick' | 'comprehensive') {
         graph,
         metadata: benchmarkGraph.metadata,
         edges: benchmarkGraph.edges.length,
-        algorithm: 'Prim's MST',
+        algorithm: "Prim's MST",
         graphType: 'sparse',
         graphSize: size,
         graphGenerationAlgorithm: benchmarkGraph.metadata?.generationAlgorithm
@@ -74,7 +73,7 @@ async function runPrimsMSTBenchmark(configType: 'quick' | 'comprehensive') {
 
   // Add benchmark tests
   console.log('\nAdding benchmark tests...')
-  for (const [key, testData] of testGraphs.entries()) {
+  for (const testData of testGraphs.values()) {
     benchmark.addTest(
       `Prim's MST ${testData.graphSize} vertices (${testData.graphType})`,
       () => {
@@ -98,7 +97,7 @@ async function runPrimsMSTBenchmark(configType: 'quick' | 'comprehensive') {
     const session = await benchmark.run()
     
     // Display summary
-    console.log('\n' + '='.repeat(60))
+    console.log(`\n${  '='.repeat(60)}`)
     console.log('BENCHMARK RESULTS SUMMARY')
     console.log('='.repeat(60))
     console.log('Size\tType\tTime(ms)\tOps/sec\tComplexity\tMargin')

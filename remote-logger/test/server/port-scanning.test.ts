@@ -9,7 +9,7 @@ import * as http from "http";
 import * as net from "net";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createDualServer, findAvailablePort, type DualServerResult } from "../../src/server/dual-server.js";
+import { createDualServer, type DualServerResult,findAvailablePort } from "../../src/server/dual-server.js";
 
 describe("Port scanning", () => {
     let dualServer: DualServerResult | undefined;

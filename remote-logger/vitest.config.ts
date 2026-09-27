@@ -1,3 +1,4 @@
+import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
@@ -7,7 +8,6 @@ export default defineConfig({
         hookTimeout: 30000,
         reporters: ["verbose"],
         coverage: {
-            all: true,
             provider: "v8",
             reporter: ["text", "json-summary", "json", "lcov", "html"],
             reportsDirectory: "coverage",
@@ -43,11 +43,7 @@ export default defineConfig({
                     exclude: ["**/node_modules/**", "**/dist/**"],
                     // Run sequentially to avoid port conflicts in server tests
                     pool: "forks",
-                    poolOptions: {
-                        forks: {
-                            singleFork: true,
-                        },
-                    },
+                    fileParallelism: false,
                 },
             },
             // Project 2: ui-unit - happy-dom environment for UI unit tests
@@ -69,12 +65,12 @@ export default defineConfig({
                     name: "browser",
                     include: ["test/ui/**/*.browser.test.ts"],
                     exclude: ["**/node_modules/**", "**/dist/**"],
+                    fileParallelism: false,
                     browser: {
                         enabled: true,
                         headless: true,
-                        provider: "playwright",
+                        provider: playwright(),
                         instances: [{ browser: "chromium" }],
-                        fileParallelism: false,
                     },
                 },
             },

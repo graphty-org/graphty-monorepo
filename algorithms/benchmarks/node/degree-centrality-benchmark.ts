@@ -1,12 +1,12 @@
 #!/usr/bin/env tsx
 
 // Node.js Degree Centrality Performance Benchmark using Benchmark.js
-import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
-import { generateTestGraphs } from "../utils/test-data-generator";
-import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { degreeCentrality } from "../../src/algorithms/centrality/degree";
 import { saveBenchmarkSession } from "../utils/benchmark-result";
+import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
+import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { formatSystemInfo, getSystemInfo } from "../utils/system-info";
+import { generateTestGraphs } from "../utils/test-data-generator";
 
 // Configuration for Node.js benchmarks
 const configs = {
@@ -26,7 +26,7 @@ const configs = {
 
 async function runDegreeCentralityBenchmark(configType: "quick" | "comprehensive") {
     console.log(`🚀 Running ${configType} Degree Centrality benchmarks in Node.js`);
-    console.log("=" + "=".repeat(50));
+    console.log(`=${  "=".repeat(50)}`);
     console.log(formatSystemInfo(getSystemInfo()));
     console.log("");
 
@@ -136,7 +136,7 @@ async function runDegreeCentralityBenchmark(configType: "quick" | "comprehensive
         const session = await benchmark.run();
 
         // Display summary
-        console.log("\n" + "=".repeat(60));
+        console.log(`\n${  "=".repeat(60)}`);
         console.log("BENCHMARK RESULTS SUMMARY");
         console.log("=".repeat(60));
         console.log("Size\tType\tTime(ms)\tOps/sec\tComplexity\tMargin");

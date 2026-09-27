@@ -4,8 +4,7 @@ import * as path from "path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { JsonlWriter } from "../../src/server/jsonl-writer.js";
-import { LogStorage } from "../../src/server/log-storage.js";
-import type { LogEntry } from "../../src/server/log-storage.js";
+import { type LogEntry, LogStorage } from "../../src/server/log-storage.js";
 
 describe("LogStorage", () => {
     let storage: LogStorage;

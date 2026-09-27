@@ -18,8 +18,11 @@ const createMockApiKeyManager = () => ({
 
 let mockApiKeyManagerInstance = createMockApiKeyManager();
 
-// Mock ApiKeyManager class
-const MockApiKeyManager = vi.fn(() => mockApiKeyManagerInstance);
+// Mock ApiKeyManager class. The hook calls it with `new`, so the implementation is a function
+// expression: Vitest 4 constructs a mock through its implementation, and an arrow cannot be.
+const MockApiKeyManager = vi.fn(function () {
+    return mockApiKeyManagerInstance;
+});
 
 // Mock the types/ai module
 vi.mock("../../types/ai", async (importOriginal) => {
@@ -34,7 +37,9 @@ describe("useAiKeyStorage", () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mockApiKeyManagerInstance = createMockApiKeyManager();
-        MockApiKeyManager.mockImplementation(() => mockApiKeyManagerInstance);
+        MockApiKeyManager.mockImplementation(function () {
+            return mockApiKeyManagerInstance;
+        });
         sessionStorage.clear();
     });
 

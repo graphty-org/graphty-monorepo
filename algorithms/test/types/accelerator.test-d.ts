@@ -9,6 +9,9 @@ import {
     type AcceleratedAlgorithms,
     type AlgorithmAccelerator,
     type BfsResultLike,
+    type CommunityResultLike,
+    type CorenessResultLike,
+    type HitsResultLike,
     indexed,
     type LabelResultLike,
     type MstResultLike,
@@ -53,6 +56,10 @@ expectTypeOf(accelerated(null).pageRank(s)).resolves.toMatchTypeOf<ScoresResultL
 expectTypeOf(indexed.connectedComponents(s)).toMatchTypeOf<LabelResultLike>();
 expectTypeOf(indexed.kruskalMST(s)).toMatchTypeOf<MstResultLike>();
 expectTypeOf(indexed.dijkstra(s, 0)).toMatchTypeOf<SsspResultLike>();
+expectTypeOf(indexed.kCoreDecomposition(s)).toMatchTypeOf<CorenessResultLike>();
+expectTypeOf(indexed.katzCentrality(s)).toMatchTypeOf<ScoresResultLike>();
+expectTypeOf(indexed.hits(s)).toMatchTypeOf<HitsResultLike>();
+expectTypeOf(indexed.louvain(s)).toMatchTypeOf<CommunityResultLike>();
 
 // ---- the bridge keeps its legacy parameter and is NOT in the namespace
 expectTypeOf(toSnapshot).returns.toEqualTypeOf<GraphSnapshot>();

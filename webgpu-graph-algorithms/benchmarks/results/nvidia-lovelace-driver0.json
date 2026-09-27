@@ -1,0 +1,113 @@
+[
+    {
+        "date": "2026-09-25T11:40:24.158Z",
+        "host": "localhost",
+        "node": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36",
+        "cpu": "unknown",
+        "exposeGc": false,
+        "gpu": {
+            "vendor": "nvidia",
+            "architecture": "lovelace",
+            "device": "",
+            "description": "",
+            "driver": "",
+            "limits": {
+                "maxBufferSize": 4294967296,
+                "maxStorageBufferBindingSize": 4294967292,
+                "maxStorageBuffersPerShaderStage": 10,
+                "maxComputeWorkgroupsPerDimension": 65535
+            },
+            "software": false,
+            "runtime": "browser",
+            "subgroupMaxSize": 32
+        },
+        "runnerClass": "nvidia-lovelace-driver0",
+        "results": [
+            {
+                "group": "layout-browser",
+                "name": "fa2-exact-10k-step1-readback",
+                "medianMs": 2.3999996185302734,
+                "minMs": 2.1999998092651367,
+                "maxMs": 2.9000000953674316,
+                "runs": 50,
+                "memoryDeltaBytes": 0,
+                "rate": 416.66673289406026,
+                "rateUnit": "frames/s"
+            }
+        ]
+    },
+    {
+        "date": "2026-09-25T11:40:24.693Z",
+        "host": "localhost",
+        "node": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36",
+        "cpu": "unknown",
+        "exposeGc": false,
+        "gpu": {
+            "vendor": "nvidia",
+            "architecture": "lovelace",
+            "device": "",
+            "description": "",
+            "driver": "",
+            "limits": {
+                "maxBufferSize": 4294967296,
+                "maxStorageBufferBindingSize": 4294967292,
+                "maxStorageBuffersPerShaderStage": 10,
+                "maxComputeWorkgroupsPerDimension": 65535
+            },
+            "software": false,
+            "runtime": "browser",
+            "subgroupMaxSize": 32
+        },
+        "runnerClass": "nvidia-lovelace-driver0",
+        "results": [
+            {
+                "group": "layout-browser",
+                "name": "fa2-grid-100k-step1-readback",
+                "medianMs": 3.700000286102295,
+                "minMs": 3.5,
+                "maxMs": 5.399999618530273,
+                "runs": 50,
+                "memoryDeltaBytes": 0,
+                "rate": 270.2702493716382,
+                "rateUnit": "frames/s"
+            }
+        ]
+    },
+    {
+        "date": "2026-09-27T07:09:45.998Z",
+        "host": "localhost",
+        "node": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36",
+        "cpu": "unknown",
+        "exposeGc": false,
+        "gpu": {
+            "vendor": "nvidia",
+            "architecture": "lovelace",
+            "device": "",
+            "description": "",
+            "driver": "",
+            "limits": {
+                "maxBufferSize": 4294967296,
+                "maxStorageBufferBindingSize": 4294967292,
+                "maxStorageBuffersPerShaderStage": 10,
+                "maxComputeWorkgroupsPerDimension": 65535
+            },
+            "software": false,
+            "runtime": "browser",
+            "subgroupMaxSize": 32
+        },
+        "runnerClass": "nvidia-lovelace-driver0",
+        "results": [
+            {
+                "group": "roundtrip-browser",
+                "name": "empty-submit-readU32",
+                "medianMs": 0.1699999928474426,
+                "minMs": 0.15,
+                "maxMs": 1.7949999809265136,
+                "runs": 30,
+                "memoryDeltaBytes": 0,
+                "rate": 5882.3531886698165,
+                "rateUnit": "roundtrips/s"
+            }
+        ]
+    }
+]

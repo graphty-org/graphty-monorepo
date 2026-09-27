@@ -44,6 +44,8 @@ webgpu-graph-algorithms/
 +-- scripts/gpu-report.js         # adapter report + policy exit code + nvidia-smi sample (imports dist/node.js only)
 +-- scripts/run-browser-project.js   # timeout -k 10 600 around the browser project; exit 124 passes iff the JSON says all tests passed
 +-- scripts/bench-compare.js      # the regression check: a median AND a minimum above 1.35x the PINNED best of benchmarks/results/<runner-class>.json, and above it by at least 2.5 ms
++-- scripts/bench-targets.js      # judgeTarget: met / missed / recorded against benchmarks/results/targets.json (the T-table, one entry per row)
++-- scripts/bench-readme-tables.js   # `bench:readme`: regenerates the README's target tables between their markers; a node test fails on drift
 +-- scripts/bench-append-session.js  # `bench:append <out> <results>`: appends the last out session to a baseline; refuses a software session, a session missing any of the nine groups, a duplicate date
 +-- src/
 |   +-- index.ts                  # the ONLY public barrel; explicit named exports; /// <reference types="@webgpu/types" preserve="true" />
@@ -98,6 +100,7 @@ pnpm run test:browser:ci    # node scripts/run-browser-project.js (SwiftShader u
 pnpm run test:limits        # vitest run --project=node-limits (GPU lane only)
 pnpm run bench              # tsx benchmarks/run.ts -> benchmarks/out/<runner-class>.json
 pnpm run bench:compare      # the regression check: a median AND a minimum above 1.35x AND 2.5 ms over the pinned best of benchmarks/results/<runner-class>.json
+pnpm run bench:readme       # regenerate the README's target tables after changing targets.json or a results file
 pnpm run bench:append benchmarks/out/<class>.json benchmarks/results/<class>.json   # append the last out session to the baseline (refuses software / incomplete / duplicate sessions)
 pnpm exec tsx benchmarks/layout-run.ts --nodes 100000 --edges 1000000   # the end-to-end exact-tier layout; exit 1 on a non-finite position or an unfinished run
 pnpm run gpu:report         # node scripts/gpu-report.js (after build:all): adapter report, policy exit code
@@ -146,8 +149,11 @@ after the `upload` group still see it). `test/benchmarks.test.ts` proves the har
 `bench-compare.js`, the ladder table, the 7.8 rule and the driver's helpers without a GPU. Browser numbers (T-3 in
 Chromium, T-5) arrive through the `appendBenchRecord` command of `vitest.config.ts` from `bench`-tagged browser tests
 (`test/browser/bench.test.ts`, run only under `GRAPHTY_BROWSER_GPU=nvidia`) into `benchmarks/out/<the browser's runner
-class>.json` (`nvidia-lovelace-driver0.json` on the dev box: Chromium redacts the driver string); they are recorded in the
-gate record and the README, never merged into a Node class file.
+class>.json` (`nvidia-lovelace-driver0.json` on the dev box: Chromium redacts the driver string); they are checked in as
+`benchmarks/results/<the browser's class>.json` (copied from the out file or the lane's artifact), never merged into a
+Node class file. The absolute targets live in `benchmarks/results/targets.json`: `bench:compare` prints met / missed /
+recorded per row and fails a run on a gating class (`gpu-linux-t4`) that misses a target not listed as that class's
+known miss, and `pnpm run bench:readme` regenerates the README tables from it (issue #277).
 
 `exactMaxNodes` (`EXACT_MAX_NODES` in `src/constants.ts`) is re-fixed from the ladder by the spec 7.8 rule, coded once as
 `exactMaxNodesFromLadder` in `benchmarks/layout-exact.bench.ts`: the largest rung with <= 4 ms per iteration, rounded down

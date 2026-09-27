@@ -2,7 +2,7 @@
  * Tests for utils index exports
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, expect,it } from "vitest";
 
 describe("Utils Index", () => {
     it("should export all utility functions from numpy", async () => {

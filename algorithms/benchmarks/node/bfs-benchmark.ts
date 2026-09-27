@@ -1,12 +1,12 @@
 #!/usr/bin/env tsx
 
 // Node.js BFS Performance Benchmark using Benchmark.js
-import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
-import { generateTestGraphs } from "../utils/test-data-generator";
-import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { breadthFirstSearch } from "../../src/algorithms/traversal/bfs";
 import { saveBenchmarkSession } from "../utils/benchmark-result";
+import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
+import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { formatSystemInfo, getSystemInfo } from "../utils/system-info";
+import { generateTestGraphs } from "../utils/test-data-generator";
 
 // Configuration for Node.js benchmarks
 const configs = {
@@ -36,7 +36,7 @@ const configs = {
 
 async function runBFSBenchmark(configType: "quick" | "comprehensive") {
     console.log(`🚀 Running ${configType} BFS benchmarks in Node.js`);
-    console.log("=" + "=".repeat(50));
+    console.log(`=${  "=".repeat(50)}`);
     console.log(formatSystemInfo(getSystemInfo()));
     console.log("");
 
@@ -146,7 +146,7 @@ async function runBFSBenchmark(configType: "quick" | "comprehensive") {
         const session = await benchmark.run();
 
         // Display summary
-        console.log("\n" + "=".repeat(60));
+        console.log(`\n${  "=".repeat(60)}`);
         console.log("BENCHMARK RESULTS SUMMARY");
         console.log("=".repeat(60));
         console.log("Size\tType\tTime(ms)\tOps/sec\tTEPS\t\tMargin");
@@ -186,7 +186,7 @@ async function main() {
         }
     } catch (error) {
         if (jsonOnly) {
-            console.log(JSON.stringify({ error: error.message }, null, 2));
+            console.log(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }, null, 2));
         } else {
             console.error("Benchmark execution failed:", error);
         }

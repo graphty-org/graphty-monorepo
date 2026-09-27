@@ -110,7 +110,7 @@ export const SwitchViewModes: Story = {
         },
     },
     render: (args) => {
-        const graphEl = document.createElement("graphty-element") as Graphty;
+        const graphEl = document.createElement("graphty-element");
         graphEl.id = "graph-viewmode";
         graphEl.style.cssText = "width: 100%; height: 100%; display: block;";
         graphEl.nodeData = args.nodeData;

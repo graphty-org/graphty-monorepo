@@ -7,7 +7,6 @@
  * - Creates a gh-pages directory ready for deployment
  */
 
-import { build } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs/promises";
@@ -20,7 +19,7 @@ const __dirname = path.dirname(__filename);
 async function ensureDirectoryExists(dir) {
     try {
         await fs.mkdir(dir, { recursive: true });
-    } catch (error) {
+    } catch {
         // Directory already exists
     }
 }
@@ -205,7 +204,7 @@ async function buildGitHubPages() {
                     await copyFile(srcPath, destPath);
                 }
                 console.log(`Copied algorithms/centrality/${file}`);
-            } catch (error) {
+            } catch {
                 console.log(`Skipping ${file} (not found)`);
             }
         }
@@ -234,7 +233,7 @@ async function buildGitHubPages() {
                 // Copy algorithms.js to each category directory
                 await copyFile(algorithmsJsPath, path.join(categoryDestDir, "algorithms.js"));
                 console.log(`Copied algorithms/${category}/ directory`);
-            } catch (error) {
+            } catch {
                 // Create empty directory structure for future use
                 await ensureDirectoryExists(categoryDestDir);
                 await copyFile(algorithmsJsPath, path.join(categoryDestDir, "algorithms.js"));

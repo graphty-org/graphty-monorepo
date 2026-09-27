@@ -1,6 +1,6 @@
 {
     "name": "@graphty/webgpu-graph-algorithms",
-    "version": "0.6.7",
+    "version": "0.6.9",
     "description": "WebGPU-accelerated graph algorithms and layouts over the @graphty/graph-format snapshot, for Node (Dawn) and browsers",
     "author": "Adam Powers <apowers@ato.ms>",
     "type": "module",
@@ -39,7 +39,7 @@
         "node": ">=18.19.0"
     },
     "scripts": {
-        "build": "tsc -p tsconfig.build.json",
+        "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
         "build:bundle": "node scripts/build-bundle.js",
         "build:all": "npm run build && npm run build:bundle",
         "lint": "eslint && tsc --noEmit -p tsconfig.json && tsc -p tsconfig.strict-consumer.json",

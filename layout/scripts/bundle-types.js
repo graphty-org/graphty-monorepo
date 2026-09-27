@@ -5,7 +5,7 @@
  * bundled together, matching the structure of dist/layout.js
  */
 
-import { readFileSync, writeFileSync, existsSync } from "fs";
+import { writeFileSync, existsSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 

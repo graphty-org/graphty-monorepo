@@ -1,6 +1,6 @@
 {
     "name": "@graphty/graph-io",
-    "version": "0.3.4",
+    "version": "0.3.6",
     "description": "Importers and exporters (GEXF, GraphML, GML, DOT, Pajek, CSV, JSON, Neo4j) for the @graphty/graph-format snapshot",
     "author": "Adam Powers <apowers@ato.ms>",
     "type": "module",
@@ -69,7 +69,7 @@
         "node": ">=18.19.0"
     },
     "scripts": {
-        "build": "tsc -p tsconfig.build.json",
+        "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
         "build:bundle": "node scripts/build-bundle.js",
         "build:all": "npm run build && npm run build:bundle",
         "lint": "eslint && tsc --noEmit -p tsconfig.json",

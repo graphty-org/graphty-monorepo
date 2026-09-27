@@ -42,6 +42,7 @@ webgpu-graph-algorithms/
 +-- scripts/gpu-policy.js (+.d.ts)   # parseGpuRequire / checkAdapter / isSoftwareInfo -- the ONE copy of the adapter policy
 +-- scripts/runner-class.js (+.d.ts) # runnerClass(info, env) -- the ONE copy of the benchmark runner-class rule
 +-- scripts/gpu-report.js         # adapter report + policy exit code + nvidia-smi sample (imports dist/node.js only)
++-- scripts/grid-memory.mjs       # RSS against heapUsed across grid simulations, and a raw Dawn loop (issue #162; docs/grid-memory-retention.md)
 +-- scripts/run-browser-project.js   # timeout -k 10 600 around the browser project; exit 124 passes iff the JSON says all tests passed
 +-- scripts/bench-compare.js      # the regression check: a median AND a minimum above 1.35x the PINNED best of benchmarks/results/<runner-class>.json, and above it by at least 2.5 ms
 +-- scripts/bench-append-session.js  # `bench:append <out> <results>`: appends the last out session to a baseline; refuses a software session, a session missing any of the nine groups, a duplicate date
@@ -179,6 +180,11 @@ for the node projects and `scripts/gpu-report.js`; `GRAPHTY_EGL_LIB_DIR=<that di
 SwiftShader -- which the tests turn RED under `GRAPHTY_GPU_REQUIRE=hardware` / `nvidia` and under
 `GRAPHTY_BROWSER_GPU=nvidia`, never into a silent pass. The tree is extracted per docs/HEADLESS_GPU_REPORT.md
 appendix D into the monorepo's gitignored tmp/egl/; Task M1-T5 of the integration plan re-extracts it.
+The pre-push gate (`tools/prepush.sh`) prepends `GRAPHTY_EGL_LIB_DIR`, or the main checkout's
+`tmp/egl/root/usr/lib/x86_64-linux-gnu` when the variable is unset, to `LD_LIBRARY_PATH` for the node
+tests, so it runs on the NVIDIA GPU when the tree exists and on lavapipe otherwise. The node project's
+global setup prints the adapter it ran on (`[gpu] node project adapter: <vendor> / <architecture>`)
+whenever `GRAPHTY_GPU_REQUIRE` is set.
 
 ## WGSL Conventions
 

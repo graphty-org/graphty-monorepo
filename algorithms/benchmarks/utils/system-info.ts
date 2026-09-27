@@ -1,6 +1,6 @@
-import os from "os";
 import { execSync } from "child_process";
 import { readFileSync } from "fs";
+import os from "os";
 import { join } from "path";
 
 export interface SystemInfo {
@@ -38,7 +38,9 @@ export function getSystemInfo(): SystemInfo {
         const packageJsonPath = join(process.cwd(), "package.json");
         const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
         libraryVersion = packageJson.version || "unknown";
-    } catch {}
+    } catch {
+        // No readable package.json: the version stays "unknown"
+    }
 
     // Get more detailed CPU info if available
     let cpuModel = cpus[0]?.model || "Unknown";
@@ -62,8 +64,12 @@ export function getSystemInfo(): SystemInfo {
                 if (!isNaN(freqKHz)) {
                     cpuSpeed = Math.round(freqKHz / 1000); // Convert KHz to MHz
                 }
-            } catch {}
-        } catch {}
+            } catch {
+                // No cpufreq entry: keep the speed os.cpus() reported
+            }
+        } catch {
+            // Not Linux or no /proc/cpuinfo: keep the model os.cpus() reported
+        }
     }
 
     return {
@@ -91,6 +97,7 @@ export function getSystemInfo(): SystemInfo {
 
 /**
  * Formats system info as a readable string
+ * @param info
  */
 export function formatSystemInfo(info: SystemInfo): string {
     return `

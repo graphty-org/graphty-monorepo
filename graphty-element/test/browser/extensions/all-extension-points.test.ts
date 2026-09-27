@@ -858,3 +858,93 @@ describe("six extensions, one graph", () => {
         );
     });
 });
+
+describe("every registration surface the published entry points carry", () => {
+    /**
+     * Every export of `./extend` and `./ai` that registers something, and the test that covers it.
+     *
+     * A `suite` is the dummy-extension test that registers a stand-in through the published
+     * entry point and drives it the way a built-in is driven. An `excluded` entry is registration
+     * machinery that is published but is not one of the six extension points: the reason says
+     * why, and `coveredBy` names the test that still exercises it. Paths are relative to `test/`.
+     *
+     * `NodeMesh.registerShapeCreator` is not here because no published entry point carries it.
+     */
+    const SURFACES: Readonly<Record<string, { suite: string } | { excluded: string; coveredBy?: string }>> = {
+        "extend.registerPalette": { suite: "browser/extensions/palette-extension.test.ts" },
+        "extend.DataSource": { suite: "browser/extensions/format-extension.test.ts" },
+        "extend.registerCameraView": { suite: "browser/extensions/camera-extension.test.ts" },
+        "extend.LayoutEngine": { suite: "browser/extensions/layout-extension.test.ts" },
+        "extend.SimpleLayoutEngine": { suite: "browser/extensions/layout-extension.test.ts" },
+        "extend.Algorithm": { suite: "browser/extensions/algorithm-extension.test.ts" },
+        "extend.DeclaredAlgorithm": { suite: "browser/extensions/algorithm-extension.test.ts" },
+        "extend.registerLogSink": { suite: "browser/extensions/logging-extension.test.ts" },
+        "extend.registerAccelerator": {
+            excluded: "an accelerator is internal, not one of the six extension points",
+            coveredBy: "browser/extensions/algorithm-extension.test.ts",
+        },
+        "extend.acceleratorRegistry": {
+            excluded: "the registry registerAccelerator writes to, internal like it",
+            coveredBy: "browser/acceleration-attribute.test.ts",
+        },
+        "extend.AcceleratorRegistry": {
+            excluded: "the class of acceleratorRegistry, internal like it",
+            coveredBy: "acceleration/registry.test.ts",
+        },
+        "extend.SimpleLayoutConfig": {
+            excluded: "a Zod schema: its register method is Zod's metadata registry, not the element's",
+        },
+        "ai.CommandRegistry": {
+            excluded: "a natural-language command is not an extension point",
+            coveredBy: "ai/commands/CommandRegistry.test.ts",
+        },
+    };
+
+    /** Every test file in the package, by path relative to `test/`; nothing is loaded. */
+    const testFiles = new Set(
+        Object.keys(import.meta.glob("/test/**/*.test.ts")).map((path) => path.replace(/^\/test\//, "")),
+    );
+
+    /**
+     * Whether an export is something a caller registers through.
+     * @param name - The export's name.
+     * @param value - The export.
+     * @returns True for a `register*` function, a class with a static or an instance `register`,
+     *   or an object with a `register` method.
+     */
+    function registers(name: string, value: unknown): boolean {
+        if (typeof value === "function") {
+            const candidate = value as { register?: unknown; prototype?: { register?: unknown } };
+            return (
+                /^register[A-Z]/.test(name) ||
+                typeof candidate.register === "function" ||
+                typeof candidate.prototype?.register === "function"
+            );
+        }
+
+        return (
+            typeof value === "object" && value !== null && typeof (value as { register?: unknown }).register === "function"
+        );
+    }
+
+    it("lists every one of them, so a new one cannot be published without a test", async () => {
+        const entries = { extend: await import("../../../extend"), ai: await import("../../../ai") };
+        const found = Object.entries(entries)
+            .flatMap(([entry, module]) =>
+                Object.entries(module)
+                    .filter(([name, value]) => registers(name, value))
+                    .map(([name]) => `${entry}.${name}`),
+            )
+            .sort();
+
+        assert.deepStrictEqual(found, Object.keys(SURFACES).sort(), `found ${found.join(", ")}`);
+    });
+
+    it.each(Object.entries(SURFACES))("%s names only test files that exist", (_name, entry) => {
+        const path = "suite" in entry ? entry.suite : entry.coveredBy;
+
+        if (path !== undefined) {
+            assert.isTrue(testFiles.has(path), `test/${path} does not exist`);
+        }
+    });
+});

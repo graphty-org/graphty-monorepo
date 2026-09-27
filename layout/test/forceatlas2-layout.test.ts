@@ -1,13 +1,14 @@
-import { describe, it, assert } from "vitest";
+import { assert,describe, it } from "vitest";
+
 import {
-    forceatlas2Layout,
     completeGraph,
     cycleGraph,
-    starGraph,
+    forceatlas2Layout,
     gridGraph,
     randomGraph,
-    scaleFreeGraph,
     rescaleLayout,
+    scaleFreeGraph,
+    starGraph,
 } from "../src";
 
 describe("ForceAtlas2 Layout", () => {
@@ -37,8 +38,8 @@ describe("ForceAtlas2 Layout", () => {
             const positions = forceatlas2Layout(singleNode);
 
             assert.equal(Object.keys(positions).length, 1);
-            assert.isDefined(positions["A"]);
-            assert.equal(positions["A"].length, 2);
+            assert.isDefined(positions.A);
+            assert.equal(positions.A.length, 2);
         });
 
         it("should handle disconnected components", () => {
@@ -352,12 +353,12 @@ describe("ForceAtlas2 Layout", () => {
                     [2, 3],
                     [3, 0],
                 ],
-                get_edge_data: (u, v) => {
+                getEdgeData: (u, v) => {
                     // Make edge 0-1 stronger
                     if ((u === 0 && v === 1) || (u === 1 && v === 0)) {
-                        return { weight: 10.0 };
+                        return 10.0;
                     }
-                    return { weight: 1.0 };
+                    return 1.0;
                 },
             };
 

@@ -26,6 +26,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from "node:f
 import { dirname, join, resolve } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { stripVTControlCharacters } from "node:util";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -40,8 +41,6 @@ const CAN_SIGNAL = process.platform !== "win32";
 /** The fixed marker on every missing-file line, so a log can be grepped for one string. */
 const MISSING_MARKER = "[missing-files]";
 
-/** The colour escapes the reporters write around every glyph and path. */
-const ANSI = /\u001B\[[0-9;]*m/g;
 /** The head of a per-file or per-test result line: one of the reporters' status glyphs and its ASCII fallbacks. */
 const RESULT_HEAD = /^\s*[\u2713\u221A\u00D7\u2717\u276F\u203A\u2193]\s/;
 /** The `stdout | <file>` / `stderr | <file>` line vitest prints above output a test file wrote. */
@@ -64,7 +63,7 @@ export function missingTestFiles(output) {
     const started = new Set();
     const reported = new Set();
     for (const raw of String(output).split("\n")) {
-        const line = raw.replace(ANSI, "");
+        const line = stripVTControlCharacters(raw);
         const announced = OUTPUT_HEAD.exec(line);
         if (announced !== null) {
             const named = TEST_FILE.exec(announced[1]);

@@ -1,5 +1,6 @@
-import { describe, it, assert } from "vitest";
-import { fruchtermanReingoldLayout, completeGraph, cycleGraph, starGraph, gridGraph, randomGraph } from "../src";
+import { assert,describe, it } from "vitest";
+
+import { completeGraph, cycleGraph, fruchtermanReingoldLayout, gridGraph, randomGraph,starGraph } from "../src";
 
 describe("Fruchterman-Reingold Layout", () => {
     describe("Basic functionality", () => {
@@ -28,8 +29,8 @@ describe("Fruchterman-Reingold Layout", () => {
             const positions = fruchtermanReingoldLayout(singleNode);
 
             assert.equal(Object.keys(positions).length, 1);
-            assert.isDefined(positions["A"]);
-            assert.equal(positions["A"].length, 2);
+            assert.isDefined(positions.A);
+            assert.equal(positions.A.length, 2);
         });
 
         it("should handle disconnected components", () => {

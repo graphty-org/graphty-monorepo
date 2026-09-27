@@ -345,6 +345,9 @@ export default defineConfig({
                         "test/browser/style-layer-ordering.test.ts",
                         "test/browser/first-paint-after-load.test.ts",
                         "test/browser/story-contract.test.ts",
+                        // Every story Chromatic snapshots is seeded, pre-stepped and settled. It
+                        // imports every story module, which is why it is here and not in "default".
+                        "test/browser/story-determinism.test.ts",
                         // Proves a channel the table calls renderable really changes the picture,
                         // which the table-reads-the-table check in
                         // test/session/styles/channels.test.ts cannot: that one asserts the table
@@ -410,12 +413,14 @@ export default defineConfig({
                 },
             },
             {
-                // The one env var that crosses into the page: which flag set the run asked for.
+                // The env vars that cross into the page. The first is which flag set the run asked for.
                 // Naming it as a prefix is what puts it on `import.meta.env` in the browser --
                 // Vite copies every matching variable out of the process environment -- and
                 // test/browser/webgpu-layout.test.ts skips itself when it is absent, so the five
                 // CI shards never try to use a WebGPU that is not there.
-                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU"],
+                // GRAPHTY_UPDATE_RENDER_BUDGET makes test/browser/render-budget.test.ts rewrite its
+                // baseline instead of checking against it.
+                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_UPDATE_RENDER_BUDGET"],
                 // Pre-bundle IWER up front: discovered mid-run, Vite re-optimizes and reloads the
                 // page under the running test (test/browser/xr-session.test.ts imports it).
                 optimizeDeps: { include: ["iwer", ...BABYLON_SIDE_EFFECTS] },
@@ -443,16 +448,6 @@ export default defineConfig({
                         "test/interactions/**/*.test.ts",
                         // So do the WebXR tests: see the "xr" project
                         ...XR_BROWSER_TESTS,
-                        // Tests using Node.js-only libraries (pngjs).
-                        //
-                        // This file therefore runs in NO project: "default" excludes all of
-                        // test/browser/**, "browser" excludes it by name here, and it is not in
-                        // "contract". It is not a gap somebody should close by adding it somewhere --
-                        // it drives its own Playwright Chromium against STORYBOOK_URL, which defaults
-                        // to https://localhost:6006, so it needs a Storybook dev server that neither
-                        // this gate nor CI runs. It is a script wearing a test's file extension.
-                        // Either it gets a home that starts that server, or it should be deleted.
-                        "test/browser/dash-spacing-measurement.test.ts",
                         // Exclude experimental/temporary folders ending with ~
                         "**/*~/**",
                         "**/*~",

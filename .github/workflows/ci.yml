@@ -170,6 +170,26 @@ jobs:
             - name: Build layout gh-pages
               run: pnpm exec nx run layout:build:gh-pages
 
+            # Every package's dist in one artifact, so a test shard fetches them in one request.
+            # The per-package artifacts below stay: release.yml, deploy-pages.yml and the
+            # performance job download them by name.
+            - name: Upload all package builds
+              uses: actions/upload-artifact@v4
+              with:
+                  name: build-packages
+                  path: |
+                      graph-format/dist/
+                      graph-io/dist/
+                      webgpu-graph-algorithms/dist/
+                      graph-samples/dist/
+                      algorithms/dist/
+                      layout/dist/
+                      graphty/dist/
+                      graphty-element/dist/
+                      remote-logger/dist/
+                      compact-mantine/dist/
+                  retention-days: 1
+
             - name: Upload graph-format build
               uses: actions/upload-artifact@v4
               with:
@@ -331,65 +351,24 @@ jobs:
               env:
                   HUSKY: "0"
 
-            - name: Download graph-format build
+            # One download instead of one per package: about twenty shards starting at once, each
+            # making ten requests, drew 403 errors from the artifact service (#252). The archive
+            # keeps each package's path, so it unpacks into place at the repository root. A failed
+            # download is tried once more.
+            - name: Download all package builds
+              id: download-packages
+              continue-on-error: true
               uses: actions/download-artifact@v4
               with:
-                  name: build-graph-format
-                  path: graph-format/dist/
+                  name: build-packages
+                  path: .
 
-            - name: Download graph-io build
+            - name: Download all package builds (retry)
+              if: steps.download-packages.outcome == 'failure'
               uses: actions/download-artifact@v4
               with:
-                  name: build-graph-io
-                  path: graph-io/dist/
-
-            - name: Download webgpu-graph-algorithms build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-webgpu-graph-algorithms
-                  path: webgpu-graph-algorithms/dist/
-
-            - name: Download graph-samples build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-graph-samples
-                  path: graph-samples/dist/
-
-            - name: Download algorithms build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-algorithms
-                  path: algorithms/dist/
-
-            - name: Download layout build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-layout
-                  path: layout/dist/
-
-            - name: Download graphty build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-graphty
-                  path: graphty/dist/
-
-            - name: Download graphty-element build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-graphty-element
-                  path: graphty-element/dist/
-
-            - name: Download remote-logger build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-remote-logger
-                  path: remote-logger/dist/
-
-            - name: Download compact-mantine build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-compact-mantine
-                  path: compact-mantine/dist/
+                  name: build-packages
+                  path: .
 
             - name: Cache Playwright browsers
               if: matrix.needs-browser
@@ -811,6 +790,55 @@ jobs:
                   path: algorithms/test/performance-baseline.json
                   retention-days: 90
                   if-no-files-found: ignore
+
+    # graphty-element's cost estimates held against a stopwatch (issue #236). The test times real
+    # algorithm runs and scales the estimate by the element's own calibration probe, so it reads the
+    # same on this runner as on a workstation. It is a measurement, not a gate: master and dispatch
+    # only, and not in "All Checks Pass", so a drift shows as a red job on master and never blocks a
+    # pull request. Each failure names the row, the graph, n, m, both times and the ratio; every
+    # row's ratio also lands in the job summary.
+    cost-accuracy:
+        name: Cost Estimate Accuracy
+        needs: build
+        if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: pnpm/action-setup@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            - name: Download all package builds
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-packages
+                  path: .
+
+            - name: Time the estimates against real runs
+              working-directory: graphty-element
+              run: |
+                  set -o pipefail
+                  COST_GUARD_VERBOSE=1 npm run test:cost 2>&1 | tee "$RUNNER_TEMP/cost.log"
+
+            - name: Write the ratios to the job summary
+              if: ${{ !cancelled() }}
+              run: |
+                  {
+                      echo "### Cost estimate / measured run (bounds 0.95 to 4)"
+                      echo '```'
+                      grep -E "ratio [0-9.]+, machine speed" "$RUNNER_TEMP/cost.log" || echo "no rows ran"
+                      echo '```'
+                  } >> "$GITHUB_STEP_SUMMARY"
 
     # Gate job - ensures all required checks pass before release/deploy. It is the required status check,
     # so it runs even when a job it needs failed (if: always()) and decides for itself.

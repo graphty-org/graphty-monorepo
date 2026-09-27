@@ -284,14 +284,16 @@ describe("HelpMenu", () => {
     });
 
     describe("keyboard", () => {
-        it("walks down the rows with the arrow keys", async () => {
+        it("puts focus on the first row on open and walks down the rows with the arrow keys", async () => {
             const user = userEvent.setup();
 
             render(<Harness />);
 
             await user.click(opener());
             await screen.findByRole("menu", { name: "Help" });
-            await user.keyboard("{ArrowDown}");
+
+            // The WAI-ARIA menu pattern: opening a menu focuses its first item.
+            expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: /Keyboard shortcuts/ }));
             await user.keyboard("{ArrowDown}");
 
             expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: "Show suggestions" }));

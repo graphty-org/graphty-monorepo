@@ -1,6 +1,6 @@
 {
     "name": "@graphty/graphty-element",
-    "version": "2.5.0",
+    "version": "2.5.2",
     "description": "A Web Component library for 3D/2D graph visualization built with Lit and Babylon.js",
     "type": "module",
     "customElements": "./dist/custom-elements.json",
@@ -194,7 +194,6 @@
         "lit": "^3.3.1",
         "lodash": "^4.17.21",
         "ngraph.random": "^1.2.0",
-        "pngjs": "^7.0.0",
         "storybook": "^9.1.20",
         "typedoc": "^0.28.15",
         "typedoc-plugin-markdown": "^4.9.0",

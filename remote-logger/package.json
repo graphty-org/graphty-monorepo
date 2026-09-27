@@ -1,6 +1,6 @@
 {
     "name": "@graphty/remote-logger",
-    "version": "1.3.7",
+    "version": "1.3.8",
     "description": "Remote logging client and server for browser debugging",
     "author": "Adam Powers <apowers@ato.ms>",
     "main": "dist/index.js",
@@ -51,7 +51,7 @@
         "lint:fix": "eslint --fix",
         "lint:knip": "cd .. && pnpm run lint:knip -- --workspace remote-logger",
         "typecheck": "tsc --noEmit",
-        "build": "tsc && vite build --config vite.bundle.config.ts",
+        "build": "node -e \"for (const p of ['dist','tsconfig.tsbuildinfo']) require('fs').rmSync(p,{recursive:true,force:true})\" && tsc && vite build --config vite.bundle.config.ts",
         "build:watch": "tsc --watch",
         "dev": "tsc --watch"
     },

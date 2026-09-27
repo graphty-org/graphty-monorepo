@@ -48,7 +48,10 @@ describe("session.selection", () => {
         assert.deepStrictEqual([...harness.session.selection.edges], [edgeBetween(harness, "c", "d")]);
         assert.strictEqual(harness.session.selection.size, 3);
         assert.isTrue(harness.session.selection.has("b"));
-        assert.isTrue(harness.session.selection.has(edgeBetween(harness, "c", "d")), "an edge can be selected, which it never could before");
+        assert.isTrue(
+            harness.session.selection.has(edgeBetween(harness, "c", "d")),
+            "an edge can be selected, which it never could before",
+        );
         harness.session.dispose();
     });
 

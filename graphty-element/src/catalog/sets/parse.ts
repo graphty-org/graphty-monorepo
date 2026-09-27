@@ -147,7 +147,9 @@ function checkIds(value: unknown, where: string): void {
 
     for (const id of value) {
         if (!isId(id)) {
-            throw bad(`${where} holds ${String(id)}, which is not a node id: an id is a string or a finite number.`, { id });
+            throw bad(`${where} holds ${String(id)}, which is not a node id: an id is a string or a finite number.`, {
+                id,
+            });
         }
     }
 }
@@ -197,8 +199,16 @@ function checkEdgeMember(value: unknown, walker: Walker): void {
     if (hasOrdinal) {
         const { ordinal, among } = value;
 
-        if (!Number.isInteger(among) || (among as number) < 1 || !Number.isInteger(ordinal) || (ordinal as number) < 0 || (ordinal as number) >= (among as number)) {
-            throw bad("An edge member's ordinal counts from 0 and is below among, a whole number from 1.", { member: value });
+        if (
+            !Number.isInteger(among) ||
+            (among as number) < 1 ||
+            !Number.isInteger(ordinal) ||
+            (ordinal as number) < 0 ||
+            (ordinal as number) >= (among as number)
+        ) {
+            throw bad("An edge member's ordinal counts from 0 and is below among, a whole number from 1.", {
+                member: value,
+            });
         }
     }
 }
@@ -254,7 +264,7 @@ function checkItem(value: unknown, walker: Walker): void {
 
     const { key } = value;
     if (!isObject(key)) {
-        throw bad("An item's key is an object, such as { field: \"group\", value: 3 }.", { key });
+        throw bad('An item\'s key is an object, such as { field: "group", value: 3 }.', { key });
     }
 
     if (key.field === undefined) {
@@ -341,11 +351,14 @@ function checkRoot(path: unknown): void {
 
     const root = path.split(".")[0];
     if (!FIELD_ROOTS.includes(root)) {
-        throw bad(`A field path starts with "data." or "results.", so "${path}" is refused: the root "${root}" is reserved.`, {
-            path,
-            root,
-            reason: "reserved-root",
-        });
+        throw bad(
+            `A field path starts with "data." or "results.", so "${path}" is refused: the root "${root}" is reserved.`,
+            {
+                path,
+                root,
+                reason: "reserved-root",
+            },
+        );
     }
 }
 
@@ -519,7 +532,11 @@ export function speaksEdges(
             const key = isObject(item.key) ? item.key : {};
             const run = runIdOfRef(item.result);
 
-            return typeof run === "string" && typeof key.field === "string" && fieldKinds?.(`results.${run}.${key.field}`).includes("edge") === true;
+            return (
+                typeof run === "string" &&
+                typeof key.field === "string" &&
+                fieldKinds?.(`results.${run}.${key.field}`).includes("edge") === true
+            );
         }
         case "threshold":
             return typeof node.path === "string" && fieldKinds?.(node.path).includes("edge") === true;
@@ -560,9 +577,12 @@ function checkScope(value: unknown, walker: Walker): void {
     }
 
     if (!isObject(value)) {
-        throw bad('A scope is "visible", "graph", "selection", "largest-component", { set }, { where }, { nodes } or { define }.', {
-            scope: value,
-        });
+        throw bad(
+            'A scope is "visible", "graph", "selection", "largest-component", { set }, { where }, { nodes } or { define }.',
+            {
+                scope: value,
+            },
+        );
     }
 
     if (value.set !== undefined) {
@@ -677,7 +697,9 @@ function checkDefinition(value: unknown, walker: Walker): void {
                     }
 
                     if (Array.isArray(step) && step.length === 0) {
-                        throw bad("A path step's edge group names at least one edge; null means every edge of the pair.");
+                        throw bad(
+                            "A path step's edge group names at least one edge; null means every edge of the pair.",
+                        );
                     }
 
                     for (const member of Array.isArray(step) ? step : [step]) {
@@ -708,11 +730,14 @@ function checkDefinition(value: unknown, walker: Walker): void {
 function checkStepEnds(member: EdgeMember, from: unknown, to: unknown, step: number, walker: Walker): void {
     const joins = (member.source === from && member.target === to) || (member.source === to && member.target === from);
     if (walker.mode === "door" && !joins) {
-        throw bad(`A path's step ${step} names an edge from "${String(member.source)}" to "${String(member.target)}", which does not join its nodes.`, {
-            step,
-            edge: member,
-            nodes: [from, to],
-        });
+        throw bad(
+            `A path's step ${step} names an edge from "${String(member.source)}" to "${String(member.target)}", which does not join its nodes.`,
+            {
+                step,
+                edge: member,
+                nodes: [from, to],
+            },
+        );
     }
 }
 
@@ -797,7 +822,8 @@ export function stabiliseEdgeRefs<T>(value: T, stable: (ref: string) => unknown)
             return node;
         }
 
-        const swap = (field: string, next: unknown): unknown => (next === node[field] ? node : { ...node, [field]: next });
+        const swap = (field: string, next: unknown): unknown =>
+            next === node[field] ? node : { ...node, [field]: next };
         const each = (list: unknown, step: (item: unknown) => unknown): unknown => {
             if (!Array.isArray(list)) {
                 return list;
@@ -807,7 +833,8 @@ export function stabiliseEdgeRefs<T>(value: T, stable: (ref: string) => unknown)
             return next.every((item, i) => item === list[i]) ? list : next;
         };
         // Object members go through `stable` too, so a write door puts their ends in canonical order.
-        const ref = (item: unknown): unknown => (typeof item === "string" || isObject(item) ? stable(item as string) : item);
+        const ref = (item: unknown): unknown =>
+            typeof item === "string" || isObject(item) ? stable(item as string) : item;
 
         if (node.define !== undefined) {
             return swap("define", walk(node.define));
@@ -820,7 +847,10 @@ export function stabiliseEdgeRefs<T>(value: T, stable: (ref: string) => unknown)
         switch (node.kind) {
             case "fixed":
             case "path":
-                return swap("edges", each(node.edges, (step) => (Array.isArray(step) ? each(step, ref) : ref(step))));
+                return swap(
+                    "edges",
+                    each(node.edges, (step) => (Array.isArray(step) ? each(step, ref) : ref(step))),
+                );
             case "rule":
                 return swap("where", walk(node.where));
             case "member":

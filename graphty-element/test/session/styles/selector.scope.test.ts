@@ -50,7 +50,10 @@ function colours(h: Harness): Record<string, string> {
  * @param h - The harness.
  */
 async function paintAll(h: Harness): Promise<void> {
-    await painter(h).repaintAll((h.session as ElementSession).styles.compiled(), { signal: new AbortController().signal, report: () => undefined });
+    await painter(h).repaintAll((h.session as ElementSession).styles.compiled(), {
+        signal: new AbortController().signal,
+        report: () => undefined,
+    });
 }
 
 /**
@@ -73,7 +76,10 @@ describe("the scope selector", () => {
         });
 
         assert.strictEqual(compiled.match, "member");
-        assert.deepStrictEqual([0, 1, 2].map((index) => compiled.test?.(index)), [true, false, true]);
+        assert.deepStrictEqual(
+            [0, 1, 2].map((index) => compiled.test?.(index)),
+            [true, false, true],
+        );
         assert.deepStrictEqual(compiled.paths, []);
     });
 
@@ -81,7 +87,10 @@ describe("the scope selector", () => {
         const source = { nodeValue: () => undefined, edgeValue: () => undefined };
         for (const scope of [42, { set: 5 }, undefined, "search", { nodes: "a" }]) {
             try {
-                compileSelector({ match: "scope", scope } as unknown as Selector, "node", { ...source, scope: () => ({ bits: () => null, problem: () => undefined }) });
+                compileSelector({ match: "scope", scope } as unknown as Selector, "node", {
+                    ...source,
+                    scope: () => ({ bits: () => null, problem: () => undefined }),
+                });
                 assert.fail(`accepted ${JSON.stringify(scope)}`);
             } catch (error) {
                 assert.isTrue(isGraphtyError(error) && error.code === "E_BAD_SELECTOR", String(error));
@@ -96,7 +105,11 @@ describe("the scope selector", () => {
         }
 
         const h = graph();
-        const verdict = h.session.styles.validate({ name: "bad", selector: { match: "member", of: { set: 5 } } as unknown as PublishedSelector, set: { "node.color": "#ff0000" } });
+        const verdict = h.session.styles.validate({
+            name: "bad",
+            selector: { match: "member", of: { set: 5 } } as unknown as PublishedSelector,
+            set: { "node.color": "#ff0000" },
+        });
         assert.isFalse(verdict.ok);
         assert.strictEqual(verdict.errors[0]?.code, "E_BAD_SELECTOR");
     });
@@ -104,7 +117,11 @@ describe("the scope selector", () => {
     it("paints a kept set's members", async () => {
         const h = graph();
         const id = h.session.sets.create({ kind: "fixed", nodes: ["b", "d"], reading: "induced" }, { name: "S" });
-        await h.session.styles.add({ name: "S", selector: { match: "member", of: { set: id } }, set: { "node.color": "#ff0000" } });
+        await h.session.styles.add({
+            name: "S",
+            selector: { match: "member", of: { set: id } },
+            set: { "node.color": "#ff0000" },
+        });
         await paintAll(h);
 
         assert.deepStrictEqual(colours(h), { a: BASE, b: "#ff0000", c: BASE, d: "#ff0000", e: BASE });
@@ -114,17 +131,29 @@ describe("the scope selector", () => {
         const h = graph();
         const id = h.session.sets.create({ kind: "fixed", nodes: ["a"], reading: "induced" }, { name: "Gone" });
         h.session.sets.remove(id);
-        await h.session.styles.add({ name: "detached", selector: { match: "member", of: { set: id } }, set: { "node.color": "#ff0000" } });
+        await h.session.styles.add({
+            name: "detached",
+            selector: { match: "member", of: { set: id } },
+            set: { "node.color": "#ff0000" },
+        });
         // An id never issued is a typo, refused at the door rather than painting nothing forever.
         let refused = false;
         try {
-            await h.session.styles.add({ name: "never", selector: { match: "member", of: { set: "set_nowhere" } }, set: { "node.color": "#00ff00" } });
+            await h.session.styles.add({
+                name: "never",
+                selector: { match: "member", of: { set: "set_nowhere" } },
+                set: { "node.color": "#00ff00" },
+            });
         } catch {
             refused = true;
         }
 
         assert.isTrue(refused, "a set id never issued is refused");
-        await h.session.styles.add({ name: "above", selector: { match: "ids", nodes: ["c"] }, set: { "node.color": "#0000ff" } });
+        await h.session.styles.add({
+            name: "above",
+            selector: { match: "ids", nodes: ["c"] },
+            set: { "node.color": "#0000ff" },
+        });
         await paintAll(h);
 
         assert.deepStrictEqual(colours(h), { a: BASE, b: BASE, c: "#0000ff", d: BASE, e: BASE });
@@ -138,7 +167,11 @@ describe("the scope selector", () => {
     it("a layer naming a removed set keeps painting from its kept record, and a new set of the same name is another set", async () => {
         const h = graph();
         const id = h.session.sets.create({ kind: "fixed", nodes: ["a", "b"], reading: "induced" }, { name: "S" });
-        await h.session.styles.add({ name: "S", selector: { match: "member", of: { set: id } }, set: { "node.color": "#ff0000" } });
+        await h.session.styles.add({
+            name: "S",
+            selector: { match: "member", of: { set: id } },
+            set: { "node.color": "#ff0000" },
+        });
         await paintAll(h);
         assert.strictEqual(colours(h).a, "#ff0000");
 
@@ -157,7 +190,13 @@ describe("the scope selector", () => {
         const h = graph();
         const report = await h.session.styles.applyTemplate({
             version: 1,
-            layers: [{ name: "Suspects", selector: { match: "member", of: { set: "set_elsewhere" } }, set: { "node.color": "#ff0000" } }],
+            layers: [
+                {
+                    name: "Suspects",
+                    selector: { match: "member", of: { set: "set_elsewhere" } },
+                    set: { "node.color": "#ff0000" },
+                },
+            ],
         });
 
         assert.deepStrictEqual(report.applied, []);
@@ -165,6 +204,9 @@ describe("the scope selector", () => {
         assert.match(report.unbound[0].reason, /detached/);
         const kept = h.session.styles.get(report.unbound[0].layerId);
         assert.deepStrictEqual(kept?.selector, { match: "member", of: { set: "set_elsewhere" } });
-        assert.deepStrictEqual(h.session.styles.toDocument().layers.map((layer) => layer.name), ["Suspects"]);
+        assert.deepStrictEqual(
+            h.session.styles.toDocument().layers.map((layer) => layer.name),
+            ["Suspects"],
+        );
     });
 });

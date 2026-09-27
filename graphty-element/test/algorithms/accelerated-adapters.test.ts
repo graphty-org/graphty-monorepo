@@ -88,11 +88,7 @@ const TWO_PIECES: MockGraphOpts = {
  * @param policy - The acceleration policy, when the case wants one other than `"auto"`.
  * @returns The graph.
  */
-async function graphWith(
-    opts: MockGraphOpts,
-    fake?: FakeAccelerator,
-    policy?: "off" | "required",
-): Promise<Graph> {
+async function graphWith(opts: MockGraphOpts, fake?: FakeAccelerator, policy?: "off" | "required"): Promise<Graph> {
     const graph = await createMockGraph(opts);
 
     if (policy !== undefined) {
@@ -406,7 +402,10 @@ describe("the adapters that run through accelerated()", () => {
            reader can see unstyled. */
         const values = valuesOf(output.edges);
         assert.strictEqual(values.size, 3);
-        assert.deepStrictEqual([...values.values()].map((value) => value.in), [true, true, true]);
+        assert.deepStrictEqual(
+            [...values.values()].map((value) => value.in),
+            [true, true, true],
+        );
     });
 
     it("dijkstra flags both edges of a reciprocal pair the undirected view merged into one", async () => {
@@ -423,7 +422,10 @@ describe("the adapters that run through accelerated()", () => {
         // The route crosses the merged A-B edge, and both records the reader declared are on it.
         const values = valuesOf(output.edges);
         assert.strictEqual(values.size, 3);
-        assert.deepStrictEqual([...values.values()].map((value) => value.onPath), [true, true, true]);
+        assert.deepStrictEqual(
+            [...values.values()].map((value) => value.onPath),
+            [true, true, true],
+        );
     });
 
     describe("over a multigraph, a parallel group is one edge", () => {
@@ -437,7 +439,10 @@ describe("the adapters that run through accelerated()", () => {
             // The two A-B edges tie, so the route took the first; the other is off the route, and a
             // path set made from the run names one edge per step (design/sets 4.4).
             const values = valuesOf(output.edges);
-            assert.deepStrictEqual([...values.values()].map((value) => value.onPath), [true, false, true]);
+            assert.deepStrictEqual(
+                [...values.values()].map((value) => value.onPath),
+                [true, false, true],
+            );
         });
 
         it("kruskal costs the merged weight and flags every member of the group", async () => {
@@ -449,7 +454,10 @@ describe("the adapters that run through accelerated()", () => {
             assert.strictEqual(output.graph?.totalWeight, 3);
 
             const values = valuesOf(output.edges);
-            assert.deepStrictEqual([...values.values()].map((value) => value.in), [true, true, true]);
+            assert.deepStrictEqual(
+                [...values.values()].map((value) => value.in),
+                [true, true, true],
+            );
         });
     });
 

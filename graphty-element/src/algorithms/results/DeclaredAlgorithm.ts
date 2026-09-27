@@ -13,7 +13,13 @@ import { createRunResult, resultPath, type RunResult } from "../../session/resul
 import { Algorithm } from "../Algorithm";
 import { maskBack } from "../input/maskBack";
 import { nodeLabelReader } from "./labels";
-import { type AlgorithmOutput, type AlgorithmRunContext, detachedRunContext, type ResultFieldSpec, type RunControls } from "./types";
+import {
+    type AlgorithmOutput,
+    type AlgorithmRunContext,
+    detachedRunContext,
+    type ResultFieldSpec,
+    type RunControls,
+} from "./types";
 
 /**
  * Turn a run's own account of a field into the descriptor the result object carries.
@@ -92,7 +98,7 @@ export abstract class DeclaredAlgorithm<
      *   declare, or `E_OPTION_RANGE` for a value it would not accept.
      */
     protected override resolveOptions(options?: Partial<TOptions>): TOptions {
-        const {descriptor} = this.constructor as typeof DeclaredAlgorithm;
+        const { descriptor } = this.constructor as typeof DeclaredAlgorithm;
 
         if (descriptor === undefined) {
             return super.resolveOptions(options);
@@ -207,18 +213,20 @@ export abstract class DeclaredAlgorithm<
            through the shared reader rather than inline, because the metric pipeline needs the
            same answer and a second copy is how the two would come to disagree about it. */
         const labelOf = nodeLabelReader(this.graph);
-        const result: RunResult = createRunResult(maskBack(this, {
-            ...(labelOf === undefined ? {} : { labelOf }),
-            runId,
-            shape: output.shape,
-            fields: output.fields.map((spec) => toFieldDescriptor(spec, runId, declared)),
-            measured: { nodes: input.nodeCount, edges: input.edgeCount },
-            graph: output.graph,
-            nodes: output.nodes,
-            edges: output.edges,
-            caveats: output.caveats,
-            durationMs: Date.now() - startedAt,
-        }));
+        const result: RunResult = createRunResult(
+            maskBack(this, {
+                ...(labelOf === undefined ? {} : { labelOf }),
+                runId,
+                shape: output.shape,
+                fields: output.fields.map((spec) => toFieldDescriptor(spec, runId, declared)),
+                measured: { nodes: input.nodeCount, edges: input.edgeCount },
+                graph: output.graph,
+                nodes: output.nodes,
+                edges: output.edges,
+                caveats: output.caveats,
+                durationMs: Date.now() - startedAt,
+            }),
+        );
 
         this.#result = result;
 

@@ -286,7 +286,9 @@ export function hashEdgeEnds(
     among: number,
 ): LanePair {
     hashCounters.memberHashes++;
-    const ends = directed ? hashPairs(source, target) : { a: (source.a + target.a) >>> 0, b: (source.b + target.b) >>> 0 };
+    const ends = directed
+        ? hashPairs(source, target)
+        : { a: (source.a + target.a) >>> 0, b: (source.b + target.b) >>> 0 };
     let discriminator: LanePair;
     if (id !== undefined) {
         begin();

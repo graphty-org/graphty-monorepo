@@ -433,9 +433,21 @@ const ALPHABET_WALK_DESCRIPTOR: AlgorithmDescriptor = {
     // `metricField` is the element's own path builder: it fills in the published
     // `results.$.<name>` address so no extension author retypes one.
     fields: [
-        metricField({ name: "onPath", plainName: "On the walk", technicalName: "onPath", kind: "node", type: "boolean" }),
+        metricField({
+            name: "onPath",
+            plainName: "On the walk",
+            technicalName: "onPath",
+            kind: "node",
+            type: "boolean",
+        }),
         metricField({ name: "order", plainName: "Step", technicalName: "order", kind: "node", type: "integer" }),
-        metricField({ name: "onPath", plainName: "On the walk", technicalName: "onPath", kind: "edge", type: "boolean" }),
+        metricField({
+            name: "onPath",
+            plainName: "On the walk",
+            technicalName: "onPath",
+            kind: "edge",
+            type: "boolean",
+        }),
         metricField({
             name: "length",
             plainName: "Nodes on the walk",
@@ -1183,7 +1195,11 @@ describe("an algorithm written outside this package", () => {
             isGraphtyError(rejection),
             "a bug in a plugin surfaces as the element's own error type rather than escaping raw",
         );
-        assert.strictEqual(codeOf(rejection), "E_INTERNAL", "under the code the element reserves for an unowned failure");
+        assert.strictEqual(
+            codeOf(rejection),
+            "E_INTERNAL",
+            "under the code the element reserves for an unowned failure",
+        );
         assert.instanceOf(
             isGraphtyError(rejection) ? rejection.cause : undefined,
             Error,
@@ -1463,10 +1479,21 @@ describe("an algorithm written outside this package", () => {
             "the input it read was the scope, not the graph",
         );
         const values = ["a", "b", "c", "d"].map((id) => result.node(id)?.value);
-        assert.deepStrictEqual(values, [1, 2, 1, undefined], "c has one link inside the scope, not two, and d is not measured");
-        assert.notInclude(run.caveats.notes.join(" "), "Computed on the whole graph", "and its run does not say it computed on the whole graph");
+        assert.deepStrictEqual(
+            values,
+            [1, 2, 1, undefined],
+            "c has one link inside the scope, not two, and d is not measured",
+        );
+        assert.notInclude(
+            run.caveats.notes.join(" "),
+            "Computed on the whole graph",
+            "and its run does not say it computed on the whole graph",
+        );
         assert.strictEqual(
-            graph.getSession().catalog.algorithms().find((entry) => entry.key === "scoped-links")?.scopeInput,
+            graph
+                .getSession()
+                .catalog.algorithms()
+                .find((entry) => entry.key === "scoped-links")?.scopeInput,
             "subgraph",
             "the catalogue publishes what the class declares, so the planner prices the scope",
         );
@@ -1477,10 +1504,17 @@ describe("an algorithm written outside this package", () => {
         const result = await run;
 
         const values = ["a", "b", "c", "d"].map((id) => result.node(id)?.value);
-        assert.deepStrictEqual(values, [1, 2, 2, undefined], "c reaches d, outside the scope: computed on the whole graph, kept for the scope");
+        assert.deepStrictEqual(
+            values,
+            [1, 2, 2, undefined],
+            "c reaches d, outside the scope: computed on the whole graph, kept for the scope",
+        );
         assert.include(run.caveats.notes, "Computed on the whole graph; values kept for the scope only.");
         assert.strictEqual(
-            graph.getSession().catalog.algorithms().find((entry) => entry.key === "hop-reach")?.scopeInput,
+            graph
+                .getSession()
+                .catalog.algorithms()
+                .find((entry) => entry.key === "hop-reach")?.scopeInput,
             "none",
         );
     });
@@ -1491,7 +1525,11 @@ describe("an algorithm written outside this package", () => {
 
             static override type = "overclaiming";
 
-            static override descriptor: AlgorithmDescriptor = { ...HOP_REACH_DESCRIPTOR, key: "overclaiming", scopeInput: "subgraph" };
+            static override descriptor: AlgorithmDescriptor = {
+                ...HOP_REACH_DESCRIPTOR,
+                key: "overclaiming",
+                scopeInput: "subgraph",
+            };
 
             /**
              * Never runs: registration is refused first.
@@ -1623,11 +1661,7 @@ describe("an algorithm written outside this package", () => {
             true,
             "the first edge it crossed carries a value",
         );
-        assert.strictEqual(
-            result.edge(byPair.get(pairKey("c", "d")) ?? "")?.onPath,
-            true,
-            "and so does the last",
-        );
+        assert.strictEqual(result.edge(byPair.get(pairKey("c", "d")) ?? "")?.onPath, true, "and so does the last");
         assert.isUndefined(
             result.edge(byPair.get(pairKey("d", "e")) ?? ""),
             "an edge the walk never crossed carries nothing at all",
@@ -1687,7 +1721,9 @@ describe("an algorithm written outside this package", () => {
             "the reader's layer reached an edge the walk crossed",
         );
         assert.isEmpty(
-            session.styles.explain({ edge: untouched ?? "" }).contributions.filter((entry) => entry.layerId === layer.id),
+            session.styles
+                .explain({ edge: untouched ?? "" })
+                .contributions.filter((entry) => entry.layerId === layer.id),
             "and did not reach one it never did",
         );
     });

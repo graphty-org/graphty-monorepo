@@ -22,7 +22,13 @@ describe("bfs over generated scopes", () => {
 
 describe("bfs over a scope", () => {
     it("with no source, walks from the scope's first node", async () => {
-        const graph = new InputGraph(["x", "b", "c"], [["x", "b"], ["b", "c"]]);
+        const graph = new InputGraph(
+            ["x", "b", "c"],
+            [
+                ["x", "b"],
+                ["b", "c"],
+            ],
+        );
         const result = await runScoped(build, graph, graph.scope(["b", "c"]));
 
         assert.deepInclude(result?.node("b"), { level: 0 });
@@ -30,8 +36,21 @@ describe("bfs over a scope", () => {
     });
 
     it("an early stop at a target walks the scope on the reference route", async () => {
-        const graph = new InputGraph(["a", "x", "b", "d", "c"], [["a", "x"], ["x", "c"], ["a", "b"], ["b", "d"], ["d", "c"]]);
-        const result = await assertComputesOverScope((g) => new BFSAlgorithm(g, { source: "a", targetNode: "c" }), graph, graph.scope(["a", "b", "d", "c"]));
+        const graph = new InputGraph(
+            ["a", "x", "b", "d", "c"],
+            [
+                ["a", "x"],
+                ["x", "c"],
+                ["a", "b"],
+                ["b", "d"],
+                ["d", "c"],
+            ],
+        );
+        const result = await assertComputesOverScope(
+            (g) => new BFSAlgorithm(g, { source: "a", targetNode: "c" }),
+            graph,
+            graph.scope(["a", "b", "d", "c"]),
+        );
 
         assert.deepInclude(result?.node("c"), { level: 3 }, "through b and d; the way through x is outside the scope");
     });

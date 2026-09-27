@@ -131,7 +131,10 @@ describe("the scope leaf", () => {
         const harness = harnessOf();
         const scoped = await visible(harness, {
             kind: "all",
-            of: [{ kind: "member", of: { nodes: ["a", "b", "c"] } }, { kind: "edges", where: STRONG }],
+            of: [
+                { kind: "member", of: { nodes: ["a", "b", "c"] } },
+                { kind: "edges", where: STRONG },
+            ],
         });
 
         assert.deepStrictEqual(scoped.nodes, ["a", "b", "c"]);
@@ -157,7 +160,11 @@ describe("the scope leaf", () => {
             of: { define: rule({ kind: "edges", where: STRONG }, "listed") },
         });
         assert.deepStrictEqual(listed.nodes, ["a", "b", "c", "d", "e"]);
-        assert.deepStrictEqual(listed.edges, edgesOf(harness, "ab", "bc", "cd", "de"), "the weak edge a-c is not in the set");
+        assert.deepStrictEqual(
+            listed.edges,
+            edgesOf(harness, "ab", "bc", "cd", "de"),
+            "the weak edge a-c is not in the set",
+        );
 
         const clipped = await visible(harness, {
             kind: "all",
@@ -198,17 +205,22 @@ describe("a rule's reading, applied at its root", () => {
     it("keeps every node and only the strong edges for not { edges: weight < 0.5 } read clipped", async () => {
         const harness = harnessOf();
         assert.deepStrictEqual(
-            await members(harness, { define: rule({ kind: "not", of: { kind: "edges", where: "data.weight < `0.5`" } }, "clipped") }),
+            await members(harness, {
+                define: rule({ kind: "not", of: { kind: "edges", where: "data.weight < `0.5`" } }, "clipped"),
+            }),
             { nodes: ["a", "b", "c", "d", "e"], edges: edgesOf(harness, "ab", "bc", "cd", "de") },
         );
     });
 
     it("a silent node half under listed is no nodes", async () => {
         const harness = harnessOf();
-        assert.deepStrictEqual(await members(harness, { define: rule({ kind: "edges", where: "data.weight > `0.92`" }, "listed") }), {
-            nodes: ["d", "e"],
-            edges: edgesOf(harness, "de"),
-        });
+        assert.deepStrictEqual(
+            await members(harness, { define: rule({ kind: "edges", where: "data.weight > `0.92`" }, "listed") }),
+            {
+                nodes: ["d", "e"],
+                edges: edgesOf(harness, "de"),
+            },
+        );
     });
 });
 
@@ -234,14 +246,20 @@ describe("refusals, each with a typed reason", () => {
         assert.strictEqual(error.code, "E_BAD_COMMAND");
         assert.strictEqual(error.details?.reason, "cycle");
         assert.deepStrictEqual(error.details?.through, [second, first]);
-        assert.deepStrictEqual(sets.get(first)?.definition, rule({ kind: "member", of: { nodes: ["a"] } }, "induced"), "nothing written");
+        assert.deepStrictEqual(
+            sets.get(first)?.definition,
+            rule({ kind: "member", of: { nodes: ["a"] } }, "induced"),
+            "nothing written",
+        );
     });
 
     it("refuses a rule read induced whose scope leaf speaks edges, inline or through a set", () => {
         const harness = harnessOf();
         const sets = setOfSession(harness.session);
         const inline = refusal(() =>
-            sets.create(rule({ kind: "member", of: { define: rule({ kind: "edges", where: STRONG }, "listed") } }, "induced")),
+            sets.create(
+                rule({ kind: "member", of: { define: rule({ kind: "edges", where: STRONG }, "listed") } }, "induced"),
+            ),
         );
         assert.strictEqual(inline.details?.reason, "induced-edge-leaf");
 
@@ -250,7 +268,11 @@ describe("refusals, each with a typed reason", () => {
         assert.strictEqual(named.details?.reason, "induced-edge-leaf");
 
         const visibleLeaf = refusal(() => sets.create(rule({ kind: "member", of: "visible" }, "induced")));
-        assert.strictEqual(visibleLeaf.details?.reason, "induced-edge-leaf", '"visible" is clipped, so it speaks edges');
+        assert.strictEqual(
+            visibleLeaf.details?.reason,
+            "induced-edge-leaf",
+            '"visible" is clipped, so it speaks edges',
+        );
     });
 
     it("refuses a visibility filter that reads visible, directly or through a kept set", () => {
@@ -261,12 +283,17 @@ describe("refusals, each with a typed reason", () => {
         assert.deepStrictEqual(direct.details?.through, ["visible"]);
 
         const follows = sets.create(rule({ kind: "member", of: "visible" }, "clipped"), { name: "on screen" });
-        const through = refusal(() => harness.session.visibility.set({ kind: "not", of: { kind: "member", of: { set: follows } } }));
+        const through = refusal(() =>
+            harness.session.visibility.set({ kind: "not", of: { kind: "member", of: { set: follows } } }),
+        );
         assert.strictEqual(through.details?.reason, "cycle");
         assert.deepStrictEqual(through.details?.through, [follows, "visible"]);
 
         const inline = refusal(() =>
-            harness.session.visibility.set({ kind: "member", of: { define: rule({ kind: "member", of: { set: follows } }, "clipped") } }),
+            harness.session.visibility.set({
+                kind: "member",
+                of: { define: rule({ kind: "member", of: { set: follows } }, "clipped") },
+            }),
         );
         assert.deepStrictEqual(inline.details?.through, [follows, "visible"]);
         assert.isNull(harness.session.visibility.filter, "nothing was applied");
@@ -288,7 +315,7 @@ describe("refusals, each with a typed reason", () => {
     it("refuses a filter reaching search through a loaded set, and search itself", () => {
         const harness = harnessOf();
         const sets = setOfSession(harness.session);
-        const {store} = sets;
+        const { store } = sets;
         store.loadLogicalRecords({
             records: [
                 {
@@ -315,8 +342,20 @@ describe("refusals, each with a typed reason", () => {
         const sets = setOfSession(harness.session);
         sets.store.loadLogicalRecords({
             records: [
-                { id: "set_x", name: "X", order: 0, definition: rule({ kind: "member", of: { set: "set_y" } }, "induced"), createdFrom: { kind: "user" } },
-                { id: "set_y", name: "Y", order: 1, definition: rule({ kind: "member", of: { set: "set_x" } }, "induced"), createdFrom: { kind: "user" } },
+                {
+                    id: "set_x",
+                    name: "X",
+                    order: 0,
+                    definition: rule({ kind: "member", of: { set: "set_y" } }, "induced"),
+                    createdFrom: { kind: "user" },
+                },
+                {
+                    id: "set_y",
+                    name: "Y",
+                    order: 1,
+                    definition: rule({ kind: "member", of: { set: "set_x" } }, "induced"),
+                    createdFrom: { kind: "user" },
+                },
             ],
             register: ["set_x", "set_y"],
             tombstones: [],
@@ -334,8 +373,20 @@ describe("nothing throws or recurses in a pass", () => {
         const sets = setOfSession(harness.session);
         sets.store.loadLogicalRecords({
             records: [
-                { id: "set_x", name: "X", order: 0, definition: rule({ kind: "member", of: { set: "set_y" } }, "induced"), createdFrom: { kind: "user" } },
-                { id: "set_y", name: "Y", order: 1, definition: rule({ kind: "member", of: { set: "set_x" } }, "induced"), createdFrom: { kind: "user" } },
+                {
+                    id: "set_x",
+                    name: "X",
+                    order: 0,
+                    definition: rule({ kind: "member", of: { set: "set_y" } }, "induced"),
+                    createdFrom: { kind: "user" },
+                },
+                {
+                    id: "set_y",
+                    name: "Y",
+                    order: 1,
+                    definition: rule({ kind: "member", of: { set: "set_x" } }, "induced"),
+                    createdFrom: { kind: "user" },
+                },
             ],
             register: ["set_x", "set_y"],
             tombstones: [],
@@ -351,17 +402,34 @@ describe("nothing throws or recurses in a pass", () => {
         const sets = setOfSession(harness.session);
         // The set exists harmlessly when the filter names it (a door refuses an id never issued).
         sets.store.loadLogicalRecords({
-            records: [{ id: "set_later", name: "Later", order: 0, definition: { kind: "fixed", nodes: [], reading: "induced" }, createdFrom: { kind: "user" } }],
+            records: [
+                {
+                    id: "set_later",
+                    name: "Later",
+                    order: 0,
+                    definition: { kind: "fixed", nodes: [], reading: "induced" },
+                    createdFrom: { kind: "user" },
+                },
+            ],
             register: ["set_later"],
             tombstones: [],
         });
-        await harness.session.visibility.set({ kind: "any", of: [{ kind: "member", of: { set: "set_later" } }, { kind: "expression", where: LEAF }] });
+        await harness.session.visibility.set({
+            kind: "any",
+            of: [
+                { kind: "member", of: { set: "set_later" } },
+                { kind: "expression", where: LEAF },
+            ],
+        });
         assert.deepStrictEqual([...harness.session.visibility.nodes], ["e"], "an empty referent speaks nothing");
 
         // Then it comes to read "visible", written past the doors (which refuse that cycle) as a
         // stored record arriving would be.
         sets.store.transact(() => {
-            const next = prepareRedefine(sets.store, { id: "set_later", definition: rule({ kind: "member", of: "visible" }, "clipped") });
+            const next = prepareRedefine(sets.store, {
+                id: "set_later",
+                definition: rule({ kind: "member", of: "visible" }, "clipped"),
+            });
             if (next !== null) {
                 sets.store.put(next);
             }
@@ -369,7 +437,11 @@ describe("nothing throws or recurses in a pass", () => {
         // The graph moves, so the stored filter is re-evaluated against the set that now reads "visible".
         harness.add([{ id: "f" }]);
 
-        assert.deepStrictEqual([...harness.session.visibility.nodes], ["e"], "the cycle speaks nothing; the pass neither threw nor recursed");
+        assert.deepStrictEqual(
+            [...harness.session.visibility.nodes],
+            ["e"],
+            "the cycle speaks nothing; the pass neither threw nor recursed",
+        );
     });
 
     it("a missing referent and an opaque referent resolve to nothing", async () => {
@@ -377,8 +449,20 @@ describe("nothing throws or recurses in a pass", () => {
         const sets = setOfSession(harness.session);
         sets.store.loadLogicalRecords({
             records: [
-                { id: "set_opaque", name: "Opaque", order: 0, definition: rule({ kind: "plugin:leaf" } as unknown as RuleTree, "induced"), createdFrom: { kind: "user" } },
-                { id: "set_dangling", name: "Dangling", order: 1, definition: rule({ kind: "member", of: { set: "set_gone" } }, "induced"), createdFrom: { kind: "user" } },
+                {
+                    id: "set_opaque",
+                    name: "Opaque",
+                    order: 0,
+                    definition: rule({ kind: "plugin:leaf" } as unknown as RuleTree, "induced"),
+                    createdFrom: { kind: "user" },
+                },
+                {
+                    id: "set_dangling",
+                    name: "Dangling",
+                    order: 1,
+                    definition: rule({ kind: "member", of: { set: "set_gone" } }, "induced"),
+                    createdFrom: { kind: "user" },
+                },
             ],
             register: ["set_opaque", "set_dangling"],
             tombstones: [],
@@ -386,6 +470,9 @@ describe("nothing throws or recurses in a pass", () => {
 
         assert.strictEqual(sets.resolve("set_opaque").nodeCount, 0);
         assert.strictEqual(sets.resolve("set_dangling").nodeCount, 0);
-        assert.deepStrictEqual((await members(harness, { define: rule({ kind: "member", of: { set: "set_opaque" } }, "induced") })).nodes, []);
+        assert.deepStrictEqual(
+            (await members(harness, { define: rule({ kind: "member", of: { set: "set_opaque" } }, "induced") })).nodes,
+            [],
+        );
     });
 });

@@ -42,7 +42,9 @@ function membersOf(graph: TestGraph, id: SetId): readonly EdgeMember[] {
  * @returns The counters.
  */
 function bound(graph: TestGraph, resolution: Resolution): number[] {
-    return Array.from(maskToIndices(resolution.edges, graph.snapshot().edgeCount), (e) => graph.counterAt(e)).sort((a, b) => a - b);
+    return Array.from(maskToIndices(resolution.edges, graph.snapshot().edgeCount), (e) => graph.counterAt(e)).sort(
+        (a, b) => a - b,
+    );
 }
 
 /**
@@ -65,7 +67,12 @@ function ordinalOf(graph: TestGraph, counter: number): string {
  * @returns The set.
  */
 function setOf(graph: TestGraph, counters: readonly number[]): SetId {
-    return graph.sets.create({ kind: "fixed", nodes: [], edges: counters.map((c) => graph.edgeId(c)), reading: "listed" });
+    return graph.sets.create({
+        kind: "fixed",
+        nodes: [],
+        edges: counters.map((c) => graph.edgeId(c)),
+        reading: "listed",
+    });
 }
 
 const FILE: EdgeRecord[] = [
@@ -87,7 +94,11 @@ describe("a replacing import", () => {
         graph.replaceStore();
         const second = graph.load(FILE);
         const resolution = resolveSet(graph, id);
-        assert.deepStrictEqual(bound(graph, resolution), [second[1], second[3], second[4]], "the same edges, by their new counters");
+        assert.deepStrictEqual(
+            bound(graph, resolution),
+            [second[1], second[3], second[4]],
+            "the same edges, by their new counters",
+        );
         assert.strictEqual(resolution.missingEdges, 0);
         assert.notInclude(bound(graph, resolution), second[0]);
     });
@@ -117,7 +128,10 @@ describe("the binding cases of design 12.3", () => {
         const resolution = resolveSet(graph, id);
         assert.strictEqual(resolution.edgeCount, 0, "none binds a sibling");
         assert.strictEqual(resolution.missingEdges, 3);
-        assert.deepStrictEqual([second[0], second[1]].map((c) => ordinalOf(graph, c)), ["0/2", "1/2"]);
+        assert.deepStrictEqual(
+            [second[0], second[1]].map((c) => ordinalOf(graph, c)),
+            ["0/2", "1/2"],
+        );
     });
 
     it("configuring edgeIdPath between save and re-import: the ordinal members still bind", () => {
@@ -126,7 +140,10 @@ describe("the binding cases of design 12.3", () => {
         const first = graph.load(records);
         const id = setOf(graph, [first[0], first[2]]);
         const members = membersOf(graph, id);
-        assert.isTrue(members.every((member) => member.ordinal !== undefined), "no path was configured, so ordinals");
+        assert.isTrue(
+            members.every((member) => member.ordinal !== undefined),
+            "no path was configured, so ordinals",
+        );
 
         graph.replaceStore();
         graph.path = "eid";
@@ -163,8 +180,14 @@ describe("the binding cases of design 12.3", () => {
         const id = setOf(graph, first);
         const before = first.map((c) => ordinalOf(graph, c));
 
-        const [third] = graph.load([{ s: "a", t: "b" }, { s: "b", t: "a" }]);
-        assert.deepStrictEqual(first.map((c) => ordinalOf(graph, c)), before);
+        const [third] = graph.load([
+            { s: "a", t: "b" },
+            { s: "b", t: "a" },
+        ]);
+        assert.deepStrictEqual(
+            first.map((c) => ordinalOf(graph, c)),
+            before,
+        );
         assert.strictEqual(ordinalOf(graph, third), "0/2", "the second load counts its own edges");
         const resolution = resolveSet(graph, id);
         assert.deepStrictEqual(bound(graph, resolution), first);

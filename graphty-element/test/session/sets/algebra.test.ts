@@ -31,14 +31,24 @@ async function membersOf(h: Harness, id: string): Promise<{ nodes: NodeId[]; edg
     const space = edgeSpaceOf(snapshot);
     const names = new Map<EdgeId, string>();
     for (let row = 0; row < snapshot.edgeCount; row++) {
-        names.set(space.idOf(row), `${String(snapshot.ids.idOf(snapshot.edgeSource(row)))}-${String(snapshot.ids.idOf(snapshot.edgeTarget(row)))}`);
+        names.set(
+            space.idOf(row),
+            `${String(snapshot.ids.idOf(snapshot.edgeSource(row)))}-${String(snapshot.ids.idOf(snapshot.edgeTarget(row)))}`,
+        );
     }
 
-    return { nodes: [...resolved.nodes].sort(), edges: [...resolved.edges].map((edge) => names.get(edge) ?? edge).sort() };
+    return {
+        nodes: [...resolved.nodes].sort(),
+        edges: [...resolved.edges].map((edge) => names.get(edge) ?? edge).sort(),
+    };
 }
 
 /** A kept fixed set. */
-function fixed(h: Harness, name: string, definition: Omit<Extract<SetDefinition, { kind: "fixed" }>, "kind" | "edges"> & { edges?: EdgeId[] }): string {
+function fixed(
+    h: Harness,
+    name: string,
+    definition: Omit<Extract<SetDefinition, { kind: "fixed" }>, "kind" | "edges"> & { edges?: EdgeId[] },
+): string {
     return h.session.sets.create({ kind: "fixed", ...definition }, { name });
 }
 
@@ -54,7 +64,11 @@ describe("sets.combine: the edge rule", () => {
 
         const id = await h.session.sets.combine("union", [{ set: a }, { set: b }]);
 
-        assert.deepStrictEqual(h.session.sets.get(id)?.definition, { kind: "fixed", nodes: ["a", "b", "c", "d"], reading: "induced" });
+        assert.deepStrictEqual(h.session.sets.get(id)?.definition, {
+            kind: "fixed",
+            nodes: ["a", "b", "c", "d"],
+            reading: "induced",
+        });
         assert.deepStrictEqual((await membersOf(h, id)).edges, ["a-b", "b-c", "c-d"]);
     });
 
@@ -95,7 +109,12 @@ describe("sets.combine: the edge rule", () => {
 
         const id = await h.session.sets.combine(
             "symmetric-difference",
-            [{ set: a }, { nodes: ["b", "c"] }, { define: { kind: "fixed", nodes: ["c"], edges: [edgeBetween(h, "b", "c")], reading: "listed" } }, "graph"],
+            [
+                { set: a },
+                { nodes: ["b", "c"] },
+                { define: { kind: "fixed", nodes: ["c"], edges: [edgeBetween(h, "b", "c")], reading: "listed" } },
+                "graph",
+            ],
             { name: "Odd" },
         );
 
@@ -121,10 +140,19 @@ describe("sets.combine: the edge rule", () => {
             return null;
         };
 
-        assert.strictEqual(await code(() => h.session.sets.combine("xor" as "union", ["graph", "graph"])), "E_BAD_COMMAND");
+        assert.strictEqual(
+            await code(() => h.session.sets.combine("xor" as "union", ["graph", "graph"])),
+            "E_BAD_COMMAND",
+        );
         assert.strictEqual(await code(() => h.session.sets.combine("union", ["graph"])), "E_BAD_COMMAND");
-        assert.strictEqual(await code(() => h.session.sets.combine("union", ["graph", "graph"], { reading: "all" as "listed" })), "E_BAD_COMMAND");
-        assert.strictEqual(await code(() => h.session.sets.combine("union", ["graph", { set: "set_never" }])), "E_BAD_COMMAND");
+        assert.strictEqual(
+            await code(() => h.session.sets.combine("union", ["graph", "graph"], { reading: "all" as "listed" })),
+            "E_BAD_COMMAND",
+        );
+        assert.strictEqual(
+            await code(() => h.session.sets.combine("union", ["graph", { set: "set_never" }])),
+            "E_BAD_COMMAND",
+        );
     });
 });
 
@@ -135,8 +163,16 @@ describe("sets.combine: the laws edge-first gives up, by example", () => {
             ["b", "c"],
             ["a", "c"],
         ]);
-        const kruskal = fixed(h, "Kruskal", { nodes: [], edges: [edgeBetween(h, "a", "b"), edgeBetween(h, "b", "c")], reading: "listed" });
-        const prim = fixed(h, "Prim", { nodes: [], edges: [edgeBetween(h, "a", "b"), edgeBetween(h, "a", "c")], reading: "listed" });
+        const kruskal = fixed(h, "Kruskal", {
+            nodes: [],
+            edges: [edgeBetween(h, "a", "b"), edgeBetween(h, "b", "c")],
+            reading: "listed",
+        });
+        const prim = fixed(h, "Prim", {
+            nodes: [],
+            edges: [edgeBetween(h, "a", "b"), edgeBetween(h, "a", "c")],
+            reading: "listed",
+        });
 
         const only = await h.session.sets.combine("difference", [{ set: kruskal }, { set: prim }], { name: "K - P" });
         assert.deepStrictEqual(await membersOf(h, only), { nodes: ["b", "c"], edges: ["b-c"] });

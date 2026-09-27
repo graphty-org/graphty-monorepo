@@ -214,7 +214,16 @@ function canonicalStep(step: EdgeMember | readonly EdgeMember[] | null): EdgeMem
 }
 
 /** The leaf kinds whose fields this module knows, and the numeric or id-list fields they carry. */
-const KNOWN_LEAVES = new Set(["expression", "edges", "range", "categories", "degree", "component", "neighborhood", "threshold"]);
+const KNOWN_LEAVES = new Set([
+    "expression",
+    "edges",
+    "range",
+    "categories",
+    "degree",
+    "component",
+    "neighborhood",
+    "threshold",
+]);
 
 /**
  * The run id a result item names: the id itself, or the id of a `Run` or `RunResult` handle a
@@ -247,7 +256,10 @@ function canonicalItem(item: unknown): unknown {
 
     const loose = item as Loose;
     const { key } = loose;
-    const canonicalKey = typeof key === "object" && key !== null && !Array.isArray(key) ? sortKeys({ ...(key as Loose), value: unsigned((key as Loose).value) }) : key;
+    const canonicalKey =
+        typeof key === "object" && key !== null && !Array.isArray(key)
+            ? sortKeys({ ...(key as Loose), value: unsigned((key as Loose).value) })
+            : key;
 
     return sortKeys({ ...loose, result: runIdOfRef(loose.result), key: canonicalKey });
 }
@@ -316,7 +328,9 @@ function canonicalScope(scope: unknown): unknown {
         return { define: canonicalSetDefinition(loose.define as SetDefinition) };
     }
 
-    return Array.isArray(loose.nodes) ? { nodes: sortUnique<NodeId>((loose.nodes as NodeId[]).map(unsigned), compareIds) } : scope;
+    return Array.isArray(loose.nodes)
+        ? { nodes: sortUnique<NodeId>((loose.nodes as NodeId[]).map(unsigned), compareIds) }
+        : scope;
 }
 
 /**

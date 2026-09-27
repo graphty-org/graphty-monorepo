@@ -22,7 +22,15 @@ describe("dijkstra over generated scopes", () => {
 
 describe("dijkstra over a scope", () => {
     it("with no source or target, routes from the scope's first node to its last", async () => {
-        const graph = new InputGraph(["x", "b", "c", "d", "y"], [["x", "b"], ["b", "c"], ["c", "d"], ["d", "y"]]);
+        const graph = new InputGraph(
+            ["x", "b", "c", "d", "y"],
+            [
+                ["x", "b"],
+                ["b", "c"],
+                ["c", "d"],
+                ["d", "y"],
+            ],
+        );
         const result = await runScoped(build, graph, graph.scope(["b", "c", "d"]));
 
         assert.deepInclude(result?.node("b"), { onPath: true, order: 0, distance: 0 });
@@ -34,7 +42,15 @@ describe("dijkstra over a scope", () => {
 describe("dijkstra over a weighted multigraph takes the shortest of parallel edges", () => {
     /** a to b twice, at 1 and at 4, then b to c at 2; z outside any scope below. */
     const multigraph = (): InputGraph =>
-        new InputGraph(["a", "b", "c", "z"], [["a", "b", 4], ["a", "b", 1], ["b", "c", 2], ["c", "z", 1]]);
+        new InputGraph(
+            ["a", "b", "c", "z"],
+            [
+                ["a", "b", 4],
+                ["a", "b", 1],
+                ["b", "c", 2],
+                ["c", "z", 1],
+            ],
+        );
     const route = (graph: Graph): DijkstraAlgorithm => new DijkstraAlgorithm(graph, { source: "a", target: "c" });
 
     it("over the whole graph", async () => {
@@ -64,7 +80,16 @@ describe("dijkstra over a weighted multigraph takes the shortest of parallel edg
     });
 
     it("marks one edge of each direction of a reciprocal pair read undirected", async () => {
-        const graph = new InputGraph(["a", "b", "c"], [["a", "b", 1], ["b", "a", 1], ["a", "b", 3], ["b", "c", 1]], true);
+        const graph = new InputGraph(
+            ["a", "b", "c"],
+            [
+                ["a", "b", 1],
+                ["b", "a", 1],
+                ["a", "b", 3],
+                ["b", "c", 1],
+            ],
+            true,
+        );
         const result = await runWhole(route, graph);
 
         assert.deepStrictEqual(

@@ -206,10 +206,26 @@ export class GraphStore {
         // they are derived from, filled by the completion pass at freeze. 8 bytes per node, 16 per
         // edge. Ordinal and among default to -1, the reading of a session edge and of a row the
         // pass has not reached yet.
-        this.nodeHashColumn = this.builder.declareNodeColumn({ name: IDENTITY_COLUMNS.nodeHash, dtype: "u32", components: 2 });
-        this.edgeHashColumn = this.builder.declareEdgeColumn({ name: IDENTITY_COLUMNS.edgeHash, dtype: "u32", components: 2 });
-        this.edgeOrdinalColumn = this.builder.declareEdgeColumn({ name: IDENTITY_COLUMNS.edgeOrdinal, dtype: "i32", default: -1 });
-        this.edgeAmongColumn = this.builder.declareEdgeColumn({ name: IDENTITY_COLUMNS.edgeAmong, dtype: "i32", default: -1 });
+        this.nodeHashColumn = this.builder.declareNodeColumn({
+            name: IDENTITY_COLUMNS.nodeHash,
+            dtype: "u32",
+            components: 2,
+        });
+        this.edgeHashColumn = this.builder.declareEdgeColumn({
+            name: IDENTITY_COLUMNS.edgeHash,
+            dtype: "u32",
+            components: 2,
+        });
+        this.edgeOrdinalColumn = this.builder.declareEdgeColumn({
+            name: IDENTITY_COLUMNS.edgeOrdinal,
+            dtype: "i32",
+            default: -1,
+        });
+        this.edgeAmongColumn = this.builder.declareEdgeColumn({
+            name: IDENTITY_COLUMNS.edgeAmong,
+            dtype: "i32",
+            default: -1,
+        });
         this.counter = options.edgeCounter ?? createEdgeCounter();
         this.inputs = options.inputs ?? inputCountersOf(this);
     }
@@ -612,7 +628,9 @@ export class GraphStore {
         const graph: IdentityGraph = {
             endpoints: (edge) => builder.edgeEndpoints(edge),
             idOf: (node) => builder.idOf(node),
-            ...(bulkNodes === null ? {} : { hashOf: (node: number) => ({ a: bulkNodes[2 * node], b: bulkNodes[2 * node + 1] }) }),
+            ...(bulkNodes === null
+                ? {}
+                : { hashOf: (node: number) => ({ a: bulkNodes[2 * node], b: bulkNodes[2 * node + 1] }) }),
         };
         const ordered = this.latchPairsOrdered();
         const noSessionEdges = this.sessionEdges.length === 0;
@@ -649,21 +667,33 @@ export class GraphStore {
             const hashes = new Uint32Array(2 * bound);
             const ordinals = new Int32Array(bound).fill(-1);
             const amongs = new Int32Array(bound).fill(-1);
-            completeLoad(rows, graph, ordered, (position) => fileIds[position], (row, ordinal, among, hash) => {
-                ordinals[row] = ordinal;
-                amongs[row] = among;
-                hashes[2 * row] = hash.a;
-                hashes[2 * row + 1] = hash.b;
-            });
+            completeLoad(
+                rows,
+                graph,
+                ordered,
+                (position) => fileIds[position],
+                (row, ordinal, among, hash) => {
+                    ordinals[row] = ordinal;
+                    amongs[row] = among;
+                    hashes[2 * row] = hash.a;
+                    hashes[2 * row + 1] = hash.b;
+                },
+            );
             builder.setEdgeColumn(IDENTITY_COLUMNS.edgeHash, hashes, { dtype: "u32", components: 2 });
             builder.setEdgeColumn(IDENTITY_COLUMNS.edgeOrdinal, ordinals, { dtype: "i32", default: -1 });
             builder.setEdgeColumn(IDENTITY_COLUMNS.edgeAmong, amongs, { dtype: "i32", default: -1 });
         } else {
-            completeLoad(rows, graph, ordered, (position) => fileIds[position], (row, ordinal, among, hash) => {
-                builder.setEdgeValue(this.edgeOrdinalColumn, row, ordinal);
-                builder.setEdgeValue(this.edgeAmongColumn, row, among);
-                builder.setEdgeValue(this.edgeHashColumn, row, [hash.a, hash.b]);
-            });
+            completeLoad(
+                rows,
+                graph,
+                ordered,
+                (position) => fileIds[position],
+                (row, ordinal, among, hash) => {
+                    builder.setEdgeValue(this.edgeOrdinalColumn, row, ordinal);
+                    builder.setEdgeValue(this.edgeAmongColumn, row, among);
+                    builder.setEdgeValue(this.edgeHashColumn, row, [hash.a, hash.b]);
+                },
+            );
         }
         this.loadLength = 0;
         this.loadFileIds = [];

@@ -17,7 +17,13 @@ import type { EdgeId, EdgeMember, NodeId, Scope, SetDefinition } from "../../../
 import { pairsOrdered } from "../../../src/data/edgeIdentity";
 import { GraphStore } from "../../../src/data/GraphStore";
 import { ingestEdge, ingestNode } from "../../../src/data/ingest";
-import { createScopeApi, edgeSpaceOf, ElementMask, type MaskIdSpace, nodeSpaceOf } from "../../../src/session/scope/index";
+import {
+    createScopeApi,
+    edgeSpaceOf,
+    ElementMask,
+    type MaskIdSpace,
+    nodeSpaceOf,
+} from "../../../src/session/scope/index";
 import { resolvePath } from "../../../src/session/sets/path";
 import {
     type ComponentLabels,
@@ -49,7 +55,11 @@ interface Case {
 const idOf = (i: number): NodeId => (i % 3 === 0 ? i : `n${i}`);
 
 const CASE: fc.Arbitrary<Case> = fc
-    .record({ nodeCount: fc.integer({ min: 1, max: 300 }), directed: fc.boolean(), edges: fc.integer({ min: 0, max: 600 }) })
+    .record({
+        nodeCount: fc.integer({ min: 1, max: 300 }),
+        directed: fc.boolean(),
+        edges: fc.integer({ min: 0, max: 600 }),
+    })
     .chain(({ nodeCount, directed, edges }) => {
         const node = fc.integer({ min: 0, max: nodeCount - 1 });
         // A missing id or a real one.
@@ -256,7 +266,14 @@ describe("the resolver against a naive model", () => {
                 const outer = scope.save("outer", { set: saved });
                 const digests = new Map<string, string>();
 
-                const check = (label: string, resolution: Resolution | null, spec: Scope | SetDefinition, digest: string, nodes: ReadonlySet<NodeId>, edges: ReadonlySet<EdgeId>): void => {
+                const check = (
+                    label: string,
+                    resolution: Resolution | null,
+                    spec: Scope | SetDefinition,
+                    digest: string,
+                    nodes: ReadonlySet<NodeId>,
+                    edges: ReadonlySet<EdgeId>,
+                ): void => {
                     const expected = model(spec, c, snapshot, labels);
                     const expectedNodes = new Set([...expected.nodes].map((i) => snapshot.ids.idOf(i)));
                     const expectedEdges = new Set([...expected.edges].map((e) => edgeSpace.idOf(e)));
@@ -267,7 +284,10 @@ describe("the resolver against a naive model", () => {
                         assert.strictEqual(resolution.nodeCount, expected.nodes.size);
                         assert.strictEqual(resolution.edgeCount, expected.edges.size);
                         for (const e of maskToIndices(resolution.edges, snapshot.edgeCount)) {
-                            assert.isTrue(expected.nodes.has(snapshot.edgeSource(e)) && expected.nodes.has(snapshot.edgeTarget(e)));
+                            assert.isTrue(
+                                expected.nodes.has(snapshot.edgeSource(e)) &&
+                                    expected.nodes.has(snapshot.edgeTarget(e)),
+                            );
                         }
                     }
 
@@ -301,11 +321,23 @@ describe("the resolver against a naive model", () => {
                 }
 
                 for (const reading of ["induced", "listed"] as const) {
-                    const edges = reading === "induced" ? c.fixedEdges.map(([source, target]) => ({ source, target, ordinal: 0, among: 1 })) : [];
-                    const definition: SetDefinition = { kind: "fixed", nodes: c.fixedNodes, ...(edges.length === 0 ? {} : { edges }), reading };
+                    const edges =
+                        reading === "induced"
+                            ? c.fixedEdges.map(([source, target]) => ({ source, target, ordinal: 0, among: 1 }))
+                            : [];
+                    const definition: SetDefinition = {
+                        kind: "fixed",
+                        nodes: c.fixedNodes,
+                        ...(edges.length === 0 ? {} : { edges }),
+                        reading,
+                    };
                     const resolution = resolveFixed(definition, { snapshot });
-                    const nodes = new Set(Array.from(maskToIndices(resolution.nodes, snapshot.nodeCount), (i) => snapshot.ids.idOf(i)));
-                    const edgeIds = new Set(Array.from(maskToIndices(resolution.edges, snapshot.edgeCount), (e) => edgeSpace.idOf(e)));
+                    const nodes = new Set(
+                        Array.from(maskToIndices(resolution.nodes, snapshot.nodeCount), (i) => snapshot.ids.idOf(i)),
+                    );
+                    const edgeIds = new Set(
+                        Array.from(maskToIndices(resolution.edges, snapshot.edgeCount), (e) => edgeSpace.idOf(e)),
+                    );
                     // The digest rule is the resolver's; the model checks membership and distinctness.
                     check(`fixed ${reading}`, resolution, definition, digestOf(resolution, snapshot), nodes, edgeIds);
                 }
@@ -353,22 +385,35 @@ const MEMBER: fc.Arbitrary<MemberSpec> = fc.record({
 });
 
 const EDGE_CASE: fc.Arbitrary<EdgeCase> = fc
-    .record({ nodeCount: fc.integer({ min: 1, max: 60 }), directed: fc.boolean(), edges: fc.integer({ min: 0, max: 150 }) })
+    .record({
+        nodeCount: fc.integer({ min: 1, max: 60 }),
+        directed: fc.boolean(),
+        edges: fc.integer({ min: 0, max: 150 }),
+    })
     .chain(({ nodeCount, directed, edges }) => {
         const node = fc.integer({ min: 0, max: nodeCount - 1 });
 
         return fc.record({
             nodeCount: fc.constant(nodeCount),
             directed: fc.constant(directed),
-            pairs: fc.array(fc.tuple(fc.tuple(node, node), fc.constantFrom("fresh", "parallel", "parallel", "reciprocal")), { maxLength: edges }),
+            pairs: fc.array(
+                fc.tuple(fc.tuple(node, node), fc.constantFrom("fresh", "parallel", "parallel", "reciprocal")),
+                { maxLength: edges },
+            ),
             loadCut: fc.nat({ max: edges }),
-            fileIds: fc.array(fc.constantFrom<string | number | null>(null, null, "x", "y", 7, "7"), { minLength: edges, maxLength: edges }),
+            fileIds: fc.array(fc.constantFrom<string | number | null>(null, null, "x", "y", 7, "7"), {
+                minLength: edges,
+                maxLength: edges,
+            }),
             fixedNodes: fc.uniqueArray(fc.oneof(node.map(idOf), fc.constant<NodeId>("gone")), { maxLength: 8 }),
             members: fc.array(MEMBER, { maxLength: 12 }),
             reading: fc.constantFrom<"listed" | "clipped">("listed", "clipped"),
             walk: fc.array(fc.integer({ min: 0, max: nodeCount + 1 }), { minLength: 1, maxLength: 7 }),
             steps: fc.array(
-                fc.record({ kind: fc.constantFrom<"null" | "one" | "group">("null", "one", "group"), picks: fc.array(MEMBER, { minLength: 1, maxLength: 3 }) }),
+                fc.record({
+                    kind: fc.constantFrom<"null" | "one" | "group">("null", "one", "group"),
+                    picks: fc.array(MEMBER, { minLength: 1, maxLength: 3 }),
+                }),
                 { minLength: 6, maxLength: 6 },
             ),
             pathDirected: fc.boolean(),
@@ -465,7 +510,9 @@ function naiveMember(edge: NaiveEdge, ordered: boolean): EdgeMember {
         return { source, target, id: edge.fileId };
     }
 
-    return edge.ordinal >= 0 ? { source, target, ordinal: edge.ordinal, among: edge.among } : { source, target, id: `graphty:e${edge.counter}` };
+    return edge.ordinal >= 0
+        ? { source, target, ordinal: edge.ordinal, among: edge.among }
+        : { source, target, id: `graphty:e${edge.counter}` };
 }
 
 /**
@@ -477,7 +524,12 @@ function naiveMember(edge: NaiveEdge, ordered: boolean): EdgeMember {
  * @param ordered - Whether pairs are ordered.
  * @returns The row, or -1 missing, or -2 ambiguous.
  */
-function naiveBind(member: EdgeMember, seed: number | undefined, table: readonly NaiveEdge[], ordered: boolean): number {
+function naiveBind(
+    member: EdgeMember,
+    seed: number | undefined,
+    table: readonly NaiveEdge[],
+    ordered: boolean,
+): number {
     if (seed !== undefined) {
         const at = table.findIndex((edge) => edge.counter === seed);
         if (at >= 0) {
@@ -490,7 +542,8 @@ function naiveBind(member: EdgeMember, seed: number | undefined, table: readonly
         .filter(({ edge }) => {
             const pair = ordered
                 ? edge.s === member.source && edge.t === member.target
-                : (edge.s === member.source && edge.t === member.target) || (edge.s === member.target && edge.t === member.source);
+                : (edge.s === member.source && edge.t === member.target) ||
+                  (edge.s === member.target && edge.t === member.source);
             if (!pair) {
                 return false;
             }
@@ -512,7 +565,11 @@ function naiveBind(member: EdgeMember, seed: number | undefined, table: readonly
  * @param ordered - Whether pairs are ordered.
  * @returns The member and its seed, or null when the graph has no edges to draw from.
  */
-function concrete(spec: MemberSpec, table: readonly NaiveEdge[], ordered: boolean): { member: EdgeMember; seed?: number } | null {
+function concrete(
+    spec: MemberSpec,
+    table: readonly NaiveEdge[],
+    ordered: boolean,
+): { member: EdgeMember; seed?: number } | null {
     if (table.length === 0) {
         return null;
     }
@@ -520,7 +577,12 @@ function concrete(spec: MemberSpec, table: readonly NaiveEdge[], ordered: boolea
     const edge = table[spec.row % table.length];
     let member = naiveMember(edge, ordered);
     if (spec.bend === "ordinal") {
-        member = { source: member.source, target: member.target, ordinal: Math.max(0, edge.ordinal) + 1, among: Math.max(1, edge.among) + 1 };
+        member = {
+            source: member.source,
+            target: member.target,
+            ordinal: Math.max(0, edge.ordinal) + 1,
+            among: Math.max(1, edge.among) + 1,
+        };
     } else if (spec.bend === "reverse") {
         member = { ...member, source: member.target, target: member.source };
     } else if (spec.bend === "other-id") {
@@ -529,7 +591,12 @@ function concrete(spec: MemberSpec, table: readonly NaiveEdge[], ordered: boolea
         member = { ...member, target: "gone" };
     }
 
-    const seeds = { none: undefined, right: edge.counter, other: table[spec.other % table.length].counter, gone: 1_000_000 };
+    const seeds = {
+        none: undefined,
+        right: edge.counter,
+        other: table[spec.other % table.length].counter,
+        gone: 1_000_000,
+    };
     const seed = seeds[spec.seed];
 
     return seed === undefined ? { member } : { member, seed };
@@ -570,7 +637,15 @@ describe("the resolver against a naive model, for edge members and paths", () =>
                 const present = (id: NodeId): number => snapshot.ids.indexOf(id);
                 const digests = new Map<string, string>();
 
-                const check = (label: string, resolution: Resolution, nodes: Set<number>, edges: Set<number>, missingNodes: number, missingEdges: number, ambiguous: number): void => {
+                const check = (
+                    label: string,
+                    resolution: Resolution,
+                    nodes: Set<number>,
+                    edges: Set<number>,
+                    missingNodes: number,
+                    missingEdges: number,
+                    ambiguous: number,
+                ): void => {
                     const gotNodes = new Set(maskToIndices(resolution.nodes, snapshot.nodeCount));
                     const gotEdges = new Set(maskToIndices(resolution.edges, snapshot.edgeCount));
                     assert.deepStrictEqual(gotNodes, nodes, `${label} nodes`);
@@ -579,7 +654,10 @@ describe("the resolver against a naive model, for edge members and paths", () =>
                     assert.strictEqual(resolution.missingEdges, missingEdges, `${label} missing edges`);
                     assert.strictEqual(resolution.ambiguousEdges, ambiguous, `${label} ambiguous`);
                     for (const e of gotEdges) {
-                        assert.isTrue(gotNodes.has(snapshot.edgeSource(e)) && gotNodes.has(snapshot.edgeTarget(e)), `${label} endpoint invariant`);
+                        assert.isTrue(
+                            gotNodes.has(snapshot.edgeSource(e)) && gotNodes.has(snapshot.edgeTarget(e)),
+                            `${label} endpoint invariant`,
+                        );
                     }
 
                     // The digest sums stable identities, so two edges that share one (twins: one
@@ -603,7 +681,12 @@ describe("the resolver against a naive model, for edge members and paths", () =>
 
                 // A fixed set, listed (or clipped, stored listed).
                 const entries = c.members.flatMap((spec) => concrete(spec, table, ordered) ?? []);
-                const definition = parseSetDefinition({ kind: "fixed", nodes: c.fixedNodes, edges: entries.map((entry) => entry.member), reading: c.reading });
+                const definition = parseSetDefinition({
+                    kind: "fixed",
+                    nodes: c.fixedNodes,
+                    edges: entries.map((entry) => entry.member),
+                    reading: c.reading,
+                });
                 assert.strictEqual(definition.kind === "fixed" && definition.reading, "listed");
                 const fixed = definition as Extract<SetDefinition, { kind: "fixed" }>;
                 const seeds = seedsOf(entries);
@@ -633,7 +716,15 @@ describe("the resolver against a naive model, for edge members and paths", () =>
                     }
                 }
 
-                check("fixed listed", resolveFixed(fixed, { snapshot }, seeds), nodes, edges, missingNodes, missingEdges, ambiguous);
+                check(
+                    "fixed listed",
+                    resolveFixed(fixed, { snapshot }, seeds),
+                    nodes,
+                    edges,
+                    missingNodes,
+                    missingEdges,
+                    ambiguous,
+                );
 
                 // A path over the walk.
                 const walk = c.walk.map((i) => (i < c.nodeCount ? idOf(i) : `n${c.nodeCount + 5}`));
@@ -650,7 +741,11 @@ describe("the resolver against a naive model, for edge members and paths", () =>
 
                     // A door refuses a step edge that does not join the step's two nodes.
                     const [from, to] = [walk[i], walk[i + 1]];
-                    const joining = picks.filter(({ member }) => (member.source === from && member.target === to) || (member.source === to && member.target === from));
+                    const joining = picks.filter(
+                        ({ member }) =>
+                            (member.source === from && member.target === to) ||
+                            (member.source === to && member.target === from),
+                    );
                     if (joining.length === 0) {
                         return null;
                     }
@@ -690,9 +785,18 @@ describe("the resolver against a naive model, for edge members and paths", () =>
                         }
                     } else {
                         for (const member of stepMembers(step)) {
-                            const row = naiveBind(member, pathSeeds.counters.get(edgeMemberKey(member)), table, ordered);
+                            const row = naiveBind(
+                                member,
+                                pathSeeds.counters.get(edgeMemberKey(member)),
+                                table,
+                                ordered,
+                            );
                             pathAmbiguous += row === -2 ? 1 : 0;
-                            if (row >= 0 && (!path.directed || (snapshot.edgeSource(row) === from && snapshot.edgeTarget(row) === to))) {
+                            if (
+                                row >= 0 &&
+                                (!path.directed ||
+                                    (snapshot.edgeSource(row) === from && snapshot.edgeTarget(row) === to))
+                            ) {
                                 rows.push(row);
                             }
                         }
@@ -706,7 +810,15 @@ describe("the resolver against a naive model, for edge members and paths", () =>
                     }
                 }
 
-                check("path", resolvePath(path, { snapshot }, pathSeeds), pathNodes, pathEdges, absent.size, missingSteps, pathAmbiguous);
+                check(
+                    "path",
+                    resolvePath(path, { snapshot }, pathSeeds),
+                    pathNodes,
+                    pathEdges,
+                    absent.size,
+                    missingSteps,
+                    pathAmbiguous,
+                );
             }),
             fcParams(1000),
         );

@@ -162,7 +162,9 @@ describe("change notification", () => {
             (id) => h.nodeAttributes.get(indexOf(id)) as Record<string, unknown> | undefined,
         );
 
-        assert.deepStrictEqual(heavy.readies, [{ count: 4, moved: [{ kind: "attributes", element: "node", fields: ["weight"] }] }]);
+        assert.deepStrictEqual(heavy.readies, [
+            { count: 4, moved: [{ kind: "attributes", element: "node", fields: ["weight"] }] },
+        ]);
         assert.strictEqual(labelled.resolves, 0);
     });
 
@@ -197,6 +199,8 @@ describe("change notification", () => {
 
         assert.isNotNull(frame);
         (frame as unknown as () => void)();
-        assert.deepStrictEqual(watched.readies, [{ count: 3, moved: [{ kind: "snapshot", serial }, { kind: "selection" }] }]);
+        assert.deepStrictEqual(watched.readies, [
+            { count: 3, moved: [{ kind: "snapshot", serial }, { kind: "selection" }] },
+        ]);
     });
 });

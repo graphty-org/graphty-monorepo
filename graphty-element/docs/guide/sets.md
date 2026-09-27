@@ -9,7 +9,10 @@ the visibility filter, the selection, the camera -- takes it by reference.
 const sets = element.session.sets;
 
 // Keep three nodes under a name
-const suspects = sets.create({ kind: "fixed", nodes: ["alice", "bob", "carol"], reading: "induced" }, { name: "Suspects" });
+const suspects = sets.create(
+    { kind: "fixed", nodes: ["alice", "bob", "carol"], reading: "induced" },
+    { name: "Suspects" },
+);
 
 // Paint them
 await element.session.styles.add({
@@ -28,11 +31,11 @@ await element.run("pagerank", {}, { scope: { set: suspects } });
   changes and is never handed out again, even after the set is removed; the name can be changed
   with `rename` and must be unique among your sets.
 - **It has a definition** of one of three kinds:
-  - **fixed** -- a list of node ids (and optionally edges). It never changes unless you change it.
-  - **rule** -- a query or a filter tree. It follows the data: change an attribute, and the set
-    gains or loses members without being touched.
-  - **path** -- an ordered walk of nodes, such as a shortest route.
-- **It says which edges come with its nodes** -- its *reading*, below.
+    - **fixed** -- a list of node ids (and optionally edges). It never changes unless you change it.
+    - **rule** -- a query or a filter tree. It follows the data: change an attribute, and the set
+      gains or loses members without being touched.
+    - **path** -- an ordered walk of nodes, such as a shortest route.
+- **It says which edges come with its nodes** -- its _reading_, below.
 - **It records where it came from**: typed in, a selection, a combination of other sets, or a
   run's result (`createdFrom`).
 - **It is the same everywhere.** A layer, the filter and a run that name one set see exactly the
@@ -120,10 +123,10 @@ A set of nodes does not say on its own which edges belong to it, so every defini
  D --- C                  C            D --- C                  C
 ```
 
-| Reading | Holds | Use it for |
-| --- | --- | --- |
-| `induced` | The nodes, plus every edge between two of them | Groups, communities, a hand-picked team |
-| `listed` | The listed edges and their endpoints, plus any listed nodes | Paths, spanning trees, a set of edges |
+| Reading   | Holds                                                                         | Use it for                                           |
+| --------- | ----------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `induced` | The nodes, plus every edge between two of them                                | Groups, communities, a hand-picked team              |
+| `listed`  | The listed edges and their endpoints, plus any listed nodes                   | Paths, spanning trees, a set of edges                |
 | `clipped` | The nodes, plus those of the listed edges whose ends are both among the nodes | Rules only: exactly what the visibility filter shows |
 
 A fixed set given `clipped` is stored `listed`, which holds the same members. Change a set's reading
@@ -145,16 +148,16 @@ await element.run("degree", {}, { scope: { define: { kind: "fixed", nodes: ["a",
 
 The short forms from before sets existed still work everywhere, and mean what they always meant:
 
-| Scope | Means |
-| --- | --- |
-| `"graph"` | Every node and edge |
-| `"visible"` | What the visibility filter shows (read `clipped`) |
-| `"selection"` | The selected nodes (read `induced`) |
-| `"largest-component"` | The largest weakly connected component, recomputed as the data changes |
-| `{ set: id }` | A kept set |
-| `{ where: "..." }` | An inline rule |
-| `{ nodes: [...] }` | An inline fixed set of nodes |
-| `{ define: definition }` | An inline set of any kind |
+| Scope                    | Means                                                                  |
+| ------------------------ | ---------------------------------------------------------------------- |
+| `"graph"`                | Every node and edge                                                    |
+| `"visible"`              | What the visibility filter shows (read `clipped`)                      |
+| `"selection"`            | The selected nodes (read `induced`)                                    |
+| `"largest-component"`    | The largest weakly connected component, recomputed as the data changes |
+| `{ set: id }`            | A kept set                                                             |
+| `{ where: "..." }`       | An inline rule                                                         |
+| `{ nodes: [...] }`       | An inline fixed set of nodes                                           |
+| `{ define: definition }` | An inline set of any kind                                              |
 
 ### Checking a definition before using it
 
@@ -219,7 +222,10 @@ with other leaves:
 await element.session.visibility.set({ kind: "member", of: { set: team } });
 await element.session.visibility.set({
     kind: "all",
-    of: [{ kind: "member", of: { set: team } }, { kind: "degree", min: 2 }],
+    of: [
+        { kind: "member", of: { set: team } },
+        { kind: "degree", min: 2 },
+    ],
 });
 ```
 
@@ -435,11 +441,11 @@ Before sets, a named scope was saved through `session.scope` and a selection kep
 `selection.promote`. Those four calls still work -- they now create and list sets -- but are
 deprecated:
 
-| Deprecated | Use instead |
-| --- | --- |
-| `session.scope.save(name, spec)` | `session.sets.create(definition, { name })` |
-| `session.scope.list()` | `session.sets.list()`, which returns the definitions |
-| `session.scope.remove(id)` | `session.sets.remove(id)` |
+| Deprecated                        | Use instead                                                                           |
+| --------------------------------- | ------------------------------------------------------------------------------------- |
+| `session.scope.save(name, spec)`  | `session.sets.create(definition, { name })`                                           |
+| `session.scope.list()`            | `session.sets.list()`, which returns the definitions                                  |
+| `session.scope.remove(id)`        | `session.sets.remove(id)`                                                             |
 | `session.selection.promote(name)` | `session.sets.createFrom("selection", { name })`, which also keeps the selected edges |
 
 A scope saved the old way is a set: its id works as `{ set: id }` exactly as before.

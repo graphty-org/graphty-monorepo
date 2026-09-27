@@ -1274,7 +1274,8 @@ export class Graphty extends LitElement {
                     return undefined;
                 }
             },
-            toAttribute: (value: Scope | undefined): string | null => (value === undefined ? null : JSON.stringify(value)),
+            toAttribute: (value: Scope | undefined): string | null =>
+                value === undefined ? null : JSON.stringify(value),
         },
     })
     get layoutScope(): Scope | undefined {
@@ -1574,10 +1575,7 @@ export class Graphty extends LitElement {
             try {
                 this.#graph.setBackground(value);
             } catch (error: unknown) {
-                console.error(
-                    "<graphty-element>: the background was refused. Keeping the one already set.",
-                    error,
-                );
+                console.error("<graphty-element>: the background was refused. Keeping the one already set.", error);
 
                 return;
             }

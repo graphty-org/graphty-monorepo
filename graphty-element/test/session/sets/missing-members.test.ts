@@ -36,17 +36,32 @@ function resolve(definition: Fixed): { nodes: NodeId[]; missingNodes: number; mi
 
 describe("an edge member that does not bind", () => {
     it("read listed, leaves no end behind", () => {
-        const result = resolve({ kind: "fixed", nodes: ["a"], edges: [{ source: "a", target: "b", ordinal: 0, among: 1 }], reading: "listed" });
+        const result = resolve({
+            kind: "fixed",
+            nodes: ["a"],
+            edges: [{ source: "a", target: "b", ordinal: 0, among: 1 }],
+            reading: "listed",
+        });
         assert.deepStrictEqual(result, { nodes: ["a"], missingNodes: 0, missingEdges: 1 });
     });
 
     it("read induced, is inert: it names no end and counts nothing missing", () => {
-        const result = resolve({ kind: "fixed", nodes: [], edges: [{ source: "a", target: "zz", ordinal: 0, among: 1 }], reading: "induced" });
+        const result = resolve({
+            kind: "fixed",
+            nodes: [],
+            edges: [{ source: "a", target: "zz", ordinal: 0, among: 1 }],
+            reading: "induced",
+        });
         assert.deepStrictEqual(result, { nodes: [], missingNodes: 0, missingEdges: 0 });
     });
 
     it("read listed, a bound edge brings both its ends", () => {
-        const result = resolve({ kind: "fixed", nodes: [], edges: [{ source: "b", target: "c", ordinal: 0, among: 1 }], reading: "listed" });
+        const result = resolve({
+            kind: "fixed",
+            nodes: [],
+            edges: [{ source: "b", target: "c", ordinal: 0, among: 1 }],
+            reading: "listed",
+        });
         assert.deepStrictEqual(result, { nodes: ["b", "c"], missingNodes: 0, missingEdges: 0 });
     });
 });

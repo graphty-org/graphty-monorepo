@@ -12,7 +12,11 @@ import { edgeBetween, type EdgeRow, type Harness, makeSession } from "../helpers
 import { builtInRuns } from "./algorithms";
 
 /** A session over the given edges; nodes are their endpoints plus any extra ids. */
-function harnessOf(edges: readonly [string, string][], directed: boolean | "auto" = "auto", extra: readonly string[] = []): Harness {
+function harnessOf(
+    edges: readonly [string, string][],
+    directed: boolean | "auto" = "auto",
+    extra: readonly string[] = [],
+): Harness {
     const harness = makeSession({ directed });
     const ids = [...new Set([...edges.flat(), ...extra])];
     harness.add(
@@ -28,7 +32,9 @@ function harnessOf(edges: readonly [string, string][], directed: boolean | "auto
  * @param call - The call.
  * @returns The code and `details.why`.
  */
-async function refusalOf(call: () => Promise<unknown>): Promise<{ code: string; reason: unknown; why: unknown } | null> {
+async function refusalOf(
+    call: () => Promise<unknown>,
+): Promise<{ code: string; reason: unknown; why: unknown } | null> {
     try {
         await call();
     } catch (error) {
@@ -55,7 +61,9 @@ const CHAIN: [string, string][] = [
 describe("sets.createPath: an unambiguous chain", () => {
     it("orders the selected edges into a walk, whatever order they were selected in", async () => {
         const h = harnessOf(CHAIN);
-        await h.session.selection.apply({ edges: [edgeBetween(h, "c", "d"), edgeBetween(h, "a", "b"), edgeBetween(h, "b", "c")] });
+        await h.session.selection.apply({
+            edges: [edgeBetween(h, "c", "d"), edgeBetween(h, "a", "b"), edgeBetween(h, "b", "c")],
+        });
 
         const id = await h.session.sets.createPath("selection", { name: "Route" });
 
@@ -86,7 +94,9 @@ describe("sets.createPath: an unambiguous chain", () => {
             ],
             true,
         );
-        await h.session.selection.apply({ edges: [edgeBetween(h, "b", "a"), edgeBetween(h, "d", "c"), edgeBetween(h, "c", "b")] });
+        await h.session.selection.apply({
+            edges: [edgeBetween(h, "b", "a"), edgeBetween(h, "d", "c"), edgeBetween(h, "c", "b")],
+        });
 
         const id = await h.session.sets.createPath("selection");
 
@@ -141,15 +151,33 @@ describe("sets.createPath: an ambiguous selection is refused, saying why", () =>
     const cases: { name: string; edges: [string, string][]; nodes?: string[]; why: string }[] = [
         { name: "nothing selected", edges: [], why: "no-edges" },
         { name: "two nodes and no edges", edges: [], nodes: ["a", "b"], why: "no-edges" },
-        { name: "a node joining three selected edges", edges: [["b", "c"], ["c", "d"], ["c", "e"]], why: "branch" },
-        { name: "edges in two pieces", edges: [["a", "b"], ["f", "g"]], why: "disconnected" },
+        {
+            name: "a node joining three selected edges",
+            edges: [
+                ["b", "c"],
+                ["c", "d"],
+                ["c", "e"],
+            ],
+            why: "branch",
+        },
+        {
+            name: "edges in two pieces",
+            edges: [
+                ["a", "b"],
+                ["f", "g"],
+            ],
+            why: "disconnected",
+        },
         { name: "a node off the chain", edges: [["a", "b"]], nodes: ["e"], why: "off-path-nodes" },
     ];
 
     for (const c of cases) {
         it(`refuses ${c.name}`, async () => {
             const h = harnessOf(CHAIN);
-            await h.session.selection.apply({ nodes: c.nodes ?? [], edges: c.edges.map(([s, t]) => edgeBetween(h, s, t)) });
+            await h.session.selection.apply({
+                nodes: c.nodes ?? [],
+                edges: c.edges.map(([s, t]) => edgeBetween(h, s, t)),
+            });
 
             assert.deepStrictEqual(await refusalOf(() => h.session.sets.createPath("selection")), {
                 code: "E_BAD_COMMAND",
@@ -166,7 +194,9 @@ describe("sets.createPath: an ambiguous selection is refused, saying why", () =>
             ["b", "c"],
             ["c", "a"],
         ]);
-        await h.session.selection.apply({ edges: [edgeBetween(h, "a", "b"), edgeBetween(h, "b", "c"), edgeBetween(h, "c", "a")] });
+        await h.session.selection.apply({
+            edges: [edgeBetween(h, "a", "b"), edgeBetween(h, "b", "c"), edgeBetween(h, "c", "a")],
+        });
 
         assert.deepStrictEqual(await refusalOf(() => h.session.sets.createPath("selection")), {
             code: "E_BAD_COMMAND",
@@ -188,7 +218,10 @@ describe("sets.createPath: an ambiguous selection is refused, saying why", () =>
     it("refuses a source other than the selection", async () => {
         const h = harnessOf(CHAIN);
 
-        assert.strictEqual((await refusalOf(() => h.session.sets.createPath("graph" as "selection")))?.code, "E_BAD_COMMAND");
+        assert.strictEqual(
+            (await refusalOf(() => h.session.sets.createPath("graph" as "selection")))?.code,
+            "E_BAD_COMMAND",
+        );
     });
 });
 
@@ -205,16 +238,26 @@ describe("sets.createPath from a shortest-path offer", () => {
                 { src: "b", dst: "c", weight: 1 },
             ],
         );
-        const run = h.session.runs.start("shortest-path", { method: "dijkstra", source: "a", target: "c" }, { scope: "graph", style: false });
+        const run = h.session.runs.start(
+            "shortest-path",
+            { method: "dijkstra", source: "a", target: "c" },
+            { scope: "graph", style: false },
+        );
         await run;
         const offer = h.session.sets.offers(run.id).offers.find((entry) => entry.path);
         assert.isDefined(offer);
 
         const id = await h.session.sets.createPath(offer);
-        const definition = h.session.sets.get(id)?.definition as unknown as { nodes: string[]; edges: (EdgeMember | EdgeMember[])[] };
+        const definition = h.session.sets.get(id)?.definition as unknown as {
+            nodes: string[];
+            edges: (EdgeMember | EdgeMember[])[];
+        };
 
         assert.deepStrictEqual(definition.nodes, ["a", "b", "c"]);
-        assert.isTrue(definition.edges.every((step) => !Array.isArray(step)), "one edge per step");
+        assert.isTrue(
+            definition.edges.every((step) => !Array.isArray(step)),
+            "one edge per step",
+        );
         // Edges added in the session carry minted ids in the order they arrived: e0 is a-b at 4.
         assert.deepStrictEqual(
             definition.edges.map((step) => (step as EdgeMember).id),

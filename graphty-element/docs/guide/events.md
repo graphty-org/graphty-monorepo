@@ -8,26 +8,26 @@ Graphty uses an event-driven architecture. Subscribe to events for user interact
 
 ## Available Events
 
-| Event                  | Trigger                  | Event Data                 |
-| ---------------------- | ------------------------ | -------------------------- |
-| `graph-settled`        | Layout finished          | `{ settled: boolean }`     |
-| `graph-frame-stable`   | The picture is final: layout converged, camera framed, frame drawn | `{ frames }` |
-| `zoom-to-fit-complete` | Auto-framing moved the camera around the whole graph | `{ boundingBoxMin, boundingBoxMax }` |
-| `data-loaded`          | Initial data loaded      | `{ nodeCount, edgeCount }` |
-| `data-added`           | Incremental data added   | `{ nodes, edges }`         |
-| `selection-changed`    | Node selected/deselected | `{ node, previousNode }`   |
-| `camera-state-changed` | Camera moved             | `{ state }`                |
-| `style-changed`        | Styles updated           | `{ reason, layers, painted, unresolvedPaths }` |
-| `node-click`           | User clicked node        | `{ node, data, event }`    |
-| `node-hover`           | Mouse entered node       | `{ node, data }`           |
-| `node-drag-start`      | Started dragging node    | `{ node, position, pinned }` |
-| `node-drag-end`        | Finished dragging node   | `{ node, position, pinned }` |
-| `elements-removed`     | Nodes and their edges removed | `{ nodes, edges }`    |
-| `data-cleared`         | All data cleared (`clearData()` or a replacing load) | none |
-| `data-loading-progress` | A chunk of a load arrived | `{ nodeRecordsLoaded, edgeRecordsLoaded, chunksProcessed, ... }` |
-| `data-loading-complete` | A load finished          | `{ nodesLoaded, edgesLoaded, report, loadId, ... }` |
-| `data-loading-error`   | A load failed            | `{ error, format, loadId, ... }` |
-| `error`                | Error occurred           | `{ error, context }`       |
+| Event                   | Trigger                                                            | Event Data                                                       |
+| ----------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| `graph-settled`         | Layout finished                                                    | `{ settled: boolean }`                                           |
+| `graph-frame-stable`    | The picture is final: layout converged, camera framed, frame drawn | `{ frames }`                                                     |
+| `zoom-to-fit-complete`  | Auto-framing moved the camera around the whole graph               | `{ boundingBoxMin, boundingBoxMax }`                             |
+| `data-loaded`           | Initial data loaded                                                | `{ nodeCount, edgeCount }`                                       |
+| `data-added`            | Incremental data added                                             | `{ nodes, edges }`                                               |
+| `selection-changed`     | Node selected/deselected                                           | `{ node, previousNode }`                                         |
+| `camera-state-changed`  | Camera moved                                                       | `{ state }`                                                      |
+| `style-changed`         | Styles updated                                                     | `{ reason, layers, painted, unresolvedPaths }`                   |
+| `node-click`            | User clicked node                                                  | `{ node, data, event }`                                          |
+| `node-hover`            | Mouse entered node                                                 | `{ node, data }`                                                 |
+| `node-drag-start`       | Started dragging node                                              | `{ node, position, pinned }`                                     |
+| `node-drag-end`         | Finished dragging node                                             | `{ node, position, pinned }`                                     |
+| `elements-removed`      | Nodes and their edges removed                                      | `{ nodes, edges }`                                               |
+| `data-cleared`          | All data cleared (`clearData()` or a replacing load)               | none                                                             |
+| `data-loading-progress` | A chunk of a load arrived                                          | `{ nodeRecordsLoaded, edgeRecordsLoaded, chunksProcessed, ... }` |
+| `data-loading-complete` | A load finished                                                    | `{ nodesLoaded, edgesLoaded, report, loadId, ... }`              |
+| `data-loading-error`    | A load failed                                                      | `{ error, format, loadId, ... }`                                 |
+| `error`                 | Error occurred                                                     | `{ error, context }`                                             |
 
 There is no edge-click event. Edge meshes are not pickable, so nothing could emit one; it returns,
 with a serialisable detail, when edge picking lands.

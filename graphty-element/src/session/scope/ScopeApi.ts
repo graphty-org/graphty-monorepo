@@ -24,7 +24,15 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import { type GraphSnapshot, INVALID_INDEX, makeMask, maskCount, maskTest, maskToIndices, type U32 } from "@graphty/graph-format";
+import {
+    type GraphSnapshot,
+    INVALID_INDEX,
+    makeMask,
+    maskCount,
+    maskTest,
+    maskToIndices,
+    type U32,
+} from "@graphty/graph-format";
 
 import { parseScope, readingOfScope, stabiliseEdgeRefs } from "../../catalog/sets/parse";
 import type {
@@ -48,7 +56,7 @@ import { GraphtyError, isGraphtyError } from "../../errors";
 import type { AttributeRevisions, InputTick } from "../attributes";
 import type { ResolvedScope } from "../runs/types";
 import { resolveSet, SetsCache } from "../sets/cache";
-import { type Capture,capturedHalves } from "../sets/captures";
+import { type Capture, capturedHalves } from "../sets/captures";
 import { assertIssued, referentReading } from "../sets/dependencies";
 import {
     type ComponentLabels,
@@ -503,7 +511,10 @@ function resolvedScopeOf(resolution: Resolution, graph: GraphSnapshot, spec: Sco
  * @param graph - The snapshot it was resolved against.
  * @returns The definition.
  */
-function frozenDefinition(resolution: Resolution, graph: GraphSnapshot): Extract<SetDefinitionInput, { kind: "fixed" }> {
+function frozenDefinition(
+    resolution: Resolution,
+    graph: GraphSnapshot,
+): Extract<SetDefinitionInput, { kind: "fixed" }> {
     const nodes = Array.from(maskToIndices(resolution.nodes, graph.nodeCount), (index) => graph.ids.idOf(index));
     const induced = deriveEdges({ nodes: resolution.nodes, constraint: null, all: false, missingNodes: 0 }, graph);
     if (maskCount(induced, graph.edgeCount) === resolution.edgeCount) {
@@ -512,7 +523,12 @@ function frozenDefinition(resolution: Resolution, graph: GraphSnapshot): Extract
 
     const space = edgeSpaceOf(graph);
 
-    return { kind: "fixed", nodes, edges: Array.from(maskToIndices(resolution.edges, graph.edgeCount), (edge) => space.idOf(edge)), reading: "listed" };
+    return {
+        kind: "fixed",
+        nodes,
+        edges: Array.from(maskToIndices(resolution.edges, graph.edgeCount), (edge) => space.idOf(edge)),
+        reading: "listed",
+    };
 }
 
 /**
@@ -524,7 +540,9 @@ function frozenDefinition(resolution: Resolution, graph: GraphSnapshot): Extract
 function countOf(resolution: Resolution, kind: string | undefined): ScopeCount {
     const count = { nodes: resolution.nodeCount, edges: resolution.edgeCount, exact: true };
 
-    return kind === "fixed" || kind === "path" ? { ...count, missingNodes: resolution.missingNodes, missingEdges: resolution.missingEdges } : count;
+    return kind === "fixed" || kind === "path"
+        ? { ...count, missingNodes: resolution.missingNodes, missingEdges: resolution.missingEdges }
+        : count;
 }
 
 /**
@@ -545,7 +563,9 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
         sources.sets ??
         createSetsApi({
             edgeMember: (id: EdgeId) =>
-                sources.edgeMember === undefined ? sessionEdgeMember(sources.snapshot(), id, () => undefined, null) : sources.edgeMember(id),
+                sources.edgeMember === undefined
+                    ? sessionEdgeMember(sources.snapshot(), id, () => undefined, null)
+                    : sources.edgeMember(id),
         });
     const kept = setsStoreOf(sets);
 
@@ -605,7 +625,10 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
         }
 
         // A resolver built without the session's reader reads the snapshot alone: no file ids.
-        const member = sources.edgeMember === undefined ? sessionEdgeMember(sources.snapshot(), ref, () => undefined, null) : sources.edgeMember(ref);
+        const member =
+            sources.edgeMember === undefined
+                ? sessionEdgeMember(sources.snapshot(), ref, () => undefined, null)
+                : sources.edgeMember(ref);
         if (member === undefined) {
             throw new GraphtyError({
                 code: "E_BAD_COMMAND",
@@ -661,7 +684,8 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
      * @param spec - The scope.
      * @returns The record, or undefined for any other scope.
      */
-    const keptRecordOf = (spec: Scope): ElementSet | undefined => (typeof spec === "object" && "set" in spec ? kept.get(spec.set) : undefined);
+    const keptRecordOf = (spec: Scope): ElementSet | undefined =>
+        typeof spec === "object" && "set" in spec ? kept.get(spec.set) : undefined;
 
     /**
      * Whether one edge is in scope: both endpoints in the node half, and allowed by the
@@ -709,7 +733,12 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
             }
         }
 
-        return { nodes: maskCount(half.nodes, graph.nodeCount), edges: Math.round((found / take) * total), exact: false, sampled: take };
+        return {
+            nodes: maskCount(half.nodes, graph.nodeCount),
+            edges: Math.round((found / take) * total),
+            exact: false,
+            sampled: take,
+        };
     };
 
     /**
@@ -788,7 +817,8 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
 
         if (definition.kind === "rule" && typeof definition.where === "object" && definition.where.kind === "member") {
             const { of: scope } = definition.where;
-            const named = scope === "graph" || scope === "largest-component" || (typeof scope === "object" && "set" in scope);
+            const named =
+                scope === "graph" || scope === "largest-component" || (typeof scope === "object" && "set" in scope);
             if (named && definition.reading === readingOf(scope)) {
                 return scope;
             }
@@ -948,7 +978,12 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
         list(): readonly SavedScope[] {
             return Object.freeze(
                 kept.list().map((record) =>
-                    Object.freeze({ id: record.id, name: record.name, spec: projectionOf(record.definition), bound: bound(record) }),
+                    Object.freeze({
+                        id: record.id,
+                        name: record.name,
+                        spec: projectionOf(record.definition),
+                        bound: bound(record),
+                    }),
                 ),
             );
         },

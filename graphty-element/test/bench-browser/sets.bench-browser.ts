@@ -134,11 +134,23 @@ for (const size of SIZES) {
 
         const sets: SetId[] = [];
         for (let k = 0; k < 5; k++) {
-            sets.push(session.sets.create({ kind: "fixed", nodes: Array.from({ length: size.n / 10 }, (_, i) => i * (k + 2)), reading: "induced" }));
+            sets.push(
+                session.sets.create({
+                    kind: "fixed",
+                    nodes: Array.from({ length: size.n / 10 }, (_, i) => i * (k + 2)),
+                    reading: "induced",
+                }),
+            );
         }
 
         for (let k = 0; k < 5; k++) {
-            sets.push(session.sets.create({ kind: "rule", where: `data.w < \`${String(10 * (k + 1))}\``, reading: "induced" }));
+            sets.push(
+                session.sets.create({
+                    kind: "rule",
+                    where: `data.w < \`${String(10 * (k + 1))}\``,
+                    reading: "induced",
+                }),
+            );
         }
 
         for (const id of sets) {
@@ -169,9 +181,21 @@ for (const size of SIZES) {
 
         record(`freeze with live sets, add one node, the freeze itself, ${size.label}`, frozen - start, "none stated");
         record(`freeze with live sets, to the first repaint after it, ${size.label}`, first - start, "under 200 ms");
-        record(`freeze with live sets, to every layer repainted, ${size.label}`, all - start, "within the re-resolution time");
-        record(`freeze with live sets, the re-resolution alone (inside the scheduler's frames), ${size.label}`, resolving, "none stated");
-        record(`freeze with live sets, then a 200-row scope.count panel, ${size.label}`, counted - panel, "none stated");
+        record(
+            `freeze with live sets, to every layer repainted, ${size.label}`,
+            all - start,
+            "within the re-resolution time",
+        );
+        record(
+            `freeze with live sets, the re-resolution alone (inside the scheduler's frames), ${size.label}`,
+            resolving,
+            "none stated",
+        );
+        record(
+            `freeze with live sets, then a 200-row scope.count panel, ${size.label}`,
+            counted - panel,
+            "none stated",
+        );
         assert.isAbove(first, 0, "a pass ran after the freeze");
         session.dispose();
     });
@@ -186,7 +210,10 @@ for (const size of SIZES) {
             const inputs = new DerivedInputs({ release: () => undefined });
             const holder = {};
             const binding = { inputs, holder, scope: () => ({ graph: snapshot, resolution }) };
-            const data = { getSnapshot: () => store.getSnapshot(), undirected: (graph: typeof snapshot) => store.undirected(graph) };
+            const data = {
+                getSnapshot: () => store.getSnapshot(),
+                undirected: (graph: typeof snapshot) => store.undirected(graph),
+            };
             const began = performance.now();
             const declared = createScopedInput(data, "declared", undefined, binding).derived();
             const undirected = createScopedInput(data, "undirected", undefined, binding).derived();
@@ -196,6 +223,10 @@ for (const size of SIZES) {
             inputs.dispose();
         }
 
-        record(`50% scoped run input, declared and undirected, ${size.label}`, times.sort((a, b) => a - b)[1], "must complete");
+        record(
+            `50% scoped run input, declared and undirected, ${size.label}`,
+            times.sort((a, b) => a - b)[1],
+            "must complete",
+        );
     });
 }

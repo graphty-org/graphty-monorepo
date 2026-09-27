@@ -8,7 +8,7 @@ import { assert, describe, it } from "vitest";
 import { inputCountersOf, writeAttributes } from "../../src/session/attributes";
 import { inputCountersOfSession } from "../../src/session/GraphSession";
 import type { ElementSession } from "../../src/session/types";
-import { type Harness,makeSession } from "./helpers";
+import { type Harness, makeSession } from "./helpers";
 import { finishAtOnce } from "./runs/harness";
 
 /**

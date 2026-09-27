@@ -538,7 +538,8 @@ class Runs implements SessionRunsApi {
             // re-rank the scope's values -- is built later; refusing it now keeps accepting it additive.
             throw new GraphtyError({
                 code: "E_BAD_COMMAND",
-                message: 'The run option "scopeAs" is reserved and not accepted yet. A run computes over its scope as its algorithm declares.',
+                message:
+                    'The run option "scopeAs" is reserved and not accepted yet. A run computes over its scope as its algorithm declares.',
                 source: "run",
                 details: { algorithm, field: "scopeAs", reason: "reserved" },
             });
@@ -547,7 +548,10 @@ class Runs implements SessionRunsApi {
         const descriptor = this.descriptorFor(algorithm);
         this.checkParams(descriptor, params);
 
-        const spec = options.scope === undefined ? this.defaultScope : (this.options.admitScope?.(options.scope) ?? (options.scope as Scope));
+        const spec =
+            options.scope === undefined
+                ? this.defaultScope
+                : (this.options.admitScope?.(options.scope) ?? (options.scope as Scope));
         const identity: RunIdentity = {
             algorithm: descriptor.key,
             params: canonicalizeParams(params, descriptor.options),
@@ -717,9 +721,7 @@ class Runs implements SessionRunsApi {
     get queue(): readonly QueueEntry[] {
         const waiting = this.waiting();
 
-        return Object.freeze(
-            waiting.map((run, index) => Object.freeze({ runId: run.id, index, of: waiting.length })),
-        );
+        return Object.freeze(waiting.map((run, index) => Object.freeze({ runId: run.id, index, of: waiting.length })));
     }
 
     /** Cancel everything still running and forget every run this session held. */
@@ -794,10 +796,14 @@ class Runs implements SessionRunsApi {
             queuePosition: () => this.queuePositionOf(id),
             stale: () => this.staleOf(id),
             resolveScope: () => refuseEmptySet(spec, this.options.resolveScope(spec)),
-            ...(this.options.scopeFacts === undefined ? {} : { scopeFacts: () => this.options.scopeFacts?.(spec) ?? {} }),
+            ...(this.options.scopeFacts === undefined
+                ? {}
+                : { scopeFacts: () => this.options.scopeFacts?.(spec) ?? {} }),
             enqueue: (body) => (policy === "now" ? enqueueBesideQueue(body, id) : this.enqueueOnQueue(id, body)),
             mintExecution: this.mintExecution,
-            ...(this.options.captureHeld === undefined ? {} : { captureHeld: (prior: HeldCaptures) => this.options.captureHeld?.(id, prior) ?? prior }),
+            ...(this.options.captureHeld === undefined
+                ? {}
+                : { captureHeld: (prior: HeldCaptures) => this.options.captureHeld?.(id, prior) ?? prior }),
             notify: (phase) => {
                 this.announce(run, phase);
 

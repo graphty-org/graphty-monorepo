@@ -89,14 +89,22 @@ function fold(op: SetCombine, masks: readonly U32[], length: number): U32 {
  * @param graph - The snapshot.
  * @returns The combined bitmaps.
  */
-export function combineMasks(op: SetCombine, operands: readonly AlgebraOperand[], graph: GraphSnapshot): AlgebraOperand {
+export function combineMasks(
+    op: SetCombine,
+    operands: readonly AlgebraOperand[],
+    graph: GraphSnapshot,
+): AlgebraOperand {
     const nodes = fold(
         op,
         operands.map((operand) => operand.nodes),
         graph.nodeCount,
     );
     if (operands.every((operand) => operand.induced)) {
-        return { nodes, edges: deriveEdges({ nodes, constraint: null, all: false, missingNodes: 0 }, graph), induced: true };
+        return {
+            nodes,
+            edges: deriveEdges({ nodes, constraint: null, all: false, missingNodes: 0 }, graph),
+            induced: true,
+        };
     }
 
     const edges = fold(
@@ -207,7 +215,11 @@ function operandOf(scope: Scope): SetOperand {
         return { inline: { nodes: scope.nodes.length, edges: 0 } };
     }
 
-    if (typeof scope === "object" && "define" in scope && (scope.define.kind === "fixed" || scope.define.kind === "path")) {
+    if (
+        typeof scope === "object" &&
+        "define" in scope &&
+        (scope.define.kind === "fixed" || scope.define.kind === "path")
+    ) {
         return { inline: { nodes: scope.define.nodes.length, edges: scope.define.edges?.length ?? 0 } };
     }
 
@@ -440,7 +452,11 @@ export function createMaterialiser(sources: MaterialiseSources): Materialiser {
         });
 
         return {
-            definition: { kind: "path", nodes: indices.map((index) => graph.ids.idOf(index)), ...(steps.length === 0 ? {} : { edges: steps }) },
+            definition: {
+                kind: "path",
+                nodes: indices.map((index) => graph.ids.idOf(index)),
+                ...(steps.length === 0 ? {} : { edges: steps }),
+            },
             refs,
             createdFrom: { kind: "result", item: offer.item },
         };
@@ -459,10 +475,17 @@ export function createMaterialiser(sources: MaterialiseSources): Materialiser {
 
                     const reading = given ?? source.reading;
 
-                    return fixedOf(resolution.nodes, resolution.edges, graph, reading === "induced" ? "induced" : "listed", false, {
-                        kind: "result",
-                        item: source.item,
-                    });
+                    return fixedOf(
+                        resolution.nodes,
+                        resolution.edges,
+                        graph,
+                        reading === "induced" ? "induced" : "listed",
+                        false,
+                        {
+                            kind: "result",
+                            item: source.item,
+                        },
+                    );
                 }
 
                 if (source === "selection") {
@@ -476,7 +499,10 @@ export function createMaterialiser(sources: MaterialiseSources): Materialiser {
 
                 const [reading, defaulted] = storedReading(given, sources.readingOf(source));
 
-                return fixedOf(resolution.nodes, resolution.edges, graph, reading, defaulted, { kind: "scope", from: operandOf(source) });
+                return fixedOf(resolution.nodes, resolution.edges, graph, reading, defaulted, {
+                    kind: "scope",
+                    from: operandOf(source),
+                });
             });
         },
 
@@ -486,7 +512,11 @@ export function createMaterialiser(sources: MaterialiseSources): Materialiser {
                 const operands = of.map((scope): AlgebraOperand => {
                     const { resolution } = sources.resolve(scope);
 
-                    return { nodes: resolution.nodes, edges: resolution.edges, induced: sources.readingOf(scope) === "induced" };
+                    return {
+                        nodes: resolution.nodes,
+                        edges: resolution.edges,
+                        induced: sources.readingOf(scope) === "induced",
+                    };
                 });
                 const combined = combineMasks(op, operands, graph);
                 const [reading, defaulted] = storedReading(given, combined.induced ? "induced" : "listed");
@@ -644,7 +674,10 @@ function chainOf(
         return group;
     };
     const follows = (order: readonly number[]): boolean =>
-        order.every((node, i) => i === 0 || groupOf(order[i - 1], node).rows.some((row) => graph.edgeSource(row) === order[i - 1]));
+        order.every(
+            (node, i) =>
+                i === 0 || groupOf(order[i - 1], node).rows.some((row) => graph.edgeSource(row) === order[i - 1]),
+        );
 
     const backward = [...forward].reverse();
     const directed = [forward, backward].filter(follows);

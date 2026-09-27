@@ -30,19 +30,35 @@ describe("a save and reopen of an embedded graph", () => {
         const definitions: SetDefinitionInput[] = [
             { kind: "fixed", nodes: ["a"], edges: [ordinal, minted], reading: "listed" },
             { kind: "fixed", nodes: ["b", "c"], reading: "induced" },
-            { kind: "path", nodes: ["a", "b", "c", "d"], edges: [graph.edgeId(ab1), graph.edgeId(bc), graph.edgeId(cd)] },
+            {
+                kind: "path",
+                nodes: ["a", "b", "c", "d"],
+                edges: [graph.edgeId(ab1), graph.edgeId(bc), graph.edgeId(cd)],
+            },
             { kind: "rule", where: { kind: "degree", min: 2 }, reading: "induced" },
         ];
-        const ids = definitions.map((definition, index) => graph.sets.create(definition, { name: `S${String(index)}` }));
+        const ids = definitions.map((definition, index) =>
+            graph.sets.create(definition, { name: `S${String(index)}` }),
+        );
 
-        const measure = (sets: typeof graph.sets, snapshot: ReturnType<typeof graph.snapshot>): { revision: string; digest: string; edges: number }[] =>
+        const measure = (
+            sets: typeof graph.sets,
+            snapshot: ReturnType<typeof graph.snapshot>,
+        ): { revision: string; digest: string; edges: number }[] =>
             ids.map((id) => {
                 const record = sets.get(id);
                 assert.isDefined(record, id);
-                const resolution = resolveSet(record as { id: string; definition: SetDefinition }, { snapshot, sets: setsStoreOf(sets) });
+                const resolution = resolveSet(record as { id: string; definition: SetDefinition }, {
+                    snapshot,
+                    sets: setsStoreOf(sets),
+                });
                 assert.isUndefined(resolution.problem, id);
 
-                return { revision: record?.revision ?? "", digest: digestOf(resolution, snapshot), edges: resolution.edgeCount };
+                return {
+                    revision: record?.revision ?? "",
+                    digest: digestOf(resolution, snapshot),
+                    edges: resolution.edgeCount,
+                };
             });
         const before = measure(graph.sets, graph.snapshot());
         assert.deepStrictEqual(

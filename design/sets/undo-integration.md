@@ -27,15 +27,15 @@ The sets branch was built to make this a rename rather than a redesign:
 
 ## 1. The slice
 
-| Where (undo branch) | Today | After the merge |
-|---|---|---|
-| `session/project/state.ts`, `ProjectState` | `scopes: ReadonlyMap<ScopeId, SavedScopeRecord>` | `sets: ReadonlyMap<SetId, ElementSet>` |
-| `session/project/state.ts`, `createProjectState` | `scopes: new Map(init.scopes)` | `sets: new Map(init.sets)` |
-| `session/project/draft.ts` | `draft.scopes` | `draft.sets`, same keyed-value draft |
-| `session/project/derive.ts`, `HOOK_ORDER` and `snapshot()` | `"scopes"`, copied map | `"sets"`, copied map; position in section 3 below |
-| `session/project/digest.ts` | `scopes=${canonical(state.scopes)}` | `sets=` over each record's `id`, `name`, `order`, `createdFrom` and `revision` (see below) |
-| `session/types.ts`, `ProjectSlice` | `"scopes"` | `"sets"` (decision 3) |
-| `session/scope/ScopeApi.ts`, `SavedScopeRecord` | the slice's value type | deleted; `ElementSet` (`session/sets/types.ts`) replaces it |
+| Where (undo branch)                                        | Today                                            | After the merge                                                                            |
+| ---------------------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| `session/project/state.ts`, `ProjectState`                 | `scopes: ReadonlyMap<ScopeId, SavedScopeRecord>` | `sets: ReadonlyMap<SetId, ElementSet>`                                                     |
+| `session/project/state.ts`, `createProjectState`           | `scopes: new Map(init.scopes)`                   | `sets: new Map(init.sets)`                                                                 |
+| `session/project/draft.ts`                                 | `draft.scopes`                                   | `draft.sets`, same keyed-value draft                                                       |
+| `session/project/derive.ts`, `HOOK_ORDER` and `snapshot()` | `"scopes"`, copied map                           | `"sets"`, copied map; position in section 3 below                                          |
+| `session/project/digest.ts`                                | `scopes=${canonical(state.scopes)}`              | `sets=` over each record's `id`, `name`, `order`, `createdFrom` and `revision` (see below) |
+| `session/types.ts`, `ProjectSlice`                         | `"scopes"`                                       | `"sets"` (decision 3)                                                                      |
+| `session/scope/ScopeApi.ts`, `SavedScopeRecord`            | the slice's value type                           | deleted; `ElementSet` (`session/sets/types.ts`) replaces it                                |
 
 - **The record.** `ElementSet` widens `SavedScopeRecord { id, name, spec, order }`: `spec` is
   `definition` (a `SetDefinition`, not a `Scope`), and `createdFrom` is added. `revision` is a
@@ -46,16 +46,16 @@ The sets branch was built to make this a rename rather than a redesign:
   canonical content hash of the definition (sets design section 12.2), so it is exact.
 - **What stays outside the slice**, as session state beside it, never rewound by undo, rollback
   or eviction (sets design sections 3.1 and 12.4):
-  - the issued-id register, `SetsStore.issued`, appended at commit only;
-  - the order high-water mark, `SetsStore.nextOrder()`; a restored record keeps its order, so
-    "one past the highest live order" would give two live sets one order after remove, create,
-    undo;
-  - tombstones (`SetsStore.tombstone(id)`), authoritative only while the id is absent from the
-    slice;
-  - edge seeds (`SetsStore.seed`, `seedsOf`), not serialised; stale seeds for members a restored
-    record no longer holds are never read;
-  - the resolution cache (`session/sets/cache.ts`), keyed by per-set signatures, so an undo that
-    restores the identical frozen record hits it again.
+    - the issued-id register, `SetsStore.issued`, appended at commit only;
+    - the order high-water mark, `SetsStore.nextOrder()`; a restored record keeps its order, so
+      "one past the highest live order" would give two live sets one order after remove, create,
+      undo;
+    - tombstones (`SetsStore.tombstone(id)`), authoritative only while the id is absent from the
+      slice;
+    - edge seeds (`SetsStore.seed`, `seedsOf`), not serialised; stale seeds for members a restored
+      record no longer holds are never read;
+    - the resolution cache (`session/sets/cache.ts`), keyed by per-set signatures, so an undo that
+      restores the identical frozen record hits it again.
 - **Where the records live.** `SetsStore` keeps its register, tombstones, seeds and cache but
   stops owning `records`: `get`, `values` and `list` read `dispatcher.state.sets`, and `put` and
   `delete` become `ctx.draft.sets.set` and `ctx.draft.sets.delete` inside command bodies. `list()`
@@ -71,13 +71,13 @@ The sets branch was built to make this a rename rather than a redesign:
 `SET_DEFINITIONS` in `session/commands/index.ts`. Every op is on the immediate lane, `moves:
 false`, undoable, keyed `sets/<id>`.
 
-| Op | Recorded command | Body (`session/sets/prepare.ts`) | Label | Doors that dispatch it |
-|---|---|---|---|---|
-| `set.create` | `{ id, name, order, definition, createdFrom }` | `prepareCreate` | `Created the set "<name>"` | `sets.create`, `createFrom`, `createPath`, `combine`, `scope.save`, `selection.promote` |
-| `set.rename` | `{ id, name }` | `prepareRename` | `Renamed the set "<old>" to "<name>"` | `sets.rename` |
-| `set.redefine` | `{ id, definition }` | `prepareRedefine` | `Changed the set "<name>"` | `sets.redefine` |
-| `set.members` | `{ id, add?, remove? }` | `prepareMembers` | `Changed the members of "<name>"` | `sets.addMembers`, `sets.removeMembers` |
-| `set.remove` | `{ id }` | `prepareRemove` | `Removed the set "<name>"` | `sets.remove`, `scope.remove` |
+| Op             | Recorded command                               | Body (`session/sets/prepare.ts`) | Label                                 | Doors that dispatch it                                                                  |
+| -------------- | ---------------------------------------------- | -------------------------------- | ------------------------------------- | --------------------------------------------------------------------------------------- |
+| `set.create`   | `{ id, name, order, definition, createdFrom }` | `prepareCreate`                  | `Created the set "<name>"`            | `sets.create`, `createFrom`, `createPath`, `combine`, `scope.save`, `selection.promote` |
+| `set.rename`   | `{ id, name }`                                 | `prepareRename`                  | `Renamed the set "<old>" to "<name>"` | `sets.rename`                                                                           |
+| `set.redefine` | `{ id, definition }`                           | `prepareRedefine`                | `Changed the set "<name>"`            | `sets.redefine`                                                                         |
+| `set.members`  | `{ id, add?, remove? }`                        | `prepareMembers`                 | `Changed the members of "<name>"`     | `sets.addMembers`, `sets.removeMembers`                                                 |
+| `set.remove`   | `{ id }`                                       | `prepareRemove`                  | `Removed the set "<name>"`            | `sets.remove`, `scope.remove`                                                           |
 
 - **Each body is**: read a `RecordView` over `ctx.state.sets`, call the prepare function, then
   `ctx.draft.sets.set(record.id, record)` or `ctx.draft.sets.delete(id)`. A prepare function that
@@ -142,15 +142,15 @@ false`, undoable, keyed `sets/<id>`.
 
 - **Runs (undo plan phase 15).** A run's result now carries an execution token and, after a
   re-run, captures of the members that holding references read from the earlier run.
-  - Token: minted by `createExecutionMinter` (`session/runs/RunsApi.ts`), a session nonce plus a
-    counter the dispatcher must never rewind; held while running in `Run.executionValue` and
-    written with the result in `Run.resultExecutionValue` (`session/runs/Run.ts`). Add
-    `execution: string` to `RunEntry` (`session/project/state.ts`), written with the result.
-  - Captures: in `Run.heldValue`, read through `Run.held` and `RunsApi.heldOf(id)`, written only
-    when a re-run replaces a result, through `captureHeld` supplied by `GraphSession`. Add
-    `held: HeldCaptures` to `RunEntry`, written by the re-run's command in the same step as the new
-    result. History eviction must never drop them: a layer restored by undo paints from them.
-  - Both then become `MaskTag.inputs` material automatically, since the entry object is the input.
+    - Token: minted by `createExecutionMinter` (`session/runs/RunsApi.ts`), a session nonce plus a
+      counter the dispatcher must never rewind; held while running in `Run.executionValue` and
+      written with the result in `Run.resultExecutionValue` (`session/runs/Run.ts`). Add
+      `execution: string` to `RunEntry` (`session/project/state.ts`), written with the result.
+    - Captures: in `Run.heldValue`, read through `Run.held` and `RunsApi.heldOf(id)`, written only
+      when a re-run replaces a result, through `captureHeld` supplied by `GraphSession`. Add
+      `held: HeldCaptures` to `RunEntry`, written by the re-run's command in the same step as the new
+      result. History eviction must never drop them: a layer restored by undo paints from them.
+    - Both then become `MaskTag.inputs` material automatically, since the entry object is the input.
 - **Layout (undo plan phase 17).** The layout scope lives in `LayoutManager.carriedScope`
   (`managers/LayoutManager.ts`), written by `setLayout(type, opts, scope)` and
   `Graph.setLayoutScope`, read by `Graph.getLayoutScope`. Add `scope?: Scope` to `LayoutChoice`
@@ -162,39 +162,39 @@ false`, undoable, keyed `sets/<id>`.
   value in their slices, and section 3 covers the repaint.
 - **Selection after history (undo plan phase 20).** A set step selects what it touched: the
   members of the set after the step, or before it for a removal, through `resolveSet(record,
-  context)` (`session/sets/cache.ts`), the synchronous internal resolver kept for this.
+context)` (`session/sets/cache.ts`), the synchronous internal resolver kept for this.
 
 ## 5. Door-list rows
 
 In `session/commands/doors.ts`. `door-surface.test.ts` will fail on every unclassified member the
 sets branch adds until these rows exist.
 
-| Root | Member | Row |
-|---|---|---|
-| `GraphSession` (`SESSION`) | `sets` | `READ` |
-| `SetsApi` (new root, `session/sets/SetsApi.ts`, half `session`) | `list`, `get`, `status`, `pathKind`, `containing`, `usedBy`, `offers` | `READ` |
-| | `create` | `calls([{ kind: "fixed", nodes: ["d1"], reading: "induced" }, { name: "door set" }], [set.create ...])` |
-| | `createFrom` | `calls(["graph", { name: "door from" }], [set.create ...])` |
-| | `createPath` | `calls(["selection"], [set.create ...])`, `around` selects two joined edges |
-| | `combine` | `calls(["union", [...two fixed sets...]], [set.create ...])` |
-| | `rename`, `redefine` | `set.rename`, `set.redefine`; `around` creates `door seed` first |
-| | `addMembers`, `removeMembers` | `set.members` |
-| | `remove` | `set.remove` |
-| `ScopeApi` | `save` | dispatches `set.create` (not `scope.save`, unless decision 1 keeps the alias) |
-| | `remove` | dispatches `set.remove` |
-| | `resolve`, `count`, `list` | `READ` (unchanged) |
-| `SelectionApi` (`SELECTION_API`) | `promote` | dispatches `set.create` with the selection's nodes and edges |
-| `Graph` and the element (`graph` rows) | `getLayoutScope` | `READ` |
-| | `setLayoutScope` | dispatches `layout.set` with `scope` |
-| element | `layoutScope` | `assigns(...)` dispatching `layout.set` with `scope` |
-| `LayoutManager` | `setLayout` (new third parameter) | unchanged row; its expectation gains `scope` when given |
-| | `scope`, `scopeUser` | `READ` |
-| | `carryScope` | dispatches `layout.set` |
-| | `rescope`, `releaseDetachedScope` | `DERIVED`: they react to a set change and write no project state |
-| | `setScopeSource` | `LIFECYCLE` |
-| `RunsApi` | `heldOf` | `READ` |
-| `Run` (only if the walker sees class members) | `resultExecution`, `held` | `READ` |
-| `LayoutEngine` (only if it is a root) | `setHoldMask`, `holdMask` | `TRANSPORT` |
+| Root                                                            | Member                                                                | Row                                                                                                     |
+| --------------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `GraphSession` (`SESSION`)                                      | `sets`                                                                | `READ`                                                                                                  |
+| `SetsApi` (new root, `session/sets/SetsApi.ts`, half `session`) | `list`, `get`, `status`, `pathKind`, `containing`, `usedBy`, `offers` | `READ`                                                                                                  |
+|                                                                 | `create`                                                              | `calls([{ kind: "fixed", nodes: ["d1"], reading: "induced" }, { name: "door set" }], [set.create ...])` |
+|                                                                 | `createFrom`                                                          | `calls(["graph", { name: "door from" }], [set.create ...])`                                             |
+|                                                                 | `createPath`                                                          | `calls(["selection"], [set.create ...])`, `around` selects two joined edges                             |
+|                                                                 | `combine`                                                             | `calls(["union", [...two fixed sets...]], [set.create ...])`                                            |
+|                                                                 | `rename`, `redefine`                                                  | `set.rename`, `set.redefine`; `around` creates `door seed` first                                        |
+|                                                                 | `addMembers`, `removeMembers`                                         | `set.members`                                                                                           |
+|                                                                 | `remove`                                                              | `set.remove`                                                                                            |
+| `ScopeApi`                                                      | `save`                                                                | dispatches `set.create` (not `scope.save`, unless decision 1 keeps the alias)                           |
+|                                                                 | `remove`                                                              | dispatches `set.remove`                                                                                 |
+|                                                                 | `resolve`, `count`, `list`                                            | `READ` (unchanged)                                                                                      |
+| `SelectionApi` (`SELECTION_API`)                                | `promote`                                                             | dispatches `set.create` with the selection's nodes and edges                                            |
+| `Graph` and the element (`graph` rows)                          | `getLayoutScope`                                                      | `READ`                                                                                                  |
+|                                                                 | `setLayoutScope`                                                      | dispatches `layout.set` with `scope`                                                                    |
+| element                                                         | `layoutScope`                                                         | `assigns(...)` dispatching `layout.set` with `scope`                                                    |
+| `LayoutManager`                                                 | `setLayout` (new third parameter)                                     | unchanged row; its expectation gains `scope` when given                                                 |
+|                                                                 | `scope`, `scopeUser`                                                  | `READ`                                                                                                  |
+|                                                                 | `carryScope`                                                          | dispatches `layout.set`                                                                                 |
+|                                                                 | `rescope`, `releaseDetachedScope`                                     | `DERIVED`: they react to a set change and write no project state                                        |
+|                                                                 | `setScopeSource`                                                      | `LIFECYCLE`                                                                                             |
+| `RunsApi`                                                       | `heldOf`                                                              | `READ`                                                                                                  |
+| `Run` (only if the walker sees class members)                   | `resultExecution`, `held`                                             | `READ`                                                                                                  |
+| `LayoutEngine` (only if it is a root)                           | `setHoldMask`, `holdMask`                                             | `TRANSPORT`                                                                                             |
 
 Every recorded expectation carries the minted `id` and `order` (the doors test runs on a fresh
 session, so the first is `order: 1`) and the `createdFrom` the door records (sets design
@@ -205,14 +205,14 @@ section 5.1).
 - `test/session/history/fixtures.ts`: replace the `scope.save` and `scope.remove` fixtures with
   one per `set.*` op.
 - `test/session/scope/undo.test.ts` becomes `test/session/sets/undo.test.ts`, and gains:
-  - redo of a create returns the same `SetId`, and undo of a removal lists the set where it was;
-  - remove, undo, create: the new set gets a new id, never the restored one (the register does
-    not rewind);
-  - create inside a transaction that then fails: nothing is registered;
-  - redefine, undo: `get(id)` is the identical frozen object and the resolution cache hits;
-  - undo of a redefine repaints a layer naming the set, and redo repaints it back;
-  - a filter over `{ set }`, redefine, undo, redo: the mask copy is used only when the set's
-    signature matches.
+    - redo of a create returns the same `SetId`, and undo of a removal lists the set where it was;
+    - remove, undo, create: the new set gets a new id, never the restored one (the register does
+      not rewind);
+    - create inside a transaction that then fails: nothing is registered;
+    - redefine, undo: `get(id)` is the identical frozen object and the resolution cache hits;
+    - undo of a redefine repaints a layer naming the set, and redo repaints it back;
+    - a filter over `{ set }`, redefine, undo, redo: the mask copy is used only when the set's
+      signature matches.
 - `test/session/history/random-model.ts`: the save and remove edits (about line 1821) become set
   edits, plus rename, redefine, member edits and `createFrom`.
 - `test/session/history/derive.test.ts`: the hook-order lists.
@@ -239,19 +239,19 @@ Design (`design/undo/undo-design.md`):
 Plan phases (`design/undo/undo-plan.md`), all but the last two already done on that branch, so
 each is a revisit, not new work:
 
-| Phase | What changes |
-|---|---|
-| 2. Project state, drafts and patches | the slice rename and value type (section 1) |
-| 5. Derivation lane and event order | the `sets` hook, its order, `set:changed` at seal (section 3) |
+| Phase                                           | What changes                                                                            |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------- |
+| 2. Project state, drafts and patches            | the slice rename and value type (section 1)                                             |
+| 5. Derivation lane and event order              | the `sets` hook, its order, `set:changed` at seal (section 3)                           |
 | 6. Public history API, `./commands`, door tests | the five ops in `SessionCommand`, the execute results, the door rows (sections 2 and 5) |
-| 8. Visibility | set signatures in `MaskTag.inputs` |
-| 9. Scopes and saved views | superseded for scopes by sections 1 and 2; views unchanged |
-| 15. Runs as steps | `RunEntry.execution` and `RunEntry.held` |
-| 17. Layout choice and dimension | `LayoutChoice.scope` and the layout-scope doors |
-| 18b. Frozen records, strict state | set records are already deep-frozen; include the slice in the strict-state check |
-| 20. Selection after history | a set step selects its members through `resolveSet` |
-| 21. Random sequences and scale | the random-model edits and the scale row (section 6) |
-| 26. Documentation and release | the history guide lists set edits as undoable; release notes carry the decisions below |
+| 8. Visibility                                   | set signatures in `MaskTag.inputs`                                                      |
+| 9. Scopes and saved views                       | superseded for scopes by sections 1 and 2; views unchanged                              |
+| 15. Runs as steps                               | `RunEntry.execution` and `RunEntry.held`                                                |
+| 17. Layout choice and dimension                 | `LayoutChoice.scope` and the layout-scope doors                                         |
+| 18b. Frozen records, strict state               | set records are already deep-frozen; include the slice in the strict-state check        |
+| 20. Selection after history                     | a set step selects its members through `resolveSet`                                     |
+| 21. Random sequences and scale                  | the random-model edits and the scale row (section 6)                                    |
+| 26. Documentation and release                   | the history guide lists set edits as undoable; release notes carry the decisions below  |
 
 The app phases (23, 25a to 25c) are unaffected: the app calls none of the scope or set doors.
 

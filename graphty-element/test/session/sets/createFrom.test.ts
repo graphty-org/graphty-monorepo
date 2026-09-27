@@ -52,7 +52,9 @@ async function codeOf(call: () => Promise<unknown>): Promise<string | null> {
 
 /** A stored fixed definition's reading and edge count. */
 function shapeOf(definition: SetDefinition | undefined): { reading: string; nodes: number; edges: number } | null {
-    return definition?.kind === "fixed" ? { reading: definition.reading, nodes: definition.nodes.length, edges: definition.edges?.length ?? 0 } : null;
+    return definition?.kind === "fixed"
+        ? { reading: definition.reading, nodes: definition.nodes.length, edges: definition.edges?.length ?? 0 }
+        : null;
 }
 
 describe("sets.createFrom: the design 15.2 defaults", () => {
@@ -118,9 +120,21 @@ describe("sets.createFrom: the design 15.2 defaults", () => {
         const graph = await h.session.sets.createFrom("graph", { reading: "listed" });
         const clipped = await h.session.sets.createFrom("graph", { reading: "clipped" });
 
-        assert.deepStrictEqual(shapeOf(h.session.sets.get(listed)?.definition), { reading: "listed", nodes: 2, edges: 1 });
-        assert.deepStrictEqual(shapeOf(h.session.sets.get(graph)?.definition), { reading: "listed", nodes: 7, edges: 5 });
-        assert.deepStrictEqual(shapeOf(h.session.sets.get(clipped)?.definition), { reading: "listed", nodes: 7, edges: 5 });
+        assert.deepStrictEqual(shapeOf(h.session.sets.get(listed)?.definition), {
+            reading: "listed",
+            nodes: 2,
+            edges: 1,
+        });
+        assert.deepStrictEqual(shapeOf(h.session.sets.get(graph)?.definition), {
+            reading: "listed",
+            nodes: 7,
+            edges: 5,
+        });
+        assert.deepStrictEqual(shapeOf(h.session.sets.get(clipped)?.definition), {
+            reading: "listed",
+            nodes: 7,
+            edges: 5,
+        });
     });
 
     it("stores a defaulted listed result equal to its induced form as induced, which gains a later edge; an explicit listed does not", async () => {
@@ -128,8 +142,16 @@ describe("sets.createFrom: the design 15.2 defaults", () => {
 
         const defaulted = await h.session.sets.createFrom("visible");
         const explicit = await h.session.sets.createFrom("visible", { reading: "listed" });
-        assert.deepStrictEqual(shapeOf(h.session.sets.get(defaulted)?.definition), { reading: "induced", nodes: 7, edges: 0 });
-        assert.deepStrictEqual(shapeOf(h.session.sets.get(explicit)?.definition), { reading: "listed", nodes: 7, edges: 5 });
+        assert.deepStrictEqual(shapeOf(h.session.sets.get(defaulted)?.definition), {
+            reading: "induced",
+            nodes: 7,
+            edges: 0,
+        });
+        assert.deepStrictEqual(shapeOf(h.session.sets.get(explicit)?.definition), {
+            reading: "listed",
+            nodes: 7,
+            edges: 5,
+        });
 
         h.add([], [{ src: "a", dst: "d" }]);
 
@@ -143,7 +165,11 @@ describe("sets.createFrom: the design 15.2 defaults", () => {
         const id = await h.session.sets.createFrom("largest-component");
 
         const set = h.session.sets.get(id);
-        assert.deepStrictEqual(set?.definition, { kind: "fixed", nodes: ["a", "b", "c", "d", "e"], reading: "induced" });
+        assert.deepStrictEqual(set?.definition, {
+            kind: "fixed",
+            nodes: ["a", "b", "c", "d", "e"],
+            reading: "induced",
+        });
         assert.deepStrictEqual(set?.createdFrom, { kind: "scope", from: "largest-component" });
     });
 
@@ -152,8 +178,15 @@ describe("sets.createFrom: the design 15.2 defaults", () => {
 
         const id = await h.session.sets.createFrom({ nodes: ["a", "b", "zz"] });
 
-        assert.deepStrictEqual(h.session.sets.get(id)?.createdFrom, { kind: "scope", from: { inline: { nodes: 3, edges: 0 } } });
-        assert.deepStrictEqual(h.session.sets.get(id)?.definition, { kind: "fixed", nodes: ["a", "b"], reading: "induced" });
+        assert.deepStrictEqual(h.session.sets.get(id)?.createdFrom, {
+            kind: "scope",
+            from: { inline: { nodes: 3, edges: 0 } },
+        });
+        assert.deepStrictEqual(h.session.sets.get(id)?.definition, {
+            kind: "fixed",
+            nodes: ["a", "b"],
+            reading: "induced",
+        });
     });
 
     it("refuses an empty source with E_SCOPE_EMPTY", async () => {
@@ -168,7 +201,11 @@ describe("sets.createFrom: the design 15.2 defaults", () => {
 /** A resolve step each call of which waits until the test releases it. */
 function heldMaterialiser(): { materialise: Materialiser; release: (index: number) => void } {
     const pending: (() => void)[] = [];
-    const concrete: Concrete = { definition: { kind: "fixed", nodes: ["a"], reading: "induced" }, refs: [], createdFrom: { kind: "scope", from: "graph" } };
+    const concrete: Concrete = {
+        definition: { kind: "fixed", nodes: ["a"], reading: "induced" },
+        refs: [],
+        createdFrom: { kind: "scope", from: "graph" },
+    };
     const held = (): Promise<Concrete> =>
         new Promise((resolve) => {
             pending.push(() => {
@@ -237,7 +274,10 @@ describe("sets.createFrom: the synchronous commit", () => {
      * resolve step runs first, the counters are read when it has finished, and again when the
      * door resolves.
      */
-    async function commitWork(n: number, k: number): Promise<{ resolution: number; interns: number; hashes: number; edges: number }> {
+    async function commitWork(
+        n: number,
+        k: number,
+    ): Promise<{ resolution: number; interns: number; hashes: number; edges: number }> {
         const h = makeSession();
         const ids = Array.from({ length: n }, (_, i) => `n${i}`);
         h.add(
@@ -261,7 +301,11 @@ describe("sets.createFrom: the synchronous commit", () => {
                 ...real,
                 from: async (source, reading) => {
                     const concrete = await real.from(source, reading);
-                    before = { resolution: resolutionWork(), interns: prepareCounters.interns, hashes: hashCounters.memberHashes };
+                    before = {
+                        resolution: resolutionWork(),
+                        interns: prepareCounters.interns,
+                        hashes: hashCounters.memberHashes,
+                    };
 
                     return concrete;
                 },
@@ -270,7 +314,10 @@ describe("sets.createFrom: the synchronous commit", () => {
         const space = edgeSpaceOf(h.session.data.snapshot());
         const edges = Array.from({ length: k }, (_, i) => space.idOf(2 * i));
 
-        const id = await sets.createFrom({ define: { kind: "fixed", nodes: [], edges, reading: "listed" } }, { reading: "listed" });
+        const id = await sets.createFrom(
+            { define: { kind: "fixed", nodes: [], edges, reading: "listed" } },
+            { reading: "listed" },
+        );
 
         const definition = sets.get(id)?.definition;
 
@@ -293,6 +340,5 @@ describe("sets.createFrom: the synchronous commit", () => {
         assert.strictEqual(small.hashes, 0, "the commit hashes nothing; the revision is read lazily");
         assert.strictEqual(small.interns, 0, "the asynchronous step built the compact members");
         assert.strictEqual(large.interns, 0);
-
     });
 });

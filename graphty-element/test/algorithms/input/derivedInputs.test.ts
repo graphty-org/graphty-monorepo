@@ -7,8 +7,12 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
 import { assert, describe, it } from "vitest";
 
-import { type DerivedInput, derivedInputCounters,DerivedInputs } from "../../../src/algorithms/input/derivedInputs";
-import { createScopedInput, type ResolvedInputScope, scopedInputCounters } from "../../../src/algorithms/input/ScopedInput";
+import { type DerivedInput, derivedInputCounters, DerivedInputs } from "../../../src/algorithms/input/derivedInputs";
+import {
+    createScopedInput,
+    type ResolvedInputScope,
+    scopedInputCounters,
+} from "../../../src/algorithms/input/ScopedInput";
 import { isGraphtyError } from "../../../src/errors";
 import { InputGraph, resolutionOver } from "./harness";
 
@@ -28,8 +32,18 @@ function path(): InputGraph {
  * @param orientation - The orientation.
  * @returns The input.
  */
-function read(graph: InputGraph, inputs: DerivedInputs, holder: object, scope: ResolvedInputScope, orientation: "declared" | "undirected" = "declared"): DerivedInput {
-    return createScopedInput(graph.getDataManager(), orientation, undefined, { inputs, holder, scope: () => scope }).derived();
+function read(
+    graph: InputGraph,
+    inputs: DerivedInputs,
+    holder: object,
+    scope: ResolvedInputScope,
+    orientation: "declared" | "undirected" = "declared",
+): DerivedInput {
+    return createScopedInput(graph.getDataManager(), orientation, undefined, {
+        inputs,
+        holder,
+        scope: () => scope,
+    }).derived();
 }
 
 /**
@@ -39,7 +53,10 @@ function read(graph: InputGraph, inputs: DerivedInputs, holder: object, scope: R
  */
 function recording(limit?: number): { inputs: DerivedInputs; released: GraphSnapshot[] } {
     const released: GraphSnapshot[] = [];
-    const inputs = new DerivedInputs({ release: (snapshot) => released.push(snapshot), ...(limit === undefined ? {} : { limit }) });
+    const inputs = new DerivedInputs({
+        release: (snapshot) => released.push(snapshot),
+        ...(limit === undefined ? {} : { limit }),
+    });
 
     return { inputs, released };
 }
@@ -91,20 +108,49 @@ describe("the key", () => {
         const first = read(graph, inputs, holder, scope);
 
         // The same members, spelled by a different resolution object with copied bitmaps.
-        const copy = { graph: scope.graph, resolution: resolutionOver(scope.graph, scope.resolution.nodes.slice(), scope.resolution.edges.slice(), graph.store) };
+        const copy = {
+            graph: scope.graph,
+            resolution: resolutionOver(
+                scope.graph,
+                scope.resolution.nodes.slice(),
+                scope.resolution.edges.slice(),
+                graph.store,
+            ),
+        };
         assert.strictEqual(read(graph, inputs, holder, copy).snapshot, first.snapshot, "same bitmaps: a hit");
 
-        assert.notStrictEqual(read(graph, inputs, holder, graph.scope(["n0", "n1", "n3"])).snapshot, first.snapshot, "another node bitmap");
         assert.notStrictEqual(
-            read(graph, inputs, holder, graph.scope(["n0", "n1", "n2"], (source) => source !== "n1")).snapshot,
+            read(graph, inputs, holder, graph.scope(["n0", "n1", "n3"])).snapshot,
+            first.snapshot,
+            "another node bitmap",
+        );
+        assert.notStrictEqual(
+            read(
+                graph,
+                inputs,
+                holder,
+                graph.scope(["n0", "n1", "n2"], (source) => source !== "n1"),
+            ).snapshot,
             first.snapshot,
             "another edge bitmap",
         );
-        assert.notStrictEqual(read(graph, inputs, holder, scope, "undirected").snapshot, first.snapshot, "another orientation");
-        const none = createScopedInput(graph.getDataManager(), "declared", { simplify: "none" }, { inputs, holder, scope: () => scope }).subgraph();
+        assert.notStrictEqual(
+            read(graph, inputs, holder, scope, "undirected").snapshot,
+            first.snapshot,
+            "another orientation",
+        );
+        const none = createScopedInput(
+            graph.getDataManager(),
+            "declared",
+            { simplify: "none" },
+            { inputs, holder, scope: () => scope },
+        ).subgraph();
         assert.notStrictEqual(none, first.snapshot, "another merge policy");
 
-        const otherStore = { graph: scope.graph, resolution: resolutionOver(scope.graph, scope.resolution.nodes, scope.resolution.edges, {}) };
+        const otherStore = {
+            graph: scope.graph,
+            resolution: resolutionOver(scope.graph, scope.resolution.nodes, scope.resolution.edges, {}),
+        };
         assert.notStrictEqual(read(graph, inputs, holder, otherStore).snapshot, first.snapshot, "another store");
 
         graph.add(["n10"]);
@@ -126,7 +172,10 @@ describe("the declared intermediate", () => {
         // induce, simplify (declared); undirect, simplify (undirected): one induce, not two.
         assert.strictEqual(scopedInputCounters.derivations, 4);
         assert.strictEqual(inputs.list().filter((entry) => entry.key.endsWith(":declared:none")).length, 1);
-        assert.isTrue(inputs.list().every((entry) => entry.held), "the run holds the intermediate with both finals");
+        assert.isTrue(
+            inputs.list().every((entry) => entry.held),
+            "the run holds the intermediate with both finals",
+        );
     });
 });
 
@@ -278,12 +327,19 @@ describe("byte accounting", () => {
         const holder = {};
         read(graph, inputs, holder, graph.scope(["n0", "n1", "n2", "n3"]));
         const undirected = read(graph, inputs, holder, graph.scope(["n0", "n1", "n2", "n3"]), "undirected");
-        read(graph, inputs, {}, graph.scope(["n5", "n6"], () => false));
+        read(
+            graph,
+            inputs,
+            {},
+            graph.scope(["n5", "n6"], () => false),
+        );
         // A view an algorithm builds after admission is counted too.
         undirected.snapshot.reverse();
 
         const entries = inputs.list();
-        const expected = walk(entries.flatMap((entry) => [entry.snapshot, entry.edgeRemap, entry.nodeOrigin, entry.nodes, entry.edges]));
+        const expected = walk(
+            entries.flatMap((entry) => [entry.snapshot, entry.edgeRemap, entry.nodeOrigin, entry.nodes, entry.edges]),
+        );
         assert.isAbove(entries.length, 2);
         assert.strictEqual(inputs.bytes, expected);
         assert.isAtLeast(inputs.bytes, entries[0].snapshot.byteLength({ columns: true }), "the columns are in it");

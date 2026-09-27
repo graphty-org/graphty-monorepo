@@ -240,7 +240,12 @@ export function appendSession(results: readonly BenchResult[]): string {
  * @param runs - measured runs (default 5)
  * @returns the result, with no memory delta
  */
-export async function benchTimed(group: string, name: string, measure: () => Promise<number>, runs = 5): Promise<BenchResult> {
+export async function benchTimed(
+    group: string,
+    name: string,
+    measure: () => Promise<number>,
+    runs = 5,
+): Promise<BenchResult> {
     const times: number[] = [];
     for (let i = 0; i <= runs; i++) {
         collectGarbage();

@@ -187,7 +187,9 @@ export class DFSAlgorithm extends DeclaredAlgorithm<DFSOptions> {
                 method: "dfs",
                 direction: "undirected",
                 weight: null,
-                notes: [`Walked from ${String(source)}, ${preOrder ? "recording each node as it was reached" : "recording each node as it was left"}.`],
+                notes: [
+                    `Walked from ${String(source)}, ${preOrder ? "recording each node as it was reached" : "recording each node as it was left"}.`,
+                ],
             }),
         };
     }

@@ -59,8 +59,15 @@ describe("a style layer naming a set, on screen", () => {
         return graph
             .getNodes()
             .filter((node) => {
-                const color = (node.mesh as InstancedMesh).instancedBuffers.color as { r: number; g: number; b: number } | undefined;
-                return color !== undefined && Math.abs(color.r - red.r) < 0.01 && Math.abs(color.g - red.g) < 0.01 && Math.abs(color.b - red.b) < 0.01;
+                const color = (node.mesh as InstancedMesh).instancedBuffers.color as
+                    | { r: number; g: number; b: number }
+                    | undefined;
+                return (
+                    color !== undefined &&
+                    Math.abs(color.r - red.r) < 0.01 &&
+                    Math.abs(color.g - red.g) < 0.01 &&
+                    Math.abs(color.b - red.b) < 0.01
+                );
             })
             .map((node) => String(node.id))
             .sort();
@@ -68,14 +75,25 @@ describe("a style layer naming a set, on screen", () => {
 
     it("colours the set, and a redefinition repaints only the nodes that moved", async () => {
         const session = graph.getSession() as ElementSession;
-        const id = session.sets.create({ kind: "fixed", nodes: ["n1", "n2", "n3", "n4"], reading: "induced" }, { name: "Suspects" });
-        await session.styles.add({ name: "Suspects", selector: { match: "member", of: { set: id } }, set: { "node.color": RED } });
+        const id = session.sets.create(
+            { kind: "fixed", nodes: ["n1", "n2", "n3", "n4"], reading: "induced" },
+            { name: "Suspects" },
+        );
+        await session.styles.add({
+            name: "Suspects",
+            selector: { match: "member", of: { set: id } },
+            set: { "node.color": RED },
+        });
         await frames();
         assert.deepStrictEqual(drawnRed(), ["n1", "n2", "n3", "n4"]);
 
         const passes: number[] = [];
         session.paint.onPainted(() => passes.push(session.paint.lastPainted("node").length));
-        const before = new Map(graph.getNodes().map((node) => [String(node.id), JSON.stringify((node.mesh as InstancedMesh).instancedBuffers.color)]));
+        const before = new Map(
+            graph
+                .getNodes()
+                .map((node) => [String(node.id), JSON.stringify((node.mesh as InstancedMesh).instancedBuffers.color)]),
+        );
 
         // n1 leaves, n10 and n11 join: three nodes move.
         session.sets.redefine(id, { kind: "fixed", nodes: ["n2", "n3", "n4", "n10", "n11"], reading: "induced" });
@@ -85,7 +103,10 @@ describe("a style layer naming a set, on screen", () => {
         assert.deepStrictEqual(passes, [3], "one pass over the three nodes that moved");
         const changed = graph
             .getNodes()
-            .filter((node) => JSON.stringify((node.mesh as InstancedMesh).instancedBuffers.color) !== before.get(String(node.id)))
+            .filter(
+                (node) =>
+                    JSON.stringify((node.mesh as InstancedMesh).instancedBuffers.color) !== before.get(String(node.id)),
+            )
             .map((node) => String(node.id))
             .sort();
         assert.deepStrictEqual(changed, ["n1", "n10", "n11"]);

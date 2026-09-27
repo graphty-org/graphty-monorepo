@@ -22,7 +22,10 @@ import { type Published, resultOf } from "../visibility/results";
  * @param table - Run ids to publish by hand instead, read on every run so a re-run can change it.
  * @returns The executor.
  */
-export function builtInRuns(harness: () => Harness, table: Map<string, Published> = new Map()): (context: RunExecutionContext) => Promise<RunOutcome> {
+export function builtInRuns(
+    harness: () => Harness,
+    table: Map<string, Published> = new Map(),
+): (context: RunExecutionContext) => Promise<RunOutcome> {
     return (context) => {
         const published = table.get(context.runId);
         if (published !== undefined) {
@@ -42,7 +45,12 @@ export function builtInRuns(harness: () => Harness, table: Map<string, Published
 
         for (let row = 0; row < snapshot.edgeCount; row++) {
             const id = space.idOf(row);
-            edges.set(id, { id, index: row, srcId: String(snapshot.ids.idOf(snapshot.edgeSource(row))), dstId: String(snapshot.ids.idOf(snapshot.edgeTarget(row))) });
+            edges.set(id, {
+                id,
+                index: row,
+                srcId: String(snapshot.ids.idOf(snapshot.edgeSource(row))),
+                dstId: String(snapshot.ids.idOf(snapshot.edgeTarget(row))),
+            });
         }
 
         const dataManager = {
@@ -57,7 +65,11 @@ export function builtInRuns(harness: () => Harness, table: Map<string, Published
         };
         const graph = {
             getDataManager: () => dataManager,
-            acceleration: new AccelerationController({ policy: "auto", minNodes: 0, registry: new AcceleratorRegistry() }),
+            acceleration: new AccelerationController({
+                policy: "auto",
+                minNodes: 0,
+                registry: new AcceleratorRegistry(),
+            }),
         } as unknown as Graph;
         const events = { emitGraphError: () => undefined, emitGraphEvent: () => undefined } as unknown as EventManager;
         const descriptor = algorithmByKey(context.algorithm);

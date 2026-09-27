@@ -28,7 +28,11 @@ const DEFINITION: fc.Arbitrary<SetDefinitionInput> = fc.oneof(
         edges: fc.array(EDGE, { maxLength: 3 }),
         reading: fc.constantFrom("induced" as const, "listed" as const, "clipped" as const),
     }),
-    fc.record({ kind: fc.constant("rule" as const), where: fc.constantFrom("degree > `1`", "label == 'x'"), reading: fc.constant("induced" as const) }),
+    fc.record({
+        kind: fc.constant("rule" as const),
+        where: fc.constantFrom("degree > `1`", "label == 'x'"),
+        reading: fc.constant("induced" as const),
+    }),
     fc.record({ kind: fc.constant("path" as const), nodes: fc.array(ID, { minLength: 1, maxLength: 3 }) }),
 );
 
@@ -36,7 +40,12 @@ type Op =
     | { op: "create"; definition: SetDefinitionInput; name: string | undefined }
     | { op: "rename"; pick: number; name: string | undefined }
     | { op: "redefine"; pick: number; definition: SetDefinitionInput }
-    | { op: "add" | "remove"; pick: number; nodes: (string | number)[]; edges: { source: string | number; target: string | number }[] }
+    | {
+          op: "add" | "remove";
+          pick: number;
+          nodes: (string | number)[];
+          edges: { source: string | number; target: string | number }[];
+      }
     | { op: "delete-set"; pick: number }
     | { op: "store-delete"; pick: number }
     | { op: "store-restore"; pick: number }
@@ -47,14 +56,26 @@ const LEAF: fc.Arbitrary<Op> = fc.oneof(
     fc.record({ op: fc.constant("create" as const), definition: DEFINITION, name: NAME }),
     fc.record({ op: fc.constant("rename" as const), pick: PICK, name: NAME }),
     fc.record({ op: fc.constant("redefine" as const), pick: PICK, definition: DEFINITION }),
-    fc.record({ op: fc.constantFrom("add" as const, "remove" as const), pick: PICK, nodes: fc.array(ID, { maxLength: 3 }), edges: fc.array(EDGE, { maxLength: 2 }) }),
+    fc.record({
+        op: fc.constantFrom("add" as const, "remove" as const),
+        pick: PICK,
+        nodes: fc.array(ID, { maxLength: 3 }),
+        edges: fc.array(EDGE, { maxLength: 2 }),
+    }),
     fc.record({ op: fc.constant("delete-set" as const), pick: PICK }),
     fc.record({ op: fc.constant("store-delete" as const), pick: PICK }),
     fc.record({ op: fc.constant("store-restore" as const), pick: PICK }),
 );
 const OP: fc.Arbitrary<Op> = fc.oneof(
     { weight: 6, arbitrary: LEAF },
-    { weight: 1, arbitrary: fc.record({ op: fc.constant("group" as const), ops: fc.array(LEAF, { maxLength: 4 }), abort: fc.boolean() }) },
+    {
+        weight: 1,
+        arbitrary: fc.record({
+            op: fc.constant("group" as const),
+            ops: fc.array(LEAF, { maxLength: 4 }),
+            abort: fc.boolean(),
+        }),
+    },
 );
 
 describe("the sets store under random operations", () => {
@@ -174,7 +195,11 @@ describe("the sets store under random operations", () => {
                         assert.isTrue(set.id.startsWith("set_"));
                         assert.isTrue(Object.isFrozen(set));
                         const plain = JSON.parse(JSON.stringify(set.definition)) as unknown;
-                        assert.deepStrictEqual(parseSetDefinition(plain), plain, "every live record is canonical and valid");
+                        assert.deepStrictEqual(
+                            parseSetDefinition(plain),
+                            plain,
+                            "every live record is canonical and valid",
+                        );
                     }
                 }
 

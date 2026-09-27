@@ -193,7 +193,9 @@ class Collector {
                     const run = runIdOfRef(node.item.result);
                     if (typeof run === "string") {
                         const execution = node.item.run;
-                        this.add(typeof execution === "string" ? { kind: "run", run, execution } : { kind: "run", run });
+                        this.add(
+                            typeof execution === "string" ? { kind: "run", run, execution } : { kind: "run", run },
+                        );
                     }
                 }
 
@@ -230,7 +232,10 @@ class Collector {
  * @param pathsOf - The paths a query reads; absent, queries list nothing.
  * @returns The dependencies.
  */
-export function dependenciesOf(value: SetDefinition | Scope | RuleTree, pathsOf?: (where: Query) => readonly Path[]): readonly Dependency[] {
+export function dependenciesOf(
+    value: SetDefinition | Scope | RuleTree,
+    pathsOf?: (where: Query) => readonly Path[],
+): readonly Dependency[] {
     const collector = new Collector(pathsOf);
     const loose: unknown = value;
     if (isObject(loose) && (loose.kind === "rule" || loose.kind === "fixed" || loose.kind === "path")) {
@@ -265,7 +270,12 @@ function findChain(
 
     const walk = (value: SetDefinition | Scope | RuleTree, chain: readonly ChainStep[]): ChainStep[] | null => {
         for (const dependency of dependenciesOf(value, sources.pathsOf)) {
-            if (dependency.kind !== "set" && dependency.kind !== "visible" && dependency.kind !== "selection" && dependency.kind !== "search") {
+            if (
+                dependency.kind !== "set" &&
+                dependency.kind !== "visible" &&
+                dependency.kind !== "selection" &&
+                dependency.kind !== "search"
+            ) {
                 continue;
             }
 
@@ -318,7 +328,12 @@ export function setCycle(id: SetId, definition: SetDefinition, sources: Dependen
  * @returns The chain, ending with `"visible"` or `"search"`, or null.
  */
 export function visibilityCycle(filter: RuleTree | Scope, sources: DependencySources): ChainStep[] | null {
-    return findChain(filter, (dependency) => dependency.kind === "visible" || dependency.kind === "search", sources, false);
+    return findChain(
+        filter,
+        (dependency) => dependency.kind === "visible" || dependency.kind === "search",
+        sources,
+        false,
+    );
 }
 
 /**
@@ -445,7 +460,12 @@ export function assertIssued(
     self?: SetId,
 ): void {
     for (const dependency of dependenciesOf(value)) {
-        if (dependency.kind === "set" && dependency.id !== self && ids.get(dependency.id) === undefined && !ids.register().has(dependency.id)) {
+        if (
+            dependency.kind === "set" &&
+            dependency.id !== self &&
+            ids.get(dependency.id) === undefined &&
+            !ids.register().has(dependency.id)
+        ) {
             throw new GraphtyError({
                 code: "E_BAD_COMMAND",
                 message: `No set has the id "${dependency.id}". A set id is the one session.sets.create returned.`,

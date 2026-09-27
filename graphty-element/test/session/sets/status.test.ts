@@ -10,7 +10,14 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import { algorithmByKey } from "../../../src/catalog/algorithms";
 import { clearRegisteredAlgorithmsForTesting, publishAlgorithmDescriptor } from "../../../src/catalog/registry";
-import type { NodeId, Scope, SetCreatedFrom, SetDefinition, SetDefinitionInput, SetId } from "../../../src/catalog/types";
+import type {
+    NodeId,
+    Scope,
+    SetCreatedFrom,
+    SetDefinition,
+    SetDefinitionInput,
+    SetId,
+} from "../../../src/catalog/types";
 import { GraphtyError } from "../../../src/errors";
 import { resultExecutionOf } from "../../../src/session/results/ResultsApi";
 import { cacheCounters, outcomeOf, resolveSet, SetsCache } from "../../../src/session/sets/cache";
@@ -32,10 +39,22 @@ function perNode(values: Record<string, Record<string, unknown>>): Map<NodeId, R
     return new Map(Object.entries(values));
 }
 
-const LOUVAIN_1: Published = { shape: "community", nodes: perNode({ a: { group: 0 }, b: { group: 0 }, c: { group: 1 }, d: { group: 1 }, e: { group: 1 } }) };
-const LOUVAIN_2: Published = { shape: "community", nodes: perNode({ a: { group: 0 }, b: { group: 1 }, c: { group: 0 }, d: { group: 1 }, e: { group: 1 } }) };
-const SCORES_1: Published = { shape: "node-metric", nodes: perNode({ a: { value: 1 }, b: { value: 5 }, c: { value: 5 }, d: { value: 3 }, e: { value: 0 } }) };
-const SCORES_2: Published = { shape: "node-metric", nodes: perNode({ a: { value: 9 }, b: { value: 0 }, c: { value: 0 }, d: { value: 0 }, e: { value: 4 } }) };
+const LOUVAIN_1: Published = {
+    shape: "community",
+    nodes: perNode({ a: { group: 0 }, b: { group: 0 }, c: { group: 1 }, d: { group: 1 }, e: { group: 1 } }),
+};
+const LOUVAIN_2: Published = {
+    shape: "community",
+    nodes: perNode({ a: { group: 0 }, b: { group: 1 }, c: { group: 0 }, d: { group: 1 }, e: { group: 1 } }),
+};
+const SCORES_1: Published = {
+    shape: "node-metric",
+    nodes: perNode({ a: { value: 1 }, b: { value: 5 }, c: { value: 5 }, d: { value: 3 }, e: { value: 0 } }),
+};
+const SCORES_2: Published = {
+    shape: "node-metric",
+    nodes: perNode({ a: { value: 9 }, b: { value: 0 }, c: { value: 0 }, d: { value: 0 }, e: { value: 4 } }),
+};
 
 /** A session with its executor table. */
 interface Fixture {
@@ -122,7 +141,9 @@ function put(f: Fixture, name: string, definition: unknown): SetId {
 
     return store.transact(() => {
         const id = store.mint(name);
-        store.put(prepareCreate(store, { id, name, order: store.nextOrder(), definition, createdFrom: { kind: "user" } }));
+        store.put(
+            prepareCreate(store, { id, name, order: store.nextOrder(), definition, createdFrom: { kind: "user" } }),
+        );
 
         return id;
     });
@@ -145,7 +166,11 @@ function statusOfSet(f: Fixture, id: SetId): SetStatus {
  * @param earlierRuns - The earlier runs.
  * @returns The status.
  */
-function status(freshness: SetStatus["freshness"], reasons: SetStatus["reasons"] = [], earlierRuns: string[] = []): SetStatus {
+function status(
+    freshness: SetStatus["freshness"],
+    reasons: SetStatus["reasons"] = [],
+    earlierRuns: string[] = [],
+): SetStatus {
     return { freshness, reasons, earlierRuns };
 }
 
@@ -158,7 +183,7 @@ const OVER_PR: SetDefinitionInput = { kind: "rule", where: "results.pr.value > `
 function registerPlugin(): void {
     const degree = algorithmByKey("degree");
     assert.isDefined(degree);
-    publishAlgorithmDescriptor({ descriptor: { ...(degree), key: "plugrank" }, namespace: "acme", type: "plugrank" });
+    publishAlgorithmDescriptor({ descriptor: { ...degree, key: "plugrank" }, namespace: "acme", type: "plugrank" });
 }
 
 describe("status, row by row of the design's table", () => {
@@ -170,8 +195,16 @@ describe("status, row by row of the design's table", () => {
         const f = fixture();
         await run(f, "louv");
         const execution = resultExecutionOf(f.harness.session.results, "louv") ?? "";
-        const createdFrom: SetCreatedFrom = { kind: "result", item: { result: "louv", key: { field: "group", value: 1 }, run: execution } };
-        const id = createSetAs(f.harness.session.sets, { kind: "fixed", nodes: ["c", "d", "e"], reading: "induced" }, "Community 1", createdFrom);
+        const createdFrom: SetCreatedFrom = {
+            kind: "result",
+            item: { result: "louv", key: { field: "group", value: 1 }, run: execution },
+        };
+        const id = createSetAs(
+            f.harness.session.sets,
+            { kind: "fixed", nodes: ["c", "d", "e"], reading: "induced" },
+            "Community 1",
+            createdFrom,
+        );
         assert.deepStrictEqual(statusOfSet(f, id), status("current"));
 
         f.table.set("louv", LOUVAIN_2);
@@ -185,7 +218,11 @@ describe("status, row by row of the design's table", () => {
         const f = fixture();
         await run(f, "louv");
         const execution = resultExecutionOf(f.harness.session.results, "louv") ?? "";
-        const id = f.harness.session.sets.create({ kind: "rule", where: { kind: "item", item: { result: "louv", key: { field: "group", value: 1 }, run: execution } }, reading: "induced" });
+        const id = f.harness.session.sets.create({
+            kind: "rule",
+            where: { kind: "item", item: { result: "louv", key: { field: "group", value: 1 }, run: execution } },
+            reading: "induced",
+        });
 
         f.table.set("louv", LOUVAIN_2);
         await rerun(f, "louv");
@@ -204,7 +241,10 @@ describe("status, row by row of the design's table", () => {
             reading: "induced",
         });
 
-        assert.deepStrictEqual(statusOfSet(f, id), status("current", [{ kind: "values-not-kept", run: "louv" }], ["louv"]));
+        assert.deepStrictEqual(
+            statusOfSet(f, id),
+            status("current", [{ kind: "values-not-kept", run: "louv" }], ["louv"]),
+        );
         assert.deepStrictEqual(await countOf(f, id), [0, 0]);
     });
 
@@ -223,7 +263,11 @@ describe("status, row by row of the design's table", () => {
 
     it("a rule reading results.pr while pr is out of date: out-of-date, run-out-of-date, and it re-resolves", async () => {
         const f = fixture();
-        const scope = f.harness.session.sets.create({ kind: "fixed", nodes: ["a", "b", "c", "d", "e"], reading: "induced" });
+        const scope = f.harness.session.sets.create({
+            kind: "fixed",
+            nodes: ["a", "b", "c", "d", "e"],
+            reading: "induced",
+        });
         await run(f, "pr", { set: scope });
         const id = f.harness.session.sets.create(OVER_PR);
         assert.deepStrictEqual(statusOfSet(f, id), status("current"));
@@ -250,16 +294,30 @@ describe("status, row by row of the design's table", () => {
             const kept = sets.create(definition);
             await run(f, "kept", { set: kept });
             await run(f, "inline", { define: definition });
-            const overKept = sets.create({ kind: "rule", where: "results.kept.value > `0`", reading: "induced" }, { name: "Over kept" });
-            const overInline = sets.create({ kind: "rule", where: "results.inline.value > `0`", reading: "induced" }, { name: "Over inline" });
+            const overKept = sets.create(
+                { kind: "rule", where: "results.kept.value > `0`", reading: "induced" },
+                { name: "Over kept" },
+            );
+            const overInline = sets.create(
+                { kind: "rule", where: "results.inline.value > `0`", reading: "induced" },
+                { name: "Over inline" },
+            );
             assert.strictEqual(statusOfSet(f, overKept).freshness, "current", kind);
 
             f.harness.store.builder.removeNode("b");
             f.harness.store.touch();
             f.harness.session.data.snapshot();
 
-            assert.deepStrictEqual(statusOfSet(f, overInline), status("out-of-date", [{ kind: "run-out-of-date", run: "inline" }]), kind);
-            assert.deepStrictEqual(statusOfSet(f, overKept), status("out-of-date", [{ kind: "run-out-of-date", run: "kept" }]), kind);
+            assert.deepStrictEqual(
+                statusOfSet(f, overInline),
+                status("out-of-date", [{ kind: "run-out-of-date", run: "inline" }]),
+                kind,
+            );
+            assert.deepStrictEqual(
+                statusOfSet(f, overKept),
+                status("out-of-date", [{ kind: "run-out-of-date", run: "kept" }]),
+                kind,
+            );
         }
     });
 
@@ -267,38 +325,70 @@ describe("status, row by row of the design's table", () => {
         const f = fixture();
         registerPlugin();
         await run(f, "plug", "graph", "plugrank");
-        const id = f.harness.session.sets.create({ kind: "rule", where: "results.plug.value > `2`", reading: "induced" });
+        const id = f.harness.session.sets.create({
+            kind: "rule",
+            where: "results.plug.value > `2`",
+            reading: "induced",
+        });
         clearRegisteredAlgorithmsForTesting();
 
-        assert.deepStrictEqual(statusOfSet(f, id), status("current", [{ kind: "missing-capability", name: "plugrank" }]));
+        assert.deepStrictEqual(
+            statusOfSet(f, id),
+            status("current", [{ kind: "missing-capability", name: "plugrank" }]),
+        );
         assert.deepStrictEqual(await nodesOf(f, id), ["b", "c", "d"]);
     });
 
     it("the same after an input of that run changed: cannot-rerun, missing-capability, the run's values", async () => {
         const f = fixture();
         registerPlugin();
-        const scope = f.harness.session.sets.create({ kind: "fixed", nodes: ["a", "b", "c", "d", "e"], reading: "induced" });
+        const scope = f.harness.session.sets.create({
+            kind: "fixed",
+            nodes: ["a", "b", "c", "d", "e"],
+            reading: "induced",
+        });
         await run(f, "plug", { set: scope }, "plugrank");
-        const id = f.harness.session.sets.create({ kind: "rule", where: "results.plug.value > `2`", reading: "induced" });
+        const id = f.harness.session.sets.create({
+            kind: "rule",
+            where: "results.plug.value > `2`",
+            reading: "induced",
+        });
         clearRegisteredAlgorithmsForTesting();
         f.harness.session.sets.redefine(scope, { kind: "fixed", nodes: ["a"], reading: "induced" });
 
-        assert.deepStrictEqual(statusOfSet(f, id), status("cannot-rerun", [{ kind: "missing-capability", name: "plugrank" }]));
+        assert.deepStrictEqual(
+            statusOfSet(f, id),
+            status("cannot-rerun", [{ kind: "missing-capability", name: "plugrank" }]),
+        );
         assert.deepStrictEqual(await nodesOf(f, id), ["b", "c", "d"]);
     });
 
     it("names a removed set or run: detached, missing-set or missing-run, nothing, never throws", async () => {
         const f = fixture();
-        const gone = f.harness.session.sets.create({ kind: "fixed", nodes: ["a"], reading: "induced" }, { name: "Gone" });
-        const readsSet = f.harness.session.sets.create({ kind: "rule", where: { kind: "member", of: { set: gone } }, reading: "induced" });
+        const gone = f.harness.session.sets.create(
+            { kind: "fixed", nodes: ["a"], reading: "induced" },
+            { name: "Gone" },
+        );
+        const readsSet = f.harness.session.sets.create({
+            kind: "rule",
+            where: { kind: "member", of: { set: gone } },
+            reading: "induced",
+        });
         await run(f, "pr");
         const readsRun = f.harness.session.sets.create(OVER_PR);
         f.harness.session.sets.remove(gone);
         f.harness.session.runs.remove("pr");
 
-        assert.deepStrictEqual(statusOfSet(f, readsSet), status("detached", [{ kind: "missing-set", id: gone, name: "Gone" }]));
+        assert.deepStrictEqual(
+            statusOfSet(f, readsSet),
+            status("detached", [{ kind: "missing-set", id: gone, name: "Gone" }]),
+        );
         assert.deepStrictEqual(statusOfSet(f, readsRun), status("detached", [{ kind: "missing-run", run: "pr" }]));
-        assert.deepStrictEqual(statusOfSet(f, gone), status("detached", [{ kind: "missing-set", id: gone, name: "Gone" }]), "the removed set itself");
+        assert.deepStrictEqual(
+            statusOfSet(f, gone),
+            status("detached", [{ kind: "missing-set", id: gone, name: "Gone" }]),
+            "the removed set itself",
+        );
         assert.deepStrictEqual(await countOf(f, readsSet), [1, 0], "a removed set is read from its kept record");
         assert.deepStrictEqual(await countOf(f, readsRun), [0, 0]);
     });
@@ -306,7 +396,11 @@ describe("status, row by row of the design's table", () => {
     it("caught in a cycle, its last compile failed, or holds an unknown kind: unresolvable, nothing, never throws", async () => {
         const f = fixture();
         // Two sets reading each other: the doors refuse this, a load or an undo can make it.
-        const a = put(f, "ring a", { kind: "rule", where: { kind: "member", of: { set: "set_ring-b" } }, reading: "induced" });
+        const a = put(f, "ring a", {
+            kind: "rule",
+            where: { kind: "member", of: { set: "set_ring-b" } },
+            reading: "induced",
+        });
         const b = put(f, "ring b", { kind: "rule", where: { kind: "member", of: { set: a } }, reading: "induced" });
         assert.deepStrictEqual(statusOfSet(f, a), status("unresolvable", [{ kind: "cycle", through: [b, a] }]));
         assert.deepStrictEqual(await countOf(f, a), [0, 0]);
@@ -316,7 +410,11 @@ describe("status, row by row of the design's table", () => {
         graph.load([{ s: "a", t: "b" }]);
         const broken = graph.sets.create({ kind: "rule", where: "weight > `1`", reading: "induced" });
         const cache = new SetsCache();
-        const failure = new GraphtyError({ code: "E_BAD_SELECTOR", message: "The column weight cannot be compared here.", source: "style" });
+        const failure = new GraphtyError({
+            code: "E_BAD_SELECTOR",
+            message: "The column weight cannot be compared here.",
+            source: "style",
+        });
         const context = {
             snapshot: graph.snapshot(),
             store: graph.storeTag(),
@@ -326,22 +424,47 @@ describe("status, row by row of the design's table", () => {
                 throw failure;
             },
         };
-        const brokenSets = createSetsApi({ edgeMember: () => undefined, outcome: (record) => outcomeOf(cache, record) }, graph.setsStore);
-        assert.deepStrictEqual(brokenSets.status({ set: broken }), status("current"), "no pass yet: nothing known to be wrong");
+        const brokenSets = createSetsApi(
+            { edgeMember: () => undefined, outcome: (record) => outcomeOf(cache, record) },
+            graph.setsStore,
+        );
+        assert.deepStrictEqual(
+            brokenSets.status({ set: broken }),
+            status("current"),
+            "no pass yet: nothing known to be wrong",
+        );
         const passed = resolveSet({ id: broken, definition: graph.sets.get(broken)?.definition as never }, context);
         assert.strictEqual(passed.nodeCount, 0);
-        assert.deepStrictEqual(brokenSets.status({ set: broken }), status("unresolvable", [{ kind: "invalid", message: failure.message }]));
+        assert.deepStrictEqual(
+            brokenSets.status({ set: broken }),
+            status("unresolvable", [{ kind: "invalid", message: failure.message }]),
+        );
         brokenSets.redefine(broken, { kind: "rule", where: "weight > `2`", reading: "induced" });
-        assert.deepStrictEqual(brokenSets.status({ set: broken }), status("current"), "an outcome is never read for a later definition");
+        assert.deepStrictEqual(
+            brokenSets.status({ set: broken }),
+            status("current"),
+            "an outcome is never read for a later definition",
+        );
 
         const store = setsStoreOf(f.harness.session.sets);
         const opaque = store.transact(() => {
             const id = store.mint("opaque");
-            store.put(loadRecord({ id, name: "Opaque", order: store.nextOrder(), definition: { kind: "acme:blob", payload: 1 }, createdFrom: { kind: "user" } }));
+            store.put(
+                loadRecord({
+                    id,
+                    name: "Opaque",
+                    order: store.nextOrder(),
+                    definition: { kind: "acme:blob", payload: 1 },
+                    createdFrom: { kind: "user" },
+                }),
+            );
 
             return id;
         });
-        assert.deepStrictEqual(statusOfSet(f, opaque), status("unresolvable", [{ kind: "missing-capability", name: "acme:blob" }]));
+        assert.deepStrictEqual(
+            statusOfSet(f, opaque),
+            status("unresolvable", [{ kind: "missing-capability", name: "acme:blob" }]),
+        );
         assert.deepStrictEqual(await countOf(f, opaque), [0, 0]);
     });
 
@@ -354,9 +477,15 @@ describe("status, row by row of the design's table", () => {
         const id = graph.sets.create({ kind: "fixed", nodes: ["a", "b", "c"], reading: "induced" });
         graph.removeNode("c");
         const cache = new SetsCache();
-        const resolution = resolveSet({ id, definition: graph.sets.get(id)?.definition as never }, { snapshot: graph.snapshot(), store: graph.storeTag(), sets: graph.setsStore, cache });
+        const resolution = resolveSet(
+            { id, definition: graph.sets.get(id)?.definition as never },
+            { snapshot: graph.snapshot(), store: graph.storeTag(), sets: graph.setsStore, cache },
+        );
 
-        const sets = createSetsApi({ edgeMember: () => undefined, outcome: (record) => outcomeOf(cache, record) }, graph.setsStore);
+        const sets = createSetsApi(
+            { edgeMember: () => undefined, outcome: (record) => outcomeOf(cache, record) },
+            graph.setsStore,
+        );
         assert.deepStrictEqual(sets.status({ set: id }), status("current"));
         assert.strictEqual(resolution.nodeCount, 2);
         assert.strictEqual(resolution.missingNodes, 1);
@@ -367,23 +496,41 @@ describe("status, row by row of the design's table", () => {
         const [one] = graph.load([{ s: "a", t: "b" }]);
         const [two] = graph.load([{ s: "a", t: "b" }]);
         const [three] = graph.load([{ s: "b", t: "c" }]);
-        const id = graph.sets.create({ kind: "fixed", nodes: [], edges: [one, two, three].map((c) => graph.edgeId(c)), reading: "listed" });
+        const id = graph.sets.create({
+            kind: "fixed",
+            nodes: [],
+            edges: [one, two, three].map((c) => graph.edgeId(c)),
+            reading: "listed",
+        });
         graph.replaceStore();
         graph.load([{ s: "a", t: "b" }]);
         graph.load([{ s: "a", t: "b" }]);
         graph.load([{ s: "b", t: "c" }]);
         const cache = new SetsCache();
-        const resolution = resolveSet({ id, definition: graph.sets.get(id)?.definition as never }, { snapshot: graph.snapshot(), store: graph.storeTag(), sets: graph.setsStore, cache });
+        const resolution = resolveSet(
+            { id, definition: graph.sets.get(id)?.definition as never },
+            { snapshot: graph.snapshot(), store: graph.storeTag(), sets: graph.setsStore, cache },
+        );
 
-        const sets = createSetsApi({ edgeMember: () => undefined, outcome: (record) => outcomeOf(cache, record) }, graph.setsStore);
-        assert.deepStrictEqual(sets.status({ set: id }), status("current", [{ kind: "ambiguous-parallel-edge", count: 1 }]));
+        const sets = createSetsApi(
+            { edgeMember: () => undefined, outcome: (record) => outcomeOf(cache, record) },
+            graph.setsStore,
+        );
+        assert.deepStrictEqual(
+            sets.status({ set: id }),
+            status("current", [{ kind: "ambiguous-parallel-edge", count: 1 }]),
+        );
         assert.strictEqual(resolution.edgeCount, 1, "b-c still binds");
         assert.strictEqual(resolution.missingEdges, 1, "the a-b member, which two edges carry, binds neither");
     });
 
     it("a rule set after a data edit: current, and it re-resolves", async () => {
         const f = fixture();
-        const id = f.harness.session.sets.create({ kind: "rule", where: { kind: "degree", min: 3 }, reading: "induced" });
+        const id = f.harness.session.sets.create({
+            kind: "rule",
+            where: { kind: "degree", min: 3 },
+            reading: "induced",
+        });
         assert.deepStrictEqual(await nodesOf(f, id), ["c"]);
         f.harness.add([], [{ src: "a", dst: "d" }]);
 
@@ -394,20 +541,43 @@ describe("status, row by row of the design's table", () => {
     it("an input set out of date, unable to re-run, or detached: the worse, with input", async () => {
         const f = fixture();
         registerPlugin();
-        const scope = f.harness.session.sets.create({ kind: "fixed", nodes: ["a", "b", "c", "d", "e"], reading: "induced" });
+        const scope = f.harness.session.sets.create({
+            kind: "fixed",
+            nodes: ["a", "b", "c", "d", "e"],
+            reading: "induced",
+        });
         await run(f, "pr", { set: scope });
         await run(f, "plug", { set: scope }, "plugrank");
         const stale = f.harness.session.sets.create(OVER_PR);
-        const stuck = f.harness.session.sets.create({ kind: "rule", where: "results.plug.value > `2`", reading: "induced" });
+        const stuck = f.harness.session.sets.create({
+            kind: "rule",
+            where: "results.plug.value > `2`",
+            reading: "induced",
+        });
         const gone = f.harness.session.sets.create({ kind: "fixed", nodes: ["a"], reading: "induced" });
-        const orphan = f.harness.session.sets.create({ kind: "rule", where: { kind: "member", of: { set: gone } }, reading: "induced" });
-        const reader = (input: SetId): SetId => f.harness.session.sets.create({ kind: "rule", where: { kind: "member", of: { set: input } }, reading: "induced" });
+        const orphan = f.harness.session.sets.create({
+            kind: "rule",
+            where: { kind: "member", of: { set: gone } },
+            reading: "induced",
+        });
+        const reader = (input: SetId): SetId =>
+            f.harness.session.sets.create({
+                kind: "rule",
+                where: { kind: "member", of: { set: input } },
+                reading: "induced",
+            });
         const readsStale = reader(stale);
         const readsStuck = reader(stuck);
         const readsOrphan = reader(orphan);
         const readsAll = f.harness.session.sets.create({
             kind: "rule",
-            where: { kind: "any", of: [{ kind: "member", of: { set: stale } }, { kind: "member", of: { set: orphan } }] },
+            where: {
+                kind: "any",
+                of: [
+                    { kind: "member", of: { set: stale } },
+                    { kind: "member", of: { set: orphan } },
+                ],
+            },
             reading: "induced",
         });
 
@@ -415,9 +585,18 @@ describe("status, row by row of the design's table", () => {
         f.harness.session.sets.redefine(scope, { kind: "fixed", nodes: ["a", "b"], reading: "induced" });
         f.harness.session.sets.remove(gone);
 
-        assert.deepStrictEqual(statusOfSet(f, readsStale), status("out-of-date", [{ kind: "input", id: stale, freshness: "out-of-date" }]));
-        assert.deepStrictEqual(statusOfSet(f, readsStuck), status("cannot-rerun", [{ kind: "input", id: stuck, freshness: "cannot-rerun" }]));
-        assert.deepStrictEqual(statusOfSet(f, readsOrphan), status("detached", [{ kind: "input", id: orphan, freshness: "detached" }]));
+        assert.deepStrictEqual(
+            statusOfSet(f, readsStale),
+            status("out-of-date", [{ kind: "input", id: stale, freshness: "out-of-date" }]),
+        );
+        assert.deepStrictEqual(
+            statusOfSet(f, readsStuck),
+            status("cannot-rerun", [{ kind: "input", id: stuck, freshness: "cannot-rerun" }]),
+        );
+        assert.deepStrictEqual(
+            statusOfSet(f, readsOrphan),
+            status("detached", [{ kind: "input", id: orphan, freshness: "detached" }]),
+        );
         assert.deepStrictEqual(
             statusOfSet(f, readsAll),
             status("detached", [
@@ -435,7 +614,11 @@ describe("status beyond the table", () => {
         const sets = createSetsApi({ edgeMember: () => undefined });
         const store = setsStoreOf(sets);
         const scope = sets.create({ kind: "fixed", nodes: ["a"], reading: "induced" });
-        const id = sets.create({ kind: "rule", where: { kind: "threshold", path: "results.old.value", top: 1 }, reading: "induced" });
+        const id = sets.create({
+            kind: "rule",
+            where: { kind: "threshold", path: "results.old.value", top: 1 },
+            reading: "induced",
+        });
         const old = {
             id: "old",
             label: "Old",
@@ -447,7 +630,14 @@ describe("status beyond the table", () => {
             captures: new Map(),
         };
 
-        const read = statusOf({ set: id }, { sets: store, dependencies: { referent: (ref) => store.get(ref)?.definition }, run: (ref) => (ref === "old" ? old : undefined) });
+        const read = statusOf(
+            { set: id },
+            {
+                sets: store,
+                dependencies: { referent: (ref) => store.get(ref)?.definition },
+                run: (ref) => (ref === "old" ? old : undefined),
+            },
+        );
         assert.deepStrictEqual(read, status("current", [{ kind: "revision-unknown", run: "old" }]));
     });
 
@@ -460,18 +650,37 @@ describe("status beyond the table", () => {
         for (let i = 0; i < 50; i++) {
             ids.push(f.harness.session.sets.create({ kind: "fixed", nodes: ["a", "b"], reading: "induced" }));
             ids.push(f.harness.session.sets.create(OVER_PR));
-            ids.push(f.harness.session.sets.create({ kind: "rule", where: { kind: "item", item: { result: "louv", key: { field: "group", value: i % 2 }, run: execution } }, reading: "induced" }));
-            ids.push(f.harness.session.sets.create({ kind: "rule", where: { kind: "member", of: { set: ids[ids.length - 2] } }, reading: "induced" }));
+            ids.push(
+                f.harness.session.sets.create({
+                    kind: "rule",
+                    where: {
+                        kind: "item",
+                        item: { result: "louv", key: { field: "group", value: i % 2 }, run: execution },
+                    },
+                    reading: "induced",
+                }),
+            );
+            ids.push(
+                f.harness.session.sets.create({
+                    kind: "rule",
+                    where: { kind: "member", of: { set: ids[ids.length - 2] } },
+                    reading: "induced",
+                }),
+            );
         }
 
         assert.strictEqual(ids.length, 200);
         const resolved = { ...resolveCounters };
-        const {misses} = cacheCounters;
+        const { misses } = cacheCounters;
         for (const id of ids) {
             assert.strictEqual(statusOfSet(f, id).freshness, "current");
         }
 
-        assert.deepStrictEqual({ ...resolveCounters }, resolved, "no edge pass, mask pack, digest, id set or binding plan");
+        assert.deepStrictEqual(
+            { ...resolveCounters },
+            resolved,
+            "no edge pass, mask pack, digest, id set or binding plan",
+        );
         assert.strictEqual(cacheCounters.misses, misses, "no resolution was computed");
     });
 
@@ -479,7 +688,11 @@ describe("status beyond the table", () => {
         const f = fixture();
         const { session } = f.harness;
         const referent = session.sets.create({ kind: "fixed", nodes: ["a", "b"], reading: "induced" });
-        const rule = session.sets.create({ kind: "rule", where: { kind: "member", of: { set: referent } }, reading: "induced" });
+        const rule = session.sets.create({
+            kind: "rule",
+            where: { kind: "member", of: { set: referent } },
+            reading: "induced",
+        });
         session.sets.redefine(referent, { kind: "fixed", nodes: ["a", "b"], reading: "listed" });
 
         assert.strictEqual(statusOfSet(f, rule).freshness, "unresolvable");
@@ -500,14 +713,24 @@ describe("status beyond the table", () => {
     it("a rule reading a run whose scope set was removed: cannot-rerun, missing-set by name, the run's values", async () => {
         const f = fixture();
         const { session } = f.harness;
-        const scope = session.sets.create({ kind: "fixed", nodes: ["a", "b", "c"], reading: "induced" }, { name: "Scope" });
+        const scope = session.sets.create(
+            { kind: "fixed", nodes: ["a", "b", "c"], reading: "induced" },
+            { name: "Scope" },
+        );
         await run(f, "pr", { set: scope });
         const reads = session.sets.create(OVER_PR);
         session.sets.remove(scope);
 
-        assert.deepStrictEqual(statusOfSet(f, reads), status("cannot-rerun", [{ kind: "missing-set", id: scope, name: "Scope" }]));
+        assert.deepStrictEqual(
+            statusOfSet(f, reads),
+            status("cannot-rerun", [{ kind: "missing-set", id: scope, name: "Scope" }]),
+        );
         assert.ok((await nodesOf(f, reads)).length > 0, "it still reads the run's values");
-        assert.strictEqual(session.runs.get("pr")?.record.stale?.nowVisible, 0, "the run's record reads, and its scope holds nothing");
+        assert.strictEqual(
+            session.runs.get("pr")?.record.stale?.nowVisible,
+            0,
+            "the run's record reads, and its scope holds nothing",
+        );
         let message = "";
         try {
             await rerun(f, "pr");
@@ -528,9 +751,18 @@ describe("status beyond the table", () => {
 describe("usedBy", () => {
     it("lists the sets naming the id and the runs whose scope names it", async () => {
         const f = fixture();
-        const base = f.harness.session.sets.create({ kind: "fixed", nodes: ["a", "b", "c"], reading: "induced" }, { name: "Base" });
-        const reader = f.harness.session.sets.create({ kind: "rule", where: { kind: "member", of: { set: base } }, reading: "induced" }, { name: "Reader" });
-        f.harness.session.sets.create({ kind: "rule", where: { kind: "member", of: { set: reader } }, reading: "induced" }, { name: "Indirect" });
+        const base = f.harness.session.sets.create(
+            { kind: "fixed", nodes: ["a", "b", "c"], reading: "induced" },
+            { name: "Base" },
+        );
+        const reader = f.harness.session.sets.create(
+            { kind: "rule", where: { kind: "member", of: { set: base } }, reading: "induced" },
+            { name: "Reader" },
+        );
+        f.harness.session.sets.create(
+            { kind: "rule", where: { kind: "member", of: { set: reader } }, reading: "induced" },
+            { name: "Indirect" },
+        );
         await run(f, "pr", { set: base });
         await run(f, "louv");
 

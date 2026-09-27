@@ -71,11 +71,7 @@ function codeOf(call: () => unknown): string | null {
 
 describe("a filter over nodes", () => {
     it("keeps the nodes whose category is wanted, and hides one carrying no category", () => {
-        const harness = harnessOf([
-            { id: "a", type: "host" },
-            { id: "b", type: "service" },
-            { id: "c" },
-        ]);
+        const harness = harnessOf([{ id: "a", type: "host" }, { id: "b", type: "service" }, { id: "c" }]);
 
         const shown = applied(harness, { kind: "categories", attribute: "data.type", values: ["host"] }, null, {
             values: valuesOf(harness),
@@ -102,12 +98,7 @@ describe("a filter over nodes", () => {
     });
 
     it("keeps a numeric attribute inside the range, at both ends", () => {
-        const harness = harnessOf([
-            { id: "a", score: 1 },
-            { id: "b", score: 5 },
-            { id: "c", score: 9 },
-            { id: "d" },
-        ]);
+        const harness = harnessOf([{ id: "a", score: 1 }, { id: "b", score: 5 }, { id: "c", score: 9 }, { id: "d" }]);
 
         const shown = applied(harness, { kind: "range", attribute: "data.score", min: 1, max: 5 }, null, {
             values: valuesOf(harness),
@@ -168,10 +159,7 @@ describe("a filter over nodes", () => {
     });
 
     it("keeps one connected component", () => {
-        const harness = harnessOf(
-            [{ id: "a" }, { id: "b" }, { id: "c" }],
-            [{ src: "a", dst: "b" }],
-        );
+        const harness = harnessOf([{ id: "a" }, { id: "b" }, { id: "c" }], [{ src: "a", dst: "b" }]);
 
         const shown = applied(harness, { kind: "component", id: 1 }, null, {
             components: () => ({ labels: [0, 0, 1], count: 2 }),
@@ -219,7 +207,9 @@ describe("edges", () => {
             ],
         );
 
-        const shown = applied(harness, { kind: "edges", where: "q" }, null, { matchEdges: () => [edgeBetween(harness, "a", "b")] });
+        const shown = applied(harness, { kind: "edges", where: "q" }, null, {
+            matchEdges: () => [edgeBetween(harness, "a", "b")],
+        });
 
         assert.deepStrictEqual(shown.nodes, ["a", "b", "c"], "an edge filter says nothing about nodes");
         assert.deepStrictEqual(shown.edges, [edgeBetween(harness, "a", "b")]);
@@ -245,10 +235,17 @@ describe("edges", () => {
                 ],
             },
             null,
-            { match: () => ["a", "b"], matchEdges: () => [edgeBetween(harness, "a", "b"), edgeBetween(harness, "b", "c")] },
+            {
+                match: () => ["a", "b"],
+                matchEdges: () => [edgeBetween(harness, "a", "b"), edgeBetween(harness, "b", "c")],
+            },
         );
 
-        assert.deepStrictEqual(shown.edges, [edgeBetween(harness, "a", "b")], "the edge query named b:c, but c is hidden");
+        assert.deepStrictEqual(
+            shown.edges,
+            [edgeBetween(harness, "a", "b")],
+            "the edge query named b:c, but c is hidden",
+        );
         harness.session.dispose();
     });
 });
@@ -354,9 +351,14 @@ describe("a time window", () => {
         // The step is carried rather than applied: whatever advances the window reads it.
         const step: TimeStep = 10;
 
-        const shown = applied(harness, null, { attribute: "data.at", from: 10, to: 30, step }, {
-            values: valuesOf(harness),
-        });
+        const shown = applied(
+            harness,
+            null,
+            { attribute: "data.at", from: 10, to: 30, step },
+            {
+                values: valuesOf(harness),
+            },
+        );
 
         assert.deepStrictEqual(shown.nodes, ["a", "b"]);
         harness.session.dispose();
@@ -368,9 +370,14 @@ describe("a time window", () => {
             { id: "b", at: "2026-07-10" },
         ]);
 
-        const shown = applied(harness, null, { attribute: "data.at", from: "2026-01", to: "2026-06" }, {
-            values: valuesOf(harness),
-        });
+        const shown = applied(
+            harness,
+            null,
+            { attribute: "data.at", from: "2026-01", to: "2026-06" },
+            {
+                values: valuesOf(harness),
+            },
+        );
 
         assert.deepStrictEqual(shown.nodes, ["a"]);
         harness.session.dispose();
@@ -387,9 +394,14 @@ describe("a time window", () => {
             ],
         );
 
-        const shown = applied(harness, null, { attribute: "data.at", from: 0, to: 10 }, {
-            values: valuesOf(harness),
-        });
+        const shown = applied(
+            harness,
+            null,
+            { attribute: "data.at", from: 0, to: 10 },
+            {
+                values: valuesOf(harness),
+            },
+        );
 
         assert.deepStrictEqual(shown.nodes, ["a", "b", "c"], "no timestamp means the window says nothing");
         assert.deepStrictEqual(shown.edges, [edgeBetween(harness, "a", "b")]);
@@ -481,9 +493,14 @@ describe("paths nothing answered", () => {
     it("counts a window path as answered when only the edges carried it", () => {
         const harness = harnessOf([{ id: "a" }, { id: "b" }], [{ src: "a", dst: "b", at: 5 }]);
 
-        const shown = applied(harness, null, { attribute: "data.at", from: 0, to: 10 }, {
-            values: valuesOf(harness),
-        });
+        const shown = applied(
+            harness,
+            null,
+            { attribute: "data.at", from: 0, to: 10 },
+            {
+                values: valuesOf(harness),
+            },
+        );
 
         assert.deepStrictEqual(shown.unresolved, []);
         harness.session.dispose();
@@ -492,13 +509,22 @@ describe("paths nothing answered", () => {
 
 describe("refusing a filter that is not one", () => {
     it("checks a filter without touching the graph, so a form can gate its own button", () => {
-        assert.strictEqual(codeOf(() => assertVisibility({ kind: "nope" } as unknown as RuleTree, null)), "E_BAD_COMMAND");
+        assert.strictEqual(
+            codeOf(() => assertVisibility({ kind: "nope" } as unknown as RuleTree, null)),
+            "E_BAD_COMMAND",
+        );
         assert.strictEqual(
             codeOf(() => assertVisibility(null, { attribute: "data.at", from: 9, to: 1 })),
             "E_OPTION_RANGE",
         );
-        assert.strictEqual(codeOf(() => assertVisibility({ kind: "degree", min: 1 }, null)), null);
-        assert.strictEqual(codeOf(() => assertVisibility(null, null)), null);
+        assert.strictEqual(
+            codeOf(() => assertVisibility({ kind: "degree", min: 1 }, null)),
+            null,
+        );
+        assert.strictEqual(
+            codeOf(() => assertVisibility(null, null)),
+            null,
+        );
     });
 
     it("refuses an unknown kind, a missing query and an inverted range", () => {
@@ -506,13 +532,22 @@ describe("refusing a filter that is not one", () => {
         const graph = harness.store.getSnapshot();
         const compile = (filter: RuleTree): unknown => compileVisibility(graph, filter, null, {});
 
-        assert.strictEqual(codeOf(() => compile({ kind: "nope" } as unknown as RuleTree)), "E_BAD_COMMAND");
-        assert.strictEqual(codeOf(() => compile({ kind: "expression", where: "  " })), "E_BAD_QUERY");
+        assert.strictEqual(
+            codeOf(() => compile({ kind: "nope" } as unknown as RuleTree)),
+            "E_BAD_COMMAND",
+        );
+        assert.strictEqual(
+            codeOf(() => compile({ kind: "expression", where: "  " })),
+            "E_BAD_QUERY",
+        );
         assert.strictEqual(
             codeOf(() => compile({ kind: "range", attribute: "data.x", min: 9, max: 1 })),
             "E_OPTION_RANGE",
         );
-        assert.strictEqual(codeOf(() => compile({ kind: "range", attribute: "", min: 1 })), "E_BAD_COMMAND");
+        assert.strictEqual(
+            codeOf(() => compile({ kind: "range", attribute: "", min: 1 })),
+            "E_BAD_COMMAND",
+        );
         assert.strictEqual(
             codeOf(() => compile({ kind: "neighborhood", seeds: ["a"], depth: -1 })),
             "E_OPTION_RANGE",
@@ -525,8 +560,14 @@ describe("refusing a filter that is not one", () => {
         const graph = harness.store.getSnapshot();
         const compile = (window: TimeWindow): unknown => compileVisibility(graph, null, window, {});
 
-        assert.strictEqual(codeOf(() => compile({ attribute: "data.at", from: "nope", to: 5 })), "E_OPTION_RANGE");
-        assert.strictEqual(codeOf(() => compile({ attribute: "data.at", from: 9, to: 1 })), "E_OPTION_RANGE");
+        assert.strictEqual(
+            codeOf(() => compile({ attribute: "data.at", from: "nope", to: 5 })),
+            "E_OPTION_RANGE",
+        );
+        assert.strictEqual(
+            codeOf(() => compile({ attribute: "data.at", from: 9, to: 1 })),
+            "E_OPTION_RANGE",
+        );
         assert.strictEqual(
             codeOf(() => compile({ attribute: "data.at", from: 1, to: 9, step: 0 })),
             "E_OPTION_RANGE",
@@ -539,10 +580,22 @@ describe("refusing a filter that is not one", () => {
         const graph = harness.store.getSnapshot();
         const compile = (filter: RuleTree): unknown => compileVisibility(graph, filter, null, {});
 
-        assert.strictEqual(codeOf(() => compile({ kind: "expression", where: "q" })), "E_UNSUPPORTED");
-        assert.strictEqual(codeOf(() => compile({ kind: "edges", where: "q" })), "E_UNSUPPORTED");
-        assert.strictEqual(codeOf(() => compile({ kind: "component", id: 0 })), "E_UNSUPPORTED");
-        assert.strictEqual(codeOf(() => compile({ kind: "range", attribute: "data.x", min: 1 })), "E_UNSUPPORTED");
+        assert.strictEqual(
+            codeOf(() => compile({ kind: "expression", where: "q" })),
+            "E_UNSUPPORTED",
+        );
+        assert.strictEqual(
+            codeOf(() => compile({ kind: "edges", where: "q" })),
+            "E_UNSUPPORTED",
+        );
+        assert.strictEqual(
+            codeOf(() => compile({ kind: "component", id: 0 })),
+            "E_UNSUPPORTED",
+        );
+        assert.strictEqual(
+            codeOf(() => compile({ kind: "range", attribute: "data.x", min: 1 })),
+            "E_UNSUPPORTED",
+        );
         harness.session.dispose();
     });
 });
@@ -601,7 +654,7 @@ describe("running the pass in slices", () => {
         }
 
         assert.instanceOf(thrown, DOMException);
-        assert.strictEqual((thrown).name, "AbortError");
+        assert.strictEqual(thrown.name, "AbortError");
         assert.strictEqual(nodes.size, 0, "an aborted pass wrote nothing");
         harness.session.dispose();
     });

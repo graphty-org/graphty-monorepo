@@ -78,7 +78,9 @@ export class DegreeAlgorithm extends MetricAlgorithm {
                 weight: null,
                 precision: "f64",
                 method: "degree",
-                notes: ["Counted over the graph as the records declared it, so a node's total is its incoming edges plus its outgoing ones."],
+                notes: [
+                    "Counted over the graph as the records declared it, so a node's total is its incoming edges plus its outgoing ones.",
+                ],
             },
         };
     }

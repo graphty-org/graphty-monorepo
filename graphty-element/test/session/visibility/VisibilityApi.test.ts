@@ -184,7 +184,10 @@ describe("applying a filter", () => {
         const harness = harnessOf([{ id: "a" }]);
         const visibility = modelOf(harness);
 
-        assert.strictEqual(codeOf(() => visibility.set({ kind: "nope" } as unknown as RuleTree)), "E_BAD_COMMAND");
+        assert.strictEqual(
+            codeOf(() => visibility.set({ kind: "nope" } as unknown as RuleTree)),
+            "E_BAD_COMMAND",
+        );
         assert.strictEqual(visibility.summary.visibleNodes, 1, "a refused filter changed nothing");
         harness.session.dispose();
     });
@@ -193,7 +196,10 @@ describe("applying a filter", () => {
         const harness = harnessOf([{ id: "a" }]);
         const visibility = modelOf(harness);
 
-        assert.strictEqual(codeOf(() => visibility.set(HOSTS, { dryRun: true })), "E_UNSUPPORTED");
+        assert.strictEqual(
+            codeOf(() => visibility.set(HOSTS, { dryRun: true })),
+            "E_UNSUPPORTED",
+        );
         harness.session.dispose();
     });
 });
@@ -246,8 +252,14 @@ describe("the lazy id sets", () => {
         const visibility = modelOf(harness);
         const ids = visibility.nodes as Set<NodeId>;
 
-        assert.strictEqual(codeOf(() => ids.add("b")), "E_READONLY");
-        assert.strictEqual(codeOf(() => ids.clear()), "E_READONLY");
+        assert.strictEqual(
+            codeOf(() => ids.add("b")),
+            "E_READONLY",
+        );
+        assert.strictEqual(
+            codeOf(() => ids.clear()),
+            "E_READONLY",
+        );
         harness.session.dispose();
     });
 });
@@ -263,9 +275,16 @@ describe("when the graph moves underneath a filter", () => {
         await visibility.set(HOSTS);
         assert.strictEqual(visibility.summary.visibleNodes, 1);
 
-        harness.add([{ id: "d", type: "host" }, { id: "e", type: "service" }]);
+        harness.add([
+            { id: "d", type: "host" },
+            { id: "e", type: "service" },
+        ]);
 
-        assert.deepStrictEqual([...visibility.nodes].sort(), ["a", "d"], "the new host shows, the new service does not");
+        assert.deepStrictEqual(
+            [...visibility.nodes].sort(),
+            ["a", "d"],
+            "the new host shows, the new service does not",
+        );
         assert.strictEqual(visibility.summary.totalNodes, 4);
         harness.session.dispose();
     });

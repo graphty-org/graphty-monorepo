@@ -6,4 +6,7 @@ import { StronglyConnectedComponentsAlgorithm } from "../../../src/algorithms/St
 import type { Graph } from "../../../src/Graph";
 import { describeScopedAdapter } from "./harness";
 
-describeScopedAdapter("strongly connected components", (graph: Graph) => new StronglyConnectedComponentsAlgorithm(graph));
+describeScopedAdapter(
+    "strongly connected components",
+    (graph: Graph) => new StronglyConnectedComponentsAlgorithm(graph),
+);

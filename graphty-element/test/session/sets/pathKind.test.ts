@@ -21,7 +21,12 @@ type Path = Extract<SetDefinition, { kind: "path" }>;
  * @returns The definition.
  */
 function path(nodes: NodeId[], edges?: (EdgeMember | EdgeMember[] | null)[], directed?: boolean): Path {
-    return parseSetDefinition({ kind: "path", nodes, ...(edges === undefined ? {} : { edges }), ...(directed === undefined ? {} : { directed }) }) as Path;
+    return parseSetDefinition({
+        kind: "path",
+        nodes,
+        ...(edges === undefined ? {} : { edges }),
+        ...(directed === undefined ? {} : { directed }),
+    }) as Path;
 }
 
 const e = (source: NodeId, target: NodeId, id: string): EdgeMember => ({ source, target, id });
@@ -54,9 +59,21 @@ describe("pathKind", () => {
     });
 
     it("keys a null step on its pair: unordered unless directed", () => {
-        assert.strictEqual(pathKind(path(["A", "B", "A"], [null, null])), "walk", "undirected, both steps are the pair {A, B}");
-        assert.strictEqual(pathKind(path(["A", "B", "A"], [null, null], true)), "cycle", "directed, A->B and B->A are two pairs");
-        assert.strictEqual(pathKind(path(["A", "B", "A"], [e("A", "B", "e1"), null])), "cycle", "a named step and a null step never share a key");
+        assert.strictEqual(
+            pathKind(path(["A", "B", "A"], [null, null])),
+            "walk",
+            "undirected, both steps are the pair {A, B}",
+        );
+        assert.strictEqual(
+            pathKind(path(["A", "B", "A"], [null, null], true)),
+            "cycle",
+            "directed, A->B and B->A are two pairs",
+        );
+        assert.strictEqual(
+            pathKind(path(["A", "B", "A"], [e("A", "B", "e1"), null])),
+            "cycle",
+            "a named step and a null step never share a key",
+        );
     });
 
     it("keeps the number 1 and the string '1' apart", () => {

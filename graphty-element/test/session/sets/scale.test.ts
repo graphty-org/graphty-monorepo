@@ -89,11 +89,19 @@ beforeAll(async () => {
 
     // Five layers over expression rules, five over fixed sets; one of the fixed sets lists edges.
     for (let k = 0; k < 5; k++) {
-        live.push(h.session.sets.create({ kind: "rule", where: `data.w < \`${String(10 * (k + 1))}\``, reading: "induced" }));
+        live.push(
+            h.session.sets.create({ kind: "rule", where: `data.w < \`${String(10 * (k + 1))}\``, reading: "induced" }),
+        );
     }
 
     for (let k = 0; k < 4; k++) {
-        live.push(h.session.sets.create({ kind: "fixed", nodes: Array.from({ length: 10_000 }, (_, i) => i * (k + 2)), reading: "induced" }));
+        live.push(
+            h.session.sets.create({
+                kind: "fixed",
+                nodes: Array.from({ length: 10_000 }, (_, i) => i * (k + 2)),
+                reading: "induced",
+            }),
+        );
     }
 
     const listed: EdgeMember[] = Array.from({ length: 10_000 }, (_, i) => stableEdgeMember(snapshot, 7 * i));
@@ -120,7 +128,11 @@ describe("a freeze with live sets, at 100k nodes", () => {
         // Add one node: the snapshot is replaced, so every live scope's signature moved.
         h.add([{ id: NODES, w: 0 }]);
         h.session.data.snapshot();
-        assert.strictEqual(setsNotifierOfSession(h.session).pending, live.length, "every live scope queued, none resolved on the input path");
+        assert.strictEqual(
+            setsNotifierOfSession(h.session).pending,
+            live.length,
+            "every live scope queued, none resolved on the input path",
+        );
         await runFrames();
         assert.strictEqual(cacheCounters.misses - before, live.length, "one resolution per live scope");
 
@@ -138,7 +150,7 @@ describe("a freeze with live sets, at 100k nodes", () => {
 describe("the memory budget, at 100k nodes", () => {
     it("the bitmap cache stays within 64 MB plus its pins, and reports exactly the bytes it holds", async () => {
         const cache = cacheOf();
-        const {evictions} = cacheCounters;
+        const { evictions } = cacheCounters;
         // About 75 KB a resolution at this size: a thousand of them is past the bound.
         for (let i = 0; i < 1_000; i++) {
             await h.session.scope.count({ define: { kind: "fixed", nodes: [i], reading: "listed" } });
@@ -146,13 +158,19 @@ describe("the memory budget, at 100k nodes", () => {
 
         assert.isAbove(cacheCounters.evictions - evictions, 0, "the flood evicted");
         assert.isAtMost(cache.bytes - cache.pinnedBytes, 64 * MB);
-        assert.isAtLeast(cache.pinnedBytes, live.length * Math.ceil((NODES + 1) / 32) * 4, "every live layer's entry is pinned");
+        assert.isAtLeast(
+            cache.pinnedBytes,
+            live.length * Math.ceil((NODES + 1) / 32) * 4,
+            "every live layer's entry is pinned",
+        );
         const seen = new Set<unknown>();
-        const walked = cache.cached().reduce((sum, [, resolution]) => sum + reachableBytes({ ...resolution, store: null }, seen), 0);
+        const walked = cache
+            .cached()
+            .reduce((sum, [, resolution]) => sum + reachableBytes({ ...resolution, store: null }, seen), 0);
         assert.strictEqual(cache.bytes, walked);
 
         // The pinned entries survived the flood: counting the live sets resolves nothing.
-        const {misses} = cacheCounters;
+        const { misses } = cacheCounters;
         for (const id of live) {
             await h.session.scope.count({ set: id });
         }
@@ -163,7 +181,11 @@ describe("the memory budget, at 100k nodes", () => {
     it("the summary cache holds one fixed-size entry per set, whatever the set's size", async () => {
         const cache = cacheOf();
         const small = h.session.sets.create({ kind: "fixed", nodes: [1], reading: "induced" });
-        const large = h.session.sets.create({ kind: "fixed", nodes: Array.from({ length: 50_000 }, (_, i) => 2 * i), reading: "induced" });
+        const large = h.session.sets.create({
+            kind: "fixed",
+            nodes: Array.from({ length: 50_000 }, (_, i) => 2 * i),
+            reading: "induced",
+        });
         await h.session.scope.count({ set: small });
         await h.session.scope.count({ set: large });
 
@@ -177,9 +199,17 @@ describe("the memory budget, at 100k nodes", () => {
         assert.strictEqual(one?.definition, h.session.sets.get(small)?.definition);
         const { definition: _a, ...entryOne } = one;
         const { definition: _b, ...entryOther } = other;
-        assert.strictEqual(reachableBytes([...Object.values(entryOne), ...Object.values(entryOther)]), 0, "no typed array in an entry");
+        assert.strictEqual(
+            reachableBytes([...Object.values(entryOne), ...Object.values(entryOther)]),
+            0,
+            "no typed array in an entry",
+        );
         assert.deepStrictEqual(Object.keys(entryOne), Object.keys(entryOther), "the same fields");
-        assert.strictEqual(entryOne.signature.length, entryOther.signature.length, "a signature the same length at 1 and 50,000 members");
+        assert.strictEqual(
+            entryOne.signature.length,
+            entryOther.signature.length,
+            "a signature the same length at 1 and 50,000 members",
+        );
         h.session.sets.remove(small);
         h.session.sets.remove(large);
     });
@@ -189,7 +219,10 @@ describe("the memory budget, at 100k nodes", () => {
         const { nodeHash, edgeHash, edgeOrdinal, edgeAmong } = identityColumnsOf(snapshot);
 
         assert.strictEqual(nodeHash.byteLength, 8 * snapshot.nodeCount);
-        assert.strictEqual(edgeHash.byteLength + edgeOrdinal.byteLength + edgeAmong.byteLength, 16 * snapshot.edgeCount);
+        assert.strictEqual(
+            edgeHash.byteLength + edgeOrdinal.byteLength + edgeAmong.byteLength,
+            16 * snapshot.edgeCount,
+        );
     });
 
     it("a definition holds 8 bytes a node member and 20 an edge member plus its interned ids, and a resolution materialises none", async () => {
@@ -211,7 +244,10 @@ describe("the memory budget, at 100k nodes", () => {
 
         for (const [form, edges] of forms) {
             // One table interns endpoints and ids alike, so a numeric id equal to a node id shares its slot.
-            const interned = new Set<NodeId>([...ends, ...edges.flatMap((edge) => (edge.id === undefined ? [] : [edge.id]))]).size;
+            const interned = new Set<NodeId>([
+                ...ends,
+                ...edges.flatMap((edge) => (edge.id === undefined ? [] : [edge.id])),
+            ]).size;
             const id = h.session.sets.create({ kind: "fixed", nodes: [], edges, reading: "listed" }, { name: "S" });
             const record = h.session.sets.get(id);
             assert.isDefined(record);
@@ -220,12 +256,22 @@ describe("the memory budget, at 100k nodes", () => {
             assert.strictEqual(bytes, 64 + 2 + 20 * edges.length + 16 * interned, form);
 
             await h.session.scope.count({ set: id });
-            assert.strictEqual(recordBytes(h.session.sets.get(id) as NonNullable<typeof record>), bytes, `${form}: the resolution read the columns`);
+            assert.strictEqual(
+                recordBytes(h.session.sets.get(id) as NonNullable<typeof record>),
+                bytes,
+                `${form}: the resolution read the columns`,
+            );
             h.session.sets.remove(id);
         }
 
-        const nodes = h.session.sets.create({ kind: "fixed", nodes: rows.map((_, i) => i), reading: "induced" }, { name: "S" });
-        assert.strictEqual(recordBytes(h.session.sets.get(nodes) as NonNullable<ReturnType<typeof h.session.sets.get>>), 64 + 2 + 8 * rows.length);
+        const nodes = h.session.sets.create(
+            { kind: "fixed", nodes: rows.map((_, i) => i), reading: "induced" },
+            { name: "S" },
+        );
+        assert.strictEqual(
+            recordBytes(h.session.sets.get(nodes) as NonNullable<ReturnType<typeof h.session.sets.get>>),
+            64 + 2 + 8 * rows.length,
+        );
         h.session.sets.remove(nodes);
     }, 120_000);
 
@@ -240,7 +286,9 @@ describe("the memory budget, at 100k nodes", () => {
             nodeValue: (index: number) => index % 2,
             edgeValue: (row: number) => row % 2,
         };
-        const capture = captureItem(result, { field: "g", value: 0 }, snapshot, (row) => stableEdgeMember(snapshot, row));
+        const capture = captureItem(result, { field: "g", value: 0 }, snapshot, (row) =>
+            stableEdgeMember(snapshot, row),
+        );
 
         assert.isTrue(Array.isArray(capture.nodes));
         assert.strictEqual(capture.nodes?.length, Math.ceil(snapshot.nodeCount / 2));
@@ -268,9 +316,15 @@ describe("the memory budget, at 100k nodes", () => {
             const scope = graph.scope(ids.filter((_, i) => (i + k) % 3 !== 0 || i % 24 === k));
             for (const orientation of ["declared", "undirected"] as const) {
                 const holder = {};
-                admitted += createScopedInput(graph.getDataManager(), orientation, undefined, { inputs, holder, scope: () => scope }).derived().snapshot.byteLength({
-                    columns: true,
-                });
+                admitted += createScopedInput(graph.getDataManager(), orientation, undefined, {
+                    inputs,
+                    holder,
+                    scope: () => scope,
+                })
+                    .derived()
+                    .snapshot.byteLength({
+                        columns: true,
+                    });
                 inputs.releaseHolder(holder);
                 assert.isAtMost(inputs.bytes, inputs.bound);
             }

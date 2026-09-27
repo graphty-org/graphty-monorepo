@@ -30,7 +30,16 @@
 
 import { compareIds } from "../../catalog/sets/canonical";
 import { parseScope } from "../../catalog/sets/parse";
-import type { AlgorithmKey, EdgeId, NodeId, OptionDescriptor, ResultId, RunId, Scope, SetDefinition } from "../../catalog/types";
+import type {
+    AlgorithmKey,
+    EdgeId,
+    NodeId,
+    OptionDescriptor,
+    ResultId,
+    RunId,
+    Scope,
+    SetDefinition,
+} from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import { RUN_ID_PATTERN } from "./types";
 
@@ -359,7 +368,9 @@ export function freezeScope(scope: Scope, live: (keyword: LiveKeyword) => unknow
 
         const member = (node as { kind?: unknown }).kind === "member";
 
-        return Object.fromEntries(Object.entries(node).map(([key, value]) => [key, walk(value, member && key === "of")]));
+        return Object.fromEntries(
+            Object.entries(node).map(([key, value]) => [key, walk(value, member && key === "of")]),
+        );
     };
 
     return walk(legacyScope(scope), true);
@@ -403,7 +414,12 @@ export function deriveResultId(identity: ResultIdentity): ResultId {
  * @returns Its canonical text.
  */
 export function canonicalResultIdentity(identity: ResultIdentity): string {
-    return canonicalize({ algorithm: identity.algorithm, exact: identity.exact, sample: identity.sample, scope: identity.scope });
+    return canonicalize({
+        algorithm: identity.algorithm,
+        exact: identity.exact,
+        sample: identity.sample,
+        scope: identity.scope,
+    });
 }
 
 /**

@@ -126,7 +126,15 @@ async function refusal(call: () => unknown): Promise<{ code: string; reason: unk
 
 /** An offer's fields a row checks. */
 function summary(offer: SetOffer): Record<string, unknown> {
-    return { label: offer.label, value: offer.item.key.value, field: offer.item.key.field, nodes: offer.nodes, reading: offer.reading, path: offer.path, followable: offer.followable };
+    return {
+        label: offer.label,
+        value: offer.item.key.value,
+        field: offer.item.key.field,
+        nodes: offer.nodes,
+        reading: offer.reading,
+        path: offer.path,
+        followable: offer.followable,
+    };
 }
 
 describe("sets.offers: one row per result shape", () => {
@@ -138,13 +146,45 @@ describe("sets.offers: one row per result shape", () => {
 
         assert.strictEqual(more, 0);
         assert.deepStrictEqual(offers.map(summary), [
-            { label: "Community 0 (6 nodes)", value: 0, field: "group", nodes: 6, reading: "induced", path: false, followable: false },
-            { label: "Community 2 (2 nodes)", value: 2, field: "group", nodes: 2, reading: "induced", path: false, followable: false },
-            { label: "Community 1 (1 node)", value: 1, field: "group", nodes: 1, reading: "induced", path: false, followable: false },
+            {
+                label: "Community 0 (6 nodes)",
+                value: 0,
+                field: "group",
+                nodes: 6,
+                reading: "induced",
+                path: false,
+                followable: false,
+            },
+            {
+                label: "Community 2 (2 nodes)",
+                value: 2,
+                field: "group",
+                nodes: 2,
+                reading: "induced",
+                path: false,
+                followable: false,
+            },
+            {
+                label: "Community 1 (1 node)",
+                value: 1,
+                field: "group",
+                nodes: 1,
+                reading: "induced",
+                path: false,
+                followable: false,
+            },
         ]);
-        assert.deepStrictEqual(await nodeIds(h, offers[0].definition), ["a", "b", "c", "d", "e", "f"], "the first offer is the largest component");
+        assert.deepStrictEqual(
+            await nodeIds(h, offers[0].definition),
+            ["a", "b", "c", "d", "e", "f"],
+            "the first offer is the largest component",
+        );
         assert.deepStrictEqual(await counts(h, offers[0].definition), { nodes: 6, edges: 7 });
-        assert.strictEqual(offers[0].item.run, resultExecutionOf(h.session.results, id), "the item holds the execution it was read from");
+        assert.strictEqual(
+            offers[0].item.run,
+            resultExecutionOf(h.session.results, id),
+            "the item holds the execution it was read from",
+        );
     });
 
     it("layered-grouping (breadth-first search): one offer per level", async () => {
@@ -167,7 +207,18 @@ describe("sets.offers: one row per result shape", () => {
 
     it("category-table: one offer per category (no built-in algorithm has this shape, so the result is hand-built)", async () => {
         const table = new Map<string, Published>([
-            ["kinds", { shape: "category-table", nodes: perNode({ a: { category: "hub" }, c: { category: "hub" }, d: { category: "hub" }, b: { category: "leaf" } }) }],
+            [
+                "kinds",
+                {
+                    shape: "category-table",
+                    nodes: perNode({
+                        a: { category: "hub" },
+                        c: { category: "hub" },
+                        d: { category: "hub" },
+                        b: { category: "leaf" },
+                    }),
+                },
+            ],
         ]);
         const h = fixture(table);
         await run(h, "degree", "kinds");
@@ -185,13 +236,31 @@ describe("sets.offers: one row per result shape", () => {
     });
 
     it("node-set: one offer, in == true, read induced (hand-built: no built-in algorithm has this shape)", async () => {
-        const table = new Map<string, Published>([["picked", { shape: "node-set", nodes: perNode({ a: { in: true }, b: { in: true }, c: { in: false }, g: { in: true } }) }]]);
+        const table = new Map<string, Published>([
+            [
+                "picked",
+                {
+                    shape: "node-set",
+                    nodes: perNode({ a: { in: true }, b: { in: true }, c: { in: false }, g: { in: true } }),
+                },
+            ],
+        ]);
         const h = fixture(table);
         await run(h, "degree", "picked");
 
         const { offers } = h.session.sets.offers("picked");
 
-        assert.deepStrictEqual(offers.map(summary), [{ label: "In the set (3 nodes)", value: true, field: "in", nodes: 3, reading: "induced", path: false, followable: true }]);
+        assert.deepStrictEqual(offers.map(summary), [
+            {
+                label: "In the set (3 nodes)",
+                value: true,
+                field: "in",
+                nodes: 3,
+                reading: "induced",
+                path: false,
+                followable: true,
+            },
+        ]);
         assert.deepStrictEqual(await counts(h, offers[0].definition), { nodes: 3, edges: 1 });
     });
 
@@ -201,9 +270,23 @@ describe("sets.offers: one row per result shape", () => {
 
         const { offers } = h.session.sets.offers(id);
 
-        assert.deepStrictEqual(offers.map(summary), [{ label: "In the set", value: true, field: "in", nodes: undefined, reading: "listed", path: false, followable: true }]);
+        assert.deepStrictEqual(offers.map(summary), [
+            {
+                label: "In the set",
+                value: true,
+                field: "in",
+                nodes: undefined,
+                reading: "listed",
+                path: false,
+                followable: true,
+            },
+        ]);
         assert.isUndefined(offers[0].edges);
-        assert.deepStrictEqual(await counts(h, offers[0].definition), { nodes: 8, edges: 6 }, "a forest over every node but g");
+        assert.deepStrictEqual(
+            await counts(h, offers[0].definition),
+            { nodes: 8, edges: 6 },
+            "a forest over every node but g",
+        );
     });
 
     it("path (shortest path): one offer, onPath == true, read listed, a path offer", async () => {
@@ -212,7 +295,17 @@ describe("sets.offers: one row per result shape", () => {
 
         const { offers } = h.session.sets.offers(id);
 
-        assert.deepStrictEqual(offers.map(summary), [{ label: "On path", value: true, field: "onPath", nodes: undefined, reading: "listed", path: true, followable: true }]);
+        assert.deepStrictEqual(offers.map(summary), [
+            {
+                label: "On path",
+                value: true,
+                field: "onPath",
+                nodes: undefined,
+                reading: "listed",
+                path: true,
+                followable: true,
+            },
+        ]);
         assert.deepStrictEqual(await counts(h, offers[0].definition), { nodes: 4, edges: 3 });
     });
 
@@ -307,7 +400,19 @@ describe("sets.offers: limit, the edge-count pass and refusals", () => {
     it("counts an edge once for every group both its endpoints hold, in overlapping communities", async () => {
         // a: {0}, b: {0, 1}, c: {0, 1}, d: {1}. a-b and a-c are in 0; b-c in 0 and 1; c-d in 1.
         const table = new Map<string, Published>([
-            ["overlap", { shape: "community", nodes: perNode({ a: { group: [0] }, b: { group: [0, 1] }, c: { group: [0, 1] }, d: { group: [1] }, e: { group: [2] } }) }],
+            [
+                "overlap",
+                {
+                    shape: "community",
+                    nodes: perNode({
+                        a: { group: [0] },
+                        b: { group: [0, 1] },
+                        c: { group: [0, 1] },
+                        d: { group: [1] },
+                        e: { group: [2] },
+                    }),
+                },
+            ],
         ]);
         const h = fixture(table);
         await run(h, "degree", "overlap");
@@ -326,7 +431,11 @@ describe("sets.offers: limit, the edge-count pass and refusals", () => {
         );
         for (const offer of filled) {
             const resolved = await counts(h, offer.definition);
-            assert.deepStrictEqual(resolved, { nodes: offer.nodes, edges: offer.edges }, `group ${String(offer.item.key.value)} resolves to what the pass counted`);
+            assert.deepStrictEqual(
+                resolved,
+                { nodes: offer.nodes, edges: offer.edges },
+                `group ${String(offer.item.key.value)} resolves to what the pass counted`,
+            );
         }
     });
 
@@ -334,7 +443,10 @@ describe("sets.offers: limit, the edge-count pass and refusals", () => {
         const h = fixture();
         await run(h, "components", "pieces");
 
-        assert.deepStrictEqual(await refusal(() => h.session.sets.offers("nope")), { code: "E_UNKNOWN_RUN", reason: undefined });
+        assert.deepStrictEqual(await refusal(() => h.session.sets.offers("nope")), {
+            code: "E_UNKNOWN_RUN",
+            reason: undefined,
+        });
     });
 });
 
@@ -361,7 +473,11 @@ describe("sets.offers: using and keeping an offer", () => {
         const kept = await h.session.sets.createFrom(offer, { name: "Main piece" });
 
         const set = h.session.sets.get(kept);
-        assert.deepStrictEqual(set?.definition, { kind: "fixed", nodes: ["a", "b", "c", "d", "e", "f"], reading: "induced" });
+        assert.deepStrictEqual(set?.definition, {
+            kind: "fixed",
+            nodes: ["a", "b", "c", "d", "e", "f"],
+            reading: "induced",
+        });
         assert.deepStrictEqual(set?.createdFrom, { kind: "result", item: offer.item });
         assert.isString(offer.item.run);
     });
@@ -374,7 +490,11 @@ describe("sets.offers: using and keeping an offer", () => {
         const kept = await h.session.sets.createFrom(offer, { follow: true });
 
         const set = h.session.sets.get(kept);
-        assert.deepStrictEqual(set?.definition, { kind: "rule", where: { kind: "item", item: { result: id, key: { field: "level", value: 1 } } }, reading: "induced" });
+        assert.deepStrictEqual(set?.definition, {
+            kind: "rule",
+            where: { kind: "item", item: { result: id, key: { field: "level", value: 1 } } },
+            reading: "induced",
+        });
         assert.deepStrictEqual(set?.createdFrom, { kind: "result", item: offer.item });
     });
 
@@ -383,7 +503,10 @@ describe("sets.offers: using and keeping an offer", () => {
         const id = await run(h, "components", "pieces");
         const [offer] = h.session.sets.offers(id).offers;
 
-        assert.deepStrictEqual(await refusal(() => h.session.sets.createFrom(offer, { follow: true })), { code: "E_BAD_COMMAND", reason: "follow-group" });
+        assert.deepStrictEqual(await refusal(() => h.session.sets.createFrom(offer, { follow: true })), {
+            code: "E_BAD_COMMAND",
+            reason: "follow-group",
+        });
         assert.deepStrictEqual(h.session.sets.list(), []);
     });
 
@@ -419,8 +542,14 @@ describe("sets.offers: using and keeping an offer", () => {
         const [offer] = h.session.sets.offers(id).offers;
         await rerun(h, id);
 
-        assert.deepStrictEqual(await refusal(() => h.session.sets.createFrom(offer)), { code: "E_BAD_COMMAND", reason: "stale-offer" });
-        assert.deepStrictEqual(await refusal(() => h.session.sets.createFrom(offer, { follow: true })), { code: "E_BAD_COMMAND", reason: "stale-offer" });
+        assert.deepStrictEqual(await refusal(() => h.session.sets.createFrom(offer)), {
+            code: "E_BAD_COMMAND",
+            reason: "stale-offer",
+        });
+        assert.deepStrictEqual(await refusal(() => h.session.sets.createFrom(offer, { follow: true })), {
+            code: "E_BAD_COMMAND",
+            reason: "stale-offer",
+        });
         assert.deepStrictEqual(h.session.sets.list(), []);
     });
 
@@ -429,7 +558,11 @@ describe("sets.offers: using and keeping an offer", () => {
         const id = await run(h, "shortest-path", "route", { source: "a", target: "f" });
         const [offer] = h.session.sets.offers(id).offers;
         const pending: (() => void)[] = [];
-        const concrete: Concrete = { definition: { kind: "fixed", nodes: ["a"], reading: "induced" }, refs: [], createdFrom: { kind: "result", item: offer.item } };
+        const concrete: Concrete = {
+            definition: { kind: "fixed", nodes: ["a"], reading: "induced" },
+            refs: [],
+            createdFrom: { kind: "result", item: offer.item },
+        };
         const held = (): Promise<Concrete> =>
             new Promise((resolve) => {
                 pending.push(() => {
@@ -437,7 +570,11 @@ describe("sets.offers: using and keeping an offer", () => {
                 });
             });
         const materialise: Materialiser = { from: held, combine: held, path: held };
-        const sets = createSetsApi({ edgeMember: () => undefined, materialise, executionOf: (runId) => resultExecutionOf(h.session.results, runId) });
+        const sets = createSetsApi({
+            edgeMember: () => undefined,
+            materialise,
+            executionOf: (runId) => resultExecutionOf(h.session.results, runId),
+        });
 
         const fromCall = sets.createFrom(offer);
         const pathCall = sets.createPath(offer);
@@ -449,7 +586,10 @@ describe("sets.offers: using and keeping an offer", () => {
 
         assert.deepStrictEqual(await refusal(() => fromCall), { code: "E_BAD_COMMAND", reason: "stale-offer" });
         assert.deepStrictEqual(await refusal(() => pathCall), { code: "E_BAD_COMMAND", reason: "stale-offer" });
-        assert.deepStrictEqual(await refusal(() => sets.createFrom(offer)), { code: "E_BAD_COMMAND", reason: "stale-offer" });
+        assert.deepStrictEqual(await refusal(() => sets.createFrom(offer)), {
+            code: "E_BAD_COMMAND",
+            reason: "stale-offer",
+        });
         assert.strictEqual(pending.length, 2, "a call refused before the resolve never reaches it");
         assert.deepStrictEqual(sets.list(), []);
     });
@@ -460,11 +600,23 @@ describe("sets.offers: using and keeping an offer", () => {
         const [offer] = h.session.sets.offers(id).offers;
         const kept = await h.session.sets.createFrom(offer);
 
-        assert.deepStrictEqual(h.session.sets.status({ set: kept }), { freshness: "current", reasons: [], earlierRuns: [] });
+        assert.deepStrictEqual(h.session.sets.status({ set: kept }), {
+            freshness: "current",
+            reasons: [],
+            earlierRuns: [],
+        });
         await rerun(h, id);
 
-        assert.deepStrictEqual(h.session.sets.status({ set: kept }), { freshness: "current", reasons: [], earlierRuns: [id] });
+        assert.deepStrictEqual(h.session.sets.status({ set: kept }), {
+            freshness: "current",
+            reasons: [],
+            earlierRuns: [id],
+        });
         const members = await h.session.scope.resolve({ set: kept });
-        assert.deepStrictEqual([...members.nodes].map(String).sort(), ["a", "b", "c", "d", "e", "f"], "a fixed set keeps its members");
+        assert.deepStrictEqual(
+            [...members.nodes].map(String).sort(),
+            ["a", "b", "c", "d", "e", "f"],
+            "a fixed set keeps its members",
+        );
     });
 });

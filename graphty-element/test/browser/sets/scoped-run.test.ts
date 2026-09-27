@@ -37,7 +37,10 @@ describe("a run over a set", () => {
 
     it("a PageRank over a 20-node set reports 20 values, says it computed on them, and measured 20 nodes", async () => {
         const session = graph.getSession() as ElementSession;
-        const id = session.sets.create({ kind: "fixed", nodes: IDS.slice(0, 20), reading: "induced" }, { name: "First half" });
+        const id = session.sets.create(
+            { kind: "fixed", nodes: IDS.slice(0, 20), reading: "induced" },
+            { name: "First half" },
+        );
 
         const run = session.runs.start("pagerank", {}, { scope: { set: id } });
         const result = await run;
@@ -87,7 +90,10 @@ describe("a run over a set", () => {
 
     it("a source outside the set is refused E_OPTION_RANGE with outside-scope", async () => {
         const session = graph.getSession() as ElementSession;
-        const id = session.sets.create({ kind: "fixed", nodes: IDS.slice(0, 20), reading: "induced" }, { name: "First half" });
+        const id = session.sets.create(
+            { kind: "fixed", nodes: IDS.slice(0, 20), reading: "induced" },
+            { name: "First half" },
+        );
 
         let error: unknown;
         try {

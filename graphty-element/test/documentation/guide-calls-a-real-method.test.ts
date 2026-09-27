@@ -81,7 +81,9 @@ function declaredMembers(file: string): Set<string> {
     const source = readFileSync(file, "utf8");
     const names = new Set<string>();
 
-    for (const match of source.matchAll(/^\s{4}(?:(?:public|private|protected|static|readonly|async|get|set)\s+)*([A-Za-z_$][\w$]*)\s*[(:<]/gm)) {
+    for (const match of source.matchAll(
+        /^\s{4}(?:(?:public|private|protected|static|readonly|async|get|set)\s+)*([A-Za-z_$][\w$]*)\s*[(:<]/gm,
+    )) {
         names.add(match[1]);
     }
 
@@ -135,7 +137,9 @@ function callsOn(file: string, receiver: string): { name: string; line: number }
         // read as a call to `graph.json`.
         const code = text.replace(/"[^"]*"|'[^']*'|`[^`]*`/g, '""');
 
-        for (const match of code.matchAll(new RegExp(`\\b${receiver.replace(".", "\\.")}\\.([A-Za-z_$][\\w$]*)`, "g"))) {
+        for (const match of code.matchAll(
+            new RegExp(`\\b${receiver.replace(".", "\\.")}\\.([A-Za-z_$][\\w$]*)`, "g"),
+        )) {
             calls.push({ name: match[1], line: index + 1 });
         }
     });

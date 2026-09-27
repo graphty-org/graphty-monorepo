@@ -28,9 +28,15 @@ function perNode(values: Record<string, Record<string, unknown>>): Map<NodeId, R
 }
 
 /** Louvain's first answer: group 0 is a, b; group 1 is c, d, e. */
-const FIRST: Published = { shape: "community", nodes: perNode({ a: { group: 0 }, b: { group: 0 }, c: { group: 1 }, d: { group: 1 }, e: { group: 1 } }) };
+const FIRST: Published = {
+    shape: "community",
+    nodes: perNode({ a: { group: 0 }, b: { group: 0 }, c: { group: 1 }, d: { group: 1 }, e: { group: 1 } }),
+};
 /** Its second: group 1 is b, d, e. */
-const SECOND: Published = { shape: "community", nodes: perNode({ a: { group: 0 }, b: { group: 1 }, c: { group: 0 }, d: { group: 1 }, e: { group: 1 } }) };
+const SECOND: Published = {
+    shape: "community",
+    nodes: perNode({ a: { group: 0 }, b: { group: 1 }, c: { group: 0 }, d: { group: 1 }, e: { group: 1 } }),
+};
 
 /**
  * A session with a finished partition run `louv`.
@@ -75,7 +81,11 @@ async function rerun(harness: Harness, run: string): Promise<void> {
  * @returns The set id.
  */
 function holdGroup(harness: Harness, execution: string, value: number): SetId {
-    return harness.session.sets.create({ kind: "rule", where: { kind: "item", item: { result: "louv", key: { field: "group", value }, run: execution } }, reading: "induced" });
+    return harness.session.sets.create({
+        kind: "rule",
+        where: { kind: "item", item: { result: "louv", key: { field: "group", value }, run: execution } },
+        reading: "induced",
+    });
 }
 
 /**
@@ -109,7 +119,9 @@ describe("held-item captures", () => {
         table.set("louv", SECOND);
         await rerun(harness, "louv");
 
-        assert.deepStrictEqual(heldOf(harness, "louv"), { [first]: { [itemKeyOf({ field: "group", value: 1 })]: { nodes: ["c", "d", "e"] } } });
+        assert.deepStrictEqual(heldOf(harness, "louv"), {
+            [first]: { [itemKeyOf({ field: "group", value: 1 })]: { nodes: ["c", "d", "e"] } },
+        });
     });
 
     it("resolves the holding rule to the capture and reports the run as an earlier run", async () => {
@@ -118,8 +130,16 @@ describe("held-item captures", () => {
         table.set("louv", SECOND);
         await rerun(harness, "louv");
 
-        assert.deepStrictEqual(await nodesOf(harness, { set: held }), ["c", "d", "e"], "the earlier members, not the new group 1 (b, d, e)");
-        assert.deepStrictEqual(harness.session.sets.status({ set: held }), { freshness: "current", reasons: [], earlierRuns: ["louv"] });
+        assert.deepStrictEqual(
+            await nodesOf(harness, { set: held }),
+            ["c", "d", "e"],
+            "the earlier members, not the new group 1 (b, d, e)",
+        );
+        assert.deepStrictEqual(harness.session.sets.status({ set: held }), {
+            freshness: "current",
+            reasons: [],
+            earlierRuns: ["louv"],
+        });
     });
 
     it("captures an edge field's edges by stable identity and resolves them again", async () => {
@@ -176,7 +196,11 @@ describe("held-item captures", () => {
         table.set("louv", SECOND);
         await rerun(harness, "louv");
         await rerun(harness, "louv");
-        assert.deepStrictEqual(Object.keys(heldOf(harness, "louv")), [first], "still held: carried; the second execution is held by nothing");
+        assert.deepStrictEqual(
+            Object.keys(heldOf(harness, "louv")),
+            [first],
+            "still held: carried; the second execution is held by nothing",
+        );
         assert.deepStrictEqual(heldOf(harness, "louv")[first], { [key]: { nodes: ["c", "d", "e"] } });
 
         const store = setsStoreOf(harness.session.sets);
@@ -217,7 +241,13 @@ describe("held-item captures", () => {
         table.set("louv", SECOND);
         await rerun(harness, "louv");
         assert.deepStrictEqual(heldOf(harness, "louv"), {});
-        const inline: Scope = { define: { kind: "rule", where: { kind: "item", item: { result: "louv", key: { field: "group", value: 1 }, run: first } }, reading: "induced" } };
+        const inline: Scope = {
+            define: {
+                kind: "rule",
+                where: { kind: "item", item: { result: "louv", key: { field: "group", value: 1 }, run: first } },
+                reading: "induced",
+            },
+        };
         assert.deepStrictEqual(await nodesOf(harness, inline), []);
     });
 });

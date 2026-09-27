@@ -246,7 +246,10 @@ function assertSelector(selector: Selector): void {
                     throw error;
                 }
 
-                throw badShape(`A "member" selector names a scope: ${error.message}`, { of: selector.of, reason: error.details });
+                throw badShape(`A "member" selector names a scope: ${error.message}`, {
+                    of: selector.of,
+                    reason: error.details,
+                });
             }
 
             return;
@@ -274,11 +277,7 @@ function assertSelector(selector: Selector): void {
  *     when an `ids` selector is offered to a session that cannot say which id sits at which row,
  *     or a `top` selector to one that cannot rank a run's column.
  */
-export function compileSelector(
-    selector: Selector,
-    target: SelectorTarget,
-    source: SelectorSource,
-): CompiledSelector {
+export function compileSelector(selector: Selector, target: SelectorTarget, source: SelectorSource): CompiledSelector {
     assertSelector(selector);
 
     const columns = columnsFor(source, target);
@@ -287,7 +286,12 @@ export function compileSelector(
         case "everything":
             return { match: "everything", target, test: null, paths: EMPTY_PATHS };
         case "has":
-            return { match: "has", target, test: hasPredicate(columns, selector.path), paths: Object.freeze([selector.path]) };
+            return {
+                match: "has",
+                target,
+                test: hasPredicate(columns, selector.path),
+                paths: Object.freeze([selector.path]),
+            };
         case "ids": {
             const named = target === "node" ? selector.nodes : selector.edges;
             const ids = new Set<EdgeId | NodeId>(named ?? []);
@@ -318,7 +322,8 @@ export function compileSelector(
             if (source.scope === undefined) {
                 throw new GraphtyError({
                     code: "E_UNSUPPORTED",
-                    message: 'This session cannot evaluate a "member" selector, because it holds no sets to resolve one against.',
+                    message:
+                        'This session cannot evaluate a "member" selector, because it holds no sets to resolve one against.',
                     source: "style",
                     details: { match: "member" },
                 });

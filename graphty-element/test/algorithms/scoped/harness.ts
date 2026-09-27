@@ -45,7 +45,13 @@ export function runWhole(build: Build, graph: InputGraph): Promise<RunResult | u
 export function runScoped(build: Build, graph: InputGraph, scope: ResolvedInputScope): Promise<RunResult | undefined> {
     const algorithm = build(graph.asGraph());
 
-    return withRunInput(algorithm, graph, () => scope, undefined, () => algorithm.publishResult(detachedRunContext(), "r"));
+    return withRunInput(
+        algorithm,
+        graph,
+        () => scope,
+        undefined,
+        () => algorithm.publishResult(detachedRunContext(), "r"),
+    );
 }
 
 /**
@@ -69,7 +75,11 @@ export function handBuilt(graph: InputGraph, scope: ResolvedInputScope): InputGr
     const edgeSpecs: EdgeSpec[] = [];
     for (let row = 0; row < snapshot.edgeCount; row++) {
         if (maskTest(edges, row)) {
-            edgeSpecs.push([String(snapshot.ids.idOf(src[row])), String(snapshot.ids.idOf(dst[row])), weights === null ? 1 : weights[row]]);
+            edgeSpecs.push([
+                String(snapshot.ids.idOf(src[row])),
+                String(snapshot.ids.idOf(dst[row])),
+                weights === null ? 1 : weights[row],
+            ]);
         }
     }
 
@@ -179,7 +189,10 @@ export function valuesOf(
  * @param scope - The scope.
  * @returns Two predicates.
  */
-export function coveredBy(graph: InputGraph, scope: ResolvedInputScope): { node: (id: string) => boolean; edge: (row: number) => boolean } {
+export function coveredBy(
+    graph: InputGraph,
+    scope: ResolvedInputScope,
+): { node: (id: string) => boolean; edge: (row: number) => boolean } {
     const snapshot = graph.snapshot();
     const { nodes, edges } = scope.resolution;
 
@@ -197,7 +210,11 @@ export function coveredBy(graph: InputGraph, scope: ResolvedInputScope): { node:
  * @param scope - The scope.
  * @returns The scoped result.
  */
-export async function assertComputesOverScope(build: Build, graph: InputGraph, scope: ResolvedInputScope): Promise<RunResult | undefined> {
+export async function assertComputesOverScope(
+    build: Build,
+    graph: InputGraph,
+    scope: ResolvedInputScope,
+): Promise<RunResult | undefined> {
     const scoped = await runScoped(build, graph, scope);
     const hand = handBuilt(graph, scope);
     const expected = await runWhole(build, hand);
@@ -306,16 +323,16 @@ export function describeScopedAdapter(name: string, build: Build, listedFixture:
 }
 
 /** A random directed multigraph over up to ten nodes, and a scope over it. */
-const scopedGraphs = fc
-    .integer({ min: 1, max: 10 })
-    .chain((size) =>
-        fc.record({
-            size: fc.constant(size),
-            edges: fc.array(fc.tuple(fc.nat(size - 1), fc.nat(size - 1), fc.integer({ min: 1, max: 5 })), { maxLength: 30 }),
-            members: fc.array(fc.boolean(), { minLength: size, maxLength: size }),
-            listed: fc.option(fc.array(fc.boolean(), { minLength: 30, maxLength: 30 }), { nil: undefined }),
+const scopedGraphs = fc.integer({ min: 1, max: 10 }).chain((size) =>
+    fc.record({
+        size: fc.constant(size),
+        edges: fc.array(fc.tuple(fc.nat(size - 1), fc.nat(size - 1), fc.integer({ min: 1, max: 5 })), {
+            maxLength: 30,
         }),
-    );
+        members: fc.array(fc.boolean(), { minLength: size, maxLength: size }),
+        listed: fc.option(fc.array(fc.boolean(), { minLength: 30, maxLength: 30 }), { nil: undefined }),
+    }),
+);
 
 /**
  * A scoped run equals the run on the scope's graph built by hand, for generated graphs and scopes,

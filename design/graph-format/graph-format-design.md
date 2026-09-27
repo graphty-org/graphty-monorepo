@@ -179,32 +179,32 @@ freeze.
 These names are used consistently in this document, in code identifiers,
 in JSDoc, in error messages and in the four consumer packages.
 
-| Term | Meaning | Identifier |
-| --- | --- | --- |
-| node index | Dense integer `0 <= i < nodeCount`, assigned in insertion order by the builder (first `addNode` or first mention as an edge endpoint). The only way nodes are referenced inside a snapshot. | `NodeIndex` (alias of `number`) |
-| node id | The external identity of a node, `string \| number`, never coerced. Lives only in the id map and at API boundaries. | `NodeId` |
-| logical edge (edge) | One edge as the caller declared it: `(source, target[, weight, attributes])`. Index `0 <= e < edgeCount` in insertion order (compacted after removals or merges). Edge attribute columns have `edgeCount` rows. | `EdgeIndex` (alias of `number`) |
-| arc | One entry of `colIdx`: the out-arc `u -> colIdx[a]` stored in row `u`. A directed edge is one arc; an undirected edge `{u, v}`, `u !== v`, is two arcs (one in row `u`, one in row `v`); an undirected self-loop is one arc. Index `0 <= a < arcCount` in CSR order. | `ArcIndex` (alias of `number`) |
-| row | The contiguous arc range `[rowPtr[u], rowPtr[u+1])` of node `u`: its out-arcs. | -- |
-| arc-to-edge | The array giving the logical edge of every arc. | `arcToEdge: Uint32Array(arcCount)` |
-| edge-to-arc | The array giving, for every logical edge, the arc that stores the DECLARED `source -> target` orientation. | `edgeToArc: Uint32Array(edgeCount)` |
-| mate | For an undirected graph, the arc storing the opposite orientation of the same edge (a self-loop is its own mate). | `mate(): Uint32Array(arcCount)` |
-| snapshot | The frozen object: CSR core + id map + attribute tables + flags + view cache. Topology is immutable; the column SET and, for columns declared mutable, column CONTENTS are mutable side tables (section 5.8). | `GraphSnapshot` |
-| builder | The mutable accumulator that produces snapshots. Long-lived; can be frozen repeatedly. | `GraphBuilder` |
-| view | Typed arrays derived from the snapshot's topology in O(n + m), in the SAME node and edge index space, lazily computed and cached on the snapshot. Never a new snapshot. | methods on `GraphSnapshot` |
-| derived graph | A NEW snapshot produced from an existing one by a structural mapping the caller specifies, plus index maps back to the source. Not cached by the format. | `DerivedGraph` |
-| column | One attribute: a dtype, a typed data buffer, an optional validity bitmap, optional dictionary / offsets / child, and metadata. | `Column` (discriminated union) |
-| table | A set of columns with a fixed row count: `nodes` (nodeCount rows), `edges` (edgeCount rows), `graph` (1 row), extension tables (their own row count). | `AttributeTable` |
-| id map | Bijection between node ids and node indices for one snapshot. Kept outside the CSR arrays. | `NodeIdMap` |
-| remap | A `Uint32Array` mapping old index -> new index (`INVALID_INDEX` for removed) produced when a freeze compacts or a derived graph changes the index space. | `nodeRemap`, `edgeRemap` |
-| role | A format-neutral tag on a column saying what it means (`weight`, `label`, `position`, `parent`, ...). | `ColumnRole` |
-| dictionary | The string table of a dictionary-encoded column; codes are `u32`. | `DictColumn.dictionary` |
-| validity | Arrow-style bitmap: bit `r` set means row `r` holds a value; clear means "not set" (null). | `Column.validity` |
-| wire form | The plain-object, transferable, versioned representation of a snapshot (JSON manifest + `ArrayBuffer[]`). | `WireSnapshot` |
-| edge id | Optional external identity of a logical edge, `string \| number`, carried by an edge column with role `id` (section 4.6). | `EdgeId` |
-| container | The byte encoding of the wire form as one contiguous buffer (magic `GSNP`). | section 9.2 |
-| arena | One `ArrayBuffer` holding the core arrays at 256-byte-aligned offsets. | `ArenaLayout` |
-| `INVALID_INDEX` | `0xFFFFFFFF`. The one and only "no index" sentinel, for node, edge and arc indices, in JS return values and inside `Uint32Array` vectors alike. | `INVALID_INDEX` |
+| Term                | Meaning                                                                                                                                                                                                                                                              | Identifier                          |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| node index          | Dense integer `0 <= i < nodeCount`, assigned in insertion order by the builder (first `addNode` or first mention as an edge endpoint). The only way nodes are referenced inside a snapshot.                                                                          | `NodeIndex` (alias of `number`)     |
+| node id             | The external identity of a node, `string \| number`, never coerced. Lives only in the id map and at API boundaries.                                                                                                                                                  | `NodeId`                            |
+| logical edge (edge) | One edge as the caller declared it: `(source, target[, weight, attributes])`. Index `0 <= e < edgeCount` in insertion order (compacted after removals or merges). Edge attribute columns have `edgeCount` rows.                                                      | `EdgeIndex` (alias of `number`)     |
+| arc                 | One entry of `colIdx`: the out-arc `u -> colIdx[a]` stored in row `u`. A directed edge is one arc; an undirected edge `{u, v}`, `u !== v`, is two arcs (one in row `u`, one in row `v`); an undirected self-loop is one arc. Index `0 <= a < arcCount` in CSR order. | `ArcIndex` (alias of `number`)      |
+| row                 | The contiguous arc range `[rowPtr[u], rowPtr[u+1])` of node `u`: its out-arcs.                                                                                                                                                                                       | --                                  |
+| arc-to-edge         | The array giving the logical edge of every arc.                                                                                                                                                                                                                      | `arcToEdge: Uint32Array(arcCount)`  |
+| edge-to-arc         | The array giving, for every logical edge, the arc that stores the DECLARED `source -> target` orientation.                                                                                                                                                           | `edgeToArc: Uint32Array(edgeCount)` |
+| mate                | For an undirected graph, the arc storing the opposite orientation of the same edge (a self-loop is its own mate).                                                                                                                                                    | `mate(): Uint32Array(arcCount)`     |
+| snapshot            | The frozen object: CSR core + id map + attribute tables + flags + view cache. Topology is immutable; the column SET and, for columns declared mutable, column CONTENTS are mutable side tables (section 5.8).                                                        | `GraphSnapshot`                     |
+| builder             | The mutable accumulator that produces snapshots. Long-lived; can be frozen repeatedly.                                                                                                                                                                               | `GraphBuilder`                      |
+| view                | Typed arrays derived from the snapshot's topology in O(n + m), in the SAME node and edge index space, lazily computed and cached on the snapshot. Never a new snapshot.                                                                                              | methods on `GraphSnapshot`          |
+| derived graph       | A NEW snapshot produced from an existing one by a structural mapping the caller specifies, plus index maps back to the source. Not cached by the format.                                                                                                             | `DerivedGraph`                      |
+| column              | One attribute: a dtype, a typed data buffer, an optional validity bitmap, optional dictionary / offsets / child, and metadata.                                                                                                                                       | `Column` (discriminated union)      |
+| table               | A set of columns with a fixed row count: `nodes` (nodeCount rows), `edges` (edgeCount rows), `graph` (1 row), extension tables (their own row count).                                                                                                                | `AttributeTable`                    |
+| id map              | Bijection between node ids and node indices for one snapshot. Kept outside the CSR arrays.                                                                                                                                                                           | `NodeIdMap`                         |
+| remap               | A `Uint32Array` mapping old index -> new index (`INVALID_INDEX` for removed) produced when a freeze compacts or a derived graph changes the index space.                                                                                                             | `nodeRemap`, `edgeRemap`            |
+| role                | A format-neutral tag on a column saying what it means (`weight`, `label`, `position`, `parent`, ...).                                                                                                                                                                | `ColumnRole`                        |
+| dictionary          | The string table of a dictionary-encoded column; codes are `u32`.                                                                                                                                                                                                    | `DictColumn.dictionary`             |
+| validity            | Arrow-style bitmap: bit `r` set means row `r` holds a value; clear means "not set" (null).                                                                                                                                                                           | `Column.validity`                   |
+| wire form           | The plain-object, transferable, versioned representation of a snapshot (JSON manifest + `ArrayBuffer[]`).                                                                                                                                                            | `WireSnapshot`                      |
+| edge id             | Optional external identity of a logical edge, `string \| number`, carried by an edge column with role `id` (section 4.6).                                                                                                                                            | `EdgeId`                            |
+| container           | The byte encoding of the wire form as one contiguous buffer (magic `GSNP`).                                                                                                                                                                                          | section 9.2                         |
+| arena               | One `ArrayBuffer` holding the core arrays at 256-byte-aligned offsets.                                                                                                                                                                                               | `ArenaLayout`                       |
+| `INVALID_INDEX`     | `0xFFFFFFFF`. The one and only "no index" sentinel, for node, edge and arc indices, in JS return values and inside `Uint32Array` vectors alike.                                                                                                                      | `INVALID_INDEX`                     |
 
 Words deliberately NOT used for exported types: `Graph`, `Node`, `Edge`
 (three incompatible types with those names already exist in the monorepo),
@@ -247,37 +247,37 @@ accept them without casts.
 ```typescript
 export declare class GraphSnapshot implements AdjacencyView {
     // ---- identity ----
-    readonly serial: number;               // process-unique identity of the CORE; shared by withColumns() snapshots (section 5.8)
-    readonly label: string | null;         // debugging aid supplied at freeze
-    readonly formatVersion: 1;             // data-model major (section 13.5)
+    readonly serial: number; // process-unique identity of the CORE; shared by withColumns() snapshots (section 5.8)
+    readonly label: string | null; // debugging aid supplied at freeze
+    readonly formatVersion: 1; // data-model major (section 13.5)
 
     // ---- counts ----
     readonly directed: boolean;
-    readonly nodeCount: number;            // n, <= MAX_COUNT
-    readonly edgeCount: number;            // logical edges
-    readonly arcCount: number;             // colIdx.length
-    readonly selfLoopCount: number;        // logical edges with source === target
+    readonly nodeCount: number; // n, <= MAX_COUNT
+    readonly edgeCount: number; // logical edges
+    readonly arcCount: number; // colIdx.length
+    readonly selfLoopCount: number; // logical edges with source === target
 
     // ---- CSR core: immutable, 4-byte element arrays over ArrayBuffer ----
-    readonly rowPtr: U32;                  // nodeCount + 1
-    readonly colIdx: U32;                  // arcCount; target node index of each arc; sorted within each row; length 0 when arcCount === 0
-    readonly weights: F32 | null;          // arcCount; null when unweighted (every weight is 1)
-    readonly arcToEdge: U32;               // arcCount; logical edge of each arc (lazily materialised when identity)
-    readonly edgeToArc: U32;               // edgeCount; arc holding the declared orientation (lazily materialised when identity)
+    readonly rowPtr: U32; // nodeCount + 1
+    readonly colIdx: U32; // arcCount; target node index of each arc; sorted within each row; length 0 when arcCount === 0
+    readonly weights: F32 | null; // arcCount; null when unweighted (every weight is 1)
+    readonly arcToEdge: U32; // arcCount; logical edge of each arc (lazily materialised when identity)
+    readonly edgeToArc: U32; // edgeCount; arc holding the declared orientation (lazily materialised when identity)
 
     // ---- flags kernels branch on (section 3.8) ----
     readonly flags: SnapshotFlags;
 
     // ---- side structures ----
-    readonly ids: NodeIdMap;               // section 4
-    readonly nodes: AttributeTable;        // rowCount === nodeCount, section 5
-    readonly edges: AttributeTable;        // rowCount === edgeCount
-    readonly graph: AttributeTable;        // rowCount === 1
-    readonly extensions: ReadonlyMap<string, AttributeTable>;   // section 5.10 (temporal tables)
-    readonly meta: GraphMeta;              // section 5.9
-    readonly arena: ArenaLayout | null;    // section 10.3; null when arrays were adopted from separate buffers
-    get detached(): boolean;               // rowPtr.length === 0: the core was transferred away (section 9.4)
-    readonly [SNAPSHOT_BRAND]: true;       // Symbol.for brand read by isGraphSnapshot() (section 7.5)
+    readonly ids: NodeIdMap; // section 4
+    readonly nodes: AttributeTable; // rowCount === nodeCount, section 5
+    readonly edges: AttributeTable; // rowCount === edgeCount
+    readonly graph: AttributeTable; // rowCount === 1
+    readonly extensions: ReadonlyMap<string, AttributeTable>; // section 5.10 (temporal tables)
+    readonly meta: GraphMeta; // section 5.9
+    readonly arena: ArenaLayout | null; // section 10.3; null when arrays were adopted from separate buffers
+    get detached(): boolean; // rowPtr.length === 0: the core was transferred away (section 9.4)
+    readonly [SNAPSHOT_BRAND]: true; // Symbol.for brand read by isGraphSnapshot() (section 7.5)
     // methods: sections 3.9, 7, 9, 11
 }
 ```
@@ -290,13 +290,13 @@ storage binding, so section 10.5 tells the GPU package what to do.
 
 Dtype and length of every core array:
 
-| Array | Dtype | Length | Contents |
-| --- | --- | --- | --- |
-| `rowPtr` | u32 | n + 1 | `rowPtr[0] === 0`; `rowPtr[u+1] - rowPtr[u]` is the out-arc count of `u` |
-| `colIdx` | u32 | arcCount | target node index of arc `a`; the source is the row containing `a`; non-decreasing within a row |
-| `weights` | f32 | arcCount | weight of logical edge `arcToEdge[a]`; both arcs of an undirected edge carry the same value |
-| `arcToEdge` | u32 | arcCount | logical edge index of arc `a` |
-| `edgeToArc` | u32 | edgeCount | the arc `a` in row `source(e)` with `colIdx[a] === target(e)` and `arcToEdge[a] === e` (the declared orientation) |
+| Array       | Dtype | Length    | Contents                                                                                                          |
+| ----------- | ----- | --------- | ----------------------------------------------------------------------------------------------------------------- |
+| `rowPtr`    | u32   | n + 1     | `rowPtr[0] === 0`; `rowPtr[u+1] - rowPtr[u]` is the out-arc count of `u`                                          |
+| `colIdx`    | u32   | arcCount  | target node index of arc `a`; the source is the row containing `a`; non-decreasing within a row                   |
+| `weights`   | f32   | arcCount  | weight of logical edge `arcToEdge[a]`; both arcs of an undirected edge carry the same value                       |
+| `arcToEdge` | u32   | arcCount  | logical edge index of arc `a`                                                                                     |
+| `edgeToArc` | u32   | edgeCount | the arc `a` in row `source(e)` with `colIdx[a] === target(e)` and `arcToEdge[a] === e` (the declared orientation) |
 
 `arcToEdge` and `edgeToArc` are declared as plain `readonly U32`
 properties (C6). When the permutation is the identity (a directed graph
@@ -342,7 +342,7 @@ Structure:
   in `rowPtr`, `colIdx`, `arcToEdge`, `edgeToArc` or any view array.
 - I3. `nodeCount <= MAX_COUNT`, `edgeCount <= MAX_COUNT`,
   `arcCount <= MAX_COUNT`, where `MAX_COUNT = 0xFFFFFFFE`; `edgeCount <=
-  arcCount`. Arc indices may exceed `2^31`, so consumers never apply JS
+arcCount`. Arc indices may exceed `2^31`, so consumers never apply JS
   bitwise operators to them (`x & ~63` is negative above `2^31`; write
   `x - (x % 64)`, section 10.6).
 - I4. Sorted rows: within every row, `colIdx` is non-decreasing, and arcs
@@ -359,7 +359,7 @@ Structure:
   row `u` with `colIdx[a] === v` and `u !== v` there is exactly one arc
   `b` in row `v` with `colIdx[b] === u` and `arcToEdge[b] === arcToEdge[a]`;
   a self-loop edge has exactly one arc; `arcCount === 2 * edgeCount -
-  selfLoopCount`; `weights[a] === weights[b]` when weighted. Consequently
+selfLoopCount`; `weights[a] === weights[b]` when weighted. Consequently
   `reverse()` returns the forward arrays themselves.
 - I8. `weights === null` or `weights.length === arcCount`; no element is
   `NaN`. `+Infinity` and `-Infinity` are legal and reported by
@@ -383,7 +383,7 @@ Ids and columns:
 
 - I11. `ids` is a bijection between `[0, nodeCount)` and the id set of the
   snapshot: `ids.indexOf(ids.idOf(i)) === i` for every `i`, `ids.size ===
-  nodeCount`, equality is SameValueZero, no id is `NaN`.
+nodeCount`, equality is SameValueZero, no id is `NaN`.
 - I12. `nodes.rowCount === nodeCount`, `edges.rowCount === edgeCount`,
   `graph.rowCount === 1`; every column obeys its own length rules (section
   5.7); dictionary codes of valid rows are `< dictionary.length`;
@@ -406,11 +406,11 @@ Order and stability:
   the earlier snapshot's node indices and edge indices are a prefix of the
   later snapshot's. `freezeWithReport` returns `nodeRemap === null` exactly
   when step 1 of section 6.3 did not renumber nodes, and `edgeRemap ===
-  null` exactly when neither step 1 nor step 7 renumbered edges; the two
+null` exactly when neither step 1 nor step 7 renumbered edges; the two
   are independent (a `removeNode` followed by a reviving `addNode` of the
   same id before the freeze leaves nodes prefix-stable while the removed
   incident edges still compact, so `nodeRemap === null` with `edgeRemap
-  !== null` is a legal report). For the FIRST freeze of a builder the
+!== null` is a legal report). For the FIRST freeze of a builder the
   "old" index space is the builder's own (`nodeBound` / `edgeBound` before
   step 1), so a removal before the first freeze is reported like any
   other.
@@ -453,7 +453,7 @@ Consequences:
   logical edge; the binding an edge-parallel kernel uses, section 10.1),
   or iterate arcs and keep `a` only when `a === edgeToArc[arcToEdge[a]]`
   (two dependent gathers per arc; CPU-side only). The old `source >
-  target` string-coercing comparison in `@graphty/algorithms` disappears.
+target` string-coercing comparison in `@graphty/algorithms` disappears.
   A "canonical COO" (arcs with `src <= dst`) asked for by research note 09
   is superseded by `edgeList()` (decision log, section 17.1 C19).
 - Edge attributes exist once per logical edge (I13); a per-arc result is
@@ -472,11 +472,11 @@ Two degree conventions exist in the wild (the layout package's
 twice), so the snapshot names both as views (C20, Q1) and no consumer
 package hides an adjustment:
 
-| View | Directed graph | Undirected graph |
-| --- | --- | --- |
-| `outDegree()[u]` | `rowPtr[u+1] - rowPtr[u]` | same (loop counted once) |
-| `inDegree()[u]` | count of arcs with `colIdx === u` | alias of `outDegree()` |
-| `degree()[u]` (graph-theoretic, NetworkX convention) | `inDegree[u] + outDegree[u]` | `outDegree[u] + selfLoopsPerNode()[u]` (loop counts twice) |
+| View                                                 | Directed graph                    | Undirected graph                                           |
+| ---------------------------------------------------- | --------------------------------- | ---------------------------------------------------------- |
+| `outDegree()[u]`                                     | `rowPtr[u+1] - rowPtr[u]`         | same (loop counted once)                                   |
+| `inDegree()[u]`                                      | count of arcs with `colIdx === u` | alias of `outDegree()`                                     |
+| `degree()[u]` (graph-theoretic, NetworkX convention) | `inDegree[u] + outDegree[u]`      | `outDegree[u] + selfLoopsPerNode()[u]` (loop counts twice) |
 
 `selfLoopsPerNode()` and `selfLoopArcs()` (section 7.2) are the building
 blocks. `@graphty/layout` uses `outDegree()` for parity with its existing
@@ -703,16 +703,16 @@ read `rowPtr[u]` / `rowPtr[u + 1]` directly (every worked port in section
 
 ```typescript
 export declare class GraphSnapshot {
-    outArcs(u: number): readonly [start: number, end: number];   // [rowPtr[u], rowPtr[u + 1]]; allocates
-    outDegreeOf(u: number): number;                              // rowPtr[u + 1] - rowPtr[u]
-    findArc(u: number, v: number): number;                       // first arc u -> v or INVALID_INDEX; binary search
+    outArcs(u: number): readonly [start: number, end: number]; // [rowPtr[u], rowPtr[u + 1]]; allocates
+    outDegreeOf(u: number): number; // rowPtr[u + 1] - rowPtr[u]
+    findArc(u: number, v: number): number; // first arc u -> v or INVALID_INDEX; binary search
     hasArc(u: number, v: number): boolean;
-    arcsBetween(u: number, v: number): readonly [lo: number, hi: number];   // allocates
+    arcsBetween(u: number, v: number): readonly [lo: number, hi: number]; // allocates
     multiplicity(u: number, v: number): number;
-    arcSource(a: number): number;                                // row of arc a; O(1) after coo(), else binary search on rowPtr
-    edgeSource(e: number): number;                               // arcSource(edgeToArc[e])
-    edgeTarget(e: number): number;                               // colIdx[edgeToArc[e]]
-    edgeIndexOf(id: EdgeId): number;                             // via the role "id" edge column; INVALID_INDEX on miss
+    arcSource(a: number): number; // row of arc a; O(1) after coo(), else binary search on rowPtr
+    edgeSource(e: number): number; // arcSource(edgeToArc[e])
+    edgeTarget(e: number): number; // colIdx[edgeToArc[e]]
+    edgeIndexOf(id: EdgeId): number; // via the role "id" edge column; INVALID_INDEX on miss
 }
 ```
 
@@ -767,23 +767,23 @@ same rule in one import call (section 8.4).
 `fromEdgeArrays` / `fromCsr` / `fromWire`) by inspecting the ids once in
 O(n):
 
-| kind | Condition | index -> id | id -> index | Bytes / node |
-| --- | --- | --- | --- | --- |
-| `identity` | every id is a number and `id === index + offset` for one integer `offset` (0 or 1 in practice: SNAP, Pajek, GML, d3 index links, `fromEdgeArrays` without ids) | arithmetic | arithmetic + range check | 0 |
-| `dense` | every id is an integer in `[0, MAX_COUNT)`, all distinct, and `maxId + 1 <= 2 * nodeCount` (SNAP-style non-contiguous ids) | `Uint32Array(n)` | `Uint32Array(maxId + 1)` filled with `INVALID_INDEX` | 4 + 4..8 |
-| `numeric` | every id is a number, no other pattern | the builder's `ids` JS array (shared) and/or `Float64Array(n)` (wire), two caches of one value, materialised lazily in either direction like the string store below | `Map<number, number>` (shared from the builder or built lazily) | 8 + ~40 when the Map exists |
-| `string` | every id is a string | decoded `string[]` and/or Utf8 store (`Uint32Array(n + 1)` offsets + `Uint8Array` bytes), see below | `Map<string, number>` | 8 + bytes + ~60 (Map + string) |
-| `mixed` | otherwise | the builder's `ids` array (shared) and/or `Uint8Array(n)` tag (0 number, 1 string) + `Float64Array(n)` + the string store (wire; lazily materialised) | one `Map<NodeId, number>` (a JS Map already distinguishes types) | 13 + bytes + Map |
+| kind       | Condition                                                                                                                                                      | index -> id                                                                                                                                                         | id -> index                                                      | Bytes / node                   |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------ |
+| `identity` | every id is a number and `id === index + offset` for one integer `offset` (0 or 1 in practice: SNAP, Pajek, GML, d3 index links, `fromEdgeArrays` without ids) | arithmetic                                                                                                                                                          | arithmetic + range check                                         | 0                              |
+| `dense`    | every id is an integer in `[0, MAX_COUNT)`, all distinct, and `maxId + 1 <= 2 * nodeCount` (SNAP-style non-contiguous ids)                                     | `Uint32Array(n)`                                                                                                                                                    | `Uint32Array(maxId + 1)` filled with `INVALID_INDEX`             | 4 + 4..8                       |
+| `numeric`  | every id is a number, no other pattern                                                                                                                         | the builder's `ids` JS array (shared) and/or `Float64Array(n)` (wire), two caches of one value, materialised lazily in either direction like the string store below | `Map<number, number>` (shared from the builder or built lazily)  | 8 + ~40 when the Map exists    |
+| `string`   | every id is a string                                                                                                                                           | decoded `string[]` and/or Utf8 store (`Uint32Array(n + 1)` offsets + `Uint8Array` bytes), see below                                                                 | `Map<string, number>`                                            | 8 + bytes + ~60 (Map + string) |
+| `mixed`    | otherwise                                                                                                                                                      | the builder's `ids` array (shared) and/or `Uint8Array(n)` tag (0 number, 1 string) + `Float64Array(n)` + the string store (wire; lazily materialised)               | one `Map<NodeId, number>` (a JS Map already distinguishes types) | 13 + bytes + Map               |
 
 Rules:
 
 - The builder keeps a `Map<NodeId, number>` and an `ids: (string |
-  number)[]` array from the first non-anonymous `addNode` onward
+number)[]` array from the first non-anonymous `addNode` onward
   (`addAnonymousNodes` needs neither, section 6.6); it needs both to make
   `addNode` idempotent and to resolve `addEdge(id, id)` (C17: eager).
 - At freeze the snapshot's `numeric`, `string` or `mixed` map SHARES the
   builder's `Map` and `ids` array by reference, guarded by `index <
-  nodeCount`: entries with a larger index belong to the builder's future
+nodeCount`: entries with a larger index belong to the builder's future
   and are invisible to the snapshot. This is correct because indices are
   append-only between compactions (I16). A compacting freeze builds
   FRESH, compacted `Map` and `ids` objects for the builder and the NEW
@@ -819,23 +819,23 @@ export type NodeIdMapKind = "identity" | "dense" | "numeric" | "string" | "mixed
 
 export declare class NodeIdMap implements Iterable<NodeId> {
     readonly kind: NodeIdMapKind;
-    readonly size: number;                          // === nodeCount
-    readonly offset: number;                        // identity only; else 0
-    idOf(index: number): NodeId;                    // throws E_INDEX_RANGE when index >= size
-    indexOf(id: NodeId): number;                    // INVALID_INDEX when absent (C9)
+    readonly size: number; // === nodeCount
+    readonly offset: number; // identity only; else 0
+    idOf(index: number): NodeId; // throws E_INDEX_RANGE when index >= size
+    indexOf(id: NodeId): number; // INVALID_INDEX when absent (C9)
     has(id: NodeId): boolean;
-    requireIndex(id: NodeId): number;               // throws E_UNKNOWN_NODE when absent
+    requireIndex(id: NodeId): number; // throws E_UNKNOWN_NODE when absent
     indicesOf(ids: Iterable<NodeId>, onMissing?: "invalid" | "throw"): U32;
-    idsSlice(start?: number, end?: number): NodeId[];   // bulk decode, one pass
-    toArray(): NodeId[];                            // fresh array in index order
+    idsSlice(start?: number, end?: number): NodeId[]; // bulk decode, one pass
+    toArray(): NodeId[]; // fresh array in index order
     [Symbol.iterator](): IterableIterator<NodeId>;
     // boundary helpers for index-aligned result vectors (generic over the vector element type, C11)
     toMap<T>(values: ArrayLike<T>): Map<NodeId, T>;
-    toStringMap<T>(values: ArrayLike<T>): Map<string, T>;   // String(id) keys; legacy Map<string, T> result shapes
-    toRecord<T>(values: ArrayLike<T>): Record<string, T>;   // String(id) keys; legacy result shapes only
+    toStringMap<T>(values: ArrayLike<T>): Map<string, T>; // String(id) keys; legacy Map<string, T> result shapes
+    toRecord<T>(values: ArrayLike<T>): Record<string, T>; // String(id) keys; legacy result shapes only
     entries<T>(values: ArrayLike<T>): IterableIterator<[NodeId, T]>;
-    stringIndex(): ReadonlyMap<string, number>;     // String(idOf(i)) -> i; built lazily once; for legacy string-typed id parameters
-    byteLength(): number;                           // typed storage only; excludes the Map and JS strings
+    stringIndex(): ReadonlyMap<string, number>; // String(idOf(i)) -> i; built lazily once; for legacy string-typed id parameters
+    byteLength(): number; // typed storage only; excludes the Map and JS strings
 }
 ```
 
@@ -869,7 +869,7 @@ behaviour. `has(id)` is for boolean tests.
   `INVALID_INDEX`), where "old" is the index space of the previous freeze
   of the same builder (plus anything appended since), or the builder's own
   index space for the first freeze (I16). `remapArray(data, remap,
-  newLength, fill, components)` (section 5.11) carries raw index-aligned
+newLength, fill, components)` (section 5.11) carries raw index-aligned
   arrays such as positions across; `remapColumn(column, remap, newLength)`
   does the same for a `Column`. Removal is rare (research note 04, paths
   M4/M5).
@@ -879,13 +879,13 @@ behaviour. `has(id)` is for boolean tests.
 
 ### 4.5 Serialisability
 
-| kind | Wire form (section 9.1) |
-| --- | --- |
-| `identity` | `{ kind: "identity", size, offset }` |
-| `dense` | `{ kind: "dense", size, values: u32 buffer }` (the inverse array is rebuilt on load) |
-| `numeric` | `{ kind: "numeric", size, values: f64 buffer }` |
-| `string` | `{ kind: "string", size, offsets: u32 buffer, utf8: u8 buffer }` |
-| `mixed` | `{ kind: "mixed", size, tags: u8 buffer, numbers: f64 buffer (0 where string), offsets: u32 buffer, utf8: u8 buffer }` |
+| kind       | Wire form (section 9.1)                                                                                                |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `identity` | `{ kind: "identity", size, offset }`                                                                                   |
+| `dense`    | `{ kind: "dense", size, values: u32 buffer }` (the inverse array is rebuilt on load)                                   |
+| `numeric`  | `{ kind: "numeric", size, values: f64 buffer }`                                                                        |
+| `string`   | `{ kind: "string", size, offsets: u32 buffer, utf8: u8 buffer }`                                                       |
+| `mixed`    | `{ kind: "mixed", size, tags: u8 buffer, numbers: f64 buffer (0 where string), offsets: u32 buffer, utf8: u8 buffer }` |
 
 All buffers are transferable; the reverse `Map` is never serialised.
 `structuredClone(idMap)` of the class instance is not supported; always go
@@ -921,18 +921,18 @@ objects exist anywhere.
 
 ### 5.1 Dtypes
 
-| dtype | Data buffer | Extra buffers | GPU eligibility (section 10.4) | Typical sources |
-| --- | --- | --- | --- | --- |
-| `f32` | `Float32Array(rows * components)` | -- | `direct` | positions, layout mass/size, GPU results, declared `float` |
-| `f64` | `Float64Array(rows * components)` | -- | `convert` (cached f32 copy) | JSON numbers; GEXF/GraphML `double`, `long`; GML `real`; timestamps; CPU results |
-| `i32` | `Int32Array(rows * components)` | -- | `direct` | GEXF `integer`/`short`/`byte`; GraphML `int`; GML `int` |
-| `u32` | `Uint32Array(rows * components)` | -- | `direct` | index references (`parent`, `pair`), labels, partitions, dictionary codes, remaps |
-| `u8` | `Uint8Array(rows * components)` over a store from which a zero-copy `Uint32Array` view is constructible (section 5.7) | -- | `packed` (4 per u32 word, `unpack4xU8`) | small enums, byte flags, colour bytes |
-| `bool` | `Uint32Array(ceil(rows / 32))` bit-packed, LSB-first: the Arrow boolean layout, identical to the validity bitmap and to `NodeMask` / `EdgeMask` (one bitmap layout in the package, C13) | -- | `packed` (32 per word, `(w[r >> 5u] >> (r & 31u)) & 1u`) | GEXF/GraphML/Neo4j booleans, `fixed`, `hidden`, `graphty.directed` |
-| `dict` | `Uint32Array(rows)` codes | `dictionary: readonly string[]` (wire: offsets + utf8) | `direct` (codes only) | categories, `kind`, Neo4j labels/type, GEXF `<options>` |
-| `string` | Utf8 store: `Uint32Array(rows + 1)` offsets + `Uint8Array` utf8, plus a lazily decoded `string[]` cache (section 4.2 rule for ids applies) | -- | `none` | free text, urls, names |
-| `list` | `Uint32Array(rows + 1)` offsets | `child: Column` of any dtype except `list` (one level, Q23), non-nullable | `none` (a consumer may upload the child with its offsets) | GEXF list types, Neo4j arrays, Cytoscape `classes`, GML repeated keys, spells |
-| `json` | `unknown[]` (wire: JSON text in a utf8 buffer) | -- | `none` | nested objects: GEXF `viz:color`, yFiles geometry, node-link nested dicts (C22) |
+| dtype    | Data buffer                                                                                                                                                                             | Extra buffers                                                             | GPU eligibility (section 10.4)                            | Typical sources                                                                   |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `f32`    | `Float32Array(rows * components)`                                                                                                                                                       | --                                                                        | `direct`                                                  | positions, layout mass/size, GPU results, declared `float`                        |
+| `f64`    | `Float64Array(rows * components)`                                                                                                                                                       | --                                                                        | `convert` (cached f32 copy)                               | JSON numbers; GEXF/GraphML `double`, `long`; GML `real`; timestamps; CPU results  |
+| `i32`    | `Int32Array(rows * components)`                                                                                                                                                         | --                                                                        | `direct`                                                  | GEXF `integer`/`short`/`byte`; GraphML `int`; GML `int`                           |
+| `u32`    | `Uint32Array(rows * components)`                                                                                                                                                        | --                                                                        | `direct`                                                  | index references (`parent`, `pair`), labels, partitions, dictionary codes, remaps |
+| `u8`     | `Uint8Array(rows * components)` over a store from which a zero-copy `Uint32Array` view is constructible (section 5.7)                                                                   | --                                                                        | `packed` (4 per u32 word, `unpack4xU8`)                   | small enums, byte flags, colour bytes                                             |
+| `bool`   | `Uint32Array(ceil(rows / 32))` bit-packed, LSB-first: the Arrow boolean layout, identical to the validity bitmap and to `NodeMask` / `EdgeMask` (one bitmap layout in the package, C13) | --                                                                        | `packed` (32 per word, `(w[r >> 5u] >> (r & 31u)) & 1u`)  | GEXF/GraphML/Neo4j booleans, `fixed`, `hidden`, `graphty.directed`                |
+| `dict`   | `Uint32Array(rows)` codes                                                                                                                                                               | `dictionary: readonly string[]` (wire: offsets + utf8)                    | `direct` (codes only)                                     | categories, `kind`, Neo4j labels/type, GEXF `<options>`                           |
+| `string` | Utf8 store: `Uint32Array(rows + 1)` offsets + `Uint8Array` utf8, plus a lazily decoded `string[]` cache (section 4.2 rule for ids applies)                                              | --                                                                        | `none`                                                    | free text, urls, names                                                            |
+| `list`   | `Uint32Array(rows + 1)` offsets                                                                                                                                                         | `child: Column` of any dtype except `list` (one level, Q23), non-nullable | `none` (a consumer may upload the child with its offsets) | GEXF list types, Neo4j arrays, Cytoscape `classes`, GML repeated keys, spells     |
+| `json`   | `unknown[]` (wire: JSON text in a utf8 buffer)                                                                                                                                          | --                                                                        | `none`                                                    | nested objects: GEXF `viz:color`, yFiles geometry, node-link nested dicts (C22)   |
 
 Not provided: `i64`/`u64` (`BigInt64Array` has no WGSL counterpart and no
 consumer); `f16` (not in the ES2020 lib, not in Node 22, `shader-f16`
@@ -953,7 +953,7 @@ Dtype rules (C4):
 - Type inference for untyped sources (CSV cells, GML values, DOT strings,
   `fromRecords`, `addNodeRecord`) runs per COLUMN, never per cell, widening
   monotonically in the order `(unset) -> bool -> i32 -> f64 -> string ->
-  json`. Inference never yields `f32` (f32 silently corrupts `0.1` and
+json`. Inference never yields `f32` (f32 silently corrupts `0.1` and
   integers above 2^24). A column that saw `1` and then `"01"` becomes
   `string` for all rows. Widening after rows were written reallocates the
   column once (O(rows), at most four times); the builder reports it in
@@ -1092,25 +1092,25 @@ Two shapes exist: `ColumnDecl` is the INPUT to `declareNodeColumn` /
 rule of section 12.1). The complete definitions are in section 12.2; the
 fields and their meaning:
 
-| Field | Meaning |
-| --- | --- |
-| `name` | unique within its table; case-sensitive; dotted names allowed (section 5.9) |
-| `domain` | `"node" \| "edge" \| "graph" \| "extension"` |
-| `dtype` | section 5.1 |
-| `components` | `>= 1`; only `> 1` for `f32 f64 i32 u32 u8` |
-| `itemDtype` | `list` only: the child dtype |
-| `itemComponents` | `list` only: the child's `components` (spells: `2`) |
-| `nullable` | whether a validity bitmap may exist |
-| `mutable` | contents may be written in place on a snapshot (section 5.8) |
-| `role` | section 5.6 |
-| `refersTo` | `"node" \| "edge" \| null`: a `u32` column (or a `list` whose child is `u32`) holding indices, rewritten by every remap and every derived graph (section 5.11) |
-| `unique` | enforced at freeze over set rows (`E_DUPLICATE_EDGE_ID` / `E_DUPLICATE_ID`) |
-| `default` | declared default (GEXF/GraphML), returned by `value()` for unset rows |
-| `fill` | value physically stored in unset rows (default: the declared `default` when representable in the dtype, else `0` / `""` / `false`; section 5.3) |
-| `options` | declared enum (GEXF `<options>`); for `dict` the dictionary itself |
-| `origin` | `{ format, id, title, type, namespace }`: GEXF attribute id, GraphML key id, declared type text (`"long"`, `"anyURI"`, `"liststring"`, `"date"`), namespace (`"viz"`, `"yfiles"`, `"neo4j"`) |
-| `dynamic` | GEXF dynamic attribute: values live in the temporal extension table (section 5.10) |
-| `extra` | anything an importer wants to survive (JSON-serialisable) |
+| Field            | Meaning                                                                                                                                                                                      |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`           | unique within its table; case-sensitive; dotted names allowed (section 5.9)                                                                                                                  |
+| `domain`         | `"node" \| "edge" \| "graph" \| "extension"`                                                                                                                                                 |
+| `dtype`          | section 5.1                                                                                                                                                                                  |
+| `components`     | `>= 1`; only `> 1` for `f32 f64 i32 u32 u8`                                                                                                                                                  |
+| `itemDtype`      | `list` only: the child dtype                                                                                                                                                                 |
+| `itemComponents` | `list` only: the child's `components` (spells: `2`)                                                                                                                                          |
+| `nullable`       | whether a validity bitmap may exist                                                                                                                                                          |
+| `mutable`        | contents may be written in place on a snapshot (section 5.8)                                                                                                                                 |
+| `role`           | section 5.6                                                                                                                                                                                  |
+| `refersTo`       | `"node" \| "edge" \| null`: a `u32` column (or a `list` whose child is `u32`) holding indices, rewritten by every remap and every derived graph (section 5.11)                               |
+| `unique`         | enforced at freeze over set rows (`E_DUPLICATE_EDGE_ID` / `E_DUPLICATE_ID`)                                                                                                                  |
+| `default`        | declared default (GEXF/GraphML), returned by `value()` for unset rows                                                                                                                        |
+| `fill`           | value physically stored in unset rows (default: the declared `default` when representable in the dtype, else `0` / `""` / `false`; section 5.3)                                              |
+| `options`        | declared enum (GEXF `<options>`); for `dict` the dictionary itself                                                                                                                           |
+| `origin`         | `{ format, id, title, type, namespace }`: GEXF attribute id, GraphML key id, declared type text (`"long"`, `"anyURI"`, `"liststring"`, `"date"`), namespace (`"viz"`, `"yfiles"`, `"neo4j"`) |
+| `dynamic`        | GEXF dynamic attribute: values live in the temporal extension table (section 5.10)                                                                                                           |
+| `extra`          | anything an importer wants to survive (JSON-serialisable)                                                                                                                                    |
 
 Roles are format-neutral tags so consumers find "the position column"
 without per-format knowledge and exporters map roles back to reserved
@@ -1216,13 +1216,13 @@ trailing bits of the last `bool` word are undefined; kernels bound-check
 
 ### 5.8 Mutability rules: the boundary of "frozen" (G14)
 
-| Thing | Frozen? | Rule |
-| --- | --- | --- |
-| Core arrays, counts, flags, id map | yes | I17; never written after freeze |
-| View caches | populate-once, shared | pure functions of the core; cannot go stale; every call returns the SAME cached array, so a caller that wants scratch calls `.slice()` (k-core peeling, degree decrements, Kruskal candidate lists); `dropCaches()` frees them |
-| Column SET of `nodes` / `edges` / `graph` | no (side table) | `set` / `remove` / `rename` allowed at any time by the snapshot owner; `rowCount` fixed; no view depends on columns |
-| Column CONTENTS | frozen unless `meta.mutable === true` | producers declare `mutable` when they will write in place (positions written per frame by a layout engine, selection flags). `mutableData()` returns the typed array and throws `E_COLUMN_IMMUTABLE` otherwise. After in-place writes the owner calls `column.markDirty()`, which invalidates the cached `gpuView()` f32 copy and `materializeDefault()` copy (the only things the format derives from column contents) and bumps `column.version`. A mutable column's CONTENTS never survive a freeze unless the owner re-attaches them (section 5.11): the next snapshot's copy comes from builder staging |
-| Weights for flow residuals | frozen | the algorithm copies `weights` into its own scratch |
+| Thing                                     | Frozen?                               | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ----------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Core arrays, counts, flags, id map        | yes                                   | I17; never written after freeze                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| View caches                               | populate-once, shared                 | pure functions of the core; cannot go stale; every call returns the SAME cached array, so a caller that wants scratch calls `.slice()` (k-core peeling, degree decrements, Kruskal candidate lists); `dropCaches()` frees them                                                                                                                                                                                                                                                                                                                                                                               |
+| Column SET of `nodes` / `edges` / `graph` | no (side table)                       | `set` / `remove` / `rename` allowed at any time by the snapshot owner; `rowCount` fixed; no view depends on columns                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Column CONTENTS                           | frozen unless `meta.mutable === true` | producers declare `mutable` when they will write in place (positions written per frame by a layout engine, selection flags). `mutableData()` returns the typed array and throws `E_COLUMN_IMMUTABLE` otherwise. After in-place writes the owner calls `column.markDirty()`, which invalidates the cached `gpuView()` f32 copy and `materializeDefault()` copy (the only things the format derives from column contents) and bumps `column.version`. A mutable column's CONTENTS never survive a freeze unless the owner re-attaches them (section 5.11): the next snapshot's copy comes from builder staging |
+| Weights for flow residuals                | frozen                                | the algorithm copies `weights` into its own scratch                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 Immutability of typed-array contents cannot be enforced by the engine
 (typed arrays cannot be frozen), so it is by contract, made testable:
@@ -1262,18 +1262,18 @@ export interface GraphMeta {
     readonly name: string | null;
     readonly description: string | null;
     readonly creator: string | null;
-    readonly created: string | null;           // ISO-8601
+    readonly created: string | null; // ISO-8601
     readonly modified: string | null;
     readonly keywords: readonly string[];
-    readonly sourceFormat: string | null;      // "gexf"
-    readonly sourceVersion: string | null;     // "1.3"
-    readonly idType: "string" | "integer" | "mixed" | null;   // GEXF idtype, for exporters
+    readonly sourceFormat: string | null; // "gexf"
+    readonly sourceVersion: string | null; // "1.3"
+    readonly idType: "string" | "integer" | "mixed" | null; // GEXF idtype, for exporters
     readonly timeFormat: "integer" | "double" | "date" | "dateTime" | null;
-    readonly timeRepresentation: "interval" | "timestamp" | null;   // GEXF 1.3 timerepresentation
-    readonly mode: "static" | "dynamic" | "slice" | null;           // GEXF graph mode
-    readonly declaredMultigraph: boolean | null;   // node-link / graphology "multigraph" flag as declared, independent of flags.multigraph
-    readonly weightOrigin: ColumnOrigin | null;   // declared source type of the weight (section 3.7)
-    readonly extra: Readonly<Record<string, unknown>>;   // JSON-serialisable; reserved per-format keys in section 8.5
+    readonly timeRepresentation: "interval" | "timestamp" | null; // GEXF 1.3 timerepresentation
+    readonly mode: "static" | "dynamic" | "slice" | null; // GEXF graph mode
+    readonly declaredMultigraph: boolean | null; // node-link / graphology "multigraph" flag as declared, independent of flags.multigraph
+    readonly weightOrigin: ColumnOrigin | null; // declared source type of the weight (section 3.7)
+    readonly extra: Readonly<Record<string, unknown>>; // JSON-serialisable; reserved per-format keys in section 8.5
 }
 ```
 
@@ -1313,19 +1313,19 @@ column and never enters the CSR; a children CSR over that column is a
 
 ### 5.11 Propagation through derived graphs and re-freezes
 
-| Operation | Node columns | Edge columns | Index-valued columns (`refersTo`) |
-| --- | --- | --- | --- |
-| `freeze()` from builder | compacted through `nodeRemap` when tombstones existed (identity otherwise: one `slice` of the staging buffer) | gathered through `edgeRemap` when compaction or merging happened; identity otherwise | values rewritten through the matching remap; dangling references become `INVALID_INDEX` + unset |
-| `reverse()` view | n/a (same snapshot) | reached through `reverse().arcToEdge` | n/a |
-| `toUndirected()` | the SAME `AttributeTable` instance (same node set, same id map) | gathered through `edgeOrigin`; reciprocal pairs keep the lower logical index's row (keep-first, Q36) | rewritten |
-| `transpose()` | same instance | same instance (same logical edges, orientation swapped) | unchanged |
-| `simplified()` | same instance | survivor rows gathered; merged rows reduced per `edgeReducers` (default: survivor's value; weights per `weights`) | rewritten |
-| `withoutSelfLoops()`, `filterEdges()` | same instance | gathered | rewritten |
-| `inducedSubgraph()` | gathered through `nodeOrigin` | gathered through `edgeOrigin` | rewritten |
-| `contract(partition)` | NOT propagated automatically; `nodeReducers: Record<name, ColumnReducer>` names the columns to keep | weights reduced per `weights`; other edge columns dropped unless `edgeReducers` given | dropped |
-| `relabel(perm)` | gathered | gathered (edge order preserved) | rewritten |
-| `withColumns()` | a CLONED column set (new table object) sharing the same `Column` objects plus the given ones | same | unchanged |
-| new snapshot after builder mutation | not carried; the owner re-attaches: `remapArray(data, nodeRemap, newLength, fill, components)` when `nodeRemap !== null`, plain copy-extend otherwise | not carried; `remapArray(data, edgeRemap, ...)` | `remapColumn(column, remap, newLength)` rewrites values when `refersTo` is set |
+| Operation                             | Node columns                                                                                                                                          | Edge columns                                                                                                      | Index-valued columns (`refersTo`)                                                               |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `freeze()` from builder               | compacted through `nodeRemap` when tombstones existed (identity otherwise: one `slice` of the staging buffer)                                         | gathered through `edgeRemap` when compaction or merging happened; identity otherwise                              | values rewritten through the matching remap; dangling references become `INVALID_INDEX` + unset |
+| `reverse()` view                      | n/a (same snapshot)                                                                                                                                   | reached through `reverse().arcToEdge`                                                                             | n/a                                                                                             |
+| `toUndirected()`                      | the SAME `AttributeTable` instance (same node set, same id map)                                                                                       | gathered through `edgeOrigin`; reciprocal pairs keep the lower logical index's row (keep-first, Q36)              | rewritten                                                                                       |
+| `transpose()`                         | same instance                                                                                                                                         | same instance (same logical edges, orientation swapped)                                                           | unchanged                                                                                       |
+| `simplified()`                        | same instance                                                                                                                                         | survivor rows gathered; merged rows reduced per `edgeReducers` (default: survivor's value; weights per `weights`) | rewritten                                                                                       |
+| `withoutSelfLoops()`, `filterEdges()` | same instance                                                                                                                                         | gathered                                                                                                          | rewritten                                                                                       |
+| `inducedSubgraph()`                   | gathered through `nodeOrigin`                                                                                                                         | gathered through `edgeOrigin`                                                                                     | rewritten                                                                                       |
+| `contract(partition)`                 | NOT propagated automatically; `nodeReducers: Record<name, ColumnReducer>` names the columns to keep                                                   | weights reduced per `weights`; other edge columns dropped unless `edgeReducers` given                             | dropped                                                                                         |
+| `relabel(perm)`                       | gathered                                                                                                                                              | gathered (edge order preserved)                                                                                   | rewritten                                                                                       |
+| `withColumns()`                       | a CLONED column set (new table object) sharing the same `Column` objects plus the given ones                                                          | same                                                                                                              | unchanged                                                                                       |
+| new snapshot after builder mutation   | not carried; the owner re-attaches: `remapArray(data, nodeRemap, newLength, fill, components)` when `nodeRemap !== null`, plain copy-extend otherwise | not carried; `remapArray(data, edgeRemap, ...)`                                                                   | `remapColumn(column, remap, newLength)` rewrites values when `refersTo` is set                  |
 
 "Same instance" means the derived snapshot's `nodes` (and, where noted,
 `edges`) IS the source's `AttributeTable` object: a `set()` / `remove()`
@@ -1429,11 +1429,11 @@ typed-array pass; there is no comparator sort anywhere.
    `src !== dst`, `(dst, src, e)`.
 4. Identity check (directed only): one pass tests whether `(src[e], dst[e])`
    is non-decreasing lexicographically; if so `flags.arcToEdgeIsIdentity =
-   true` and steps 5-6 skip writing the permutation arrays (they are
+true` and steps 5-6 skip writing the permutation arrays (they are
    getters).
 5. Pass 1 -- stable counting sort by target: count `cnt[v]` over arc
    targets, exclusive prefix sum, scatter arc ids into `byTarget:
-   Uint32Array(A)`.
+Uint32Array(A)`.
 6. Pass 2 -- stable counting sort by source over the pass-1 order: count
    `cnt[u]` over arc sources, exclusive prefix sum INTO `rowPtr`, then walk
    `byTarget` in order and scatter, writing `colIdx[a] = target`,
@@ -1496,13 +1496,13 @@ and why merge policies can tombstone mates by position. Property test P4
 "max"`, default `"keep"`, applied at freeze (never at `addEdge`, so the
 builder needs no `(u, v)` hash):
 
-| Policy | Structure | Weight | Other edge columns | `edgeCount` |
-| --- | --- | --- | --- | --- |
-| `keep` | all arcs kept, adjacent, ordered by edge index | each kept | each kept | unchanged |
-| `error` | throws `E_DUPLICATE_EDGE` naming the pair and both edge indices | -- | -- | -- |
-| `first` | one arc per `(u, v)` (plus its mate if undirected) | weight of the lowest edge index | row of the lowest edge index | reduced |
-| `last` | same | weight of the highest edge index | row of the highest edge index | reduced |
-| `sum` / `min` / `max` | same | reducer over the group | row of the lowest edge index | reduced |
+| Policy                | Structure                                                       | Weight                           | Other edge columns            | `edgeCount` |
+| --------------------- | --------------------------------------------------------------- | -------------------------------- | ----------------------------- | ----------- |
+| `keep`                | all arcs kept, adjacent, ordered by edge index                  | each kept                        | each kept                     | unchanged   |
+| `error`               | throws `E_DUPLICATE_EDGE` naming the pair and both edge indices | --                               | --                            | --          |
+| `first`               | one arc per `(u, v)` (plus its mate if undirected)              | weight of the lowest edge index  | row of the lowest edge index  | reduced     |
+| `last`                | same                                                            | weight of the highest edge index | row of the highest edge index | reduced     |
+| `sum` / `min` / `max` | same                                                            | reducer over the group           | row of the lowest edge index  | reduced     |
 
 `edgeRemap` in the `FreezeReport` maps every pre-freeze edge index to its
 survivor, so importers can report which file lines were merged. A merge
@@ -1595,20 +1595,20 @@ not convey:
 
 ### 6.7 Freeze options and their costs
 
-| Option | Effect | Cost (100k nodes / 1M edges; targets, section 15.4) |
-| --- | --- | --- |
-| (base, directed) | steps 1-12 | 25-30 ms |
-| (base, undirected) | plus arc materialisation and 2M-arc passes | 45-55 ms |
-| `duplicateEdges !== "keep"` | step 7 walk (+ one repeat when anything merged) | +3 ms (+ base when merged) |
-| `weightDtype: "f64"` | exactness pass, possible shadow column | +2 ms (+8 MB when the shadow is kept) |
-| `prepare: ["reverse"]` (directed) | counting-sort transpose | +15-25 ms |
-| `prepare: ["outDegree", "inDegree", "coo"]` | trivial passes | +1-3 ms each |
-| `prepare: ["symmetric"]` (directed) | reverse plus one merge pass | +20-30 ms |
-| `checksum: true` | FNV-1a over core arrays and immutable columns | +5-10 ms (tests and debug builds) |
-| string ids, long-lived builder | Map shared by reference | 0 at freeze (C17) |
-| compaction after removals | one gather pass over staging and columns | +32 ms measured (the estimate was +10-15; see 15.6) |
-| K typed edge columns | gather per column (identity: one `slice`) | +2-4 ms each |
-| `arena: false` | per-array allocation | 0 (needed only above the per-allocation ceiling, section 15.3) |
+| Option                                      | Effect                                          | Cost (100k nodes / 1M edges; targets, section 15.4)            |
+| ------------------------------------------- | ----------------------------------------------- | -------------------------------------------------------------- |
+| (base, directed)                            | steps 1-12                                      | 25-30 ms                                                       |
+| (base, undirected)                          | plus arc materialisation and 2M-arc passes      | 45-55 ms                                                       |
+| `duplicateEdges !== "keep"`                 | step 7 walk (+ one repeat when anything merged) | +3 ms (+ base when merged)                                     |
+| `weightDtype: "f64"`                        | exactness pass, possible shadow column          | +2 ms (+8 MB when the shadow is kept)                          |
+| `prepare: ["reverse"]` (directed)           | counting-sort transpose                         | +15-25 ms                                                      |
+| `prepare: ["outDegree", "inDegree", "coo"]` | trivial passes                                  | +1-3 ms each                                                   |
+| `prepare: ["symmetric"]` (directed)         | reverse plus one merge pass                     | +20-30 ms                                                      |
+| `checksum: true`                            | FNV-1a over core arrays and immutable columns   | +5-10 ms (tests and debug builds)                              |
+| string ids, long-lived builder              | Map shared by reference                         | 0 at freeze (C17)                                              |
+| compaction after removals                   | one gather pass over staging and columns        | +32 ms measured (the estimate was +10-15; see 15.6)            |
+| K typed edge columns                        | gather per column (identity: one `slice`)       | +2-4 ms each                                                   |
+| `arena: false`                              | per-array allocation                            | 0 (needed only above the per-allocation ceiling, section 15.3) |
 
 Peak memory during freeze (section 15.2 has the full table): staging +
 transients + arena + column copies. Directed 1M weighted: ~21 MB staging +
@@ -1699,34 +1699,34 @@ of the named view: `"forward"` (default) uses `rowPtr`, `"reverse"` uses
 (PageRank, HITS, bottom-up BFS) needs; both are cached, and on an
 undirected snapshot they are the same object.
 
-| Method | Returns | Cost | Notes |
-| --- | --- | --- | --- |
-| `reverse()` | `ReverseView` | O(n + m) counting sort over `coo()` | in-adjacency with rows sorted by source; `weights` materialised by gather when weighted (Q37, pull kernels read `weights[a]` without a gather); undirected: returns the forward arrays themselves with `fwdArc` = identity (I7, Q34) |
-| `coo()` | `CooView` | O(m) | `src` is the only new array |
-| `edgeList()` | `EdgeListView` | O(m) | each logical edge once, declared orientation; `weights` gathered through `edgeToArc` unless identity |
-| `outDegree()` | `Uint32Array(n)` | O(n) | `rowPtr` differences materialised (kernels may read `rowPtr` directly) |
-| `inDegree()` | `Uint32Array(n)` | O(m) | via `reverse().rowPtr`; undirected: the same object as `outDegree()` |
-| `degree()` | `Uint32Array(n)` | O(n + m) | graph-theoretic (section 3.4) |
-| `weightedOutDegree()` / `weightedInDegree()` | `F64(n)` | O(m) | row sums of `weights` (a self-loop arc counted once); `outDegree` widened when unweighted; NOT 4-byte (see above); a node with out-arcs can have sum `0` because zero weights are legal (3.7), so a PageRank normaliser must guard the division |
-| `weightedDegree()` | `F64(n)` | O(m) | NetworkX weighted degree: `weightedOutDegree[u] + (directed ? weightedInDegree[u] : selfLoopWeight[u])`, so an undirected self-loop counts twice and `sum(weightedDegree) === 2 * totalWeight()` on an undirected snapshot (the modularity identity Leiden / Louvain / Girvan-Newman rely on) |
-| `selfLoopWeight()` | `F64(n)` | O(n log d) | sum of `weights` over `selfLoopArcs()` per node (`selfLoopsPerNode()` widened when unweighted) |
-| `totalWeight()` | `number` | O(m) once | sum over logical edges (each undirected edge once) |
-| `selfLoopArcs()` | `Uint32Array(selfLoopCount)` | O(n log d) | arcs `a` with `colIdx[a] === row(a)`, found by binary search per row |
-| `selfLoopsPerNode()` | `Uint32Array(n)` | O(n log d) | loop arcs per node; `selfLoopsAt(u)` is the O(log d) point query |
-| `mate()` | `Uint32Array(arcCount)` | O(m) lockstep walk (6.4) | undirected only (throws `E_DIRECTED`); self-loop maps to itself |
-| `degreeOrder(options?: { of?: "forward" \| "reverse" })` | `DegreeOrderView` | O(n + maxDegree) counting sort (plus `reverse()` for `"reverse"`) | `perm` is the GPU binding; `segmentOffsets` (5 words) is read on the CPU to size the three dispatches; the `ViewName`s are `degreeOrder` and `reverseDegreeOrder` for `prepare` / `includeViews` |
-| `isSymmetric()` | `boolean` | O(m) after `reverse()` | directed: forward row `v` equals reverse row `v` (targets vs sources, both sorted) for every `v`, with equal weights; undirected: `true` without work |
+| Method                                                   | Returns                      | Cost                                                              | Notes                                                                                                                                                                                                                                                                                         |
+| -------------------------------------------------------- | ---------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `reverse()`                                              | `ReverseView`                | O(n + m) counting sort over `coo()`                               | in-adjacency with rows sorted by source; `weights` materialised by gather when weighted (Q37, pull kernels read `weights[a]` without a gather); undirected: returns the forward arrays themselves with `fwdArc` = identity (I7, Q34)                                                          |
+| `coo()`                                                  | `CooView`                    | O(m)                                                              | `src` is the only new array                                                                                                                                                                                                                                                                   |
+| `edgeList()`                                             | `EdgeListView`               | O(m)                                                              | each logical edge once, declared orientation; `weights` gathered through `edgeToArc` unless identity                                                                                                                                                                                          |
+| `outDegree()`                                            | `Uint32Array(n)`             | O(n)                                                              | `rowPtr` differences materialised (kernels may read `rowPtr` directly)                                                                                                                                                                                                                        |
+| `inDegree()`                                             | `Uint32Array(n)`             | O(m)                                                              | via `reverse().rowPtr`; undirected: the same object as `outDegree()`                                                                                                                                                                                                                          |
+| `degree()`                                               | `Uint32Array(n)`             | O(n + m)                                                          | graph-theoretic (section 3.4)                                                                                                                                                                                                                                                                 |
+| `weightedOutDegree()` / `weightedInDegree()`             | `F64(n)`                     | O(m)                                                              | row sums of `weights` (a self-loop arc counted once); `outDegree` widened when unweighted; NOT 4-byte (see above); a node with out-arcs can have sum `0` because zero weights are legal (3.7), so a PageRank normaliser must guard the division                                               |
+| `weightedDegree()`                                       | `F64(n)`                     | O(m)                                                              | NetworkX weighted degree: `weightedOutDegree[u] + (directed ? weightedInDegree[u] : selfLoopWeight[u])`, so an undirected self-loop counts twice and `sum(weightedDegree) === 2 * totalWeight()` on an undirected snapshot (the modularity identity Leiden / Louvain / Girvan-Newman rely on) |
+| `selfLoopWeight()`                                       | `F64(n)`                     | O(n log d)                                                        | sum of `weights` over `selfLoopArcs()` per node (`selfLoopsPerNode()` widened when unweighted)                                                                                                                                                                                                |
+| `totalWeight()`                                          | `number`                     | O(m) once                                                         | sum over logical edges (each undirected edge once)                                                                                                                                                                                                                                            |
+| `selfLoopArcs()`                                         | `Uint32Array(selfLoopCount)` | O(n log d)                                                        | arcs `a` with `colIdx[a] === row(a)`, found by binary search per row                                                                                                                                                                                                                          |
+| `selfLoopsPerNode()`                                     | `Uint32Array(n)`             | O(n log d)                                                        | loop arcs per node; `selfLoopsAt(u)` is the O(log d) point query                                                                                                                                                                                                                              |
+| `mate()`                                                 | `Uint32Array(arcCount)`      | O(m) lockstep walk (6.4)                                          | undirected only (throws `E_DIRECTED`); self-loop maps to itself                                                                                                                                                                                                                               |
+| `degreeOrder(options?: { of?: "forward" \| "reverse" })` | `DegreeOrderView`            | O(n + maxDegree) counting sort (plus `reverse()` for `"reverse"`) | `perm` is the GPU binding; `segmentOffsets` (5 words) is read on the CPU to size the three dispatches; the `ViewName`s are `degreeOrder` and `reverseDegreeOrder` for `prepare` / `includeViews`                                                                                              |
+| `isSymmetric()`                                          | `boolean`                    | O(m) after `reverse()`                                            | directed: forward row `v` equals reverse row `v` (targets vs sources, both sorted) for every `v`, with equal weights; undirected: `true` without work                                                                                                                                         |
 
 ### 7.3 Derived graphs (explicit, not cached by the format, new snapshot)
 
 ```typescript
 export interface DerivedGraph {
     readonly snapshot: GraphSnapshot;
-    readonly nodeOrigin: U32 | null;   // new node index -> source node index (contract: the LOWEST source index of the block); null when the node space is unchanged
-    readonly edgeOrigin: U32 | null;   // new edge index -> source edge index (a merged edge: its SURVIVOR's source index, never INVALID_INDEX); null when unchanged
-    readonly nodeRemap: U32 | null;    // source node index -> new index (contract: the block) or INVALID_INDEX (dropped); null when unchanged
-    readonly edgeRemap: U32 | null;    // source edge index -> new index; a merged / collapsed edge maps to its SURVIVOR, a dropped edge to INVALID_INDEX; null when unchanged
-    readonly blockSizes: U32 | null;   // contract only: source nodes per new node; null otherwise
+    readonly nodeOrigin: U32 | null; // new node index -> source node index (contract: the LOWEST source index of the block); null when the node space is unchanged
+    readonly edgeOrigin: U32 | null; // new edge index -> source edge index (a merged edge: its SURVIVOR's source index, never INVALID_INDEX); null when unchanged
+    readonly nodeRemap: U32 | null; // source node index -> new index (contract: the block) or INVALID_INDEX (dropped); null when unchanged
+    readonly edgeRemap: U32 | null; // source edge index -> new index; a merged / collapsed edge maps to its SURVIVOR, a dropped edge to INVALID_INDEX; null when unchanged
+    readonly blockSizes: U32 | null; // contract only: source nodes per new node; null otherwise
     readonly report: { readonly droppedEdges: number; readonly mergedEdges: number };
 }
 export type WeightReducer = "first" | "last" | "sum" | "min" | "max";
@@ -1744,19 +1744,19 @@ vec[edgeRemap[e]]` for every source `e` whose entry is not
 the value. `edgeRemap[edgeOrigin[d]] === d` for every derived edge `d`
 (property P9b).
 
-| Method | Node space | Edge space | Semantics |
-| --- | --- | --- | --- |
-| `toUndirected(opts?: { reciprocal?: boolean; weights?: WeightReducer })` | same | new | every directed edge becomes undirected; reciprocal pairs `(u, v)` / `(v, u)` collapse to one edge keeping the lower index's row (keep-first, Q36) and the reduced weight (default `"first"`); `reciprocal: true` keeps only pairs present in both directions (cuGraph `symmetrize(reciprocal)`); on an undirected snapshot returns `{ snapshot: this, null maps }` |
-| `transpose()` | same | same | orientation of every edge swapped; the reverse view's arrays become the core; on an undirected snapshot returns `this` |
-| `simplified(opts?: { weights?: WeightReducer; selfLoops?: "keep" \| "drop"; edgeReducers?: Record<string, ColumnReducer> })` | same | new | one edge per `(u, v)` group (parallels adjacent by I4); survivor is the lowest index; `flags.multigraph === false` afterwards |
-| `withoutSelfLoops()` | same | new | |
-| `filterEdges(keep: EdgeMask /* packed bitmap over logical edges */)` | same | new | Girvan-Newman "remove edges" as a rebuild; algorithms that remove edges iteratively keep their own alive bitmap instead (section 7.4) |
-| `inducedSubgraph(selection: U32 \| { mask: NodeMask })` | new (compact) | new | index list (order = new index order; an out-of-range or repeated index throws `E_INDEX_RANGE`) or packed mask (ascending order; `E_MASK_LENGTH` when the mask is short); edges with both endpoints kept; the two forms are distinguishable at runtime by shape |
-| `contract(partition: U32, opts?: ContractOptions)` | new (`k` blocks) | new | `partition.length === nodeCount` with no `INVALID_INDEX` entry, else `E_PARTITION`. Labels need not be dense: labels that already form the set `0..k-1` are kept as block indices (so Tarjan-order SCC labels give `condensationGraph` today's numbering); any other labelling (Leiden communities with holes, union-find roots) is renumbered in first-seen order, and `nodeRemap` gives every source node its block. Semantics are at the LOGICAL-EDGE level: each source edge contributes exactly once; an edge between two blocks becomes one edge `block(u) -> block(v)` (undirected: `{block(u), block(v)}`); an intra-block edge becomes ONE self-loop logical edge with weight `w` (never `2w`), kept or dropped per `selfLoops` (Leiden needs both); parallels per `parallel: "merge" \| "keep"` with `weights` (default `"sum"`). On an unweighted source (`weights === null`) the reducers `first` / `last` / `min` / `max` yield `null` (still all ones) and `sum` yields a materialised `F32` of multiplicities (what Leiden on an unweighted input needs); `condensationGraph` passes `"first"`. `blockSizes` is returned; node columns per `nodeReducers`; the new id map is `identity` (ids `0..k-1`); `contract(identity)` preserves `weightedDegree` and `totalWeight` (P9c). This is the Leiden / Louvain aggregation (one call per level) and `condensationGraph` primitive (Q6); Stoer-Wagner and Karger do NOT use it (section 14.2) |
-| `relabel(perm: U32)` | permuted | same order | `perm[newIndex] = oldIndex`; the id map follows; `relabel(snapshot.degreeOrder().perm)` is the cuGraph-style degree renumbering for callers who want it (Q38, C18: never implicit) |
-| `relabel(perm)` with a `perm` that is not a permutation of `0..n-1` | -- | -- | `E_INVALID_PERMUTATION` |
-| `filterEdges(keep)` with `keep.length < ceil(edgeCount / 32)` | -- | -- | `E_MASK_LENGTH` |
-| `withColumns(nodes?, edges?)` | same | same | a new snapshot object sharing the core, the id map and the SERIAL with a CLONED column set plus the given columns; for consumers that must not mutate the caller's tables |
+| Method                                                                                                                       | Node space       | Edge space | Semantics                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ---------------------------------------------------------------------------------------------------------------------------- | ---------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `toUndirected(opts?: { reciprocal?: boolean; weights?: WeightReducer })`                                                     | same             | new        | every directed edge becomes undirected; reciprocal pairs `(u, v)` / `(v, u)` collapse to one edge keeping the lower index's row (keep-first, Q36) and the reduced weight (default `"first"`); `reciprocal: true` keeps only pairs present in both directions (cuGraph `symmetrize(reciprocal)`); on an undirected snapshot returns `{ snapshot: this, null maps }`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `transpose()`                                                                                                                | same             | same       | orientation of every edge swapped; the reverse view's arrays become the core; on an undirected snapshot returns `this`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `simplified(opts?: { weights?: WeightReducer; selfLoops?: "keep" \| "drop"; edgeReducers?: Record<string, ColumnReducer> })` | same             | new        | one edge per `(u, v)` group (parallels adjacent by I4); survivor is the lowest index; `flags.multigraph === false` afterwards                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `withoutSelfLoops()`                                                                                                         | same             | new        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `filterEdges(keep: EdgeMask /* packed bitmap over logical edges */)`                                                         | same             | new        | Girvan-Newman "remove edges" as a rebuild; algorithms that remove edges iteratively keep their own alive bitmap instead (section 7.4)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `inducedSubgraph(selection: U32 \| { mask: NodeMask })`                                                                      | new (compact)    | new        | index list (order = new index order; an out-of-range or repeated index throws `E_INDEX_RANGE`) or packed mask (ascending order; `E_MASK_LENGTH` when the mask is short); edges with both endpoints kept; the two forms are distinguishable at runtime by shape                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `contract(partition: U32, opts?: ContractOptions)`                                                                           | new (`k` blocks) | new        | `partition.length === nodeCount` with no `INVALID_INDEX` entry, else `E_PARTITION`. Labels need not be dense: labels that already form the set `0..k-1` are kept as block indices (so Tarjan-order SCC labels give `condensationGraph` today's numbering); any other labelling (Leiden communities with holes, union-find roots) is renumbered in first-seen order, and `nodeRemap` gives every source node its block. Semantics are at the LOGICAL-EDGE level: each source edge contributes exactly once; an edge between two blocks becomes one edge `block(u) -> block(v)` (undirected: `{block(u), block(v)}`); an intra-block edge becomes ONE self-loop logical edge with weight `w` (never `2w`), kept or dropped per `selfLoops` (Leiden needs both); parallels per `parallel: "merge" \| "keep"` with `weights` (default `"sum"`). On an unweighted source (`weights === null`) the reducers `first` / `last` / `min` / `max` yield `null` (still all ones) and `sum` yields a materialised `F32` of multiplicities (what Leiden on an unweighted input needs); `condensationGraph` passes `"first"`. `blockSizes` is returned; node columns per `nodeReducers`; the new id map is `identity` (ids `0..k-1`); `contract(identity)` preserves `weightedDegree` and `totalWeight` (P9c). This is the Leiden / Louvain aggregation (one call per level) and `condensationGraph` primitive (Q6); Stoer-Wagner and Karger do NOT use it (section 14.2) |
+| `relabel(perm: U32)`                                                                                                         | permuted         | same order | `perm[newIndex] = oldIndex`; the id map follows; `relabel(snapshot.degreeOrder().perm)` is the cuGraph-style degree renumbering for callers who want it (Q38, C18: never implicit)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `relabel(perm)` with a `perm` that is not a permutation of `0..n-1`                                                          | --               | --         | `E_INVALID_PERMUTATION`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `filterEdges(keep)` with `keep.length < ceil(edgeCount / 32)`                                                                | --               | --         | `E_MASK_LENGTH`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `withColumns(nodes?, edges?)`                                                                                                | same             | same       | a new snapshot object sharing the core, the id map and the SERIAL with a CLONED column set plus the given columns; for consumers that must not mutate the caller's tables                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 Node id maps of derived graphs: same node space -> shared by reference;
 `inducedSubgraph` / `relabel` -> gathered (`identity` becomes `numeric`
@@ -1833,11 +1833,11 @@ text-based goes through the `GraphSink` contract (8.3) from
 // 1. COO typed arrays with dense indices: the 20 ms path. No id Map unless `ids` is given.
 export interface EdgeArraysInput {
     readonly directed: boolean;
-    readonly nodeCount?: number | undefined;                      // required unless `ids` is given; isolates are preserved
-    readonly ids?: readonly NodeId[] | F64 | undefined;           // optional external ids in index order (length = nodeCount)
-    readonly src: U32;                                            // node indices
+    readonly nodeCount?: number | undefined; // required unless `ids` is given; isolates are preserved
+    readonly ids?: readonly NodeId[] | F64 | undefined; // optional external ids in index order (length = nodeCount)
+    readonly src: U32; // node indices
     readonly dst: U32;
-    readonly weights?: F32 | F64 | undefined;                     // F64: downcast to f32; f64 shadow kept only when not f32-exact
+    readonly weights?: F32 | F64 | undefined; // F64: downcast to f32; f64 shadow kept only when not f32-exact
     readonly nodeColumns?: Readonly<Record<string, TypedArrayData | ColumnInput>> | undefined;
     readonly edgeColumns?: Readonly<Record<string, TypedArrayData | ColumnInput>> | undefined;
     readonly meta?: GraphMetaPatch | undefined;
@@ -1851,16 +1851,20 @@ export interface CsrInput {
     readonly rowPtr: U32;
     readonly colIdx: U32;
     readonly weights?: F32 | null | undefined;
-    readonly arcToEdge?: U32 | undefined;                         // absent => identity (directed only; undirected input must supply it)
-    readonly edgeToArc?: U32 | undefined;                         // absent => derived in one O(m) pass (or identity)
-    readonly edgeCount?: number | undefined;                      // defaults to arcCount (directed) or is derived from arcToEdge
+    readonly arcToEdge?: U32 | undefined; // absent => identity (directed only; undirected input must supply it)
+    readonly edgeToArc?: U32 | undefined; // absent => derived in one O(m) pass (or identity)
+    readonly edgeCount?: number | undefined; // defaults to arcCount (directed) or is derived from arcToEdge
     readonly ids?: readonly NodeId[] | F64 | undefined;
     readonly nodeColumns?: Readonly<Record<string, TypedArrayData | ColumnInput>> | undefined;
     readonly edgeColumns?: Readonly<Record<string, TypedArrayData | ColumnInput>> | undefined;
     readonly meta?: GraphMetaPatch | undefined;
-    readonly flags?: FlagClaims | undefined;                      // claims; verified unless validate === "none"
+    readonly flags?: FlagClaims | undefined; // claims; verified unless validate === "none"
 }
-export interface FromCsrOptions { readonly validate?: ValidationLevel | undefined; readonly copy?: boolean | undefined; readonly sortRows?: boolean | undefined; }
+export interface FromCsrOptions {
+    readonly validate?: ValidationLevel | undefined;
+    readonly copy?: boolean | undefined;
+    readonly sortRows?: boolean | undefined;
+}
 export function fromCsr(input: CsrInput, options?: FromCsrOptions): GraphSnapshot;
 
 // 3. Plain records (what graphty-element's DataSources emit today; node-link shaped JSON).
@@ -1868,14 +1872,17 @@ export interface RecordsInput {
     readonly directed: boolean;
     readonly nodes?: Iterable<Readonly<Record<string, unknown>>> | undefined;
     readonly edges: Iterable<Readonly<Record<string, unknown>>>;
-    readonly nodeId?: string | null | undefined;                  // default "id"; null = node index is array position and endpoints are indices (d3 v3)
-    readonly edgeSource?: string | undefined;                     // default "source", falling back to "src" / "from"
-    readonly edgeTarget?: string | undefined;                     // default "target", falling back to "dst" / "to"
-    readonly edgeWeight?: string | null | undefined;              // default "weight"; null = unweighted
-    readonly columns?: "infer" | "json" | "none" | readonly ColumnDecl[] | undefined;   // default "infer" (section 5.1 widening)
-    readonly ids?: IdCoercion | undefined;                        // default "keep" (values are already typed)
+    readonly nodeId?: string | null | undefined; // default "id"; null = node index is array position and endpoints are indices (d3 v3)
+    readonly edgeSource?: string | undefined; // default "source", falling back to "src" / "from"
+    readonly edgeTarget?: string | undefined; // default "target", falling back to "dst" / "to"
+    readonly edgeWeight?: string | null | undefined; // default "weight"; null = unweighted
+    readonly columns?: "infer" | "json" | "none" | readonly ColumnDecl[] | undefined; // default "infer" (section 5.1 widening)
+    readonly ids?: IdCoercion | undefined; // default "keep" (values are already typed)
 }
-export function fromRecords(input: RecordsInput, options?: BuilderOptionsPatch & FreezeOptions): { snapshot: GraphSnapshot; report: FreezeReport };
+export function fromRecords(
+    input: RecordsInput,
+    options?: BuilderOptionsPatch & FreezeOptions,
+): { snapshot: GraphSnapshot; report: FreezeReport };
 ```
 
 `fromCsr` ADOPTS the caller's arrays without copying by default (`copy:
@@ -1902,11 +1909,11 @@ each consumer package owns its adapter (section 14).
 
 ### 8.2 Where importers and exporters live (C16, Q25)
 
-| Layer | Package | Runtime deps | Contents |
-| --- | --- | --- | --- |
-| Core | `@graphty/graph-format` | none (and no DOM lib: the core's public types reference only ES2020 globals) | snapshot, builder, tables, id map, wire form, `GraphSink`, `fromEdgeArrays` / `fromCsr` / `fromRecords` |
-| IO | `@graphty/graph-io` (new package, phase IO1 of section 14.6) | `@graphty/graph-format` (peer + workspace dependency); initially `fast-xml-parser` and `papaparse` moved from graphty-element, replaced by hand-written streaming tokenisers per format as they pass the corpus | the io contract TYPES (`GraphImporter`, `GraphExporter`, `ImportInput`, `CommonImportOptions`, `CommonExportOptions`, `ExportCapabilities`, `LossNote`, `ImportReport`, `ImportIssue`, `ImportError`; they reference `ReadableStream` and `AbortSignal`, which is why they are not in the core), one importer and one exporter per format under per-format subpath exports (`@graphty/graph-io/gexf`, `/graphml`, `/gml`, `/dot`, `/pajek`, `/csv`, `/json` (node-link, JGF, Cytoscape, graphology, vis), `/neo4j`), the registry with `sniff()` (today's `format-detection.ts`), `importGraph()` which creates the builder after sniffing, the `children` CSR helper, the corpus and the fidelity tests |
-| App | `@graphty/graphty-element` | as today | `DataSource` subclasses become thin wrappers that fetch bytes (data / file / url, retry, progress) and stream into the io importer with the `DataManager`'s builder as the sink |
+| Layer | Package                                                      | Runtime deps                                                                                                                                                                                                    | Contents                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ----- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Core  | `@graphty/graph-format`                                      | none (and no DOM lib: the core's public types reference only ES2020 globals)                                                                                                                                    | snapshot, builder, tables, id map, wire form, `GraphSink`, `fromEdgeArrays` / `fromCsr` / `fromRecords`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| IO    | `@graphty/graph-io` (new package, phase IO1 of section 14.6) | `@graphty/graph-format` (peer + workspace dependency); initially `fast-xml-parser` and `papaparse` moved from graphty-element, replaced by hand-written streaming tokenisers per format as they pass the corpus | the io contract TYPES (`GraphImporter`, `GraphExporter`, `ImportInput`, `CommonImportOptions`, `CommonExportOptions`, `ExportCapabilities`, `LossNote`, `ImportReport`, `ImportIssue`, `ImportError`; they reference `ReadableStream` and `AbortSignal`, which is why they are not in the core), one importer and one exporter per format under per-format subpath exports (`@graphty/graph-io/gexf`, `/graphml`, `/gml`, `/dot`, `/pajek`, `/csv`, `/json` (node-link, JGF, Cytoscape, graphology, vis), `/neo4j`), the registry with `sniff()` (today's `format-detection.ts`), `importGraph()` which creates the builder after sniffing, the `children` CSR helper, the corpus and the fidelity tests |
+| App   | `@graphty/graphty-element`                                   | as today                                                                                                                                                                                                        | `DataSource` subclasses become thin wrappers that fetch bytes (data / file / url, retry, progress) and stream into the io importer with the `DataManager`'s builder as the sink                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 Rationale: the core must stay zero-dependency, small and auditable (its
 version number means "format version"); parsers are the largest code by
@@ -2014,7 +2021,7 @@ pass:
    `"undirected"` it applies that policy and reports.
 3. Per-section (Pajek `*Arcs` / `*Edges`) and per-row (Gephi CSV `Type`)
    direction go through the same two rules; `ImportReport.counts.
-   expandedMixed` counts the expanded edges.
+expandedMixed` counts the expanded edges.
 
 Precedence, stated once: the registry's builder follows the file; a
 caller's builder follows the file while it is empty and unlocked; a
@@ -2077,9 +2084,9 @@ section 16.5 are exact:
   not byte-exact).
 - node-link / JGF / Cytoscape / graphology JSON: shape information the
   exporter needs is recorded under reserved `meta.extra.json` keys `{
-  dialect: "node-link" | "d3" | "jgf" | "cytoscape" | "graphology" | "vis",
-  edgesKey: "links" | "edges", nodeIdKey: "id" | "name", indexLinks:
-  boolean }` and `meta.declaredMultigraph`; node ids that are JSON `true`
+dialect: "node-link" | "d3" | "jgf" | "cytoscape" | "graphology" | "vis",
+edgesKey: "links" | "edges", nodeIdKey: "id" | "name", indexLinks:
+boolean }` and `meta.declaredMultigraph`; node ids that are JSON `true`
   / `false` / `null` (legal NetworkX ids) are `E_INVALID_ID` in the core,
   so the JSON importer reports them as `unsupported` and coerces with
   `String(v)` only under `ids: "string"`.
@@ -2144,7 +2151,7 @@ encoding of section 5.9 for non-finite numbers.
 ```typescript
 export declare class GraphSnapshot {
     toWire(options?: ToWireOptions): WireSnapshot;
-    transferables(): ArrayBuffer[];       // distinct, exclusively owned backing buffers of core, id map, typed columns, string stores, extensions
+    transferables(): ArrayBuffer[]; // distinct, exclusively owned backing buffers of core, id map, typed columns, string stores, extensions
 }
 export function fromWire(wire: WireSnapshot, options?: FromWireOptions): GraphSnapshot;
 ```
@@ -2158,7 +2165,7 @@ export function fromWire(wire: WireSnapshot, options?: FromWireOptions): GraphSn
   `withColumns()` shares the core, same-node-space derived graphs share
   the node table, `set(name, column)` moves a `Column` between tables.
   The package records every such sharing in a `WeakMap<ArrayBuffer,
-  number>` owner count (incremented when a buffer gains a second holder;
+number>` owner count (incremented when a buffer gains a second holder;
   conservative: never decremented). `toWire({ transfer: true })` puts
   only EXCLUSIVELY owned buffers into `buffers` as transferables and
   COPIES every shared one (listed in `wire.manifest.copied` by ref index),
@@ -2224,8 +2231,8 @@ B       ...    buffer region: each array at a 256-byte-aligned offset, in manife
 
 ```typescript
 export declare class GraphSnapshot {
-    toBytes(options?: ToBytesOptions): U8;                       // one contiguous buffer
-    toByteChunks(options?: ToBytesOptions): Iterable<U8>;        // header + manifest, then each padded segment in order
+    toBytes(options?: ToBytesOptions): U8; // one contiguous buffer
+    toByteChunks(options?: ToBytesOptions): Iterable<U8>; // header + manifest, then each padded segment in order
 }
 export function fromBytes(bytes: Uint8Array | ArrayBufferLike, options?: FromWireOptions): GraphSnapshot;
 export function fromByteChunks(chunks: Iterable<Uint8Array>, options?: FromWireOptions): GraphSnapshot;
@@ -2271,7 +2278,7 @@ Producer side (parse and freeze in a `DedicatedWorkerGlobalScope`):
 
 ```typescript
 const wire = snapshot.toWire({ transfer: true });
-self.postMessage(wire, snapshot.transferables());   // Worker.postMessage(message, transfer); the Window overload takes a targetOrigin
+self.postMessage(wire, snapshot.transferables()); // Worker.postMessage(message, transfer); the Window overload takes a targetOrigin
 ```
 
 Consumer side: `fromWire(wire, { validate: "none" })`. Cost: O(1) per
@@ -2305,11 +2312,11 @@ returning `[]`, and the constructor throwing `E_UNSUPPORTED` unless
 
 `ValidationLevel = "none" | "structure" | "full"`:
 
-| Level | Checks | Cost |
-| --- | --- | --- |
-| `none` | manifest shape only (TypeScript-level) | O(1) |
+| Level       | Checks                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Cost               |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| `none`      | manifest shape only (TypeScript-level)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | O(1)               |
 | `structure` | every `WireBufferRef`: `byteOffset % elementSize(dtype) === 0`, `byteLength === length * elementSize`, `byteOffset + byteLength <= buffers[i].byteLength`, no byte overlap between a `mutable` column and any core or immutable segment, `components` in `1..16` (`E_BAD_SERIALIZATION` with `details.ref`); I1-I3, I5 (lengths and ranges), I6/I7 counts, I8 length, I10, I12 lengths (column lengths, dictionary code ranges, list and string offsets monotonic, validity length, `nullCount` recomputed from the bitmap), I13 (edge columns have `edgeCount` rows); `ids.size === counts.nodes`; unique column names per table; `core.arcToEdge === null` only when `directed && flags.arcToEdgeIsIdentity`; every `refersTo` value (including extension `element` columns) `< rowCount` or `INVALID_INDEX`; the manifest parsed with a reviver that rejects `__proto__`, `constructor` and `prototype` keys and copies `extra` / `origin` / `options` into frozen `Object.create(null)` objects | O(n + m + columns) |
-| `full` | `structure` plus I4 (sortedness), I5 orientation, I7 pairing walk, I8 NaN-free, I9 (flags recomputed), I11 (id bijection, string ids decoded with a fatal decoder), `unique` columns | O(m log d) |
+| `full`      | `structure` plus I4 (sortedness), I5 orientation, I7 pairing walk, I8 NaN-free, I9 (flags recomputed), I11 (id bijection, string ids decoded with a fatal decoder), `unique` columns                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | O(m log d)         |
 
 A corrupt `colIdx` from a file or the network would otherwise cause silent
 `undefined` reads on the CPU and clamped reads on the GPU, so `fromBytes`
@@ -2329,22 +2336,22 @@ caller; it never falls back to CPU.
 
 ### 10.1 Fields the GPU package binds
 
-| Array | WGSL type | Length | Present |
-| --- | --- | --- | --- |
-| `rowPtr` | `array<u32>` | n + 1 | always |
-| `colIdx` | `array<u32>` | arcCount | always (length 0 when `arcCount === 0`: do not bind, dispatch nothing) |
-| `weights` | `array<f32>` | arcCount | when `flags.weighted` (else the kernel uses a `1.0` constant) |
-| `arcToEdge` | `array<u32>` | arcCount | needed by any kernel that gathers an edge-aligned column (`col[arcToEdge[a]]`). Test `flags.arcToEdgeIsIdentity` BEFORE touching `snapshot.arcToEdge` (the getter would allocate 4A bytes outside the arena). Recommended pattern, so one pipeline layout serves both cases: the shader declares `override USE_PERM: bool` and reads `select(a, arcToEdge[a], USE_PERM)`; in the identity case the `arcToEdge` binding slot is filled with `colIdx` (already uploaded, length `arcCount`, never read), so no allocation and no second bind-group layout |
-| `edgeToArc` | `array<u32>` | edgeCount | for writing per-edge results from per-arc buffers; same `override` pattern when identity (bind `rowPtr` as the never-read dummy) |
-| `reverse().rowPtr / colIdx / fwdArc / weights` | `array<u32>` / `array<f32>` | n + 1 / arcCount | pull kernels (PageRank, HITS, bottom-up BFS); undirected: the SAME array objects as the forward ones, so a cache keyed on the array object uploads once |
-| `coo().src` | `array<u32>` | arcCount | PER-ARC edge-parallel kernels (every arc, both directions of an undirected edge) |
-| `edgeList().src / .dst / .weights` | `array<u32>` / `array<f32>` | edgeCount | EACH-EDGE-ONCE edge-parallel kernels: CC hook, Boruvka / Kruskal candidate lists, Bellman-Ford relax on undirected graphs (each edge relaxed in both directions by the kernel), edge sampling; correct on directed and undirected snapshots with no special case |
-| `outDegree()`, `inDegree()`, `selfLoopsPerNode()` | `array<u32>` | n | optional; kernels may compute from `rowPtr` |
-| weighted out-degree normaliser (PageRank / HITS / Katz with weights) | `array<f32>` | n | NOT a format upload: `weightedOutDegree()` is `F64` for CPU precision (section 7.2), so the GPU package computes the per-node weight sum on the device with a segmented reduce over `rowPtr` / `weights` (one O(m) kernel, as cuGraph does), and guards the division because the sum may be `0` for a node with out-arcs (zero weights are legal) |
-| `degreeOrder(opts).perm` | `array<u32>` | n | load-balancing permutation; `{ of: "reverse" }` for pull kernels (tiers by in-degree) |
-| `degreeOrder(opts).segmentOffsets` | -- (CPU) | 5 | read on the CPU to size the three dispatches (`hi = [0, hiEnd)`, `mid = [hiEnd, midEnd)`, `low = [midEnd, lowEnd)`); a 20-byte `array<u32, 5>` is not a legal uniform layout (uniform array stride must be a multiple of 16), so tier bounds that a kernel needs are passed as ordinary uniform scalars |
-| `mate()` | `array<u32>` | arcCount | residual/flow kernels (undirected only) |
-| node/edge columns with eligibility `direct` or `packed` | `array<u32|i32|f32>` | rows * components (`u8`: `ceil(rows * components / 4)` words; `bool`: `ceil(rows / 32)` words) | via `table.gpuView(name)` |
+| Array                                                                | WGSL type                   | Length           | Present                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| -------------------------------------------------------------------- | --------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------- |
+| `rowPtr`                                                             | `array<u32>`                | n + 1            | always                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `colIdx`                                                             | `array<u32>`                | arcCount         | always (length 0 when `arcCount === 0`: do not bind, dispatch nothing)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `weights`                                                            | `array<f32>`                | arcCount         | when `flags.weighted` (else the kernel uses a `1.0` constant)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `arcToEdge`                                                          | `array<u32>`                | arcCount         | needed by any kernel that gathers an edge-aligned column (`col[arcToEdge[a]]`). Test `flags.arcToEdgeIsIdentity` BEFORE touching `snapshot.arcToEdge` (the getter would allocate 4A bytes outside the arena). Recommended pattern, so one pipeline layout serves both cases: the shader declares `override USE_PERM: bool` and reads `select(a, arcToEdge[a], USE_PERM)`; in the identity case the `arcToEdge` binding slot is filled with `colIdx` (already uploaded, length `arcCount`, never read), so no allocation and no second bind-group layout |
+| `edgeToArc`                                                          | `array<u32>`                | edgeCount        | for writing per-edge results from per-arc buffers; same `override` pattern when identity (bind `rowPtr` as the never-read dummy)                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `reverse().rowPtr / colIdx / fwdArc / weights`                       | `array<u32>` / `array<f32>` | n + 1 / arcCount | pull kernels (PageRank, HITS, bottom-up BFS); undirected: the SAME array objects as the forward ones, so a cache keyed on the array object uploads once                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `coo().src`                                                          | `array<u32>`                | arcCount         | PER-ARC edge-parallel kernels (every arc, both directions of an undirected edge)                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `edgeList().src / .dst / .weights`                                   | `array<u32>` / `array<f32>` | edgeCount        | EACH-EDGE-ONCE edge-parallel kernels: CC hook, Boruvka / Kruskal candidate lists, Bellman-Ford relax on undirected graphs (each edge relaxed in both directions by the kernel), edge sampling; correct on directed and undirected snapshots with no special case                                                                                                                                                                                                                                                                                        |
+| `outDegree()`, `inDegree()`, `selfLoopsPerNode()`                    | `array<u32>`                | n                | optional; kernels may compute from `rowPtr`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| weighted out-degree normaliser (PageRank / HITS / Katz with weights) | `array<f32>`                | n                | NOT a format upload: `weightedOutDegree()` is `F64` for CPU precision (section 7.2), so the GPU package computes the per-node weight sum on the device with a segmented reduce over `rowPtr` / `weights` (one O(m) kernel, as cuGraph does), and guards the division because the sum may be `0` for a node with out-arcs (zero weights are legal)                                                                                                                                                                                                       |
+| `degreeOrder(opts).perm`                                             | `array<u32>`                | n                | load-balancing permutation; `{ of: "reverse" }` for pull kernels (tiers by in-degree)                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `degreeOrder(opts).segmentOffsets`                                   | -- (CPU)                    | 5                | read on the CPU to size the three dispatches (`hi = [0, hiEnd)`, `mid = [hiEnd, midEnd)`, `low = [midEnd, lowEnd)`); a 20-byte `array<u32, 5>` is not a legal uniform layout (uniform array stride must be a multiple of 16), so tier bounds that a kernel needs are passed as ordinary uniform scalars                                                                                                                                                                                                                                                 |
+| `mate()`                                                             | `array<u32>`                | arcCount         | residual/flow kernels (undirected only)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| node/edge columns with eligibility `direct` or `packed`              | `array<u32                  | i32              | f32>`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | rows _ components (`u8`: `ceil(rows _ components / 4)`words;`bool`: `ceil(rows / 32)` words) | via `table.gpuView(name)` |
 
 GPU entry points take `GraphSnapshot` (not `AdjacencyView`) so they can
 read `flags` and `arena`. Field names are final (C21): the WebGPU package
@@ -2363,10 +2370,10 @@ renames `numVertices -> nodeCount`, `numEdges -> arcCount`, `edgeWeights
   which `column.paddedU32View()` returns the zero-copy `Uint32Array` of
   `ceil(byteLength / 4)` words for `writeBuffer`; kernels read
   `unpack4xU8(w[i >> 2u])[i & 3u]` and bound-check `i < rows *
-  components` because the trailing lanes of the last word are undefined.
+components` because the trailing lanes of the last word are undefined.
 - `bool` columns, validity bitmaps and masks are `Uint32Array` words
   already (one bitmap layout); kernels read `(w[r >> 5u] >> (r & 31u)) &
-  1u`.
+1u`.
 - Multi-component columns are flat interleaved `array<f32>`; a
   `components: 3` column must never be declared as `array<vec3<f32>>`
   (stride 16 != 12); `components: 4` may be read as `array<vec4<f32>>`.
@@ -2383,14 +2390,17 @@ by `fromBytes`, or decoded by `fromWire` from a manifest that carries an
 
 ```typescript
 export type CoreArrayName = "rowPtr" | "colIdx" | "weights" | "arcToEdge" | "edgeToArc";
-export interface ArenaSegment { readonly byteOffset: number; readonly byteLength: number; }
+export interface ArenaSegment {
+    readonly byteOffset: number;
+    readonly byteLength: number;
+}
 export interface ArenaLayout {
     readonly buffer: ArrayBuffer;
-    readonly byteOffset: number;               // start of the arena inside buffer (0 for builder output; bytes.byteOffset + B for a container)
+    readonly byteOffset: number; // start of the arena inside buffer (0 for builder output; bytes.byteOffset + B for a container)
     readonly byteLength: number;
     readonly alignment: 256;
-    readonly segments: Readonly<Record<CoreArrayName, ArenaSegment | null>>;   // absolute offsets in buffer; null = absent, zero-length, or identity (never in the arena)
-    readonly hotByteLength: number;            // end of the weights segment (or colIdx when unweighted) relative to byteOffset: the prefix a traversal kernel needs
+    readonly segments: Readonly<Record<CoreArrayName, ArenaSegment | null>>; // absolute offsets in buffer; null = absent, zero-length, or identity (never in the arena)
+    readonly hotByteLength: number; // end of the weights segment (or colIdx when unweighted) relative to byteOffset: the prefix a traversal kernel needs
 }
 ```
 
@@ -2450,14 +2460,14 @@ export type GpuEligibility = "direct" | "packed" | "convert" | "none";
 export function gpuEligibility(dtype: Dtype): GpuEligibility;
 ```
 
-| Column dtype | Eligibility | `gpuView()` returns |
-| --- | --- | --- |
-| `u32`, `i32`, `f32` (any components) | `direct` | the column's own data array |
-| `u8` | `packed` | `paddedU32View()` (4 values per word, `unpack4xU8`) |
-| `bool` | `packed` | the column's own `data` words (32 values per word, bit test) |
-| `dict` | `direct` (codes) | the `Uint32Array` codes; the dictionary stays on the CPU |
-| `f64` | `convert` | cached `Float32Array` copy (lossy; the column keeps f64) |
-| `string`, `list`, `json` | `none` | throws `E_GPU_INELIGIBLE` |
+| Column dtype                         | Eligibility      | `gpuView()` returns                                          |
+| ------------------------------------ | ---------------- | ------------------------------------------------------------ |
+| `u32`, `i32`, `f32` (any components) | `direct`         | the column's own data array                                  |
+| `u8`                                 | `packed`         | `paddedU32View()` (4 values per word, `unpack4xU8`)          |
+| `bool`                               | `packed`         | the column's own `data` words (32 values per word, bit test) |
+| `dict`                               | `direct` (codes) | the `Uint32Array` codes; the dictionary stays on the CPU     |
+| `f64`                                | `convert`        | cached `Float32Array` copy (lossy; the column keeps f64)     |
+| `string`, `list`, `json`             | `none`           | throws `E_GPU_INELIGIBLE`                                    |
 
 `column.gpu` is derived from the dtype and exposed for convenience.
 Declared defaults are already in `data` for the numeric / bool / dict
@@ -2528,7 +2538,7 @@ renumbering. No field of the format changes for chunking.
   `INVALID_INDEX` = none / root / unreached) or `Float32Array(n)` (scores,
   distances). Per-arc results: `Float32Array(arcCount)` or
   `Uint32Array(arcCount)`; fold to logical edges with `foldArcs(snapshot,
-  vec, reducer)`: `"first"` when both arcs of an undirected edge hold the
+vec, reducer)`: `"first"` when both arcs of an undirected edge hold the
   same value (edge betweenness, edge-level flags), `"sum"` / `"max"` /
   `"min"` only when the per-arc quantity is defined as a per-direction
   contribution (per-direction traffic counts). Flow is NOT a `foldArcs`
@@ -2587,34 +2597,39 @@ the GPU package never falls back; the caller injects it or not).
 
 ```typescript
 export type GraphFormatErrorCode =
-    | "E_INVALID_ID"          // NaN, non-finite number, bigint, object, null, undefined as an id
-    | "E_UNKNOWN_NODE"        // addEdge with addMissingNodes: false; requireIndex miss
-    | "E_INDEX_RANGE"         // idOf / value out of range
-    | "E_TOO_LARGE"           // nodeCount / edgeCount / arcCount would exceed MAX_COUNT
-    | "E_INVALID_WEIGHT"      // NaN weight
-    | "E_DIRECTED"            // mate() on a directed snapshot; setDirected() refused (locked, or directed -> undirected with edges)
-    | "E_SELF_LOOP"           // selfLoops: "error"
-    | "E_DUPLICATE_EDGE"      // duplicateEdges: "error"
-    | "E_DUPLICATE_EDGE_ID"   // unique role "id" edge column violated
-    | "E_DUPLICATE_ID"        // unique node column violated; addGraph onDuplicateNode: "error"
-    | "E_DUPLICATE_ROLE"      // two columns with the same role in one table
-    | "E_UNKNOWN_COLUMN" | "E_COLUMN_TYPE" | "E_COLUMN_LENGTH" | "E_COLUMN_ALIGNMENT" | "E_COLUMN_EXISTS" | "E_COLUMN_IMMUTABLE"
-    | "E_NO_DEFAULT"          // materializeDefault() on a column without a declared default
-    | "E_PARTITION"           // contract() partition has the wrong length or an INVALID_INDEX label
+    | "E_INVALID_ID" // NaN, non-finite number, bigint, object, null, undefined as an id
+    | "E_UNKNOWN_NODE" // addEdge with addMissingNodes: false; requireIndex miss
+    | "E_INDEX_RANGE" // idOf / value out of range
+    | "E_TOO_LARGE" // nodeCount / edgeCount / arcCount would exceed MAX_COUNT
+    | "E_INVALID_WEIGHT" // NaN weight
+    | "E_DIRECTED" // mate() on a directed snapshot; setDirected() refused (locked, or directed -> undirected with edges)
+    | "E_SELF_LOOP" // selfLoops: "error"
+    | "E_DUPLICATE_EDGE" // duplicateEdges: "error"
+    | "E_DUPLICATE_EDGE_ID" // unique role "id" edge column violated
+    | "E_DUPLICATE_ID" // unique node column violated; addGraph onDuplicateNode: "error"
+    | "E_DUPLICATE_ROLE" // two columns with the same role in one table
+    | "E_UNKNOWN_COLUMN"
+    | "E_COLUMN_TYPE"
+    | "E_COLUMN_LENGTH"
+    | "E_COLUMN_ALIGNMENT"
+    | "E_COLUMN_EXISTS"
+    | "E_COLUMN_IMMUTABLE"
+    | "E_NO_DEFAULT" // materializeDefault() on a column without a declared default
+    | "E_PARTITION" // contract() partition has the wrong length or an INVALID_INDEX label
     | "E_INVALID_PERMUTATION" // relabel() with a perm that is not a permutation of 0..n-1
-    | "E_MASK_LENGTH"         // filterEdges() / inducedSubgraph({ mask }) with a short mask
-    | "E_GPU_INELIGIBLE"      // gpuView on string / list / json
-    | "E_INVALID_SNAPSHOT"    // validate() failure; details.invariant = "I4", details.row = 17; details.reason = "no-checksum"
-    | "E_BAD_SERIALIZATION"   // magic / endianness / manifest / segment errors; details.ref names a bad WireBufferRef
+    | "E_MASK_LENGTH" // filterEdges() / inducedSubgraph({ mask }) with a short mask
+    | "E_GPU_INELIGIBLE" // gpuView on string / list / json
+    | "E_INVALID_SNAPSHOT" // validate() failure; details.invariant = "I4", details.row = 17; details.reason = "no-checksum"
+    | "E_BAD_SERIALIZATION" // magic / endianness / manifest / segment errors; details.ref names a bad WireBufferRef
     | "E_UNSUPPORTED_VERSION" // wire major or formatVersion the reader does not know; details.kind = "wire" | "format"
-    | "E_DETACHED"            // access after a consuming transfer
+    | "E_DETACHED" // access after a consuming transfer
     | "E_BUILDER_DISPOSED"
-    | "E_UNSUPPORTED"         // big-endian host; unknown wire dtype / id-map kind (details.reason, details.dtype, details.kind)
-    | "E_IMPORT";             // reserved for @graphty/graph-io's ImportError (importer aborted; error.report holds the partial ImportReport)
+    | "E_UNSUPPORTED" // big-endian host; unknown wire dtype / id-map kind (details.reason, details.dtype, details.kind)
+    | "E_IMPORT"; // reserved for @graphty/graph-io's ImportError (importer aborted; error.report holds the partial ImportReport)
 
 export declare class GraphFormatError extends Error {
     readonly code: GraphFormatErrorCode;
-    readonly details: Readonly<Record<string, unknown>>;   // { index, id, edge, invariant, row, found, supported, ... }
+    readonly details: Readonly<Record<string, unknown>>; // { index, id, edge, invariant, row, found, supported, ... }
     constructor(code: GraphFormatErrorCode, message: string, details?: Readonly<Record<string, unknown>>);
 }
 ```
@@ -2624,50 +2639,50 @@ ImportReport`) is declared in `@graphty/graph-io` (section 8.2).
 
 ### 11.3 Situations and behaviour
 
-| Situation | Behaviour |
-| --- | --- |
-| id `NaN`, `Infinity`, `bigint`, object, `null`, `undefined` | `E_INVALID_ID` |
-| id `-0` | stored as `0` (SameValueZero) |
-| id `"1"` and `1` | two distinct nodes |
-| `addEdge` to an unknown id | node created (default) or `E_UNKNOWN_NODE` |
-| `addEdgeByIndex` with a dead or out-of-range index | `E_UNKNOWN_NODE` with `details.index` |
-| weight `NaN` | `E_INVALID_WEIGHT` at `addEdge` / `setEdgeWeight` / `addEdges` |
-| weight `+/-Infinity`, negative, `0` | accepted; flags reflect it |
-| weight omitted in a weighted graph | `1` |
-| `addEdge(u, u)` | kept (default), dropped, or `E_SELF_LOOP` at freeze |
-| duplicate with `duplicateEdges: "error"` | `E_DUPLICATE_EDGE` at freeze, `details: { source, target, edges: [e1, e2] }` |
-| the `0xFFFFFFFF`-th node, edge or arc | `E_TOO_LARGE` at the `add*` call that crosses the limit |
-| `freeze()` of an empty builder | valid: `nodeCount 0`, `rowPtr = Uint32Array [0]`, `colIdx` / `arcToEdge` / `edgeToArc` of length 0, `weights === null`; layouts detect "edgeless" by `edgeCount === 0`; the GPU package binds nothing of length 0 (section 10.5) |
-| `setDirected(x)` on an empty unlocked builder | takes effect; `setDirected(true, { expand: true })` on a non-empty undirected builder expands (section 6.6) |
-| `setDirected()` after `lockDirected()`, or `setDirected(false)` with edges present | `E_DIRECTED` |
-| a file's direction disagrees with a locked or non-empty sink | importer expands into a directed sink, or reports and applies `onMixedDirection` / aborts with `E_IMPORT` for an undirected sink (section 8.4) |
-| column `set` with wrong length | `E_COLUMN_LENGTH` |
-| column `set` of a `u8` array from which no zero-copy `Uint32Array` view is constructible (`byteOffset % 4 !== 0` or the buffer ends before the padded length) with `adopt: "strict"` | `E_COLUMN_ALIGNMENT` (otherwise copied, section 5.7); 4-byte and `f64` arrays are always adopted by reference |
-| column `set` on an existing name | replaces the column (role rules apply) |
-| `typed(name, dtype)` mismatch, `get` / `byRole` miss | `null` (total); `require` throws `E_UNKNOWN_COLUMN`, `requireTyped` throws `E_COLUMN_TYPE` |
-| `declareNodeColumn` twice with a different dtype / components | `E_COLUMN_EXISTS` (same declaration returns the existing handle) |
-| `nodeColumn(name)` / `edgeColumn(name)` miss | `INVALID_INDEX` (a `ColumnHandle`) |
-| `mutableData()` / `markDirty()` / `mutableValidity()` / `setAll()` on an immutable column | `E_COLUMN_IMMUTABLE` |
-| `materializeDefault()` without a declared default | `E_NO_DEFAULT` |
-| a `default`, `fill`, `options` entry or `extra` value that is not a JSON value (after the tagged-number rule of section 5.9) | `E_COLUMN_TYPE` with `details.field` |
-| a string id or string value containing a lone surrogate | `E_INVALID_ID` / `E_COLUMN_TYPE` (`details.reason: "lone surrogate"`) |
-| `mate()` on a directed snapshot | `E_DIRECTED` |
-| `contract()` with `partition.length !== nodeCount` or an `INVALID_INDEX` label | `E_PARTITION` (non-dense labels are legal and renumbered, section 7.3) |
-| `relabel()` with a non-permutation | `E_INVALID_PERMUTATION` |
-| `filterEdges()` / `inducedSubgraph({ mask })` with a short mask | `E_MASK_LENGTH` |
-| `inducedSubgraph(list)` with an out-of-range or repeated index | `E_INDEX_RANGE` |
-| any core accessor after `toWire({ transfer: true })`, or on any snapshot whose core buffer was transferred by someone else | `E_DETACHED` (`detached` is derived from the array state, section 9.1) |
-| `validate({ checksum: true })` on a snapshot frozen without `checksum: true` | `E_INVALID_SNAPSHOT`, `details.reason: "no-checksum"` |
-| `toBytes()` / `toWire()` on a big-endian host | `E_UNSUPPORTED`, `details.reason: "big-endian host"` |
-| `fromWire` / `fromBytes` with an unknown `formatVersion` or wire major | `E_UNSUPPORTED_VERSION` (`details.kind`, `details.found`, `details.supported`) |
-| `fromWire` / `fromBytes` with an unknown column dtype or id-map kind | `E_UNSUPPORTED` (dtype: unless `unknownColumns: "skip"`) |
-| `fromBytes` of a `SharedArrayBuffer` or a buffer at `byteOffset % 8 !== 0` | copied, never adopted (section 9.2) |
+| Situation                                                                                                                                                                            | Behaviour                                                                                                                                                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| id `NaN`, `Infinity`, `bigint`, object, `null`, `undefined`                                                                                                                          | `E_INVALID_ID`                                                                                                                                                                                                                   |
+| id `-0`                                                                                                                                                                              | stored as `0` (SameValueZero)                                                                                                                                                                                                    |
+| id `"1"` and `1`                                                                                                                                                                     | two distinct nodes                                                                                                                                                                                                               |
+| `addEdge` to an unknown id                                                                                                                                                           | node created (default) or `E_UNKNOWN_NODE`                                                                                                                                                                                       |
+| `addEdgeByIndex` with a dead or out-of-range index                                                                                                                                   | `E_UNKNOWN_NODE` with `details.index`                                                                                                                                                                                            |
+| weight `NaN`                                                                                                                                                                         | `E_INVALID_WEIGHT` at `addEdge` / `setEdgeWeight` / `addEdges`                                                                                                                                                                   |
+| weight `+/-Infinity`, negative, `0`                                                                                                                                                  | accepted; flags reflect it                                                                                                                                                                                                       |
+| weight omitted in a weighted graph                                                                                                                                                   | `1`                                                                                                                                                                                                                              |
+| `addEdge(u, u)`                                                                                                                                                                      | kept (default), dropped, or `E_SELF_LOOP` at freeze                                                                                                                                                                              |
+| duplicate with `duplicateEdges: "error"`                                                                                                                                             | `E_DUPLICATE_EDGE` at freeze, `details: { source, target, edges: [e1, e2] }`                                                                                                                                                     |
+| the `0xFFFFFFFF`-th node, edge or arc                                                                                                                                                | `E_TOO_LARGE` at the `add*` call that crosses the limit                                                                                                                                                                          |
+| `freeze()` of an empty builder                                                                                                                                                       | valid: `nodeCount 0`, `rowPtr = Uint32Array [0]`, `colIdx` / `arcToEdge` / `edgeToArc` of length 0, `weights === null`; layouts detect "edgeless" by `edgeCount === 0`; the GPU package binds nothing of length 0 (section 10.5) |
+| `setDirected(x)` on an empty unlocked builder                                                                                                                                        | takes effect; `setDirected(true, { expand: true })` on a non-empty undirected builder expands (section 6.6)                                                                                                                      |
+| `setDirected()` after `lockDirected()`, or `setDirected(false)` with edges present                                                                                                   | `E_DIRECTED`                                                                                                                                                                                                                     |
+| a file's direction disagrees with a locked or non-empty sink                                                                                                                         | importer expands into a directed sink, or reports and applies `onMixedDirection` / aborts with `E_IMPORT` for an undirected sink (section 8.4)                                                                                   |
+| column `set` with wrong length                                                                                                                                                       | `E_COLUMN_LENGTH`                                                                                                                                                                                                                |
+| column `set` of a `u8` array from which no zero-copy `Uint32Array` view is constructible (`byteOffset % 4 !== 0` or the buffer ends before the padded length) with `adopt: "strict"` | `E_COLUMN_ALIGNMENT` (otherwise copied, section 5.7); 4-byte and `f64` arrays are always adopted by reference                                                                                                                    |
+| column `set` on an existing name                                                                                                                                                     | replaces the column (role rules apply)                                                                                                                                                                                           |
+| `typed(name, dtype)` mismatch, `get` / `byRole` miss                                                                                                                                 | `null` (total); `require` throws `E_UNKNOWN_COLUMN`, `requireTyped` throws `E_COLUMN_TYPE`                                                                                                                                       |
+| `declareNodeColumn` twice with a different dtype / components                                                                                                                        | `E_COLUMN_EXISTS` (same declaration returns the existing handle)                                                                                                                                                                 |
+| `nodeColumn(name)` / `edgeColumn(name)` miss                                                                                                                                         | `INVALID_INDEX` (a `ColumnHandle`)                                                                                                                                                                                               |
+| `mutableData()` / `markDirty()` / `mutableValidity()` / `setAll()` on an immutable column                                                                                            | `E_COLUMN_IMMUTABLE`                                                                                                                                                                                                             |
+| `materializeDefault()` without a declared default                                                                                                                                    | `E_NO_DEFAULT`                                                                                                                                                                                                                   |
+| a `default`, `fill`, `options` entry or `extra` value that is not a JSON value (after the tagged-number rule of section 5.9)                                                         | `E_COLUMN_TYPE` with `details.field`                                                                                                                                                                                             |
+| a string id or string value containing a lone surrogate                                                                                                                              | `E_INVALID_ID` / `E_COLUMN_TYPE` (`details.reason: "lone surrogate"`)                                                                                                                                                            |
+| `mate()` on a directed snapshot                                                                                                                                                      | `E_DIRECTED`                                                                                                                                                                                                                     |
+| `contract()` with `partition.length !== nodeCount` or an `INVALID_INDEX` label                                                                                                       | `E_PARTITION` (non-dense labels are legal and renumbered, section 7.3)                                                                                                                                                           |
+| `relabel()` with a non-permutation                                                                                                                                                   | `E_INVALID_PERMUTATION`                                                                                                                                                                                                          |
+| `filterEdges()` / `inducedSubgraph({ mask })` with a short mask                                                                                                                      | `E_MASK_LENGTH`                                                                                                                                                                                                                  |
+| `inducedSubgraph(list)` with an out-of-range or repeated index                                                                                                                       | `E_INDEX_RANGE`                                                                                                                                                                                                                  |
+| any core accessor after `toWire({ transfer: true })`, or on any snapshot whose core buffer was transferred by someone else                                                           | `E_DETACHED` (`detached` is derived from the array state, section 9.1)                                                                                                                                                           |
+| `validate({ checksum: true })` on a snapshot frozen without `checksum: true`                                                                                                         | `E_INVALID_SNAPSHOT`, `details.reason: "no-checksum"`                                                                                                                                                                            |
+| `toBytes()` / `toWire()` on a big-endian host                                                                                                                                        | `E_UNSUPPORTED`, `details.reason: "big-endian host"`                                                                                                                                                                             |
+| `fromWire` / `fromBytes` with an unknown `formatVersion` or wire major                                                                                                               | `E_UNSUPPORTED_VERSION` (`details.kind`, `details.found`, `details.supported`)                                                                                                                                                   |
+| `fromWire` / `fromBytes` with an unknown column dtype or id-map kind                                                                                                                 | `E_UNSUPPORTED` (dtype: unless `unknownColumns: "skip"`)                                                                                                                                                                         |
+| `fromBytes` of a `SharedArrayBuffer` or a buffer at `byteOffset % 8 !== 0`                                                                                                           | copied, never adopted (section 9.2)                                                                                                                                                                                              |
 
 ### 11.4 validate()
 
 ```typescript
 export declare class GraphSnapshot {
-    validate(options?: ValidateOptions): void;   // { level?: "structure" | "full"; checksum?: boolean }
+    validate(options?: ValidateOptions): void; // { level?: "structure" | "full"; checksum?: boolean }
 }
 ```
 
@@ -2691,7 +2706,7 @@ and `fromBytes` `"full"`; `fromWire` `"structure"`.
 
 - Public arrays are typed as the concrete typed-array classes with the
   buffer type parameter fixed to `ArrayBuffer`: `U32 = Uint32Array<
-  ArrayBuffer>`, `I32`, `F32`, `F64`, `U8` (section 12.2). Verified with
+ArrayBuffer>`, `I32`, `F32`, `F64`, `U8` (section 12.2). Verified with
   tsc 5.9.3 and `@webgpu/types` 0.1.68 (the monorepo's versions):
   `GPUQueue.writeBuffer` takes `BufferSource | SharedArrayBuffer` where
   `BufferSource = ArrayBufferView<ArrayBuffer> | ArrayBuffer`, so a plain
@@ -2718,7 +2733,7 @@ and `fromBytes` `"full"`; `fromWire` `"structure"`.
   and `ArcIndex` are plain `number` aliases for documentation. Builder
   HANDLES are branded (`ColumnHandle`, `ExtensionHandle`): they never come
   out of a typed array, and the brand stops `setNodeValue(index, handle,
-  v)` with the arguments swapped from type-checking.
+v)` with the arguments swapped from type-checking.
 - Absent OUTPUT data is `T | null`, never `undefined` and never an
   optional property, on every public surface including method returns
   (`get()`, `typed()`, `byRole()`, `weights`, `arena`, remaps) and the
@@ -2733,10 +2748,10 @@ and `fromBytes` `"full"`; `fromWire` `"structure"`.
 - Options and declaration objects (`GraphBuilderOptions`, `FreezeOptions`,
   `ColumnDecl`, `*Input`) use `?:` for optional INPUT fields, and every
   optional input field also accepts an explicit `undefined` (`prop?: T |
-  undefined`) so a consumer compiled with `exactOptionalPropertyTypes` can
+undefined`) so a consumer compiled with `exactOptionalPropertyTypes` can
   spread partial objects. TypeScript's `Partial<T>` adds `?` but not `|
-  undefined`, so the surface never uses it: patch shapes are `Loose<T> =
-  { [K in keyof T]?: T[K] | undefined }` (`ColumnDeclPatch`,
+undefined`, so the surface never uses it: patch shapes are `Loose<T> =
+{ [K in keyof T]?: T[K] | undefined }` (`ColumnDeclPatch`,
   `GraphMetaPatch`, `BuilderOptionsPatch`, `FlagClaims`,
   `ColumnOriginInput`). Resolved option objects are declared explicitly
   (`ResolvedBuilderOptions`) rather than as `Required<...>`, whose shape
@@ -2789,7 +2804,7 @@ export type ArcIndex = number;
 export const INVALID_INDEX = 0xffffffff;
 export const MAX_COUNT = 0xfffffffe;
 export const FORMAT_VERSION = 1;
-export const SNAPSHOT_BRAND: unique symbol;   // Symbol.for("@graphty/graph-format/snapshot")
+export const SNAPSHOT_BRAND: unique symbol; // Symbol.for("@graphty/graph-format/snapshot")
 
 export type U32 = Uint32Array<ArrayBuffer>;
 export type I32 = Int32Array<ArrayBuffer>;
@@ -2813,18 +2828,50 @@ export type ScalarDtype = Exclude<Dtype, "list">;
 export type ColumnDomain = "node" | "edge" | "graph" | "extension";
 export type GpuEligibility = "direct" | "packed" | "convert" | "none";
 export type KnownColumnRole =
-    | "id" | "label" | "weight" | "capacity" | "position" | "color" | "size" | "shape" | "thickness"
-    | "parent" | "parents" | "kind" | "labels" | "classes" | "start" | "end" | "timestamp" | "timestamps" | "spells" | "open" | "timeText"
-    | "key" | "directed" | "pair" | "mutual" | "originalId" | "sourcePort" | "targetPort" | "idSpace"
-    | "fixed" | "mass" | "subset" | "hidden" | "component" | "community" | "rank";
-export type ColumnRole = KnownColumnRole | (string & {});   // known roles plus open extension; the intersection form is deliberate (section 12.1)
+    | "id"
+    | "label"
+    | "weight"
+    | "capacity"
+    | "position"
+    | "color"
+    | "size"
+    | "shape"
+    | "thickness"
+    | "parent"
+    | "parents"
+    | "kind"
+    | "labels"
+    | "classes"
+    | "start"
+    | "end"
+    | "timestamp"
+    | "timestamps"
+    | "spells"
+    | "open"
+    | "timeText"
+    | "key"
+    | "directed"
+    | "pair"
+    | "mutual"
+    | "originalId"
+    | "sourcePort"
+    | "targetPort"
+    | "idSpace"
+    | "fixed"
+    | "mass"
+    | "subset"
+    | "hidden"
+    | "component"
+    | "community"
+    | "rank";
+export type ColumnRole = KnownColumnRole | (string & {}); // known roles plus open extension; the intersection form is deliberate (section 12.1)
 
 export interface ColumnOrigin {
-    readonly format: string | null;        // "gexf" | "graphml" | "gml" | "csv" | ...
-    readonly id: string | null;            // GEXF attribute id, GraphML key id
-    readonly title: string | null;         // GEXF title / GraphML attr.name when different from name
-    readonly type: string | null;          // declared type text: "liststring", "anyURI", "long", "date", "int", "real", "yfiles"
-    readonly namespace: string | null;     // "viz", "yfiles", "neo4j"
+    readonly format: string | null; // "gexf" | "graphml" | "gml" | "csv" | ...
+    readonly id: string | null; // GEXF attribute id, GraphML key id
+    readonly title: string | null; // GEXF title / GraphML attr.name when different from name
+    readonly type: string | null; // declared type text: "liststring", "anyURI", "long", "date", "int", "real", "yfiles"
+    readonly namespace: string | null; // "viz", "yfiles", "neo4j"
 }
 export type ColumnOriginInput = Loose<ColumnOrigin>;
 
@@ -2832,17 +2879,17 @@ export type ColumnOriginInput = Loose<ColumnOrigin>;
 export interface ColumnDecl {
     name: string;
     dtype: Dtype;
-    components?: number | undefined;                       // default 1
-    itemDtype?: ScalarDtype | undefined;                   // list only
-    itemComponents?: number | undefined;                   // list only; the child's components (spells: 2)
-    nullable?: boolean | undefined;                        // default true for declared columns, false for typed bulk sets
-    mutable?: boolean | undefined;                         // default false
+    components?: number | undefined; // default 1
+    itemDtype?: ScalarDtype | undefined; // list only
+    itemComponents?: number | undefined; // list only; the child's components (spells: 2)
+    nullable?: boolean | undefined; // default true for declared columns, false for typed bulk sets
+    mutable?: boolean | undefined; // default false
     role?: ColumnRole | undefined;
     refersTo?: "node" | "edge" | undefined;
     unique?: boolean | undefined;
-    default?: unknown;                                     // JSON value (non-finite numbers allowed, section 5.9)
-    fill?: number | string | boolean | undefined;          // default: the declared default when representable, else 0 / "" / false
-    options?: readonly unknown[] | undefined;              // for dict: the initial dictionary (GEXF <options>)
+    default?: unknown; // JSON value (non-finite numbers allowed, section 5.9)
+    fill?: number | string | boolean | undefined; // default: the declared default when representable, else 0 / "" / false
+    options?: readonly unknown[] | undefined; // for dict: the initial dictionary (GEXF <options>)
     origin?: ColumnOriginInput | undefined;
     dynamic?: boolean | undefined;
     extra?: Readonly<Record<string, unknown>> | undefined;
@@ -2862,7 +2909,7 @@ export interface ColumnMeta {
     readonly role: ColumnRole | null;
     readonly refersTo: "node" | "edge" | null;
     readonly unique: boolean;
-    readonly default: unknown;                             // undefined when none declared
+    readonly default: unknown; // undefined when none declared
     readonly fill: number | string | boolean;
     readonly options: readonly unknown[] | null;
     readonly origin: ColumnOrigin | null;
@@ -2870,62 +2917,101 @@ export interface ColumnMeta {
     readonly extra: Readonly<Record<string, unknown>>;
 }
 
-export interface ColumnInput { readonly data: TypedArrayData | readonly unknown[]; readonly decl: ColumnDeclPatch; }
-export interface SetOptions { readonly replaceRole?: boolean | undefined; readonly adopt?: "copy" | "strict" | undefined; }
+export interface ColumnInput {
+    readonly data: TypedArrayData | readonly unknown[];
+    readonly decl: ColumnDeclPatch;
+}
+export interface SetOptions {
+    readonly replaceRole?: boolean | undefined;
+    readonly adopt?: "copy" | "strict" | undefined;
+}
 
 /** What value(row) returns for a set row of each dtype. */
-export type DtypeValue<D extends Dtype> =
-    D extends "f32" | "f64" | "i32" | "u32" | "u8" ? number | ArrayLike<number>
-    : D extends "bool" ? boolean
-    : D extends "dict" | "string" ? string
-    : D extends "list" ? readonly unknown[]
-    : unknown;
+export type DtypeValue<D extends Dtype> = D extends "f32" | "f64" | "i32" | "u32" | "u8"
+    ? number | ArrayLike<number>
+    : D extends "bool"
+      ? boolean
+      : D extends "dict" | "string"
+        ? string
+        : D extends "list"
+          ? readonly unknown[]
+          : unknown;
 
 export interface ColumnBase<D extends Dtype> {
     readonly dtype: D;
     readonly meta: ColumnMeta;
-    readonly length: number;                 // rows
-    readonly validity: U32 | null;           // LSB-first words, ceil(length / 32); null = all set
+    readonly length: number; // rows
+    readonly validity: U32 | null; // LSB-first words, ceil(length / 32); null = all set
     readonly nullCount: number;
     readonly gpu: GpuEligibility;
-    readonly byteLength: number;             // bytes of data (+ validity)
-    readonly paddedByteLength: number;       // byteLength, or roundUp(byteLength, 4) for u8 (section 5.7)
-    readonly version: number;                // bumped by markDirty()
+    readonly byteLength: number; // bytes of data (+ validity)
+    readonly paddedByteLength: number; // byteLength, or roundUp(byteLength, 4) for u8 (section 5.7)
+    readonly version: number; // bumped by markDirty()
     isSet(row: number): boolean;
-    value(row: number): DtypeValue<D> | undefined;   // typed read honouring meta.default; undefined for an unset row without default; components > 1 returns a subarray view
-    materializeDefault(): ColumnOf<D>;       // this column when fill === default; else a cached copy with defaults written into unset rows; E_NO_DEFAULT when none
-    paddedU32View(): U32;                    // u8: zero-copy padded view; u32 / bool: the data itself; else E_GPU_INELIGIBLE
-    markDirty(): void;                       // mutable columns only (E_COLUMN_IMMUTABLE otherwise)
-    mutableValidity(): U32 | null;           // mutable columns only; the bitmap itself
-    setAll(): void;                          // mutable columns only; drops the bitmap, nullCount = 0
-    slice(start: number, end: number): ColumnOf<D>;   // row range; zero-copy except packed stores at unaligned starts (section 5.7)
+    value(row: number): DtypeValue<D> | undefined; // typed read honouring meta.default; undefined for an unset row without default; components > 1 returns a subarray view
+    materializeDefault(): ColumnOf<D>; // this column when fill === default; else a cached copy with defaults written into unset rows; E_NO_DEFAULT when none
+    paddedU32View(): U32; // u8: zero-copy padded view; u32 / bool: the data itself; else E_GPU_INELIGIBLE
+    markDirty(): void; // mutable columns only (E_COLUMN_IMMUTABLE otherwise)
+    mutableValidity(): U32 | null; // mutable columns only; the bitmap itself
+    setAll(): void; // mutable columns only; drops the bitmap, nullCount = 0
+    slice(start: number, end: number): ColumnOf<D>; // row range; zero-copy except packed stores at unaligned starts (section 5.7)
     clone(): ColumnOf<D>;
 }
-export interface F32Column extends ColumnBase<"f32"> { readonly data: F32; mutableData(): F32; }
-export interface F64Column extends ColumnBase<"f64"> { readonly data: F64; mutableData(): F64; }
-export interface I32Column extends ColumnBase<"i32"> { readonly data: I32; mutableData(): I32; }
-export interface U32Column extends ColumnBase<"u32"> { readonly data: U32; mutableData(): U32; }
-export interface U8Column extends ColumnBase<"u8"> { readonly data: U8; mutableData(): U8; }
-export interface BoolColumn extends ColumnBase<"bool"> { readonly data: U32; mutableData(): U32; }   // bit-packed, ceil(rows / 32) words
+export interface F32Column extends ColumnBase<"f32"> {
+    readonly data: F32;
+    mutableData(): F32;
+}
+export interface F64Column extends ColumnBase<"f64"> {
+    readonly data: F64;
+    mutableData(): F64;
+}
+export interface I32Column extends ColumnBase<"i32"> {
+    readonly data: I32;
+    mutableData(): I32;
+}
+export interface U32Column extends ColumnBase<"u32"> {
+    readonly data: U32;
+    mutableData(): U32;
+}
+export interface U8Column extends ColumnBase<"u8"> {
+    readonly data: U8;
+    mutableData(): U8;
+}
+export interface BoolColumn extends ColumnBase<"bool"> {
+    readonly data: U32;
+    mutableData(): U32;
+} // bit-packed, ceil(rows / 32) words
 export interface DictColumn extends ColumnBase<"dict"> {
     readonly codes: U32;
     readonly dictionary: readonly string[];
-    codeOf(value: string): number;                        // INVALID_INDEX when absent; lazy Map
-    mutableData(): U32;                                   // codes
+    codeOf(value: string): number; // INVALID_INDEX when absent; lazy Map
+    mutableData(): U32; // codes
 }
 export interface StringColumn extends ColumnBase<"string"> {
-    readonly offsets: U32;                                // rows + 1 (materialised lazily from the decoded cache when needed)
+    readonly offsets: U32; // rows + 1 (materialised lazily from the decoded cache when needed)
     readonly utf8: U8;
-    valueAt(row: number): string;                         // decoded, cached per row
-    decodeAll(): string[];                                // one pass; not cached
+    valueAt(row: number): string; // decoded, cached per row
+    decodeAll(): string[]; // one pass; not cached
 }
 export interface ListColumn extends ColumnBase<"list"> {
-    readonly offsets: U32;                                // rows + 1
+    readonly offsets: U32; // rows + 1
     readonly child: Exclude<Column, ListColumn>;
-    sliceOf(row: number): readonly unknown[];             // narrow through child.dtype
+    sliceOf(row: number): readonly unknown[]; // narrow through child.dtype
 }
-export interface JsonColumn extends ColumnBase<"json"> { readonly values: readonly unknown[]; }
-export type Column = F32Column | F64Column | I32Column | U32Column | U8Column | BoolColumn | DictColumn | StringColumn | ListColumn | JsonColumn;
+export interface JsonColumn extends ColumnBase<"json"> {
+    readonly values: readonly unknown[];
+}
+export type Column =
+    | F32Column
+    | F64Column
+    | I32Column
+    | U32Column
+    | U8Column
+    | BoolColumn
+    | DictColumn
+    | StringColumn
+    | ListColumn
+    | JsonColumn;
 export type ColumnOf<D extends Dtype> = Extract<Column, { dtype: D }>;
 
 export declare class AttributeTable {
@@ -2940,7 +3026,12 @@ export declare class AttributeTable {
     byRole(role: ColumnRole): Column | null;
     value(name: string, row: number): unknown;
     isSet(name: string, row: number): boolean;
-    set(name: string, data: Column | TypedArrayData | readonly unknown[], decl?: ColumnDeclPatch, opts?: SetOptions): Column;
+    set(
+        name: string,
+        data: Column | TypedArrayData | readonly unknown[],
+        decl?: ColumnDeclPatch,
+        opts?: SetOptions,
+    ): Column;
     remove(name: string): boolean;
     rename(from: string, to: string): void;
     gpuView(name: string): U32 | I32 | F32;
@@ -2970,18 +3061,29 @@ export type GraphMetaPatch = Loose<GraphMeta>;
 // column helpers
 export function gpuEligibility(dtype: Dtype): GpuEligibility;
 export function paddedU32View(data: U8): U32;
-export function remapColumn(column: Column, remap: U32, newLength: number): Column;                        // gathers data + validity; rewrites refersTo values; INVALID_INDEX in remap drops the row
-export function gatherColumn(column: Column, indexMap: U32): Column;                                       // out[i] = column[indexMap[i]]
-export function remapArray<T extends TypedArrayData>(data: T, remap: U32, newLength: number, fill: number, components?: number): T;
-export function gatherArray<T extends TypedArrayData>(data: T, indexMap: U32, components?: number): T;    // out[i] = data[indexMap[i]]
-export function scatterArray<T extends TypedArrayData>(out: T, values: T, indexMap: U32, components?: number): T;   // out[indexMap[i]] = values[i]
+export function remapColumn(column: Column, remap: U32, newLength: number): Column; // gathers data + validity; rewrites refersTo values; INVALID_INDEX in remap drops the row
+export function gatherColumn(column: Column, indexMap: U32): Column; // out[i] = column[indexMap[i]]
+export function remapArray<T extends TypedArrayData>(
+    data: T,
+    remap: U32,
+    newLength: number,
+    fill: number,
+    components?: number,
+): T;
+export function gatherArray<T extends TypedArrayData>(data: T, indexMap: U32, components?: number): T; // out[i] = data[indexMap[i]]
+export function scatterArray<T extends TypedArrayData>(out: T, values: T, indexMap: U32, components?: number): T; // out[indexMap[i]] = values[i]
 export function withComponents(data: F32, from: number, to: number, fill: number): F32;
-export function foldArcs<T extends NumericVector>(snapshot: GraphSnapshot, perArc: T, reducer: "first" | "sum" | "max" | "min", out?: T): T;
+export function foldArcs<T extends NumericVector>(
+    snapshot: GraphSnapshot,
+    perArc: T,
+    reducer: "first" | "sum" | "max" | "min",
+    out?: T,
+): T;
 export function expandEdges<T extends NumericVector>(snapshot: GraphSnapshot, perEdge: T, out?: T): T;
-export function renumberPartition(labels: U32, out?: U32): { readonly labels: U32; readonly count: number };   // dense 0..k-1 in first-seen order
+export function renumberPartition(labels: U32, out?: U32): { readonly labels: U32; readonly count: number }; // dense 0..k-1 in first-seen order
 
 // ============================================================ masks (packed bitmaps; helper type, not a snapshot contract)
-export type NodeMask = U32;   // ceil(n / 32) words, bit i => node i included; same layout as validity and bool columns
+export type NodeMask = U32; // ceil(n / 32) words, bit i => node i included; same layout as validity and bool columns
 export type EdgeMask = U32;
 export function makeMask(length: number, fill?: boolean): U32;
 export function maskTest(mask: U32, i: number): boolean;
@@ -3002,11 +3104,11 @@ export interface WireIdMap {
     readonly kind: NodeIdMapKind;
     readonly size: number;
     readonly offset: number;
-    readonly values: WireBufferRef | null;    // dense (u32) / numeric (f64)
-    readonly tags: WireBufferRef | null;      // mixed
-    readonly numbers: WireBufferRef | null;   // mixed
-    readonly offsets: WireBufferRef | null;   // string / mixed
-    readonly utf8: WireBufferRef | null;      // string / mixed
+    readonly values: WireBufferRef | null; // dense (u32) / numeric (f64)
+    readonly tags: WireBufferRef | null; // mixed
+    readonly numbers: WireBufferRef | null; // mixed
+    readonly offsets: WireBufferRef | null; // string / mixed
+    readonly utf8: WireBufferRef | null; // string / mixed
 }
 export declare class NodeIdMap implements Iterable<NodeId> {
     readonly kind: NodeIdMapKind;
@@ -3040,7 +3142,10 @@ export interface SnapshotFlags {
 }
 export type FlagClaims = Loose<SnapshotFlags>;
 export type CoreArrayName = "rowPtr" | "colIdx" | "weights" | "arcToEdge" | "edgeToArc";
-export interface ArenaSegment { readonly byteOffset: number; readonly byteLength: number; }
+export interface ArenaSegment {
+    readonly byteOffset: number;
+    readonly byteLength: number;
+}
 export interface ArenaLayout {
     readonly buffer: ArrayBuffer;
     readonly byteOffset: number;
@@ -3050,9 +3155,26 @@ export interface ArenaLayout {
     readonly hotByteLength: number;
 }
 export type ViewName =
-    | "reverse" | "coo" | "edgeList" | "outDegree" | "inDegree" | "degree" | "weightedOutDegree" | "weightedInDegree" | "weightedDegree"
-    | "selfLoopWeight" | "totalWeight" | "selfLoopArcs" | "selfLoopsPerNode" | "mate" | "degreeOrder" | "reverseDegreeOrder" | "symmetric";
-export interface DegreeOrderOptions { readonly of?: "forward" | "reverse" | undefined; }
+    | "reverse"
+    | "coo"
+    | "edgeList"
+    | "outDegree"
+    | "inDegree"
+    | "degree"
+    | "weightedOutDegree"
+    | "weightedInDegree"
+    | "weightedDegree"
+    | "selfLoopWeight"
+    | "totalWeight"
+    | "selfLoopArcs"
+    | "selfLoopsPerNode"
+    | "mate"
+    | "degreeOrder"
+    | "reverseDegreeOrder"
+    | "symmetric";
+export interface DegreeOrderOptions {
+    readonly of?: "forward" | "reverse" | undefined;
+}
 
 export interface AdjacencyView {
     readonly directed: boolean;
@@ -3063,10 +3185,25 @@ export interface AdjacencyView {
     readonly arcToEdge: U32;
     readonly weights: F32 | null;
 }
-export interface ReverseView extends AdjacencyView { readonly fwdArc: U32; }
-export interface CooView { readonly src: U32; readonly dst: U32; readonly arcToEdge: U32; readonly weights: F32 | null; }
-export interface EdgeListView { readonly src: U32; readonly dst: U32; readonly arc: U32; readonly weights: F32 | null; }
-export interface DegreeOrderView { readonly perm: U32; readonly segmentOffsets: U32; }
+export interface ReverseView extends AdjacencyView {
+    readonly fwdArc: U32;
+}
+export interface CooView {
+    readonly src: U32;
+    readonly dst: U32;
+    readonly arcToEdge: U32;
+    readonly weights: F32 | null;
+}
+export interface EdgeListView {
+    readonly src: U32;
+    readonly dst: U32;
+    readonly arc: U32;
+    readonly weights: F32 | null;
+}
+export interface DegreeOrderView {
+    readonly perm: U32;
+    readonly segmentOffsets: U32;
+}
 
 // ============================================================ derived graphs
 export interface DerivedGraph {
@@ -3078,24 +3215,36 @@ export interface DerivedGraph {
     readonly blockSizes: U32 | null;
     readonly report: { readonly droppedEdges: number; readonly mergedEdges: number };
 }
-export interface ToUndirectedOptions { readonly reciprocal?: boolean | undefined; readonly weights?: WeightReducer | undefined; }
+export interface ToUndirectedOptions {
+    readonly reciprocal?: boolean | undefined;
+    readonly weights?: WeightReducer | undefined;
+}
 export interface SimplifyOptions {
     readonly weights?: WeightReducer | undefined;
     readonly selfLoops?: "keep" | "drop" | undefined;
     readonly edgeReducers?: Readonly<Record<string, ColumnReducer>> | undefined;
 }
 export interface ContractOptions {
-    readonly weights?: WeightReducer | undefined;                 // default "sum"
-    readonly selfLoops?: "keep" | "drop" | undefined;             // default "keep"
-    readonly parallel?: "merge" | "keep" | undefined;             // default "merge"
-    readonly nodeReducers?: Readonly<Record<string, ColumnReducer>> | undefined;   // default: drop node columns
-    readonly edgeReducers?: Readonly<Record<string, ColumnReducer>> | undefined;   // default: drop edge columns
+    readonly weights?: WeightReducer | undefined; // default "sum"
+    readonly selfLoops?: "keep" | "drop" | undefined; // default "keep"
+    readonly parallel?: "merge" | "keep" | undefined; // default "merge"
+    readonly nodeReducers?: Readonly<Record<string, ColumnReducer>> | undefined; // default: drop node columns
+    readonly edgeReducers?: Readonly<Record<string, ColumnReducer>> | undefined; // default: drop edge columns
 }
 
 // ============================================================ wire
 export type WireDtype = "u32" | "i32" | "f32" | "f64" | "u8" | "utf8";
-export interface WireBufferRef { readonly buffer: number; readonly byteOffset: number; readonly byteLength: number; readonly dtype: WireDtype; readonly length: number; }
-export interface WireUtf8 { readonly offsets: WireBufferRef; readonly utf8: WireBufferRef; }
+export interface WireBufferRef {
+    readonly buffer: number;
+    readonly byteOffset: number;
+    readonly byteLength: number;
+    readonly dtype: WireDtype;
+    readonly length: number;
+}
+export interface WireUtf8 {
+    readonly offsets: WireBufferRef;
+    readonly utf8: WireBufferRef;
+}
 export interface WireColumn {
     readonly meta: ColumnMeta;
     readonly data: WireBufferRef | null;
@@ -3107,33 +3256,73 @@ export interface WireColumn {
     readonly child: WireColumn | null;
     readonly jsonText: WireUtf8 | null;
 }
-export interface WireArena { readonly buffer: number; readonly byteOffset: number; readonly byteLength: number; readonly hotByteLength: number; }
+export interface WireArena {
+    readonly buffer: number;
+    readonly byteOffset: number;
+    readonly byteLength: number;
+    readonly hotByteLength: number;
+}
 export interface WireManifest {
     readonly format: "graphty-snapshot";
     readonly wire: readonly [major: number, minor: number];
     readonly producer: string;
     readonly formatVersion: 1;
     readonly directed: boolean;
-    readonly counts: { readonly nodes: number; readonly edges: number; readonly arcs: number; readonly selfLoops: number };
+    readonly counts: {
+        readonly nodes: number;
+        readonly edges: number;
+        readonly arcs: number;
+        readonly selfLoops: number;
+    };
     readonly flags: SnapshotFlags;
-    readonly core: { readonly rowPtr: WireBufferRef; readonly colIdx: WireBufferRef | null; readonly weights: WireBufferRef | null; readonly arcToEdge: WireBufferRef | null; readonly edgeToArc: WireBufferRef | null };
+    readonly core: {
+        readonly rowPtr: WireBufferRef;
+        readonly colIdx: WireBufferRef | null;
+        readonly weights: WireBufferRef | null;
+        readonly arcToEdge: WireBufferRef | null;
+        readonly edgeToArc: WireBufferRef | null;
+    };
     readonly arena: WireArena | null;
     readonly ids: WireIdMap;
     readonly nodeColumns: readonly WireColumn[];
     readonly edgeColumns: readonly WireColumn[];
     readonly graphColumns: readonly WireColumn[];
-    readonly extensions: readonly { readonly name: string; readonly rowCount: number; readonly columns: readonly WireColumn[] }[];
+    readonly extensions: readonly {
+        readonly name: string;
+        readonly rowCount: number;
+        readonly columns: readonly WireColumn[];
+    }[];
     readonly meta: GraphMeta;
     readonly views: Readonly<Record<string, Readonly<Record<string, WireBufferRef>>>> | null;
-    readonly copied: readonly number[];   // buffer indices that were copied rather than transferred (shared storage, section 9.1)
+    readonly copied: readonly number[]; // buffer indices that were copied rather than transferred (shared storage, section 9.1)
     readonly label: string | null;
 }
-export interface WireSnapshot { readonly manifest: WireManifest; readonly buffers: readonly ArrayBuffer[]; }
-export interface ToWireOptions { readonly transfer?: boolean | undefined; readonly includeViews?: readonly ViewName[] | undefined; readonly includeColumns?: boolean | undefined; }
-export interface ToBytesOptions { readonly includeViews?: readonly ViewName[] | undefined; }
-export interface FromWireOptions { readonly validate?: ValidationLevel | undefined; readonly copy?: boolean | undefined; readonly unknownColumns?: "error" | "skip" | undefined; }
-export interface ValidateOptions { readonly level?: "structure" | "full" | undefined; readonly checksum?: boolean | undefined; }
-export interface ByteLengthOptions { readonly views?: boolean | undefined; readonly columns?: boolean | undefined; readonly ids?: boolean | undefined; }
+export interface WireSnapshot {
+    readonly manifest: WireManifest;
+    readonly buffers: readonly ArrayBuffer[];
+}
+export interface ToWireOptions {
+    readonly transfer?: boolean | undefined;
+    readonly includeViews?: readonly ViewName[] | undefined;
+    readonly includeColumns?: boolean | undefined;
+}
+export interface ToBytesOptions {
+    readonly includeViews?: readonly ViewName[] | undefined;
+}
+export interface FromWireOptions {
+    readonly validate?: ValidationLevel | undefined;
+    readonly copy?: boolean | undefined;
+    readonly unknownColumns?: "error" | "skip" | undefined;
+}
+export interface ValidateOptions {
+    readonly level?: "structure" | "full" | undefined;
+    readonly checksum?: boolean | undefined;
+}
+export interface ByteLengthOptions {
+    readonly views?: boolean | undefined;
+    readonly columns?: boolean | undefined;
+    readonly ids?: boolean | undefined;
+}
 
 // ============================================================ snapshot
 export declare class GraphSnapshot implements AdjacencyView {
@@ -3204,7 +3393,10 @@ export declare class GraphSnapshot implements AdjacencyView {
     inducedSubgraph(selection: U32 | { readonly mask: NodeMask }): DerivedGraph;
     contract(partition: U32, options?: ContractOptions): DerivedGraph;
     relabel(perm: U32): DerivedGraph;
-    withColumns(nodes?: Readonly<Record<string, TypedArrayData | ColumnInput>>, edges?: Readonly<Record<string, TypedArrayData | ColumnInput>>): GraphSnapshot;
+    withColumns(
+        nodes?: Readonly<Record<string, TypedArrayData | ColumnInput>>,
+        edges?: Readonly<Record<string, TypedArrayData | ColumnInput>>,
+    ): GraphSnapshot;
 
     // memory, transfer, checks (9, 11)
     byteLength(options?: ByteLengthOptions): number;
@@ -3243,7 +3435,11 @@ export interface CsrInput {
     readonly meta?: GraphMetaPatch | undefined;
     readonly flags?: FlagClaims | undefined;
 }
-export interface FromCsrOptions { readonly validate?: ValidationLevel | undefined; readonly copy?: boolean | undefined; readonly sortRows?: boolean | undefined; }
+export interface FromCsrOptions {
+    readonly validate?: ValidationLevel | undefined;
+    readonly copy?: boolean | undefined;
+    readonly sortRows?: boolean | undefined;
+}
 export interface RecordsInput {
     readonly directed: boolean;
     readonly nodes?: Iterable<Readonly<Record<string, unknown>>> | undefined;
@@ -3257,7 +3453,10 @@ export interface RecordsInput {
 }
 export function fromEdgeArrays(input: EdgeArraysInput, options?: BuilderOptionsPatch & FreezeOptions): GraphSnapshot;
 export function fromCsr(input: CsrInput, options?: FromCsrOptions): GraphSnapshot;
-export function fromRecords(input: RecordsInput, options?: BuilderOptionsPatch & FreezeOptions): { snapshot: GraphSnapshot; report: FreezeReport };
+export function fromRecords(
+    input: RecordsInput,
+    options?: BuilderOptionsPatch & FreezeOptions,
+): { snapshot: GraphSnapshot; report: FreezeReport };
 export function fromWire(wire: WireSnapshot, options?: FromWireOptions): GraphSnapshot;
 export function fromBytes(bytes: Uint8Array | ArrayBufferLike, options?: FromWireOptions): GraphSnapshot;
 export function fromByteChunks(chunks: Iterable<Uint8Array>, options?: FromWireOptions): GraphSnapshot;
@@ -3266,19 +3465,19 @@ export function equalsTopology(a: GraphSnapshot, b: GraphSnapshot): boolean;
 
 // ============================================================ builder
 export interface GraphBuilderOptions {
-    directed: boolean;                                            // REQUIRED; no default; changeable later via setDirected() (section 6.6)
-    weighted?: boolean | "auto" | undefined;                      // default "auto": weighted if any addEdge supplied a weight
-    weightDtype?: "f32" | "f64" | undefined;                      // default "f32" (section 3.7); importers pass "f64"
-    duplicateEdges?: DuplicatePolicy | undefined;                 // default "keep"
-    selfLoops?: "keep" | "drop" | "error" | undefined;            // default "keep"
-    addMissingNodes?: boolean | undefined;                        // default true
+    directed: boolean; // REQUIRED; no default; changeable later via setDirected() (section 6.6)
+    weighted?: boolean | "auto" | undefined; // default "auto": weighted if any addEdge supplied a weight
+    weightDtype?: "f32" | "f64" | undefined; // default "f32" (section 3.7); importers pass "f64"
+    duplicateEdges?: DuplicatePolicy | undefined; // default "keep"
+    selfLoops?: "keep" | "drop" | "error" | undefined; // default "keep"
+    addMissingNodes?: boolean | undefined; // default true
     expectedNodes?: number | undefined;
     expectedEdges?: number | undefined;
 }
 export type BuilderOptionsPatch = Loose<GraphBuilderOptions>;
 /** The builder's options after defaults were applied; the same shape under every compiler flag. */
 export interface ResolvedBuilderOptions {
-    readonly directed: boolean;                                   // the CURRENT value (setDirected() updates it)
+    readonly directed: boolean; // the CURRENT value (setDirected() updates it)
     readonly weighted: boolean | "auto";
     readonly weightDtype: "f32" | "f64";
     readonly duplicateEdges: DuplicatePolicy;
@@ -3289,26 +3488,33 @@ export interface ResolvedBuilderOptions {
 }
 export interface FreezeOptions {
     label?: string | undefined;
-    prepare?: readonly ViewName[] | undefined;                    // views computed eagerly inside freeze
-    arena?: boolean | undefined;                                  // default true
-    release?: boolean | undefined;                                // default false; true empties staging after freezing
-    duplicateEdges?: DuplicatePolicy | undefined;                 // overrides the builder default for this freeze; a merge policy REWRITES THE BUILDER (section 6.5)
-    profile?: boolean | undefined;                                // fills FreezeReport.timings
-    checksum?: boolean | undefined;                               // records FNV-1a checksums for validate({ checksum: true }) (section 5.8)
+    prepare?: readonly ViewName[] | undefined; // views computed eagerly inside freeze
+    arena?: boolean | undefined; // default true
+    release?: boolean | undefined; // default false; true empties staging after freezing
+    duplicateEdges?: DuplicatePolicy | undefined; // overrides the builder default for this freeze; a merge policy REWRITES THE BUILDER (section 6.5)
+    profile?: boolean | undefined; // fills FreezeReport.timings
+    checksum?: boolean | undefined; // records FNV-1a checksums for validate({ checksum: true }) (section 5.8)
 }
 export interface FreezeReport {
-    readonly nodeRemap: U32 | null;            // previous freeze's index space (the builder's own on the first freeze) -> new index or INVALID_INDEX; null when nodes were not renumbered (I16)
-    readonly edgeRemap: U32 | null;            // same for edges (a merged edge: its survivor); null when edges were not renumbered; independent of nodeRemap
+    readonly nodeRemap: U32 | null; // previous freeze's index space (the builder's own on the first freeze) -> new index or INVALID_INDEX; null when nodes were not renumbered (I16)
+    readonly edgeRemap: U32 | null; // same for edges (a merged edge: its survivor); null when edges were not renumbered; independent of nodeRemap
     readonly compacted: boolean;
     readonly droppedSelfLoops: number;
-    readonly mergedEdges: number;              // parallel edges collapsed by duplicateEdges
-    readonly droppedEdges: number;             // tombstoned + dropped loops + merged
-    readonly widened: readonly { readonly column: string; readonly domain: ColumnDomain; readonly from: Dtype; readonly to: Dtype }[];
-    readonly timings: Readonly<Record<string, number>>;   // ms per phase; empty unless profile
+    readonly mergedEdges: number; // parallel edges collapsed by duplicateEdges
+    readonly droppedEdges: number; // tombstoned + dropped loops + merged
+    readonly widened: readonly {
+        readonly column: string;
+        readonly domain: ColumnDomain;
+        readonly from: Dtype;
+        readonly to: Dtype;
+    }[];
+    readonly timings: Readonly<Record<string, number>>; // ms per phase; empty unless profile
 }
-export type ColumnHandle = number & { readonly __brand: "ColumnHandle" };        // index into the builder's column list for its domain; INVALID_INDEX when absent
+export type ColumnHandle = number & { readonly __brand: "ColumnHandle" }; // index into the builder's column list for its domain; INVALID_INDEX when absent
 export type ExtensionHandle = number & { readonly __brand: "ExtensionHandle" };
-export interface SetDirectedOptions { readonly expand?: boolean | undefined; }
+export interface SetDirectedOptions {
+    readonly expand?: boolean | undefined;
+}
 
 export interface GraphSink {
     readonly options: ResolvedBuilderOptions;
@@ -3336,7 +3542,12 @@ export interface GraphSink {
     addExtensionTable(name: string, decls: readonly ColumnDecl[]): ExtensionHandle;
     addExtensionRow(table: ExtensionHandle, values: readonly unknown[]): number;
     addNodeRecord(id: NodeId, attrs: Readonly<Record<string, unknown>>): number;
-    addEdgeRecord(source: NodeId, target: NodeId, attrs: Readonly<Record<string, unknown>>, weightKey?: string | null): number;
+    addEdgeRecord(
+        source: NodeId,
+        target: NodeId,
+        attrs: Readonly<Record<string, unknown>>,
+        weightKey?: string | null,
+    ): number;
 }
 
 export declare class GraphBuilder implements GraphSink {
@@ -3345,12 +3556,12 @@ export declare class GraphBuilder implements GraphSink {
     readonly options: ResolvedBuilderOptions;
     get directed(): boolean;
     get directedLocked(): boolean;
-    get nodeCount(): number;            // live nodes
-    get edgeCount(): number;            // live edges (exact; incidence lists)
-    get nodeBound(): number;            // next node index to be assigned
+    get nodeCount(): number; // live nodes
+    get edgeCount(): number; // live edges (exact; incidence lists)
+    get nodeBound(): number; // next node index to be assigned
     get edgeBound(): number;
-    get mutationCount(): number;        // increments on every change that makes the next freeze() differ (topology, weights, cells, columns, graph values, meta, extension tables, merges); freeze() does not count
-    get dirty(): boolean;               // changed since the last freeze()
+    get mutationCount(): number; // increments on every change that makes the next freeze() differ (topology, weights, cells, columns, graph values, meta, extension tables, merges); freeze() does not count
+    get dirty(): boolean; // changed since the last freeze()
     setDirected(directed: boolean, options?: SetDirectedOptions): void;
     lockDirected(): void;
     // nodes
@@ -3360,7 +3571,7 @@ export declare class GraphBuilder implements GraphSink {
     hasNode(id: NodeId): boolean;
     indexOf(id: NodeId): number;
     idOf(index: number): NodeId;
-    removeNode(id: NodeId): U32;                       // removed live incident edge indices
+    removeNode(id: NodeId): U32; // removed live incident edge indices
     removeNodeByIndex(index: number): U32;
     reserve(nodes?: number, edges?: number): void;
     // edges
@@ -3373,9 +3584,9 @@ export declare class GraphBuilder implements GraphSink {
     edgeEndpoints(edge: number): readonly [source: number, target: number];
     edgeWeight(edge: number): number;
     setEdgeWeight(edge: number, weight: number): void;
-    outEdgesOf(index: number): U32;                    // live edge indices leaving index (O(degree))
+    outEdgesOf(index: number): U32; // live edge indices leaving index (O(degree))
     inEdgesOf(index: number): U32;
-    findEdges(u: number, v: number): U32;              // live edges u -> v (undirected: either orientation)
+    findEdges(u: number, v: number): U32; // live edges u -> v (undirected: either orientation)
     // attributes
     declareNodeColumn(decl: ColumnDecl): ColumnHandle;
     declareEdgeColumn(decl: ColumnDecl): ColumnHandle;
@@ -3383,14 +3594,19 @@ export declare class GraphBuilder implements GraphSink {
     edgeColumn(name: string): ColumnHandle;
     setNodeValue(column: ColumnHandle | string, index: number, value: unknown): void;
     setEdgeValue(column: ColumnHandle | string, edge: number, value: unknown): void;
-    setNodeColumn(name: string, data: TypedArrayData, decl?: ColumnDeclPatch): void;   // bulk; length must equal nodeBound
+    setNodeColumn(name: string, data: TypedArrayData, decl?: ColumnDeclPatch): void; // bulk; length must equal nodeBound
     setEdgeColumn(name: string, data: TypedArrayData, decl?: ColumnDeclPatch): void;
     setGraphValue(name: string, value: unknown, decl?: ColumnDeclPatch): void;
     setMeta(meta: GraphMetaPatch): void;
     addExtensionTable(name: string, decls: readonly ColumnDecl[]): ExtensionHandle;
     addExtensionRow(table: ExtensionHandle, values: readonly unknown[]): number;
     addNodeRecord(id: NodeId, attrs: Readonly<Record<string, unknown>>): number;
-    addEdgeRecord(source: NodeId, target: NodeId, attrs: Readonly<Record<string, unknown>>, weightKey?: string | null): number;
+    addEdgeRecord(
+        source: NodeId,
+        target: NodeId,
+        attrs: Readonly<Record<string, unknown>>,
+        weightKey?: string | null,
+    ): number;
     // composition
     addGraph(snapshot: GraphSnapshot, options?: { readonly onDuplicateNode?: "merge" | "error" | undefined }): void;
     // output and lifecycle
@@ -3403,12 +3619,35 @@ export declare class GraphBuilder implements GraphSink {
 
 // ============================================================ errors
 export type GraphFormatErrorCode =
-    | "E_INVALID_ID" | "E_UNKNOWN_NODE" | "E_INDEX_RANGE" | "E_TOO_LARGE" | "E_INVALID_WEIGHT" | "E_DIRECTED"
-    | "E_SELF_LOOP" | "E_DUPLICATE_EDGE" | "E_DUPLICATE_EDGE_ID" | "E_DUPLICATE_ID" | "E_DUPLICATE_ROLE"
-    | "E_UNKNOWN_COLUMN" | "E_COLUMN_TYPE" | "E_COLUMN_LENGTH" | "E_COLUMN_ALIGNMENT" | "E_COLUMN_EXISTS" | "E_COLUMN_IMMUTABLE"
-    | "E_NO_DEFAULT" | "E_PARTITION" | "E_INVALID_PERMUTATION" | "E_MASK_LENGTH"
-    | "E_GPU_INELIGIBLE" | "E_INVALID_SNAPSHOT" | "E_BAD_SERIALIZATION" | "E_UNSUPPORTED_VERSION"
-    | "E_DETACHED" | "E_BUILDER_DISPOSED" | "E_UNSUPPORTED" | "E_IMPORT";
+    | "E_INVALID_ID"
+    | "E_UNKNOWN_NODE"
+    | "E_INDEX_RANGE"
+    | "E_TOO_LARGE"
+    | "E_INVALID_WEIGHT"
+    | "E_DIRECTED"
+    | "E_SELF_LOOP"
+    | "E_DUPLICATE_EDGE"
+    | "E_DUPLICATE_EDGE_ID"
+    | "E_DUPLICATE_ID"
+    | "E_DUPLICATE_ROLE"
+    | "E_UNKNOWN_COLUMN"
+    | "E_COLUMN_TYPE"
+    | "E_COLUMN_LENGTH"
+    | "E_COLUMN_ALIGNMENT"
+    | "E_COLUMN_EXISTS"
+    | "E_COLUMN_IMMUTABLE"
+    | "E_NO_DEFAULT"
+    | "E_PARTITION"
+    | "E_INVALID_PERMUTATION"
+    | "E_MASK_LENGTH"
+    | "E_GPU_INELIGIBLE"
+    | "E_INVALID_SNAPSHOT"
+    | "E_BAD_SERIALIZATION"
+    | "E_UNSUPPORTED_VERSION"
+    | "E_DETACHED"
+    | "E_BUILDER_DISPOSED"
+    | "E_UNSUPPORTED"
+    | "E_IMPORT";
 export declare class GraphFormatError extends Error {
     readonly code: GraphFormatErrorCode;
     readonly details: Readonly<Record<string, unknown>>;
@@ -3426,16 +3665,16 @@ read may legitimately be undefined under the strict flag
 (`no-unnecessary-condition` is off in the root config, section 13.4).
 
 ```typescript
-const pos = snapshot.nodes.requireTyped("position", "f32");   // F32Column; throws E_COLUMN_TYPE otherwise
-const stride = pos.meta.components;                          // 3
-const x = pos.data[i * stride];                              // number (number | undefined under the strict flag)
-const kind = snapshot.edges.byRole("kind");                  // Column | null
+const pos = snapshot.nodes.requireTyped("position", "f32"); // F32Column; throws E_COLUMN_TYPE otherwise
+const stride = pos.meta.components; // 3
+const x = pos.data[i * stride]; // number (number | undefined under the strict flag)
+const kind = snapshot.edges.byRole("kind"); // Column | null
 if (kind !== null && kind.dtype === "dict") {
     const code = kind.codes[e];
     const label = code === undefined ? undefined : kind.dictionary[code];
     use(label);
 }
-const { rowPtr, colIdx } = snapshot;                         // hot loops read plain numbers
+const { rowPtr, colIdx } = snapshot; // hot loops read plain numbers
 use(x, rowPtr, colIdx);
 ```
 
@@ -3489,16 +3728,33 @@ export interface GraphImporter<Opts = unknown> {
     ): Promise<ImportReport[]>;
 }
 export interface ExportCapabilities {
-    readonly mixedDirection: boolean; readonly multiEdges: boolean; readonly selfLoops: boolean;
+    readonly mixedDirection: boolean;
+    readonly multiEdges: boolean;
+    readonly selfLoops: boolean;
     readonly edgeIds: "required" | "optional" | "none";
     readonly idCharset: "any" | "nmtoken" | "integer" | "dense-1-based";
-    readonly dtypes: readonly Dtype[]; readonly components: boolean; readonly lists: boolean; readonly json: boolean;
-    readonly defaults: boolean; readonly options: boolean; readonly hierarchy: boolean;
+    readonly dtypes: readonly Dtype[];
+    readonly components: boolean;
+    readonly lists: boolean;
+    readonly json: boolean;
+    readonly defaults: boolean;
+    readonly options: boolean;
+    readonly hierarchy: boolean;
     readonly temporal: "none" | "intervals" | "spells" | "dynamic-values";
-    readonly graphAttributes: boolean; readonly positions: boolean; readonly viz: boolean;
+    readonly graphAttributes: boolean;
+    readonly positions: boolean;
+    readonly viz: boolean;
 }
-export interface LossNote { readonly code: string; readonly message: string; readonly column: string | null; readonly count: number | null; }
-export interface CommonExportOptions { sanitizeIds?: "error" | "mangle" | undefined; onMixedDirection?: "error" | "directed" | "undirected" | undefined; }
+export interface LossNote {
+    readonly code: string;
+    readonly message: string;
+    readonly column: string | null;
+    readonly count: number | null;
+}
+export interface CommonExportOptions {
+    sanitizeIds?: "error" | "mangle" | undefined;
+    onMixedDirection?: "error" | "directed" | "undirected" | undefined;
+}
 export interface GraphExporter<Opts = unknown> {
     readonly format: string;
     readonly capabilities: ExportCapabilities;
@@ -3506,7 +3762,14 @@ export interface GraphExporter<Opts = unknown> {
     export(snapshot: GraphSnapshot, options?: Opts & CommonExportOptions): AsyncIterable<Uint8Array>;
     exportToString(snapshot: GraphSnapshot, options?: Opts & CommonExportOptions): Promise<string>;
 }
-export type IssueCategory = "parse-error" | "missing-value" | "validation-error" | "unsupported" | "precision" | "coercion" | "merged";
+export type IssueCategory =
+    | "parse-error"
+    | "missing-value"
+    | "validation-error"
+    | "unsupported"
+    | "precision"
+    | "coercion"
+    | "merged";
 export interface ImportIssue {
     readonly category: IssueCategory;
     readonly severity: "error" | "warning";
@@ -3517,7 +3780,13 @@ export interface ImportIssue {
 }
 export interface ImportReport {
     readonly format: string;
-    readonly counts: { readonly nodes: number; readonly edges: number; readonly skippedNodes: number; readonly skippedEdges: number; readonly expandedMixed: number };
+    readonly counts: {
+        readonly nodes: number;
+        readonly edges: number;
+        readonly skippedNodes: number;
+        readonly skippedEdges: number;
+        readonly expandedMixed: number;
+    };
     readonly issues: readonly ImportIssue[];
     readonly errorCount: number;
     readonly warningCount: number;
@@ -3525,7 +3794,9 @@ export interface ImportReport {
     readonly lossy: readonly LossNote[];
     readonly durationMs: number;
 }
-export declare class ImportError extends GraphFormatError { readonly report: ImportReport; }
+export declare class ImportError extends GraphFormatError {
+    readonly report: ImportReport;
+}
 ```
 
 The default `Opts = unknown` (not `Record<string, never>`, which makes
@@ -3629,14 +3900,14 @@ repeats the checklist at W1.
   base already requires). `graph-io` adds `lib: ["DOM"]` for
   `ReadableStream` / `AbortSignal`.
 - vitest: single `default` project, `environment: "node"`, `pool:
-  "forks"`, `globals: true`, coverage v8 (`lcov`), thresholds 80/80/75/80,
+"forks"`, `globals: true`, coverage v8 (`lcov`), thresholds 80/80/75/80,
   `include: ["test/**/*.test.ts"]`, `exclude` barrels and `.d.ts`; no
   browser project (the `writeBuffer` proof lives in the WebGPU package).
 - Lint (root flat config): `camelcase` field names (`rowPtr`, never
   `row_ptr`); `curly`; `prefer-destructuring` is configured `["error", {
-  object: true, array: false }]` with the default
+object: true, array: false }]` with the default
   `enforceForRenamedProperties: false`, so `const { rowPtr, colIdx } =
-  snapshot;` is the house style but `const n = s.nodeCount` is NOT
+snapshot;` is the house style but `const n = s.nodeCount` is NOT
   flagged (destructuring is a style choice for renamed reads, not a lint
   requirement); `no-non-null-assertion` and
   `no-unnecessary-type-assertion` are errors (hence
@@ -3655,11 +3926,11 @@ repeats the checklist at W1.
 
 Three version numbers, each with its own rule:
 
-| Number | Where | Bumps when |
-| --- | --- | --- |
-| npm package version | `package.json`, nx release | conventional commits: `feat` minor, `fix` / `perf` patch, `!` major |
-| `formatVersion` (data-model major) | `snapshot.formatVersion`, compared with `FORMAT_VERSION` by `isGraphSnapshot()` and by `fromWire` / `fromBytes` (a mismatch is `E_UNSUPPORTED_VERSION`, `details.kind: "format"`, even when the byte layout is unchanged, because the MEANING of `colIdx`, degrees or validity bits may have changed) | any change to invariants I1-I18, to the meaning of a public field, flag or sentinel, to the `arcCount` arithmetic, to self-loop storage or counting, to the sort order or tie-break, to `arcToEdge` / `edgeToArc` semantics, to default builder policies, to column fill values or the validity bit order, to the `NodeIdMap` equality rule; always coincides with an npm major AND with a wire major |
-| wire `[major, minor]` | byte container header and manifest | major: incompatible layout or a `formatVersion` bump (reader refuses with `E_UNSUPPORTED_VERSION`); minor: additive manifest FIELDS (older readers ignore unknown fields, newer readers read older minors) and additive enum VALUES with a defined skip behaviour: a new dtype (an older reader refuses it unless `unknownColumns: "skip"`), a new view name (ignored), never a new id-map kind (that is a major, since ids cannot be skipped); a wire major is always an npm major, an npm major may leave the wire major unchanged |
+| Number                             | Where                                                                                                                                                                                                                                                                                                 | Bumps when                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| npm package version                | `package.json`, nx release                                                                                                                                                                                                                                                                            | conventional commits: `feat` minor, `fix` / `perf` patch, `!` major                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `formatVersion` (data-model major) | `snapshot.formatVersion`, compared with `FORMAT_VERSION` by `isGraphSnapshot()` and by `fromWire` / `fromBytes` (a mismatch is `E_UNSUPPORTED_VERSION`, `details.kind: "format"`, even when the byte layout is unchanged, because the MEANING of `colIdx`, degrees or validity bits may have changed) | any change to invariants I1-I18, to the meaning of a public field, flag or sentinel, to the `arcCount` arithmetic, to self-loop storage or counting, to the sort order or tie-break, to `arcToEdge` / `edgeToArc` semantics, to default builder policies, to column fill values or the validity bit order, to the `NodeIdMap` equality rule; always coincides with an npm major AND with a wire major                                                                                                                                |
+| wire `[major, minor]`              | byte container header and manifest                                                                                                                                                                                                                                                                    | major: incompatible layout or a `formatVersion` bump (reader refuses with `E_UNSUPPORTED_VERSION`); minor: additive manifest FIELDS (older readers ignore unknown fields, newer readers read older minors) and additive enum VALUES with a defined skip behaviour: a new dtype (an older reader refuses it unless `unknownColumns: "skip"`), a new view name (ignored), never a new id-map kind (that is a major, since ids cannot be skipped); a wire major is always an npm major, an npm major may leave the wire major unchanged |
 
 Rules:
 
@@ -3718,7 +3989,7 @@ change (Q20).
    signatures and return shapes; they become facades.
 2. Index-based implementations live under a namespace export `indexed`
    in each consumer package (`export * as indexed from
-   "./indexed/index.js"`), take a `GraphSnapshot` (or `AdjacencyView`
+"./indexed/index.js"`), take a `GraphSnapshot` (or `AdjacencyView`
    where sufficient) first and an options object last, and return result
    objects whose fields are typed arrays plus scalars. graphty-element and
    the WebGPU package program against `indexed`.
@@ -3745,24 +4016,24 @@ change (Q20).
 
 Result-type conventions for `indexed.*` and the facade conversion:
 
-| Legacy shape | `indexed` shape | Facade conversion |
-| --- | --- | --- |
-| `Record<string, number>` | `Float64Array(n)` | `snapshot.ids.toRecord(vec)` |
-| `Map<NodeId, number>` | `Float64Array(n)` / `Uint32Array(n)` | `snapshot.ids.toMap(vec)` |
-| `Map<NodeId, NodeId \| null>` (predecessors) | `Uint32Array(n)` with `INVALID_INDEX` | loop with `idOf` |
-| `Map<NodeId, ShortestPathResult>` | `SsspResult { dist: Float64Array; predArc: Uint32Array; pathTo(t): Uint32Array; pathEdges(t): Uint32Array }` | materialise per reachable node; the predecessor is the ARC that relaxed the node (`INVALID_INDEX` for the source and unreached nodes), so the exact parallel edge on the path is `arcToEdge[predArc[v]]` and the predecessor node is `arcSource(predArc[v])`; `pathEdges` gives logical edge indices for graphty-element's `isInPath`; the predecessor array is shared, not copied per node (removes an O(n^2) pathology). Same convention for Bellman-Ford, bidirectional Dijkstra and Prim (discovery arc) |
-| `NodeId[][]` (components, communities) | `{ labels: Uint32Array; count: number; groups(): Uint32Array[] }` | `groups()` + `idOf` |
-| `Set<NodeId>` | `Uint32Array` index list or packed mask | `maskToIndices` + `idOf` |
-| `Map<string, T>` keyed by `String(id)` (`leiden.communities`, `labelPropagation*`, `kCoreDecomposition.coreness`, hierarchical clustering members) | `Float64Array(n)` / `Uint32Array(n)` | `snapshot.ids.toStringMap(vec)` (graphty-element reads these with `String(nodeId)` keys today) |
-| `Set<string>` (`getKCore`, `MinCutResult.partition1/2`, `minCut.source/sink`) | packed `NodeMask` | `maskToIndices` + `String(idOf(i))` |
-| `Map<NodeId, NodeId>` (matching, isomorphism mapping) | `Uint32Array(n)` with `INVALID_INDEX` | `entries` loop with `idOf` |
-| `CommunityResult[]` (dendrogram levels) | `{ levels: Uint32Array[]; modularity: Float64Array }` | per level as above |
-| `Edge[]` (MST) | `{ edges: Uint32Array; totalWeight: number }` | `edgeList()` + `idOf` rebuilds `{ source, target, weight }` |
-| `Map<string, number>` keyed `"v-w"` (edge betweenness) | `Float64Array(edgeCount)` | rebuild string keys via `edgeList()` |
-| `Graph` (condensationGraph) | `DerivedGraph` from `contract()` | the facade BUILDS a legacy `Graph` from `d.snapshot` with `addNode` / `addEdge` (small output; the only place a snapshot is converted to a `Graph`); component labels are assigned in Tarjan completion order so `componentMap` and the condensed node numbering are byte-identical to today's |
-| `Map<string, Map<string, number>>` (flow) | `MaxFlowResult { maxFlow: number; flow: Float64Array(edgeCount); sourceSide: NodeMask; cutEdges: Uint32Array }` | rebuild the Map-of-Maps; `minCut.source/sink` from the mask, `minCut.edges` from `cutEdges` |
-| `MinCutResult` | `{ cutValue: number; side: NodeMask; cutEdges: Uint32Array }` | `partition1/2` from the mask |
-| `{ node, rank }[]` (`topPageRankNodes`) | `Uint32Array` of indices + `Float64Array` | today returns `String(id)` for numeric input (a type lie); the facade keeps that for the window and section 18 decision 5 records the fix |
+| Legacy shape                                                                                                                                       | `indexed` shape                                                                                                 | Facade conversion                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| -------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Record<string, number>`                                                                                                                           | `Float64Array(n)`                                                                                               | `snapshot.ids.toRecord(vec)`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `Map<NodeId, number>`                                                                                                                              | `Float64Array(n)` / `Uint32Array(n)`                                                                            | `snapshot.ids.toMap(vec)`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `Map<NodeId, NodeId \| null>` (predecessors)                                                                                                       | `Uint32Array(n)` with `INVALID_INDEX`                                                                           | loop with `idOf`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `Map<NodeId, ShortestPathResult>`                                                                                                                  | `SsspResult { dist: Float64Array; predArc: Uint32Array; pathTo(t): Uint32Array; pathEdges(t): Uint32Array }`    | materialise per reachable node; the predecessor is the ARC that relaxed the node (`INVALID_INDEX` for the source and unreached nodes), so the exact parallel edge on the path is `arcToEdge[predArc[v]]` and the predecessor node is `arcSource(predArc[v])`; `pathEdges` gives logical edge indices for graphty-element's `isInPath`; the predecessor array is shared, not copied per node (removes an O(n^2) pathology). Same convention for Bellman-Ford, bidirectional Dijkstra and Prim (discovery arc) |
+| `NodeId[][]` (components, communities)                                                                                                             | `{ labels: Uint32Array; count: number; groups(): Uint32Array[] }`                                               | `groups()` + `idOf`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `Set<NodeId>`                                                                                                                                      | `Uint32Array` index list or packed mask                                                                         | `maskToIndices` + `idOf`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `Map<string, T>` keyed by `String(id)` (`leiden.communities`, `labelPropagation*`, `kCoreDecomposition.coreness`, hierarchical clustering members) | `Float64Array(n)` / `Uint32Array(n)`                                                                            | `snapshot.ids.toStringMap(vec)` (graphty-element reads these with `String(nodeId)` keys today)                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `Set<string>` (`getKCore`, `MinCutResult.partition1/2`, `minCut.source/sink`)                                                                      | packed `NodeMask`                                                                                               | `maskToIndices` + `String(idOf(i))`                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `Map<NodeId, NodeId>` (matching, isomorphism mapping)                                                                                              | `Uint32Array(n)` with `INVALID_INDEX`                                                                           | `entries` loop with `idOf`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `CommunityResult[]` (dendrogram levels)                                                                                                            | `{ levels: Uint32Array[]; modularity: Float64Array }`                                                           | per level as above                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `Edge[]` (MST)                                                                                                                                     | `{ edges: Uint32Array; totalWeight: number }`                                                                   | `edgeList()` + `idOf` rebuilds `{ source, target, weight }`                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `Map<string, number>` keyed `"v-w"` (edge betweenness)                                                                                             | `Float64Array(edgeCount)`                                                                                       | rebuild string keys via `edgeList()`                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `Graph` (condensationGraph)                                                                                                                        | `DerivedGraph` from `contract()`                                                                                | the facade BUILDS a legacy `Graph` from `d.snapshot` with `addNode` / `addEdge` (small output; the only place a snapshot is converted to a `Graph`); component labels are assigned in Tarjan completion order so `componentMap` and the condensed node numbering are byte-identical to today's                                                                                                                                                                                                               |
+| `Map<string, Map<string, number>>` (flow)                                                                                                          | `MaxFlowResult { maxFlow: number; flow: Float64Array(edgeCount); sourceSide: NodeMask; cutEdges: Uint32Array }` | rebuild the Map-of-Maps; `minCut.source/sink` from the mask, `minCut.edges` from `cutEdges`                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `MinCutResult`                                                                                                                                     | `{ cutValue: number; side: NodeMask; cutEdges: Uint32Array }`                                                   | `partition1/2` from the mask                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `{ node, rank }[]` (`topPageRankNodes`)                                                                                                            | `Uint32Array` of indices + `Float64Array`                                                                       | today returns `String(id)` for numeric input (a type lie); the facade keeps that for the window and section 18 decision 5 records the fix                                                                                                                                                                                                                                                                                                                                                                    |
 
 `toSnapshot(input)` dispatches on `isGraphSnapshot`; the widening of
 every legacy function's first parameter to `Graph | GraphSnapshot`
@@ -3812,7 +4083,7 @@ Rules the ports follow:
   do NOT contract snapshots: Stoer-Wagner keeps a `rep: Uint32Array(n)`
   representative array plus member lists and accumulates per-phase
   weights over the ORIGINAL rows (`w[rep[colIdx[a]]] += weights[a]`) with
-  an `IndexedMaxHeap`, O(n * (m + n log n)); Karger is `IntUnionFind` over
+  an `IndexedMaxHeap`, O(n \* (m + n log n)); Karger is `IntUnionFind` over
   `edgeList()` with a random edge order, O(m alpha(n)) per trial. A
   `contract()` per phase would be n freezes (~25 s on the benchmark
   graph), the per-step conversion section 1.1 forbids.
@@ -3825,9 +4096,9 @@ Rules the ports follow:
   `graphToMap` emits both `(u, v, c)` and `(v, u, c)` as real capacities)
   the input is `[edges ++ reversed edges ++ reversed edges ++ edges]`, 2E
   real edges plus 2E residual reverses, and the twin is `e < 2E ? e + 2E
-  : e - 2E`. The residual's `arcToEdge` is never the identity (the input
+: e - 2E`. The residual's `arcToEdge` is never the identity (the input
   is not source-grouped), so the port precomputes `twinArc[a] =
-  r.edgeToArc[twin(r.arcToEdge[a])]` once (O(A)) and keeps residual
+r.edgeToArc[twin(r.arcToEdge[a])]` once (O(A)) and keeps residual
   capacity PER ARC, so the augmenting loop reads no permutation; `mate()`
   is not needed. Flow values accumulate in `Float64Array`.
 - `kCoreDecomposition` drops `graphToAdjacencySet`; `teraHAC`'s id/index
@@ -3840,23 +4111,39 @@ Port 1 -- breadthFirstSearch (out-neighbours, unweighted; takes any
 `AdjacencyView`, so `reverse()` gives an in-neighbour BFS for free):
 
 ```typescript
-export interface BfsResult { readonly order: U32; readonly parent: U32; readonly depth: U32; readonly visitedCount: number; }
-export interface BfsOptions { readonly maxDepth?: number | undefined; }
+export interface BfsResult {
+    readonly order: U32;
+    readonly parent: U32;
+    readonly depth: U32;
+    readonly visitedCount: number;
+}
+export interface BfsOptions {
+    readonly maxDepth?: number | undefined;
+}
 export function breadthFirstSearch(g: AdjacencyView, start: number, options: BfsOptions = {}): BfsResult {
     const { nodeCount, rowPtr, colIdx } = g;
     const parent = new Uint32Array(nodeCount).fill(INVALID_INDEX);
     const depth = new Uint32Array(nodeCount).fill(INVALID_INDEX);
     const order = new Uint32Array(nodeCount);
     const maxDepth = options.maxDepth ?? INVALID_INDEX;
-    let head = 0; let tail = 0;
-    order[tail++] = start; depth[start] = 0;
+    let head = 0;
+    let tail = 0;
+    order[tail++] = start;
+    depth[start] = 0;
     while (head < tail) {
-        const u = order[head++]; const d = depth[u];
-        if (d >= maxDepth) { continue; }
+        const u = order[head++];
+        const d = depth[u];
+        if (d >= maxDepth) {
+            continue;
+        }
         const end = rowPtr[u + 1];
         for (let a = rowPtr[u]; a < end; a++) {
             const v = colIdx[a];
-            if (depth[v] === INVALID_INDEX) { depth[v] = d + 1; parent[v] = u; order[tail++] = v; }
+            if (depth[v] === INVALID_INDEX) {
+                depth[v] = d + 1;
+                parent[v] = u;
+                order[tail++] = v;
+            }
         }
     }
     return { order: order.subarray(0, tail), parent, depth, visitedCount: tail };
@@ -3873,8 +4160,16 @@ Port 2 -- dijkstra (weights at the arc index, indexed heap; the
 predecessor is the relaxing ARC so parallel edges are identified exactly):
 
 ```typescript
-export interface SsspResult { readonly dist: F64; readonly predArc: U32; pathTo(target: number): U32; pathEdges(target: number): U32; }
-export interface SsspOptions { readonly cutoff?: number | undefined; readonly weights?: NumericVector | undefined; }   // per-arc override (f64 shadow)
+export interface SsspResult {
+    readonly dist: F64;
+    readonly predArc: U32;
+    pathTo(target: number): U32;
+    pathEdges(target: number): U32;
+}
+export interface SsspOptions {
+    readonly cutoff?: number | undefined;
+    readonly weights?: NumericVector | undefined;
+} // per-arc override (f64 shadow)
 export function dijkstra(g: AdjacencyView, source: number, options: SsspOptions = {}): SsspResult {
     const { nodeCount, rowPtr, colIdx } = g;
     const weights: NumericVector | null = options.weights ?? g.weights;
@@ -3882,16 +4177,29 @@ export function dijkstra(g: AdjacencyView, source: number, options: SsspOptions 
     const predArc = new Uint32Array(nodeCount).fill(INVALID_INDEX);
     const heap = new IndexedMinHeap(nodeCount);
     const cutoff = options.cutoff ?? Infinity;
-    dist[source] = 0; heap.push(source, 0);
+    dist[source] = 0;
+    heap.push(source, 0);
     while (!heap.isEmpty()) {
-        const u = heap.pop(); const du = dist[u]; const end = rowPtr[u + 1];
+        const u = heap.pop();
+        const du = dist[u];
+        const end = rowPtr[u + 1];
         for (let a = rowPtr[u]; a < end; a++) {
-            const w = weights === null ? 1 : weights[a];          // hoisted into two loop bodies in the real code
-            const v = colIdx[a]; const dv = du + w;
-            if (dv < dist[v] && dv <= cutoff) { dist[v] = dv; predArc[v] = a; heap.pushOrDecrease(v, dv); }
+            const w = weights === null ? 1 : weights[a]; // hoisted into two loop bodies in the real code
+            const v = colIdx[a];
+            const dv = du + w;
+            if (dv < dist[v] && dv <= cutoff) {
+                dist[v] = dv;
+                predArc[v] = a;
+                heap.pushOrDecrease(v, dv);
+            }
         }
     }
-    return { dist, predArc, pathTo: (t) => walkPredArcs(g, predArc, source, t), pathEdges: (t) => walkPredEdges(g, predArc, source, t) };
+    return {
+        dist,
+        predArc,
+        pathTo: (t) => walkPredArcs(g, predArc, source, t),
+        pathEdges: (t) => walkPredEdges(g, predArc, source, t),
+    };
 }
 ```
 
@@ -3905,28 +4213,51 @@ check and pick Bellman-Ford otherwise.
 Port 3 -- pageRank (directed, pull over `reverse()`, dangling mass):
 
 ```typescript
-export interface PageRankOptions { readonly dampingFactor?: number | undefined; readonly maxIterations?: number | undefined; readonly tolerance?: number | undefined; readonly weighted?: boolean | undefined; }
+export interface PageRankOptions {
+    readonly dampingFactor?: number | undefined;
+    readonly maxIterations?: number | undefined;
+    readonly tolerance?: number | undefined;
+    readonly weighted?: boolean | undefined;
+}
 export function pageRank(s: GraphSnapshot, o: PageRankOptions = {}): PageRankResult {
-    if (!s.directed) { throw new Error("PageRank requires a directed graph"); }
-    const n = s.nodeCount; const d = o.dampingFactor ?? 0.85; const maxIter = o.maxIterations ?? 100; const tol = o.tolerance ?? 1e-6;
-    const rev = s.reverse();                                        // in-adjacency; weights materialised
+    if (!s.directed) {
+        throw new Error("PageRank requires a directed graph");
+    }
+    const n = s.nodeCount;
+    const d = o.dampingFactor ?? 0.85;
+    const maxIter = o.maxIterations ?? 100;
+    const tol = o.tolerance ?? 1e-6;
+    const rev = s.reverse(); // in-adjacency; weights materialised
     const weighted = o.weighted === true && rev.weights !== null;
-    const outW: NumericVector = weighted ? s.weightedOutDegree() : s.outDegree();   // f64 view: read, never written
-    let rank = new Float64Array(n).fill(1 / n); let next = new Float64Array(n);
-    let it = 0; let converged = false;
+    const outW: NumericVector = weighted ? s.weightedOutDegree() : s.outDegree(); // f64 view: read, never written
+    let rank = new Float64Array(n).fill(1 / n);
+    let next = new Float64Array(n);
+    let it = 0;
+    let converged = false;
     for (; it < maxIter && !converged; it++) {
         let dangling = 0;
-        for (let u = 0; u < n; u++) { if (outW[u] === 0) { dangling += rank[u]; } }   // a weighted node whose out-weights are all 0 is dangling too
-        const base = (1 - d) / n + (d * dangling) / n; let delta = 0;
-        for (let v = 0; v < n; v++) {
-            let acc = 0; const end = rev.rowPtr[v + 1];
-            for (let a = rev.rowPtr[v]; a < end; a++) {
-                const u = rev.colIdx[a]; const ow = outW[u];
-                if (ow > 0) { acc += (rank[u] * (weighted && rev.weights !== null ? rev.weights[a] : 1)) / ow; }   // guard: zero weights are legal (3.7)
+        for (let u = 0; u < n; u++) {
+            if (outW[u] === 0) {
+                dangling += rank[u];
             }
-            next[v] = base + d * acc; delta += Math.abs(next[v] - rank[v]);
+        } // a weighted node whose out-weights are all 0 is dangling too
+        const base = (1 - d) / n + (d * dangling) / n;
+        let delta = 0;
+        for (let v = 0; v < n; v++) {
+            let acc = 0;
+            const end = rev.rowPtr[v + 1];
+            for (let a = rev.rowPtr[v]; a < end; a++) {
+                const u = rev.colIdx[a];
+                const ow = outW[u];
+                if (ow > 0) {
+                    acc += (rank[u] * (weighted && rev.weights !== null ? rev.weights[a] : 1)) / ow;
+                } // guard: zero weights are legal (3.7)
+            }
+            next[v] = base + d * acc;
+            delta += Math.abs(next[v] - rank[v]);
         }
-        [rank, next] = [next, rank]; converged = delta < tol;
+        [rank, next] = [next, rank];
+        converged = delta < tol;
     }
     return { scores: rank, iterations: it, converged };
 }
@@ -3956,14 +4287,36 @@ edges back through `edgeRemap` (section 14.4), instead of
 Port 6 -- commonNeighborsScore (sorted-row merge, zero allocation):
 
 ```typescript
-export interface CommonNeighborsOptions { readonly directed?: boolean | undefined; }
+export interface CommonNeighborsOptions {
+    readonly directed?: boolean | undefined;
+}
 export function commonNeighborsScore(s: GraphSnapshot, u: number, v: number, o: CommonNeighborsOptions = {}): number {
-    const fwd: AdjacencyView = s; const bwd: AdjacencyView = o.directed === true ? s.reverse() : s;   // out(u) intersect in(v) when directed
-    let i = fwd.rowPtr[u]; const iEnd = fwd.rowPtr[u + 1]; let j = bwd.rowPtr[v]; const jEnd = bwd.rowPtr[v + 1]; let count = 0;
-    while (i < iEnd && j < jEnd) {                                  // merge intersection; valid because rows are sorted (I4)
-        const a = fwd.colIdx[i]; const b = bwd.colIdx[j];
-        if (a === b) { count++; i++; j++; while (i < iEnd && fwd.colIdx[i] === a) { i++; } while (j < jEnd && bwd.colIdx[j] === b) { j++; } }
-        else if (a < b) { i++; } else { j++; }
+    const fwd: AdjacencyView = s;
+    const bwd: AdjacencyView = o.directed === true ? s.reverse() : s; // out(u) intersect in(v) when directed
+    let i = fwd.rowPtr[u];
+    const iEnd = fwd.rowPtr[u + 1];
+    let j = bwd.rowPtr[v];
+    const jEnd = bwd.rowPtr[v + 1];
+    let count = 0;
+    while (i < iEnd && j < jEnd) {
+        // merge intersection; valid because rows are sorted (I4)
+        const a = fwd.colIdx[i];
+        const b = bwd.colIdx[j];
+        if (a === b) {
+            count++;
+            i++;
+            j++;
+            while (i < iEnd && fwd.colIdx[i] === a) {
+                i++;
+            }
+            while (j < jEnd && bwd.colIdx[j] === b) {
+                j++;
+            }
+        } else if (a < b) {
+            i++;
+        } else {
+            j++;
+        }
     }
     return count;
 }
@@ -3980,23 +4333,51 @@ results `{ positions: Float32Array; dim: 2 | 3; n }` (dim NOT forced to
 `PositionMap` for one major.
 
 ```typescript
-export interface LayoutResult { readonly positions: F32; readonly dim: 2 | 3; readonly n: number; }   // layout units (normalised), not scene units
-export interface CommonLayoutOptions { readonly dim?: 2 | 3 | undefined; readonly scale?: number | undefined; readonly center?: ArrayLike<number> | undefined; readonly seed?: number | null | undefined; }
+export interface LayoutResult {
+    readonly positions: F32;
+    readonly dim: 2 | 3;
+    readonly n: number;
+} // layout units (normalised), not scene units
+export interface CommonLayoutOptions {
+    readonly dim?: 2 | 3 | undefined;
+    readonly scale?: number | undefined;
+    readonly center?: ArrayLike<number> | undefined;
+    readonly seed?: number | null | undefined;
+}
 export function toPositionMap(r: LayoutResult, ids: NodeIdMap): PositionMap;
-export function fromPositionMap(pos: PositionMap | null | undefined, ids: NodeIdMap, dim: 2 | 3, fill: (i: number, out: F32) => void): F32;
-export function toPositionColumn(r: LayoutResult, scale: number, center: ArrayLike<number> | null, out?: F32): F32;   // n * 3 SCENE units, zero z; writes into `out` (the owner's array) when given (C14, section 5.2)
-export function fromPositionColumn(column: F32, dim: 2 | 3, scale: number, center: ArrayLike<number> | null, out?: F32): F32;   // the inverse: seeds `pos` for a re-run from the current scene positions
+export function fromPositionMap(
+    pos: PositionMap | null | undefined,
+    ids: NodeIdMap,
+    dim: 2 | 3,
+    fill: (i: number, out: F32) => void,
+): F32;
+export function toPositionColumn(r: LayoutResult, scale: number, center: ArrayLike<number> | null, out?: F32): F32; // n * 3 SCENE units, zero z; writes into `out` (the owner's array) when given (C14, section 5.2)
+export function fromPositionColumn(
+    column: F32,
+    dim: 2 | 3,
+    scale: number,
+    center: ArrayLike<number> | null,
+    out?: F32,
+): F32; // the inverse: seeds `pos` for a re-run from the current scene positions
 export function rescaleInPlace(positions: F32, dim: number, scale?: number, center?: ArrayLike<number>): F32;
-export function toLayoutSnapshot(G: LayoutGraph | LegacyDuck | NodeId[] | GraphSnapshot, weightAttr?: string | null): GraphSnapshot;   // undirected; legacy duck type walked once
-export declare class LayoutGraph { readonly snapshot: GraphSnapshot; nodes(): NodeId[]; edges(): [NodeId, NodeId][]; getEdgeData(s: NodeId, t: NodeId, attr: string): number | undefined; }
+export function toLayoutSnapshot(
+    G: LayoutGraph | LegacyDuck | NodeId[] | GraphSnapshot,
+    weightAttr?: string | null,
+): GraphSnapshot; // undirected; legacy duck type walked once
+export declare class LayoutGraph {
+    readonly snapshot: GraphSnapshot;
+    nodes(): NodeId[];
+    edges(): [NodeId, NodeId][];
+    getEdgeData(s: NodeId, t: NodeId, attr: string): number | undefined;
+}
 
 /** Steppable layouts (force-directed CPU layouts and the GPU package's layout kernels). */
 export interface LayoutSimulation {
-    load(snapshot: GraphSnapshot, positions: F32): void;        // positions: the owner's stride-3 scene-unit array, read AND written in place
-    step(iterations?: number): void | Promise<void>;           // GPU implementations are async (mapAsync readback); the GPU buffer is authoritative while stepping
+    load(snapshot: GraphSnapshot, positions: F32): void; // positions: the owner's stride-3 scene-unit array, read AND written in place
+    step(iterations?: number): void | Promise<void>; // GPU implementations are async (mapAsync readback); the GPU buffer is authoritative while stepping
     readonly settled: boolean;
-    setFixed(mask: NodeMask): void;                             // the same bitmap layout as a bool column with role "fixed"
-    setPosition(index: number, x: number, y: number, z: number): void;   // drag during simulation: a 12-byte write (writeBuffer on the GPU)
+    setFixed(mask: NodeMask): void; // the same bitmap layout as a bool column with role "fixed"
+    setPosition(index: number, x: number, y: number, z: number): void; // drag during simulation: a 12-byte write (writeBuffer on the GPU)
     dispose(): void;
 }
 ```
@@ -4043,13 +4424,13 @@ keeps the Fibonacci-sphere formula; the wrapper is
 
 Layout port 2 -- forceAtlas2: `const g = toLayoutSnapshot(s); const deg =
 g.outDegree(); mass = resolveNodeVector(options.nodeMass, g, (i) => deg[i]
-+ 1); w = resolveWeights(options.weight, g) /* Float32Array(arcCount) |
-null */;` attraction is a CSR row loop `for (a = rowPtr[u]; a < rowPtr[u
-+ 1]; a++) attract(u, colIdx[a], w === null ? 1 : w[a], ...)`; repulsion
+
+- 1); w = resolveWeights(options.weight, g) /_ Float32Array(arcCount) |
+  null _/;`attraction is a CSR row loop`for (a = rowPtr[u]; a < rowPtr[u
+- 1]; a++) attract(u, colIdx[a], w === null ? 1 : w[a], ...)`; repulsion
 is an all-pairs loop with no per-pair allocation; swing / traction /
-adaptive speed as today over `Float64Array` scratch. The N x N x dim
-`diff` and N x N `distance` arrays allocated per iteration today are gone;
-the O(N * E) `getNodeDegree` scan is `outDegree()`. Attraction sums over
+adaptive speed as today over `Float64Array`scratch. The N x N x dim`diff`and N x N`distance`arrays allocated per iteration today are gone;
+the O(N * E)`getNodeDegree`scan is`outDegree()`. Attraction sums over
 parallel arcs when the snapshot is a multigraph (the dense matrix
 collapsed them; documented behaviour change; callers who want the old
 behaviour pass `simplified()` first).
@@ -4072,18 +4453,18 @@ Ownership rules that the sketch below implements:
   header (section 8.4) and an all-undirected GEXF / GML / GraphML loads as
   an undirected snapshot with one logical edge per file edge; a later
   source that disagrees is expanded (undirected -> directed with `{
-  expand: true }`, or per-edge expansion into a directed builder). With an
+expand: true }`, or per-edge expansion into a directed builder). With an
   explicit boolean the element calls `lockDirected()` and importers
   report what they could not honour. Record-pushed data (`addNodes` /
   `addEdges` API calls) never changes the direction.
 - One `EdgeObject` per PRIMARY logical edge: after any expansion the
   element skips edges whose role-`pair` row is set with `pair[e] < e`
   (mirror halves), `getStats` reports primary edges (`edgeCount - number
-  of mirror rows`), and `getEdgeBetween` folds through `pair`. Under
+of mirror rows`), and `getEdgeBetween` folds through `pair`. Under
   `"auto"` expansion only happens for genuinely mixed input.
 - Edge identity is an element-assigned counter written into an edge
   column `{ name: "graphty.edgeId", dtype: "u32", role: "id", unique:
-  true }` at `addEdge` time; `removeEdge(id)`, `getEdge(id)` and
+true }` at `addEdge` time; `removeEdge(id)`, `getEdge(id)` and
   event-to-object resolution use `snapshot.edgeIndexOf(id)` (lazy `Map`,
   section 4.6) or the builder-side `Map` while `dirty`, never a scan.
 - Positions are ELEMENT-OWNED, not snapshot-owned: `DataManager` keeps
@@ -4091,20 +4472,20 @@ Ownership rules that the sketch below implements:
   snapshot; after each freeze it grows it (prefix-stable: copy-extend to
   `3 * nodeCount`, new rows filled from the importer-seed column or `NaN`
   for "unplaced") or remaps it (`remapArray(positions, nodeRemap,
-  nodeCount, NaN, 3)`), then attaches it BY REFERENCE with
+nodeCount, NaN, 3)`), then attaches it BY REFERENCE with
   `snapshot.nodes.set("position", positions.subarray(0, 3 * nodeCount),
-  { dtype: "f32", components: 3, role: "position", mutable: true }, {
-  replaceRole: true })`, replacing the builder's importer-seed column
+{ dtype: "f32", components: 3, role: "position", mutable: true }, {
+replaceRole: true })`, replacing the builder's importer-seed column
   (which exists only so file coordinates reach the element). Layout
   engines, drag and the GPU layout all write into this one array; nothing
   the user laid out is ever lost to a freeze (section 5.8).
 - Node indices are assigned at add time (`node.index = builder.addNode(
-  id)`); the id lookup loop runs only when `report.nodeRemap !== null`
+id)`); the id lookup loop runs only when `report.nodeRemap !== null`
   (walking the remap, no hashing), so an `UpdateManager` frame between an
   add and the next freeze never sees an undefined index.
 - Layout-update triggers are COALESCED per operation-queue drain: however
   many `data-add` / `data-remove` operations a burst contains, `getSnapshot(
-  )` runs once, and the M3 interactive-expand path goes through the same
+)` runs once, and the M3 interactive-expand path goes through the same
   coalesced call rather than bypassing the queue.
 - Engines iterate `DataManager`'s render collections (`nodes` values,
   `edgesByIndex`) rather than owning copies, and per-frame position reads
@@ -4115,7 +4496,7 @@ Ownership rules that the sketch below implements:
   snapshot: `undirected(s)` (the `DerivedGraph`, so `edgeRemap` is
   available to edge-result adapters) and `simplified(s)` for kernels that
   need a simple snapshot; and one `visible(s)` cache keyed on `(s.serial,
-  hiddenMaskVersion)` holding the induced `DerivedGraph` and its
+hiddenMaskVersion)` holding the induced `DerivedGraph` and its
   undirected copy for "analyse visible only" (two freezes per hidden-set
   change, zero per algorithm afterwards; results for hidden nodes stay
   stale unless the adapter clears them). Layout engines receive the same
@@ -4124,15 +4505,15 @@ Ownership rules that the sketch below implements:
   matching, dijkstra `isInPath`, bellman-ford, floyd-warshall) run on a
   DERIVED snapshot whose edge indices are a different index space; they
   write back through the derived graph's `edgeRemap`: `for (e <
-  s.edgeCount) { d = edgeRemap === null ? e : edgeRemap[e]; if (d !==
-  INVALID_INDEX) addEdgeResult(edgesByIndex[e], name, vec[d]); }`, so both
+s.edgeCount) { d = edgeRemap === null ? e : edgeRemap[e]; if (d !==
+INVALID_INDEX) addEdgeResult(edgesByIndex[e], name, vec[d]); }`, so both
   halves of a collapsed reciprocal pair receive the MST / cut / path flag.
 - `weightFromPath` is `data.knownFields.edgeWeightPath` with the element
   default `"weight"` (the io importers' default; today's converter default
   `"value"` is never read, so this is a documented behaviour change, open
   question 5). Adapters that take a NAMED edge column as weight (MaxFlow /
   MinCut capacity, KK / FA2 `weightProperty`) use `expandEdges(snapshot,
-  column.data)` cached per `(snapshot.serial, column name, column.version)`
+column.data)` cached per `(snapshot.serial, column name, column.version)`
   so the gather runs once per mutation, not per algorithm call.
 - Lifecycle: after every freeze `DataManager` emits `snapshot-replaced`
   `{ previous, next, report }`; listeners release per-snapshot resources
@@ -4148,16 +4529,31 @@ Ownership rules that the sketch below implements:
 
 ```typescript
 class DataManager {
-    private readonly builder = new GraphBuilder({ directed: true, addMissingNodes: true });   // "auto": importers may setDirected() while empty; an explicit config calls lockDirected()
+    private readonly builder = new GraphBuilder({ directed: true, addMissingNodes: true }); // "auto": importers may setDirected() while empty; an explicit config calls lockDirected()
     private snapshotCache: GraphSnapshot | null = null;
     private snapshotMutation = -1;
-    private readonly undirectedCache = new WeakMap<GraphSnapshot, DerivedGraph>();   // toUndirected() once per snapshot (C8); the whole DerivedGraph, for edgeRemap
-    readonly nodes = new Map<NodeIdType, NodeObject>();                          // render objects, id-keyed (public shape unchanged)
-    readonly edgesByIndex: (EdgeObject | undefined)[] = [];                      // edge index -> render object; re-keyed only on compaction; undefined for mirror halves
-    private positions: F32 = new Float32Array(3 * 1024);                         // element-owned scene-unit positions, 3 per node, grown by doubling
-    private readonly seedColumn: ColumnHandle = this.builder.declareNodeColumn({ name: "graphty.importPosition", dtype: "f32", components: 3, role: "position", mutable: false });
-    private readonly edgeIdColumn: ColumnHandle = this.builder.declareEdgeColumn({ name: "graphty.edgeId", dtype: "u32", role: "id", unique: true });
-    private readonly listeners: ((previous: GraphSnapshot | null, next: GraphSnapshot, report: FreezeReport) => void)[] = [];
+    private readonly undirectedCache = new WeakMap<GraphSnapshot, DerivedGraph>(); // toUndirected() once per snapshot (C8); the whole DerivedGraph, for edgeRemap
+    readonly nodes = new Map<NodeIdType, NodeObject>(); // render objects, id-keyed (public shape unchanged)
+    readonly edgesByIndex: (EdgeObject | undefined)[] = []; // edge index -> render object; re-keyed only on compaction; undefined for mirror halves
+    private positions: F32 = new Float32Array(3 * 1024); // element-owned scene-unit positions, 3 per node, grown by doubling
+    private readonly seedColumn: ColumnHandle = this.builder.declareNodeColumn({
+        name: "graphty.importPosition",
+        dtype: "f32",
+        components: 3,
+        role: "position",
+        mutable: false,
+    });
+    private readonly edgeIdColumn: ColumnHandle = this.builder.declareEdgeColumn({
+        name: "graphty.edgeId",
+        dtype: "u32",
+        role: "id",
+        unique: true,
+    });
+    private readonly listeners: ((
+        previous: GraphSnapshot | null,
+        next: GraphSnapshot,
+        report: FreezeReport,
+    ) => void)[] = [];
 
     getSnapshot(): GraphSnapshot {
         if (this.snapshotCache === null || this.snapshotMutation !== this.builder.mutationCount) {
@@ -4165,21 +4561,46 @@ class DataManager {
             const { snapshot, report } = this.builder.freezeWithReport({ label: "graphty-element" });
             if (report.nodeRemap !== null) {
                 this.positions = remapArray(this.positions, report.nodeRemap, snapshot.nodeCount, Number.NaN, 3);
-                for (const node of this.nodes.values()) { node.index = report.nodeRemap[node.index] ?? INVALID_INDEX; }   // walk the remap; no hashing
+                for (const node of this.nodes.values()) {
+                    node.index = report.nodeRemap[node.index] ?? INVALID_INDEX;
+                } // walk the remap; no hashing
             } else {
-                this.growPositions(snapshot);                                    // copy-extend; new rows seeded from the import column or NaN
+                this.growPositions(snapshot); // copy-extend; new rows seeded from the import column or NaN
             }
-            if (report.edgeRemap !== null) { this.rekeyEdges(report.edgeRemap); }   // one pass; removal bursts only
-            snapshot.nodes.set("position", this.positions.subarray(0, 3 * snapshot.nodeCount),
-                { dtype: "f32", components: 3, role: "position", mutable: true }, { replaceRole: true });
-            this.snapshotCache = snapshot; this.snapshotMutation = this.builder.mutationCount;
-            for (const l of this.listeners) { l(previous, snapshot, report); }   // "snapshot-replaced": GPU release(previous), cache drops, previous.dropCaches()
+            if (report.edgeRemap !== null) {
+                this.rekeyEdges(report.edgeRemap);
+            } // one pass; removal bursts only
+            snapshot.nodes.set(
+                "position",
+                this.positions.subarray(0, 3 * snapshot.nodeCount),
+                { dtype: "f32", components: 3, role: "position", mutable: true },
+                { replaceRole: true },
+            );
+            this.snapshotCache = snapshot;
+            this.snapshotMutation = this.builder.mutationCount;
+            for (const l of this.listeners) {
+                l(previous, snapshot, report);
+            } // "snapshot-replaced": GPU release(previous), cache drops, previous.dropCaches()
         }
         return this.snapshotCache;
     }
-    undirected(s: GraphSnapshot): DerivedGraph {                                 // nine adapters and every layout engine share this one object
+    undirected(s: GraphSnapshot): DerivedGraph {
+        // nine adapters and every layout engine share this one object
         let u = this.undirectedCache.get(s);
-        if (u === undefined) { u = s.directed ? s.toUndirected() : { snapshot: s, nodeOrigin: null, edgeOrigin: null, nodeRemap: null, edgeRemap: null, blockSizes: null, report: { droppedEdges: 0, mergedEdges: 0 } }; this.undirectedCache.set(s, u); }
+        if (u === undefined) {
+            u = s.directed
+                ? s.toUndirected()
+                : {
+                      snapshot: s,
+                      nodeOrigin: null,
+                      edgeOrigin: null,
+                      nodeRemap: null,
+                      edgeRemap: null,
+                      blockSizes: null,
+                      report: { droppedEdges: 0, mergedEdges: 0 },
+                  };
+            this.undirectedCache.set(s, u);
+        }
         return u;
     }
 }
@@ -4191,21 +4612,21 @@ only `edgesByIndex` is re-keyed on compaction, so event identity never
 changes (section 18 decision 5 confirms the string form). Per mutation path of
 research note 04:
 
-| Path | What happens |
-| --- | --- |
-| `addNodes(records)` (M1/M2/M3) | per record: `node.index = builder.addNode(id)`; create the `NodeObject` (mesh, styles, data bag exactly as today); if `data.position` exists `builder.setNodeValue(seedColumn, index, [x, y, z])` (scaled to scene units per `data.knownFields.positionScale`); an id that already exists is a merge (`addNodeRecord` last-write-wins, section 6.6). No freeze. |
-| `addEdges(records)` (M1/M2/M3) | per record: `e = builder.addEdge(srcId, dstId, weightFromPath ?? 1)`; `builder.setEdgeValue(edgeIdColumn, e, nextEdgeId++)`; unknown endpoints are created by the builder (`bufferedEdges` retry loop deleted). `EdgeObject`s for sources that emit edges before nodes (CSV edge lists, section 8.4) are created at `data-loading-complete` in one pass over `edgeList()` of the first freeze; for record sources that emit nodes first they are created inline. Duplicate `(src, dst)` pairs are now kept -- `EdgeMap` and the "duplicate Edge" throw are deleted; `getEdgeBetween(src, dst)` is `builder.findEdges(u, v)[0]` while `dirty` and `snapshot.findArc` + `arcToEdge` (first parallel, folded through `pair`) otherwise. No freeze. |
-| `removeNode(id)` (M4) | `removed = builder.removeNode(id)`; dispose the `EdgeObject`s for those indices (fixes the TODO: incident edges are now removed) and the mesh; delete from `nodes`. A revive (`addNode` of the same id before the next freeze) is treated as an add: the position row is retained, the disposed `EdgeObject`s are not recreated (section 6.6). |
-| `removeEdge(id)` (M5) | `builder.removeEdge(edgeIndexOf(id))`; dispose the `EdgeObject`. |
-| `updateNodes(updates)` (M6) | `Object.assign(node.data, update)` and restyle as today; a `position` update writes `positions` directly (no builder involvement, no re-freeze). |
-| algorithm results (M7) | adapters call `getSnapshot()` once, run `indexed.*` (or the injected GPU accelerator), then `for (i < n) addNodeResult(snapshot.ids.idOf(i), name, vec[i])` (Option A; render objects and Proxy semantics untouched); edge results via `edgesByIndex[e]` through `edgeRemap` as above; later (Option B) results also land in `snapshot.nodes.set("graphty.<type>.<name>", vec)`. |
-| `runAlgorithmsOnLoad` | moves from the per-chunk `data-added` listener to `data-loading-complete` (Q16), so a load freezes once. |
-| layout set (M10) | `LayoutManager._setLayoutInternal` calls `engine.load(dm.undirected(getSnapshot()).snapshot, positions)` for `SimpleLayoutEngine` subclasses; ngraph / d3 engines keep their incremental feed and gain `removeNode` / `removeEdge`. |
-| topology change with an active layout (M3/M4/M5) | on `snapshot-replaced` the manager calls `engine.reload(undirectedSnapshot, report, positions)`. Static engines re-run with `pos = fromPositionColumn(positions, ...)` and `fixed = pinned mask`, so existing nodes keep their coordinates and only new nodes are placed -- the cost is a full layout run (a 100k-node FA2 re-run is seconds, not the 30 ms of the re-freeze; a static layout is re-run on the next animation frame after the burst, and the element may choose to place new nodes at their neighbours' centroid without a re-run, a product decision left open). ngraph / d3 engines feed the delta. `LayoutSimulation` engines keep stepping on the new array. |
-| drag (M11) / per-frame (M12) | `SimpleLayoutEngine` reads and writes `positions` (index-aligned, stride 3, scene units); `getNodePositionInto(index, out)` reads `positions[3 * index + k]`; drag writes the same three floats (or `simulation.setPosition` while a simulation is stepping, the GPU buffer being authoritative then); `FixedLayout` reads the same array; `column.markDirty()` once per frame before any GPU upload of the position column. |
-| `getStats` / counts | `builder.nodeCount`, `builder.edgeCount` minus mirror halves. |
-| selection / style (M8/M9) | unchanged (no topology). |
-| hide / filter + "analyse visible" | `visible(s)` cache (above); `scatterArray` writes results computed on the induced snapshot back into the parent's index space through `nodeOrigin`. |
+| Path                                             | What happens                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `addNodes(records)` (M1/M2/M3)                   | per record: `node.index = builder.addNode(id)`; create the `NodeObject` (mesh, styles, data bag exactly as today); if `data.position` exists `builder.setNodeValue(seedColumn, index, [x, y, z])` (scaled to scene units per `data.knownFields.positionScale`); an id that already exists is a merge (`addNodeRecord` last-write-wins, section 6.6). No freeze.                                                                                                                                                                                                                                                                                                                                                                                 |
+| `addEdges(records)` (M1/M2/M3)                   | per record: `e = builder.addEdge(srcId, dstId, weightFromPath ?? 1)`; `builder.setEdgeValue(edgeIdColumn, e, nextEdgeId++)`; unknown endpoints are created by the builder (`bufferedEdges` retry loop deleted). `EdgeObject`s for sources that emit edges before nodes (CSV edge lists, section 8.4) are created at `data-loading-complete` in one pass over `edgeList()` of the first freeze; for record sources that emit nodes first they are created inline. Duplicate `(src, dst)` pairs are now kept -- `EdgeMap` and the "duplicate Edge" throw are deleted; `getEdgeBetween(src, dst)` is `builder.findEdges(u, v)[0]` while `dirty` and `snapshot.findArc` + `arcToEdge` (first parallel, folded through `pair`) otherwise. No freeze. |
+| `removeNode(id)` (M4)                            | `removed = builder.removeNode(id)`; dispose the `EdgeObject`s for those indices (fixes the TODO: incident edges are now removed) and the mesh; delete from `nodes`. A revive (`addNode` of the same id before the next freeze) is treated as an add: the position row is retained, the disposed `EdgeObject`s are not recreated (section 6.6).                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `removeEdge(id)` (M5)                            | `builder.removeEdge(edgeIndexOf(id))`; dispose the `EdgeObject`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `updateNodes(updates)` (M6)                      | `Object.assign(node.data, update)` and restyle as today; a `position` update writes `positions` directly (no builder involvement, no re-freeze).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| algorithm results (M7)                           | adapters call `getSnapshot()` once, run `indexed.*` (or the injected GPU accelerator), then `for (i < n) addNodeResult(snapshot.ids.idOf(i), name, vec[i])` (Option A; render objects and Proxy semantics untouched); edge results via `edgesByIndex[e]` through `edgeRemap` as above; later (Option B) results also land in `snapshot.nodes.set("graphty.<type>.<name>", vec)`.                                                                                                                                                                                                                                                                                                                                                                |
+| `runAlgorithmsOnLoad`                            | moves from the per-chunk `data-added` listener to `data-loading-complete` (Q16), so a load freezes once.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| layout set (M10)                                 | `LayoutManager._setLayoutInternal` calls `engine.load(dm.undirected(getSnapshot()).snapshot, positions)` for `SimpleLayoutEngine` subclasses; ngraph / d3 engines keep their incremental feed and gain `removeNode` / `removeEdge`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| topology change with an active layout (M3/M4/M5) | on `snapshot-replaced` the manager calls `engine.reload(undirectedSnapshot, report, positions)`. Static engines re-run with `pos = fromPositionColumn(positions, ...)` and `fixed = pinned mask`, so existing nodes keep their coordinates and only new nodes are placed -- the cost is a full layout run (a 100k-node FA2 re-run is seconds, not the 30 ms of the re-freeze; a static layout is re-run on the next animation frame after the burst, and the element may choose to place new nodes at their neighbours' centroid without a re-run, a product decision left open). ngraph / d3 engines feed the delta. `LayoutSimulation` engines keep stepping on the new array.                                                                |
+| drag (M11) / per-frame (M12)                     | `SimpleLayoutEngine` reads and writes `positions` (index-aligned, stride 3, scene units); `getNodePositionInto(index, out)` reads `positions[3 * index + k]`; drag writes the same three floats (or `simulation.setPosition` while a simulation is stepping, the GPU buffer being authoritative then); `FixedLayout` reads the same array; `column.markDirty()` once per frame before any GPU upload of the position column.                                                                                                                                                                                                                                                                                                                    |
+| `getStats` / counts                              | `builder.nodeCount`, `builder.edgeCount` minus mirror halves.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| selection / style (M8/M9)                        | unchanged (no topology).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| hide / filter + "analyse visible"                | `visible(s)` cache (above); `scatterArray` writes results computed on the induced snapshot back into the parent's index space through `nodeOrigin`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 
 `toAlgorithmGraph` is replaced by a two-line selector per adapter: `const
 s = dm.getSnapshot();` then `indexed.x(s)` for directed adapters
@@ -4265,19 +4686,19 @@ throws when no device is available and never falls back.
 
 ### 14.6 Landing order and the dual-API window (G13)
 
-| Phase | Package | Content | Gate |
-| --- | --- | --- | --- |
-| F1 | graph-format | core package at 0.1.0: snapshot, builder, id map, columns, views, derived graphs, populate, wire, tests, benchmarks; iterates as 0.x on master with no dependents | invariant, property, differential (vs the copied legacy `Graph`) and wire tests green; freeze <= 30 ms directed / <= 60 ms undirected on the 100k/1M benchmark |
-| A1 (branch) | algorithms | `toSnapshot(Graph)` with `mutationCount` memoisation and `weightDtype: "f64"`; the differential harness (legacy result vs the same computation replayed through a snapshot's views for the properties a snapshot can answer directly: node sets, neighbour sets, degrees, edge multisets, weights); public signatures UNCHANGED (a legacy Map-of-Maps algorithm cannot consume a snapshot until its indexed implementation exists, so the widening waits for A2) | every existing test's graph converts with `equalsTopology` / neighbour-set parity, against the 0.x format, on the branch |
-| F2 | graph-format | `1.0.0` cut on master (`feat!:` commit or `nx release version 1.0.0`); invariants frozen | A1 branch green; rule 5 of section 13.5 now lets consumers merge |
-| A1 | algorithms | merge | CI dependency check passes |
-| A2 | algorithms | `indexed` namespace: all 95+ functions ported; every public function's first parameter widens to `Graph \| GraphSnapshot` and dispatches to `indexed.*` through `toSnapshot`; legacy entry points become facades; `optimized/*` and `graphToMap` unreachable internally | differential tests equal within tolerance (weighted results exact through the f64 override, section 14.1); view checksums asserted after every call; benchmark: BFS / PageRank / Louvain / CC old vs new |
-| L1 | layout | `toLayoutSnapshot`, `indexed` layouts, wrappers, `LayoutGraph` generators | tests green; Chromatic re-baseline commit |
-| E1 | graphty-element | `DataManager` owns the builder; adapters and `SimpleLayoutEngine` subclasses use `indexed.*`; position column; `EdgeMap` removed; `runAlgorithmsOnLoad` on load-complete; existing `DataSource`s push records | element tests + stories green; Chromatic re-baseline |
-| W1 | webgpu-graph-algorithms | move-in; consume snapshots; rename fields; `noUncheckedIndexedAccess` off; `release()` and the array-keyed upload cache | browser tests green |
-| D1 | algorithms, layout | `@deprecated` tags on legacy `Graph` input paths, `graphToMap`, `CSRGraph`, positional layout signatures (only now, after E1 removed the last internal callers) | lint green |
-| IO1 | graph-io (new) + graphty-element | parsers moved out of `DataSource` subclasses into `@graphty/graph-io` importers targeting `GraphSink` (scalar push); `DataSource`s become wrappers; exporters; corpus moves | corpus round-trip tests; parse -> freeze benchmark for CSV / JSON / GEXF |
-| 2.0 | algorithms, layout | remove facades, the legacy `Graph` class, Map overloads, positional signatures; promote `indexed.*` to top level; any accumulated breaking format change ships as format 2.0 in the same window | |
+| Phase       | Package                          | Content                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Gate                                                                                                                                                                                                     |
+| ----------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1          | graph-format                     | core package at 0.1.0: snapshot, builder, id map, columns, views, derived graphs, populate, wire, tests, benchmarks; iterates as 0.x on master with no dependents                                                                                                                                                                                                                                                                                                | invariant, property, differential (vs the copied legacy `Graph`) and wire tests green; freeze <= 30 ms directed / <= 60 ms undirected on the 100k/1M benchmark                                           |
+| A1 (branch) | algorithms                       | `toSnapshot(Graph)` with `mutationCount` memoisation and `weightDtype: "f64"`; the differential harness (legacy result vs the same computation replayed through a snapshot's views for the properties a snapshot can answer directly: node sets, neighbour sets, degrees, edge multisets, weights); public signatures UNCHANGED (a legacy Map-of-Maps algorithm cannot consume a snapshot until its indexed implementation exists, so the widening waits for A2) | every existing test's graph converts with `equalsTopology` / neighbour-set parity, against the 0.x format, on the branch                                                                                 |
+| F2          | graph-format                     | `1.0.0` cut on master (`feat!:` commit or `nx release version 1.0.0`); invariants frozen                                                                                                                                                                                                                                                                                                                                                                         | A1 branch green; rule 5 of section 13.5 now lets consumers merge                                                                                                                                         |
+| A1          | algorithms                       | merge                                                                                                                                                                                                                                                                                                                                                                                                                                                            | CI dependency check passes                                                                                                                                                                               |
+| A2          | algorithms                       | `indexed` namespace: all 95+ functions ported; every public function's first parameter widens to `Graph \| GraphSnapshot` and dispatches to `indexed.*` through `toSnapshot`; legacy entry points become facades; `optimized/*` and `graphToMap` unreachable internally                                                                                                                                                                                          | differential tests equal within tolerance (weighted results exact through the f64 override, section 14.1); view checksums asserted after every call; benchmark: BFS / PageRank / Louvain / CC old vs new |
+| L1          | layout                           | `toLayoutSnapshot`, `indexed` layouts, wrappers, `LayoutGraph` generators                                                                                                                                                                                                                                                                                                                                                                                        | tests green; Chromatic re-baseline commit                                                                                                                                                                |
+| E1          | graphty-element                  | `DataManager` owns the builder; adapters and `SimpleLayoutEngine` subclasses use `indexed.*`; position column; `EdgeMap` removed; `runAlgorithmsOnLoad` on load-complete; existing `DataSource`s push records                                                                                                                                                                                                                                                    | element tests + stories green; Chromatic re-baseline                                                                                                                                                     |
+| W1          | webgpu-graph-algorithms          | move-in; consume snapshots; rename fields; `noUncheckedIndexedAccess` off; `release()` and the array-keyed upload cache                                                                                                                                                                                                                                                                                                                                          | browser tests green                                                                                                                                                                                      |
+| D1          | algorithms, layout               | `@deprecated` tags on legacy `Graph` input paths, `graphToMap`, `CSRGraph`, positional layout signatures (only now, after E1 removed the last internal callers)                                                                                                                                                                                                                                                                                                  | lint green                                                                                                                                                                                               |
+| IO1         | graph-io (new) + graphty-element | parsers moved out of `DataSource` subclasses into `@graphty/graph-io` importers targeting `GraphSink` (scalar push); `DataSource`s become wrappers; exporters; corpus moves                                                                                                                                                                                                                                                                                      | corpus round-trip tests; parse -> freeze benchmark for CSV / JSON / GEXF                                                                                                                                 |
+| 2.0         | algorithms, layout               | remove facades, the legacy `Graph` class, Map overloads, positional signatures; promote `indexed.*` to top level; any accumulated breaking format change ships as format 2.0 in the same window                                                                                                                                                                                                                                                                  |                                                                                                                                                                                                          |
 
 A2, L1 and E1 can proceed in parallel after A1 merges. The dual-API
 window is A1 through 2.0: legacy input types and result shapes are
@@ -4305,34 +4726,34 @@ webgpu-graph-algorithms.
 `A = 2E - L` undirected). Benchmark graph: n = 100,000, E = 1,000,000,
 L = 0.
 
-| Component | Bytes | Directed weighted, perms materialised | Directed weighted, identity perms | Undirected weighted |
-| --- | --- | --- | --- | --- |
-| `rowPtr` | 4(n + 1) | 0.4 MB | 0.4 MB | 0.4 MB |
-| `colIdx` | 4A | 4.0 MB | 4.0 MB | 8.0 MB |
-| `arcToEdge` | 4A (0 while identity) | 4.0 MB | 0 | 8.0 MB |
-| `edgeToArc` | 4E (0 while identity) | 4.0 MB | 0 | 4.0 MB |
-| `weights` | 4A (0 when unweighted) | 4.0 MB | 4.0 MB | 8.0 MB |
-| core total | | 16.4 MB (16,400,128 B) | 8.4 MB (8,400,128 B) | 28.4 MB (28,400,128 B) |
-| core total, unweighted | | 12.4 MB | 4.4 MB | 20.4 MB |
-| `reverse()` | 4(n + 1) + 4A colIdx + 4A fwdArc + 4A weights (+ 4A lazy arcToEdge) | 12.4 MB (+4) | 12.4 MB (+4) | 0 (aliased) |
-| `coo().src` | 4A | 4.0 MB | 4.0 MB | 8.0 MB |
-| `edgeList()` | 8E (+4E weights unless aliased) | 12 MB | 8 MB | 12 MB |
-| `outDegree` / `inDegree` / `degree` / `selfLoopsPerNode` | 4n each | 0.4 MB | 0.4 MB | 0.4 MB |
-| `weightedOutDegree` / `weightedInDegree` / `weightedDegree` / `selfLoopWeight` | 8n each (f64, CPU only) | 0.8 MB | 0.8 MB | 0.8 MB |
-| `mate()` | 4A | n/a | n/a | 8.0 MB |
-| `degreeOrder()` | 4n + 20 | 0.4 MB | 0.4 MB | 0.4 MB |
-| id map `identity` | 0 | 0 | 0 | 0 |
-| id map `dense` | 4n + 4(maxId + 1) | 0.4-1.2 MB | | |
-| id map `numeric` | 8n + Map ~40n | 4.8 MB | | |
-| id map `string` (8-char ids) | ~8n array entries + ~32n strings + ~60n Map (+ 1.3 MB Utf8 store when materialised) | ~10 MB | | |
-| f32 / i32 / u32 column | 4 rows x components | 0.4 MB per node column, 4 MB per edge column | | |
-| f64 column | 8 rows x components (+ 4 rows f32 shadow if uploaded) | 0.8 MB / 8 MB | | |
-| dict column | 4 rows + dictionary | 0.4 MB / 4 MB | | |
-| validity bitmap, `bool` column, `NodeMask` / `EdgeMask` | rows / 8 (rounded to 4 bytes) | 12.5 KB / 125 KB | | |
-| `u8` column | rows x components (rounded to 4 bytes) | 100 KB / 1 MB | | |
-| position column | 12n, mutable | 1.2 MB | | |
-| legacy `Graph` class (same graph) | | 243 MB | | |
-| legacy `CSRGraph` (undirected, eager reverse, Map ids) | | ~30 MB | | |
+| Component                                                                      | Bytes                                                                               | Directed weighted, perms materialised        | Directed weighted, identity perms | Undirected weighted    |
+| ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- | -------------------------------------------- | --------------------------------- | ---------------------- |
+| `rowPtr`                                                                       | 4(n + 1)                                                                            | 0.4 MB                                       | 0.4 MB                            | 0.4 MB                 |
+| `colIdx`                                                                       | 4A                                                                                  | 4.0 MB                                       | 4.0 MB                            | 8.0 MB                 |
+| `arcToEdge`                                                                    | 4A (0 while identity)                                                               | 4.0 MB                                       | 0                                 | 8.0 MB                 |
+| `edgeToArc`                                                                    | 4E (0 while identity)                                                               | 4.0 MB                                       | 0                                 | 4.0 MB                 |
+| `weights`                                                                      | 4A (0 when unweighted)                                                              | 4.0 MB                                       | 4.0 MB                            | 8.0 MB                 |
+| core total                                                                     |                                                                                     | 16.4 MB (16,400,128 B)                       | 8.4 MB (8,400,128 B)              | 28.4 MB (28,400,128 B) |
+| core total, unweighted                                                         |                                                                                     | 12.4 MB                                      | 4.4 MB                            | 20.4 MB                |
+| `reverse()`                                                                    | 4(n + 1) + 4A colIdx + 4A fwdArc + 4A weights (+ 4A lazy arcToEdge)                 | 12.4 MB (+4)                                 | 12.4 MB (+4)                      | 0 (aliased)            |
+| `coo().src`                                                                    | 4A                                                                                  | 4.0 MB                                       | 4.0 MB                            | 8.0 MB                 |
+| `edgeList()`                                                                   | 8E (+4E weights unless aliased)                                                     | 12 MB                                        | 8 MB                              | 12 MB                  |
+| `outDegree` / `inDegree` / `degree` / `selfLoopsPerNode`                       | 4n each                                                                             | 0.4 MB                                       | 0.4 MB                            | 0.4 MB                 |
+| `weightedOutDegree` / `weightedInDegree` / `weightedDegree` / `selfLoopWeight` | 8n each (f64, CPU only)                                                             | 0.8 MB                                       | 0.8 MB                            | 0.8 MB                 |
+| `mate()`                                                                       | 4A                                                                                  | n/a                                          | n/a                               | 8.0 MB                 |
+| `degreeOrder()`                                                                | 4n + 20                                                                             | 0.4 MB                                       | 0.4 MB                            | 0.4 MB                 |
+| id map `identity`                                                              | 0                                                                                   | 0                                            | 0                                 | 0                      |
+| id map `dense`                                                                 | 4n + 4(maxId + 1)                                                                   | 0.4-1.2 MB                                   |                                   |                        |
+| id map `numeric`                                                               | 8n + Map ~40n                                                                       | 4.8 MB                                       |                                   |                        |
+| id map `string` (8-char ids)                                                   | ~8n array entries + ~32n strings + ~60n Map (+ 1.3 MB Utf8 store when materialised) | ~10 MB                                       |                                   |                        |
+| f32 / i32 / u32 column                                                         | 4 rows x components                                                                 | 0.4 MB per node column, 4 MB per edge column |                                   |                        |
+| f64 column                                                                     | 8 rows x components (+ 4 rows f32 shadow if uploaded)                               | 0.8 MB / 8 MB                                |                                   |                        |
+| dict column                                                                    | 4 rows + dictionary                                                                 | 0.4 MB / 4 MB                                |                                   |                        |
+| validity bitmap, `bool` column, `NodeMask` / `EdgeMask`                        | rows / 8 (rounded to 4 bytes)                                                       | 12.5 KB / 125 KB                             |                                   |                        |
+| `u8` column                                                                    | rows x components (rounded to 4 bytes)                                              | 100 KB / 1 MB                                |                                   |                        |
+| position column                                                                | 12n, mutable                                                                        | 1.2 MB                                       |                                   |                        |
+| legacy `Graph` class (same graph)                                              |                                                                                     | 243 MB                                       |                                   |                        |
+| legacy `CSRGraph` (undirected, eager reverse, Map ids)                         |                                                                                     | ~30 MB                                       |                                   |                        |
 
 Doubling factor summary: an undirected graph costs 2x in `colIdx`,
 `arcToEdge`, `weights` and `coo().src` but 0x in `reverse()`; a directed
@@ -4349,17 +4770,17 @@ Staging per node: `firstOut` + `firstIn` 8 + `ids` slot 8 + Map entry
 MB. Freeze transients: `cnt` 4(n + 1) + `byTarget` 4A + (undirected) the
 arc triple 12A: directed 4.4 MB, undirected 32.4 MB.
 
-| Phase (undirected weighted, string ids, one f64 edge column, one f32 node column) | Bytes |
-| --- | --- |
-| staging (src, dst, weight, lists) | 21 MB |
-| staging columns | 8.4 MB |
-| id structures (Map + strings + array) | ~10 MB |
-| freeze transients | 32.4 MB |
-| snapshot core (arena) | 28.4 MB |
-| snapshot columns (gathered copies) | 8.4 MB |
-| peak during step 11 (staging retained) | ~109 MB |
-| steady state, builder kept | ~76 MB |
-| steady state after `release: true` | ~47 MB (core + columns + id structures) |
+| Phase (undirected weighted, string ids, one f64 edge column, one f32 node column)                                                                                    | Bytes                                                                                                                          |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| staging (src, dst, weight, lists)                                                                                                                                    | 21 MB                                                                                                                          |
+| staging columns                                                                                                                                                      | 8.4 MB                                                                                                                         |
+| id structures (Map + strings + array)                                                                                                                                | ~10 MB                                                                                                                         |
+| freeze transients                                                                                                                                                    | 32.4 MB                                                                                                                        |
+| snapshot core (arena)                                                                                                                                                | 28.4 MB                                                                                                                        |
+| snapshot columns (gathered copies)                                                                                                                                   | 8.4 MB                                                                                                                         |
+| peak during step 11 (staging retained)                                                                                                                               | ~109 MB                                                                                                                        |
+| steady state, builder kept                                                                                                                                           | ~76 MB                                                                                                                         |
+| steady state after `release: true`                                                                                                                                   | ~47 MB (core + columns + id structures)                                                                                        |
 | steady state, builder kept, one superseded snapshot still referenced (the interactive-expand window between a freeze and the listeners' `snapshot-replaced` cleanup) | ~76 MB + 28.4 MB core + its cached `toUndirected()` copy (up to 28.4 MB) + its views; released when the last consumer drops it |
 
 Directed weighted, same setup: ~21 + 8.4 + 10 + 4.4 + 16.4 + 8.4 = ~69 MB
@@ -4369,13 +4790,13 @@ before 1.0.
 
 ### 15.3 Target graph sizes
 
-| Tier | Nodes / edges | Core (undirected weighted) | With reverse + coo + 8 f32 node columns + `string` ids | Fits |
-| --- | --- | --- | --- | --- |
-| mobile tab (iOS Safari, low hundreds of MB resident before termination) | 100k / 1M | 28.4 MB | ~55 MB | yes; graphty-element's per-node objects dominate |
-| desktop tab, interactive | 1M / 10M | 284 MB | ~400 MB + ~100 MB ids | yes (`ArrayBuffer`s are off-heap in V8; renderer limits are in the GBs) |
-| desktop tab / Node batch (worker) | 10M / 100M | 2.8 GB | ~4.0 GB | core only, numeric ids, `arena: false` because a single 2.8 GB `ArrayBuffer` exceeds the ~2 GiB per-allocation ceiling in some engines; per-array buffers of 800 MB are fine in V8; GPU needs raised limits and windowed bindings |
-| beyond (Friendster 65M / 1.8B) | | | | out of scope for a tab; the index ceiling is 4.29e9 arcs, memory is the limit first |
-| WebGPU defaults | up to 33M arcs per single binding (128 MiB), 67M per buffer (256 MiB); raised limits on discrete GPUs remove this | | | GPU package windows above that |
+| Tier                                                                    | Nodes / edges                                                                                                     | Core (undirected weighted) | With reverse + coo + 8 f32 node columns + `string` ids | Fits                                                                                                                                                                                                                              |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| mobile tab (iOS Safari, low hundreds of MB resident before termination) | 100k / 1M                                                                                                         | 28.4 MB                    | ~55 MB                                                 | yes; graphty-element's per-node objects dominate                                                                                                                                                                                  |
+| desktop tab, interactive                                                | 1M / 10M                                                                                                          | 284 MB                     | ~400 MB + ~100 MB ids                                  | yes (`ArrayBuffer`s are off-heap in V8; renderer limits are in the GBs)                                                                                                                                                           |
+| desktop tab / Node batch (worker)                                       | 10M / 100M                                                                                                        | 2.8 GB                     | ~4.0 GB                                                | core only, numeric ids, `arena: false` because a single 2.8 GB `ArrayBuffer` exceeds the ~2 GiB per-allocation ceiling in some engines; per-array buffers of 800 MB are fine in V8; GPU needs raised limits and windowed bindings |
+| beyond (Friendster 65M / 1.8B)                                          |                                                                                                                   |                            |                                                        | out of scope for a tab; the index ceiling is 4.29e9 arcs, memory is the limit first                                                                                                                                               |
+| WebGPU defaults                                                         | up to 33M arcs per single binding (128 MiB), 67M per buffer (256 MiB); raised limits on discrete GPUs remove this |                            |                                                        | GPU package windows above that                                                                                                                                                                                                    |
 
 Engine ceilings to verify in the benchmark suite (G5): V8 `kMaxByteLength`
 for `ArrayBuffer` / `TypedArray` (2^53 - 1 on 64-bit V8 12.x; Chromium
@@ -4389,28 +4810,28 @@ Measured: CSR from typed edge arrays (one count + scan + scatter, directed,
 unsorted, no permutations) 20 ms. Everything else is a target extrapolated
 from it and must be confirmed by `benchmarks/freeze.bench.ts` before 1.0.
 
-| Phase | Directed (1M arcs) | Undirected (2M arcs) | Notes |
-| --- | --- | --- | --- |
-| builder: id interning, 100k string ids | 15-25 ms | same | `Map.set` per node; paid in `addNode`, not at freeze |
-| builder: `addEdge` x 1M | 25-40 ms | same | two `Map.get`, five typed writes per edge |
-| compaction (only after removals) | 32 ms measured (was 10-15) | 32 ms measured (was 10-15) | one gather pass; corrected 2026-09-16, see 15.6 |
-| arc materialisation (step 3) | 0 | 5 ms | sequential writes |
-| identity check (step 4) | < 1 ms | -- | |
-| pass 1 counting sort by target | 8 ms | 15 ms | random scatter, cache-miss bound |
-| pass 2 counting sort by source + writes | 10 ms | 18 ms | writes straight into the arena |
-| duplicate walk (non-keep policy) | 2 ms | 4 ms | |
-| weights + flags | 2 ms | 3 ms | |
-| id map kind detection | < 1 ms | < 1 ms | Map shared, no copy |
-| columns (8 node f32, 2 edge f32) | 3-5 ms | 3-5 ms | memcpy class |
-| arena allocation | < 1 ms | < 1 ms | |
-| freeze total | 25-30 ms | 45-55 ms | budget: <= 30 / <= 60 ms |
-| `reverse()` | 15-25 ms | 0 | |
-| `coo()`, degrees | 1-3 ms each | 2-4 ms | |
-| `isSymmetric()` (given reverse) | 3-5 ms | 0 | |
-| `toUndirected()` of a directed graph | ~50 ms | n/a | a full freeze |
-| `toBytes()` | 5-10 ms | 8-12 ms | memcpy of the core |
-| `toWire({ transfer: true })` + `postMessage` | < 1 ms | < 1 ms | pointer moves |
-| `fromBytes` with `validate: "full"` | 15-25 ms | 25-35 ms | dominated by I4 / I7 checks |
+| Phase                                        | Directed (1M arcs)         | Undirected (2M arcs)       | Notes                                                |
+| -------------------------------------------- | -------------------------- | -------------------------- | ---------------------------------------------------- |
+| builder: id interning, 100k string ids       | 15-25 ms                   | same                       | `Map.set` per node; paid in `addNode`, not at freeze |
+| builder: `addEdge` x 1M                      | 25-40 ms                   | same                       | two `Map.get`, five typed writes per edge            |
+| compaction (only after removals)             | 32 ms measured (was 10-15) | 32 ms measured (was 10-15) | one gather pass; corrected 2026-09-16, see 15.6      |
+| arc materialisation (step 3)                 | 0                          | 5 ms                       | sequential writes                                    |
+| identity check (step 4)                      | < 1 ms                     | --                         |                                                      |
+| pass 1 counting sort by target               | 8 ms                       | 15 ms                      | random scatter, cache-miss bound                     |
+| pass 2 counting sort by source + writes      | 10 ms                      | 18 ms                      | writes straight into the arena                       |
+| duplicate walk (non-keep policy)             | 2 ms                       | 4 ms                       |                                                      |
+| weights + flags                              | 2 ms                       | 3 ms                       |                                                      |
+| id map kind detection                        | < 1 ms                     | < 1 ms                     | Map shared, no copy                                  |
+| columns (8 node f32, 2 edge f32)             | 3-5 ms                     | 3-5 ms                     | memcpy class                                         |
+| arena allocation                             | < 1 ms                     | < 1 ms                     |                                                      |
+| freeze total                                 | 25-30 ms                   | 45-55 ms                   | budget: <= 30 / <= 60 ms                             |
+| `reverse()`                                  | 15-25 ms                   | 0                          |                                                      |
+| `coo()`, degrees                             | 1-3 ms each                | 2-4 ms                     |                                                      |
+| `isSymmetric()` (given reverse)              | 3-5 ms                     | 0                          |                                                      |
+| `toUndirected()` of a directed graph         | ~50 ms                     | n/a                        | a full freeze                                        |
+| `toBytes()`                                  | 5-10 ms                    | 8-12 ms                    | memcpy of the core                                   |
+| `toWire({ transfer: true })` + `postMessage` | < 1 ms                     | < 1 ms                     | pointer moves                                        |
+| `fromBytes` with `validate: "full"`          | 15-25 ms                   | 25-35 ms                   | dominated by I4 / I7 checks                          |
 
 The sorted-row invariant costs one extra counting pass (about +8 ms per
 1M arcs); that is the price of binary-search `findArc`, merge
@@ -4478,15 +4899,15 @@ Measured on the F1 landing tree (`graph-format` in graphty-monorepo, Node
 true })`, 100k nodes / 1M directed edges, median of 5, the removal case
 tombstoning 99,930 of 1,000,000 edges before the freeze:
 
-| Phase | No removals | After 10 percent removed |
-| --- | --- | --- |
-| `compact` | 0.02 ms | 31.78 ms |
-| `sort` | 20.57 ms | 17.77 ms |
-| `weights` | 0.01 ms | 0.01 ms |
-| `ids` | 0.29 ms | 0.29 ms |
-| `columns` | 0.03 ms | 0.02 ms |
-| `snapshot` | 0.05 ms | 0.05 ms |
-| total | 21.04 ms | 52.50 ms |
+| Phase      | No removals | After 10 percent removed |
+| ---------- | ----------- | ------------------------ |
+| `compact`  | 0.02 ms     | 31.78 ms                 |
+| `sort`     | 20.57 ms    | 17.77 ms                 |
+| `weights`  | 0.01 ms     | 0.01 ms                  |
+| `ids`      | 0.29 ms     | 0.29 ms                  |
+| `columns`  | 0.03 ms     | 0.02 ms                  |
+| `snapshot` | 0.05 ms     | 0.05 ms                  |
+| total      | 21.04 ms    | 52.50 ms                 |
 
 The correction: **compaction after removals costs about 32 ms, not the
 10-15 ms of 15.4 and 6.7.** The design's estimate was wrong, not the code.
@@ -4551,9 +4972,9 @@ dimension; shrinking gives minimal counterexamples. Named properties:
   freeze after a removal reports a remap over the builder's own index
   space.
 - P4 undirected pairing: `mate(mate(a)) === a`; `arcToEdge[a] ===
-  arcToEdge[mate(a)]`; for parallel edges the k-th / k-th pairing holds.
+arcToEdge[mate(a)]`; for parallel edges the k-th / k-th pairing holds.
 - P5 `arcCount` formula; `edgeCount` equals the number of arcs with `a ===
-  edgeToArc[arcToEdge[a]]`.
+edgeToArc[arcToEdge[a]]`.
 - P6 `findArc` agrees with a linear scan; `arcsBetween` / `multiplicity`
   with counting; `edgeSource` / `edgeTarget` with the model.
 - P7 duplicate policies: `"error"` throws iff a duplicate exists; merge
@@ -4581,10 +5002,10 @@ dimension; shrinking gives minimal counterexamples. Named properties:
   to its self-loop (never `2w`); non-dense labels give the same result as
   their `renumberPartition` image; `blockSizes` sums to `nodeCount`.
 - P10 id map: `indexOf(idOf(i)) === i`; `indexOf(missing) ===
-  INVALID_INDEX`; kind selection follows section 4.2; `1` and `"1"` are
+INVALID_INDEX`; kind selection follows section 4.2; `1` and `"1"` are
   distinct; `-0` and `NaN` per SameValueZero; a lone-surrogate id is
   `E_INVALID_ID`; the shared builder Map never exposes indices `>=
-  nodeCount`; `"canonical"` coercion is injective on text.
+nodeCount`; `"canonical"` coercion is injective on text.
 - P11 determinism (I15): the same command log yields byte-identical
   `toBytes()` output twice (modulo `producer`), and the output does not
   change when `arcToEdge` / `edgeToArc` getters or any view are touched
@@ -4593,8 +5014,8 @@ dimension; shrinking gives minimal counterexamples. Named properties:
   after every `indexed.*`-style consumer call (checksum).
 - P12 alignment (I10): every public 4-byte array, view and GPU-bound
   column array is a view over a plain `ArrayBuffer` with `byteOffset % 4
-  === 0`, `byteLength % 4 === 0`; `f64` arrays have `byteOffset % 8 ===
-  0`; arena segments are 256-aligned relative to `arena.byteOffset` and
+=== 0`, `byteLength % 4 === 0`; `f64` arrays have `byteOffset % 8 ===
+0`; arena segments are 256-aligned relative to `arena.byteOffset` and
   zero-length arrays have `null` segments; `paddedU32View()` covers the
   `u8` column's byte range; a `bool` column's `data` is
   `ceil(rows / 32)` words; `gpuView()` of an f64 column is a
@@ -4728,53 +5149,53 @@ project.
 
 ### 17.1 Contradictions C1-C22
 
-| Id | Decision | Rationale (one line) | Section |
-| --- | --- | --- | --- |
-| C1 | Rows sorted by `(target, edge)` as hard invariant I4 via two stable counting sorts; no flag, no unsorted mode; logical edge index = insertion order, orientation kept in `edgeToArc` | one kernel path, O(log d) `findArc`, merge intersections and adjacent dedupe at O(n + m) freeze cost; file order, layout stability and edge identity live in the logical edge index | 3.9, 6.3 |
-| C2 | Parallel edges kept by default; `flags.multigraph` exact; `findArc` = first arc, `arcsBetween` range; `duplicateEdges` reducer policy at freeze with survivor rules; `simplified()`; k-th/k-th pairing proof | flow residuals and multigraph files need parallels; sorted rows make every multigraph question O(log d) or O(m) | 3.5, 6.4, 6.5 |
-| C3 | `directed: boolean` on the snapshot; the builder's direction follows the file through `setDirected()` (empty builder) or `setDirected(true, { expand: true })` (in-place expansion) unless the owner `lockDirected()`; mixed files expanded at import into a directed snapshot with `graphty.directed` (bool) and `graphty.pair` (u32, refersTo edge) columns; `onMixedDirection: expand \| directed \| undirected \| error`; mirror rows unset in every other column | no third branch in ~24 algorithms or any kernel; I6/I7 statable; expansion reversible for exporters; single-pass importers with no staging | 3.6, 6.6, 8.4 |
-| C4 | Declared types map exactly; inference widens `bool -> i32 -> f64 -> string -> json` with a fixed lexical grammar, never f32; arc `weights` is the one f32 mandate; every importer stages weights as f64 and the role-`weight` column is kept when values are not f32-exact OR when some edges had no explicit weight (then with validity, f32 data); `gpuView()` converts f64 once and caches; CPU algorithms take an optional per-arc f64 override | round trips must not corrupt doubles, timestamps or "weight absent"; GPU conversion paid once per snapshot, zero bytes when the doubles are exact | 3.7, 5.1, 14.1 |
-| C5 | `edgeCount` = logical edges, `arcCount` = `colIdx.length`; directed `arcCount === edgeCount`, undirected `2 * edgeCount - selfLoopCount` | one vocabulary and one formula for four packages; the WebGPU `numEdges` ambiguity disappears by renaming | 2 |
-| C6 | `arcToEdge` and `edgeToArc` always present as non-null properties, lazily materialised when identity (outside the arena, never on the wire, never in `byteLength()`), `flags.arcToEdgeIsIdentity` defined as `directed && identity`; `reverse().fwdArc`; the GPU binds a dummy under `override USE_PERM` | null-free CPU contract at zero bytes for identity inputs; the flag is all the GPU needs; serialisation independent of getter touches | 3.1, 10.1 |
-| C7 | Long-lived builder; `freeze()` does not reset; tombstones with O(degree) removal via incidence lists (also exposed as `outEdgesOf` / `inEdgesOf` / `findEdges`); compacting freeze renumbers builder indices to equal the snapshot's; `freezeWithReport` remaps relative to the previous freeze (or the builder's own index space on the first), node and edge remaps independent, `null` when not renumbered; `release` / `dispose` for one-shot use | graphty-element's ownership model; one remap per removal burst, no permanent handle indirection; Arrow flush semantics on demand | 4.4, 6.1, 6.6 |
-| C8 | `toUndirected()` / `transpose()` are explicit derived graphs returning `DerivedGraph`, never cached by the format; graphty-element owns the ONE cache per source snapshot and hands the same object to adapters and layouts; same-node-space derived graphs share the node `AttributeTable` instance | a memoised second CSR is memory the owner did not ask for; one copy, never two; columns attached later are visible on both | 5.11, 7.3, 14.4 |
-| C9 | `indexOf` returns `INVALID_INDEX`; `has()`; `requireIndex()` throws `E_UNKNOWN_NODE` | one sentinel everywhere, total function, no `undefined` under strict flags | 4.3 |
-| C10 | Index-valued result vectors are `Uint32Array` with `INVALID_INDEX`; the WebGPU `parents: Int32Array` becomes `Uint32Array` | bit-identical, type-compatible across CPU and GPU, no `bitcast` noise in WGSL | 4.3, 10.7 |
-| C11 | CPU results `Float64Array`, GPU results `Float32Array`; format helpers generic over `NumericVector`; the weighted-degree views are `F64` (the GPU recomputes the normaliser on the device) | Bellman-Ford, modularity and KK are f64-sensitive; the CPU gains nothing from f32; a segmented reduce is one kernel the GPU package needs anyway | 7.2, 10.1, 10.7, 14.1 |
-| C12 | Snapshots never alias builder staging (I18); arena default for freeze and `fromBytes`; `fromCsr` adopts by default with `validate: "full"` and detects an already-aligned shared buffer as the arena; `fromBytes` adopts a plain `ArrayBuffer` at an 8-aligned offset, else copies; `toWire({ transfer })` transfers exclusively owned buffers and copies shared ones; `detached` is derived from the array state | GraphBLAS pack semantics keep the 20 ms path zero-copy; full validation catches corrupt input; ownership is explicit; a sibling snapshot is never silently emptied | 8.1, 9.1, 9.2, 9.4 |
-| C13 | Validity bitmaps, `bool` column data and `NodeMask` / `EdgeMask` are one layout: `Uint32Array` words, LSB-first, `ceil(rows / 32)` words, `nullCount` stored | bit-identical to Arrow on little-endian hosts (Arrow booleans are bit-packed), always a 4-byte multiple, uploads unchanged, one WGSL read pattern for `fixed`, `hidden`, validity and selections | 5.1, 5.3, 7.4 |
-| C14 | Canonical role `position` column is `f32`, `components: 3`, `mutable: true`, in SCENE units, OWNED by the element and attached by reference after every freeze; `LayoutResult` keeps `dim` 2 or 3 in layout units; `toPositionColumn(result, scale, center, out)` / `fromPositionColumn` convert once at store time; importers map file coordinates into a seed column, no separate x/y/z roles | branch-free renderer and kernels; note 03's "do not force dim = 3 in the result" honoured at the result level; one representation, one unit, no precedence rule; positions survive every freeze | 5.2, 14.3, 14.4 |
-| C15 | Concrete `NodeId = string \| number`; no generic; the id-keyed facade stays in algorithms' legacy `Graph`; root `CLAUDE.md` convention rewritten | every consumer uses the union; single-use generics trip lint; the numeric fast path needs the type | 4.1 |
-| C16 | Core: `fromEdgeArrays` / `fromCsr` / `fromRecords` + `GraphSink`; the io contract TYPES live in `@graphty/graph-io` with the importers (they need `ReadableStream` / `AbortSignal`); `@graphty/graph-io` (separate, initially on fast-xml-parser / papaparse, per-format subpath exports) lands at IO1 after the element already owns a builder; JSON dialect sniffing in io | zero-dep, DOM-free core with a meaningful version; parsers move once; smallest first element landing; remote-logger precedent for subpaths | 8.2, 12.4, 14.6 |
-| C17 | Builder interns eagerly; snapshot shares the builder's `Map` and id array by reference guarded by `index < nodeCount`; fresh builder structures only on a compacting freeze; typed-array and wire loaders build the reverse map lazily | zero per-freeze cost for string ids, correct because indices are append-only between compactions | 4.2 |
-| C18 | Insertion order only (I14); no `sorted-id`, no physical `degree-desc`; `relabel(degreeOrder().perm)` covers the cuGraph case | no surveyed library sorts ids; layouts require insertion order; one fewer flag for kernels | 3.9, 7.3 |
-| C19 | Doubled undirected storage, self-loops once, both arcs share the logical edge and weight; stated as invariant I7; `edgeList()` is the each-edge-once binding for edge-parallel kernels (the "canonical COO" of research note 09 is superseded by it) | consensus of all prior art; contiguous rows; `reverse()` free; one binding that is correct on directed and undirected snapshots | 3.3, 10.1 |
-| C20 | `outDegree()` counts a loop once (rowPtr difference); `degree()` is the NetworkX convention; `selfLoopsPerNode()` / `selfLoopArcs()` are the building blocks | two named views, no hidden adjustment; layout keeps parity with its test | 3.4 |
-| C21 | Final names `nodeCount`, `edgeCount`, `arcCount`, `rowPtr`, `colIdx`, `weights`, `arcToEdge`, `edgeToArc`, `fwdArc`; the WebGPU package renames on move-in; GPU entry points take `GraphSnapshot` (they need `flags` / `arena`), CPU row-walkers take `AdjacencyView` (which carries `directed`) | one type across packages; renaming the unshipped consumer is cheaper than a permanent alias | 7.2, 10.1 |
-| C22 | `json` dtype in core, `gpu: "none"`, `unknown[]` in memory, JSON text on the wire | lossless nested payloads without a dependency; the GPU simply cannot bind it | 5.1 |
+| Id  | Decision                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Rationale (one line)                                                                                                                                                                             | Section               |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------- |
+| C1  | Rows sorted by `(target, edge)` as hard invariant I4 via two stable counting sorts; no flag, no unsorted mode; logical edge index = insertion order, orientation kept in `edgeToArc`                                                                                                                                                                                                                                                                                  | one kernel path, O(log d) `findArc`, merge intersections and adjacent dedupe at O(n + m) freeze cost; file order, layout stability and edge identity live in the logical edge index              | 3.9, 6.3              |
+| C2  | Parallel edges kept by default; `flags.multigraph` exact; `findArc` = first arc, `arcsBetween` range; `duplicateEdges` reducer policy at freeze with survivor rules; `simplified()`; k-th/k-th pairing proof                                                                                                                                                                                                                                                          | flow residuals and multigraph files need parallels; sorted rows make every multigraph question O(log d) or O(m)                                                                                  | 3.5, 6.4, 6.5         |
+| C3  | `directed: boolean` on the snapshot; the builder's direction follows the file through `setDirected()` (empty builder) or `setDirected(true, { expand: true })` (in-place expansion) unless the owner `lockDirected()`; mixed files expanded at import into a directed snapshot with `graphty.directed` (bool) and `graphty.pair` (u32, refersTo edge) columns; `onMixedDirection: expand \| directed \| undirected \| error`; mirror rows unset in every other column | no third branch in ~24 algorithms or any kernel; I6/I7 statable; expansion reversible for exporters; single-pass importers with no staging                                                       | 3.6, 6.6, 8.4         |
+| C4  | Declared types map exactly; inference widens `bool -> i32 -> f64 -> string -> json` with a fixed lexical grammar, never f32; arc `weights` is the one f32 mandate; every importer stages weights as f64 and the role-`weight` column is kept when values are not f32-exact OR when some edges had no explicit weight (then with validity, f32 data); `gpuView()` converts f64 once and caches; CPU algorithms take an optional per-arc f64 override                   | round trips must not corrupt doubles, timestamps or "weight absent"; GPU conversion paid once per snapshot, zero bytes when the doubles are exact                                                | 3.7, 5.1, 14.1        |
+| C5  | `edgeCount` = logical edges, `arcCount` = `colIdx.length`; directed `arcCount === edgeCount`, undirected `2 * edgeCount - selfLoopCount`                                                                                                                                                                                                                                                                                                                              | one vocabulary and one formula for four packages; the WebGPU `numEdges` ambiguity disappears by renaming                                                                                         | 2                     |
+| C6  | `arcToEdge` and `edgeToArc` always present as non-null properties, lazily materialised when identity (outside the arena, never on the wire, never in `byteLength()`), `flags.arcToEdgeIsIdentity` defined as `directed && identity`; `reverse().fwdArc`; the GPU binds a dummy under `override USE_PERM`                                                                                                                                                              | null-free CPU contract at zero bytes for identity inputs; the flag is all the GPU needs; serialisation independent of getter touches                                                             | 3.1, 10.1             |
+| C7  | Long-lived builder; `freeze()` does not reset; tombstones with O(degree) removal via incidence lists (also exposed as `outEdgesOf` / `inEdgesOf` / `findEdges`); compacting freeze renumbers builder indices to equal the snapshot's; `freezeWithReport` remaps relative to the previous freeze (or the builder's own index space on the first), node and edge remaps independent, `null` when not renumbered; `release` / `dispose` for one-shot use                 | graphty-element's ownership model; one remap per removal burst, no permanent handle indirection; Arrow flush semantics on demand                                                                 | 4.4, 6.1, 6.6         |
+| C8  | `toUndirected()` / `transpose()` are explicit derived graphs returning `DerivedGraph`, never cached by the format; graphty-element owns the ONE cache per source snapshot and hands the same object to adapters and layouts; same-node-space derived graphs share the node `AttributeTable` instance                                                                                                                                                                  | a memoised second CSR is memory the owner did not ask for; one copy, never two; columns attached later are visible on both                                                                       | 5.11, 7.3, 14.4       |
+| C9  | `indexOf` returns `INVALID_INDEX`; `has()`; `requireIndex()` throws `E_UNKNOWN_NODE`                                                                                                                                                                                                                                                                                                                                                                                  | one sentinel everywhere, total function, no `undefined` under strict flags                                                                                                                       | 4.3                   |
+| C10 | Index-valued result vectors are `Uint32Array` with `INVALID_INDEX`; the WebGPU `parents: Int32Array` becomes `Uint32Array`                                                                                                                                                                                                                                                                                                                                            | bit-identical, type-compatible across CPU and GPU, no `bitcast` noise in WGSL                                                                                                                    | 4.3, 10.7             |
+| C11 | CPU results `Float64Array`, GPU results `Float32Array`; format helpers generic over `NumericVector`; the weighted-degree views are `F64` (the GPU recomputes the normaliser on the device)                                                                                                                                                                                                                                                                            | Bellman-Ford, modularity and KK are f64-sensitive; the CPU gains nothing from f32; a segmented reduce is one kernel the GPU package needs anyway                                                 | 7.2, 10.1, 10.7, 14.1 |
+| C12 | Snapshots never alias builder staging (I18); arena default for freeze and `fromBytes`; `fromCsr` adopts by default with `validate: "full"` and detects an already-aligned shared buffer as the arena; `fromBytes` adopts a plain `ArrayBuffer` at an 8-aligned offset, else copies; `toWire({ transfer })` transfers exclusively owned buffers and copies shared ones; `detached` is derived from the array state                                                     | GraphBLAS pack semantics keep the 20 ms path zero-copy; full validation catches corrupt input; ownership is explicit; a sibling snapshot is never silently emptied                               | 8.1, 9.1, 9.2, 9.4    |
+| C13 | Validity bitmaps, `bool` column data and `NodeMask` / `EdgeMask` are one layout: `Uint32Array` words, LSB-first, `ceil(rows / 32)` words, `nullCount` stored                                                                                                                                                                                                                                                                                                          | bit-identical to Arrow on little-endian hosts (Arrow booleans are bit-packed), always a 4-byte multiple, uploads unchanged, one WGSL read pattern for `fixed`, `hidden`, validity and selections | 5.1, 5.3, 7.4         |
+| C14 | Canonical role `position` column is `f32`, `components: 3`, `mutable: true`, in SCENE units, OWNED by the element and attached by reference after every freeze; `LayoutResult` keeps `dim` 2 or 3 in layout units; `toPositionColumn(result, scale, center, out)` / `fromPositionColumn` convert once at store time; importers map file coordinates into a seed column, no separate x/y/z roles                                                                       | branch-free renderer and kernels; note 03's "do not force dim = 3 in the result" honoured at the result level; one representation, one unit, no precedence rule; positions survive every freeze  | 5.2, 14.3, 14.4       |
+| C15 | Concrete `NodeId = string \| number`; no generic; the id-keyed facade stays in algorithms' legacy `Graph`; root `CLAUDE.md` convention rewritten                                                                                                                                                                                                                                                                                                                      | every consumer uses the union; single-use generics trip lint; the numeric fast path needs the type                                                                                               | 4.1                   |
+| C16 | Core: `fromEdgeArrays` / `fromCsr` / `fromRecords` + `GraphSink`; the io contract TYPES live in `@graphty/graph-io` with the importers (they need `ReadableStream` / `AbortSignal`); `@graphty/graph-io` (separate, initially on fast-xml-parser / papaparse, per-format subpath exports) lands at IO1 after the element already owns a builder; JSON dialect sniffing in io                                                                                          | zero-dep, DOM-free core with a meaningful version; parsers move once; smallest first element landing; remote-logger precedent for subpaths                                                       | 8.2, 12.4, 14.6       |
+| C17 | Builder interns eagerly; snapshot shares the builder's `Map` and id array by reference guarded by `index < nodeCount`; fresh builder structures only on a compacting freeze; typed-array and wire loaders build the reverse map lazily                                                                                                                                                                                                                                | zero per-freeze cost for string ids, correct because indices are append-only between compactions                                                                                                 | 4.2                   |
+| C18 | Insertion order only (I14); no `sorted-id`, no physical `degree-desc`; `relabel(degreeOrder().perm)` covers the cuGraph case                                                                                                                                                                                                                                                                                                                                          | no surveyed library sorts ids; layouts require insertion order; one fewer flag for kernels                                                                                                       | 3.9, 7.3              |
+| C19 | Doubled undirected storage, self-loops once, both arcs share the logical edge and weight; stated as invariant I7; `edgeList()` is the each-edge-once binding for edge-parallel kernels (the "canonical COO" of research note 09 is superseded by it)                                                                                                                                                                                                                  | consensus of all prior art; contiguous rows; `reverse()` free; one binding that is correct on directed and undirected snapshots                                                                  | 3.3, 10.1             |
+| C20 | `outDegree()` counts a loop once (rowPtr difference); `degree()` is the NetworkX convention; `selfLoopsPerNode()` / `selfLoopArcs()` are the building blocks                                                                                                                                                                                                                                                                                                          | two named views, no hidden adjustment; layout keeps parity with its test                                                                                                                         | 3.4                   |
+| C21 | Final names `nodeCount`, `edgeCount`, `arcCount`, `rowPtr`, `colIdx`, `weights`, `arcToEdge`, `edgeToArc`, `fwdArc`; the WebGPU package renames on move-in; GPU entry points take `GraphSnapshot` (they need `flags` / `arena`), CPU row-walkers take `AdjacencyView` (which carries `directed`)                                                                                                                                                                      | one type across packages; renaming the unshipped consumer is cheaper than a permanent alias                                                                                                      | 7.2, 10.1             |
+| C22 | `json` dtype in core, `gpu: "none"`, `unknown[]` in memory, JSON text on the wire                                                                                                                                                                                                                                                                                                                                                                                     | lossless nested payloads without a dependency; the GPU simply cannot bind it                                                                                                                     | 5.1                   |
 
 ### 17.2 Gaps G1-G18
 
-| Id | Decision | Section |
-| --- | --- | --- |
-| G1 | Five id-map kinds (`identity` with offset, `dense`, `numeric`, `string`, `mixed`) detected in O(n); SameValueZero; `NaN` / non-finite / `bigint` / lone-surrogate strings rejected; dual decoded / typed representations materialised lazily in either direction (numeric and mixed too); shared builder Map; append-only prefix stability with remaps on compaction; edge ids as a `unique` role column with a lazy index; `"canonical"` text coercion for CSV-class sources; `toStringMap` / `stringIndex` for legacy string-keyed shapes; no namespaces in core | 4 |
-| G2 | Arrow-shaped columns: ten dtypes (`bool` bit-packed), `components` / `itemComponents`, u32 validity words, `fill` = `default` when representable, dictionary interning, Utf8 strings, one-level lists, `json`, `refersTo` (list children too), per-column `mutable` + `markDirty` / `mutableValidity` / `setAll`, `ColumnDecl` vs `ColumnMeta`, dotted names and roles with a collision rule, 4-byte padding only, unconditional by-reference adoption of 4-byte arrays, graph table, extension tables, propagation table | 5 |
-| G3 | `findArc` first, `arcsBetween`, `multiplicity`, exact `multigraph` flag, reducer policy with survivor rows and `edgeRemap`, `simplified()` with per-column reducers, pairing proof | 3.5, 6.4, 6.5 |
-| G4 | Cost model per phase with the one measured number; builder-phase costs itemised separately; re-freeze per mutation accepted (25-55 ms); no incremental freeze in v1 | 6.7, 15.4 |
-| G5 | Byte tables for core, views, id map, columns, staging and freeze peak; mobile 100k/1M, desktop 1M/10M, batch 10M/100M with `arena: false`; engine ceilings listed for verification | 15.1-15.3 |
-| G6 | `WireSnapshot` (manifest + `ArrayBuffer[]`) and the `GSNP` container: magic, u16 major/minor written little-endian, host-order endianness probe with a big-endian writer refusal, JSON manifest with tagged non-finite numbers and an `arena` descriptor, 256-aligned buffer region, validation levels with per-ref checks and a prototype-pollution reviver; 8-aligned adoption; `toByteChunks` for the tiers above the per-allocation ceiling; IndexedDB as one buffer or chunks; `contentHash()` | 9 |
-| G7 | `toWire({ transfer })` + `transferables()` over exclusively owned buffers, shared buffers copied and listed; `detached` derived from the array state, `E_DETACHED` on every holder; `structuredClone(snapshot)` throws; single-receiver transfer, `structuredClone(wire)` for fan-out; views optional via `prepare` + `includeViews`; id map and strings rebuilt lazily; per-realm caches; `SharedArrayBuffer` deferred to a later minor (D-SAB) | 9.1, 9.4 |
-| G8 | Three version numbers; invariants are API with an enumerated MAJOR list; `formatVersion` checked by every reader; enum forward-compatibility rules (dtype skippable, view ignorable, id-map kind never); `dependencies` + `peerDependencies`; structural `isGraphSnapshot`; 1.0.0 cut before the first dependent merges, enforced by a CI check | 13.5 |
-| G9 | Typed arrays parameterised over `ArrayBuffer` (`U32 = Uint32Array<ArrayBuffer>`; verified with tsc 5.9.3 + `@webgpu/types` 0.1.68: the buffer parameter, not `Readonly`, is what `writeBuffer` checks), no `Readonly*` aliases, no index brands but branded builder handles, `T \| null` outputs (wire types included), `Loose<T>` patches with `?: T \| undefined`, explicit `ResolvedBuilderOptions`, `noUncheckedIndexedAccess` off in every consumer, DOM-free core, strict-consumer compile test with literal `writeBuffer` calls | 12.1, 16.6 |
-| G10 | `GraphFormatError` with a closed code union (including `E_NO_DEFAULT`, `E_INVALID_PERMUTATION`, `E_MASK_LENGTH`) and a situation table; builder throws first error; snapshot index methods unchecked, id methods checked; `validate()` exhaustive; importers aggregate into `ImportReport` (graph-io) | 11, 8.6 |
-| G11 | Invariant suite, fast-check model-based tests with P1-P12, differential tests vs a copied legacy `Graph`, wire round trips and corruption tests, alignment and order goldens, type-level tests, CI budget | 16 |
-| G12 | Six-benchmark suite with recorded results, opt-in perf gate at 3x baseline, one smoke ceiling in the default shard | 15.5 |
-| G13 | Phases F1 -> A1 (branch: `toSnapshot` + harness, signatures unchanged) -> F2 (1.0.0) -> A1 -> A2 (widening + `indexed`) / L1 / E1 -> W1 -> D1 -> IO1 -> 2.0; `no-deprecated` ordering; Chromatic re-baseline commits; helper ownership table | 14.6 |
-| G14 | Frozen = core arrays, counts, flags, id map, immutable columns; view caches populate-once and SHARED (copy before mutating); column set is a mutable side table; contents mutable only when declared and never carried across a freeze unless re-attached; `Object.freeze` + private fields; opt-in checksums (`freeze({ checksum: true })`) covering views; `serial` = core identity | 5.8 |
-| G15 | Four-part criterion with explicit lists on each side; `degreeOrder` (both orientations), `weightedDegree`, `selfLoopWeight` and `isSymmetric` in; APSP, generators, `children`, Stoer-Wagner / Karger contraction out | 7.1, 7.2 |
-| G16 | No masks in the contract; `inducedSubgraph` / `filterEdges` + remaps, `scatterArray` back; edge-level alive masks for undirected algorithms; packed-bitmap helpers exported; composition via `GraphBuilder.from()` and `addGraph()` with dictionary re-interning and last-write-wins merge | 6.6, 7.3, 7.4 |
-| G17 | `GraphSnapshot`, `GraphBuilder`, `NodeIdMap`, `AttributeTable`, `Column`, `EdgeId`, "arc" / "edge" / "node index"; no exported `Graph`, `Node`, `Edge`, `CSRGraph`; the banned-word list applies to synonyms for arc / edge / node, not to data-structure names | 2 |
-| G18 | Deterministic freeze (I15, modulo `producer` on the wire); little-endian only with a probe and a big-endian writer refusal; full validation of untrusted bytes; resizable `ArrayBuffer` feature-detected with a local d.ts; no `Float16Array`; no `SharedArrayBuffer` in v1; per-realm caches; freezes above ~10M edges in a worker; cancellation via importer `signal` | 3.2, 6.2, 9 |
+| Id  | Decision                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Section       |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------- |
+| G1  | Five id-map kinds (`identity` with offset, `dense`, `numeric`, `string`, `mixed`) detected in O(n); SameValueZero; `NaN` / non-finite / `bigint` / lone-surrogate strings rejected; dual decoded / typed representations materialised lazily in either direction (numeric and mixed too); shared builder Map; append-only prefix stability with remaps on compaction; edge ids as a `unique` role column with a lazy index; `"canonical"` text coercion for CSV-class sources; `toStringMap` / `stringIndex` for legacy string-keyed shapes; no namespaces in core | 4             |
+| G2  | Arrow-shaped columns: ten dtypes (`bool` bit-packed), `components` / `itemComponents`, u32 validity words, `fill` = `default` when representable, dictionary interning, Utf8 strings, one-level lists, `json`, `refersTo` (list children too), per-column `mutable` + `markDirty` / `mutableValidity` / `setAll`, `ColumnDecl` vs `ColumnMeta`, dotted names and roles with a collision rule, 4-byte padding only, unconditional by-reference adoption of 4-byte arrays, graph table, extension tables, propagation table                                          | 5             |
+| G3  | `findArc` first, `arcsBetween`, `multiplicity`, exact `multigraph` flag, reducer policy with survivor rows and `edgeRemap`, `simplified()` with per-column reducers, pairing proof                                                                                                                                                                                                                                                                                                                                                                                 | 3.5, 6.4, 6.5 |
+| G4  | Cost model per phase with the one measured number; builder-phase costs itemised separately; re-freeze per mutation accepted (25-55 ms); no incremental freeze in v1                                                                                                                                                                                                                                                                                                                                                                                                | 6.7, 15.4     |
+| G5  | Byte tables for core, views, id map, columns, staging and freeze peak; mobile 100k/1M, desktop 1M/10M, batch 10M/100M with `arena: false`; engine ceilings listed for verification                                                                                                                                                                                                                                                                                                                                                                                 | 15.1-15.3     |
+| G6  | `WireSnapshot` (manifest + `ArrayBuffer[]`) and the `GSNP` container: magic, u16 major/minor written little-endian, host-order endianness probe with a big-endian writer refusal, JSON manifest with tagged non-finite numbers and an `arena` descriptor, 256-aligned buffer region, validation levels with per-ref checks and a prototype-pollution reviver; 8-aligned adoption; `toByteChunks` for the tiers above the per-allocation ceiling; IndexedDB as one buffer or chunks; `contentHash()`                                                                | 9             |
+| G7  | `toWire({ transfer })` + `transferables()` over exclusively owned buffers, shared buffers copied and listed; `detached` derived from the array state, `E_DETACHED` on every holder; `structuredClone(snapshot)` throws; single-receiver transfer, `structuredClone(wire)` for fan-out; views optional via `prepare` + `includeViews`; id map and strings rebuilt lazily; per-realm caches; `SharedArrayBuffer` deferred to a later minor (D-SAB)                                                                                                                   | 9.1, 9.4      |
+| G8  | Three version numbers; invariants are API with an enumerated MAJOR list; `formatVersion` checked by every reader; enum forward-compatibility rules (dtype skippable, view ignorable, id-map kind never); `dependencies` + `peerDependencies`; structural `isGraphSnapshot`; 1.0.0 cut before the first dependent merges, enforced by a CI check                                                                                                                                                                                                                    | 13.5          |
+| G9  | Typed arrays parameterised over `ArrayBuffer` (`U32 = Uint32Array<ArrayBuffer>`; verified with tsc 5.9.3 + `@webgpu/types` 0.1.68: the buffer parameter, not `Readonly`, is what `writeBuffer` checks), no `Readonly*` aliases, no index brands but branded builder handles, `T \| null` outputs (wire types included), `Loose<T>` patches with `?: T \| undefined`, explicit `ResolvedBuilderOptions`, `noUncheckedIndexedAccess` off in every consumer, DOM-free core, strict-consumer compile test with literal `writeBuffer` calls                             | 12.1, 16.6    |
+| G10 | `GraphFormatError` with a closed code union (including `E_NO_DEFAULT`, `E_INVALID_PERMUTATION`, `E_MASK_LENGTH`) and a situation table; builder throws first error; snapshot index methods unchecked, id methods checked; `validate()` exhaustive; importers aggregate into `ImportReport` (graph-io)                                                                                                                                                                                                                                                              | 11, 8.6       |
+| G11 | Invariant suite, fast-check model-based tests with P1-P12, differential tests vs a copied legacy `Graph`, wire round trips and corruption tests, alignment and order goldens, type-level tests, CI budget                                                                                                                                                                                                                                                                                                                                                          | 16            |
+| G12 | Six-benchmark suite with recorded results, opt-in perf gate at 3x baseline, one smoke ceiling in the default shard                                                                                                                                                                                                                                                                                                                                                                                                                                                 | 15.5          |
+| G13 | Phases F1 -> A1 (branch: `toSnapshot` + harness, signatures unchanged) -> F2 (1.0.0) -> A1 -> A2 (widening + `indexed`) / L1 / E1 -> W1 -> D1 -> IO1 -> 2.0; `no-deprecated` ordering; Chromatic re-baseline commits; helper ownership table                                                                                                                                                                                                                                                                                                                       | 14.6          |
+| G14 | Frozen = core arrays, counts, flags, id map, immutable columns; view caches populate-once and SHARED (copy before mutating); column set is a mutable side table; contents mutable only when declared and never carried across a freeze unless re-attached; `Object.freeze` + private fields; opt-in checksums (`freeze({ checksum: true })`) covering views; `serial` = core identity                                                                                                                                                                              | 5.8           |
+| G15 | Four-part criterion with explicit lists on each side; `degreeOrder` (both orientations), `weightedDegree`, `selfLoopWeight` and `isSymmetric` in; APSP, generators, `children`, Stoer-Wagner / Karger contraction out                                                                                                                                                                                                                                                                                                                                              | 7.1, 7.2      |
+| G16 | No masks in the contract; `inducedSubgraph` / `filterEdges` + remaps, `scatterArray` back; edge-level alive masks for undirected algorithms; packed-bitmap helpers exported; composition via `GraphBuilder.from()` and `addGraph()` with dictionary re-interning and last-write-wins merge                                                                                                                                                                                                                                                                         | 6.6, 7.3, 7.4 |
+| G17 | `GraphSnapshot`, `GraphBuilder`, `NodeIdMap`, `AttributeTable`, `Column`, `EdgeId`, "arc" / "edge" / "node index"; no exported `Graph`, `Node`, `Edge`, `CSRGraph`; the banned-word list applies to synonyms for arc / edge / node, not to data-structure names                                                                                                                                                                                                                                                                                                    | 2             |
+| G18 | Deterministic freeze (I15, modulo `producer` on the wire); little-endian only with a probe and a big-endian writer refusal; full validation of untrusted bytes; resizable `ArrayBuffer` feature-detected with a local d.ts; no `Float16Array`; no `SharedArrayBuffer` in v1; per-realm caches; freezes above ~10M edges in a worker; cancellation via importer `signal`                                                                                                                                                                                            | 3.2, 6.2, 9   |
 
 ### 17.3 Q-register items (research note 10 section 4)
 
@@ -4789,31 +5210,31 @@ critical and major finding and for every minor finding that did not
 conflict with an owner decision. Where two reviews conflicted, the
 decision and the reason:
 
-| Id | Conflict | Decision | Section |
-| --- | --- | --- | --- |
-| D-WDEG | WebGPU review: `weightedOutDegree()` must be `Float32Array` so it uploads as memcpy. Algorithms review: modularity and PageRank normalisation need f64 and a loop-twice `weightedDegree()`. | The three weighted-degree views (and `selfLoopWeight()`) are `F64` (CPU-precise; C11); the 7.2 memcpy promise excludes the four explicitly; the GPU package computes the normaliser on the device with a segmented reduce (a kernel it needs regardless) and guards zero sums. | 7.2, 10.1 |
-| D-OUTARCS | TypeScript review: use `outArcs(u)` tuples as the flag-neutral row-bound idiom under `noUncheckedIndexedAccess`. Algorithms review: `outArcs` allocates a tuple per call and must not appear in hot loops. | Every format consumer compiles with `noUncheckedIndexedAccess: false` (the WebGPU package switches on move-in), so no flag-neutral hot-loop idiom is needed; `outArcs` / `arcsBetween` are documented as allocating boundary conveniences; only the strict-consumer compile sample uses flag-neutral code. | 3.9, 12.1, 14.5 |
-| D-PAD | I12's 16-byte padding versus unconditional by-reference adoption of GPU readbacks. | 4-byte rule only (what WebGPU needs); 4-byte and `f64` arrays are adopted by reference unconditionally; `u8` uses the exact "padded view constructible" predicate. | 5.7 |
-| D-BOOL | Byte-packed `bool` columns versus bit-packed validity / masks (two boolean layouts). | `bool` columns are bit-packed `Uint32Array` words (Arrow layout): one bitmap layout for `fixed`, `hidden`, validity and selections. | 5.1, 5.3 |
-| D-TRANSFER | Transfer must either copy shared buffers (owner count) or refuse when storage is shared. | Copy shared buffers, tracked conservatively in a `WeakMap<ArrayBuffer, number>`; `detached` derived from the array state so untracked holders still fail loudly. Refusing would make every `toUndirected()` result untransferable while its source lives. | 9.1 |
-| D-SAB | Four reviews found `SharedArrayBuffer` half-specified (typing, transfer, gating, fan-out). | Removed from v1 (`shared` option, `flags.shared`, SAB-typed buffers); reserved as a later minor with a separate typed surface; section 18 decision 3 covers the deployment side. | 1.4, 9.4 |
-| D-DIR | Importers cannot honour a file's direction against a caller-fixed sink; graphty-element's always-directed builder doubles every undirected file. | `setDirected()` / `lockDirected()` on the builder with in-place expansion; single-pass importers; graphty-element `data.directed: boolean \| "auto"` (default `"auto"`) and one `EdgeObject` per primary half. | 3.6, 6.6, 8.4, 14.4 |
-| D-POS | Layout / drag positions lost on every append-only freeze. | Positions are element-owned and re-attached by reference after every freeze; the builder holds only the importer seed column; unit is scene units. | 5.2, 5.8, 14.4 |
-| D-A1 | Phase A1 required legacy algorithms to accept a snapshot before any indexed implementation existed. | A1 = `toSnapshot` + harness with signatures unchanged; the widening moves to A2. | 14.2, 14.6 |
-| D-CONTRACT | `contract()` unusable as specified (dense labels, unweighted reducers, `nodeOrigin`, `edgeOrigin`, per-phase use by Stoer-Wagner / Karger). | Non-dense labels accepted (kept when already `0..k-1`, else renumbered), logical-edge semantics, unweighted reducer rule, `blockSizes`, `nodeOrigin` = lowest source index, `edgeOrigin` = survivor; Stoer-Wagner / Karger use union-find over the original rows; `renumberPartition` exported. | 7.3, 7.5, 14.2 |
-| D-WEIGHTS-F64 | f32 arc weights versus the `1e-9` differential gate. | Per-arc `weights` override on every weighted `indexed.*` function; the facade passes the f64 shadow; importers and `toSnapshot(Graph)` stage weights as f64. | 3.7, 8.4, 14.1 |
-| D-ABSENT | Three "absent" conventions on one surface. | `null` for absent columns / data (`get`, `typed`, `byRole`, wire members); `INVALID_INDEX` for id, name and handle lookups; `undefined` only for an unset row from `value()`; handles branded. | 12.1 |
-| D-IO-TYPES | Core public types referenced DOM globals. | The io contract types move to `@graphty/graph-io`; the core references only ES2020 globals. | 8.2, 12.4 |
-| D-SERIAL | `serial` on `withColumns()` snapshots would re-upload identical cores. | `serial` is the identity of the core; upload caches key on the typed-array object; `snapshot-replaced` + `release(snapshot)` free GPU memory. | 5.8, 14.4, 14.5 |
-| D-NAMES | Format-owned columns named `directed` / `pair` collide with user attributes; GEXF title versus id ambiguity. | `graphty.*` names for format-owned columns; `name` = title / `attr.name` with id fallback; deterministic `#id` suffix on collision. | 3.6, 5.6 |
-| D-COO | Research note 09's canonical COO versus the design's `edgeList()`. | Superseded by `edgeList()`, now in the GPU binding table. | 3.3, 10.1 |
-| D-VERSION | `formatVersion` carried but not checked; enum values had no forward-compatibility rule. | Readers refuse a `formatVersion` mismatch; unknown dtype refused unless `unknownColumns: "skip"`; unknown id-map kind refused; unknown view ignored. | 9.1, 13.5 |
-| D-CSV-IDS | `ids: "keep"` loses the SNAP fast path for text sources; `"number"` merges `"01"` and `"1"`. | `"canonical"` (injective integer-text rule) is the default for text-cell sources. | 4.1, 8.4 |
-| D-WSET | "weight absent" and "weight 1" indistinguishable after import. | Builder `weightSet` bitmap becomes the validity of the role-`weight` column, kept whenever any edge had no explicit weight. | 3.7 |
-| D-CHECKSUM | 5.8 said checksums are recorded at every freeze; 6.3 / 12.2 said only under `profile`. | Opt-in `checksum: true` freeze option, covering views at first materialisation; `validate({ checksum: true })` without records throws. | 5.8, 11.4 |
-| D-ARENA | Arena order interleaved a cold array; rule (1) ignored the per-segment binding limit; `& ~63` window math; 65,535 x 256 miscounted. | Hot-to-cold order with `hotByteLength`; per-segment condition; `% 64` formula on arc ranges; 16,776,960. | 10.3, 10.6 |
-| D-FIRST-FREEZE | First freeze reported `null` remaps even after removals. | The old index space of the first freeze is the builder's own; remaps are `null` iff nothing was renumbered; node and edge remaps independent. | 3.2, 6.6 |
-| D-MISC | `keepOrder` undefined; three throw sites without codes; `remapColumn` name used for two shapes; `E_DIRECTED` "vice versa"; `producer` churn; `Q: none needed` leftover; G16 section reference; `totalWeight` in `includeViews`; `edgeIndexOf(id: NodeId)`; numeric id map wire allocation; `shared` in the freeze table. | `keepOrder` removed; `E_NO_DEFAULT` / `E_INVALID_PERMUTATION` / `E_MASK_LENGTH` added; `remapColumn` / `remapArray` / `gatherColumn` / `gatherArray` / `scatterArray`; `E_DIRECTED` covers `setDirected`; goldens mask `producer`; leftover deleted; `6.6, 7.3, 7.4`; scalar views ignored; `EdgeId`; lazy typed id arrays; SAB row removed. | various |
+| Id             | Conflict                                                                                                                                                                                                                                                                                                                 | Decision                                                                                                                                                                                                                                                                                                                                     | Section             |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| D-WDEG         | WebGPU review: `weightedOutDegree()` must be `Float32Array` so it uploads as memcpy. Algorithms review: modularity and PageRank normalisation need f64 and a loop-twice `weightedDegree()`.                                                                                                                              | The three weighted-degree views (and `selfLoopWeight()`) are `F64` (CPU-precise; C11); the 7.2 memcpy promise excludes the four explicitly; the GPU package computes the normaliser on the device with a segmented reduce (a kernel it needs regardless) and guards zero sums.                                                               | 7.2, 10.1           |
+| D-OUTARCS      | TypeScript review: use `outArcs(u)` tuples as the flag-neutral row-bound idiom under `noUncheckedIndexedAccess`. Algorithms review: `outArcs` allocates a tuple per call and must not appear in hot loops.                                                                                                               | Every format consumer compiles with `noUncheckedIndexedAccess: false` (the WebGPU package switches on move-in), so no flag-neutral hot-loop idiom is needed; `outArcs` / `arcsBetween` are documented as allocating boundary conveniences; only the strict-consumer compile sample uses flag-neutral code.                                   | 3.9, 12.1, 14.5     |
+| D-PAD          | I12's 16-byte padding versus unconditional by-reference adoption of GPU readbacks.                                                                                                                                                                                                                                       | 4-byte rule only (what WebGPU needs); 4-byte and `f64` arrays are adopted by reference unconditionally; `u8` uses the exact "padded view constructible" predicate.                                                                                                                                                                           | 5.7                 |
+| D-BOOL         | Byte-packed `bool` columns versus bit-packed validity / masks (two boolean layouts).                                                                                                                                                                                                                                     | `bool` columns are bit-packed `Uint32Array` words (Arrow layout): one bitmap layout for `fixed`, `hidden`, validity and selections.                                                                                                                                                                                                          | 5.1, 5.3            |
+| D-TRANSFER     | Transfer must either copy shared buffers (owner count) or refuse when storage is shared.                                                                                                                                                                                                                                 | Copy shared buffers, tracked conservatively in a `WeakMap<ArrayBuffer, number>`; `detached` derived from the array state so untracked holders still fail loudly. Refusing would make every `toUndirected()` result untransferable while its source lives.                                                                                    | 9.1                 |
+| D-SAB          | Four reviews found `SharedArrayBuffer` half-specified (typing, transfer, gating, fan-out).                                                                                                                                                                                                                               | Removed from v1 (`shared` option, `flags.shared`, SAB-typed buffers); reserved as a later minor with a separate typed surface; section 18 decision 3 covers the deployment side.                                                                                                                                                             | 1.4, 9.4            |
+| D-DIR          | Importers cannot honour a file's direction against a caller-fixed sink; graphty-element's always-directed builder doubles every undirected file.                                                                                                                                                                         | `setDirected()` / `lockDirected()` on the builder with in-place expansion; single-pass importers; graphty-element `data.directed: boolean \| "auto"` (default `"auto"`) and one `EdgeObject` per primary half.                                                                                                                               | 3.6, 6.6, 8.4, 14.4 |
+| D-POS          | Layout / drag positions lost on every append-only freeze.                                                                                                                                                                                                                                                                | Positions are element-owned and re-attached by reference after every freeze; the builder holds only the importer seed column; unit is scene units.                                                                                                                                                                                           | 5.2, 5.8, 14.4      |
+| D-A1           | Phase A1 required legacy algorithms to accept a snapshot before any indexed implementation existed.                                                                                                                                                                                                                      | A1 = `toSnapshot` + harness with signatures unchanged; the widening moves to A2.                                                                                                                                                                                                                                                             | 14.2, 14.6          |
+| D-CONTRACT     | `contract()` unusable as specified (dense labels, unweighted reducers, `nodeOrigin`, `edgeOrigin`, per-phase use by Stoer-Wagner / Karger).                                                                                                                                                                              | Non-dense labels accepted (kept when already `0..k-1`, else renumbered), logical-edge semantics, unweighted reducer rule, `blockSizes`, `nodeOrigin` = lowest source index, `edgeOrigin` = survivor; Stoer-Wagner / Karger use union-find over the original rows; `renumberPartition` exported.                                              | 7.3, 7.5, 14.2      |
+| D-WEIGHTS-F64  | f32 arc weights versus the `1e-9` differential gate.                                                                                                                                                                                                                                                                     | Per-arc `weights` override on every weighted `indexed.*` function; the facade passes the f64 shadow; importers and `toSnapshot(Graph)` stage weights as f64.                                                                                                                                                                                 | 3.7, 8.4, 14.1      |
+| D-ABSENT       | Three "absent" conventions on one surface.                                                                                                                                                                                                                                                                               | `null` for absent columns / data (`get`, `typed`, `byRole`, wire members); `INVALID_INDEX` for id, name and handle lookups; `undefined` only for an unset row from `value()`; handles branded.                                                                                                                                               | 12.1                |
+| D-IO-TYPES     | Core public types referenced DOM globals.                                                                                                                                                                                                                                                                                | The io contract types move to `@graphty/graph-io`; the core references only ES2020 globals.                                                                                                                                                                                                                                                  | 8.2, 12.4           |
+| D-SERIAL       | `serial` on `withColumns()` snapshots would re-upload identical cores.                                                                                                                                                                                                                                                   | `serial` is the identity of the core; upload caches key on the typed-array object; `snapshot-replaced` + `release(snapshot)` free GPU memory.                                                                                                                                                                                                | 5.8, 14.4, 14.5     |
+| D-NAMES        | Format-owned columns named `directed` / `pair` collide with user attributes; GEXF title versus id ambiguity.                                                                                                                                                                                                             | `graphty.*` names for format-owned columns; `name` = title / `attr.name` with id fallback; deterministic `#id` suffix on collision.                                                                                                                                                                                                          | 3.6, 5.6            |
+| D-COO          | Research note 09's canonical COO versus the design's `edgeList()`.                                                                                                                                                                                                                                                       | Superseded by `edgeList()`, now in the GPU binding table.                                                                                                                                                                                                                                                                                    | 3.3, 10.1           |
+| D-VERSION      | `formatVersion` carried but not checked; enum values had no forward-compatibility rule.                                                                                                                                                                                                                                  | Readers refuse a `formatVersion` mismatch; unknown dtype refused unless `unknownColumns: "skip"`; unknown id-map kind refused; unknown view ignored.                                                                                                                                                                                         | 9.1, 13.5           |
+| D-CSV-IDS      | `ids: "keep"` loses the SNAP fast path for text sources; `"number"` merges `"01"` and `"1"`.                                                                                                                                                                                                                             | `"canonical"` (injective integer-text rule) is the default for text-cell sources.                                                                                                                                                                                                                                                            | 4.1, 8.4            |
+| D-WSET         | "weight absent" and "weight 1" indistinguishable after import.                                                                                                                                                                                                                                                           | Builder `weightSet` bitmap becomes the validity of the role-`weight` column, kept whenever any edge had no explicit weight.                                                                                                                                                                                                                  | 3.7                 |
+| D-CHECKSUM     | 5.8 said checksums are recorded at every freeze; 6.3 / 12.2 said only under `profile`.                                                                                                                                                                                                                                   | Opt-in `checksum: true` freeze option, covering views at first materialisation; `validate({ checksum: true })` without records throws.                                                                                                                                                                                                       | 5.8, 11.4           |
+| D-ARENA        | Arena order interleaved a cold array; rule (1) ignored the per-segment binding limit; `& ~63` window math; 65,535 x 256 miscounted.                                                                                                                                                                                      | Hot-to-cold order with `hotByteLength`; per-segment condition; `% 64` formula on arc ranges; 16,776,960.                                                                                                                                                                                                                                     | 10.3, 10.6          |
+| D-FIRST-FREEZE | First freeze reported `null` remaps even after removals.                                                                                                                                                                                                                                                                 | The old index space of the first freeze is the builder's own; remaps are `null` iff nothing was renumbered; node and edge remaps independent.                                                                                                                                                                                                | 3.2, 6.6            |
+| D-MISC         | `keepOrder` undefined; three throw sites without codes; `remapColumn` name used for two shapes; `E_DIRECTED` "vice versa"; `producer` churn; `Q: none needed` leftover; G16 section reference; `totalWeight` in `includeViews`; `edgeIndexOf(id: NodeId)`; numeric id map wire allocation; `shared` in the freeze table. | `keepOrder` removed; `E_NO_DEFAULT` / `E_INVALID_PERMUTATION` / `E_MASK_LENGTH` added; `remapColumn` / `remapArray` / `gatherColumn` / `gatherArray` / `scatterArray`; `E_DIRECTED` covers `setDirected`; goldens mask `producer`; leftover deleted; `6.6, 7.3, 7.4`; scalar views ignored; `EdgeId`; lazy typed id arrays; SAB row removed. | various             |
 
 ### 17.5 Post-implementation decisions (F1 landing, 2026-09-16)
 
@@ -4824,14 +5245,14 @@ in the packages' STATUS.md were all answered "keep what is implemented"
 and stay open for a later pass; they are deliberately NOT recorded here,
 because nothing changed.
 
-| Id | Conflict | Decision | Section |
-| --- | --- | --- | --- |
-| D-COMPACT | 15.4 and 6.7 budget compaction after removals at 10-15 ms; it measures ~32 ms at 100k / 1M. | The estimate was wrong, not the code: both tables corrected to the measured number and the phase profile recorded in 15.6. Not optimised -- the floor is the incidence-list rebuild, four random accesses per surviving edge, and compaction runs only after removals. | 6.7, 15.4, 15.6 |
-| D-GEXF-STREAM | The F1 landing prompt carried a pre-1.0 gap saying GEXF parses the whole document instead of streaming through the shared XML tokenizer. | Stale: GEXF was converted to the shared streaming tokenizer in graph-io audit round 1. Measured at F1, GEXF imports at 1.64 us/edge against GraphML's 2.51, with doubling ratios 1.93-2.04 and bounded peak memory. The gap is closed, not deferred. | 8.4 |
-| D-HOTLOOP | The streaming audit recorded three remaining per-element allocations (GEXF node frame, DOT scope-defaults copy, Pajek per-line tokens), to be removed "only where the change is local". | Recorded, not removed, where the allocation is genuinely held past the element that makes it; all three measure 2-3 us per edge, in line with every other importer. | 8.4 |
-| D-PAJEK-FILL | The Pajek vertex section was quadratic in the vertex count: `vertexLine`'s gap-fill restarted at position zero on every line, and the defaults (`nodeIdFrom: "id"`, `restoreMangledIds: true`) send every file down that branch, so ascending vertex numbers -- the order Pajek writes -- cost n(n-1)/2. | Fixed with a `filledBelow` high-water mark: 100k vertices 2355 ms -> 49 ms, the 1M-arc benchmark 3340 ms -> 790 ms, with no change to any id, node order, issue or option. The gap-fill's ORDER-INDEPENDENCE rule (index order is vertex-number order whatever the line order) is unchanged and now pinned by a test. | 8.4 |
-| D-STAGING-COPY | The move checklist says `mv` the two package directories out of the staging workspace. | Copied instead: the staging repository was in use by another session at landing time. The staging copies remain as the record; they are no longer the source of truth for either package. | 13.3 |
-| D-RECORD-MOVES | STATUS.md and CONFORMANCE.md lived in the staging workspace, outside this repository, and cite paths relative to it. | Both copied to `design/graph-format/` beside this document, so the implementation record travels with the code it describes. The staging originals are left untouched and are now historical. | 13.1 |
+| Id             | Conflict                                                                                                                                                                                                                                                                                                 | Decision                                                                                                                                                                                                                                                                                                              | Section         |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| D-COMPACT      | 15.4 and 6.7 budget compaction after removals at 10-15 ms; it measures ~32 ms at 100k / 1M.                                                                                                                                                                                                              | The estimate was wrong, not the code: both tables corrected to the measured number and the phase profile recorded in 15.6. Not optimised -- the floor is the incidence-list rebuild, four random accesses per surviving edge, and compaction runs only after removals.                                                | 6.7, 15.4, 15.6 |
+| D-GEXF-STREAM  | The F1 landing prompt carried a pre-1.0 gap saying GEXF parses the whole document instead of streaming through the shared XML tokenizer.                                                                                                                                                                 | Stale: GEXF was converted to the shared streaming tokenizer in graph-io audit round 1. Measured at F1, GEXF imports at 1.64 us/edge against GraphML's 2.51, with doubling ratios 1.93-2.04 and bounded peak memory. The gap is closed, not deferred.                                                                  | 8.4             |
+| D-HOTLOOP      | The streaming audit recorded three remaining per-element allocations (GEXF node frame, DOT scope-defaults copy, Pajek per-line tokens), to be removed "only where the change is local".                                                                                                                  | Recorded, not removed, where the allocation is genuinely held past the element that makes it; all three measure 2-3 us per edge, in line with every other importer.                                                                                                                                                   | 8.4             |
+| D-PAJEK-FILL   | The Pajek vertex section was quadratic in the vertex count: `vertexLine`'s gap-fill restarted at position zero on every line, and the defaults (`nodeIdFrom: "id"`, `restoreMangledIds: true`) send every file down that branch, so ascending vertex numbers -- the order Pajek writes -- cost n(n-1)/2. | Fixed with a `filledBelow` high-water mark: 100k vertices 2355 ms -> 49 ms, the 1M-arc benchmark 3340 ms -> 790 ms, with no change to any id, node order, issue or option. The gap-fill's ORDER-INDEPENDENCE rule (index order is vertex-number order whatever the line order) is unchanged and now pinned by a test. | 8.4             |
+| D-STAGING-COPY | The move checklist says `mv` the two package directories out of the staging workspace.                                                                                                                                                                                                                   | Copied instead: the staging repository was in use by another session at landing time. The staging copies remain as the record; they are no longer the source of truth for either package.                                                                                                                             | 13.3            |
+| D-RECORD-MOVES | STATUS.md and CONFORMANCE.md lived in the staging workspace, outside this repository, and cite paths relative to it.                                                                                                                                                                                     | Both copied to `design/graph-format/` beside this document, so the implementation record travels with the code it describes. The staging originals are left untouched and are now historical.                                                                                                                         | 13.1            |
 
 ---
 
@@ -4842,89 +5263,89 @@ These items needed a product decision. The owner reviewed the list on
 item; the original question text is kept for context, and each item ends
 with the decision as it now binds the implementation.
 
-1. Release mechanics for the 0.x window: this document cuts `1.0.0` before
-   the first consumer merges (F2, enforced by a CI dependency check) and
-   validates the algorithms widening on a branch beforehand. The
-   alternative is to let consumers merge against 0.x and accept that
-   external npm users of `@graphty/algorithms` transitively pin a 0.x
-   format for the duration. Confirm the branch-first mechanism. Also
-   confirm the npm trusted-publisher entries for `@graphty/graph-format`
-   and `@graphty/graph-io` are created on npmjs.com before their first
-   release.
+1.  Release mechanics for the 0.x window: this document cuts `1.0.0` before
+    the first consumer merges (F2, enforced by a CI dependency check) and
+    validates the algorithms widening on a branch beforehand. The
+    alternative is to let consumers merge against 0.x and accept that
+    external npm users of `@graphty/algorithms` transitively pin a 0.x
+    format for the duration. Confirm the branch-first mechanism. Also
+    confirm the npm trusted-publisher entries for `@graphty/graph-format`
+    and `@graphty/graph-io` are created on npmjs.com before their first
+    release.
 
     DECIDED: cut `1.0.0` on a branch before the first consumer merges (F2), with the CI dependency check enforcing it. Placeholder packages `@graphty/graph-format@0.0.0` and `@graphty/graph-io@0.0.0` were published on 2026-09-13 so the trusted-publisher entries can be configured on npmjs.com against `.github/workflows/release.yml`; the first real CI release replaces them.
 
-2. `@graphty/graph-io` as a separate package with that name, initially
-   depending on `fast-xml-parser` and `papaparse` moved from
-   graphty-element, and adopting per-format subpath exports (which needs a
-   multi-entry vite build for that package). Confirm.
+2.  `@graphty/graph-io` as a separate package with that name, initially
+    depending on `fast-xml-parser` and `papaparse` moved from
+    graphty-element, and adopting per-format subpath exports (which needs a
+    multi-entry vite build for that package). Confirm.
 
     DECIDED: `@graphty/graph-io` is a separate package under that name, initially depending on `fast-xml-parser` and `papaparse` moved from graphty-element, with per-format subpath exports and the multi-entry vite build that requires.
 
-3. `SharedArrayBuffer` support is deferred out of v1 (D-SAB, section
-   9.4): worker hand-off uses transfer (O(1) per exclusively owned
-   buffer) and every public array is typed over a plain `ArrayBuffer`.
-   Confirm the deferral, and decide whether graphty.app will adopt
-   cross-origin isolation (`Cross-Origin-Opener-Policy: same-origin`,
-   `Cross-Origin-Embedder-Policy: require-corp`; COEP constrains
-   third-party assets) at all; if not, the shared-snapshot minor need
-   never be scheduled.
+3.  `SharedArrayBuffer` support is deferred out of v1 (D-SAB, section
+    9.4): worker hand-off uses transfer (O(1) per exclusively owned
+    buffer) and every public array is typed over a plain `ArrayBuffer`.
+    Confirm the deferral, and decide whether graphty.app will adopt
+    cross-origin isolation (`Cross-Origin-Opener-Policy: same-origin`,
+    `Cross-Origin-Embedder-Policy: require-corp`; COEP constrains
+    third-party assets) at all; if not, the shared-snapshot minor need
+    never be scheduled.
 
     DECIDED: `SharedArrayBuffer` is out of v1; worker hand-off uses transfer and every public array is typed over a plain `ArrayBuffer`. graphty.app does not adopt cross-origin isolation for this work; the shared-snapshot minor is not scheduled unless a concrete shared-memory use case appears.
 
-4. Root `CLAUDE.md` prescribes `algorithmName<TNodeId = unknown>(graph:
-   ReadonlyGraph<TNodeId>)`; this design uses `algorithmName(snapshot:
-   GraphSnapshot, options?)` with a concrete `NodeId`. Confirm the
-   convention is rewritten when A2 lands.
+4.  Root `CLAUDE.md` prescribes
+    `algorithmName<TNodeId = unknown>(graph: ReadonlyGraph<TNodeId>)`; this
+    design uses `algorithmName(snapshot: GraphSnapshot, options?)` with a
+    concrete `NodeId`. Confirm the convention is rewritten when A2 lands.
 
     DECIDED: the root `CLAUDE.md` algorithm-signature convention is rewritten to `algorithmName(snapshot: GraphSnapshot, options?)` with a concrete `NodeId` when A2 lands.
 
-5. Behaviour changes graphty-element users will see after E1 / IO1:
-   parallel edges are kept (today silently dropped); incident edges are
-   removed with their node (today left dangling); edge weights reach
-   Kamada-Kawai and ForceAtlas2 (today ignored); `runAlgorithmsOnLoad`
-   runs once per load; `Edge.id` in events becomes the string form of an
-   element-assigned stable counter rather than `${src}:${dst}`; raw
-   centrality values change for the adapters that today feed a mirrored
-   directed graph (betweenness is halved and normalised with the
-   undirected factor, closeness / eigenvector / Katz use the undirected
-   convention; the `*Pct` fields do not change); the default edge weight
-   field becomes `weight` (the io importers' default; the converter's
-   `value` default was never read); an all-undirected GEXF / GML /
-   GraphML now loads as an undirected graph with one edge per file edge
-   under `data.directed: "auto"` (today: directed with mirrored edges);
-   ids from text sources are coerced by the `"canonical"` rule (a CSV
-   `"1"` becomes the number `1`, matching a JSON `1`; `"01"` stays a
-   string); and `topPageRankNodes` keeps returning `String(id)` for
-   numeric ids until 2.0, when it returns the original id. Are all of
-   these acceptable as unflagged improvements in a minor release, or
-   should any be gated by an option?
+5.  Behaviour changes graphty-element users will see after E1 / IO1:
+    parallel edges are kept (today silently dropped); incident edges are
+    removed with their node (today left dangling); edge weights reach
+    Kamada-Kawai and ForceAtlas2 (today ignored); `runAlgorithmsOnLoad`
+    runs once per load; `Edge.id` in events becomes the string form of an
+    element-assigned stable counter rather than `${src}:${dst}`; raw
+    centrality values change for the adapters that today feed a mirrored
+    directed graph (betweenness is halved and normalised with the
+    undirected factor, closeness / eigenvector / Katz use the undirected
+    convention; the `*Pct` fields do not change); the default edge weight
+    field becomes `weight` (the io importers' default; the converter's
+    `value` default was never read); an all-undirected GEXF / GML /
+    GraphML now loads as an undirected graph with one edge per file edge
+    under `data.directed: "auto"` (today: directed with mirrored edges);
+    ids from text sources are coerced by the `"canonical"` rule (a CSV
+    `"1"` becomes the number `1`, matching a JSON `1`; `"01"` stays a
+    string); and `topPageRankNodes` keeps returning `String(id)` for
+    numeric ids until 2.0, when it returns the original id. Are all of
+    these acceptable as unflagged improvements in a minor release, or
+    should any be gated by an option?
 
     DECIDED: every behaviour change listed above ships as an unflagged improvement in a minor release; none is gated by an option.
 
-6. Chromatic and Storybook re-baselining for layout (`bfsLayout` /
-   `planarLayout` neighbour order, weights reaching KK / FA2, f32 output,
-   FR single-RNG fix) and for graphty-element is accepted as a one-time
-   cost.
+6.  Chromatic and Storybook re-baselining for layout (`bfsLayout` /
+    `planarLayout` neighbour order, weights reaching KK / FA2, f32 output,
+    FR single-RNG fix) and for graphty-element is accepted as a one-time
+    cost.
 
     DECIDED: the one-time Chromatic and Storybook re-baselining for layout and graphty-element is accepted.
 
-7. MST totals on unweighted graphs change from `0` (Kruskal / Prim `?? 0`)
-   to `edgeCount - 1` under the all-ones convention. Confirm the change or
-   ask the algorithms package to special-case `weights === null`.
+7.  MST totals on unweighted graphs change from `0` (Kruskal / Prim `?? 0`)
+    to `edgeCount - 1` under the all-ones convention. Confirm the change or
+    ask the algorithms package to special-case `weights === null`.
 
     DECIDED: MST totals on unweighted graphs follow the all-ones convention (`edgeCount - 1`); the algorithms package does not special-case `weights === null`.
 
-8. The append-only incremental freeze fast path is deferred until the
-   benchmark suite shows interactive expand (M3) dropping frames at the
-   target sizes. Confirm the deferral.
+8.  The append-only incremental freeze fast path is deferred until the
+    benchmark suite shows interactive expand (M3) dropping frames at the
+    target sizes. Confirm the deferral.
 
     DECIDED: the append-only incremental freeze fast path is deferred until the benchmark suite shows interactive expand (M3) dropping frames at the target sizes.
 
-9. Generators stay in `@graphty/layout` behind a `LayoutGraph` wrapper
-   rather than moving to a new `@graphty/graph-generators` package.
-   Confirm (a separate package is one more release unit and npm name to
-   bootstrap).
+9.  Generators stay in `@graphty/layout` behind a `LayoutGraph` wrapper
+    rather than moving to a new `@graphty/graph-generators` package.
+    Confirm (a separate package is one more release unit and npm name to
+    bootstrap).
 
     DECIDED: generators stay in `@graphty/layout` behind the `LayoutGraph` wrapper; no `@graphty/graph-generators` package.
 
@@ -4966,11 +5387,11 @@ integration plan); 14.3's ForceAtlas2 adopts the WebGPU design's 7.2
 reference formulas (DEPARTURE-3) and the GPU keeps its own vec4f device
 positions (DEPARTURE-7).
 
-| Id | Conflict | Decision | Section |
-| --- | --- | --- | --- |
-| D-PEER-0X | 13.5 rule 3 gives the peer range as `^<major>` and the dependency as `workspace:*` "published as a caret range"; rule 5 says every 0.x minor may break. `nx release` keeps a dependent's range only while the new version satisfies it and otherwise ABORTS, so graph-io's `^0.1.0` blocked every release on master once the format reached 0.2.0. | During 0.x the peer range is the MINOR pin `^0.<minor>.0` -- a 0.x minor is a breaking change, so a consumer states compatibility with exactly the minor it was built against -- re-stated at every format minor (the owner's `6b4777df`: graph-io's peer `^0.2.0`; the GPU package mirrors it); `^<major>` applies from `1.0.0` on, and the F2 PR turns both peers into `^1.0.0`. The intended workspace protocol is `workspace:^`, not `workspace:*`: pnpm publishes `workspace:*` as an EXACT pin and only `workspace:^` publishes the caret range rule 3 describes; an exact pin beside a `^1` peer gives an application two format copies. The rule-3 text is corrected in the F2 PR, where the ranges change anyway (integration plan D-18, D-6, DEP-G, DEP-I; WebGPU design Q-31). | 13.5 rules 3 and 5 |
-| D-FA2-LAWS | 14.3 layout port 2 keeps "swing / traction / adaptive speed as today", i.e. the port's `1/d^2` repulsion and position-based swing / traction, which research note 01 section 2.1.9 shows are transcription deviations from NetworkX, Gephi and cuGraph. | The L1 `ForceAtlas2Simulation` (`layout/src/simulation/forceatlas2.ts`) adopts the WebGPU design's 7.2 reference formulas: the published ForceAtlas2 as Gephi implements it (`1/d` repulsion, force-based swing / traction, fresh global sums each iteration) as `compat: "paper"`, with `compat: "networkx"` reproducing NetworkX `forceatlas2_layout`; the port's own laws are dropped. The legacy `forceatlas2Layout` runs on the simulation and keeps its signature and rescaled output; the Chromatic re-baseline commit documents the change (WebGPU design DEPARTURE-3, D5, owner decision Q-1). | 14.3 |
-| D-GPU-VEC4 | 14.3 says `LayoutSimulation` "kernels take the position STRIDE (3) as a uniform and operate on the owner's stride-3 column directly, so no per-frame `withComponents` copy exists in either direction". | The GPU keeps its own `array<vec4f>` device positions (xyz + mass, 16 B per node): the owner's stride-3 array is read at `load()` / `setPosition` (repacked with the inverse unit scale) and written by every readback through the `toScene` kernel. The sentence's outcome holds -- no `withComponents` copy in either direction, the owner's array read AND written in place -- its mechanism does not (WebGPU design DEPARTURE-7, D23, 7.3). The `LayoutSimulation` interface of 14.3 is unchanged and now lives in `layout/src/simulation/types.ts`. | 14.3 |
+| Id         | Conflict                                                                                                                                                                                                                                                                                                                                           | Decision                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Section            |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| D-PEER-0X  | 13.5 rule 3 gives the peer range as `^<major>` and the dependency as `workspace:*` "published as a caret range"; rule 5 says every 0.x minor may break. `nx release` keeps a dependent's range only while the new version satisfies it and otherwise ABORTS, so graph-io's `^0.1.0` blocked every release on master once the format reached 0.2.0. | During 0.x the peer range is the MINOR pin `^0.<minor>.0` -- a 0.x minor is a breaking change, so a consumer states compatibility with exactly the minor it was built against -- re-stated at every format minor (the owner's `6b4777df`: graph-io's peer `^0.2.0`; the GPU package mirrors it); `^<major>` applies from `1.0.0` on, and the F2 PR turns both peers into `^1.0.0`. The intended workspace protocol is `workspace:^`, not `workspace:*`: pnpm publishes `workspace:*` as an EXACT pin and only `workspace:^` publishes the caret range rule 3 describes; an exact pin beside a `^1` peer gives an application two format copies. The rule-3 text is corrected in the F2 PR, where the ranges change anyway (integration plan D-18, D-6, DEP-G, DEP-I; WebGPU design Q-31). | 13.5 rules 3 and 5 |
+| D-FA2-LAWS | 14.3 layout port 2 keeps "swing / traction / adaptive speed as today", i.e. the port's `1/d^2` repulsion and position-based swing / traction, which research note 01 section 2.1.9 shows are transcription deviations from NetworkX, Gephi and cuGraph.                                                                                            | The L1 `ForceAtlas2Simulation` (`layout/src/simulation/forceatlas2.ts`) adopts the WebGPU design's 7.2 reference formulas: the published ForceAtlas2 as Gephi implements it (`1/d` repulsion, force-based swing / traction, fresh global sums each iteration) as `compat: "paper"`, with `compat: "networkx"` reproducing NetworkX `forceatlas2_layout`; the port's own laws are dropped. The legacy `forceatlas2Layout` runs on the simulation and keeps its signature and rescaled output; the Chromatic re-baseline commit documents the change (WebGPU design DEPARTURE-3, D5, owner decision Q-1).                                                                                                                                                                                   | 14.3               |
+| D-GPU-VEC4 | 14.3 says `LayoutSimulation` "kernels take the position STRIDE (3) as a uniform and operate on the owner's stride-3 column directly, so no per-frame `withComponents` copy exists in either direction".                                                                                                                                            | The GPU keeps its own `array<vec4f>` device positions (xyz + mass, 16 B per node): the owner's stride-3 array is read at `load()` / `setPosition` (repacked with the inverse unit scale) and written by every readback through the `toScene` kernel. The sentence's outcome holds -- no `withComponents` copy in either direction, the owner's array read AND written in place -- its mechanism does not (WebGPU design DEPARTURE-7, D23, 7.3). The `LayoutSimulation` interface of 14.3 is unchanged and now lives in `layout/src/simulation/types.ts`.                                                                                                                                                                                                                                  | 14.3               |
 
 ### 17.7 The 1.0.0 cut (F2, 2026-09-18)
 
@@ -4996,11 +5417,11 @@ on a branch beforehand", is DEVIATED FROM -- A1 has not started.
 `FORMAT_VERSION` stays 1 and the wire stays `[1, 0]`: 13.5's implication
 runs invariant change -> npm major, never back.
 
-| Id | Conflict | Decision | Section |
-| --- | --- | --- | --- |
-| D-F2-GATE | 14.6 gates F2 on "A1 branch green" and section 18 item 1 confirms the branch-first mechanism. A1 has not started: `algorithms/package.json` declares no `@graphty/graph-format` and no `toSnapshot` exists in `algorithms/src`. | Cut `1.0.0` anyway, on three consumer ports that already exercise the format rather than the one 14.6 named: graph-io (released, the eight-format corpus through `GraphSink` and back out through the wire form), webgpu-graph-algorithms (released 0.2.0, the CSR arena and the section 10 GPU upload contract) and layout's L1-sim on PR #12 (the position column, role resolution and the stride-3 owner array of 14.3; its functional shards are green and its Chromatic baselines are accepted). Rule 5 already prices the residual risk: what the ports find later lands as a 1.x minor or the scheduled 2.0. A1 keeps its 14.6 content; only its ORDER relative to F2 changes. | 14.6, 18 item 1 |
-| D-PEER-1X | Rule 3 gave the dependency as `workspace:*` "published as a caret range", the peer as `^<major>`, and the lock-step mechanism as `updateDependents: "auto"`. All three are wrong: pnpm publishes `workspace:*` as an EXACT pin, so rule 3's own one-copy promise fails as written; during 0.x the owner's `6b4777df` installed the MINOR pin `^0.<minor>.0`, because `nx release` keeps a dependent's range only while the new version satisfies it and otherwise ABORTS; and nx.json nests `updateDependents` under `version.generatorOptions`, a key nx 22 does not read (the effective value is the default `always`). | Rule 3 corrected in place to `workspace:^`, `^<major>` from 1.0.0 on and `^0.<minor>.0` during 0.x, with the dead mechanism claim dropped; 13.2's repetition corrected with it. The manifests follow at the same push: graph-io `workspace:*` -> `workspace:^` and peer `^0.2.0` -> `^1.0.0`, webgpu-graph-algorithms peer `^0.2.0` -> `^1.0.0`. This executes the branch entry 17.6's D-PEER-0X (integration plan D-6, D-18, DEP-G, DEP-I; WebGPU design Q-31). | 13.5 rule 3, 13.2 |
-| D-RULE5-CHECK | Rule 5 calls the pre-1.0 merge ban mechanical and attributes it to "a CI check compares the two `package.json` files"; 14.6's A1 gate, G8, section 18 item 1 and its DECIDED line all assert the same check. No such check exists in `.github/workflows/` or `tools/`. The ban was never enforced either: it was consciously departed from on both landings that put the format in a consumer's `dependencies` -- graph-io on 2026-09-16 and webgpu-graph-algorithms at 0.2.0 -- because both are themselves 0.x (integration plan D-5, DEP-H). It bound only the 1.x consumers. | The check is not written. With the format at `1.0.0` its condition is permanently true and the ban has no further work. The live hazard was never rule 5 but the `nx release` range abort, and both peers now state `^1.0.0`, which a caret satisfies for every 1.x minor; it recurs only at the deliberate 2.0 of rule 4. If a guard is wanted later it is a peer-range SATISFACTION check (every declared `@graphty/graph-format` range admits the version in `graph-format/package.json`), not rule 5's letter. The five assertions above stay as the record of how the 0.x window was meant to be policed. | 13.5 rule 5, 14.6, 18 item 1 |
+| Id            | Conflict                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Decision                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Section                      |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| D-F2-GATE     | 14.6 gates F2 on "A1 branch green" and section 18 item 1 confirms the branch-first mechanism. A1 has not started: `algorithms/package.json` declares no `@graphty/graph-format` and no `toSnapshot` exists in `algorithms/src`.                                                                                                                                                                                                                                                                                                                                                                                           | Cut `1.0.0` anyway, on three consumer ports that already exercise the format rather than the one 14.6 named: graph-io (released, the eight-format corpus through `GraphSink` and back out through the wire form), webgpu-graph-algorithms (released 0.2.0, the CSR arena and the section 10 GPU upload contract) and layout's L1-sim on PR #12 (the position column, role resolution and the stride-3 owner array of 14.3; its functional shards are green and its Chromatic baselines are accepted). Rule 5 already prices the residual risk: what the ports find later lands as a 1.x minor or the scheduled 2.0. A1 keeps its 14.6 content; only its ORDER relative to F2 changes. | 14.6, 18 item 1              |
+| D-PEER-1X     | Rule 3 gave the dependency as `workspace:*` "published as a caret range", the peer as `^<major>`, and the lock-step mechanism as `updateDependents: "auto"`. All three are wrong: pnpm publishes `workspace:*` as an EXACT pin, so rule 3's own one-copy promise fails as written; during 0.x the owner's `6b4777df` installed the MINOR pin `^0.<minor>.0`, because `nx release` keeps a dependent's range only while the new version satisfies it and otherwise ABORTS; and nx.json nests `updateDependents` under `version.generatorOptions`, a key nx 22 does not read (the effective value is the default `always`). | Rule 3 corrected in place to `workspace:^`, `^<major>` from 1.0.0 on and `^0.<minor>.0` during 0.x, with the dead mechanism claim dropped; 13.2's repetition corrected with it. The manifests follow at the same push: graph-io `workspace:*` -> `workspace:^` and peer `^0.2.0` -> `^1.0.0`, webgpu-graph-algorithms peer `^0.2.0` -> `^1.0.0`. This executes the branch entry 17.6's D-PEER-0X (integration plan D-6, D-18, DEP-G, DEP-I; WebGPU design Q-31).                                                                                                                                                                                                                      | 13.5 rule 3, 13.2            |
+| D-RULE5-CHECK | Rule 5 calls the pre-1.0 merge ban mechanical and attributes it to "a CI check compares the two `package.json` files"; 14.6's A1 gate, G8, section 18 item 1 and its DECIDED line all assert the same check. No such check exists in `.github/workflows/` or `tools/`. The ban was never enforced either: it was consciously departed from on both landings that put the format in a consumer's `dependencies` -- graph-io on 2026-09-16 and webgpu-graph-algorithms at 0.2.0 -- because both are themselves 0.x (integration plan D-5, DEP-H). It bound only the 1.x consumers.                                          | The check is not written. With the format at `1.0.0` its condition is permanently true and the ban has no further work. The live hazard was never rule 5 but the `nx release` range abort, and both peers now state `^1.0.0`, which a caret satisfies for every 1.x minor; it recurs only at the deliberate 2.0 of rule 4. If a guard is wanted later it is a peer-range SATISFACTION check (every declared `@graphty/graph-format` range admits the version in `graph-format/package.json`), not rule 5's letter. The five assertions above stay as the record of how the 0.x window was meant to be policed.                                                                        | 13.5 rule 5, 14.6, 18 item 1 |
 
 ### 17.8 Amendments from the WebGPU design (W1, 2026-09-18)
 
@@ -5022,10 +5443,10 @@ were recorded by 17.6 with the L1-sim branch, so 1.5 is now fully
 discharged; that plan's "Everything else in sections 10, 14.3-14.6, 15 and
 16 is honoured as written" stands.
 
-| Id | Conflict | Decision | Section |
-| --- | --- | --- | --- |
-| D-NODE-FIRST | 14.5 line 4215 names one test project for the package -- "a browser-only vitest project (Playwright Chromium on the real GPU per its `HEADLESS_GPU_REPORT.md`)" -- and 14.6's W1 row gates the phase on "browser tests green" (line 4256). 16.7 names the consumer shards that download the graph-format artifact as "the algorithms / layout / element shards" (lines 4699-4700), with no graph-io and no webgpu shard. | The `node` project on Dawn is the PRIMARY suite and `browser` is a light smoke suite (WebGPU design D1, 1.5 DEPARTURE-1, Q-2, R-17): the owner's request -- "tested primarily under nodejs with some light browser testing" -- supersedes the design line. As landed, `ci.yml` runs `webgpu-graph-algorithms-node` (the whole suite on Mesa lavapipe with coverage plus a no-subgroups pass over `test/primitives test/layouts test/algorithms` -- the last widened with the M8b merge so the PageRank reduction, whose kernels declare `needs: ["subgroups"]`, is exercised on a device without the feature) and `webgpu-graph-algorithms-browser` (Playwright Chromium on SwiftShader), the two `webgpu-graph-algorithms-*` entries of the `shard` matrix in `.github/workflows/ci.yml`; real hardware runs OUTSIDE CI in `gpu.yml` (NVIDIA T4) and `hosts.yml` (Dawn on Metal + WebKit, Dawn on D3D12 WARP + Chromium), which `release.yml` waits for. 14.6's W1 gate therefore reads "both software shards green and the GPU lane green", not "browser tests green". 16.7's consumer-shard list gains the graph-io shard (`ci.yml` line 305) and the two webgpu shards; every test shard downloads `build-graph-format` (`ci.yml`'s "Download graph-format build" step). 16.7's own "No browser project." is untouched: it is this format's suite, not the GPU package's. | 14.5, 14.6, 16.7 |
-| D-ARENA-HOT | 10.3 lines 2425-2432 make the WHOLE arena the eligibility test for the one-buffer path -- "(1) whole-arena path when `arena.byteLength <= device.limits.maxBufferSize` ... AND every non-null `segment.byteLength <= device.limits.maxStorageBufferBindingSize`" -- even though the same sentence then uploads only the hot prefix (`writeBuffer(gbuf, 0, new Uint8Array(arena.buffer, arena.byteOffset, arena.hotByteLength))`). 14.5 line 4226 restates the rule as "the arena (hot prefix) when it and every segment fit the device limits", reading the hot prefix into the eligibility test without saying so. | The arena buffer is CREATED at `arena.hotByteLength` -- the traversal prefix `rowPtr`, `colIdx`, `weights` of 10.3's own hot-to-cold order -- unless the caller's first upload explicitly needs a cold segment AND `arena.byteLength` also fits; a cold segment asked for later is its own buffer, sourced zero-copy from the arena bytes (WebGPU design 4.2, DEPARTURE-2). Paths (2) per-array and (3) windowed are unchanged, as is the per-segment binding-size condition. Why: at the 1M / 10M undirected weighted tier the hot prefix is 164,000,256 B and fits the 256 MiB default `maxBufferSize`, while the full arena with `arcToEdge` + `edgeToArc` is 284,000,256 B and does not (both from this format's own `layoutSegments`; `rowPtr` = 4,000,004 B pads to 4,000,256). Sizing to the hot prefix keeps the whole desktop tier on path (1) at default limits. | 10.3, 14.5 |
-| D-RESIDENCY | 14.5 lines 4231-4235: uploaded buffers are "cached in a `WeakMap` keyed on the typed-array object ... and released explicitly through `release(snapshot)`". A `WeakMap` keyed on array objects cannot answer `release(snapshot)`: `dropCaches()` replaces a view's array object, so the key a buffer was filed under is gone and the buffer leaks. | The `WeakMap` is KEPT as the lookup and joined by a per-snapshot RESIDENCY RECORD indexed by `snapshot.serial` (WebGPU design 4.1, DEPARTURE-4), so `release(snapshot)` walks the record and frees every buffer whatever became of the array objects. `withColumns()` siblings share the core AND the serial (`graph-snapshot.ts` lines 923-942), so they are ONE residency unit: `release(s)` destroys the core for `s` and every sibling, and a sibling still in use throws `E_RELEASED` on its next bind. The serial is the core's identity and cannot distinguish siblings; the plan does not pretend it can (Q-27). | 14.5 |
-| D-INJECT | 14.5 lines 4239-4240 sketch the call site in one line with no signature: graphty-element "injects it as `runAlgorithm(snapshot, { accelerator: gpu })`", which would thread an `accelerator` option through every algorithm's option type. | Per-call injection is spelled `accelerated(acc).pageRank(s, options)`: one dispatcher object owned by `@graphty/algorithms` (WebGPU design 9.2, DEPARTURE-5, research note 02 section 4.5). The mechanism is the design's -- per call, no global registration, one result-writing loop for both paths -- only the spelling differs: `accelerated(acc).x` is `acc?.x !== undefined ? acc.x(s, ...) : Promise.resolve(indexed.x(s, ...))`, so the "no accelerator method -> run the CPU port" decision lives in ONE place instead of in every option type, and a null or partial accelerator is simply the CPU path. | 14.5 |
-| D-TOL-1E4 | 16.2 lines 4590-4599 give one blanket number for the GPU: results are compared "exact for discrete results, `1e-9` relative for f64 scores ... `1e-5` for f32 GPU parity, order-agnostic for component lists". The number itself is at line 4594; DEPARTURE-6 cites it as "line 4545", which is stale -- 15.6 (line 4448) was inserted at the F1 landing and moved 16.2 down. | `1e-5` holds everywhere except two f32 ACCUMULATION-LENGTH cases, which are `1e-4` relative: betweenness centrality (f32 accumulation over many sources, WebGPU design 9.7) and the one-iteration force parity of WebGPU design 11.4 (f32 tile summation order against an f64 oracle) -- DEPARTURE-6, Q-24. Every GPU score result carries `precision: "f32"` so a caller can label it. A third case no blanket number covers: the FREE-RUNNING multi-iteration force comparisons. In `compat: "networkx"` the first 10 records against the f32 oracle stay asserted at the derived 2.1e-5; every other free-running leg -- the whole of `compat: "paper"`, and the 50-record f64 leg in both modes -- is PRINTED and never asserted, because the per-node swing cancels near equilibrium, the error grows x1.1-1.5 per iteration and the f64 oracle misses the cap against ITSELF under a one-f32-ulp start perturbation (G3-F3). Those tests assert a RE-SYNCHRONISED comparison instead -- a fresh oracle seeded with the GPU's iteration-start state, one iteration at a time, at 1e-4 against both the f32 and the f64 reference. | 16.2 |
+| Id           | Conflict                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Decision                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Section          |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| D-NODE-FIRST | 14.5 line 4215 names one test project for the package -- "a browser-only vitest project (Playwright Chromium on the real GPU per its `HEADLESS_GPU_REPORT.md`)" -- and 14.6's W1 row gates the phase on "browser tests green" (line 4256). 16.7 names the consumer shards that download the graph-format artifact as "the algorithms / layout / element shards" (lines 4699-4700), with no graph-io and no webgpu shard.                                                                                                                                                                                            | The `node` project on Dawn is the PRIMARY suite and `browser` is a light smoke suite (WebGPU design D1, 1.5 DEPARTURE-1, Q-2, R-17): the owner's request -- "tested primarily under nodejs with some light browser testing" -- supersedes the design line. As landed, `ci.yml` runs `webgpu-graph-algorithms-node` (the whole suite on Mesa lavapipe with coverage plus a no-subgroups pass over `test/primitives test/layouts test/algorithms` -- the last widened with the M8b merge so the PageRank reduction, whose kernels declare `needs: ["subgroups"]`, is exercised on a device without the feature) and `webgpu-graph-algorithms-browser` (Playwright Chromium on SwiftShader), the two `webgpu-graph-algorithms-*` entries of the `shard` matrix in `.github/workflows/ci.yml`; real hardware runs OUTSIDE CI in `gpu.yml` (NVIDIA T4) and `hosts.yml` (Dawn on Metal + WebKit, Dawn on D3D12 WARP + Chromium), which `release.yml` waits for. 14.6's W1 gate therefore reads "both software shards green and the GPU lane green", not "browser tests green". 16.7's consumer-shard list gains the graph-io shard (`ci.yml` line 305) and the two webgpu shards; every test shard downloads `build-graph-format` (`ci.yml`'s "Download graph-format build" step). 16.7's own "No browser project." is untouched: it is this format's suite, not the GPU package's. | 14.5, 14.6, 16.7 |
+| D-ARENA-HOT  | 10.3 lines 2425-2432 make the WHOLE arena the eligibility test for the one-buffer path -- "(1) whole-arena path when `arena.byteLength <= device.limits.maxBufferSize` ... AND every non-null `segment.byteLength <= device.limits.maxStorageBufferBindingSize`" -- even though the same sentence then uploads only the hot prefix (`writeBuffer(gbuf, 0, new Uint8Array(arena.buffer, arena.byteOffset, arena.hotByteLength))`). 14.5 line 4226 restates the rule as "the arena (hot prefix) when it and every segment fit the device limits", reading the hot prefix into the eligibility test without saying so. | The arena buffer is CREATED at `arena.hotByteLength` -- the traversal prefix `rowPtr`, `colIdx`, `weights` of 10.3's own hot-to-cold order -- unless the caller's first upload explicitly needs a cold segment AND `arena.byteLength` also fits; a cold segment asked for later is its own buffer, sourced zero-copy from the arena bytes (WebGPU design 4.2, DEPARTURE-2). Paths (2) per-array and (3) windowed are unchanged, as is the per-segment binding-size condition. Why: at the 1M / 10M undirected weighted tier the hot prefix is 164,000,256 B and fits the 256 MiB default `maxBufferSize`, while the full arena with `arcToEdge` + `edgeToArc` is 284,000,256 B and does not (both from this format's own `layoutSegments`; `rowPtr` = 4,000,004 B pads to 4,000,256). Sizing to the hot prefix keeps the whole desktop tier on path (1) at default limits.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | 10.3, 14.5       |
+| D-RESIDENCY  | 14.5 lines 4231-4235: uploaded buffers are "cached in a `WeakMap` keyed on the typed-array object ... and released explicitly through `release(snapshot)`". A `WeakMap` keyed on array objects cannot answer `release(snapshot)`: `dropCaches()` replaces a view's array object, so the key a buffer was filed under is gone and the buffer leaks.                                                                                                                                                                                                                                                                  | The `WeakMap` is KEPT as the lookup and joined by a per-snapshot RESIDENCY RECORD indexed by `snapshot.serial` (WebGPU design 4.1, DEPARTURE-4), so `release(snapshot)` walks the record and frees every buffer whatever became of the array objects. `withColumns()` siblings share the core AND the serial (`graph-snapshot.ts` lines 923-942), so they are ONE residency unit: `release(s)` destroys the core for `s` and every sibling, and a sibling still in use throws `E_RELEASED` on its next bind. The serial is the core's identity and cannot distinguish siblings; the plan does not pretend it can (Q-27).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | 14.5             |
+| D-INJECT     | 14.5 lines 4239-4240 sketch the call site in one line with no signature: graphty-element "injects it as `runAlgorithm(snapshot, { accelerator: gpu })`", which would thread an `accelerator` option through every algorithm's option type.                                                                                                                                                                                                                                                                                                                                                                          | Per-call injection is spelled `accelerated(acc).pageRank(s, options)`: one dispatcher object owned by `@graphty/algorithms` (WebGPU design 9.2, DEPARTURE-5, research note 02 section 4.5). The mechanism is the design's -- per call, no global registration, one result-writing loop for both paths -- only the spelling differs: `accelerated(acc).x` is `acc?.x !== undefined ? acc.x(s, ...) : Promise.resolve(indexed.x(s, ...))`, so the "no accelerator method -> run the CPU port" decision lives in ONE place instead of in every option type, and a null or partial accelerator is simply the CPU path.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | 14.5             |
+| D-TOL-1E4    | 16.2 lines 4590-4599 give one blanket number for the GPU: results are compared "exact for discrete results, `1e-9` relative for f64 scores ... `1e-5` for f32 GPU parity, order-agnostic for component lists". The number itself is at line 4594; DEPARTURE-6 cites it as "line 4545", which is stale -- 15.6 (line 4448) was inserted at the F1 landing and moved 16.2 down.                                                                                                                                                                                                                                       | `1e-5` holds everywhere except two f32 ACCUMULATION-LENGTH cases, which are `1e-4` relative: betweenness centrality (f32 accumulation over many sources, WebGPU design 9.7) and the one-iteration force parity of WebGPU design 11.4 (f32 tile summation order against an f64 oracle) -- DEPARTURE-6, Q-24. Every GPU score result carries `precision: "f32"` so a caller can label it. A third case no blanket number covers: the FREE-RUNNING multi-iteration force comparisons. In `compat: "networkx"` the first 10 records against the f32 oracle stay asserted at the derived 2.1e-5; every other free-running leg -- the whole of `compat: "paper"`, and the 50-record f64 leg in both modes -- is PRINTED and never asserted, because the per-node swing cancels near equilibrium, the error grows x1.1-1.5 per iteration and the f64 oracle misses the cap against ITSELF under a one-f32-ulp start perturbation (G3-F3). Those tests assert a RE-SYNCHRONISED comparison instead -- a fresh oracle seeded with the GPU's iteration-start state, one iteration at a time, at 1e-4 against both the f32 and the f64 reference.                                                                                                                                                                                                                                        | 16.2             |

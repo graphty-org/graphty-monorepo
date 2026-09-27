@@ -73,7 +73,9 @@ function render(): Element {
  */
 function renderCliques(): Element {
     const nodes = CLIQUES.flat().map((id) => ({ id }));
-    const edges = CLIQUES.flatMap((clique) => clique.flatMap((src, i) => clique.slice(i + 1).map((dst) => ({ src, dst }))));
+    const edges = CLIQUES.flatMap((clique) =>
+        clique.flatMap((src, i) => clique.slice(i + 1).map((dst) => ({ src, dst }))),
+    );
     edges.push({ src: "a1", dst: "b1" }, { src: "b1", dst: "c1" });
 
     return build(nodes, edges);
@@ -128,7 +130,10 @@ export const ColorASet: Story = {
     play: async ({ canvasElement }) => {
         const element = await settled(canvasElement);
         const { sets, styles } = element.session;
-        const suspects = sets.create({ kind: "fixed", nodes: ["n2", "n4", "n6"], reading: "induced" }, { name: "Suspects" });
+        const suspects = sets.create(
+            { kind: "fixed", nodes: ["n2", "n4", "n6"], reading: "induced" },
+            { name: "Suspects" },
+        );
         await styles.add(paintSet("Suspects", suspects, "#e53935"));
 
         const scene = await drawn(canvasElement, "Sets/Kept Sets ColorASet");
@@ -171,7 +176,10 @@ export const RuleSetFollowsData: Story = {
     play: async ({ canvasElement }) => {
         const element = await settled(canvasElement);
         const { sets, styles } = element.session;
-        const high = sets.create({ kind: "rule", where: "data.score > `5`", reading: "induced" }, { name: "High scores" });
+        const high = sets.create(
+            { kind: "rule", where: "data.score > `5`", reading: "induced" },
+            { name: "High scores" },
+        );
         await styles.add(paintSet("High scores", high, "#1e88e5"));
 
         const before = await drawn(canvasElement, "Sets/Kept Sets RuleSetFollowsData, before");
@@ -214,14 +222,18 @@ export const LayoutOneSet: Story = {
     play: async ({ canvasElement }) => {
         const element = await settled(canvasElement);
         const before = await drawn(canvasElement, "Sets/Kept Sets LayoutOneSet, before");
-        const cluster = element.session.sets.create({ kind: "fixed", nodes: ["n1", "n2", "n3", "n4"], reading: "induced" }, { name: "Cluster" });
+        const cluster = element.session.sets.create(
+            { kind: "fixed", nodes: ["n1", "n2", "n3", "n4"], reading: "induced" },
+            { name: "Cluster" },
+        );
 
         await element.setLayout("ngraph", { seed: 7 }, { scope: { set: cluster } });
         await waitForGraphSettled(canvasElement);
 
         const after = await drawn(canvasElement, "Sets/Kept Sets LayoutOneSet");
         await assertGraphLoaded(after, { nodes: 8, edges: 8 });
-        const at = (scene: typeof before, id: string): readonly number[] => scene.nodes.find((node) => node.id === id)?.position ?? [];
+        const at = (scene: typeof before, id: string): readonly number[] =>
+            scene.nodes.find((node) => node.id === id)?.position ?? [];
         for (const id of ["n5", "n6", "n7", "n8"]) {
             const [was, is] = [at(before, id), at(after, id)];
             await holds(
@@ -230,7 +242,9 @@ export const LayoutOneSet: Story = {
             );
         }
 
-        const moved = ["n1", "n2", "n3", "n4"].filter((id) => at(before, id).some((value, axis) => Math.abs(value - at(after, id)[axis]) > 1e-3));
+        const moved = ["n1", "n2", "n3", "n4"].filter((id) =>
+            at(before, id).some((value, axis) => Math.abs(value - at(after, id)[axis]) > 1e-3),
+        );
         await holds(moved.length > 0, "the set's own nodes were laid out again, so at least one of them moved");
     },
 };
@@ -249,12 +263,21 @@ export const KeepACommunity: Story = {
         await run;
 
         const { offers } = sets.offers(run.id);
-        await holds(offers.length === 3, `Louvain offers one set per clique, three in all, not ${String(offers.length)}`);
+        await holds(
+            offers.length === 3,
+            `Louvain offers one set per clique, three in all, not ${String(offers.length)}`,
+        );
         const third = offers[2];
-        await holds(third.nodes === 3, `the offers come largest first, so the third holds the three-node clique, not ${String(third.nodes)} nodes`);
+        await holds(
+            third.nodes === 3,
+            `the offers come largest first, so the third holds the three-node clique, not ${String(third.nodes)} nodes`,
+        );
 
         const kept = await sets.createFrom(third, { name: "Community 3" });
-        await holds(sets.get(kept)?.createdFrom.kind === "result", "a set kept from an offer records that it was created from a result");
+        await holds(
+            sets.get(kept)?.createdFrom.kind === "result",
+            "a set kept from an offer records that it was created from a result",
+        );
         await styles.add(paintSet("Community 3", kept, "#e53935"));
 
         const scene = await drawn(canvasElement, "Sets/Kept Sets KeepACommunity");
@@ -285,9 +308,15 @@ export const ShortestPathAsASet: Story = {
         const definition = sets.get(route)?.definition;
         const order = definition?.kind === "path" ? definition.nodes.join(",") : "not a path";
         await holds(order === "n1,n2,n3,n4", `the path keeps the route in order, n1,n2,n3,n4, not ${order}`);
-        await holds(sets.pathKind(route) === "simple", `a route that repeats no node is a simple path, not ${String(sets.pathKind(route))}`);
+        await holds(
+            sets.pathKind(route) === "simple",
+            `a route that repeats no node is a simple path, not ${String(sets.pathKind(route))}`,
+        );
         const count = await scope.count({ set: route });
-        await holds(count.nodes === 4 && count.edges === 3, `the route holds 4 nodes and 3 edges, not ${String(count.nodes)} and ${String(count.edges)}`);
+        await holds(
+            count.nodes === 4 && count.edges === 3,
+            `the route holds 4 nodes and 3 edges, not ${String(count.nodes)} and ${String(count.edges)}`,
+        );
 
         await styles.add(paintSet("Route", route, "#e53935"));
 

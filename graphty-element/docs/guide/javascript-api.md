@@ -217,7 +217,10 @@ A set is a named group of nodes and edges that a run, a layout, a style layer, t
 filter, the selection and the camera all accept as their `scope`. See [Sets](./sets).
 
 ```typescript
-const team = element.session.sets.create({ kind: "fixed", nodes: ["a", "b", "c"], reading: "induced" }, { name: "Team" });
+const team = element.session.sets.create(
+    { kind: "fixed", nodes: ["a", "b", "c"], reading: "induced" },
+    { name: "Team" },
+);
 
 await element.run("degree", {}, { scope: { set: team } });
 await element.setLayout("ngraph", {}, { scope: { set: team } });

@@ -108,7 +108,10 @@ function N(value: number): number[] {
  * @returns The sum.
  */
 function sum(x: LanePair, y: LanePair): LanePair {
-    return { a: Number((BigInt(x.a) + BigInt(y.a)) & 0xffffffffn), b: Number((BigInt(x.b) + BigInt(y.b)) & 0xffffffffn) };
+    return {
+        a: Number((BigInt(x.a) + BigInt(y.a)) & 0xffffffffn),
+        b: Number((BigInt(x.b) + BigInt(y.b)) & 0xffffffffn),
+    };
 }
 
 /**
@@ -181,7 +184,10 @@ describe("node member hashes", () => {
     });
 
     it("feeds one step per UTF-16 code unit, above 0xFF and outside the BMP", () => {
-        assert.deepEqual(hashNodeId(String.fromCharCode(0xe9, 0x4e2d, 0xd83d, 0xde00)), H([0x24, 0xe9, 0x4e2d, 0xd83d, 0xde00]));
+        assert.deepEqual(
+            hashNodeId(String.fromCharCode(0xe9, 0x4e2d, 0xd83d, 0xde00)),
+            H([0x24, 0xe9, 0x4e2d, 0xd83d, 0xde00]),
+        );
     });
 });
 
@@ -225,7 +231,12 @@ describe("revisions", () => {
             `"nodes":{"count":2,"sum":"${hex(nodeSum)}"},"reading":"listed"}`;
 
         assert.strictEqual(
-            revisionOf({ kind: "fixed", nodes: ["a", 1, "a"], edges: [{ source: "a", target: "b", id: "x" }], reading: "listed" }),
+            revisionOf({
+                kind: "fixed",
+                nodes: ["a", 1, "a"],
+                edges: [{ source: "a", target: "b", id: "x" }],
+                reading: "listed",
+            }),
             revision(json),
         );
     });
@@ -236,7 +247,12 @@ describe("revisions", () => {
             revision('{"kind":"rule","reading":"induced","where":"degree > 2"}'),
         );
         assert.strictEqual(
-            revisionOf({ kind: "path", nodes: ["a", "b", 3], edges: [{ source: "a", target: "b", id: "x" }, null], directed: false }),
+            revisionOf({
+                kind: "path",
+                nodes: ["a", "b", 3],
+                edges: [{ source: "a", target: "b", id: "x" }, null],
+                directed: false,
+            }),
             revision('{"edges":[{"id":"x","source":"a","target":"b"},null],"kind":"path","nodes":["a","b",3]}'),
         );
     });
@@ -255,16 +271,30 @@ describe("frozen r1 goldens", () => {
         assert.strictEqual(hx(hashEdgeMember({ source: "a", target: "b", id: "x" }, true)), "1b06163ef684b158");
         assert.strictEqual(hx(hashEdgeMember({ source: "a", target: "b", key: "k" }, false)), "f5f0a3a31d09d790");
         assert.strictEqual(hx(hashEdgeMember({ source: "a", target: "b", key: "k" }, true)), "2dba5f588e14f82e");
-        assert.strictEqual(hx(hashEdgeMember({ source: "a", target: "b", ordinal: 1, among: 3 }, false)), "452b1ce85e5deecd");
-        assert.strictEqual(hx(hashEdgeMember({ source: "a", target: "b", ordinal: 1, among: 3 }, true)), "5e50e4d3d1f2198b");
+        assert.strictEqual(
+            hx(hashEdgeMember({ source: "a", target: "b", ordinal: 1, among: 3 }, false)),
+            "452b1ce85e5deecd",
+        );
+        assert.strictEqual(
+            hx(hashEdgeMember({ source: "a", target: "b", ordinal: 1, among: 3 }, true)),
+            "5e50e4d3d1f2198b",
+        );
     });
 
     it("pins the revisions", () => {
         assert.strictEqual(
-            revisionOf({ kind: "fixed", nodes: ["a", 1], edges: [{ source: "a", target: "b", id: "x" }], reading: "listed" }),
+            revisionOf({
+                kind: "fixed",
+                nodes: ["a", 1],
+                edges: [{ source: "a", target: "b", id: "x" }],
+                reading: "listed",
+            }),
             "r1:5999b2ae7334200a",
         );
-        assert.strictEqual(revisionOf({ kind: "rule", where: "degree > 2", reading: "induced" }), "r1:b8885d1328858272");
+        assert.strictEqual(
+            revisionOf({ kind: "rule", where: "degree > 2", reading: "induced" }),
+            "r1:b8885d1328858272",
+        );
         assert.strictEqual(
             revisionOf({ kind: "path", nodes: ["a", "b", 3], edges: [{ source: "a", target: "b", id: "x" }, null] }),
             "r1:17db94f2a2888680",

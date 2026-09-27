@@ -14,7 +14,16 @@ import { detachedRunContext } from "../../../src/algorithms/results";
 import type { Graph } from "../../../src/Graph";
 import type { RunResult } from "../../../src/session/results";
 import { createFakeAccelerator } from "../../../src/testing/fakeAccelerator";
-import { idsOf, InputGraph, WholeBFS, WholeComponents, WholeDegree, WholeDijkstra, WholeKruskal, WholePageRank } from "./harness";
+import {
+    idsOf,
+    InputGraph,
+    WholeBFS,
+    WholeComponents,
+    WholeDegree,
+    WholeDijkstra,
+    WholeKruskal,
+    WholePageRank,
+} from "./harness";
 
 /** What the two seams handed one algorithm. */
 interface Seen {
@@ -64,7 +73,13 @@ describe("the declaration decides what both seams hand over", () => {
         const graph = ring();
         const scope = graph.scope(["a", "b", "c"]);
         const algorithm = new ScopedReader(graph.asGraph());
-        const seen = await withRunInput(algorithm, graph, () => scope, undefined, () => Promise.resolve(algorithm.seams()));
+        const seen = await withRunInput(
+            algorithm,
+            graph,
+            () => scope,
+            undefined,
+            () => Promise.resolve(algorithm.seams()),
+        );
 
         assert.deepStrictEqual(seen, { objectGraph: 3, accelerated: ["a", "b", "c"] });
     });
@@ -73,7 +88,13 @@ describe("the declaration decides what both seams hand over", () => {
         const graph = ring();
         const scope = graph.scope(["a", "b", "c"]);
         const algorithm = new WholeReader(graph.asGraph());
-        const seen = await withRunInput(algorithm, graph, () => scope, undefined, () => Promise.resolve(algorithm.seams()));
+        const seen = await withRunInput(
+            algorithm,
+            graph,
+            () => scope,
+            undefined,
+            () => Promise.resolve(algorithm.seams()),
+        );
 
         assert.deepStrictEqual(seen, { objectGraph: 6, accelerated: ["a", "b", "c", "d", "e", "f"] });
     });
@@ -83,7 +104,13 @@ describe("the declaration decides what both seams hand over", () => {
         const algorithm = new ScopedReader(graph.asGraph());
         assert.strictEqual(algorithm.seams().objectGraph, 6);
 
-        await withRunInput(algorithm, graph, () => graph.scope(["a", "b"]), undefined, () => Promise.resolve());
+        await withRunInput(
+            algorithm,
+            graph,
+            () => graph.scope(["a", "b"]),
+            undefined,
+            () => Promise.resolve(),
+        );
         assert.strictEqual(algorithm.seams().objectGraph, 6, "the binding ends with the run");
     });
 });
@@ -128,7 +155,11 @@ function ownFields(published: Published): Published {
         Object.fromEntries(
             Object.entries(values).map(([id, value]) => [
                 id,
-                value === undefined ? undefined : Object.fromEntries(Object.entries(value as object).filter(([name]) => !FILLED_FROM_POPULATION.has(name))),
+                value === undefined
+                    ? undefined
+                    : Object.fromEntries(
+                          Object.entries(value as object).filter(([name]) => !FILLED_FROM_POPULATION.has(name)),
+                      ),
             ]),
         );
 
@@ -155,12 +186,20 @@ describe("an algorithm that declares no scoped input computes on the whole graph
             const members = new Set(["a", "b", "c"]);
             const scope = graph.scope([...members]);
             const bound = publishedOf(
-                await withRunInput(scoped, graph, () => scope, undefined, () => scoped.publishResult(detachedRunContext(), "r")),
+                await withRunInput(
+                    scoped,
+                    graph,
+                    () => scope,
+                    undefined,
+                    () => scoped.publishResult(detachedRunContext(), "r"),
+                ),
                 graph,
             );
 
             const expected: Published = {
-                nodes: Object.fromEntries(Object.entries(unbound.nodes).map(([id, value]) => [id, members.has(id) ? value : undefined])),
+                nodes: Object.fromEntries(
+                    Object.entries(unbound.nodes).map(([id, value]) => [id, members.has(id) ? value : undefined]),
+                ),
                 edges: Object.fromEntries(
                     [...graph.edges.values()].map((edge) => [
                         edge.id,
@@ -171,7 +210,9 @@ describe("an algorithm that declares no scoped input computes on the whole graph
             // The fields the element fills from the published population (a group's size, a
             // level's size) are counted over the scope, which is the point of masking first.
             assert.deepStrictEqual(ownFields(bound), ownFields(expected));
-            const filled = [...Object.values(unbound.nodes), ...Object.values(unbound.edges)].filter((value) => value !== undefined);
+            const filled = [...Object.values(unbound.nodes), ...Object.values(unbound.edges)].filter(
+                (value) => value !== undefined,
+            );
             assert.isAbove(filled.length, 3, "values outside the scope too, so the mask has something to drop");
         });
     }
@@ -182,7 +223,13 @@ describe("an algorithm that declares no scoped input computes on the whole graph
         graph.acceleration.setAccelerator(fake);
         const pagerank = new WholePageRank(graph.asGraph());
         const scope = graph.scope(["a", "b", "c"]);
-        await withRunInput(pagerank, graph, () => scope, undefined, () => pagerank.publishResult(detachedRunContext(), "r"));
+        await withRunInput(
+            pagerank,
+            graph,
+            () => scope,
+            undefined,
+            () => pagerank.publishResult(detachedRunContext(), "r"),
+        );
 
         assert.lengthOf(fake.calls.uploaded, 1);
         assert.strictEqual(fake.calls.uploaded[0], graph.snapshot());

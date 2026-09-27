@@ -22,7 +22,14 @@ describe("connected components over generated scopes", () => {
 
 describe("connected components over a scope that keeps every node and drops edges", () => {
     it("each node left with no edge in the scope is its own component", async () => {
-        const graph = new InputGraph(["a", "b", "c", "d"], [["a", "b", 5], ["b", "c", 1], ["c", "d", 1]]);
+        const graph = new InputGraph(
+            ["a", "b", "c", "d"],
+            [
+                ["a", "b", 5],
+                ["b", "c", 1],
+                ["c", "d", 1],
+            ],
+        );
         // Every node, and only the edges of weight above 2, as a visibility filter on weight reads.
         const heavy = graph.scope(["a", "b", "c", "d"], (_source, _target, row) => row === 0);
         const result = await assertComputesOverScope(build, graph, heavy);

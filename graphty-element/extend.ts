@@ -79,7 +79,11 @@ export { isOptionType, OPTION_TYPES } from "./src/catalog/types";
  * author may write `oklch(...)` or a CSS colour name and the renderer, the legend and a saved
  * document all read the same hexes.
  */
-export { clearRegisteredPalettesForTesting, registeredPaletteDescriptors, registerPalette } from "./src/catalog/paletteRegistry";
+export {
+    clearRegisteredPalettesForTesting,
+    registeredPaletteDescriptors,
+    registerPalette,
+} from "./src/catalog/paletteRegistry";
 export type { PaletteDescriptor, PaletteId } from "./src/catalog/types";
 export { KNOWN_PALETTE_IDS } from "./src/catalog/types";
 
@@ -123,8 +127,19 @@ export { ErrorAggregator } from "./src/data/ErrorAggregator";
  * `bounds` is an input rather than something the view measures, which is what lets a view be
  * asked to frame a subset rather than the whole graph.
  */
-export type { CameraState, CameraViewInput, CameraViewRegistration, DrawingMode, GraphBounds, Vec3 } from "./src/camera/types";
-export { clearRegisteredCamerasForTesting, registerCameraView, registeredCameraDescriptors } from "./src/catalog/cameraRegistry";
+export type {
+    CameraState,
+    CameraViewInput,
+    CameraViewRegistration,
+    DrawingMode,
+    GraphBounds,
+    Vec3,
+} from "./src/camera/types";
+export {
+    clearRegisteredCamerasForTesting,
+    registerCameraView,
+    registeredCameraDescriptors,
+} from "./src/catalog/cameraRegistry";
 export type { CameraDescriptor, CameraId } from "./src/catalog/types";
 export { KNOWN_CAMERA_IDS } from "./src/catalog/types";
 
@@ -157,7 +172,13 @@ export { clearRegisteredLayoutsForTesting, registeredLayoutDescriptors } from ".
 export type { AuthoredLayoutDescriptor, LayoutDescriptor, LayoutId } from "./src/catalog/types";
 export { KNOWN_LAYOUT_IDS } from "./src/catalog/types";
 export type { Edge } from "./src/Edge";
-export type { EdgePosition, LayoutEngineStatics, Position, SimpleLayoutConfigType, SimpleLayoutOpts } from "./src/layout/LayoutEngine";
+export type {
+    EdgePosition,
+    LayoutEngineStatics,
+    Position,
+    SimpleLayoutConfigType,
+    SimpleLayoutOpts,
+} from "./src/layout/LayoutEngine";
 export { LayoutEngine, SimpleLayoutConfig, SimpleLayoutEngine } from "./src/layout/LayoutEngine";
 export type { Node, NodeIdType } from "./src/Node";
 
@@ -187,7 +208,13 @@ export { Algorithm } from "./src/algorithms/Algorithm";
 export type { ScopedInput, ScopedInputOptions, ScopeInputDeclaration } from "./src/algorithms/input/ScopedInput";
 export { metricField, nodeMetricFields } from "./src/algorithms/metrics/fields";
 export { DeclaredAlgorithm } from "./src/algorithms/results/DeclaredAlgorithm";
-export { communityFieldSpecs, LAYERED_GROUPING_FIELD_SPECS, metricFieldSpecs, PATH_FIELD_SPECS, setFieldSpecs } from "./src/algorithms/results/fields";
+export {
+    communityFieldSpecs,
+    LAYERED_GROUPING_FIELD_SPECS,
+    metricFieldSpecs,
+    PATH_FIELD_SPECS,
+    setFieldSpecs,
+} from "./src/algorithms/results/fields";
 export type { AlgorithmOutput, AlgorithmRunContext, ResultFieldSpec } from "./src/algorithms/results/types";
 export { declaredCaveats, forEachChunked } from "./src/algorithms/results/types";
 export type { AlgorithmGraphMode, AlgorithmGraphView } from "./src/algorithms/utils/snapshotGraph";
@@ -215,7 +242,12 @@ export type { EdgeMask, GraphSnapshot, NodeMask } from "@graphty/graph-format";
  * `descriptor.options` as `OptionDescriptor[]` and validate with `resolveOptionValues` instead.
  */
 export type { OptionDefinition, OptionsFromSchema, OptionsSchema } from "./src/algorithms/types/OptionSchema";
-export { defineOptionsSchema, OptionValidationError, resolveOptions, validateOption } from "./src/algorithms/types/OptionSchema";
+export {
+    defineOptionsSchema,
+    OptionValidationError,
+    resolveOptions,
+    validateOption,
+} from "./src/algorithms/types/OptionSchema";
 
 // ---------------------------------------------------------------------------------------------
 // Logging: a destination, as a live object or as a name a configuration can record
@@ -237,7 +269,11 @@ export { defineOptionsSchema, OptionValidationError, resolveOptions, validateOpt
  * registers it from this one.
  */
 export type { LogSinkRegistration } from "./src/catalog/logSinkRegistry";
-export { clearRegisteredLogSinksForTesting, registeredLogSinkDescriptors, registerLogSink } from "./src/catalog/logSinkRegistry";
+export {
+    clearRegisteredLogSinksForTesting,
+    registeredLogSinkDescriptors,
+    registerLogSink,
+} from "./src/catalog/logSinkRegistry";
 export type { LogSinkDescriptor, LogSinkId } from "./src/catalog/types";
 export { KNOWN_LOG_SINK_IDS } from "./src/catalog/types";
 
@@ -262,4 +298,9 @@ export type {
     GraphAccelerator,
     RegisterAcceleratorOptions,
 } from "./src/acceleration";
-export { AcceleratorRegistry, acceleratorRegistry, DEFAULT_ACCELERATOR_PRECISION, registerAccelerator } from "./src/acceleration";
+export {
+    AcceleratorRegistry,
+    acceleratorRegistry,
+    DEFAULT_ACCELERATOR_PRECISION,
+    registerAccelerator,
+} from "./src/acceleration";

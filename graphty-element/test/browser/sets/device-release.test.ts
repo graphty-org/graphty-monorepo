@@ -128,7 +128,11 @@ describe.skipIf(!GPU_LANE)("scoped runs on a real WebGPU device", () => {
         assert.strictEqual(await run(), first, "a repeated scope reuses the uploaded input");
 
         await graph.addNodes([{ id: "late" }]);
-        await until(() => graph.getDataManager().getSnapshot().nodeCount === GRAPH.nodes.length + 1, "the freeze", 30_000);
+        await until(
+            () => graph.getDataManager().getSnapshot().nodeCount === GRAPH.nodes.length + 1,
+            "the freeze",
+            30_000,
+        );
         await run();
 
         derivedInputsOf(graph).dispose();

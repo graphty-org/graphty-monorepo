@@ -56,7 +56,10 @@ describe("session.sets: the synchronous doors", () => {
         assert.deepStrictEqual(sets.get(id)?.definition, { kind: "fixed", nodes: ["a", "b"], reading: "induced" });
         assert.deepStrictEqual(sets.get(id)?.createdFrom, { kind: "user" });
         assert.match(sets.get(id)?.revision ?? "", /^r1:/);
-        assert.deepStrictEqual(sets.list().map((set) => set.id), [id]);
+        assert.deepStrictEqual(
+            sets.list().map((set) => set.id),
+            [id],
+        );
 
         sets.rename(id, "Hub");
         sets.redefine(id, { kind: "fixed", nodes: ["a", "b"], reading: "listed" });
@@ -93,7 +96,10 @@ describe("session.sets: the synchronous doors", () => {
         const changes: SetChange[] = [];
         h.session.on("set:changed", (change) => changes.push(change));
 
-        assert.strictEqual(await codeOf(() => sets.create({ kind: "fixed", nodes: ["b"], reading: "induced" }, { name: "One" })), "E_DUPLICATE_ID");
+        assert.strictEqual(
+            await codeOf(() => sets.create({ kind: "fixed", nodes: ["b"], reading: "induced" }, { name: "One" })),
+            "E_DUPLICATE_ID",
+        );
         sets.rename(id, "One");
         assert.deepStrictEqual(changes, []);
         h.session.dispose();
@@ -127,7 +133,12 @@ describe("reading and counting a kept set through session.scope", () => {
     it("reports what a fixed or path set names that the graph does not hold", async () => {
         const h = harnessOf();
         const fixed = h.session.sets.create(
-            { kind: "fixed", nodes: ["a", "gone"], edges: [{ source: "a", target: "zz", id: "nowhere" }], reading: "listed" },
+            {
+                kind: "fixed",
+                nodes: ["a", "gone"],
+                edges: [{ source: "a", target: "zz", id: "nowhere" }],
+                reading: "listed",
+            },
             { name: "Fixed" },
         );
         const path = h.session.sets.create({ kind: "path", nodes: ["a", "b", "gone"] }, { name: "Path" });
@@ -140,7 +151,10 @@ describe("reading and counting a kept set through session.scope", () => {
         assert.strictEqual(pathCount.missingNodes, 1);
         assert.strictEqual(pathCount.missingEdges, 1, "the step to a node that is gone has no edge");
 
-        const rule = h.session.sets.create({ kind: "rule", where: { kind: "degree", min: 1 }, reading: "induced" }, { name: "Rule" });
+        const rule = h.session.sets.create(
+            { kind: "rule", where: { kind: "degree", min: 1 }, reading: "induced" },
+            { name: "Rule" },
+        );
         const ruleCount = await h.session.scope.count({ set: rule });
         assert.isUndefined(ruleCount.missingNodes, "a rule names nothing, so nothing it names can be missing");
         h.session.dispose();
@@ -149,17 +163,28 @@ describe("reading and counting a kept set through session.scope", () => {
     it("counts a removed set, and a rule over one, from its kept record; once the record is dropped, as nothing", async () => {
         const h = harnessOf();
         const inner = h.session.sets.create({ kind: "fixed", nodes: ["a"], reading: "induced" }, { name: "Inner" });
-        const outer = h.session.sets.create({ kind: "rule", where: { kind: "member", of: { set: inner } }, reading: "induced" }, { name: "Outer" });
+        const outer = h.session.sets.create(
+            { kind: "rule", where: { kind: "member", of: { set: inner } }, reading: "induced" },
+            { name: "Outer" },
+        );
         h.session.sets.remove(inner);
 
         assert.deepStrictEqual(await h.session.scope.count({ set: inner }), { nodes: 1, edges: 0, exact: true });
         assert.deepStrictEqual(await h.session.scope.count({ set: outer }), { nodes: 1, edges: 0, exact: true });
-        assert.strictEqual((await h.session.scope.resolve({ set: inner })).nodeCount, 1, "a reading of a removed set reads its kept record");
+        assert.strictEqual(
+            (await h.session.scope.resolve({ set: inner })).nodeCount,
+            1,
+            "a reading of a removed set reads its kept record",
+        );
 
         // Nothing names either any more, so neither record is kept.
         h.session.sets.remove(outer);
         assert.deepStrictEqual(await h.session.scope.count({ set: inner }), { nodes: 0, edges: 0, exact: true });
-        assert.strictEqual(await codeOf(() => h.session.scope.resolve({ set: inner })), "E_BAD_COMMAND", "a dropped record resolves to nothing");
+        assert.strictEqual(
+            await codeOf(() => h.session.scope.resolve({ set: inner })),
+            "E_BAD_COMMAND",
+            "a dropped record resolves to nothing",
+        );
         h.session.dispose();
     });
 
@@ -222,9 +247,18 @@ describe("scope.save freezes the live keywords", () => {
 
         const kept = await h.session.scope.resolve({ set: id });
         assert.deepStrictEqual([...kept.nodes].sort(), ["a", "b", "c"]);
-        assert.deepStrictEqual([...kept.edges], [edgeBetween(h, "a", "b")], "the hidden edge stays out after the filter is cleared");
+        assert.deepStrictEqual(
+            [...kept.edges],
+            [edgeBetween(h, "a", "b")],
+            "the hidden edge stays out after the filter is cleared",
+        );
         const { spec } = h.session.scope.list()[0] ?? {};
-        assert.isTrue(typeof spec === "object" && "define" in spec && spec.define.kind === "fixed" && spec.define.reading === "listed");
+        assert.isTrue(
+            typeof spec === "object" &&
+                "define" in spec &&
+                spec.define.kind === "fixed" &&
+                spec.define.reading === "listed",
+        );
         h.session.dispose();
     });
 
@@ -246,8 +280,16 @@ describe("scope.save, list and remove keep sets", () => {
         await h.session.selection.apply({ nodes: ["c"] });
         const forms: [string, Scope, SetDefinition][] = [
             ["graph", "graph", { kind: "rule", where: { kind: "member", of: "graph" }, reading: "induced" }],
-            ["largest", "largest-component", { kind: "rule", where: { kind: "member", of: "largest-component" }, reading: "induced" }],
-            ["named", { set: base }, { kind: "rule", where: { kind: "member", of: { set: base } }, reading: "induced" }],
+            [
+                "largest",
+                "largest-component",
+                { kind: "rule", where: { kind: "member", of: "largest-component" }, reading: "induced" },
+            ],
+            [
+                "named",
+                { set: base },
+                { kind: "rule", where: { kind: "member", of: { set: base } }, reading: "induced" },
+            ],
             ["matched", { where: "id == 'a'" }, { kind: "rule", where: "id == 'a'", reading: "induced" }],
             ["path", { define: { kind: "path", nodes: ["a", "b"] } }, { kind: "path", nodes: ["a", "b"] }],
             ["picked", "selection", { kind: "fixed", nodes: ["c"], reading: "induced" }],
@@ -272,7 +314,11 @@ describe("scope.save, list and remove keep sets", () => {
         nodes.push("c");
 
         assert.strictEqual(id, "set_core-hosts");
-        assert.deepStrictEqual(h.session.sets.get(id)?.definition, { kind: "fixed", nodes: ["a", "b"], reading: "induced" });
+        assert.deepStrictEqual(h.session.sets.get(id)?.definition, {
+            kind: "fixed",
+            nodes: ["a", "b"],
+            reading: "induced",
+        });
         assert.isTrue(Object.isFrozen(h.session.sets.get(id)?.definition));
         h.session.dispose();
     });
@@ -302,7 +348,10 @@ describe("scope.save, list and remove keep sets", () => {
         scope.remove(base);
         assert.isUndefined(sets.get(base));
         assert.deepStrictEqual(
-            scope.list().filter((entry) => entry.name === "Named").map((entry) => entry.bound),
+            scope
+                .list()
+                .filter((entry) => entry.name === "Named")
+                .map((entry) => entry.bound),
             [true],
             "a set naming a removed one keeps resolving through the removed set's kept record",
         );

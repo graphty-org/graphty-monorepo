@@ -46,7 +46,10 @@ describe("replaceAttributes", () => {
         const record = { b: 3, c: 4 };
         replaceAttributes(counters.edges, owner, record);
         assert.strictEqual(owner.data, record);
-        assert.deepEqual(["a", "b", "c", "d"].map((f) => counters.edges.of(f)), [1, 1, 1, 0]);
+        assert.deepEqual(
+            ["a", "b", "c", "d"].map((f) => counters.edges.of(f)),
+            [1, 1, 1, 0],
+        );
     });
 });
 

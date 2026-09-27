@@ -506,12 +506,9 @@ function decodeQuotedName(where: Query, at: number, quoted: string): string {
         // Falls through to the one refusal below, so both failures read the same way.
     }
 
-    throw badSelector(
-        `A quoted attribute name follows JSON's rules for a string, and ${quoted} does not`,
-        where,
-        at,
-        { name: quoted },
-    );
+    throw badSelector(`A quoted attribute name follows JSON's rules for a string, and ${quoted} does not`, where, at, {
+        name: quoted,
+    });
 }
 
 /**
@@ -538,7 +535,9 @@ function tokenize(where: Query): readonly Token[] {
         }
 
         if (character === "|" && where.charAt(at + 1) !== "|") {
-            throw badSelector("A selector does not support pipe expressions", where, at, { construct: "pipe expressions" });
+            throw badSelector("A selector does not support pipe expressions", where, at, {
+                construct: "pipe expressions",
+            });
         }
 
         if (character === "&" && where.charAt(at + 1) !== "&") {
@@ -556,7 +555,12 @@ function tokenize(where: Query): readonly Token[] {
 
         if (character === "`") {
             const close = findClose(where, at, "`");
-            tokens.push({ kind: "literal", text: "", value: decodeJsonLiteral(where, at, where.slice(at + 1, close)), at });
+            tokens.push({
+                kind: "literal",
+                text: "",
+                value: decodeJsonLiteral(where, at, where.slice(at + 1, close)),
+                at,
+            });
             at = close + 1;
             continue;
         }
@@ -587,12 +591,9 @@ function tokenize(where: Query): readonly Token[] {
         }
 
         if (/[0-9-]/.test(character)) {
-            throw badSelector(
-                "A number in a selector goes between backticks, so write `5` rather than 5",
-                where,
-                at,
-                { character },
-            );
+            throw badSelector("A number in a selector goes between backticks, so write `5` rather than 5", where, at, {
+                character,
+            });
         }
 
         throw badSelector(`${JSON.stringify(character)} is not something a selector can contain`, where, at, {
@@ -642,7 +643,12 @@ const COMPARATORS: Readonly<Record<string, CompareOperator | undefined>> = Objec
 /** One node of a parsed selector expression. */
 type ExpressionNode =
     | { readonly kind: "and"; readonly left: ExpressionNode; readonly right: ExpressionNode }
-    | { readonly kind: "compare"; readonly operator: CompareOperator; readonly left: ExpressionNode; readonly right: ExpressionNode }
+    | {
+          readonly kind: "compare";
+          readonly operator: CompareOperator;
+          readonly left: ExpressionNode;
+          readonly right: ExpressionNode;
+      }
     | { readonly kind: "group"; readonly inner: ExpressionNode }
     | { readonly kind: "literal"; readonly value: unknown }
     | { readonly kind: "not"; readonly operand: ExpressionNode }

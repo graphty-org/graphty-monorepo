@@ -124,7 +124,11 @@ const publishedDescriptors = new WeakMap<AlgorithmDescriptor, Map<ScopeInputDecl
  * @throws A `GraphtyError` with `E_BAD_COMMAND` when the authored descriptor states a different
  *   `scopeInput` from the class: the run would compute over one thing and the planner price another.
  */
-function withScopeInput(authored: AlgorithmDescriptor, declared: ScopeInputDeclaration, address: string): AlgorithmDescriptor {
+function withScopeInput(
+    authored: AlgorithmDescriptor,
+    declared: ScopeInputDeclaration,
+    address: string,
+): AlgorithmDescriptor {
     if (authored.scopeInput !== undefined && authored.scopeInput !== declared) {
         throw new GraphtyError({
             code: "E_BAD_COMMAND",
@@ -132,7 +136,13 @@ function withScopeInput(authored: AlgorithmDescriptor, declared: ScopeInputDecla
                 `the algorithm registered as "${address}" publishes scopeInput "${authored.scopeInput}" and its class declares ` +
                 `"${declared}". Declare it once, as "static scopeInput", and leave it out of the descriptor.`,
             source: "registry",
-            details: { kind: "algorithm", field: "descriptor.scopeInput", key: authored.key, declared, published: authored.scopeInput },
+            details: {
+                kind: "algorithm",
+                field: "descriptor.scopeInput",
+                key: authored.key,
+                declared,
+                published: authored.scopeInput,
+            },
         });
     }
 
@@ -196,9 +206,7 @@ export interface AcceleratedAlgorithmRun {
      * @throws Whatever the accelerator threw, with its code. A failure after the work started is
      * the run's failure: nothing is recomputed on the CPU.
      */
-    readonly run: <T>(
-        fn: (dispatch: AcceleratedAlgorithms, snapshot: GraphSnapshot) => Promise<T>,
-    ) => Promise<{
+    readonly run: <T>(fn: (dispatch: AcceleratedAlgorithms, snapshot: GraphSnapshot) => Promise<T>) => Promise<{
         /** What `fn` returned. */
         readonly value: T;
         /** The arithmetic it was computed in. */

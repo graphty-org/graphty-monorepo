@@ -67,7 +67,10 @@ function path(execute: NonNullable<Parameters<typeof makeSession>[0]>["runs"] = 
  * @param h - The harness.
  */
 async function paintAll(h: Harness): Promise<void> {
-    await painter(h).repaintAll((h.session as ElementSession).styles.compiled(), { signal: new AbortController().signal, report: () => undefined });
+    await painter(h).repaintAll((h.session as ElementSession).styles.compiled(), {
+        signal: new AbortController().signal,
+        report: () => undefined,
+    });
 }
 
 /**
@@ -138,7 +141,11 @@ describe("a layer naming a set repaints only what moved", () => {
 
             // Two added, one taken away.
             const pass = seen.next();
-            h.session.sets.redefine(id, { kind: "fixed", nodes: [...members.slice(1), "n500", "n900"], reading: "induced" });
+            h.session.sets.redefine(id, {
+                kind: "fixed",
+                nodes: [...members.slice(1), "n500", "n900"],
+                reading: "induced",
+            });
             await pass;
 
             assert.deepStrictEqual(seen.log, [{ nodes: 3, edges: 0 }], `at ${String(count)} nodes`);
@@ -226,7 +233,10 @@ describe("a layer naming a set repaints only what moved", () => {
             };
         });
         for (let i = 0; i < 10; i++) {
-            const id = h.session.sets.create({ kind: "fixed", nodes: [i % 2 === 0 ? "b" : "d"], reading: "induced" }, { name: `S${String(i)}` });
+            const id = h.session.sets.create(
+                { kind: "fixed", nodes: [i % 2 === 0 ? "b" : "d"], reading: "induced" },
+                { name: `S${String(i)}` },
+            );
             await h.session.styles.add({ ...redLayer({ set: id }), name: `L${String(i)}` });
         }
 
@@ -266,7 +276,12 @@ describe("a layer naming a set repaints only what moved", () => {
     });
 
     it("a layer over a rule on results.pr repaints after pr re-runs with no data change", async () => {
-        const degrees: Published = { shape: "node-metric", nodes: new Map(Object.entries({ a: { value: 1 }, b: { value: 2 }, c: { value: 2 }, d: { value: 2 }, e: { value: 1 } })) };
+        const degrees: Published = {
+            shape: "node-metric",
+            nodes: new Map(
+                Object.entries({ a: { value: 1 }, b: { value: 2 }, c: { value: 2 }, d: { value: 2 }, e: { value: 1 } }),
+            ),
+        };
         const h = path({ execute: publishing(new Map([["pr", degrees]])) });
         const run = h.session.runs.start("degree", undefined, { as: "pr", scope: "graph", style: false });
         await run;
@@ -297,7 +312,7 @@ describe("a layer naming a set repaints only what moved", () => {
         const id: SetId = h.session.sets.create({ kind: "fixed", nodes: ["b", "d"], reading: "induced" });
         const added = await h.session.styles.add(redLayer({ set: id }));
         await paintAll(h);
-        const {cache} = scopeResolverOfSession(h.session).contextNow();
+        const { cache } = scopeResolverOfSession(h.session).contextNow();
         assert.isDefined(cache);
         const definition = h.session.sets.get(id)?.definition;
         /**
@@ -306,7 +321,17 @@ describe("a layer naming a set repaints only what moved", () => {
         const flood = (): void => {
             const big = new Uint32Array(1 << 20);
             for (let at = 0; at < 20; at++) {
-                cache?.store(`flood-${String(at)}`, "s", { nodes: big, edges: big, nodeCount: 0, edgeCount: 0, serial: 0, store: null, missingNodes: 0, missingEdges: 0, ambiguousEdges: 0 } as Resolution);
+                cache?.store(`flood-${String(at)}`, "s", {
+                    nodes: big,
+                    edges: big,
+                    nodeCount: 0,
+                    edgeCount: 0,
+                    serial: 0,
+                    store: null,
+                    missingNodes: 0,
+                    missingEdges: 0,
+                    ambiguousEdges: 0,
+                } as Resolution);
             }
         };
         const held = (): boolean => (cache?.cached() ?? []).some(([key]) => key === definition);
@@ -331,15 +356,33 @@ describe("a layer naming a set repaints only what moved", () => {
     });
 
     it("an item a layer holds is captured when its run re-runs, and the layer keeps painting it", async () => {
-        const first: Published = { shape: "community", nodes: new Map(Object.entries({ a: { group: 0 }, b: { group: 0 }, c: { group: 1 }, d: { group: 1 }, e: { group: 1 } })) };
-        const second: Published = { shape: "community", nodes: new Map(Object.entries({ a: { group: 1 }, b: { group: 0 }, c: { group: 0 }, d: { group: 0 }, e: { group: 0 } })) };
+        const first: Published = {
+            shape: "community",
+            nodes: new Map(
+                Object.entries({ a: { group: 0 }, b: { group: 0 }, c: { group: 1 }, d: { group: 1 }, e: { group: 1 } }),
+            ),
+        };
+        const second: Published = {
+            shape: "community",
+            nodes: new Map(
+                Object.entries({ a: { group: 1 }, b: { group: 0 }, c: { group: 0 }, d: { group: 0 }, e: { group: 0 } }),
+            ),
+        };
         const table = new Map<string, Published>([["louv", first]]);
         const h = path({ execute: publishing(table) });
         const run = h.session.runs.start("degree", undefined, { as: "louv", scope: "graph", style: false });
         await run;
         const execution = resultExecutionOf(h.session.results, "louv") as string;
         const key = { field: "group", value: 1 };
-        await h.session.styles.add(redLayer({ define: { kind: "rule", where: { kind: "item", item: { result: "louv", key, run: execution } }, reading: "induced" } }));
+        await h.session.styles.add(
+            redLayer({
+                define: {
+                    kind: "rule",
+                    where: { kind: "item", item: { result: "louv", key, run: execution } },
+                    reading: "induced",
+                },
+            }),
+        );
         await paintAll(h);
         assert.deepStrictEqual(red(h), ["c", "d", "e"]);
 
@@ -349,7 +392,9 @@ describe("a layer naming a set repaints only what moved", () => {
         await paintAll(h);
 
         const held = (h.session.runs as SessionRunsApi).heldOf("louv");
-        assert.deepStrictEqual(Object.fromEntries(held.get(execution) ?? []), { [itemKeyOf(key)]: { nodes: ["c", "d", "e"] } });
+        assert.deepStrictEqual(Object.fromEntries(held.get(execution) ?? []), {
+            [itemKeyOf(key)]: { nodes: ["c", "d", "e"] },
+        });
         assert.deepStrictEqual(red(h), ["c", "d", "e"], "the earlier members, not the new group 1 (a)");
     });
 });

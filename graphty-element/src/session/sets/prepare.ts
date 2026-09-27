@@ -116,14 +116,21 @@ function requireRecord(records: RecordView, id: SetId): ElementSet {
  */
 function checkName(records: RecordView, name: unknown, self?: SetId): string {
     if (typeof name !== "string" || name.trim() === "") {
-        throw refuse("E_BAD_COMMAND", "A set needs a name, because the name is what a person finds it by.", self, { name });
+        throw refuse("E_BAD_COMMAND", "A set needs a name, because the name is what a person finds it by.", self, {
+            name,
+        });
     }
 
     const trimmed = name.trim();
     if (trimmed.length > MAX_NAME_LENGTH) {
-        throw refuse("E_BAD_COMMAND", `A set name is at most ${MAX_NAME_LENGTH} characters, because its id is minted from it.`, self, {
-            length: trimmed.length,
-        });
+        throw refuse(
+            "E_BAD_COMMAND",
+            `A set name is at most ${MAX_NAME_LENGTH} characters, because its id is minted from it.`,
+            self,
+            {
+                length: trimmed.length,
+            },
+        );
     }
 
     for (const record of records.values()) {
@@ -291,7 +298,11 @@ class EdgeColumns implements EdgeMemberList {
      * @returns The byte count.
      */
     get bytes(): number {
-        return this.source.byteLength * 5 + 16 * this.interner.values.length + MATERIALISED_MEMBER_BYTES * (this.materialised?.length ?? 0);
+        return (
+            this.source.byteLength * 5 +
+            16 * this.interner.values.length +
+            MATERIALISED_MEMBER_BYTES * (this.materialised?.length ?? 0)
+        );
     }
 
     /**
@@ -356,7 +367,9 @@ class EdgeColumns implements EdgeMemberList {
      * @returns The members.
      */
     members(): readonly EdgeMember[] {
-        this.materialised ??= Object.freeze(Array.from({ length: this.length }, (_, row) => Object.freeze(this.member(row))));
+        this.materialised ??= Object.freeze(
+            Array.from({ length: this.length }, (_, row) => Object.freeze(this.member(row))),
+        );
 
         return this.materialised;
     }
@@ -370,7 +383,8 @@ class EdgeColumns implements EdgeMemberList {
      */
     compare(row: number, member: EdgeMember): number {
         const { values } = this.interner;
-        const ends = compareIds(values[this.source[row]], member.source) || compareIds(values[this.target[row]], member.target);
+        const ends =
+            compareIds(values[this.source[row]], member.source) || compareIds(values[this.target[row]], member.target);
         if (ends !== 0) {
             return ends;
         }
@@ -382,7 +396,11 @@ class EdgeColumns implements EdgeMemberList {
         }
 
         const ordinal = this.ordinal[row] === ABSENT ? undefined : this.ordinal[row];
-        return compareAbsent(ordinal, member.ordinal) || compareIds(ordinal ?? 0, member.ordinal ?? 0) || compareIds(this.among[row], member.among ?? ABSENT);
+        return (
+            compareAbsent(ordinal, member.ordinal) ||
+            compareIds(ordinal ?? 0, member.ordinal ?? 0) ||
+            compareIds(this.among[row], member.among ?? ABSENT)
+        );
     }
 
     /**
@@ -499,7 +517,10 @@ export function opaqueName(definition: SetDefinition): string | null {
  * @param definition - A fixed definition with no unknown content.
  * @returns The summaries.
  */
-function summaryOf(definition: Extract<SetDefinition, { kind: "fixed" }>): { nodes: MemberSummary; edges: MemberSummary } {
+function summaryOf(definition: Extract<SetDefinition, { kind: "fixed" }>): {
+    nodes: MemberSummary;
+    edges: MemberSummary;
+} {
     let summary = summariesOf.get(definition);
     if (summary === undefined) {
         let nodes = EMPTY_SUM;
@@ -615,7 +636,11 @@ function freezeDefinition(definition: unknown): SetDefinition {
     const canonical = parseSetDefinition(definition);
     if (canonical.kind === "fixed") {
         // The canonical node array is already a fresh copy, so it is frozen in place.
-        return fixedDefinition(canonical.reading, Object.freeze(canonical.nodes), EdgeColumns.of(canonical.edges ?? []));
+        return fixedDefinition(
+            canonical.reading,
+            Object.freeze(canonical.nodes),
+            EdgeColumns.of(canonical.edges ?? []),
+        );
     }
 
     const frozen = deepFreeze(structuredClone(canonical));
@@ -634,7 +659,11 @@ function freezeDefinition(definition: unknown): SetDefinition {
  * @returns The frozen definition, which `set.create` stores as it is.
  */
 export function prebuiltListed(nodes: readonly NodeId[], members: readonly EdgeMember[]): SetDefinition {
-    const definition = fixedDefinition("listed", Object.freeze(sortElementNodeIds(nodes)), EdgeColumns.of(sortElementEdgeMembers(members)));
+    const definition = fixedDefinition(
+        "listed",
+        Object.freeze(sortElementNodeIds(nodes)),
+        EdgeColumns.of(sortElementEdgeMembers(members)),
+    );
     prebuilt.add(definition);
 
     return definition;
@@ -683,9 +712,14 @@ export function loadRecord(value: unknown): ElementSet {
         typeof stored.createdFrom !== "object" ||
         stored.createdFrom === null
     ) {
-        throw refuse("E_BAD_COMMAND", "A stored set needs an id starting set_, a name, an order and a createdFrom.", undefined, {
-            record: value,
-        });
+        throw refuse(
+            "E_BAD_COMMAND",
+            "A stored set needs an id starting set_, a name, an order and a createdFrom.",
+            undefined,
+            {
+                record: value,
+            },
+        );
     }
 
     const { definition, opaque } = loadSetDefinition(stored.definition);
@@ -749,7 +783,10 @@ export function prepareCreate(records: RecordView, command: CreateCommand): Elem
  * @returns The new record, or null when the trimmed name is the current one.
  * @throws `E_BAD_COMMAND` for an unknown id or an empty name; `E_DUPLICATE_ID` for a taken name.
  */
-export function prepareRename(records: RecordView, command: { readonly id: SetId; readonly name: string }): ElementSet | null {
+export function prepareRename(
+    records: RecordView,
+    command: { readonly id: SetId; readonly name: string },
+): ElementSet | null {
     const prior = requireRecord(records, command.id);
     // An unchanged name is a no-op before uniqueness, so a loaded slice with duplicate names can
     // still "rename" a set to its own name.
@@ -801,7 +838,10 @@ function sameIds(a: readonly NodeId[], b: readonly NodeId[]): boolean {
  * @throws `E_BAD_COMMAND` for an unknown id or a malformed definition; `E_UNSUPPORTED` for an
  * opaque prior definition.
  */
-export function prepareRedefine(records: RecordView, command: { readonly id: SetId; readonly definition: unknown }): ElementSet | null {
+export function prepareRedefine(
+    records: RecordView,
+    command: { readonly id: SetId; readonly definition: unknown },
+): ElementSet | null {
     const prior = requireRecord(records, command.id);
     refuseOpaque(prior);
     const canonical = parseSetDefinition(command.definition);
@@ -842,7 +882,12 @@ interface MembersCommand {
  * @throws `E_BAD_COMMAND` for a malformed member.
  */
 function canonicalDelta(delta: MembersCommand["add"]): { nodes: readonly NodeId[]; edges: readonly EdgeMember[] } {
-    const parsed = parseSetDefinition({ kind: "fixed", nodes: delta?.nodes ?? [], edges: delta?.edges ?? [], reading: "listed" });
+    const parsed = parseSetDefinition({
+        kind: "fixed",
+        nodes: delta?.nodes ?? [],
+        edges: delta?.edges ?? [],
+        reading: "listed",
+    });
     if (parsed.kind !== "fixed") {
         throw new Error("unreachable: a fixed definition parsed as another kind");
     }
@@ -860,15 +905,24 @@ function canonicalDelta(delta: MembersCommand["add"]): { nodes: readonly NodeId[
  * @throws `E_BAD_COMMAND` for an unknown id, a set that is not fixed or a malformed member;
  * `E_UNSUPPORTED` for opaque content; `E_TOO_LARGE` above the edge-member limit.
  */
-export function prepareMembers(records: RecordView, command: MembersCommand, limit = MAX_EDGE_MEMBER_EDIT): ElementSet | null {
+export function prepareMembers(
+    records: RecordView,
+    command: MembersCommand,
+    limit = MAX_EDGE_MEMBER_EDIT,
+): ElementSet | null {
     const prior = requireRecord(records, command.id);
     refuseOpaque(prior);
     const previous = prior.definition;
     const columns = columnsOf.get(previous);
     if (previous.kind !== "fixed" || columns === undefined) {
-        throw refuse("E_BAD_COMMAND", `Set "${prior.name}" is a ${previous.kind} set; only a fixed set has members to add or remove.`, prior.id, {
-            kind: previous.kind,
-        });
+        throw refuse(
+            "E_BAD_COMMAND",
+            `Set "${prior.name}" is a ${previous.kind} set; only a fixed set has members to add or remove.`,
+            prior.id,
+            {
+                kind: previous.kind,
+            },
+        );
     }
 
     const add = canonicalDelta(command.add);
@@ -887,7 +941,7 @@ export function prepareMembers(records: RecordView, command: MembersCommand, lim
     let edgeSum = known?.edges.sum ?? EMPTY_SUM;
 
     // Remove: the named nodes, every edge member touching one of them, and the named edges.
-    let {nodes} = previous;
+    let { nodes } = previous;
     const droppedNodes = remove.nodes.filter((id) => hasId(nodes, id));
     if (droppedNodes.length > 0) {
         const gone = new Set(droppedNodes);
@@ -992,7 +1046,10 @@ export function prepareMembers(records: RecordView, command: MembersCommand, lim
     const summary =
         known === undefined
             ? undefined
-            : { nodes: { count: nodes.length, sum: nodeSum }, edges: edges.length === 0 ? NO_MEMBERS : { count: edges.length, sum: edgeSum } };
+            : {
+                  nodes: { count: nodes.length, sum: nodeSum },
+                  edges: edges.length === 0 ? NO_MEMBERS : { count: edges.length, sum: edgeSum },
+              };
     const definition = fixedDefinition(
         previous.reading,
         nodes === previous.nodes ? nodes : Object.freeze(nodes),
@@ -1078,5 +1135,7 @@ export function holdsEdgeMember(definition: SetDefinition, member: EdgeMember): 
         other.ordinal === member.ordinal &&
         other.among === member.among;
 
-    return (definition.edges ?? []).some((step) => (Array.isArray(step) ? (step as readonly EdgeMember[]).some(same) : step !== null && same(step as EdgeMember)));
+    return (definition.edges ?? []).some((step) =>
+        Array.isArray(step) ? (step as readonly EdgeMember[]).some(same) : step !== null && same(step as EdgeMember),
+    );
 }

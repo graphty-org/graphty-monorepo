@@ -143,45 +143,45 @@ await element.session.styles.add({
 
 A channel is one visual property with one name. These are all of them:
 
-| Node channel      | Takes                                                         |
-| ----------------- | ------------------------------------------------------------- |
-| `node.color`      | any CSS colour                                                |
-| `node.size`       | a number                                                      |
-| `node.shape`      | `sphere`, `box`, `cylinder`, `icosphere`, ...                 |
-| `node.label`      | the words to draw                                             |
-| `node.labelStyle` | `{font, sizePx, weight, color, background, outline, padding, ...}` |
-| `node.tooltip`    | the words to show on hover                                    |
-| `node.tooltipStyle` | as `node.labelStyle`, for the tooltip                       |
-| `node.opacity`    | 0 to 1                                                        |
-| `node.outline`    | a colour                                                      |
-| `node.glow`       | a colour                                                      |
-| `node.glowStrength` | a number                                                    |
-| `node.wireframe`  | true or false                                                 |
-| `node.flat`       | true or false                                                 |
+| Node channel        | Takes                                                              |
+| ------------------- | ------------------------------------------------------------------ |
+| `node.color`        | any CSS colour                                                     |
+| `node.size`         | a number                                                           |
+| `node.shape`        | `sphere`, `box`, `cylinder`, `icosphere`, ...                      |
+| `node.label`        | the words to draw                                                  |
+| `node.labelStyle`   | `{font, sizePx, weight, color, background, outline, padding, ...}` |
+| `node.tooltip`      | the words to show on hover                                         |
+| `node.tooltipStyle` | as `node.labelStyle`, for the tooltip                              |
+| `node.opacity`      | 0 to 1                                                             |
+| `node.outline`      | a colour                                                           |
+| `node.glow`         | a colour                                                           |
+| `node.glowStrength` | a number                                                           |
+| `node.wireframe`    | true or false                                                      |
+| `node.flat`         | true or false                                                      |
 
-| Edge channel             | Takes                                        |
-| ------------------------ | -------------------------------------------- |
-| `edge.color`             | any CSS colour                               |
-| `edge.width`             | a number                                     |
-| `edge.opacity`           | 0 to 1                                       |
-| `edge.style`             | `solid`, `dash`, `dot`, `zigzag`, ...        |
-| `edge.patternCount`      | how many dots or dashes to draw, 2 or more (zigzag and sinewave ignore it) |
-| `edge.curvature`         | true or false (a bezier)                     |
-| `edge.arrowHead`         | `normal`, `inverted`, `diamond`, `none`, ... |
-| `edge.arrowHeadSize`     | a number, 1 being the element's own size     |
-| `edge.arrowHeadColor`    | a colour                                     |
-| `edge.arrowHeadOpacity`  | 0 to 1                                       |
-| `edge.arrowHeadText`     | words drawn beside the head cap              |
-| `edge.arrowHeadTextStyle` | as `node.labelStyle`                        |
-| `edge.arrowTail`         | the same arrows                              |
-| `edge.arrowTailSize`     | a number                                     |
-| `edge.arrowTailColor`    | a colour                                     |
-| `edge.arrowTailOpacity`  | 0 to 1                                       |
-| `edge.arrowTailText`     | words drawn beside the tail cap              |
-| `edge.arrowTailTextStyle` | as `node.labelStyle`                        |
-| `edge.animationSpeed`    | a number                                     |
-| `edge.label`             | the words to draw                            |
-| `edge.labelStyle`        | as `node.labelStyle`                         |
+| Edge channel              | Takes                                                                      |
+| ------------------------- | -------------------------------------------------------------------------- |
+| `edge.color`              | any CSS colour                                                             |
+| `edge.width`              | a number                                                                   |
+| `edge.opacity`            | 0 to 1                                                                     |
+| `edge.style`              | `solid`, `dash`, `dot`, `zigzag`, ...                                      |
+| `edge.patternCount`       | how many dots or dashes to draw, 2 or more (zigzag and sinewave ignore it) |
+| `edge.curvature`          | true or false (a bezier)                                                   |
+| `edge.arrowHead`          | `normal`, `inverted`, `diamond`, `none`, ...                               |
+| `edge.arrowHeadSize`      | a number, 1 being the element's own size                                   |
+| `edge.arrowHeadColor`     | a colour                                                                   |
+| `edge.arrowHeadOpacity`   | 0 to 1                                                                     |
+| `edge.arrowHeadText`      | words drawn beside the head cap                                            |
+| `edge.arrowHeadTextStyle` | as `node.labelStyle`                                                       |
+| `edge.arrowTail`          | the same arrows                                                            |
+| `edge.arrowTailSize`      | a number                                                                   |
+| `edge.arrowTailColor`     | a colour                                                                   |
+| `edge.arrowTailOpacity`   | 0 to 1                                                                     |
+| `edge.arrowTailText`      | words drawn beside the tail cap                                            |
+| `edge.arrowTailTextStyle` | as `node.labelStyle`                                                       |
+| `edge.animationSpeed`     | a number                                                                   |
+| `edge.label`              | the words to draw                                                          |
+| `edge.labelStyle`         | as `node.labelStyle`                                                       |
 
 Writing `node.label` or `edge.label` is what switches a label on.
 

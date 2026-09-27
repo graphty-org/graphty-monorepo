@@ -175,6 +175,10 @@ export function sealImportReport(tally: ImportTally, context: ImportReportContex
             resolvedFrom: tally.weightsResolvedFrom,
             attribute: tally.weightsAttribute,
         }),
-        edgeIdentity: Object.freeze({ idPath: context.idPath, byId: tally.edgesById, byPosition: tally.edgesByPosition }),
+        edgeIdentity: Object.freeze({
+            idPath: context.idPath,
+            byId: tally.edgesById,
+            byPosition: tally.edgesByPosition,
+        }),
     });
 }

@@ -7,7 +7,12 @@
 import { assert, beforeEach, describe, it } from "vitest";
 
 import { DerivedInputs } from "../../../src/algorithms/input/derivedInputs";
-import { createScopedInput, type ResolvedInputScope, type RunInput, scopedInputCounters } from "../../../src/algorithms/input/ScopedInput";
+import {
+    createScopedInput,
+    type ResolvedInputScope,
+    type RunInput,
+    scopedInputCounters,
+} from "../../../src/algorithms/input/ScopedInput";
 import { edgesOf, idsOf, InputGraph } from "./harness";
 
 /**
@@ -41,7 +46,12 @@ beforeEach(() => {
 describe("the derivation chain", () => {
     it("induces on the node bitmap and stops there when the scope's edges are the induced ones", () => {
         const graph = chain();
-        const input = createScopedInput(graph.getDataManager(), "declared", undefined, runOver(graph.scope(["a", "b", "c"])));
+        const input = createScopedInput(
+            graph.getDataManager(),
+            "declared",
+            undefined,
+            runOver(graph.scope(["a", "b", "c"])),
+        );
 
         assert.isFalse(input.whole);
         assert.deepStrictEqual(idsOf(input.subgraph()), ["a", "b", "c"]);
@@ -61,7 +71,12 @@ describe("the derivation chain", () => {
 
     it("undirects after the scope, when asked", () => {
         const graph = chain();
-        const input = createScopedInput(graph.getDataManager(), "undirected", undefined, runOver(graph.scope(["b", "c", "d"])));
+        const input = createScopedInput(
+            graph.getDataManager(),
+            "undirected",
+            undefined,
+            runOver(graph.scope(["b", "c", "d"])),
+        );
 
         assert.isFalse(input.subgraph().directed);
         assert.deepStrictEqual(idsOf(input.subgraph()), ["b", "c", "d"]);
@@ -69,15 +84,20 @@ describe("the derivation chain", () => {
     });
 
     it("simplifies by the asked policy, and not at all under none", () => {
-        const graph = new InputGraph(["a", "b", "c"], [
-            ["a", "b", 1],
-            ["a", "b", 4],
-            ["b", "c", 2],
-        ]);
+        const graph = new InputGraph(
+            ["a", "b", "c"],
+            [
+                ["a", "b", 1],
+                ["a", "b", 4],
+                ["b", "c", 2],
+            ],
+        );
         const inputs = new DerivedInputs();
         const scope = graph.scope(["a", "b"]);
         const read = (simplify: "sum" | "min" | "max" | "none"): string[] =>
-            edgesOf(createScopedInput(graph.getDataManager(), "declared", { simplify }, runOver(scope, inputs)).subgraph()).sort();
+            edgesOf(
+                createScopedInput(graph.getDataManager(), "declared", { simplify }, runOver(scope, inputs)).subgraph(),
+            ).sort();
 
         assert.deepStrictEqual(read("sum"), ["a>b:5"]);
         assert.deepStrictEqual(read("min"), ["a>b:1"]);
@@ -89,7 +109,10 @@ describe("the derivation chain", () => {
     it("keeps a scope's isolated nodes: the input is never induced on edge endpoints", () => {
         const graph = chain();
         // Every node, and only the edges of weight below 3: e and f keep no edge.
-        const scope = graph.scope(["a", "b", "c", "d", "e", "f"], (_source, _target, index) => (graph.snapshot().edgeList().weights?.[index] ?? 1) < 3);
+        const scope = graph.scope(
+            ["a", "b", "c", "d", "e", "f"],
+            (_source, _target, index) => (graph.snapshot().edgeList().weights?.[index] ?? 1) < 3,
+        );
         const input = createScopedInput(graph.getDataManager(), "declared", undefined, runOver(scope));
 
         assert.deepStrictEqual(idsOf(input.subgraph()), ["a", "b", "c", "d", "e", "f"]);
@@ -97,10 +120,13 @@ describe("the derivation chain", () => {
     });
 
     it("gives the undirected input the weight of the half in scope, never the hidden half's", () => {
-        const graph = new InputGraph(["a", "b"], [
-            ["a", "b", 0.1],
-            ["b", "a", 0.9],
-        ]);
+        const graph = new InputGraph(
+            ["a", "b"],
+            [
+                ["a", "b", 0.1],
+                ["b", "a", 0.9],
+            ],
+        );
         // toUndirected keeps the lower index's row, so undirecting first would keep 0.1.
         const scope = graph.scope(["a", "b"], (source) => source === "b");
         const input = createScopedInput(graph.getDataManager(), "undirected", undefined, runOver(scope));
@@ -119,7 +145,10 @@ describe("the whole-graph shortcut", () => {
 
         for (const run of [undefined, runOver(null), runOver(graph.everything())]) {
             assert.strictEqual(createScopedInput(data, "declared", undefined, run).subgraph(), declared);
-            assert.strictEqual(createScopedInput(data, "undirected", undefined, run).subgraph(), data.undirected(declared).snapshot);
+            assert.strictEqual(
+                createScopedInput(data, "undirected", undefined, run).subgraph(),
+                data.undirected(declared).snapshot,
+            );
             assert.isTrue(createScopedInput(data, "declared", undefined, run).whole);
         }
 
@@ -127,10 +156,13 @@ describe("the whole-graph shortcut", () => {
     });
 
     it("merges a multigraph's parallel edges by the asked policy, as every run did before scopes", () => {
-        const graph = new InputGraph(["a", "b"], [
-            ["a", "b", 1],
-            ["a", "b", 2],
-        ]);
+        const graph = new InputGraph(
+            ["a", "b"],
+            [
+                ["a", "b", 1],
+                ["a", "b", 2],
+            ],
+        );
         const data = graph.getDataManager();
 
         assert.deepStrictEqual(edgesOf(createScopedInput(data, "declared").subgraph()), ["a>b:3"]);

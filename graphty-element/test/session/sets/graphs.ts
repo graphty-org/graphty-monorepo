@@ -312,7 +312,9 @@ export class TestGraph {
         this.store = this.newStore(ordered);
         this.counterRow = new Map();
         const { builder } = this.store;
-        const nodes = Array.from({ length: saved.nodeCount }, (_, i) => ({ i, key: random() })).sort((a, b) => a.key - b.key);
+        const nodes = Array.from({ length: saved.nodeCount }, (_, i) => ({ i, key: random() })).sort(
+            (a, b) => a.key - b.key,
+        );
         for (const { i } of nodes) {
             ingestNode(this.store, saved.ids.idOf(i), {});
         }

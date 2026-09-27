@@ -243,7 +243,10 @@ export function completeLoad(
     identityCounters.lastTransientBytes = rows.byteLength + lo.byteLength + hi.byteLength + bytes;
     identityCounters.lastLoadEdges = count;
 
-    const nodeHash = graph.hashOf === undefined ? (node: number): LanePair => hashNodeId(graph.idOf(node)) : graph.hashOf.bind(graph);
+    const nodeHash =
+        graph.hashOf === undefined
+            ? (node: number): LanePair => hashNodeId(graph.idOf(node))
+            : graph.hashOf.bind(graph);
     let start = 0;
     let loNode = -1;
     let loHash: LanePair = { a: 0, b: 0 };
@@ -266,7 +269,12 @@ export function completeLoad(
         for (let k = start; k < end; k++) {
             const position = perm[k];
             const ordinal = k - start;
-            write(rows[position], ordinal, among, hashEdgeEnds(loHash, hiHash, ordered, fileIdAt(position), ordinal, among));
+            write(
+                rows[position],
+                ordinal,
+                among,
+                hashEdgeEnds(loHash, hiHash, ordered, fileIdAt(position), ordinal, among),
+            );
         }
 
         start = end;
@@ -339,7 +347,10 @@ export function sessionEdgeHash(
 ): LanePair {
     const [u, v] = graph.endpoints(row);
 
-    return hashEdgeMember({ source: graph.idOf(u), target: graph.idOf(v), id: fileId ?? mintedEdgeId(counter) }, ordered);
+    return hashEdgeMember(
+        { source: graph.idOf(u), target: graph.idOf(v), id: fileId ?? mintedEdgeId(counter) },
+        ordered,
+    );
 }
 
 /** The four identity columns of a snapshot, read or computed. */
@@ -416,7 +427,12 @@ export function identityColumnsOf(snapshot: GraphSnapshot): IdentityColumns {
     const edgeOrdinal = snapshot.edges.typed(IDENTITY_COLUMNS.edgeOrdinal, "i32");
     const edgeAmong = snapshot.edges.typed(IDENTITY_COLUMNS.edgeAmong, "i32");
     if (nodeHash !== null && edgeHash !== null && edgeOrdinal !== null && edgeAmong !== null) {
-        return { nodeHash: nodeHash.data, edgeHash: edgeHash.data, edgeOrdinal: edgeOrdinal.data, edgeAmong: edgeAmong.data };
+        return {
+            nodeHash: nodeHash.data,
+            edgeHash: edgeHash.data,
+            edgeOrdinal: edgeOrdinal.data,
+            edgeAmong: edgeAmong.data,
+        };
     }
 
     let computed = lazyIdentity.get(snapshot);
@@ -449,12 +465,18 @@ function computeIdentity(snapshot: GraphSnapshot): IdentityColumns {
         rows[e] = e;
     }
 
-    completeLoad(rows, snapshotGraph(snapshot), pairsOrdered(snapshot), () => undefined, (row, ordinal, among, hash) => {
-        edgeOrdinal[row] = ordinal;
-        edgeAmong[row] = among;
-        edgeHash[2 * row] = hash.a;
-        edgeHash[2 * row + 1] = hash.b;
-    });
+    completeLoad(
+        rows,
+        snapshotGraph(snapshot),
+        pairsOrdered(snapshot),
+        () => undefined,
+        (row, ordinal, among, hash) => {
+            edgeOrdinal[row] = ordinal;
+            edgeAmong[row] = among;
+            edgeHash[2 * row] = hash.a;
+            edgeHash[2 * row + 1] = hash.b;
+        },
+    );
 
     return { nodeHash, edgeHash, edgeOrdinal, edgeAmong };
 }

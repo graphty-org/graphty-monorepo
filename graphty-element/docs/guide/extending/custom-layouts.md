@@ -20,12 +20,7 @@ other in several places and a mismatch fails silently.
 ## A single-pass layout
 
 ```ts
-import {
-    LayoutEngine,
-    type LayoutDescriptor,
-    type Node,
-    SimpleLayoutEngine,
-} from "@graphty/graphty-element/extend";
+import { LayoutEngine, type LayoutDescriptor, type Node, SimpleLayoutEngine } from "@graphty/graphty-element/extend";
 
 // Declared with its members required and taken as `Partial<GridOptions>` below. A mapped type
 // carries an implicit index signature, which is what lets the base class -- whose own options
@@ -246,12 +241,12 @@ await graph.setLayout("acme-ring", { radius: 200 });
 Override one only if your engine needs it. Each is declared on the base class, so your editor
 offers it and the element calls it by name.
 
-| Member | Default | Override when |
-| --- | --- | --- |
-| `dispose(): void` | does nothing | your engine holds a worker, a timer, a socket or a GPU buffer |
-| `removeNode(n: Node): void` | does nothing | your engine keeps its own node list, or it will hold every removed node forever |
-| `removeEdge(e: Edge): void` | does nothing | the same, for edges |
-| `updatePositions(nodes): void` | steps up to ten times, stopping early if settled | your engine can place a newcomer without re-running the simulation |
+| Member                         | Default                                          | Override when                                                                   |
+| ------------------------------ | ------------------------------------------------ | ------------------------------------------------------------------------------- |
+| `dispose(): void`              | does nothing                                     | your engine holds a worker, a timer, a socket or a GPU buffer                   |
+| `removeNode(n: Node): void`    | does nothing                                     | your engine keeps its own node list, or it will hold every removed node forever |
+| `removeEdge(e: Edge): void`    | does nothing                                     | the same, for edges                                                             |
+| `updatePositions(nodes): void` | steps up to ten times, stopping early if settled | your engine can place a newcomer without re-running the simulation              |
 
 ## Positions are the element's job
 
@@ -338,20 +333,20 @@ reads the current mask back.
 ```ts
 import { layoutDescriptor, layoutIdForEngine } from "@graphty/graphty-element/catalog";
 
-layoutDescriptor("acme-ring")?.plainName;   // "Ring walk"
-layoutIdForEngine("acme-ring");              // "acme-ring" -- one key, not two
-session.catalog.layouts();                   // every layout a picker may offer
+layoutDescriptor("acme-ring")?.plainName; // "Ring walk"
+layoutIdForEngine("acme-ring"); // "acme-ring" -- one key, not two
+session.catalog.layouts(); // every layout a picker may offer
 ```
 
 ## How it is refused
 
-| What is wrong | Code |
-| --- | --- |
-| No `static type`, no `static descriptor`, or a descriptor `id` that disagrees with `static type` | `E_BAD_COMMAND`, `details.field` naming it |
-| A layout id the element itself ships | `E_DUPLICATE_PLUGIN` |
-| A layout name nothing registered | `E_UNKNOWN_LAYOUT`, with `details.available` |
-| An option the descriptor does not declare | `E_UNKNOWN_OPTION`, with `details.candidates` |
-| An option value outside the declared range | `E_OPTION_RANGE` |
+| What is wrong                                                                                    | Code                                          |
+| ------------------------------------------------------------------------------------------------ | --------------------------------------------- |
+| No `static type`, no `static descriptor`, or a descriptor `id` that disagrees with `static type` | `E_BAD_COMMAND`, `details.field` naming it    |
+| A layout id the element itself ships                                                             | `E_DUPLICATE_PLUGIN`                          |
+| A layout name nothing registered                                                                 | `E_UNKNOWN_LAYOUT`, with `details.available`  |
+| An option the descriptor does not declare                                                        | `E_UNKNOWN_OPTION`, with `details.candidates` |
+| An option value outside the declared range                                                       | `E_OPTION_RANGE`                              |
 
 A failure thrown from your constructor or from `init()` arrives at the caller as a `GraphtyError`
 and is announced on the graph's error event; throw a `GraphtyError` of your own and the code you

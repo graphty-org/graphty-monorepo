@@ -194,8 +194,14 @@ describe("word-wise mask algebra", () => {
     for (const [name, op, model] of BINARY) {
         it(`${name} matches the per-index truth table at every length`, () => {
             for (const length of LENGTHS) {
-                const a = maskOf(length, Array.from({ length }, (_, i) => i).filter((i) => i % 3 === 0 || i % 7 === 1));
-                const b = maskOf(length, Array.from({ length }, (_, i) => i).filter((i) => i % 2 === 0));
+                const a = maskOf(
+                    length,
+                    Array.from({ length }, (_, i) => i).filter((i) => i % 3 === 0 || i % 7 === 1),
+                );
+                const b = maskOf(
+                    length,
+                    Array.from({ length }, (_, i) => i).filter((i) => i % 2 === 0),
+                );
                 const result = op(a, b, length);
                 expect(result.length).toBe(Math.ceil(length / 32));
                 for (let i = 0; i < length; i++) {
@@ -239,11 +245,7 @@ describe("word-wise mask algebra", () => {
         it(`${name} throws E_MASK_LENGTH for a short a, b or out`, () => {
             const ok = makeMask(65);
             const short = makeMask(33);
-            for (const call of [
-                () => op(short, ok, 65),
-                () => op(ok, short, 65),
-                () => op(ok, ok, 65, short),
-            ]) {
+            for (const call of [() => op(short, ok, 65), () => op(ok, short, 65), () => op(ok, ok, 65, short)]) {
                 let caught: unknown;
                 try {
                     call();
@@ -258,7 +260,10 @@ describe("word-wise mask algebra", () => {
 
     it("maskNot complements every index below length and never sets a bit at or above it", () => {
         for (const length of LENGTHS) {
-            const a = maskOf(length, Array.from({ length }, (_, i) => i).filter((i) => i % 5 === 0));
+            const a = maskOf(
+                length,
+                Array.from({ length }, (_, i) => i).filter((i) => i % 5 === 0),
+            );
             const before = Array.from(a);
             const result = maskNot(a, length);
             expect(result).not.toBe(a);

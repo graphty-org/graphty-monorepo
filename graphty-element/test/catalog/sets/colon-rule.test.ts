@@ -36,7 +36,12 @@ const CREATED_FROM_KINDS: Record<SetCreatedFrom["kind"], true> = {
     combine: true,
 };
 const READINGS: Record<EdgeReading, true> = { induced: true, listed: true, clipped: true };
-const COMBINES: Record<SetCombine, true> = { union: true, intersection: true, difference: true, "symmetric-difference": true };
+const COMBINES: Record<SetCombine, true> = {
+    union: true,
+    intersection: true,
+    difference: true,
+    "symmetric-difference": true,
+};
 
 describe("the colon rule: no built-in kind contains a colon, and a plugin's kind is <package>:<kind>", () => {
     it.each([
@@ -53,7 +58,11 @@ describe("the colon rule: no built-in kind contains a colon, and a plugin's kind
     });
 
     it("refuses a plugin leaf in door mode and keeps it opaque in load mode", () => {
-        const value = { kind: "rule", reading: "clipped", where: { kind: "not", of: { kind: "acme-graph:fuzzy", score: 0.5 } } };
+        const value = {
+            kind: "rule",
+            reading: "clipped",
+            where: { kind: "not", of: { kind: "acme-graph:fuzzy", score: 0.5 } },
+        };
 
         assert.throws(() => parseSetDefinition(value), /acme-graph:fuzzy/);
         assert.deepEqual(loadSetDefinition(value).opaque, { first: "acme-graph:fuzzy" });

@@ -160,12 +160,27 @@ describe("names", () => {
         const { sets } = harness();
         const id = sets.create(NODES, { name: "  Hubs " });
         assert.strictEqual(sets.get(id)?.name, "Hubs");
-        assert.strictEqual(codeOf(() => sets.create(NODES, { name: "   " })), "E_BAD_COMMAND");
-        assert.strictEqual(codeOf(() => sets.create(NODES, { name: "Hubs" })), "E_DUPLICATE_ID");
-        assert.strictEqual(codeOf(() => sets.create(NODES, { name: " Hubs" })), "E_DUPLICATE_ID");
+        assert.strictEqual(
+            codeOf(() => sets.create(NODES, { name: "   " })),
+            "E_BAD_COMMAND",
+        );
+        assert.strictEqual(
+            codeOf(() => sets.create(NODES, { name: "Hubs" })),
+            "E_DUPLICATE_ID",
+        );
+        assert.strictEqual(
+            codeOf(() => sets.create(NODES, { name: " Hubs" })),
+            "E_DUPLICATE_ID",
+        );
         sets.create(NODES, { name: "hubs" });
-        assert.strictEqual(codeOf(() => sets.rename(id, "hubs")), "E_DUPLICATE_ID");
-        assert.strictEqual(codeOf(() => sets.rename(id, "")), "E_BAD_COMMAND");
+        assert.strictEqual(
+            codeOf(() => sets.rename(id, "hubs")),
+            "E_DUPLICATE_ID",
+        );
+        assert.strictEqual(
+            codeOf(() => sets.rename(id, "")),
+            "E_BAD_COMMAND",
+        );
     });
 
     it('picks "Set N", the smallest free N', () => {
@@ -181,7 +196,13 @@ describe("names", () => {
 
     it("lists by order, ties by id, and tolerates a restored duplicate name", () => {
         const { store, sets } = harness();
-        const record = (id: string): unknown => ({ id, name: "Same", order: 5, definition: NODES, createdFrom: { kind: "user" } });
+        const record = (id: string): unknown => ({
+            id,
+            name: "Same",
+            order: 5,
+            definition: NODES,
+            createdFrom: { kind: "user" },
+        });
         store.transact(() => {
             store.put(loadRecord(record("set_b")));
             store.put(loadRecord(record("set_a")));
@@ -192,7 +213,10 @@ describe("names", () => {
             ["set_a", "set_b", later],
         );
         assert.strictEqual(sets.get(later)?.order, 6);
-        assert.strictEqual(codeOf(() => sets.rename(later, "Same")), "E_DUPLICATE_ID");
+        assert.strictEqual(
+            codeOf(() => sets.rename(later, "Same")),
+            "E_DUPLICATE_ID",
+        );
         sets.rename("set_a", "Unique");
         assert.strictEqual(sets.get("set_a")?.name, "Unique");
     });
@@ -297,7 +321,10 @@ describe("tombstones", () => {
         const { store, sets } = harness();
         const id = sets.create(NODES, { name: "Gone" });
         // A live rule names it, so its record is kept.
-        sets.create({ kind: "rule", where: { kind: "member", of: { set: id } }, reading: "induced" }, { name: "Naming" });
+        sets.create(
+            { kind: "rule", where: { kind: "member", of: { set: id } }, reading: "induced" },
+            { name: "Naming" },
+        );
         const record = sets.get(id);
         sets.remove(id);
         assert.deepStrictEqual(store.tombstone(id), { id, name: "Gone", record });
@@ -316,7 +343,10 @@ describe("tombstones", () => {
     it("keeps a removed record while a set names it, and drops it, keeping id and name, once nothing does", () => {
         const { store, sets } = harness();
         const base = sets.create({ kind: "fixed", nodes: ["a", "b"], reading: "induced" }, { name: "Base" });
-        const over = sets.create({ kind: "rule", where: { kind: "member", of: { set: base } }, reading: "induced" }, { name: "Over" });
+        const over = sets.create(
+            { kind: "rule", where: { kind: "member", of: { set: base } }, reading: "induced" },
+            { name: "Over" },
+        );
         const alone = sets.create({ kind: "fixed", nodes: ["c"], reading: "induced" }, { name: "Alone" });
 
         sets.remove(base);
@@ -331,7 +361,10 @@ describe("tombstones", () => {
     it("restores a removed set from its kept record, telling created, and refuses when it cannot", () => {
         const { sets, changes } = harness();
         const base = sets.create({ kind: "fixed", nodes: ["a", "b"], reading: "induced" }, { name: "Base" });
-        const over = sets.create({ kind: "rule", where: { kind: "member", of: { set: base } }, reading: "induced" }, { name: "Over" });
+        const over = sets.create(
+            { kind: "rule", where: { kind: "member", of: { set: base } }, reading: "induced" },
+            { name: "Over" },
+        );
         const record = sets.get(base);
         sets.remove(base);
         changes.length = 0;
@@ -352,12 +385,21 @@ describe("tombstones", () => {
 
             return null;
         };
-        assert.deepStrictEqual(reasonOf(() => sets.restore(base)), ["E_BAD_COMMAND", "live"]);
-        assert.deepStrictEqual(reasonOf(() => sets.restore("set_never")), ["E_BAD_COMMAND", "unknown-id"]);
+        assert.deepStrictEqual(
+            reasonOf(() => sets.restore(base)),
+            ["E_BAD_COMMAND", "live"],
+        );
+        assert.deepStrictEqual(
+            reasonOf(() => sets.restore("set_never")),
+            ["E_BAD_COMMAND", "unknown-id"],
+        );
         sets.remove(over);
         const alone = sets.create({ kind: "fixed", nodes: ["c"], reading: "induced" }, { name: "Alone" });
         sets.remove(alone);
-        assert.deepStrictEqual(reasonOf(() => sets.restore(alone)), ["E_BAD_COMMAND", "record-dropped"]);
+        assert.deepStrictEqual(
+            reasonOf(() => sets.restore(alone)),
+            ["E_BAD_COMMAND", "record-dropped"],
+        );
     });
 });
 
@@ -369,12 +411,20 @@ describe("session edge ids at the doors", () => {
         const edge = edgeBetween(h, "b", "a");
         const id = sets.create({ kind: "fixed", nodes: [], edges: [edge], reading: "listed" }, { name: "E" });
         const stored = sets.get(id)?.definition;
-        assert.deepStrictEqual(stored, { edges: [{ id: `graphty:e${edge}`, source: "a", target: "b" }], kind: "fixed", nodes: [], reading: "listed" });
+        assert.deepStrictEqual(stored, {
+            edges: [{ id: `graphty:e${edge}`, source: "a", target: "b" }],
+            kind: "fixed",
+            nodes: [],
+            reading: "listed",
+        });
         assert.notInclude(JSON.stringify(stored), `"${edge}"`);
 
         sets.removeMembers(id, { edges: [edge] });
         assert.deepStrictEqual(sets.get(id)?.definition, { kind: "fixed", nodes: [], reading: "listed" });
-        assert.strictEqual(codeOf(() => sets.addMembers(id, { edges: ["999"] })), "E_BAD_COMMAND");
+        assert.strictEqual(
+            codeOf(() => sets.addMembers(id, { edges: ["999"] })),
+            "E_BAD_COMMAND",
+        );
     });
 
     it("uses the file id at the configured edgeIdPath", () => {
@@ -383,7 +433,11 @@ describe("session edge ids at the doors", () => {
         h.add([{ id: "a" }, { id: "b" }], [{ src: "a", dst: "b", key: "k1" }]);
         const sets = setsOfSession(h.session);
         const id = sets.create({ kind: "path", nodes: ["a", "b"], edges: [edgeBetween(h, "a", "b")] }, { name: "P" });
-        assert.deepStrictEqual(sets.get(id)?.definition, { edges: [{ id: "k1", source: "a", target: "b" }], kind: "path", nodes: ["a", "b"] });
+        assert.deepStrictEqual(sets.get(id)?.definition, {
+            edges: [{ id: "k1", source: "a", target: "b" }],
+            kind: "path",
+            nodes: ["a", "b"],
+        });
     });
 });
 
@@ -400,7 +454,9 @@ describe("the slice has one writer", () => {
                 continue;
             }
 
-            for (const [, specifier] of readFileSync(file, "utf8").matchAll(/(?:from|import)\s*\(?\s*["']([^"']+)["']/g)) {
+            for (const [, specifier] of readFileSync(file, "utf8").matchAll(
+                /(?:from|import)\s*\(?\s*["']([^"']+)["']/g,
+            )) {
                 if (specifier.startsWith(".") && resolve(dirname(file), specifier).replace(/\.ts$/, "") === store) {
                     offenders.push(entry);
                 }

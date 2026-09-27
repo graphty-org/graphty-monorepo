@@ -30,7 +30,10 @@ const edgeMember: fc.Arbitrary<EdgeMember> = fc.oneof(
         .map(({ source, target, among, shift }) => ({ source, target, among, ordinal: shift % among })),
 );
 
-const ids = fc.uniqueArray(nodeId, { maxLength: 20, comparator: (a, b) => Object.is(a === 0 ? 0 : a, b === 0 ? 0 : b) });
+const ids = fc.uniqueArray(nodeId, {
+    maxLength: 20,
+    comparator: (a, b) => Object.is(a === 0 ? 0 : a, b === 0 ? 0 : b),
+});
 
 /**
  * A seeded shuffle.
@@ -62,7 +65,8 @@ describe("the member sum, over generated memberships", () => {
         fc.assert(
             fc.property(ids, fc.infiniteStream(fc.nat()), (nodes, stream) => {
                 const it = stream[Symbol.iterator]();
-                const pick = (min: number, max: number): number => min + ((it.next().value as number) % (max - min + 1));
+                const pick = (min: number, max: number): number =>
+                    min + ((it.next().value as number) % (max - min + 1));
 
                 assert.deepEqual(nodeSum(shuffle(nodes, pick)), nodeSum(nodes));
             }),
@@ -128,9 +132,15 @@ describe("the revision, over generated definitions", () => {
                 fc.infiniteStream(fc.nat()),
                 (nodes, edges, stream) => {
                     const it = stream[Symbol.iterator]();
-                    const pick = (min: number, max: number): number => min + ((it.next().value as number) % (max - min + 1));
+                    const pick = (min: number, max: number): number =>
+                        min + ((it.next().value as number) % (max - min + 1));
                     const one: SetDefinition = { kind: "fixed", nodes, edges, reading: "listed" };
-                    const other: SetDefinition = { kind: "fixed", nodes: shuffle(nodes, pick), edges: shuffle(edges, pick), reading: "listed" };
+                    const other: SetDefinition = {
+                        kind: "fixed",
+                        nodes: shuffle(nodes, pick),
+                        edges: shuffle(edges, pick),
+                        reading: "listed",
+                    };
 
                     assert.strictEqual(revisionOf(other), revisionOf(one));
                 },

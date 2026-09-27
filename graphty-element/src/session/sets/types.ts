@@ -316,7 +316,11 @@ export interface SetsApi {
      * @param options.reading - The reading to store instead of the default.
      * @returns The minted id.
      */
-    combine(op: SetCombine, of: readonly ScopeInput[], options?: { readonly name?: string; readonly reading?: EdgeReading }): Promise<SetId>;
+    combine(
+        op: SetCombine,
+        of: readonly ScopeInput[],
+        options?: { readonly name?: string; readonly reading?: EdgeReading },
+    ): Promise<SetId>;
     /**
      * Rename a set. Keeps its id and its revision.
      * @param id - The set.
@@ -344,7 +348,10 @@ export interface SetsApi {
      * @param members.nodes - The node ids.
      * @param members.edges - The edges, by session id or stable identity.
      */
-    removeMembers(id: SetId, members: { readonly nodes?: readonly NodeId[]; readonly edges?: readonly EdgeRef[] }): void;
+    removeMembers(
+        id: SetId,
+        members: { readonly nodes?: readonly NodeId[]; readonly edges?: readonly EdgeRef[] },
+    ): void;
     /**
      * Remove the set itself. Anything that names it becomes detached, and keeps working: a style
      * layer, filter or rule that names a removed set reads it from the set's kept record, so

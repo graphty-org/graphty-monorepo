@@ -39,14 +39,21 @@ interface Case {
 const OPS: readonly SetCombine[] = ["union", "intersection", "difference", "symmetric-difference"];
 
 const CASE: fc.Arbitrary<Case> = fc
-    .record({ nodeCount: fc.integer({ min: 1, max: 24 }), edgeCount: fc.integer({ min: 0, max: 48 }), operandCount: fc.integer({ min: 2, max: 5 }) })
+    .record({
+        nodeCount: fc.integer({ min: 1, max: 24 }),
+        edgeCount: fc.integer({ min: 0, max: 48 }),
+        operandCount: fc.integer({ min: 2, max: 5 }),
+    })
     .chain(({ nodeCount, edgeCount, operandCount }) => {
         const node = fc.integer({ min: 0, max: nodeCount - 1 });
 
         return fc.record({
             nodeCount: fc.constant(nodeCount),
             // Each edge is fresh, parallel to the one before, or its reverse.
-            pairs: fc.array(fc.tuple(node, node, fc.constantFrom("fresh", "parallel", "reciprocal")), { minLength: edgeCount, maxLength: edgeCount }),
+            pairs: fc.array(fc.tuple(node, node, fc.constantFrom("fresh", "parallel", "reciprocal")), {
+                minLength: edgeCount,
+                maxLength: edgeCount,
+            }),
             operands: fc.array(
                 fc.record({
                     nodes: fc.array(fc.boolean(), { minLength: nodeCount, maxLength: nodeCount }),
@@ -199,7 +206,11 @@ function plainOf(masks: AlgebraOperand, graph: GraphSnapshot): Plain {
 }
 
 /** Evaluate a tree both ways. */
-function evaluate(expr: Expr, operands: readonly Plain[], graph: GraphSnapshot): { real: AlgebraOperand; naive: Plain } {
+function evaluate(
+    expr: Expr,
+    operands: readonly Plain[],
+    graph: GraphSnapshot,
+): { real: AlgebraOperand; naive: Plain } {
     if (typeof expr === "number") {
         return { real: masksOf(operands[expr], graph), naive: operands[expr] };
     }
@@ -222,14 +233,25 @@ function evaluate(expr: Expr, operands: readonly Plain[], graph: GraphSnapshot):
 
 /** Membership equality, as sorted arrays. */
 function sameMembers(actual: Plain, expected: Plain, message: string): void {
-    assert.deepStrictEqual([...actual.nodes].sort((a, b) => a - b), [...expected.nodes].sort((a, b) => a - b), `${message}: nodes`);
-    assert.deepStrictEqual([...actual.edges].sort((a, b) => a - b), [...expected.edges].sort((a, b) => a - b), `${message}: edges`);
+    assert.deepStrictEqual(
+        [...actual.nodes].sort((a, b) => a - b),
+        [...expected.nodes].sort((a, b) => a - b),
+        `${message}: nodes`,
+    );
+    assert.deepStrictEqual(
+        [...actual.edges].sort((a, b) => a - b),
+        [...expected.edges].sort((a, b) => a - b),
+        `${message}: edges`,
+    );
 }
 
 /** Every member edge's endpoints are member nodes. */
 function assertEndpoints(result: Plain, graph: GraphSnapshot): void {
     for (const e of result.edges) {
-        assert.isTrue(result.nodes.has(graph.edgeSource(e)) && result.nodes.has(graph.edgeTarget(e)), `edge ${e} keeps its endpoints`);
+        assert.isTrue(
+            result.nodes.has(graph.edgeSource(e)) && result.nodes.has(graph.edgeTarget(e)),
+            `edge ${e} keeps its endpoints`,
+        );
     }
 }
 
@@ -272,7 +294,8 @@ describe("combineMasks against the naive model", () => {
                 const graph = snapshotOf(c);
                 const operands = plainOperands(c, graph);
                 const masks = operands.map((o) => masksOf(o, graph));
-                const run = (op: SetCombine, of: readonly AlgebraOperand[]): Plain => plainOf(combineMasks(op, of, graph), graph);
+                const run = (op: SetCombine, of: readonly AlgebraOperand[]): Plain =>
+                    plainOf(combineMasks(op, of, graph), graph);
                 const [a, b, ...rest] = masks;
 
                 for (const op of ["union", "intersection"] as const) {
@@ -284,14 +307,19 @@ describe("combineMasks against the naive model", () => {
                 const ab = combineMasks("intersection", [a, b], graph);
                 const bc = combineMasks("intersection", [b, c3], graph);
                 sameMembers(run("intersection", [ab, c3]), run("intersection", [a, bc]), "intersection associates");
-                sameMembers(run("intersection", [ab, c3]), run("intersection", [a, b, c3]), "intersection nests like one call");
+                sameMembers(
+                    run("intersection", [ab, c3]),
+                    run("intersection", [a, b, c3]),
+                    "intersection nests like one call",
+                );
 
                 const self = run("difference", [a, a]);
                 assert.strictEqual(self.nodes.size + self.edges.size, 0, "A - A is empty");
 
                 // n-ary symmetric difference keeps exactly the odd-count elements.
                 const odd = run("symmetric-difference", masks);
-                const count = (index: number, of: "nodes" | "edges"): number => operands.filter((o) => o[of].has(index)).length;
+                const count = (index: number, of: "nodes" | "edges"): number =>
+                    operands.filter((o) => o[of].has(index)).length;
                 if (!operands.every((o) => o.induced)) {
                     for (let e = 0; e < graph.edgeCount; e++) {
                         assert.strictEqual(odd.edges.has(e), count(e, "edges") % 2 === 1, `edge ${e} odd count`);
@@ -315,7 +343,10 @@ describe("combineMasks against the naive model", () => {
         fc.assert(
             fc.property(CASE, fc.boolean(), (c, induced) => {
                 const graph = snapshotOf({ ...c, operands: c.operands.map((o) => ({ ...o, induced })) });
-                const operands = plainOperands({ ...c, operands: c.operands.map((o) => ({ ...o, induced })) }, graph).map((o) => masksOf(o, graph));
+                const operands = plainOperands(
+                    { ...c, operands: c.operands.map((o) => ({ ...o, induced })) },
+                    graph,
+                ).map((o) => masksOf(o, graph));
                 const [a, b, ...rest] = operands;
                 const c3 = rest[0] ?? a;
                 const run = (of: readonly AlgebraOperand[]): Plain => plainOf(combineMasks("union", of, graph), graph);
@@ -376,7 +407,10 @@ describe("combine against the live rule over scope leaves", () => {
                 }
 
                 const combined = plainOf(combineMasks(op, resolved, graph), graph);
-                const live = resolveScope({ define: { kind: "rule", where, reading: induced ? "induced" : "listed" } }, context);
+                const live = resolveScope(
+                    { define: { kind: "rule", where, reading: induced ? "induced" : "listed" } },
+                    context,
+                );
                 const livePlain: Plain = {
                     nodes: new Set(maskToIndices(live.nodes, graph.nodeCount)),
                     edges: new Set(maskToIndices(live.edges, graph.edgeCount)),

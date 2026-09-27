@@ -90,14 +90,19 @@ export function maskBack(algorithm: object, init: RunResultInit): RunResultInit 
     }
 
     const { graph, resolution } = scope;
-    const keepNode = (entry: ResultElementValues): boolean => has(resolution.nodes, graph.ids.indexOf(entry.id), graph.nodeCount);
-    const keepEdge = (entry: ResultElementValues<EdgeId>): boolean => has(resolution.edges, edgeRowOf(graph, entry.id), graph.edgeCount);
+    const keepNode = (entry: ResultElementValues): boolean =>
+        has(resolution.nodes, graph.ids.indexOf(entry.id), graph.nodeCount);
+    const keepEdge = (entry: ResultElementValues<EdgeId>): boolean =>
+        has(resolution.edges, edgeRowOf(graph, entry.id), graph.edgeCount);
 
     return {
         ...init,
         ...(init.nodes === undefined ? {} : { nodes: init.nodes.filter(keepNode) }),
         ...(init.edges === undefined ? {} : { edges: init.edges.filter(keepEdge) }),
-        caveats: { ...init.caveats, notes: [...init.caveats.notes, scopeCaveat(declaresScopedInput(algorithm), scope)] },
+        caveats: {
+            ...init.caveats,
+            notes: [...init.caveats.notes, scopeCaveat(declaresScopedInput(algorithm), scope)],
+        },
     };
 }
 

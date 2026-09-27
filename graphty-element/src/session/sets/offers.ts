@@ -64,12 +64,57 @@ interface OfferedShape {
  * neither does a temporal result or a pair list: a candidate pair is not an existing subgraph.
  */
 const OFFERED: Partial<Record<ResultShape, OfferedShape>> = {
-    community: { field: "group", reading: "induced", followable: false, path: false, partition: true, name: (value) => `community ${String(value)}` },
-    "layered-grouping": { field: "level", reading: "induced", followable: true, path: false, partition: true, name: (value) => `level ${String(value)}` },
-    "category-table": { field: "category", reading: "induced", followable: true, path: false, partition: true, name: (value) => String(value) },
-    "node-set": { field: "in", reading: "induced", only: true, followable: true, path: false, partition: false, name: () => "in the set" },
-    "edge-set": { field: "in", reading: "listed", only: true, followable: true, path: false, partition: false, name: () => "in the set" },
-    path: { field: "onPath", reading: "listed", only: true, followable: true, path: true, partition: false, name: () => "on path" },
+    community: {
+        field: "group",
+        reading: "induced",
+        followable: false,
+        path: false,
+        partition: true,
+        name: (value) => `community ${String(value)}`,
+    },
+    "layered-grouping": {
+        field: "level",
+        reading: "induced",
+        followable: true,
+        path: false,
+        partition: true,
+        name: (value) => `level ${String(value)}`,
+    },
+    "category-table": {
+        field: "category",
+        reading: "induced",
+        followable: true,
+        path: false,
+        partition: true,
+        name: (value) => String(value),
+    },
+    "node-set": {
+        field: "in",
+        reading: "induced",
+        only: true,
+        followable: true,
+        path: false,
+        partition: false,
+        name: () => "in the set",
+    },
+    "edge-set": {
+        field: "in",
+        reading: "listed",
+        only: true,
+        followable: true,
+        path: false,
+        partition: false,
+        name: () => "in the set",
+    },
+    path: {
+        field: "onPath",
+        reading: "listed",
+        only: true,
+        followable: true,
+        path: true,
+        partition: false,
+        name: () => "on path",
+    },
 };
 
 /** The default and the most offers one call returns. */
@@ -142,7 +187,9 @@ export interface Offering {
  * @returns True for a string, a finite number or a boolean.
  */
 function isKeyValue(value: unknown): value is string | number | boolean {
-    return typeof value === "string" || typeof value === "boolean" || (typeof value === "number" && Number.isFinite(value));
+    return (
+        typeof value === "string" || typeof value === "boolean" || (typeof value === "number" && Number.isFinite(value))
+    );
 }
 
 /**
@@ -254,11 +301,21 @@ export function createOffering(sources: OfferSources): Offering {
      * @param context - What is resolved against now.
      * @returns The counts.
      */
-    const countsOf = (run: RunId, spec: OfferedShape, values: FilterRunResult, context: ResolveContext): OfferCounts => {
+    const countsOf = (
+        run: RunId,
+        spec: OfferedShape,
+        values: FilterRunResult,
+        context: ResolveContext,
+    ): OfferCounts => {
         const { cache, snapshot } = context;
         const store = identityOf(context.store ?? snapshot);
         const known = cache?.offers.get(run);
-        if (known !== undefined && known.execution === values.execution && known.store === store && known.serial === snapshot.serial) {
+        if (
+            known !== undefined &&
+            known.execution === values.execution &&
+            known.store === store &&
+            known.serial === snapshot.serial
+        ) {
             return known;
         }
 
@@ -302,7 +359,11 @@ export function createOffering(sources: OfferSources): Offering {
      * @param graph - The snapshot.
      * @returns Item key to counts.
      */
-    const edgePass = (spec: OfferedShape, values: FilterRunResult, graph: GraphSnapshot): Map<string, { edges: number; nodes: number }> => {
+    const edgePass = (
+        spec: OfferedShape,
+        values: FilterRunResult,
+        graph: GraphSnapshot,
+    ): Map<string, { edges: number; nodes: number }> => {
         offerCounters.edgePasses++;
         const pass = new Map<string, { edges: number; nodes: number }>();
         const { src, dst } = graph.edgeList();
@@ -372,7 +433,11 @@ export function createOffering(sources: OfferSources): Offering {
      * @returns Them, or undefined when the run has no result or its shape offers nothing.
      * @throws `E_UNKNOWN_RUN` for a run the session does not hold.
      */
-    const offeredBy = (run: RunId): { found: OfferRun; spec: OfferedShape; values: FilterRunResult; counts: OfferCounts; context: ResolveContext } | undefined => {
+    const offeredBy = (
+        run: RunId,
+    ):
+        | { found: OfferRun; spec: OfferedShape; values: FilterRunResult; counts: OfferCounts; context: ResolveContext }
+        | undefined => {
         const found = sources.run(run);
         if (found === undefined) {
             throw unknownRun(
@@ -400,7 +465,7 @@ export function createOffering(sources: OfferSources): Offering {
             }
 
             const { spec, values, counts } = offered;
-            const {reading} = spec;
+            const { reading } = spec;
             const items = [...counts.nodes].sort(([, a], [, b]) => b.count - a.count || compareIds(a.value, b.value));
             const kept = items.slice(0, Math.max(0, Math.floor(limit)));
             const offers = kept.map(([key, { value, count }]): SetOffer => {
@@ -417,7 +482,10 @@ export function createOffering(sources: OfferSources): Offering {
 
                 return Object.freeze({
                     item,
-                    label: nodes === undefined ? title : `${title} (${nodes.toLocaleString("en-US")} ${nodes === 1 ? "node" : "nodes"})`,
+                    label:
+                        nodes === undefined
+                            ? title
+                            : `${title} (${nodes.toLocaleString("en-US")} ${nodes === 1 ? "node" : "nodes"})`,
                     ...(nodes === undefined ? {} : { nodes }),
                     ...(edges === undefined ? {} : { edges }),
                     reading,
@@ -519,7 +587,8 @@ function holds(set: ElementSet, isNode: boolean, index: number, context: Resolve
 
     // ponytail: a node's membership of a rule read `listed` needs its incident edges; it is
     // resolved in full instead. A per-node walk of the incident edges when a panel needs it.
-    const local = definition.kind === "rule" && (typeof definition.where === "string" || elementLocal(definition.where));
+    const local =
+        definition.kind === "rule" && (typeof definition.where === "string" || elementLocal(definition.where));
     if (local && !(isNode && definition.reading === "listed")) {
         return ruleHolds(definition, isNode, index, context);
     }
@@ -538,7 +607,12 @@ function holds(set: ElementSet, isNode: boolean, index: number, context: Resolve
  * @param context - What the tests read.
  * @returns True when the rule holds it.
  */
-function ruleHolds(definition: Extract<SetDefinition, { kind: "rule" }>, isNode: boolean, index: number, context: ResolveContext): boolean {
+function ruleHolds(
+    definition: Extract<SetDefinition, { kind: "rule" }>,
+    isNode: boolean,
+    index: number,
+    context: ResolveContext,
+): boolean {
     let halves: ReturnType<typeof ruleHalves>;
     try {
         halves = ruleHalves(definition, context);

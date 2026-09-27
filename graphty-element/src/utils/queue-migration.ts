@@ -64,4 +64,3 @@ export interface RunAlgorithmOptions extends QueueableOptions {
      */
     algorithmOptions?: AlgorithmSpecificOptions;
 }
-

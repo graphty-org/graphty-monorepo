@@ -93,9 +93,7 @@ function heldExecutor(): HeldExecutor {
     return {
         execute,
         started: (count) =>
-            count <= releases.length
-                ? Promise.resolve()
-                : new Promise((resolve) => waiters.push({ count, resolve })),
+            count <= releases.length ? Promise.resolve() : new Promise((resolve) => waiters.push({ count, resolve })),
         release: (index) => {
             releases[index]();
         },
@@ -424,7 +422,7 @@ describe("the queue a consumer shows", () => {
                 { runId: third.id, index: 2, of: 3 },
             ],
         );
-        assert.strictEqual(second.queuePosition, 1, "a UI renders this as \"Queued (2 of 3)\"");
+        assert.strictEqual(second.queuePosition, 1, 'a UI renders this as "Queued (2 of 3)"');
 
         await queue.drain();
         assert.deepStrictEqual(runs.queue, []);
@@ -452,7 +450,7 @@ describe("the queue a consumer shows", () => {
         await queue.drain();
     });
 
-    it("cancels the runs it replaces under the \"replace\" policy", async () => {
+    it('cancels the runs it replaces under the "replace" policy', async () => {
         const held = heldExecutor();
         const { runs, queue } = harness(held.execute);
         queue.paused = true;
@@ -476,7 +474,7 @@ describe("the queue a consumer shows", () => {
         await drained;
     });
 
-    it("runs beside the queue under the \"now\" policy", async () => {
+    it('runs beside the queue under the "now" policy', async () => {
         const { runs, queue } = harness();
         queue.paused = true;
 

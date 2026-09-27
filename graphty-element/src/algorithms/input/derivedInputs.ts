@@ -281,11 +281,20 @@ export class DerivedInputs {
      * @param simplify - The merge policy.
      * @returns The input, or undefined on a miss.
      */
-    get(holder: object, membership: InputMembership, orientation: InputOrientation, simplify: SimplifyPolicy): DerivedInput | undefined {
+    get(
+        holder: object,
+        membership: InputMembership,
+        orientation: InputOrientation,
+        simplify: SimplifyPolicy,
+    ): DerivedInput | undefined {
         this.sync(membership);
         const key = keyOf(membership, orientation, simplify);
         const entry = this.entries.get(key);
-        if (entry === undefined || !sameWords(entry.nodes, membership.nodes) || !sameWords(entry.edges, membership.edges)) {
+        if (
+            entry === undefined ||
+            !sameWords(entry.nodes, membership.nodes) ||
+            !sameWords(entry.edges, membership.edges)
+        ) {
             derivedInputCounters.misses++;
             return undefined;
         }
@@ -553,7 +562,11 @@ export class DerivedInputs {
         return new Promise<void>((resolve, reject) => {
             const onAbort = (): void => {
                 this.waiters = this.waiters.filter((waiter) => waiter !== done);
-                reject(signal?.reason instanceof Error ? signal.reason : new DOMException("The run was cancelled.", "AbortError"));
+                reject(
+                    signal?.reason instanceof Error
+                        ? signal.reason
+                        : new DOMException("The run was cancelled.", "AbortError"),
+                );
             };
             const done = (): void => {
                 signal?.removeEventListener("abort", onAbort);

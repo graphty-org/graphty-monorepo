@@ -207,13 +207,13 @@ override async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | 
 }
 ```
 
-| Member | What it is |
-| --- | --- |
-| `subgraph()` | The scope as its own compact graph-format snapshot, built on first call and cached |
-| `graph` | The full graph, as loaded |
-| `nodes`, `edges` | The scope as bit masks over `graph` (`edges` over the declared orientation) |
-| `nodeCount`, `edgeCount` | How many nodes and edges the scope holds |
-| `whole` | True when the scope is the whole graph; `subgraph()` then returns the graph itself |
+| Member                   | What it is                                                                         |
+| ------------------------ | ---------------------------------------------------------------------------------- |
+| `subgraph()`             | The scope as its own compact graph-format snapshot, built on first call and cached |
+| `graph`                  | The full graph, as loaded                                                          |
+| `nodes`, `edges`         | The scope as bit masks over `graph` (`edges` over the declared orientation)        |
+| `nodeCount`, `edgeCount` | How many nodes and edges the scope holds                                           |
+| `whole`                  | True when the scope is the whole graph; `subgraph()` then returns the graph itself |
 
 `simplify` says how parallel edges merge in `subgraph()`: `"sum"` by default, `"min"` for a
 shortest path, `"max"`, or `"none"` to keep them apart.
@@ -294,13 +294,13 @@ you whether your fields match the shape you declared.
 
 ## How it is refused
 
-| What is wrong | Code |
-| --- | --- |
-| A `descriptor.key` that disagrees with `static type`, or no key at all | `E_BAD_COMMAND`, `details.field` naming it |
-| A key the element itself ships | `E_DUPLICATE_PLUGIN` |
-| A key nothing registered | `E_UNKNOWN_ALGORITHM`, with `details.available` |
-| An option the descriptor does not declare | `E_UNKNOWN_OPTION`, with `details.candidates` |
-| An option value outside the declared range | `E_OPTION_RANGE` |
+| What is wrong                                                          | Code                                            |
+| ---------------------------------------------------------------------- | ----------------------------------------------- |
+| A `descriptor.key` that disagrees with `static type`, or no key at all | `E_BAD_COMMAND`, `details.field` naming it      |
+| A key the element itself ships                                         | `E_DUPLICATE_PLUGIN`                            |
+| A key nothing registered                                               | `E_UNKNOWN_ALGORITHM`, with `details.available` |
+| An option the descriptor does not declare                              | `E_UNKNOWN_OPTION`, with `details.candidates`   |
+| An option value outside the declared range                             | `E_OPTION_RANGE`                                |
 
 A coded failure you raise yourself reaches the caller under the code you chose:
 

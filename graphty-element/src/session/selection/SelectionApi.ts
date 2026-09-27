@@ -732,7 +732,12 @@ class Selection implements SelectionOwner {
 
         const reading = this.#nodes.size === 0 ? "listed" : "induced";
 
-        return createSetAs(scope.sets, { kind: "fixed", nodes: this.#nodes.ids(), edges: this.#edges.ids(), reading }, name, { kind: "selection" });
+        return createSetAs(
+            scope.sets,
+            { kind: "fixed", nodes: this.#nodes.ids(), edges: this.#edges.ids(), reading },
+            name,
+            { kind: "selection" },
+        );
     }
 
     /**

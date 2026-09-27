@@ -79,7 +79,15 @@ function createHarness(): Harness {
     const layoutManager = new LayoutManager(eventManager, dataManager, styles);
     layoutManager.layoutEngine = new StillLayout();
 
-    const context = new DefaultGraphContext(() => styles, dataManager, layoutManager, meshCache, scene, statsManager, {});
+    const context = new DefaultGraphContext(
+        () => styles,
+        dataManager,
+        layoutManager,
+        meshCache,
+        scene,
+        statsManager,
+        {},
+    );
     dataManager.setGraphContext(context);
 
     return {
@@ -186,17 +194,31 @@ describe("the id an edge carries", () => {
     it("reports how many edges carry a file id and how many are matched by position", () => {
         harness = createHarness();
         harness.dataManager.addNodes([{ id: "a" }, { id: "b" }]);
-        harness.dataManager.addEdges([{ source: "a", target: "b" }, { source: "b", target: "a" }]);
+        harness.dataManager.addEdges([
+            { source: "a", target: "b" },
+            { source: "b", target: "a" },
+        ]);
 
-        assert.deepStrictEqual(harness.dataManager.lastImport?.edgeIdentity, { idPath: null, byId: 0, byPosition: 2 }, "no id path: every edge by position");
+        assert.deepStrictEqual(
+            harness.dataManager.lastImport?.edgeIdentity,
+            { idPath: null, byId: 0, byPosition: 2 },
+            "no id path: every edge by position",
+        );
 
         const withIds = createHarness();
         try {
             (withIds.context.getStyles().config.data.knownFields as { edgeIdPath: string | null }).edgeIdPath = "key";
             withIds.dataManager.addNodes([{ id: "a" }, { id: "b" }]);
-            withIds.dataManager.addEdges([{ source: "a", target: "b", key: "e1" }, { source: "a", target: "b" }]);
+            withIds.dataManager.addEdges([
+                { source: "a", target: "b", key: "e1" },
+                { source: "a", target: "b" },
+            ]);
 
-            assert.deepStrictEqual(withIds.dataManager.lastImport?.edgeIdentity, { idPath: "key", byId: 1, byPosition: 1 });
+            assert.deepStrictEqual(withIds.dataManager.lastImport?.edgeIdentity, {
+                idPath: "key",
+                byId: 1,
+                byPosition: 1,
+            });
         } finally {
             withIds.dispose();
         }

@@ -28,8 +28,14 @@ import { AttributeRevisions, InputTick } from "../../../src/session/attributes";
 import type { RunResult } from "../../../src/session/results/types";
 import { edgeSpaceOf, ElementMask, nodeSpaceOf } from "../../../src/session/scope/index";
 import { cacheCounters, countsOf, resolveSet, SetsCache } from "../../../src/session/sets/cache";
-import { createOffering, offerCounters,type Offering } from "../../../src/session/sets/offers";
-import { digestOf, type Resolution, type ResolveContext, resolveCounters, resolveScope } from "../../../src/session/sets/resolve";
+import { createOffering, offerCounters, type Offering } from "../../../src/session/sets/offers";
+import {
+    digestOf,
+    type Resolution,
+    type ResolveContext,
+    resolveCounters,
+    resolveScope,
+} from "../../../src/session/sets/resolve";
 import { scopeSignature, signatureCounters } from "../../../src/session/sets/signature";
 import { InputGraph, resolutionOver } from "../../algorithms/input/harness";
 import { reachableBytes } from "./bytes";
@@ -167,53 +173,155 @@ function served(fixture: Fixture, resolve: () => Resolution, change: () => void)
 describe("the resolution cache, input by input", () => {
     it("misses on a new snapshot serial; hits on an unread attribute revision", () => {
         const f = new Fixture();
-        assert.isFalse(served(f, () => f.scope({ nodes: ["a"] }), () => f.graph.addNode("q")));
-        assert.isTrue(served(f, () => f.scope({ nodes: ["a"] }), () => f.revisions.bump(["weight"])));
+        assert.isFalse(
+            served(
+                f,
+                () => f.scope({ nodes: ["a"] }),
+                () => f.graph.addNode("q"),
+            ),
+        );
+        assert.isTrue(
+            served(
+                f,
+                () => f.scope({ nodes: ["a"] }),
+                () => f.revisions.bump(["weight"]),
+            ),
+        );
     });
 
     it("misses on another store instance over the same serial; hits on an unrelated set write", () => {
         const f = new Fixture();
-        assert.isFalse(served(f, () => f.scope({ nodes: ["a"] }), () => (f.store = {})));
-        assert.isTrue(served(f, () => f.scope({ nodes: ["a"] }), () => f.graph.sets.create({ kind: "fixed", nodes: ["b"], reading: "induced" })));
+        assert.isFalse(
+            served(
+                f,
+                () => f.scope({ nodes: ["a"] }),
+                () => (f.store = {}),
+            ),
+        );
+        assert.isTrue(
+            served(
+                f,
+                () => f.scope({ nodes: ["a"] }),
+                () => f.graph.sets.create({ kind: "fixed", nodes: ["b"], reading: "induced" }),
+            ),
+        );
     });
 
     it("misses on the revision of a field a query reads; hits on one it does not read", () => {
         const f = new Fixture();
         const where = { where: "data.weight > 1" };
         f.matches.set(where.where, ["a"]);
-        assert.isFalse(served(f, () => f.scope(where), () => f.revisions.bump(["weight"])));
-        assert.isTrue(served(f, () => f.scope(where), () => f.revisions.bump(["label"])));
+        assert.isFalse(
+            served(
+                f,
+                () => f.scope(where),
+                () => f.revisions.bump(["weight"]),
+            ),
+        );
+        assert.isTrue(
+            served(
+                f,
+                () => f.scope(where),
+                () => f.revisions.bump(["label"]),
+            ),
+        );
     });
 
     it("misses on the visibility mask versions; hits on the selection's", () => {
         const f = new Fixture();
-        assert.isFalse(served(f, () => f.scope("visible"), () => f.visibleNodes.delete(1)));
-        assert.isFalse(served(f, () => f.scope("visible"), () => f.visibleEdges.delete(0)));
-        assert.isTrue(served(f, () => f.scope("visible"), () => f.selected.add(2)));
+        assert.isFalse(
+            served(
+                f,
+                () => f.scope("visible"),
+                () => f.visibleNodes.delete(1),
+            ),
+        );
+        assert.isFalse(
+            served(
+                f,
+                () => f.scope("visible"),
+                () => f.visibleEdges.delete(0),
+            ),
+        );
+        assert.isTrue(
+            served(
+                f,
+                () => f.scope("visible"),
+                () => f.selected.add(2),
+            ),
+        );
     });
 
     it("misses on the selection mask version; hits on the visibility's", () => {
         const f = new Fixture();
-        assert.isFalse(served(f, () => f.scope("selection"), () => f.selected.add(3)));
-        assert.isTrue(served(f, () => f.scope("selection"), () => f.visibleNodes.delete(2)));
+        assert.isFalse(
+            served(
+                f,
+                () => f.scope("selection"),
+                () => f.selected.add(3),
+            ),
+        );
+        assert.isTrue(
+            served(
+                f,
+                () => f.scope("selection"),
+                () => f.visibleNodes.delete(2),
+            ),
+        );
     });
 
     it("misses on the execution token of a run a query reads, minted or put by a load; hits on another run's", () => {
         const f = new Fixture();
         const where = { where: "results.pr.score > 0" };
         f.executions.set("pr", "n1.1");
-        assert.isFalse(served(f, () => f.scope(where), () => f.executions.set("pr", "n1.2")));
+        assert.isFalse(
+            served(
+                f,
+                () => f.scope(where),
+                () => f.executions.set("pr", "n1.2"),
+            ),
+        );
         // A file load puts a token minted by another session: never equal to a live one.
-        assert.isFalse(served(f, () => f.scope(where), () => f.executions.set("pr", "filenonce.2")));
-        assert.isFalse(served(f, () => f.scope(where), () => f.executions.delete("pr")));
-        assert.isTrue(served(f, () => f.scope(where), () => f.executions.set("louvain", "n1.9")));
+        assert.isFalse(
+            served(
+                f,
+                () => f.scope(where),
+                () => f.executions.set("pr", "filenonce.2"),
+            ),
+        );
+        assert.isFalse(
+            served(
+                f,
+                () => f.scope(where),
+                () => f.executions.delete("pr"),
+            ),
+        );
+        assert.isTrue(
+            served(
+                f,
+                () => f.scope(where),
+                () => f.executions.set("louvain", "n1.9"),
+            ),
+        );
     });
 
     it("misses when a named saved record is replaced; hits when an unrelated one is saved", () => {
         const f = new Fixture();
         f.save("core", { nodes: ["a", "b"] });
-        assert.isFalse(served(f, () => f.scope({ set: "core" }), () => f.save("core", { nodes: ["a", "b"] })));
-        assert.isTrue(served(f, () => f.scope({ set: "core" }), () => f.save("other", { nodes: ["c"] })));
+        assert.isFalse(
+            served(
+                f,
+                () => f.scope({ set: "core" }),
+                () => f.save("core", { nodes: ["a", "b"] }),
+            ),
+        );
+        assert.isTrue(
+            served(
+                f,
+                () => f.scope({ set: "core" }),
+                () => f.save("other", { nodes: ["c"] }),
+            ),
+        );
     });
 
     it("carries an explicit absent marker for a named id nothing holds", () => {
@@ -230,18 +338,45 @@ describe("the resolution cache, input by input", () => {
     it("hits on a rename of a kept set and on an unrelated set write; misses on a redefine", () => {
         const f = new Fixture();
         const id = f.graph.sets.create({ kind: "fixed", nodes: ["a", "b"], reading: "induced" }, { name: "Pair" });
-        assert.isTrue(served(f, () => f.set(id), () => f.graph.sets.rename(id, "Renamed")));
-        assert.isTrue(served(f, () => f.set(id), () => f.graph.sets.create({ kind: "fixed", nodes: ["c"], reading: "induced" })));
-        assert.isFalse(served(f, () => f.set(id), () => f.graph.sets.redefine(id, { kind: "fixed", nodes: ["a", "c"], reading: "induced" })));
+        assert.isTrue(
+            served(
+                f,
+                () => f.set(id),
+                () => f.graph.sets.rename(id, "Renamed"),
+            ),
+        );
+        assert.isTrue(
+            served(
+                f,
+                () => f.set(id),
+                () => f.graph.sets.create({ kind: "fixed", nodes: ["c"], reading: "induced" }),
+            ),
+        );
+        assert.isFalse(
+            served(
+                f,
+                () => f.set(id),
+                () => f.graph.sets.redefine(id, { kind: "fixed", nodes: ["a", "c"], reading: "induced" }),
+            ),
+        );
     });
 
     it("misses on a reading-only redefine, which shares the member arrays", () => {
         const f = new Fixture();
         const id = f.graph.sets.create({ kind: "fixed", nodes: ["a", "b"], reading: "induced" });
         const prior = f.graph.sets.get(id);
-        assert.isFalse(served(f, () => f.set(id), () => f.graph.sets.redefine(id, { kind: "fixed", nodes: ["a", "b"], reading: "listed" })));
+        assert.isFalse(
+            served(
+                f,
+                () => f.set(id),
+                () => f.graph.sets.redefine(id, { kind: "fixed", nodes: ["a", "b"], reading: "listed" }),
+            ),
+        );
         const next = f.graph.sets.get(id);
-        assert.strictEqual(next?.definition.kind === "fixed" ? next.definition.nodes : null, prior?.definition.kind === "fixed" ? prior.definition.nodes : undefined);
+        assert.strictEqual(
+            next?.definition.kind === "fixed" ? next.definition.nodes : null,
+            prior?.definition.kind === "fixed" ? prior.definition.nodes : undefined,
+        );
     });
 
     it("hits again when an undo-shaped put restores the identical frozen record", () => {
@@ -263,8 +398,20 @@ describe("the resolution cache, input by input", () => {
         const [e1, e2] = f.graph.counters();
         const id = f.graph.sets.create({ kind: "fixed", nodes: [], edges: [f.graph.edgeId(e1)], reading: "listed" });
         const other = f.graph.sets.create({ kind: "fixed", nodes: [], edges: [f.graph.edgeId(e1)], reading: "listed" });
-        assert.isFalse(served(f, () => f.set(id), () => f.graph.sets.addMembers(id, { edges: [f.graph.edgeId(e2)] })));
-        assert.isTrue(served(f, () => f.set(id), () => f.graph.sets.addMembers(other, { edges: [f.graph.edgeId(e2)] })));
+        assert.isFalse(
+            served(
+                f,
+                () => f.set(id),
+                () => f.graph.sets.addMembers(id, { edges: [f.graph.edgeId(e2)] }),
+            ),
+        );
+        assert.isTrue(
+            served(
+                f,
+                () => f.set(id),
+                () => f.graph.sets.addMembers(other, { edges: [f.graph.edgeId(e2)] }),
+            ),
+        );
     });
 
     it("reads edgeIdPath only through the columns a re-import writes", () => {
@@ -277,7 +424,13 @@ describe("the resolution cache, input by input", () => {
         assert.strictEqual(definition?.kind === "fixed" ? definition.edges?.[0]?.ordinal : undefined, 0);
 
         // Configured alone, nothing a resolution reads has moved: the binding is still right.
-        assert.isTrue(served(f, () => f.set(id), () => (f.graph.path = "eid")));
+        assert.isTrue(
+            served(
+                f,
+                () => f.set(id),
+                () => (f.graph.path = "eid"),
+            ),
+        );
 
         // Applied by a re-import, the columns move with the serial: the binding is redone, and the
         // ordinal member still binds (design 12.3 rule 4).
@@ -311,7 +464,9 @@ describe("the latent defect of a saved predicate over results", () => {
                 execute: (context) => {
                     generation++;
                     const hot = generation % 2 === 1 ? "a" : "b";
-                    return Promise.resolve({ result: { ...stubResult(context.runId), node: (id: NodeId) => ({ score: id === hot ? 1 : 0 }) } });
+                    return Promise.resolve({
+                        result: { ...stubResult(context.runId), node: (id: NodeId) => ({ score: id === hot ? 1 : 0 }) },
+                    });
                 },
             },
         });
@@ -322,7 +477,7 @@ describe("the latent defect of a saved predicate over results", () => {
         const id = scope.save("Hot", { where: "results.pr.score > `0`" });
         assert.deepStrictEqual([...(await scope.resolve({ set: id })).nodes], ["a"]);
 
-        const {hits} = cacheCounters;
+        const { hits } = cacheCounters;
         assert.deepStrictEqual([...(await scope.resolve({ set: id })).nodes], ["a"]);
         assert.strictEqual(cacheCounters.hits - hits, 1, "unchanged inputs: served");
 
@@ -402,7 +557,19 @@ describe("the signature memo, input by input", () => {
         const f = new Fixture();
         const { sets } = f.graph;
         const named = sets.create({ kind: "fixed", nodes: ["a"], reading: "induced" }, { name: "named" });
-        const tree: Scope = { define: { kind: "rule", where: { kind: "any", of: [{ kind: "member", of: { set: named } }, { kind: "degree", min: 3 }] }, reading: "induced" } };
+        const tree: Scope = {
+            define: {
+                kind: "rule",
+                where: {
+                    kind: "any",
+                    of: [
+                        { kind: "member", of: { set: named } },
+                        { kind: "degree", min: 3 },
+                    ],
+                },
+                reading: "induced",
+            },
+        };
         const first = f.scope(tree);
         assert.strictEqual(f.scope(tree), first, "unchanged inputs: a hit");
 
@@ -419,11 +586,30 @@ describe("the signature memo, input by input", () => {
         for (const size of [1_000, 100_000]) {
             const f = new Fixture();
             const { sets } = f.graph;
-            const base = sets.create({ kind: "fixed", nodes: Array.from({ length: size }, (_, i) => `n${i}`), reading: "induced" }, { name: "base" });
-            const left = sets.create({ kind: "rule", where: { kind: "member", of: { set: base } }, reading: "induced" }, { name: "left" });
-            const right = sets.create({ kind: "rule", where: { kind: "not", of: { kind: "member", of: { set: base } } }, reading: "induced" }, { name: "right" });
+            const base = sets.create(
+                { kind: "fixed", nodes: Array.from({ length: size }, (_, i) => `n${i}`), reading: "induced" },
+                { name: "base" },
+            );
+            const left = sets.create(
+                { kind: "rule", where: { kind: "member", of: { set: base } }, reading: "induced" },
+                { name: "left" },
+            );
+            const right = sets.create(
+                { kind: "rule", where: { kind: "not", of: { kind: "member", of: { set: base } } }, reading: "induced" },
+                { name: "right" },
+            );
             const top = sets.create(
-                { kind: "rule", where: { kind: "any", of: [{ kind: "member", of: { set: left } }, { kind: "member", of: { set: right } }] }, reading: "induced" },
+                {
+                    kind: "rule",
+                    where: {
+                        kind: "any",
+                        of: [
+                            { kind: "member", of: { set: left } },
+                            { kind: "member", of: { set: right } },
+                        ],
+                    },
+                    reading: "induced",
+                },
                 { name: "top" },
             );
             const before = signatureCounters.walks;
@@ -529,7 +715,10 @@ describe("byte accounting", () => {
 
         assert.strictEqual(cache.bytes - cache.pinnedBytes, 16 * MB, "the reserve");
         assert.deepStrictEqual(
-            cache.cached().map(([key]) => key).filter((key) => String(key).startsWith("u")),
+            cache
+                .cached()
+                .map(([key]) => key)
+                .filter((key) => String(key).startsWith("u")),
             ["u1", "u2"],
         );
     });
@@ -540,11 +729,18 @@ describe("byte accounting", () => {
         f.scope("graph");
         f.scope("visible");
         f.scope({ set: "core" });
-        const id = f.graph.sets.create({ kind: "fixed", nodes: ["a"], edges: [f.graph.edgeId(f.graph.counters()[0])], reading: "listed" });
+        const id = f.graph.sets.create({
+            kind: "fixed",
+            nodes: ["a"],
+            edges: [f.graph.edgeId(f.graph.counters()[0])],
+            reading: "listed",
+        });
         f.set(id);
         const seen = new Set<unknown>();
         // `store` is a tag naming what the entry was resolved against, not something it holds.
-        const walked = f.cache.cached().reduce((sum, [, resolution]) => sum + reachableBytes({ ...resolution, store: null }, seen), 0);
+        const walked = f.cache
+            .cached()
+            .reduce((sum, [, resolution]) => sum + reachableBytes({ ...resolution, store: null }, seen), 0);
         assert.strictEqual(f.cache.bytes, walked);
         assert.strictEqual(reachableBytes([...f.cache.summaries.values()]), 0);
     });
@@ -618,7 +814,9 @@ describe("the offer counts, input by input", () => {
         assert.isTrue(countsServed(f, offering, () => f.revisions.bump(["group"])));
         assert.isTrue(countsServed(f, offering, () => f.selected.add(2)));
         assert.isTrue(countsServed(f, offering, () => f.visibleNodes.delete(1)));
-        assert.isTrue(countsServed(f, offering, () => f.graph.sets.create({ kind: "fixed", nodes: ["b"], reading: "induced" })));
+        assert.isTrue(
+            countsServed(f, offering, () => f.graph.sets.create({ kind: "fixed", nodes: ["b"], reading: "induced" })),
+        );
         assert.isTrue(countsServed(f, offering, () => f.executions.set("pr", "n1.3")));
     });
 
@@ -643,12 +841,15 @@ describe("the offer counts, input by input", () => {
 describe("the derived inputs, input by input", () => {
     /** a -> b -> c -> d, with a second a -> b so a merge policy has something to merge. */
     const graph = (): InputGraph =>
-        new InputGraph(["a", "b", "c", "d"], [
-            ["a", "b", 1],
-            ["a", "b", 2],
-            ["b", "c", 1],
-            ["c", "d", 1],
-        ]);
+        new InputGraph(
+            ["a", "b", "c", "d"],
+            [
+                ["a", "b", 1],
+                ["a", "b", 2],
+                ["b", "c", 1],
+                ["c", "d", 1],
+            ],
+        );
 
     /**
      * One audit row: derive, change one input of the key, derive again.
@@ -667,8 +868,17 @@ describe("the derived inputs, input by input", () => {
     ): boolean => {
         const inputs = new DerivedInputs();
         const holder = {};
-        const read = (scope: ResolvedInputScope, orientation: "declared" | "undirected", simplify: "sum" | "min"): unknown =>
-            createScopedInput(g.getDataManager(), orientation, { simplify }, { inputs, holder, scope: () => scope }).subgraph();
+        const read = (
+            scope: ResolvedInputScope,
+            orientation: "declared" | "undirected",
+            simplify: "sum" | "min",
+        ): unknown =>
+            createScopedInput(
+                g.getDataManager(),
+                orientation,
+                { simplify },
+                { inputs, holder, scope: () => scope },
+            ).subgraph();
         const before = read(first, "declared", "sum");
 
         return read(second.scope ?? first, second.orientation ?? "declared", second.simplify ?? "sum") === before;
@@ -686,21 +896,43 @@ describe("the derived inputs, input by input", () => {
     it("misses on the store and on the snapshot serial", () => {
         const g = graph();
         const scope = g.scope(["a", "b", "c"]);
-        const elsewhere = { graph: scope.graph, resolution: resolutionOver(scope.graph, scope.resolution.nodes, scope.resolution.edges, {}) };
+        const elsewhere = {
+            graph: scope.graph,
+            resolution: resolutionOver(scope.graph, scope.resolution.nodes, scope.resolution.edges, {}),
+        };
         assert.isFalse(same(g, scope, { scope: elsewhere }));
 
         const inputs = new DerivedInputs();
         const holder = {};
-        const before = createScopedInput(g.getDataManager(), "declared", undefined, { inputs, holder, scope: () => scope }).subgraph();
+        const before = createScopedInput(g.getDataManager(), "declared", undefined, {
+            inputs,
+            holder,
+            scope: () => scope,
+        }).subgraph();
         g.add(["e"]);
         const after = g.scope(["a", "b", "c"]);
-        assert.notStrictEqual(createScopedInput(g.getDataManager(), "declared", undefined, { inputs, holder, scope: () => after }).subgraph(), before);
+        assert.notStrictEqual(
+            createScopedInput(g.getDataManager(), "declared", undefined, {
+                inputs,
+                holder,
+                scope: () => after,
+            }).subgraph(),
+            before,
+        );
     });
 
     it("hits on another resolution of the same members, whatever spelled it", () => {
         const g = graph();
         const scope = g.scope(["a", "b", "c"]);
-        const respelled = { graph: scope.graph, resolution: resolutionOver(scope.graph, scope.resolution.nodes.slice(), scope.resolution.edges.slice(), g.store) };
+        const respelled = {
+            graph: scope.graph,
+            resolution: resolutionOver(
+                scope.graph,
+                scope.resolution.nodes.slice(),
+                scope.resolution.edges.slice(),
+                g.store,
+            ),
+        };
         assert.isTrue(same(g, scope, { scope: respelled }));
     });
 });

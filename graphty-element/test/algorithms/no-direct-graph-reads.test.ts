@@ -19,7 +19,8 @@ const DIRECT_READ = /getDataManager\(\)|getSnapshot\(\)/;
 /** Files that may read the graph directly for good, and why. */
 const PERMANENT: Readonly<Record<string, string>> = {
     "Algorithm.ts": "a seam: it hands the data manager to the input accessor",
-    "utils/snapshotGraph.ts": "a seam: it builds the object graph from the accessor's input and reads the store's undirected cache",
+    "utils/snapshotGraph.ts":
+        "a seam: it builds the object graph from the accessor's input and reads the store's undirected cache",
     "results/labels.ts": "reads node labels for a summary, not topology",
 };
 

@@ -16,7 +16,11 @@ import {
 } from "../../../src/session/sets/dependencies";
 import { compileExpressionPredicate, type ElementColumns } from "../../../src/session/styles/predicate";
 
-const rule = (where: RuleTree | string, reading: "induced" | "listed" | "clipped" = "clipped"): SetDefinition => ({ kind: "rule", where, reading });
+const rule = (where: RuleTree | string, reading: "induced" | "listed" | "clipped" = "clipped"): SetDefinition => ({
+    kind: "rule",
+    where,
+    reading,
+});
 
 /**
  * The paths the compiled expression reads: the compiler the query engine and the style layers use.
@@ -43,7 +47,13 @@ describe("what a definition reads", () => {
                 { kind: "component", id: 0 },
                 { kind: "neighborhood", seeds: ["a"], depth: 1 },
                 { kind: "not", of: { kind: "member", of: { set: "set_core" } } },
-                { kind: "any", of: [{ kind: "member", of: "visible" }, { kind: "member", of: "selection" }] },
+                {
+                    kind: "any",
+                    of: [
+                        { kind: "member", of: "visible" },
+                        { kind: "member", of: "selection" },
+                    ],
+                },
                 { kind: "member", of: "largest-component" },
                 { kind: "member", of: { where: "results.louvain.community == `3`" } },
                 { kind: "member", of: { define: rule({ kind: "member", of: { set: "set_inner" } }) } },
@@ -103,54 +113,91 @@ describe("the dependency graph: kept sets, saved scopes, the visibility filter a
      * @param filter - The visibility filter in force.
      * @returns The sources.
      */
-    const sourcesOf = (referents: Record<string, SetDefinition | Scope>, filter: RuleTree | null = null): DependencySources => ({
-        referent: (id) => referents[id],
+    const sourcesOf = (
+        referents: readonly (readonly [string, SetDefinition | Scope])[],
+        filter: RuleTree | null = null,
+    ): DependencySources => ({
+        referent: (id) => new Map(referents).get(id),
         visibility: () => filter,
     });
 
     it("finds a set reaching itself through other sets and saved scopes", () => {
-        const sources = sourcesOf({
-            "set_a": rule({ kind: "member", of: { set: "saved_b" } }),
-            "saved_b": { define: rule({ kind: "member", of: { set: "set_a" } }) },
-        });
+        const sources = sourcesOf([
+            ["set_a", rule({ kind: "member", of: { set: "saved_b" } })],
+            ["saved_b", { define: rule({ kind: "member", of: { set: "set_a" } }) }],
+        ]);
 
-        assert.deepStrictEqual(setCycle("set_a", rule({ kind: "member", of: { set: "saved_b" } }), sources), ["saved_b", "set_a"]);
-        assert.isNull(setCycle("set_c", rule({ kind: "member", of: { set: "saved_b" } }), sources), "a ring elsewhere is not this set's cycle");
+        assert.deepStrictEqual(setCycle("set_a", rule({ kind: "member", of: { set: "saved_b" } }), sources), [
+            "saved_b",
+            "set_a",
+        ]);
+        assert.isNull(
+            setCycle("set_c", rule({ kind: "member", of: { set: "saved_b" } }), sources),
+            "a ring elsewhere is not this set's cycle",
+        );
     });
 
     it("follows visible into the visibility filter when a set is written", () => {
-        const sources = sourcesOf({}, { kind: "member", of: { set: "set_a" } });
+        const sources = sourcesOf([], { kind: "member", of: { set: "set_a" } });
 
-        assert.deepStrictEqual(setCycle("set_a", rule({ kind: "member", of: "visible" }), sources), ["visible", "set_a"]);
+        assert.deepStrictEqual(setCycle("set_a", rule({ kind: "member", of: "visible" }), sources), [
+            "visible",
+            "set_a",
+        ]);
     });
 
     it("finds a filter reaching visible or search through any chain", () => {
-        const sources = sourcesOf({
-            "set_a": rule({ kind: "member", of: { set: "set_b" } }),
-            "set_b": rule({ kind: "any", of: [{ kind: "degree", min: 1 }, { kind: "member", of: "search" as Scope }] }),
-            "set_c": rule({ kind: "member", of: "visible" }),
-        });
+        const sources = sourcesOf([
+            ["set_a", rule({ kind: "member", of: { set: "set_b" } })],
+            [
+                "set_b",
+                rule({
+                    kind: "any",
+                    of: [
+                        { kind: "degree", min: 1 },
+                        { kind: "member", of: "search" as Scope },
+                    ],
+                }),
+            ],
+            ["set_c", rule({ kind: "member", of: "visible" })],
+        ]);
 
-        assert.deepStrictEqual(visibilityCycle({ kind: "member", of: { set: "set_a" } }, sources), ["set_a", "set_b", "search"]);
-        assert.deepStrictEqual(visibilityCycle({ kind: "not", of: { kind: "member", of: { set: "set_c" } } }, sources), ["set_c", "visible"]);
+        assert.deepStrictEqual(visibilityCycle({ kind: "member", of: { set: "set_a" } }, sources), [
+            "set_a",
+            "set_b",
+            "search",
+        ]);
+        assert.deepStrictEqual(
+            visibilityCycle({ kind: "not", of: { kind: "member", of: { set: "set_c" } } }, sources),
+            ["set_c", "visible"],
+        );
         assert.isNull(visibilityCycle({ kind: "degree", min: 1 }, sources));
     });
 
     it("finds a live selection, but not through the visible graph", () => {
         const sources = sourcesOf(
-            { "saved_sel": "selection", "set_v": rule({ kind: "member", of: "visible" }) },
+            [
+                ["saved_sel", "selection"],
+                ["set_v", rule({ kind: "member", of: "visible" })],
+            ],
             { kind: "member", of: "selection" },
         );
 
-        assert.deepStrictEqual(selectionChain(rule({ kind: "member", of: { set: "saved_sel" } }), sources), ["saved_sel", "selection"]);
-        assert.isNull(selectionChain(rule({ kind: "member", of: { set: "set_v" } }), sources), "a set may follow what is visible");
+        assert.deepStrictEqual(selectionChain(rule({ kind: "member", of: { set: "saved_sel" } }), sources), [
+            "saved_sel",
+            "selection",
+        ]);
+        assert.isNull(
+            selectionChain(rule({ kind: "member", of: { set: "set_v" } }), sources),
+            "a set may follow what is visible",
+        );
     });
 
     it("terminates on a ring it meets on the way", () => {
-        const sources = sourcesOf({
-            "set_a": rule({ kind: "member", of: { set: "set_b" } }),
-            "set_b": rule({ kind: "member", of: { set: "set_a" } }),
-        });
+        const sources = sourcesOf([
+            ["set_a", rule({ kind: "member", of: { set: "set_b" } })],
+            ["set_b", rule({ kind: "member", of: { set: "set_a" } })],
+        ]);
 
         assert.isNull(visibilityCycle({ kind: "member", of: { set: "set_a" } }, sources));
     });

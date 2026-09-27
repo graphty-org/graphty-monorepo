@@ -25,7 +25,10 @@ function scopeEcho(): { execute: (context: RunExecutionContext) => Promise<RunOu
         ran.push(nodes);
 
         return Promise.resolve({
-            result: resultOf(context.runId, { shape: "node-metric", nodes: new Map(nodes.map((id) => [id, { value: 1 }])) }),
+            result: resultOf(context.runId, {
+                shape: "node-metric",
+                nodes: new Map(nodes.map((id) => [id, { value: 1 }])),
+            }),
         });
     };
 
@@ -83,7 +86,14 @@ describe("a derived run id hashes the frozen scope", () => {
 
         assert.notStrictEqual(second.id, first.id, "another filter is another result");
         assert.strictEqual(h.session.runs.list().length, 2);
-        assert.deepStrictEqual(echo.ran, [["a", "b", "c"], ["c", "d", "e"]], "the first result was never re-executed");
+        assert.deepStrictEqual(
+            echo.ran,
+            [
+                ["a", "b", "c"],
+                ["c", "d", "e"],
+            ],
+            "the first result was never re-executed",
+        );
         assert.strictEqual(first.result, firstResult);
         assert.deepStrictEqual([...first.scope.nodes].sort(), ["a", "b", "c"]);
         assert.deepStrictEqual(
@@ -113,7 +123,10 @@ describe("a derived run id hashes the frozen scope", () => {
         await second;
 
         assert.notStrictEqual(second.id, first.id);
-        assert.deepStrictEqual(echo.ran, [["a", "b"], ["d", "e"]]);
+        assert.deepStrictEqual(echo.ran, [
+            ["a", "b"],
+            ["d", "e"],
+        ]);
         h.session.dispose();
     });
 

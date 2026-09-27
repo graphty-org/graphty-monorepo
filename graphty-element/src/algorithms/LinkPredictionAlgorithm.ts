@@ -121,9 +121,7 @@ export class LinkPredictionAlgorithm extends DeclaredAlgorithm<LinkPredictionOpt
                 method,
                 direction: "undirected",
                 weight: null,
-                notes: [
-                    "Only pairs that are not already joined, and that share at least one neighbour, are scored.",
-                ],
+                notes: ["Only pairs that are not already joined, and that share at least one neighbour, are scored."],
             }),
         });
     }

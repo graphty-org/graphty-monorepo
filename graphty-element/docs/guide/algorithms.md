@@ -281,13 +281,13 @@ element.algorithmsOnLoad = ["degree", { algorithm: "pagerank", style: { size: [1
 element.runAlgorithmsOnLoad = true;
 ```
 
-| Option      | Meaning                                                               |
-| ----------- | --------------------------------------------------------------------- |
-| `algorithm` | Required. The algorithm, as a name above                              |
-| `params`    | Its parameters, as `run()` takes them                                 |
-| `style`     | What it paints: `true`, `false`, or `{ size: true \| [min, max] }`    |
-| `seed`      | The seed for a randomised method, so the load is reproducible         |
-| `as`        | The run's id, for a saved document or a later `session.runs.get()`    |
+| Option      | Meaning                                                            |
+| ----------- | ------------------------------------------------------------------ |
+| `algorithm` | Required. The algorithm, as a name above                           |
+| `params`    | Its parameters, as `run()` takes them                              |
+| `style`     | What it paints: `true`, `false`, or `{ size: true \| [min, max] }` |
+| `seed`      | The seed for a randomised method, so the load is reproducible      |
+| `as`        | The run's id, for a saved document or a later `session.runs.get()` |
 
 The other `run()` options are not accepted here, because each one answers a question nobody can
 ask before the data arrives: `signal`, `onProgress` and `queue` steer a run someone is watching,

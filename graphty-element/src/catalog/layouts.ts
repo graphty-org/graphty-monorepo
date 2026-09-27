@@ -538,8 +538,7 @@ export const LAYOUT_CATALOG: readonly LayoutCatalogEntry[] = [
             id: "planar",
             plainName: "No Crossings",
             technicalName: "Planar embedding",
-            description:
-                "Places nodes so that no two edges cross, for the graphs where that is possible.",
+            description: "Places nodes so that no two edges cross, for the graphs where that is possible.",
             family: "geometric",
             kind: "batch",
             maxDimensions: 2,

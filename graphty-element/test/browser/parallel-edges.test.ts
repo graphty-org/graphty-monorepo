@@ -97,8 +97,14 @@ describe("what each repeat policy does to the second record", () => {
 
     test("last takes the repeat's weight and its attributes", async () => {
         const graph = await makeGraph();
-        await graph.addEdges([{ source: "a", target: "b", weight: 2, label: "old" }], { repeated: "last", skipQueue: true });
-        await graph.addEdges([{ source: "a", target: "b", weight: 9, label: "new" }], { repeated: "last", skipQueue: true });
+        await graph.addEdges([{ source: "a", target: "b", weight: 2, label: "old" }], {
+            repeated: "last",
+            skipQueue: true,
+        });
+        await graph.addEdges([{ source: "a", target: "b", weight: 9, label: "new" }], {
+            repeated: "last",
+            skipQueue: true,
+        });
 
         const session = graph.getSession();
         assert.strictEqual(session.data.snapshot().edgeCount, 1);

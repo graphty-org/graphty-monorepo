@@ -198,7 +198,12 @@ function counted(derived: DerivedGraph): DerivedGraph {
  * @param simplify - The merge policy.
  * @returns The input.
  */
-function wholeInput(data: SnapshotSource, declared: GraphSnapshot, orientation: InputOrientation, simplify: SimplifyPolicy): DerivedInput {
+function wholeInput(
+    data: SnapshotSource,
+    declared: GraphSnapshot,
+    orientation: InputOrientation,
+    simplify: SimplifyPolicy,
+): DerivedInput {
     // The store derives the undirected view once per snapshot and caches it.
     const oriented = orientation === "undirected" ? data.undirected(declared) : null;
     const base = oriented === null ? declared : oriented.snapshot;
@@ -326,7 +331,8 @@ export function createScopedInput(
 
     const resolution = scope?.resolution;
     const membership =
-        resolution === undefined || (resolution.nodeCount === declared.nodeCount && resolution.edgeCount === declared.edgeCount)
+        resolution === undefined ||
+        (resolution.nodeCount === declared.nodeCount && resolution.edgeCount === declared.edgeCount)
             ? null
             : resolution;
     let derived: DerivedInput | null = null;
@@ -416,7 +422,12 @@ export function scopeEdges(input: ScopedInput): ScopeEdge[] {
     const list: ScopeEdge[] = [];
     for (let row = 0; row < graph.edgeCount; row++) {
         if (whole || maskTest(edges, row)) {
-            list.push({ id: edgeIdOf(counters.data[row]), row, source: graph.ids.idOf(src[row]), target: graph.ids.idOf(dst[row]) });
+            list.push({
+                id: edgeIdOf(counters.data[row]),
+                row,
+                source: graph.ids.idOf(src[row]),
+                target: graph.ids.idOf(dst[row]),
+            });
         }
     }
 
@@ -512,7 +523,11 @@ export async function withRunInput<T>(
     try {
         if (declaresScopedInput(algorithm)) {
             const resolved = scope();
-            if (resolved !== null && (resolved.resolution.nodeCount !== resolved.graph.nodeCount || resolved.resolution.edgeCount !== resolved.graph.edgeCount)) {
+            if (
+                resolved !== null &&
+                (resolved.resolution.nodeCount !== resolved.graph.nodeCount ||
+                    resolved.resolution.edgeCount !== resolved.graph.edgeCount)
+            ) {
                 await inputs.reserve(holder, estimateOf(resolved), resolved.graph, signal);
             }
         }

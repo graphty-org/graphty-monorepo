@@ -116,7 +116,11 @@ for (const size of SIZES) {
             builder.addEdgesByIds(graph.src, graph.dst);
             return builder.freeze();
         };
-        record(`completion pass alone (lazy identity), ${size.label}`, median3(bare, identityColumnsOf), size.projection);
+        record(
+            `completion pass alone (lazy identity), ${size.label}`,
+            median3(bare, identityColumnsOf),
+            size.projection,
+        );
         assert.isAbove(graph.src.length, 0);
     });
 }

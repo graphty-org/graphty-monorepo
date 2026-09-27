@@ -37,17 +37,18 @@ graphty app gets one consuming change, its style-layer panel naming the new `sco
   breaks. The commit belongs to the phase whose code first changes observable output, so the
   changelog and the code change land together:
 
-  | Behaviour change (design 15.3 item) | Phase | Pre-existing tests it may edit |
-  |---|---|---|
-  | `scope.save` freezes `"selection"` and `"visible"` (15) | 10 | `ScopeApi.test.ts` "reports a set as unbound..." (the `chosen` row: saving `"selection"` without a selection now refuses `E_UNSUPPORTED`) |
-  | `scope.save` never reissues a removed id (17) | 10 | `ScopeApi.test.ts` "catches a ring of saved sets..." (the ring is closed by a redefine instead) |
-  | `selection.promote` keeps the selected edges (18) | 10 | the promote cases in `selection-on-session.test.ts` and `SelectionApi.test.ts` |
-  | Dijkstra takes the shortest of parallel edges (19) | 20 | `accelerated-adapters.test.ts` "dijkstra costs the merged weight and flags every member of the group" (its route over a parallel pair now costs the cheaper edge, 2, not the summed 3) |
-  | Scoped runs compute over their scope (14) | 19 | none. Surveyed at the start of phase 18: only a `Graph` runs a real algorithm (a session built without one has no executor and refuses, and every session test hands it a fake executor), and no test that runs through a `Graph` or `AlgorithmManager` names a scope other than `"graph"` or sets a visibility filter first (`test/browser/**`, `test/session/run-executor.test.ts`, `test/ai/**`). A test that later fails on the phase 19 change is a regression |
-  | Digest strings become `d1:` (16) | 7a | digest string literals; the three `ScopeApi.test.ts` cases of the id-based `membershipDigest`, which is deleted (their claims move to `digest.test.ts`) |
-  | Session edge ids are never reissued after a Clear or a replacing import (21) | 4 | `data-manager-store.test.ts` "re-declares the element columns..." (the first edge after the Clear takes counter 1, not 0) |
+    | Behaviour change (design 15.3 item)                                          | Phase | Pre-existing tests it may edit                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+    | ---------------------------------------------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | `scope.save` freezes `"selection"` and `"visible"` (15)                      | 10    | `ScopeApi.test.ts` "reports a set as unbound..." (the `chosen` row: saving `"selection"` without a selection now refuses `E_UNSUPPORTED`)                                                                                                                                                                                                                                                                                                                           |
+    | `scope.save` never reissues a removed id (17)                                | 10    | `ScopeApi.test.ts` "catches a ring of saved sets..." (the ring is closed by a redefine instead)                                                                                                                                                                                                                                                                                                                                                                     |
+    | `selection.promote` keeps the selected edges (18)                            | 10    | the promote cases in `selection-on-session.test.ts` and `SelectionApi.test.ts`                                                                                                                                                                                                                                                                                                                                                                                      |
+    | Dijkstra takes the shortest of parallel edges (19)                           | 20    | `accelerated-adapters.test.ts` "dijkstra costs the merged weight and flags every member of the group" (its route over a parallel pair now costs the cheaper edge, 2, not the summed 3)                                                                                                                                                                                                                                                                              |
+    | Scoped runs compute over their scope (14)                                    | 19    | none. Surveyed at the start of phase 18: only a `Graph` runs a real algorithm (a session built without one has no executor and refuses, and every session test hands it a fake executor), and no test that runs through a `Graph` or `AlgorithmManager` names a scope other than `"graph"` or sets a visibility filter first (`test/browser/**`, `test/session/run-executor.test.ts`, `test/ai/**`). A test that later fails on the phase 19 change is a regression |
+    | Digest strings become `d1:` (16)                                             | 7a    | digest string literals; the three `ScopeApi.test.ts` cases of the id-based `membershipDigest`, which is deleted (their claims move to `digest.test.ts`)                                                                                                                                                                                                                                                                                                             |
+    | Session edge ids are never reissued after a Clear or a replacing import (21) | 4     | `data-manager-store.test.ts` "re-declares the element columns..." (the first edge after the Clear takes counter 1, not 0)                                                                                                                                                                                                                                                                                                                                           |
 
-  Any other failing pre-existing test is a regression, fixed in the element.
+    Any other failing pre-existing test is a regression, fixed in the element.
+
 - **No `git stash`, `checkout`, `reset` or `switch`.** Set work aside with a WIP commit.
 
 ### 1.2 What "built now" and "kept possible" mean here
@@ -110,18 +111,18 @@ does not count.
   tests in `test/managers/` or `test/session/`.
 - **Timings are recorded, not asserted**, by two runners, and every recorded row names its
   runner (design 6.5 lists them):
-  - **Node:** graph-format's `npm run benchmark` gains a `masks` group, and graphty-element gains
-    `benchmarks/run.ts` (`npm run benchmark`, tsx, results appended to `benchmarks/results/`),
-    created in phase 3. It covers only the Node-safe modules under `catalog/sets/` and
-    `session/sets/` over the store harness.
-  - **Browser:** a `bench-browser` vitest project, created in phase 4, for rows that need
-    `DataManager`, `Graph` or a run (load completion, `createFrom`, the freeze row, the scoped
-    run). Its files are named `test/bench-browser/*.bench-browser.ts`, a suffix no other project
-    includes, and the project includes only that pattern. It prints and appends its numbers,
-    never asserts, and is excluded from `tools/ci-test-matrix.mjs` and the phase gate.
-  Both run 100k-scale rows by default and the 1M and 10M rows only with
-  `GRAPHTY_BENCH_SCALE=large`, and never run in CI. Each row prints beside its design 6.5
-  projection; a worse number is reported to the owner, not turned into a gate.
+    - **Node:** graph-format's `npm run benchmark` gains a `masks` group, and graphty-element gains
+      `benchmarks/run.ts` (`npm run benchmark`, tsx, results appended to `benchmarks/results/`),
+      created in phase 3. It covers only the Node-safe modules under `catalog/sets/` and
+      `session/sets/` over the store harness.
+    - **Browser:** a `bench-browser` vitest project, created in phase 4, for rows that need
+      `DataManager`, `Graph` or a run (load completion, `createFrom`, the freeze row, the scoped
+      run). Its files are named `test/bench-browser/*.bench-browser.ts`, a suffix no other project
+      includes, and the project includes only that pattern. It prints and appends its numbers,
+      never asserts, and is excluded from `tools/ci-test-matrix.mjs` and the phase gate.
+      Both run 100k-scale rows by default and the 1M and 10M rows only with
+      `GRAPHTY_BENCH_SCALE=large`, and never run in CI. Each row prints beside its design 6.5
+      projection; a worse number is reported to the owner, not turned into a gate.
 - **Benchmark graphs** are seeded Barabasi-Albert graphs, m = 5 (m = 10 for the 10M-edge rows),
   from `@graphty/graph-samples` in the element runner. graph-format uses its own
   `benchmarks/datasets.ts` (graph-samples depends on graph-format).
@@ -174,6 +175,7 @@ Babylon.js, Lit or the DOM.
 **Goal.** A yes or no on every one-way door before anything depends on it.
 
 **Work.** Present to the owner, one line each with its recommendation:
+
 - design 15.3 items 1 to 26 (items 17 to 21 are the never-reissue, promote, Dijkstra,
   source-column and edge-counter decisions; items 22 to 26 are where `ScopeInput` is published,
   the empty-run and unknown-id refusals, the empty-save refusal and canonical undirected ends);
@@ -193,6 +195,7 @@ and exposes it as a `categories` target.
 **Goal.** The five word-wise helpers of design 7, exported from the graph-format root.
 
 **Tests first.**
+
 - `graph-format/test/util/mask.test.ts` (extend): each helper on empty, one-word, multi-word and
   non-multiple-of-32 lengths; `maskNot` never sets bits at or above `length`; length mismatch
   throws `E_MASK_LENGTH` through `checkMaskLength`; the result is a fresh array, inputs unchanged;
@@ -222,6 +225,7 @@ and 10% with retained bytes.
 (design 4.1, 4.3 types, 5.1, 12.1, 15.1). Nothing is wired into the session yet.
 
 **Tests first.**
+
 - `test/catalog/sets/canonical.test.ts`: key order; absent optionals omitted; path step `null`
   kept; member sort (numbers before strings, `1` and `"1"` both kept, duplicates dropped); edge
   member sort by (source, target, id, key, ordinal, among), absent before present; path order
@@ -248,6 +252,7 @@ and 10% with retained bytes.
   mode and opaque in load mode.
 
 **Code.**
+
 - `src/catalog/types.ts`: `SetId`, `ScopeId = SetId`, `EdgeReading`, `EdgeMember`, `EdgeRef`,
   `SetDefinition`, `SetDefinitionInput`, `ResultItem`, `ItemKey`, `SetCombine`, `SetCreatedFrom`,
   `SetOperand`, `PathKind`. Each union's TSDoc says "OPEN UNION: kinds may be added in a minor
@@ -256,7 +261,7 @@ and 10% with retained bytes.
   `session/visibility/filter.ts` until it moves in phase 9.
 - `src/catalog/sets/canonical.ts`, `src/catalog/sets/parse.ts`: `parseSetDefinition` (door mode,
   exported) and an internal `loadSetDefinition` (load mode, returns `{ definition, opaque?:
-  { first: string } }`). One validator with a mode flag.
+{ first: string } }`). One validator with a mode flag.
 - Export `parseSetDefinition` and the types from the package-root entry files `catalog.ts`,
   `schema.ts` (types only) and `session.ts`.
 - The validator is its own walker, not the visibility filter's `assertFilter`: every refusal here
@@ -275,24 +280,25 @@ importable in plain Node from `./catalog`.
 goldens; the element's timing runner.
 
 **Tests first.**
+
 - `test/catalog/sets/hash.golden.test.ts`, derived without `hash.ts`. The test holds its own
   reference FNV-1a-32 loop over a literal `Uint8Array`:
-  - the reference loop gives the published FNV-1a-32 vectors ("" is 0x811c9dc5, "a" is
-    0xe40c292c);
-  - the reference loop is parameterised by basis and multiplier; for an ASCII string id, lane A
-    of `hashNodeId` equals it with lane A's basis and multiplier over `0x24` followed by the
-    characters, and lane B equals it with lane B's basis and multiplier;
-  - a numeric id equals the reference over its tag and eight hand-written little-endian float64
-    bytes; `hashNodeId(1) !== hashNodeId("1")`; `1e21` matches its hand-built bytes (a toString
-    path would hash "1e+21"); `-0` equals `+0`;
-  - an id with a character above 0xFF and a non-BMP character is hashed one step per UTF-16 code
-    unit, checked against hand-built unit sequences;
-  - edge members (directed and undirected, each discriminator) are checked against the unit
-    sequences design 12.2 writes out, built by hand in the test, starting with its worked example;
-    the revisions of one fixed, one rule and one path definition against compositions of the
-    reference values.
-  Only after these pass are the hex values written as frozen literals, with a comment that a change
-  bumps the prefix to `r2`.
+    - the reference loop gives the published FNV-1a-32 vectors ("" is 0x811c9dc5, "a" is
+      0xe40c292c);
+    - the reference loop is parameterised by basis and multiplier; for an ASCII string id, lane A
+      of `hashNodeId` equals it with lane A's basis and multiplier over `0x24` followed by the
+      characters, and lane B equals it with lane B's basis and multiplier;
+    - a numeric id equals the reference over its tag and eight hand-written little-endian float64
+      bytes; `hashNodeId(1) !== hashNodeId("1")`; `1e21` matches its hand-built bytes (a toString
+      path would hash "1e+21"); `-0` equals `+0`;
+    - an id with a character above 0xFF and a non-BMP character is hashed one step per UTF-16 code
+      unit, checked against hand-built unit sequences;
+    - edge members (directed and undirected, each discriminator) are checked against the unit
+      sequences design 12.2 writes out, built by hand in the test, starting with its worked example;
+      the revisions of one fixed, one rule and one path definition against compositions of the
+      reference values.
+      Only after these pass are the hex values written as frozen literals, with a comment that a change
+      bumps the prefix to `r2`.
 - `test/catalog/sets/hash.property.test.ts`: the member sum is order-free; adding then removing a
   delta returns the original; `sum(A) + sum(B) == sum(A union B)` for disjoint A, B; the undirected
   edge hash is symmetric in its endpoints and the directed one is not; a revision does not change
@@ -326,49 +332,40 @@ binding members to them needs the store and resolution (phase 7b).
 **Tests first.** The identity logic lives in a Node-safe module and runs at `GraphStore` freeze,
 so every store gets the columns whoever loads it, and most tests run in the `default` project
 against production code; only the `DataManager` wiring needs the browser project.
-- `test/data/edgeIdentity.test.ts` (default), over a real `GraphStore`:
-  - The counter survives Clear and a replacing import: the first edge after either gets a counter
-    id larger than any issued before (today it restarts, `GraphStore.ts:124`). `resumeEdgeCounter
-    (n)`, for the future embedded-graph load, continues one past n. A store built without a
-    counter object starts at 0, as today.
-  - A standalone `createGraphSession` (its own `GraphStore`, no `DataManager`, `GraphSession.ts:567`)
-    with edges added through the session carries all four identity columns after a freeze.
-  - A snapshot without the columns (a raw graph-format or graph-io snapshot) gets its hashes
-    computed lazily from its ids on first read, equal to what the completion pass would write.
-  - The survivorship function returns, for each of the seven policies, the decision
-    `DataManager.ts:1207-1219` makes today (a table test over (policy, known, record)).
-  - An edge added without a file id reads `graphty:e<n>` as its stable id.
-  - The completion pass fills `graphty.edgeOrdinal` and `graphty.edgeAmong` with, per pair, the
-    position among the pair's surviving edges in that load and their count; a pair is unordered
-    unless declared directed at ingest; `directed: "auto"` settling later changes nothing; a
-    chunked additive load gives the same columns as one chunk.
-  - One test per `repeatedEdges` policy, all seven (`keep`, `error`, `first`, `last`, `sum`,
-    `min`, `max`): ordinal and among count surviving edges only (design 12.3), including the three
-    merging policies and the `last` path that replaces the edge record.
-  - After a replacing re-import that dropped one of three parallel edges, and after a second Add
-    data load touching a pair of the first: the columns hold the values design 12.3 derives, and
-    the first load's columns are unchanged.
-  - `graphty.nodeHash` and `graphty.edgeHash` equal `hashNodeId` / `hashEdgeMember` of the row's
-    stable identity, for loaded and session-added rows, and survive a freeze unchanged.
-  - Deleting an edge never changes another edge's ordinal.
-  - Byte accounting: identity columns 8 bytes per node and 16 per edge; the pass's transient
-    buffers 20 bytes per loaded edge and 4 per node.
+
+- `test/data/edgeIdentity.test.ts` (default), over a real `GraphStore`: - The counter survives Clear and a replacing import: the first edge after either gets a counter
+  id larger than any issued before (today it restarts, `GraphStore.ts:124`). `resumeEdgeCounter
+(n)`, for the future embedded-graph load, continues one past n. A store built without a
+  counter object starts at 0, as today. - A standalone `createGraphSession` (its own `GraphStore`, no `DataManager`, `GraphSession.ts:567`)
+  with edges added through the session carries all four identity columns after a freeze. - A snapshot without the columns (a raw graph-format or graph-io snapshot) gets its hashes
+  computed lazily from its ids on first read, equal to what the completion pass would write. - The survivorship function returns, for each of the seven policies, the decision
+  `DataManager.ts:1207-1219` makes today (a table test over (policy, known, record)). - An edge added without a file id reads `graphty:e<n>` as its stable id. - The completion pass fills `graphty.edgeOrdinal` and `graphty.edgeAmong` with, per pair, the
+  position among the pair's surviving edges in that load and their count; a pair is unordered
+  unless declared directed at ingest; `directed: "auto"` settling later changes nothing; a
+  chunked additive load gives the same columns as one chunk. - One test per `repeatedEdges` policy, all seven (`keep`, `error`, `first`, `last`, `sum`,
+  `min`, `max`): ordinal and among count surviving edges only (design 12.3), including the three
+  merging policies and the `last` path that replaces the edge record. - After a replacing re-import that dropped one of three parallel edges, and after a second Add
+  data load touching a pair of the first: the columns hold the values design 12.3 derives, and
+  the first load's columns are unchanged. - `graphty.nodeHash` and `graphty.edgeHash` equal `hashNodeId` / `hashEdgeMember` of the row's
+  stable identity, for loaded and session-added rows, and survive a freeze unchanged. - Deleting an edge never changes another edge's ordinal. - Byte accounting: identity columns 8 bytes per node and 16 per edge; the pass's transient
+  buffers 20 bytes per loaded edge and 4 per node.
 - `test/browser/sets/DataManager.identity.test.ts` (browser): after a load of each data source
   kind and after `addNodes` / `addEdges`, the frozen store carries the columns; `DataManager` makes
   its survivorship decisions through the Node-safe function.
 
 **Code.**
+
 - `data/edgeIdentity.ts`:
-  - The counter object. `GraphStore.nextEdgeId()` stays the call site (`ingest.ts:163` and
-    `graph-store.test.ts` keep calling it), backed by an optional counter passed in through
-    `GraphStoreOptions`. `DataManager` and `GraphSession` each own one and pass it to every store
-    they build, so it survives `resetStore` (`DataManager.ts:475-482`); `resumeEdgeCounter`.
-  - The repeated-edge survivorship decision moved out of `DataManager.ts:1207-1219` as a pure
-    function (policy, known, record) returning a decision; the store write stays in
-    `DataManager`.
-  - The completion pass, run by `GraphStore` at freeze: sort the load's surviving edge rows by
-    (pair, counter) in a transient typed array and fill ordinal, among and the hash columns in one
-    pass, writing `nodeHash` for new nodes. `DataManager` does not call it.
+    - The counter object. `GraphStore.nextEdgeId()` stays the call site (`ingest.ts:163` and
+      `graph-store.test.ts` keep calling it), backed by an optional counter passed in through
+      `GraphStoreOptions`. `DataManager` and `GraphSession` each own one and pass it to every store
+      they build, so it survives `resetStore` (`DataManager.ts:475-482`); `resumeEdgeCounter`.
+    - The repeated-edge survivorship decision moved out of `DataManager.ts:1207-1219` as a pure
+      function (policy, known, record) returning a decision; the store write stays in
+      `DataManager`.
+    - The completion pass, run by `GraphStore` at freeze: sort the load's surviving edge rows by
+      (pair, counter) in a transient typed array and fill ordinal, among and the hash columns in one
+      pass, writing `nodeHash` for new nodes. `DataManager` does not call it.
 - Declare the four builder columns in `GraphStore` beside `graphty.edgeId` (`GraphStore.ts:49-53`).
 - An internal `stableEdgeMember(row)` that builds an `EdgeMember` from a row's columns.
 - The `bench-browser` project (1.4), with its first row.
@@ -392,6 +389,7 @@ phase; `npx vitest list --project=default` names no file under `test/bench-brows
 attributes so no cache can miss a bump.
 
 **Tests first.**
+
 - `test/session/attributes.revision.test.ts` (the writer alone) and
   `test/browser/sets/attributes.revision.test.ts` (through `Graph` and `DataManager`, which the
   `default` project cannot run; see 1.4): `updateNodes` on both queue paths writing `label`
@@ -443,8 +441,9 @@ written onto `ResultsRunEntry.execution`; `resultExecutionOf(results, run)` in
 Constructed by the session, not yet exposed as `session.sets` (phase 10).
 
 **Tests first.** `test/session/sets/store.test.ts`, `prepare.test.ts`, `store.property.test.ts`:
+
 - Minting: the first mint of a name is byte-identical to today's `ScopeApi` mint (`ScopeApi.ts:
-  984-993`), pinned against the current function's output for 20 names; `set_<slug>_2`, `_3` skip
+984-993`), pinned against the current function's output for 20 names; `set_<slug>_2`, `_3` skip
   the committed register, live ids and ids pending in the open write group; a slug never contains a
   dot; create, remove and create "Suspects" gives two different ids.
 - Names: trimmed, never empty, unique among live sets (case-sensitive), "Set N" picks the smallest
@@ -492,6 +491,7 @@ edge bitmap; `ResolvedScope` becomes lazy; the digest becomes `d1:` (design 4.1,
 pass; the public doors that resolve (`createFrom`, `combine`, `createPath`) wrap it.
 
 **Tests first.**
+
 - `test/session/sets/resolve.test.ts`: `"visible"` and `"selection"` pack the byte masks once per
   mask version; `"visible"` reads clipped; `"largest-component"` is weakly connected, ties to the
   lowest label; `{ nodes }` ignores missing ids and reports them; a fixed induced set derives its
@@ -508,8 +508,9 @@ pass; the public doors that resolve (`createFrom`, `combine`, `createPath`) wrap
   contents as before (every existing `ScopeApi.test.ts` case passes unmodified).
 
 **Code.**
+
 - `session/sets/resolve.ts`: `Resolution { nodes: U32; edges: U32; serial; store; missingNodes;
-  missingEdges }`, `resolveScope(scope, context)` where `context` carries the context snapshot
+missingEdges }`, `resolveScope(scope, context)` where `context` carries the context snapshot
   (the full graph today; the future `within` evaluates here), the id maps, the masks, the query
   engine and the store. Readings applied once at the root.
 - `session/scope/ScopeApi.ts`: `resolveNow` and `count` go through `resolveScope`;
@@ -540,6 +541,7 @@ visibility test passes unmodified except digest literals (`d1:`).
 survives any sequence of graph edits and re-freezes (design 4.2, 4.4, 12.3).
 
 **Tests first.**
+
 - `resolve.test.ts` extended: a fixed listed set resolves its edge members through the binding
   table (a linear merge when the edge-id column is monotonic, binary search otherwise, both
   tested); a path resolves distinct nodes and the named edges, a `null` step every edge between the
@@ -577,6 +579,7 @@ survives any sequence of graph edits and re-freezes (design 4.2, 4.4, 12.3).
 passes.
 
 **As built.**
+
 - The binding is seeds plus identity (design 4.2): the store keeps, per set id, the counter each
   door-added member entered through, and a member binds that edge while the snapshot holds it,
   else by stable identity. The side table is keyed by the frozen definition, not by record and
@@ -607,6 +610,7 @@ passes.
 proof that a stored record survives JSON into a fresh session.
 
 **Tests first.**
+
 - `test/session/sets/cache-inputs.test.ts`, the cache audit. One table lists every cache
   (signature memo, resolution, summary, digest; phases 14 and 18 add rows for offer edge counts
   and derived inputs) against its full input list. For each (cache, input) pair one test
@@ -647,6 +651,7 @@ proves, and the one a project file or an undo slice must use (phase 28 names it 
 **Done when.** Every row the audit table has by this phase is filled and every test passes.
 
 **As built.**
+
 - `session/sets/signature.ts` builds `<store>|<serial>|<parts>` and memoises the parts of named
   referents per epoch (store, serial, input tick, and the identity of the saved-scope map and the
   kept-set list). `session/sets/cache.ts` holds `SetsCache` (resolutions, summaries, the memo),
@@ -686,6 +691,7 @@ references can recurse, including through the visibility filter (design 4.3, 5.2
 migration in phase 10 needs.
 
 **Tests first.**
+
 - `test/session/visibility/filter.scope-leaf.test.ts`: the `scope` leaf speaks the node half, and
   the edge half only for a `listed` or `clipped` referent; readings at the root per the design 4.3
   table, including `not { edges: weight < 0.5 }` read `clipped` keeping every node.
@@ -698,7 +704,7 @@ migration in phase 10 needs.
   opaque leaf resolve to empty.
 - `test/session/visibility/filter.identity.property.test.ts`, design 4.3's two identities over
   generated trees of depth 4 on generated graphs, for every leaf kind that exists today: `filter =
-  T` equals `filter = { scope: { define: rule T clipped } }`; replacing a leaf with an equivalent
+T` equals `filter = { scope: { define: rule T clipped } }`; replacing a leaf with an equivalent
   `scope` inside `any`, `all` and `not` gives identical masks.
 - `{ define }` accepted at every write position that takes `ScopeInput`: run options, selection
   targets, `scope.resolve`, `scope.count`, camera framing. `parseScope` door-mode tests.
@@ -720,6 +726,7 @@ SetDefinition }` (declared open) and `ScopeInput`; every `switch` over `Scope` h
 `VisibilityApi.test.ts` case passes unmodified.
 
 **As built.**
+
 - `Filter` and `FilterDirection` live in `catalog/types.ts`; `session/visibility/filter.ts`
   re-exports them. The one pre-existing test edit is `colon-rule.test.ts`, whose leaf-kind record
   is typed by the union so that it must grow with it.
@@ -765,6 +772,7 @@ SetDefinition }` (declared open) and `ScopeInput`; every `switch` over `Scope` h
 **Goal.** `session.sets` goes live; the saved-scope verbs delegate (design 2.2, 15.2, 16).
 
 **Tests first.**
+
 - `test/session/sets-on-session.test.ts`: every synchronous door through `session.sets`;
   `session.scope.resolve({ set: id })` and `count({ set: id })` for each kind; `count` reports
   `missingNodes` / `missingEdges`; `count` of a tombstoned id returns zeros and never throws; an id
@@ -794,6 +802,7 @@ graphty app type-checks against the branch (`pnpm exec nx run graphty:lint`); th
 commits exist with changelog bodies.
 
 **As built.**
+
 - Four commits, each green: the `feat` publishing `session.sets`, then the three `fix` commits in
   the order freeze, never-reissue, promote. The freeze lands first, on the old saved-scope map,
   because the delegation cannot keep a live `"selection"` (a kept rule reading it is refused). The
@@ -827,10 +836,11 @@ commits exist with changelog bodies.
 4.3, 5.2).
 
 **Tests first.**
+
 - `test/session/visibility/filter.leaves.test.ts`: `item` with and without `execution`, array
   containment, `onPath` speaking both halves; `threshold` `top` with the `TopRanking` tie policy
   over the population carrying the value, `above`, over `data.*` and `results.*`; `all [degree >=
-  5, edges: weight > 0.5]` read `listed`.
+5, edges: weight > 0.5]` read `listed`.
 - Refusals: a follow-mode `item` on a partition group; a `threshold` with zero or two cuts, or
   with a reserved field (`percentile`, `z`, `population`), and `NaN` or an infinity in a cut; an
   `ItemKey` with a reserved `op`. Load mode keeps a reserved `threshold` field and an `ItemKey.op`
@@ -847,6 +857,7 @@ reserved: refused in door mode, opaque in load mode.
 tests pass unmodified.
 
 **As built.**
+
 - The leaves compile in `compileOne` (`compileItem`, `compileThreshold`). They read a run through a
   new `FilterSources.result(run)` (internal type `FilterRunResult`: the current execution token,
   the published fields with their kinds, and per-index node and edge values), which the session
@@ -887,6 +898,7 @@ tests pass unmodified.
 (design 4.4, 5.2, 5.3, 3.4).
 
 **Tests first.**
+
 - `test/session/sets/status.test.ts`: one test per row of the design 5.3 table, in order, each
   asserting freshness, reasons, `earlierRuns` and what the set resolves to. Rows for sets that only
   `createFrom(offer)` makes (phase 14) are built through the internal `store.put` with an explicit
@@ -924,6 +936,7 @@ sequences.
 15.2).
 
 **Tests first.**
+
 - `test/session/sets/algebra.test.ts`: every operand induced gives an induced result; otherwise
   edge-first; `difference` is the first minus the union of the rest; the result is a fixed set with
   `createdFrom: { kind: "combine", op, of }` holding references, `{ inline }` sizes for member lists.
@@ -968,6 +981,7 @@ session over a store is Node-safe, so these rows need no browser.
 **Goal.** Results offer sets on demand, by shape (design 8, 15.2 `containing`).
 
 **Tests first.**
+
 - `test/session/sets/offers.test.ts`: one test per row of the design 8.2 shape table, using the
   built-in algorithm of each shape; `limit` and `more`; `edges` present only when the execution's
   edge-count pass is cached, and `offers` never runs it; the pass counts an edge once per group in
@@ -993,6 +1007,7 @@ audit.
 filled.
 
 **As built.**
+
 - `session/sets/offers.ts` holds `createOffering` (offers, the edge-count pass, the path order
   and Memberships); the session builds one and hands it to `session.sets` and to the
   materialiser. `SetOffer.nodes` became optional (design 8.2): a `listed` offer's nodes include
@@ -1022,6 +1037,7 @@ filled.
 re-resolution after a freeze across frames (design 6.2, 11).
 
 **Tests first.**
+
 - `test/session/sets/notify.test.ts`: the notification fires from each of six hooks: the store's
   committed diff, a selection mask change, a visibility mask change, a run commit, an attribute
   write, a snapshot replacement. It carries which inputs moved; it runs before `set:changed` is
@@ -1039,6 +1055,7 @@ with an injectable frame source (production uses the render loop's frame callbac
 **Done when.** Tests pass.
 
 **As built.**
+
 - `SetsNotifier` takes a `SetWatch`: `signature()`, `resolve()`, `ready(resolution, moved)` and
   `cost()`, the elements one resolution walks as the watch estimates them. The per-frame budget is
   1,000,000 such elements (internal, a guess until the freeze row is recorded); the first watch of
@@ -1070,6 +1087,7 @@ with an injectable frame source (production uses the render loop's frame callbac
 **Goal.** `Selector { match: "scope", scope }`, repainting only what moved (design 11).
 
 **Tests first.**
+
 - `test/session/styles/selector.scope.test.ts`: both declarations accept the kind
   (`catalog/types.ts:482-492`, `session/styles/selector.ts:57`, `SELECTOR_KINDS`); malformed
   refuses `E_BAD_SELECTOR`; a detached or invalid scope paints nothing and the pass continues; a
@@ -1100,6 +1118,7 @@ colours through the element.
 Chromatic snapshots are left for the owner to accept.
 
 **As built.**
+
 - `SelectorSource.scope(scope)` (optional; absent refuses `E_UNSUPPORTED`, like `ids` and `top`)
   hands the compiler a `LiveScope` with `bits(target)` and `problem()`; the compiled test is one
   `maskTest` per element. `CompiledSelector` gains an optional `problem()`, which `unboundLayers`
@@ -1134,6 +1153,7 @@ Chromatic snapshots are left for the owner to accept.
 cycle safety already hold from phase 9.
 
 **Tests first.**
+
 - `test/session/visibility/VisibilityApi.sets.test.ts`: redefining a set the filter names moves
   the visible mask; removing a set the filter and a layer both name throws nowhere.
 - The studio's "without S" (design 4.3) as a rule: S's nodes and every edge touching them removed,
@@ -1149,6 +1169,7 @@ cycle safety already hold from phase 9.
 **Done when.** Tests and the story pass.
 
 **As built.**
+
 - `VisibilitySources.watch` (`subscribe`, `signature`, `pin`) is how the model follows its sets.
   The filter's signature is the scope signatures of its `scope` leaves (outermost only; each
   scope's own signature covers what it reads), leaving out a leaf that reaches `"visible"` or
@@ -1167,7 +1188,7 @@ cycle safety already hold from phase 9.
 - The session hands the filter's compile `captured` (through the scope resolver's context, which
   turns a capture into bitmaps over the current snapshot), adds the filter tree to the run
   capture holders, and lists the filter once in `usedBy` as `{ kind: "filter", label:
-  "Visibility filter" }` (`SetsDependencies.users` now takes a scope or a filter tree).
+"Visibility filter" }` (`SetsDependencies.users` now takes a scope or a filter tree).
 - Not done: `visibility.set` does not yet turn session `EdgeId`s inside a leaf's `{ define }`
   into stable members (stable members only), as for layer selectors. Accepting `ScopeInput`
   there needs a filter input type, a new public name, so it is left for when a consumer needs
@@ -1199,8 +1220,9 @@ visibility filter active, and write that list into section 1.1's table in its ow
 those tests may change, and only in the phase 19 `fix` commit.
 
 **Tests first.**
+
 - `test/algorithms/input/scopedInput.test.ts`: the chain is declared, then `inducedSubgraph(node
-  bitmap)`, then `filterEdges(edge bitmap)` only when the edge bitmap is not the induced one, then
+bitmap)`, then `filterEdges(edge bitmap)` only when the edge bitmap is not the induced one, then
   `toUndirected` if asked, then `simplified` by the asked policy; a `"visible"` scope with isolated
   nodes keeps them; the whole-graph shortcut returns the snapshot unchanged and uses the store's
   undirected cache (`GraphStore.ts:289-294`); a reciprocal pair with halves weighted 0.1 and 0.9,
@@ -1245,6 +1267,7 @@ phase where scoped runs first change observable output, so it carries that behav
 commit.
 
 **Tests first.**
+
 - `test/algorithms/input/maskBack.test.ts`: every node value outside the node bitmap and every edge
   value outside the edge bitmap reads missing and is excluded from rankings, histograms and
   summaries; Dijkstra's `Infinity` / `onPath: false` defaults and the many-to-one `edgeRemap`
@@ -1280,6 +1303,7 @@ its scope record (`RunScopeRecord`) says 20 nodes. Its `measured` counts still r
 graph until phase 20.
 
 **As built.**
+
 - `Algorithm.publishResult` refuses in the base class, so the publish paths are the two
   `createRunResult` call sites, `DeclaredAlgorithm.computeRun` and `MetricAlgorithm.measureRun`;
   both build from `maskBack(this, init)`. No protected helper was added to `Algorithm`, because a
@@ -1323,6 +1347,7 @@ list from the input and `measured` from the resolution; `DeclaredAlgorithm`'s `m
 (`results/DeclaredAlgorithm.ts:201`) likewise.
 
 **Tests first.**
+
 - `test/algorithms/scoped/registry.test.ts`, behavioural, over every registered algorithm from
   this phase on. An expected table in the test gives each algorithm's declaration; it only moves
   from off to on, and the test fails if the runtime declaration differs from it. One shared
@@ -1330,20 +1355,20 @@ list from the input and `measured` from the resolution; `DeclaredAlgorithm`'s `m
   non-member is shorter than any inside, and where PageRank mass flows through non-members;
   algorithms that need options (sources, sinks) take them from a table in the test. For every
   algorithm declared scoped:
-  1. the run record carries no "computed on the whole graph" caveat;
-  2. the in-scope values equal those of the same algorithm run on an induced subgraph built by
-     hand in snapshot row order (the test asserts its node and edge insertion order equals
-     `snapshot.inducedSubgraph`'s, since seeded partition algorithms depend on iteration order);
-  3. the whole-graph run gives different in-scope values on this fixture, which proves the
-     fixture tells the two apart;
-  4. during the run, the algorithm's graph handle records any topology read (`getDataManager()`
-     node or edge enumeration, `getSnapshot()` topology) that goes around `input()`, and the test
-     fails on one. Metadata reads such as `getSnapshot().directed` are not topology.
-  For partition-shaped results (Louvain, Leiden, label propagation, components), checks 2 and 3
-  compare after canonicalising labels by first appearance in row order; a test shows a pure
-  relabelling is judged equal, and the fixture is one where the scoped and whole-graph partitions
-  still differ after canonicalising. An algorithm the shared fixture cannot discriminate gets its
-  own fixture in the table. Every algorithm declared off must carry the caveat.
+    1. the run record carries no "computed on the whole graph" caveat;
+    2. the in-scope values equal those of the same algorithm run on an induced subgraph built by
+       hand in snapshot row order (the test asserts its node and edge insertion order equals
+       `snapshot.inducedSubgraph`'s, since seeded partition algorithms depend on iteration order);
+    3. the whole-graph run gives different in-scope values on this fixture, which proves the
+       fixture tells the two apart;
+    4. during the run, the algorithm's graph handle records any topology read (`getDataManager()`
+       node or edge enumeration, `getSnapshot()` topology) that goes around `input()`, and the test
+       fails on one. Metadata reads such as `getSnapshot().directed` are not topology.
+       For partition-shaped results (Louvain, Leiden, label propagation, components), checks 2 and 3
+       compare after canonicalising labels by first appearance in row order; a test shows a pure
+       relabelling is judged equal, and the fixture is one where the scoped and whole-graph partitions
+       still differ after canonicalising. An algorithm the shared fixture cannot discriminate gets its
+       own fixture in the table. Every algorithm declared off must carry the caveat.
 - One `test/algorithms/scoped/<Name>.scoped.test.ts` per adapter for the cases the registry test
   does not cover: a listed-scope run equals a run on a hand-built graph of exactly the listed
   edges; a multigraph case. For the accelerated five (PageRank, Dijkstra, BFS, connected
@@ -1364,6 +1389,7 @@ classes, PageRank, Dijkstra, BFS, connected components, Kruskal; the six other m
 never had one); the registry test and the device-release tests pass locally.
 
 **As built.**
+
 - An adapter lists what it publishes through two helpers in `algorithms/input/ScopedInput.ts`:
   `scopeNodeIds(input)` (the input's nodes in declared row order, which is the compact snapshot's
   order) and `scopeEdges(input)` (its declared edges in row order, each with its session id and the
@@ -1412,6 +1438,7 @@ registry test covers each adapter once its declaration flips.
 passes.
 
 **As built.**
+
 - No adapter read through `utils/communityUtils.ts`. Its two graph-reading functions,
   `getTotalEdgeWeight` and `getNodeDegree`, had no caller in `src/` and the utils barrel is not in
   the exports map, so they were deleted with their unit tests rather than ported; the util now holds
@@ -1440,6 +1467,7 @@ coverage is not raised (the repository's floyd-warshall note).
 passes.
 
 **As built.**
+
 - `scopeEdges` also gives each edge's source and target ids (declared orientation), so an adapter
   that matches an `@graphty/algorithms` answer back by node pair needs no second read.
 - Max flow's capacity is an attribute of the edge record, which the snapshot does not carry. It is
@@ -1470,6 +1498,7 @@ and are never written into the graph.
 allowlist holds only its permanent entries, and the registry test passes.
 
 **As built.**
+
 - Eigenvector reads whether the graph is directed from `this.input("declared").graph.directed`, a
   metadata read of the input, where it read the data manager's snapshot.
 - Link prediction pairs the input's nodes over the input's edges, so a pair never names a
@@ -1494,6 +1523,7 @@ allowlist holds only its permanent entries, and the registry test passes.
 **Goal.** Third-party algorithms learn their scope (design 10.2, 10.4).
 
 **Tests first.**
+
 - `test/browser/extensions/algorithm-extension.test.ts` (extend): a plugin declaring
   `scopeInput: "subgraph"` calls `context.input("undirected", { simplify: "min" })` and sees only
   the scope; a plugin without `scopeInput` gets the phase 19 whole-graph path and caveat.
@@ -1512,6 +1542,7 @@ suggestions. The "scope ... not forwarded to compute" paragraph of `graphty-elem
 **Done when.** The extension parity test and the all-extension-points test pass.
 
 **As built.**
+
 - One declaration: a plugin writes `static scopeInput = "subgraph" as const` on its class, as the
   built-ins do. `Algorithm.register` publishes it as `descriptor.scopeInput` (`"none"` when absent)
   and refuses with `E_BAD_COMMAND` an authored descriptor that states a different value. The
@@ -1549,6 +1580,7 @@ suggestions. The "scope ... not forwarded to compute" paragraph of `graphty-elem
 (design 11).
 
 **Tests first.**
+
 - `test/layout/scoped.test.ts`: `static scoped` is false on `LayoutEngine` and true on
   `SimulationLayoutEngine`, `NGraphLayoutEngine` and `D3GraphLayoutEngine`; `LayoutEngine.register`
   derives `LayoutDescriptor.scoped`; `AuthoredLayoutDescriptor` omits it (a type test compiles a
@@ -1592,6 +1624,7 @@ scoped engine must treat held nodes as fixed in its own state, not only skip the
 
 **Tests** (`default` project, byte accounting and work counts at 100k; every accounting they read
 is the one its phase's walk (1.4) already checked):
+
 - A freeze with live sets (five layers over expression rules, five over fixed sets, add one node):
   re-resolution resolves each live scope exactly once, and a following 200-row `scope.count` panel
   resolves nothing further.
@@ -1619,6 +1652,7 @@ projection.
 **Goal.** A third party reaches a working set without reading this repository.
 
 **Work.**
+
 - New `graphty-element/docs/guide/sets.md`, in the sidebar after Algorithms
   (`docs/.vitepress/config.ts`): what a set is; creating one (ids, a query, the selection, an
   offer); readings, with a picture of induced, listed and clipped; kept versus inline
@@ -1646,6 +1680,7 @@ for `Sets.stories.ts` pass.
 **Goal.** Prove the app needs no change, and open the pull request.
 
 **Work.**
+
 - Build, lint and test the graphty app against the branch
   (`pnpm exec nx run-many -t build,lint,test -p graphty`). The design expects no change
   (design 17). If anything fails, the fix goes in graphty-element, never in the app.
@@ -1667,36 +1702,36 @@ behaviour-change commits of section 1.1 named in its description.
 
 ## 3. Coverage of the design's "Built now" column
 
-| Design section 20 row | Built in phase | Extension point only (refused at doors, opaque on load) |
-|---|---|---|
-| Kept sets, readings, created from, status, algebra, offers, memberships, Used by | 6, 7a, 7b, 10, 12, 13, 14 | -- |
-| Ordered filter steps | 9 (the `scope` leaf, cycles refused), 17 | -- |
-| Rule scope | 7a (context snapshot) | `within` (11) |
-| Search graph | -- | `"search"` keyword (9) |
-| File parallel-edge keys | -- | `EdgeMember.key` (2) |
-| Population-scoped runs | 19 (mask-back), 24 (masks on `ScopedInput`) | `scopeAs` (24) |
-| Relative thresholds | 11 (`threshold` top / above) | `percentile`, `z`, `population` (11) |
-| Item comparisons, keyed items | 2 (open `ItemKey`) | `op`, other key forms (2) |
-| Carrying groups across re-runs | 12 (captures, `earlierRuns`) | -- |
-| Extending a path | 6 (`redefine`) | -- |
-| Restoring a removed set | 6 (tombstones keep the record) | -- |
-| Carrying resolutions across a freeze | 7a (serial and store tags), 15 (scheduler), 26 (the freeze row) | -- |
-| Dirty-row rule re-evaluation | 5 (per-field attribute revisions, one writer) | -- |
-| Members in undo history | 6 (whole values, size cap) | -- |
-| Provenance by source | 4, only if the owner says so in phase 0 | `EdgeMember.dataSource` (2) |
-| Comparison | 1 (bitmaps, popcount) | -- |
-| Faster scoped simulation, static layouts | 25 (hold mask, native pinning; static engines refuse) | -- |
-| Collapse, library across projects | 6 (stable ids; namespaced id grammar accepted in load mode) | -- |
-| Neighbourhood of a set, groups of an attribute | existing `neighborhood.seeds`, `categories` rules | -- |
-| Live combinations | 9, 13 (rules over `scope` leaves) | -- |
-| External codec | 2 (internal load mode), 8 (record round trip) | -- |
-| Cross-session digests | 7a (`d1:`) | -- |
-| Assistant commands | 2 (`parseSetDefinition`), 9 (`parseScope`) | -- |
-| Plugin rule leaves | 2 (opaque round trip, colon rule) | -- |
-| GPU kernels with an alive mask | 24 (masks on `ScopedInput`) | `scopeInput: "mask"` (open union, 24) |
-| Undo | 6 (store, `prepare`, five operations) | -- |
-| Project file | 2 (validator), 4 (counter resume), 6 (record shape), 7b (embedded-graph rebind), 8 (`toLogicalRecords` / `loadLogicalRecords` and the round trip) | -- |
-| Export, `meta`, `compare`, `extendPath`, attribution, two graphs | -- | not built; each is additive to an open type (`restore` is built, and no `sets` root is reserved: design section 15.3, items 33 and 36) |
+| Design section 20 row                                                            | Built in phase                                                                                                                                    | Extension point only (refused at doors, opaque on load)                                                                                |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Kept sets, readings, created from, status, algebra, offers, memberships, Used by | 6, 7a, 7b, 10, 12, 13, 14                                                                                                                         | --                                                                                                                                     |
+| Ordered filter steps                                                             | 9 (the `scope` leaf, cycles refused), 17                                                                                                          | --                                                                                                                                     |
+| Rule scope                                                                       | 7a (context snapshot)                                                                                                                             | `within` (11)                                                                                                                          |
+| Search graph                                                                     | --                                                                                                                                                | `"search"` keyword (9)                                                                                                                 |
+| File parallel-edge keys                                                          | --                                                                                                                                                | `EdgeMember.key` (2)                                                                                                                   |
+| Population-scoped runs                                                           | 19 (mask-back), 24 (masks on `ScopedInput`)                                                                                                       | `scopeAs` (24)                                                                                                                         |
+| Relative thresholds                                                              | 11 (`threshold` top / above)                                                                                                                      | `percentile`, `z`, `population` (11)                                                                                                   |
+| Item comparisons, keyed items                                                    | 2 (open `ItemKey`)                                                                                                                                | `op`, other key forms (2)                                                                                                              |
+| Carrying groups across re-runs                                                   | 12 (captures, `earlierRuns`)                                                                                                                      | --                                                                                                                                     |
+| Extending a path                                                                 | 6 (`redefine`)                                                                                                                                    | --                                                                                                                                     |
+| Restoring a removed set                                                          | 6 (tombstones keep the record)                                                                                                                    | --                                                                                                                                     |
+| Carrying resolutions across a freeze                                             | 7a (serial and store tags), 15 (scheduler), 26 (the freeze row)                                                                                   | --                                                                                                                                     |
+| Dirty-row rule re-evaluation                                                     | 5 (per-field attribute revisions, one writer)                                                                                                     | --                                                                                                                                     |
+| Members in undo history                                                          | 6 (whole values, size cap)                                                                                                                        | --                                                                                                                                     |
+| Provenance by source                                                             | 4, only if the owner says so in phase 0                                                                                                           | `EdgeMember.dataSource` (2)                                                                                                            |
+| Comparison                                                                       | 1 (bitmaps, popcount)                                                                                                                             | --                                                                                                                                     |
+| Faster scoped simulation, static layouts                                         | 25 (hold mask, native pinning; static engines refuse)                                                                                             | --                                                                                                                                     |
+| Collapse, library across projects                                                | 6 (stable ids; namespaced id grammar accepted in load mode)                                                                                       | --                                                                                                                                     |
+| Neighbourhood of a set, groups of an attribute                                   | existing `neighborhood.seeds`, `categories` rules                                                                                                 | --                                                                                                                                     |
+| Live combinations                                                                | 9, 13 (rules over `scope` leaves)                                                                                                                 | --                                                                                                                                     |
+| External codec                                                                   | 2 (internal load mode), 8 (record round trip)                                                                                                     | --                                                                                                                                     |
+| Cross-session digests                                                            | 7a (`d1:`)                                                                                                                                        | --                                                                                                                                     |
+| Assistant commands                                                               | 2 (`parseSetDefinition`), 9 (`parseScope`)                                                                                                        | --                                                                                                                                     |
+| Plugin rule leaves                                                               | 2 (opaque round trip, colon rule)                                                                                                                 | --                                                                                                                                     |
+| GPU kernels with an alive mask                                                   | 24 (masks on `ScopedInput`)                                                                                                                       | `scopeInput: "mask"` (open union, 24)                                                                                                  |
+| Undo                                                                             | 6 (store, `prepare`, five operations)                                                                                                             | --                                                                                                                                     |
+| Project file                                                                     | 2 (validator), 4 (counter resume), 6 (record shape), 7b (embedded-graph rebind), 8 (`toLogicalRecords` / `loadLogicalRecords` and the round trip) | --                                                                                                                                     |
+| Export, `meta`, `compare`, `extendPath`, attribution, two graphs                 | --                                                                                                                                                | not built; each is additive to an open type (`restore` is built, and no `sets` root is reserved: design section 15.3, items 33 and 36) |
 
 ## 4. Risks to the schedule
 

@@ -20,7 +20,15 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import { type GraphSnapshot, INVALID_INDEX, makeMask, maskSet, maskToIndices, maskXor, type U32 } from "@graphty/graph-format";
+import {
+    type GraphSnapshot,
+    INVALID_INDEX,
+    makeMask,
+    maskSet,
+    maskToIndices,
+    maskXor,
+    type U32,
+} from "@graphty/graph-format";
 
 import type { Scope } from "../../catalog/types";
 import { EDGE_ID_COLUMN } from "../../data/edgeIdentity";
@@ -195,7 +203,9 @@ class Entry implements LiveScope {
         try {
             const { resolution, graph } = this.sources.resolve(this.scope);
 
-            return resolution.problem === undefined ? { resolution, graph } : { resolution: null, graph, problem: resolution.problem.message };
+            return resolution.problem === undefined
+                ? { resolution, graph }
+                : { resolution: null, graph, problem: resolution.problem.message };
         } catch (error) {
             if (!isGraphtyError(error)) {
                 throw error;
@@ -235,7 +245,10 @@ class Entry implements LiveScope {
         // freeze that leaves a set's members alone repaints nothing for its layers.
         let before: { readonly node: U32; readonly edge: U32 } | null = null;
         if (previous.resolution !== null) {
-            before = previous.graph === graph ? { node: previous.resolution.nodes, edge: previous.resolution.edges } : this.#carry(previous, graph);
+            before =
+                previous.graph === graph
+                    ? { node: previous.resolution.nodes, edge: previous.resolution.edges }
+                    : this.#carry(previous, graph);
         }
 
         this.#take(next);

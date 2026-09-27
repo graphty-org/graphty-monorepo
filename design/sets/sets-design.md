@@ -121,33 +121,33 @@ differ by what they were created from, not by kind.
 - The published `Scope` type keeps its name, and it becomes **the set reference type**.
 - A "saved scope" is a kept set.
 
-| `Scope` form | What it is as a set | Reading |
-|---|---|---|
-| `"graph"` | Built-in: every element | induced |
-| `"visible"` | Built-in: what the visibility filter shows. It can hide edges independently of nodes (`ScopeApi.ts:626-634`, `738-744`) | **clipped** |
-| `"selection"` | Built-in: the selected nodes, as in 2.x (`ScopeApi.ts` returns no edge constraint) | induced |
-| `"largest-component"` | Built-in: the largest **weakly** connected component (`session/statistics.ts` `labelComponents`) | induced |
-| `{ set: SetId }` | A reference to a kept set (unchanged) | the set's own |
-| `{ where: Query }` | An inline rule set (unchanged) | induced |
-| `{ nodes: NodeId[] }` | An inline fixed set (unchanged) | induced |
-| `{ define: SetDefinition }` | **New.** An inline set of any definition kind | the definition's |
+| `Scope` form                | What it is as a set                                                                                                     | Reading          |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `"graph"`                   | Built-in: every element                                                                                                 | induced          |
+| `"visible"`                 | Built-in: what the visibility filter shows. It can hide edges independently of nodes (`ScopeApi.ts:626-634`, `738-744`) | **clipped**      |
+| `"selection"`               | Built-in: the selected nodes, as in 2.x (`ScopeApi.ts` returns no edge constraint)                                      | induced          |
+| `"largest-component"`       | Built-in: the largest **weakly** connected component (`session/statistics.ts` `labelComponents`)                        | induced          |
+| `{ set: SetId }`            | A reference to a kept set (unchanged)                                                                                   | the set's own    |
+| `{ where: Query }`          | An inline rule set (unchanged)                                                                                          | induced          |
+| `{ nodes: NodeId[] }`       | An inline fixed set (unchanged)                                                                                         | induced          |
+| `{ define: SetDefinition }` | **New.** An inline set of any definition kind                                                                           | the definition's |
 
 Built-ins are resolved live and are never records.
 
 ### 2.3 How sets relate to everything that targets elements
 
-| Surface | Today | After |
-|---|---|---|
-| Runs | Scope recorded, estimated, not executed | Computes over it (section 10). The run record names the set id and revision it ran over, and a caveat states the subgraph size |
-| Layouts: `setLayout(type, opts, options)` | Whole graph | `options.scope`. The five physics layouts move only the members and hold the rest (section 11) |
-| Style layers: `Selector` | Cannot name a set | New selector `{ match: "member", of }`, one bit test per element |
-| Visibility filter: `Filter` | Cannot name a set | New leaf `{ kind: "member", of }` |
-| Selection: `SelectionTarget` | `{ scope }` accepted | Unchanged. Subject to the 5,000-element selection cap, which says when it truncates |
-| Camera: `applyCameraView(view, { scope })` | Reads the id `Set` | Reads the bitmap |
-| Results | Per-element values | Offer sets (section 8.2). Algorithms never create sets |
-| JMESPath `Query` | The only way to write a predicate | One way to write a rule. Never a way to pass a set around |
-| Selection as a source | `promote` drops edges | "Create set" freezes it into a kept fixed set, nodes and edges |
-| Export | None | Deferred to an element export verb that attaches attributes (section 11) |
+| Surface                                    | Today                                   | After                                                                                                                          |
+| ------------------------------------------ | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Runs                                       | Scope recorded, estimated, not executed | Computes over it (section 10). The run record names the set id and revision it ran over, and a caveat states the subgraph size |
+| Layouts: `setLayout(type, opts, options)`  | Whole graph                             | `options.scope`. The five physics layouts move only the members and hold the rest (section 11)                                 |
+| Style layers: `Selector`                   | Cannot name a set                       | New selector `{ match: "member", of }`, one bit test per element                                                               |
+| Visibility filter: `Filter`                | Cannot name a set                       | New leaf `{ kind: "member", of }`                                                                                              |
+| Selection: `SelectionTarget`               | `{ scope }` accepted                    | Unchanged. Subject to the 5,000-element selection cap, which says when it truncates                                            |
+| Camera: `applyCameraView(view, { scope })` | Reads the id `Set`                      | Reads the bitmap                                                                                                               |
+| Results                                    | Per-element values                      | Offer sets (section 8.2). Algorithms never create sets                                                                         |
+| JMESPath `Query`                           | The only way to write a predicate       | One way to write a rule. Never a way to pass a set around                                                                      |
+| Selection as a source                      | `promote` drops edges                   | "Create set" freezes it into a kept fixed set, nodes and edges                                                                 |
+| Export                                     | None                                    | Deferred to an element export verb that attaches attributes (section 11)                                                       |
 
 ### 2.4 Why sets and not queries
 
@@ -421,12 +421,12 @@ export type ItemKey = { readonly field: string; readonly value: string | number 
   it read missing (section 10.1). The reserved `population` field will add "each group of" a
   partition.
 - **Names (decided 2026-09-27, section 15.3 item 6).** The membership leaf is `{ kind: "member",
-  of: Scope }` and the selector `{ match: "member", of: Scope }`: the leaf tests membership, it
+of: Scope }` and the selector `{ match: "member", of: Scope }`: the leaf tests membership, it
   does not say what anything reads, and the rule's own scope is the reserved field `scope?`, so
   "scope" keeps one meaning, what something reads.
 - The published `SelectionTarget` `top`/`above` and the style `Selector` `{ match: "top", path,
-  n }` keep their shapes. The unified route from any grammar is `{ scope: { define: rule with a
-  threshold leaf } }`; this design does not claim one spelling everywhere.
+n }` keep their shapes. The unified route from any grammar is `{ scope: { define: rule with a
+threshold leaf } }`; this design does not claim one spelling everywhere.
 
 **Evaluation is the visibility filter's, unchanged.** Every leaf yields a node half and an edge
 half, and a half the leaf does not speak about is **silent**, exactly as the compiler does today
@@ -436,12 +436,12 @@ are not silent, and `not` negates only those. The new leaves:
 - `scope` speaks the referenced set's node half. It speaks the edge half **only when the set's
   reading is `listed` or `clipped`** (including `"visible"`). A scope over an induced set is
   silent on edges, exactly like the node leaf it replaces. Otherwise `any [ {scope: {where: q}},
-  degree >= 5 ]` would lose every hub-to-hub edge that `any [ {expression q}, degree >= 5 ]`
+degree >= 5 ]` would lose every hub-to-hub edge that `any [ {expression q}, degree >= 5 ]`
   keeps. An optional field that makes an induced set speak its edges can be added when live
   combinations need it (section 7).
 - The studio's "without S" (S's nodes removed, with every edge touching them and S's own edges)
   is a rule, not a new form: `{ define: { kind: "rule", where: { kind: "not", of: { kind:
-  "member", of: S } }, reading: "clipped" } }`. Every edge of S touches one of S's nodes, so
+"member", of: S } }, reading: "clipped" } }`. Every edge of S touches one of S's nodes, so
   clipping to the remaining nodes drops them whatever S's reading.
 - `item` and `threshold` speak the half or halves whose result field exists. `onPath` is both a
   node and an edge field, so a path item speaks both. A `threshold` over `data.<field>` speaks each
@@ -457,11 +457,11 @@ are not silent, and `not` negates only those. The new leaves:
 A reading does two jobs: at the root it says how the halves become a set, and inside a scope
 leaf it says whether the referenced set speaks edges. At the root, the reading is applied once:
 
-| Reading | A silent half means | Nodes | Edges |
-|---|---|---|---|
-| `induced` | all | the node half | every edge between those nodes |
-| `listed` | none | the node half plus the edge half's endpoints | the edge half |
-| `clipped` | all | the node half | the edge half, clipped to edges whose endpoints are both nodes |
+| Reading   | A silent half means | Nodes                                        | Edges                                                          |
+| --------- | ------------------- | -------------------------------------------- | -------------------------------------------------------------- |
+| `induced` | all                 | the node half                                | every edge between those nodes                                 |
+| `listed`  | none                | the node half plus the edge half's endpoints | the edge half                                                  |
+| `clipped` | all                 | the node half                                | the edge half, clipped to edges whose endpoints are both nodes |
 
 - A weighted-network threshold is right: `not { edges: weight < 0.5 }` read `clipped` keeps
   every node and only the strong edges.
@@ -496,7 +496,7 @@ typed `details.reason` (listed in section 15.2), so no consumer parses the messa
   sets; a run whose scope follows the current execution of the result the run is producing. Only
   references that follow the current execution are cycle edges: a held execution is not, so "top
   10% by the previous PageRank" may scope a PageRank re-run. `details: { reason: "cycle",
-  through }`; the UI offers "Create set from current members".
+through }`; the UI offers "Create set from current members".
 - A rule read `induced` that contains a leaf speaking edges (`induced-edge-leaf`: an `edges` leaf,
   a `member` leaf that speaks edges, an `item` or `threshold` over an edge field). An induced set
   derives its edges from its nodes, so the leaf would be silently ignored; the message says to
@@ -618,7 +618,7 @@ export type SetCreatedFrom =
     | { readonly kind: "user" }
     | { readonly kind: "selection" }
     | { readonly kind: "scope"; readonly from: SetOperand }
-    | { readonly kind: "result"; readonly item: ResultItem }        // item.execution is always set
+    | { readonly kind: "result"; readonly item: ResultItem } // item.execution is always set
     | { readonly kind: "combine"; readonly op: SetCombine; readonly of: readonly SetOperand[] };
 
 /** A reference as `createdFrom` records it: member lists are replaced by their sizes. */
@@ -637,15 +637,15 @@ export type SetOperand = Scope | { readonly inline: { readonly nodes: number; re
 
 Dependencies are **derived from the definition**, never stored. The walk:
 
-| Found in the definition | Dependency | Follows or holds |
-|---|---|---|
-| `member` leaf `{ set: id }` | that set's record | Follows |
-| `item` leaf without `execution` | that run | Follows its current execution |
-| `item` leaf with `execution` | that execution | Holds it |
-| `expression`, `edges` or `threshold` leaf naming `results.<run>.<field>` | that run | Follows. The paths come from the compiled expression (`session/styles/predicate.ts:1211-1241`), which has no projections or wildcards, so every path is static |
-| `expression`, `edges`, `range`, `categories`, `threshold` leaf | the attribute revision of each top-level field its paths read | Follows (section 6.2) |
-| `member` leaf `"visible"`, `"selection"` | the visibility or selection mask | Follows |
-| `member` leaf `"largest-component"`, `component`, `degree`, `neighborhood` | topology | Follows the snapshot |
+| Found in the definition                                                    | Dependency                                                    | Follows or holds                                                                                                                                               |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `member` leaf `{ set: id }`                                                | that set's record                                             | Follows                                                                                                                                                        |
+| `item` leaf without `execution`                                            | that run                                                      | Follows its current execution                                                                                                                                  |
+| `item` leaf with `execution`                                               | that execution                                                | Holds it                                                                                                                                                       |
+| `expression`, `edges` or `threshold` leaf naming `results.<run>.<field>`   | that run                                                      | Follows. The paths come from the compiled expression (`session/styles/predicate.ts:1211-1241`), which has no projections or wildcards, so every path is static |
+| `expression`, `edges`, `range`, `categories`, `threshold` leaf             | the attribute revision of each top-level field its paths read | Follows (section 6.2)                                                                                                                                          |
+| `member` leaf `"visible"`, `"selection"`                                   | the visibility or selection mask                              | Follows                                                                                                                                                        |
+| `member` leaf `"largest-component"`, `component`, `degree`, `neighborhood` | topology                                                      | Follows the snapshot                                                                                                                                           |
 
 The visibility filter and the selection are nodes in this dependency graph, which is what lets the
 doors refuse cycles that pass through them (section 4.3).
@@ -727,22 +727,22 @@ Status is computed from the definition's dependencies and the last pass's cached
 every row of a panel. Counts and missing counts
 come from `session.scope.count({ set: id })` (section 15.2).
 
-| Case | Freshness | Earlier run | Resolves to |
-|---|---|---|---|
-| Fixed set kept from community 3, then Louvain re-runs | `current` | the run | its members |
-| Rule holding community 3 of execution e, then the run re-executes | `current` | the run | the captured earlier members (section 5.2); verb "Carry over to new run" |
-| The same after a reload without execution e's values | `current`, `values-not-kept` | the run | nothing |
-| Rule `results.pr.score > 0.01`, then `pr` re-runs | `current` | -- | re-resolves |
-| Rule reading `results.pr`, and `pr` is out of date (section 5.2) | `out-of-date`, `run-out-of-date` | -- | re-resolves |
-| Rule reading a run whose algorithm is no longer registered | `current`, `missing-capability` | -- | the run's current values |
-| Rule reading a run whose own scope set was removed | `cannot-rerun`, `missing-set` naming the removed set | -- | the run's current values; a re-run is refused, naming the removed set |
-| The same, after an input of that run changed | `cannot-rerun`, `missing-capability` | -- | the run's current values |
-| Names a removed set or run | `detached`, `missing-set` or `missing-run` | -- | nothing, never throws |
-| Caught in a cycle, its last compile failed, or holds an unknown kind or field | `unresolvable`, `cycle`, `invalid` or `missing-capability` | -- | nothing, never throws |
-| Fixed set after some members were removed | `current` | -- | the rest; `count` reports missing |
-| Fixed set after a re-import changed a parallel group's size | `current`, `ambiguous-parallel-edge` | -- | the rest; those members missing |
-| Rule set after a data edit | `current` | -- | re-resolves: a rule follows the data |
-| An input set is out of date, cannot re-run or is detached | the worse, `input` | -- | as the input |
+| Case                                                                          | Freshness                                                  | Earlier run | Resolves to                                                              |
+| ----------------------------------------------------------------------------- | ---------------------------------------------------------- | ----------- | ------------------------------------------------------------------------ |
+| Fixed set kept from community 3, then Louvain re-runs                         | `current`                                                  | the run     | its members                                                              |
+| Rule holding community 3 of execution e, then the run re-executes             | `current`                                                  | the run     | the captured earlier members (section 5.2); verb "Carry over to new run" |
+| The same after a reload without execution e's values                          | `current`, `values-not-kept`                               | the run     | nothing                                                                  |
+| Rule `results.pr.score > 0.01`, then `pr` re-runs                             | `current`                                                  | --          | re-resolves                                                              |
+| Rule reading `results.pr`, and `pr` is out of date (section 5.2)              | `out-of-date`, `run-out-of-date`                           | --          | re-resolves                                                              |
+| Rule reading a run whose algorithm is no longer registered                    | `current`, `missing-capability`                            | --          | the run's current values                                                 |
+| Rule reading a run whose own scope set was removed                            | `cannot-rerun`, `missing-set` naming the removed set       | --          | the run's current values; a re-run is refused, naming the removed set    |
+| The same, after an input of that run changed                                  | `cannot-rerun`, `missing-capability`                       | --          | the run's current values                                                 |
+| Names a removed set or run                                                    | `detached`, `missing-set` or `missing-run`                 | --          | nothing, never throws                                                    |
+| Caught in a cycle, its last compile failed, or holds an unknown kind or field | `unresolvable`, `cycle`, `invalid` or `missing-capability` | --          | nothing, never throws                                                    |
+| Fixed set after some members were removed                                     | `current`                                                  | --          | the rest; `count` reports missing                                        |
+| Fixed set after a re-import changed a parallel group's size                   | `current`, `ambiguous-parallel-edge`                       | --          | the rest; those members missing                                          |
+| Rule set after a data edit                                                    | `current`                                                  | --          | re-resolves: a rule follows the data                                     |
+| An input set is out of date, cannot re-run or is detached                     | the worse, `input`                                         | --          | as the input                                                             |
 
 **Deleting a set cascades nothing.** Every layer, filter, rule and run record that names it
 becomes detached, and its status names the removed set by its tombstoned name.
@@ -770,11 +770,11 @@ leaf keeps the filter-to-set identity of section 4.3 true after a deletion too.
 
 ### 6.1 The three representations
 
-| Representation | Form | Lives in | Lifetime |
-|---|---|---|---|
-| Persisted definition | Plain frozen JSON: ids (never row indices), the rule, or the walk | The sets store; the future undo slice and project file | Durable |
-| Runtime resolution | A node bitmap and an edge bitmap in graph-format's packed layout (LSB-first `U32` words, `NodeMask` / `EdgeMask`) | `session/sets/` resolution cache | Per snapshot serial and input signature |
-| Algorithm input | The final derived snapshot (induced, edge-filtered, undirected if asked, simplified) | The derived-input cache | Per snapshot, resolution and orientation, reference-counted |
+| Representation       | Form                                                                                                              | Lives in                                               | Lifetime                                                    |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ----------------------------------------------------------- |
+| Persisted definition | Plain frozen JSON: ids (never row indices), the rule, or the walk                                                 | The sets store; the future undo slice and project file | Durable                                                     |
+| Runtime resolution   | A node bitmap and an edge bitmap in graph-format's packed layout (LSB-first `U32` words, `NodeMask` / `EdgeMask`) | `session/sets/` resolution cache                       | Per snapshot serial and input signature                     |
+| Algorithm input      | The final derived snapshot (induced, edge-filtered, undirected if asked, simplified)                              | The derived-input cache                                | Per snapshot, resolution and orientation, reference-counted |
 
 Row indices are never persisted, because they move on every re-freeze.
 
@@ -915,17 +915,17 @@ Barabasi-Albert graph, m = 5, Intel i9-14900, Node 22. The subset is every other
 every tenth (10%). The last column is projected from the 5M-edge column by the edge count, and
 the plan's benchmark task re-measures it at the stated target.
 
-| Operation | 100k / 500k | 1M / 5M | 1M / 10M (projected) |
-|---|---|---|---|
-| Today: `resolveNow({ nodes })`, 50% | 38.5 ms, 6.9 MB | 415.9 ms, 82.4 MB | -- |
-| Today: `resolveNow("graph")` (once per snapshot) | 58.6 ms | 633.4 ms | -- |
-| Bitmap from a 50% id list | 1.7 ms | 37.8 ms | 38 ms |
-| Induced edge bitmap from a node bitmap | 4.9 ms | 47.0 ms | about 94 ms |
-| Both bitmaps retained | 75 KB | 750 KB | about 1.4 MB |
-| Bitmap AND / OR / popcount | under 0.05 ms | 0.02 / 0.03 / 0.03 ms | under 0.1 ms |
-| Membership test: `Set.has(id)` against a bit test | 17.0 against 2.0 ns | 37.2 against 1.7 ns | -- |
-| `inducedSubgraph`, 50% | 19.6 ms, 6.7 MB | 273.3 ms, 67.0 MB | about 130 MB |
-| `inducedSubgraph`, 10% | 5.9 ms, 2.7 MB | 64.2 ms, 27.0 MB | about 50 MB |
+| Operation                                         | 100k / 500k         | 1M / 5M               | 1M / 10M (projected) |
+| ------------------------------------------------- | ------------------- | --------------------- | -------------------- |
+| Today: `resolveNow({ nodes })`, 50%               | 38.5 ms, 6.9 MB     | 415.9 ms, 82.4 MB     | --                   |
+| Today: `resolveNow("graph")` (once per snapshot)  | 58.6 ms             | 633.4 ms              | --                   |
+| Bitmap from a 50% id list                         | 1.7 ms              | 37.8 ms               | 38 ms                |
+| Induced edge bitmap from a node bitmap            | 4.9 ms              | 47.0 ms               | about 94 ms          |
+| Both bitmaps retained                             | 75 KB               | 750 KB                | about 1.4 MB         |
+| Bitmap AND / OR / popcount                        | under 0.05 ms       | 0.02 / 0.03 / 0.03 ms | under 0.1 ms         |
+| Membership test: `Set.has(id)` against a bit test | 17.0 against 2.0 ns | 37.2 against 1.7 ns   | --                   |
+| `inducedSubgraph`, 50%                            | 19.6 ms, 6.7 MB     | 273.3 ms, 67.0 MB     | about 130 MB         |
+| `inducedSubgraph`, 10%                            | 5.9 ms, 2.7 MB      | 64.2 ms, 27.0 MB      | about 50 MB          |
 
 - A fixed set costs about 85 ms to resolve at 1M / 5M (about 130 ms at 10M edges) on each new
   snapshot.
@@ -975,17 +975,17 @@ the plan's benchmark task re-measures it at the stated target.
   projection and its runner (Node: the element's tsx runner over the Node-safe sets modules and
   a session over a store, which is Node-safe too; browser: a non-asserting vitest browser project,
   because the row needs `DataManager` or a run):
-  - Node: the digest of `"visible"` at 1M / 10M (under 150 ms); first resolution of a 1M-edge
-    fixed set; a three-node `addMembers` on a 500,000-member set; `revisionOf` at 1M members;
-    `createFrom("visible")` at 1M / 10M with no filter (stores induced: under 200 ms);
-    `createFrom` of a 5M-edge listed scope (under 2 s in total, its synchronous commit under
-    50 ms); the four combinations of two large sets.
-  - Browser: load completion at 1M / 10M; one 50% scoped run at 1M / 10M needing both
-    orientations, which must complete; and **a freeze with live sets**: add one node while five
-    layers over expression rules and five over fixed sets are live, under 200 ms to the first
-    repaint of an unaffected layer and every layer repainted within the re-resolution time, plus a
-    200-row `scope.count` panel after the same edit. If this row is worse than its projection, the
-    owner decides whether to build the carry of section 6.2.
+    - Node: the digest of `"visible"` at 1M / 10M (under 150 ms); first resolution of a 1M-edge
+      fixed set; a three-node `addMembers` on a 500,000-member set; `revisionOf` at 1M members;
+      `createFrom("visible")` at 1M / 10M with no filter (stores induced: under 200 ms);
+      `createFrom` of a 5M-edge listed scope (under 2 s in total, its synchronous commit under
+      50 ms); the four combinations of two large sets.
+    - Browser: load completion at 1M / 10M; one 50% scoped run at 1M / 10M needing both
+      orientations, which must complete; and **a freeze with live sets**: add one node while five
+      layers over expression rules and five over fixed sets are live, under 200 ms to the first
+      repaint of an unaffected layer and every layer repainted within the re-resolution time, plus a
+      200-row `scope.count` panel after the same edit. If this row is worse than its projection, the
+      owner decides whether to build the carry of section 6.2.
 - **Memory budget at 1M / 10M**, internal, asserted by the caches' own byte accounting in tests
   (never process heap): bitmap cache 64 MB plus pins; derived-input cache max(256 MB, 1.5 times
   the full snapshot's bytes); definitions 8 bytes per node member (an array slot; the id itself
@@ -1013,28 +1013,28 @@ Each Node group runs in its own process. Intel i9-14900, Node 22.22.1 (Node runn
 row); the freeze rows are single measurements. Graphs are Barabasi-Albert, m = 5 (m = 10 for the
 10M column). A row marked WORSE is worse than its projection and is reported to the owner.
 
-| Row | Runner | Projection | 100k / 500k | 1M / 5M | 1M / 10M |
-|---|---|---|---|---|---|
-| Digest of `"visible"`, nothing hidden | Node | under 150 ms at 10M | 2.2 ms | 9.5 ms | 17.0 ms |
-| First resolution of a listed fixed set, by identity (half the edges at 100k, 1M members at 1M / 5M) | Node | none for edge members (the 85 ms projection was for node id lists) | 73 ms | 726 ms, worse than the node-list figure | -- |
-| The same, seeded (one merge of the edge-id column) | Node | as above | 115 ms | 408 ms | -- |
-| Three-node `addMembers` on a set of half the nodes (50,000; 500,000), the set's first edit | Node | O(members) array copy plus the first edit's summary pass | 2.7 ms | 29.6 ms | -- |
-| The same, a later edit (the summary already known) | Node | O(members) array copy | -- | about 6 ms | -- |
-| `revisionOf`, fixed set of every node | Node | none stated | 5.7 ms | 64 ms | -- |
-| `revisionOf`, fixed set of as many listed edges | Node | none stated | 65 ms | 706 ms | -- |
-| `createFrom("visible")`, no filter | Node | under 200 ms | 16 ms | 177 ms | 390 ms, WORSE |
-| `createFrom` of a scope listing every other edge, total (250k; 2.5M; 5M edges) | Node | under 2 s at 5M edges | 1,145 ms | 15.7 s, WORSE | 46.4 s before the change below, WORSE; runs out of Node's default 4 GB heap, measured with 24 GB |
-| The same, its synchronous commit | Node | under 50 ms at 5M edges | 0.1 ms | 0.6 ms | not re-measured |
-| `combineMasks` union / intersection / difference / symmetric difference, 50% induced with 33% listed | Node | none stated | 4.5 / 1.4 / 2.2 / 4.0 ms | 46 / 15 / 23 / 47 ms | 88 / 31 / 45 / 85 ms |
-| Load completion (`closeLoad`) and first freeze, timed together | browser | completion at most about the freeze | 183 ms | 3,343 ms | 8,265 ms |
-| The same, browser: completion pass alone | browser | at most about the freeze | 141 ms | 2,382 ms | 4,392 ms, WORSE |
-| The same, Node: completion pass / first freeze (one group per process) | Node | completion at most about the freeze | 64 / 47 ms | 1,239 / 961 ms | -- |
-| Freeze with live sets: the freeze itself (add one node) | browser | none stated | 50 ms | 851 ms | 2,032 ms |
-| Freeze with live sets: to the first repaint after it (the fixed-set layers repaint nothing; the rule layers repaint the one node that joined them) | browser | under 200 ms | 212 ms, WORSE | 2,593 ms, WORSE | 6,149 ms, WORSE |
-| Freeze with live sets: to every layer repainted | browser | within the re-resolution time | 220 ms | 2,681 ms | 6,268 ms |
-| Freeze with live sets: the re-resolution alone, all ten sets | browser | none stated | 108 ms | 1,187 ms | 2,335 ms |
-| Freeze with live sets: a 200-row `scope.count` panel after it | browser | none stated | 0.4 ms | 0.3 ms | 0.4 ms |
-| One 50% scoped run's input, declared and undirected | browser | must complete | 42 ms | 365 ms | 869 ms |
+| Row                                                                                                                                                | Runner  | Projection                                                         | 100k / 500k              | 1M / 5M                                 | 1M / 10M                                                                                         |
+| -------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------ | ------------------------ | --------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Digest of `"visible"`, nothing hidden                                                                                                              | Node    | under 150 ms at 10M                                                | 2.2 ms                   | 9.5 ms                                  | 17.0 ms                                                                                          |
+| First resolution of a listed fixed set, by identity (half the edges at 100k, 1M members at 1M / 5M)                                                | Node    | none for edge members (the 85 ms projection was for node id lists) | 73 ms                    | 726 ms, worse than the node-list figure | --                                                                                               |
+| The same, seeded (one merge of the edge-id column)                                                                                                 | Node    | as above                                                           | 115 ms                   | 408 ms                                  | --                                                                                               |
+| Three-node `addMembers` on a set of half the nodes (50,000; 500,000), the set's first edit                                                         | Node    | O(members) array copy plus the first edit's summary pass           | 2.7 ms                   | 29.6 ms                                 | --                                                                                               |
+| The same, a later edit (the summary already known)                                                                                                 | Node    | O(members) array copy                                              | --                       | about 6 ms                              | --                                                                                               |
+| `revisionOf`, fixed set of every node                                                                                                              | Node    | none stated                                                        | 5.7 ms                   | 64 ms                                   | --                                                                                               |
+| `revisionOf`, fixed set of as many listed edges                                                                                                    | Node    | none stated                                                        | 65 ms                    | 706 ms                                  | --                                                                                               |
+| `createFrom("visible")`, no filter                                                                                                                 | Node    | under 200 ms                                                       | 16 ms                    | 177 ms                                  | 390 ms, WORSE                                                                                    |
+| `createFrom` of a scope listing every other edge, total (250k; 2.5M; 5M edges)                                                                     | Node    | under 2 s at 5M edges                                              | 1,145 ms                 | 15.7 s, WORSE                           | 46.4 s before the change below, WORSE; runs out of Node's default 4 GB heap, measured with 24 GB |
+| The same, its synchronous commit                                                                                                                   | Node    | under 50 ms at 5M edges                                            | 0.1 ms                   | 0.6 ms                                  | not re-measured                                                                                  |
+| `combineMasks` union / intersection / difference / symmetric difference, 50% induced with 33% listed                                               | Node    | none stated                                                        | 4.5 / 1.4 / 2.2 / 4.0 ms | 46 / 15 / 23 / 47 ms                    | 88 / 31 / 45 / 85 ms                                                                             |
+| Load completion (`closeLoad`) and first freeze, timed together                                                                                     | browser | completion at most about the freeze                                | 183 ms                   | 3,343 ms                                | 8,265 ms                                                                                         |
+| The same, browser: completion pass alone                                                                                                           | browser | at most about the freeze                                           | 141 ms                   | 2,382 ms                                | 4,392 ms, WORSE                                                                                  |
+| The same, Node: completion pass / first freeze (one group per process)                                                                             | Node    | completion at most about the freeze                                | 64 / 47 ms               | 1,239 / 961 ms                          | --                                                                                               |
+| Freeze with live sets: the freeze itself (add one node)                                                                                            | browser | none stated                                                        | 50 ms                    | 851 ms                                  | 2,032 ms                                                                                         |
+| Freeze with live sets: to the first repaint after it (the fixed-set layers repaint nothing; the rule layers repaint the one node that joined them) | browser | under 200 ms                                                       | 212 ms, WORSE            | 2,593 ms, WORSE                         | 6,149 ms, WORSE                                                                                  |
+| Freeze with live sets: to every layer repainted                                                                                                    | browser | within the re-resolution time                                      | 220 ms                   | 2,681 ms                                | 6,268 ms                                                                                         |
+| Freeze with live sets: the re-resolution alone, all ten sets                                                                                       | browser | none stated                                                        | 108 ms                   | 1,187 ms                                | 2,335 ms                                                                                         |
+| Freeze with live sets: a 200-row `scope.count` panel after it                                                                                      | browser | none stated                                                        | 0.4 ms                   | 0.3 ms                                  | 0.4 ms                                                                                           |
+| One 50% scoped run's input, declared and undirected                                                                                                | browser | must complete                                                      | 42 ms                    | 365 ms                                  | 869 ms                                                                                           |
 
 What the freeze rows say. A layer repaints only the rows where its old members, carried to the
 new rows by id, differ from its new resolution (section 6.2), so a freeze that leaves a set's
@@ -1090,38 +1090,38 @@ export type SetCombine = "union" | "intersection" | "difference" | "symmetric-di
   Union, Subtract, Intersect and Exclude make a rule set naming its operands, so Replace data
   replays it over their new members: "top 10% by betweenness" Intersect "type = supplier", frozen,
   would keep last week's members while both operands moved. It is `combine(op, of, { live: true
-  })`, writing a rule over membership leaves with the same edge rule as below, which needs the
+})`, writing a rule over membership leaves with the same edge rule as below, which needs the
   optional leaf field that lets an induced operand speak its edges inside a rule. The property
   test of section 22, risk 3, then covers mixed readings too. The app never builds the rule tree
   itself: the edge rule for mixed readings is graphty-element's.
 - **The edge rule:**
-  - Every operand induced: the result is induced. Nodes are the node op; edges follow the nodes.
-  - Otherwise, edge-first: edges are the op on the operands' edge bitmaps, and nodes are the op on
-    the node bitmaps plus the endpoints of those edges. The result is `listed` (or induced when
-    the reading was defaulted and the two are equal, section 4.1).
-  - Edge-first keeps what users compare: "edges in the Kruskal tree but not the Prim tree" keeps
-    the differing edges even though the two trees share every node. Clipping would discard them.
-  - **Laws that always hold**, whatever the operands' readings and however calls are nested:
-    union and intersection are commutative and idempotent; intersection is associative (an edge
-    joining two nodes of `A intersect B` joins two nodes of each, so the induced edges of an
-    intersection are the intersection of the induced edges); `A - A` is empty; n-ary
-    `symmetric-difference` keeps exactly the odd-count elements; every result keeps every member
-    edge's endpoints as member nodes.
-  - **Laws that hold only within one regime.** Union is associative within one n-ary call, and
-    across nested calls only when every operand is induced or every operand is read edge-first.
-    Nesting that mixes readings breaks it, because an all-induced sub-result gains the cross edges
-    between its operands' nodes and edge-first does not. Counterexample: edges a-b and c-d;
-    A = induced {a}, B = induced {b}, C = listed {c, d} with no edges. `(A union B) union C` holds
-    edge a-b (`A union B` is induced {a, b}); `A union (B union C)` holds no edge (`B union C` is
-    edge-first). Symmetric difference nested across readings breaks the same way.
-  - **Laws edge-first gives up on purpose**, because a differing edge re-adds its endpoints:
-    `(A - B) intersect B` need not be empty, and `A - B` need not be disjoint from `B`'s nodes.
-  - The two lists that break, and the counterexample above, are pinned by example tests so a
-    later change cannot alter them silently.
-  - The laws are laws of the edge rule over the readings the operands have. A stored result is an
-    operand with its STORED reading, so a defaulted edge-first result that was stored induced
-    (section 4.1) takes part in a later nested call as induced: same members at creation, but it
-    gains cross edges in an all-induced call.
+    - Every operand induced: the result is induced. Nodes are the node op; edges follow the nodes.
+    - Otherwise, edge-first: edges are the op on the operands' edge bitmaps, and nodes are the op on
+      the node bitmaps plus the endpoints of those edges. The result is `listed` (or induced when
+      the reading was defaulted and the two are equal, section 4.1).
+    - Edge-first keeps what users compare: "edges in the Kruskal tree but not the Prim tree" keeps
+      the differing edges even though the two trees share every node. Clipping would discard them.
+    - **Laws that always hold**, whatever the operands' readings and however calls are nested:
+      union and intersection are commutative and idempotent; intersection is associative (an edge
+      joining two nodes of `A intersect B` joins two nodes of each, so the induced edges of an
+      intersection are the intersection of the induced edges); `A - A` is empty; n-ary
+      `symmetric-difference` keeps exactly the odd-count elements; every result keeps every member
+      edge's endpoints as member nodes.
+    - **Laws that hold only within one regime.** Union is associative within one n-ary call, and
+      across nested calls only when every operand is induced or every operand is read edge-first.
+      Nesting that mixes readings breaks it, because an all-induced sub-result gains the cross edges
+      between its operands' nodes and edge-first does not. Counterexample: edges a-b and c-d;
+      A = induced {a}, B = induced {b}, C = listed {c, d} with no edges. `(A union B) union C` holds
+      edge a-b (`A union B` is induced {a, b}); `A union (B union C)` holds no edge (`B union C` is
+      edge-first). Symmetric difference nested across readings breaks the same way.
+    - **Laws edge-first gives up on purpose**, because a differing edge re-adds its endpoints:
+      `(A - B) intersect B` need not be empty, and `A - B` need not be disjoint from `B`'s nodes.
+    - The two lists that break, and the counterexample above, are pinned by example tests so a
+      later change cannot alter them silently.
+    - The laws are laws of the edge rule over the readings the operands have. A stored result is an
+      operand with its STORED reading, so a defaulted edge-first result that was stored induced
+      (section 4.1) takes part in a later nested call as induced: same members at creation, but it
+      gains cross edges in an all-induced call.
 - **An empty result is kept.** An empty intersection is an answer, not an error; only
   `createFrom` of an empty source refuses, because there it is almost always a mistake.
 - **Evaluation** is word-wise, through five graph-format helpers beside `makeMask`
@@ -1175,20 +1175,19 @@ export interface SetOffer {
 Offers come from the **result's shape** (`session/results/types.ts`), never from the algorithm,
 so every registered algorithm, built-in or third-party, gets them.
 
-| Shape | Offers | Reading |
-|---|---|---|
-| `community` | One per `group`, largest first. A components run's first offer is the largest component | induced |
-| `layered-grouping` | One per `level` | induced |
-| `category-table` | One per `category` | induced |
-| `node-set` | One: `in == true` | induced |
-| `edge-set` | One: `in == true` | listed |
-| `path` | One: `onPath == true`, `path: true`. Order comes from `order` | listed |
-| `node-metric`, `edge-metric` | None. Continuous values have no items; use a `threshold` leaf | -- |
-| `temporal` | None. Time windows arrive as a leaf (section 20) | -- |
-| `pair-list` | None. A candidate pair is not an existing subgraph, and predicted edges are never written into the graph | -- |
+| Shape                        | Offers                                                                                                   | Reading |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------- | ------- |
+| `community`                  | One per `group`, largest first. A components run's first offer is the largest component                  | induced |
+| `layered-grouping`           | One per `level`                                                                                          | induced |
+| `category-table`             | One per `category`                                                                                       | induced |
+| `node-set`                   | One: `in == true`                                                                                        | induced |
+| `edge-set`                   | One: `in == true`                                                                                        | listed  |
+| `path`                       | One: `onPath == true`, `path: true`. Order comes from `order`                                            | listed  |
+| `node-metric`, `edge-metric` | None. Continuous values have no items; use a `threshold` leaf                                            | --      |
+| `temporal`                   | None. Time windows arrive as a leaf (section 20)                                                         | --      |
+| `pair-list`                  | None. A candidate pair is not an existing subgraph, and predicted edges are never written into the graph | --      |
 
-- `sets.offers(run, { limit })` is synchronous and returns the largest `limit` offers (default
-  100) and how many were left out. Node counts of an induced offer come from one pass over the
+- `sets.offers(run, { limit })` is synchronous and returns the largest `limit` offers (default 100) and how many were left out. Node counts of an induced offer come from one pass over the
   result's node values, cached per execution and snapshot (the summary's groups are capped at ten,
   and an overlapping partition publishes no size table, so they cannot serve). Everything that
   needs the edge list -- every offer's edge count, and the node count of a `listed` offer, whose
@@ -1260,7 +1259,7 @@ and `results/DeclaredAlgorithm.ts:189-201` (`measured`).
   (section 10.2). Both existing seams and every adapter above route through it, one plan task per
   adapter. A test fails the build if an adapter reads `DataManager` directly.
 - **Derivation, scope first:** `declared -> inducedSubgraph(node bitmap) -> filterEdges(edge
-  bitmap) -> toUndirected (if asked) -> simplified (by the asked merge policy)`. The scope is applied in declared space
+bitmap) -> toUndirected (if asked) -> simplified (by the asked merge policy)`. The scope is applied in declared space
   before undirecting, because `toUndirected` collapses a reciprocal pair into one edge that keeps
   the lower index's row (`graph-format/src/snapshot/graph-snapshot.ts:833-838`): undirecting
   first would hand a thresholded run the weight of a hidden edge. The edge step runs only when the
@@ -1418,7 +1417,7 @@ the run's own record, so this is a defect fix, shipped with a changelog entry (s
   engine, whatever its engine-level pinning does. Simulation engines also pass the mask as their
   fixed node mask so held nodes are not integrated.
 - **How an engine receives the hold.** `LayoutEngine.setHoldMask(mask: NodeMask | null, rows:
-  number)` is public, with the getter `holdMask` and the protected `isHeld(index)`. `LayoutManager`
+number)` is public, with the getter `holdMask` and the protected `isHeld(index)`. `LayoutManager`
   calls it on a scoped engine after `init()` and the pin replay, and again after every freeze,
   because a freeze renumbers the rows (the mask is rebuilt from the captured member ids before a
   simulation reloads, so its reload packs the new mask). A set bit is a held row; a row at or past
@@ -1448,7 +1447,7 @@ the run's own record, so this is a defect fix, shipped with a changelog entry (s
   so every path gets one behaviour: the element setters, the assistant's layout command
   (`ai/commands/LayoutCommands.ts:52`, which calls `graph.setLayout` directly) and the default
   layout (`Graph.ts:651`). The carry rule lives there: an explicit `setLayout(type, opts, { scope
-  })` sets it, `scope: "graph"` clears it, and an absent `scope` keeps it, so changing one force
+})` sets it, `scope: "graph"` clears it, and an absent `scope` keeps it, so changing one force
   parameter never un-scopes the layout. `Graph.setLayout` destructures `scope` out of its options
   before spreading the rest into the queue options (`Graph.ts:1655`). The element's writable
   `layoutScope: Scope | undefined` property and `layout-scope` attribute (JSON) read and write
@@ -1587,19 +1586,19 @@ One function canonicalises every definition, at every door, on load and before h
   is a numeric part: the unit `0x23`, then the eight little-endian bytes of `x` as a float64. A
   32-bit lane value is fed as `N` of that unsigned integer. `S(x)` is a string part: `0x24`, then
   each UTF-16 code unit. `A(h)` and `B(h)` are a hash's two lanes.
-  - Node `n`: `h(n) = H(S(n))` for a string id, `H(N(n))` for a numeric id.
-  - Discriminator: `id` is `H(0x69, part(id))`, where `part` is `S` or `N` by the id's type;
-    `key` is `H(0x6b, part(key))`, since a key, like an id, may be a string or a number; an
-    ordinal is `H(0x6f, N(ordinal), N(among))`.
-  - Endpoints, undirected: `e = (A(h(s)) + A(h(t)) mod 2^32, B(h(s)) + B(h(t)) mod 2^32)`.
-  - Endpoints, directed at ingest: `e = H(N(A(h(s))), N(B(h(s))), N(A(h(t))), N(B(h(t))))`.
-  - Edge member: `H(N(A(e)), N(B(e)), N(A(d)), N(B(d)))`, with `d` the discriminator hash; a
-    `dataSource` appends `0x73, S(dataSource)`.
-  - Example, undirected `{ source: "a", target: "b", id: "x" }`: `d = H(0x69, 0x24, 0x78)`; the
-    member is `H` over 36 units, `0x23` and eight bytes for each of `A(e)`, `B(e)`, `A(d)`, `B(d)`,
-    where `e` is the lane-wise sum of `H(0x24, 0x61)` and `H(0x24, 0x62)`. The same member
-    directed at ingest replaces `e` with `H` over the 36 units of `N(A(h("a")))`,
-    `N(B(h("a")))`, `N(A(h("b")))`, `N(B(h("b")))`.
+    - Node `n`: `h(n) = H(S(n))` for a string id, `H(N(n))` for a numeric id.
+    - Discriminator: `id` is `H(0x69, part(id))`, where `part` is `S` or `N` by the id's type;
+      `key` is `H(0x6b, part(key))`, since a key, like an id, may be a string or a number; an
+      ordinal is `H(0x6f, N(ordinal), N(among))`.
+    - Endpoints, undirected: `e = (A(h(s)) + A(h(t)) mod 2^32, B(h(s)) + B(h(t)) mod 2^32)`.
+    - Endpoints, directed at ingest: `e = H(N(A(h(s))), N(B(h(s))), N(A(h(t))), N(B(h(t))))`.
+    - Edge member: `H(N(A(e)), N(B(e)), N(A(d)), N(B(d)))`, with `d` the discriminator hash; a
+      `dataSource` appends `0x73, S(dataSource)`.
+    - Example, undirected `{ source: "a", target: "b", id: "x" }`: `d = H(0x69, 0x24, 0x78)`; the
+      member is `H` over 36 units, `0x23` and eight bytes for each of `A(e)`, `B(e)`, `A(d)`, `B(d)`,
+      where `e` is the lane-wise sum of `H(0x24, 0x61)` and `H(0x24, 0x62)`. The same member
+      directed at ingest replaces `e` with `H` over the 36 units of `N(A(h("a")))`,
+      `N(B(h("a")))`, `N(A(h("b")))`, `N(B(h("b")))`.
 - **The hashes are builder columns.** `graphty.nodeHash` and `graphty.edgeHash` (two uint32 each,
   8 bytes per row) are written once, from the same functions, when a load completes and when a
   node or edge is added. graph-format carries builder columns through every freeze, so they need
@@ -1636,38 +1635,38 @@ narrowing. The rules, in the order a member takes them:
 3. **`key`**, the file's parallel-edge key. Reserved in the shape; the element gains a key-path
    setting before it produces one.
 4. **`ordinal` and `among`**, for a file edge without an id or key:
-   - **The population is every edge of the pair in the load that ingested it**, with or without a
-     file id, in ingest (counter) order. Counting every edge, not only id-less ones, means that
-     configuring `edgeIdPath` later, or a future id probe, never moves an ordinal: the id then
-     disambiguates first and the ordinal still matches.
-   - **A load** is one import, which ingests a contiguous counter range, whatever its chunking
-     (`DataManager.ts:1534-1554` streams an additive load's chunks straight into the builder).
-     Counting per load means replacing one source never shifts another source's ordinals. The
-     store brackets a load explicitly (`GraphStore.openLoad` / `closeLoad`, opened by
-     `addDataFromSource` around its chunks, or after the Clear of a replacing load), so a freeze
-     in the middle of a load never completes half of it. An edge ingested with no load open -- a
-     record push through `addEdges`, a headless session's own ingest -- is a session edge and takes
-     rule 2's minted id, with ordinal and among -1.
-   - **`among`** is the pair's edge count in that load. Both values are written **when the load
-     completes**, not per chunk: the load's edge rows are sorted by (pair, counter) with two
-     counting-sort passes in a transient 20 bytes per loaded edge and 4 per node (a load much
-     smaller than the graph sorts by comparator in 16 bytes per loaded edge instead), and `graphty.edgeOrdinal` and `graphty.edgeAmong` (int32
-     builder columns beside the edge-id column) are filled in one pass. A load completes when it
-     closes, not at the next freeze: an edit made after it ended (a removal, or a second load
-     opened straight after) belongs to no load and neither moves its ordinals nor joins it. No map
-     over the whole graph's pairs is kept. The edge hash column (section 12.2) is written in the same pass.
-   - The pair is unordered, its ends stored in the section 12.1 comparator order, unless the graph
-     was declared directed at ingest; a direction settled later (`directed: "auto"`,
-     `DataConfig.ts:168`) never changes it. A deletion never shifts an ordinal. The rule is
-     **latched once per store**, when its first edge is completed: pairs are ordered only when the
-     graph was declared directed by then, and the store records the answer as the graph attribute
-     `graphty.edgePairsOrdered` (1 or 0), so every snapshot says which rule its edge hashes follow
-     and a later load into the same store never switches it. A snapshot without the attribute (a
-     raw graph-format or graph-io snapshot) follows its own `directed`.
-   - **Only surviving edges count.** Under a merging `repeatedEdges` policy (`first`, `last`,
-     `sum`; `DataConfig.ts:67`) a repeated record never becomes an edge, so it takes no ordinal
-     and does not count in `among`. Under `keep` every record is an edge and counts. The
-     identity names edges the graph holds, not records the file held.
+    - **The population is every edge of the pair in the load that ingested it**, with or without a
+      file id, in ingest (counter) order. Counting every edge, not only id-less ones, means that
+      configuring `edgeIdPath` later, or a future id probe, never moves an ordinal: the id then
+      disambiguates first and the ordinal still matches.
+    - **A load** is one import, which ingests a contiguous counter range, whatever its chunking
+      (`DataManager.ts:1534-1554` streams an additive load's chunks straight into the builder).
+      Counting per load means replacing one source never shifts another source's ordinals. The
+      store brackets a load explicitly (`GraphStore.openLoad` / `closeLoad`, opened by
+      `addDataFromSource` around its chunks, or after the Clear of a replacing load), so a freeze
+      in the middle of a load never completes half of it. An edge ingested with no load open -- a
+      record push through `addEdges`, a headless session's own ingest -- is a session edge and takes
+      rule 2's minted id, with ordinal and among -1.
+    - **`among`** is the pair's edge count in that load. Both values are written **when the load
+      completes**, not per chunk: the load's edge rows are sorted by (pair, counter) with two
+      counting-sort passes in a transient 20 bytes per loaded edge and 4 per node (a load much
+      smaller than the graph sorts by comparator in 16 bytes per loaded edge instead), and `graphty.edgeOrdinal` and `graphty.edgeAmong` (int32
+      builder columns beside the edge-id column) are filled in one pass. A load completes when it
+      closes, not at the next freeze: an edit made after it ended (a removal, or a second load
+      opened straight after) belongs to no load and neither moves its ordinals nor joins it. No map
+      over the whole graph's pairs is kept. The edge hash column (section 12.2) is written in the same pass.
+    - The pair is unordered, its ends stored in the section 12.1 comparator order, unless the graph
+      was declared directed at ingest; a direction settled later (`directed: "auto"`,
+      `DataConfig.ts:168`) never changes it. A deletion never shifts an ordinal. The rule is
+      **latched once per store**, when its first edge is completed: pairs are ordered only when the
+      graph was declared directed by then, and the store records the answer as the graph attribute
+      `graphty.edgePairsOrdered` (1 or 0), so every snapshot says which rule its edge hashes follow
+      and a later load into the same store never switches it. A snapshot without the attribute (a
+      raw graph-format or graph-io snapshot) follows its own `directed`.
+    - **Only surviving edges count.** Under a merging `repeatedEdges` policy (`first`, `last`,
+      `sum`; `DataConfig.ts:67`) a repeated record never becomes an edge, so it takes no ordinal
+      and does not count in `among`. Under `keep` every record is an edge and counts. The
+      identity names edges the graph holds, not records the file held.
 
 The stable identity is computed when a member is added (a door turns a session `EdgeId` into it)
 and frozen into the record (section 6.1). The session counter id it came through is a seed beside
@@ -1793,13 +1792,13 @@ Each is one future command: immediate lane, `moves: false`, key `sets/<id>`. **P
 are separate from the recorded patch**: a consumer cannot supply an id, an order or a
 `createdFrom`.
 
-| Future command | Public arguments | Recorded concretely | Doors that reach it |
-|---|---|---|---|
-| `set.create` | `{ definition, name? }` or `{ from, name?, reading?, follow? }` or `{ path, name? }` or `{ combine, of, name? }` | `{ id, name, order, definition, createdFrom }` | `sets.create`, `createFrom`, `createPath`, `combine`, `scope.save`, `selection.promote` |
-| `set.rename` | `{ id, name }` | same | `sets.rename` |
-| `set.redefine` | `{ id, definition }` | same | `sets.redefine` |
-| `set.members` | `{ id, add?, remove? }` (fixed sets only) | the new record | `sets.addMembers`, `sets.removeMembers` |
-| `set.remove` | `{ id }` | same | `sets.remove`, `scope.remove` |
+| Future command | Public arguments                                                                                                 | Recorded concretely                            | Doors that reach it                                                                     |
+| -------------- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `set.create`   | `{ definition, name? }` or `{ from, name?, reading?, follow? }` or `{ path, name? }` or `{ combine, of, name? }` | `{ id, name, order, definition, createdFrom }` | `sets.create`, `createFrom`, `createPath`, `combine`, `scope.save`, `selection.promote` |
+| `set.rename`   | `{ id, name }`                                                                                                   | same                                           | `sets.rename`                                                                           |
+| `set.redefine` | `{ id, definition }`                                                                                             | same                                           | `sets.redefine`                                                                         |
+| `set.members`  | `{ id, add?, remove? }` (fixed sets only)                                                                        | the new record                                 | `sets.addMembers`, `sets.removeMembers`                                                 |
+| `set.remove`   | `{ id }`                                                                                                         | same                                           | `sets.remove`, `scope.remove`                                                           |
 
 - **Doors resolve late.** The door's resolve step materialises any source (`from`, a `combine`,
   an offer) against the current graph, runs and selection, asynchronously, and produces a concrete
@@ -1858,63 +1857,63 @@ The full merge checklist, with the door-list rows and the affected undo plan pha
 `design/sets/undo-integration.md`.
 
 - [ ] **The five prepare functions are the command bodies.** `session/sets/prepare.ts` exports
-  `prepareCreate`, `prepareRename`, `prepareRedefine`, `prepareMembers` (both `addMembers` and
-  `removeMembers`) and `prepareRemove`. Each is pure over a `RecordView` and one concrete command
-  and returns the next record (or `null` for a no-op, or the id to delete). They become the
-  `prepare` of `set.create`, `set.rename`, `set.redefine`, `set.members` and `set.remove`.
+      `prepareCreate`, `prepareRename`, `prepareRedefine`, `prepareMembers` (both `addMembers` and
+      `removeMembers`) and `prepareRemove`. Each is pure over a `RecordView` and one concrete command
+      and returns the next record (or `null` for a no-op, or the id to delete). They become the
+      `prepare` of `set.create`, `set.rename`, `set.redefine`, `set.members` and `set.remove`.
 - [ ] **`put` and `delete` are the only writes.** `SetsStore.put(record)` and
-  `SetsStore.delete(id)` in `session/sets/store.ts` are called only from `session/sets/SetsApi.ts`
-  (the `write` helper and `remove`). They become `draft.sets.set` and `draft.sets.delete`.
-  `scope.save` and `scope.remove` (`session/scope/ScopeApi.ts`) and `selection.promote`
-  (`session/selection/SelectionApi.ts`, through `createSetAs`) reach the store only through
-  `session.sets`.
+      `SetsStore.delete(id)` in `session/sets/store.ts` are called only from `session/sets/SetsApi.ts`
+      (the `write` helper and `remove`). They become `draft.sets.set` and `draft.sets.delete`.
+      `scope.save` and `scope.remove` (`session/scope/ScopeApi.ts`) and `selection.promote`
+      (`session/selection/SelectionApi.ts`, through `createSetAs`) reach the store only through
+      `session.sets`.
 - [ ] **The write group is `SetsStore.transact(write, cause)`.** Every door opens one; a nested call
-  is a savepoint. It maps onto the dispatcher's group. Its commit (`SetsStore.commit`) tells the
-  `onCommit` listeners the committed diff, from which `GraphSession` publishes `set:changed`.
+      is a savepoint. It maps onto the dispatcher's group. Its commit (`SetsStore.commit`) tells the
+      `onCommit` listeners the committed diff, from which `GraphSession` publishes `set:changed`.
 - [ ] **One serialiser.** `SetsStore.toLogicalRecords()` and `SetsStore.loadLogicalRecords(stored)`
-  are the only code that reads or writes set state as a whole value
-  (`{ records, register, tombstones }`). The undo slice's snapshot and the project file both use
-  them; nothing else serialises sets.
+      are the only code that reads or writes set state as a whole value
+      (`{ records, register, tombstones }`). The undo slice's snapshot and the project file both use
+      them; nothing else serialises sets.
 - [ ] **The register and the pending list.** The issued-id register is `SetsStore.issued`, appended
-  only in `commit`. The pending list is the open group's `minted` array (`Group.minted`), consulted
-  by `SetsStore.mint` and discarded when a savepoint or group rolls back. On the undo branch the
-  dispatcher appends `minted` to the register at commit and never rewinds it. `highestOrder`
-  (`nextOrder()`) is the order high-water mark and is not rewound either.
+      only in `commit`. The pending list is the open group's `minted` array (`Group.minted`), consulted
+      by `SetsStore.mint` and discarded when a savepoint or group rolls back. On the undo branch the
+      dispatcher appends `minted` to the register at commit and never rewinds it. `highestOrder`
+      (`nextOrder()`) is the order high-water mark and is not rewound either.
 - [ ] **Edge seeds are session state beside the slice, not in it.** `SetsStore.seed` and
-  `seedsOf` hold the session edge counter each edge member entered through (written by
-  `SetsApi`'s `seed` helper after a door's write). They are not serialised. An undo that restores
-  an earlier record leaves seeds for members it no longer holds; the resolver only reads seeds for
-  members the record holds, so they are harmless. `delete` keeps a removed set's seeds (ids are
-  never reissued, so they cannot attach to another set), which lets an undone removal bind as
-  before.
+      `seedsOf` hold the session edge counter each edge member entered through (written by
+      `SetsApi`'s `seed` helper after a door's write). They are not serialised. An undo that restores
+      an earlier record leaves seeds for members it no longer holds; the resolver only reads seeds for
+      members the record holds, so they are harmless. `delete` keeps a removed set's seeds (ids are
+      never reissued, so they cannot attach to another set), which lets an undone removal bind as
+      before.
 - [ ] **The execution token.** Minted by `createExecutionMinter` in `session/runs/RunsApi.ts` (a
-  session nonce plus a counter the dispatcher must never rewind), held while running in
-  `Run.executionValue` and written with the result in `Run.resultExecutionValue`
-  (`session/runs/Run.ts`). The port moves the result's token onto the runs slice's result entry.
+      session nonce plus a counter the dispatcher must never rewind), held while running in
+      `Run.executionValue` and written with the result in `Run.resultExecutionValue`
+      (`session/runs/Run.ts`). The port moves the result's token onto the runs slice's result entry.
 - [ ] **The captures.** Held-item captures live in `Run.heldValue` (read as `Run.held`, and
-  through `RunsApi.heldOf(id)`), written only when a re-run replaces a result, through the
-  `captureHeld` surrounding that `GraphSession` supplies. The port moves them to `RunEntry.held`,
-  written by the re-run command in the same step as the new result; history eviction never
-  touches them.
+      through `RunsApi.heldOf(id)`), written only when a re-run replaces a result, through the
+      `captureHeld` surrounding that `GraphSession` supplies. The port moves them to `RunEntry.held`,
+      written by the re-run command in the same step as the new result; history eviction never
+      touches them.
 - [ ] **The layout scope.** It lives in `LayoutManager.carriedScope`
-  (`managers/LayoutManager.ts`), written by `setLayout(type, opts, { scope })` and
-  `Graph.setLayoutScope`, read by `Graph.getLayoutScope`. The port moves it into the `layout` slice
-  value as `scope?: Scope`, written by `layout.set`; the hold mask is captured again when the
-  restored layout starts.
+      (`managers/LayoutManager.ts`), written by `setLayout(type, opts, { scope })` and
+      `Graph.setLayoutScope`, read by `Graph.getLayoutScope`. The port moves it into the `layout` slice
+      value as `scope?: Scope`, written by `layout.set`; the hold mask is captured again when the
+      restored layout starts.
 - [ ] **Rename the slice.** The undo branch's `scopes` slice becomes `sets` and
-  `SavedScopeRecord` becomes `ElementSet` (`spec` is `definition`; `createdFrom` added). Whether
-  `scope.save` stays an alias op of `set.create` is a one-way door settled with that branch
-  (section 15.3, item 12).
+      `SavedScopeRecord` becomes `ElementSet` (`spec` is `definition`; `createdFrom` added). Whether
+      `scope.save` stays an alias op of `set.create` is a one-way door settled with that branch
+      (section 15.3, item 12).
 - [ ] **Derivation hooks.** Replace the `scopes` hook ("bump savedRevision") with a `sets` hook that
-  re-checks the signatures of every layer and filter naming a changed id and repaints the XOR
-  dirty set (today `session/sets/notify.ts` does this from `SetsStore.onCommit`). Extend the
-  `runs` hook the same way for layers and filters whose scope reads a changed run.
+      re-checks the signatures of every layer and filter naming a changed id and repaints the XOR
+      dirty set (today `session/sets/notify.ts` does this from `SetsStore.onCommit`). Extend the
+      `runs` hook the same way for layers and filters whose scope reads a changed run.
 - [ ] **The visibility copy tag.** Add the set input signatures (`session/sets/signature.ts`) to
-  `MaskTag.inputs`.
+      `MaskTag.inputs`.
 - [ ] **The memory table.** Add the `set.members` whole-value rows (about 8 bytes per node member,
-  24 per edge member, per step; section 13.2).
+      24 per edge member, per step; section 13.2).
 - [ ] **Merge order.** Whichever branch merges second does the renames. Conflicts are confined to
-  `ScopeApi.ts` `save`/`list`/`remove`, `SelectionApi.promote` and the type files.
+      `ScopeApi.ts` `save`/`list`/`remove`, `SelectionApi.promote` and the type files.
 
 ---
 
@@ -2146,7 +2145,8 @@ would move every existing unsorted run id, a one-way door not taken.
 **Refusals reuse existing codes** and the existing error target `{ kind: "scope", id }`:
 
 | Situation | Code |
-|---|---|
+| --------- | ---- |
+
 | Malformed definition, bad or empty name, a cycle, a live `"selection"` in a kept rule, an induced rule with an edge leaf, follow mode on a group, a stale offer, an ambiguous path, a set id never issued or an unknown `EdgeId` at a write door (every door that takes a scope, a
 filter, a selector or a definition; a removed set's id is accepted and reads as detached; a
 style document's layer is kept detached instead, because it may come from another session), `addMembers` on a non-fixed set, a bad `threshold`, a reserved field | `E_BAD_COMMAND`, with `details.reason` where the UI answers with a verb |
@@ -2191,7 +2191,7 @@ adds beyond the branch's own list.
    can move off the main thread later, and mint their id at dispatch); `createFrom`'s `follow`
    option and its defaults (a selection with nodes reads induced); `combine` always fixed;
    `status(ref: ScopeInput)`; `usedBy` as an open list; the doors accepting `EdgeId |
-   EdgeMember`.
+EdgeMember`.
    `remove` removes the set, as `scope.remove` does; the screen's word stays Delete, and the
    framework agrees. **Decided**: `restore` ships in this release (item 33, built); `combine`'s
    optional `live` ships in the release that builds the screen's set operations (section 7).
@@ -2204,7 +2204,7 @@ adds beyond the branch's own list.
    existed and is now also the degree leaf's direction. The record field is `createdFrom`, not
    `origin`, which attributes already publish.
 3. **The definition's shape**: `kind` = `fixed | rule | path`; `reading` = `induced | listed |
-   clipped` and what each means (section 4.1), with `listed` in the studio's meaning; the rule
+clipped` and what each means (section 4.1), with `listed` in the studio's meaning; the rule
    body `where: Query | Filter`; edge members by stable identity; a path node-first with
    `null`-able step edges and `directed`, each step naming the edge taken and a group only where
    the algorithm used one, and a one-edge group canonicalised to that edge (**decided and built**:
@@ -2342,7 +2342,7 @@ adds beyond the branch's own list.
     and scope doors.
 27. **A removed set's id is accepted at `visibility.set` and `styles.add`**, while a never-issued
     id is refused (item 24). On the branch it resolves to nothing, so a new filter `{ scope: {
-    set: removed } }` hid every node without a refusal. **Decided and built**: keep accepting it,
+set: removed } }` hid every node without a refusal. **Decided and built**: keep accepting it,
     because a restored project or an undo writes the same filter back and must not fail, and
     resolve it through the tombstoned record (item 33), which removes the blank screen. A filter
     naming a removed set whose record was dropped (nothing named it when it went) still reads
@@ -2405,7 +2405,7 @@ adds beyond the branch's own list.
     field paths: a `threshold` leaf's `path` at every door, and a `range` or `categories` leaf's
     `attribute` at the sets doors (a stored one still loads), refuse any root but `data` and
     `results`; publishing an algorithm whose field is named `runs` is refused with `details.reason:
-    "reserved-field"`, and a test checks the built-in catalogue. JMESPath expressions keep their 2.x
+"reserved-field"`, and a test checks the built-in catalogue. JMESPath expressions keep their 2.x
     roots (`id` and bare attribute names are published there), and the visibility filter's 2.x
     `range` and `categories` leaves keep reading a bare attribute name, so no published filter
     stops loading. Imported columns are not renamed: they live under `data.`.
@@ -2420,7 +2420,7 @@ adds beyond the branch's own list.
     graph in 2.x, as built; the filtered graph in the major version that ships incremental
     placement and a placement rule for static layouts.
 40. **The future filter step's shape**, recorded so this branch's leaves fit it: `FilterStep = {
-    id, set: Scope, outcome, input?: "previous" | "full", workingSet?, enabled }`, typed `Scope`
+id, set: Scope, outcome, input?: "previous" | "full", workingSet?, enabled }`, typed `Scope`
     rather than a widened union, and reading its predecessor through `input`, never through its
     rule's missing scope. Nothing on this branch builds it.
 
@@ -2435,21 +2435,21 @@ fixed edge set at 1M / 5M; and a member edit, which is O(members), not O(delta).
 
 ## 16. Migration of today's Scope, ScopeApi and SavedScope
 
-| Today | After |
-|---|---|
-| `Scope`, every arm | Valid and unchanged in meaning. It gains one arm. |
-| `ScopeId` | `= SetId`. Existing ids keep resolving. |
-| `session.scope.resolve`, `count` | Unchanged signatures. The resolver and counter for every set reference, bitmap-backed. `ScopeCount` gains optional missing counts. |
+| Today                            | After                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Scope`, every arm               | Valid and unchanged in meaning. It gains one arm.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `ScopeId`                        | `= SetId`. Existing ids keep resolving.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `session.scope.resolve`, `count` | Unchanged signatures. The resolver and counter for every set reference, bitmap-backed. `ScopeCount` gains optional missing counts.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `session.scope.save(name, spec)` | **@deprecated**, pointing at `sets.create`. One `set.create`, created from `user`, same minting (never reissued), same refusals, same return. The spec is copied and frozen. `{ where }` becomes a rule; `{ nodes }` fixed induced; `{ define }` its definition; `"graph"`, `"largest-component"` and `{ set }` a rule with one `member` leaf; **`"selection"` and `"visible"` are frozen** into a fixed set of their current members (`"visible"` as `listed`, or `induced` with no stored edges when no edge was hidden, the section 4.1 rule), as the studio's migration does. A resolver with no selection attached refuses to save `"selection"` with `E_UNSUPPORTED`: there are no members to keep. This removes the only live-selection rule and the self-reference a live `"visible"` rule would give the filter, and lets one `prepare` serve every door. |
-| `session.scope.list()` | **@deprecated**, pointing at `sets.list`. A projection to `SavedScope { id, name, spec, bound }`: one-leaf rules map back to `{ where }`, the keyword or `{ set }`; fixed induced sets to `{ nodes }`, returned in canonical order; anything else to `{ define }`. `bound` is freshness neither `detached` nor `unresolvable`, and at least one member present. |
-| `session.scope.remove(id)` | **@deprecated**, pointing at `sets.remove`. |
-| `SavedScope` | Kept, as the projection. |
-| `selection.promote(name)` | **@deprecated**, pointing at `sets.createFrom("selection")`. It stays synchronous: the selection is already materialised, so it dispatches `set.create` directly. It now keeps the selected edges instead of dropping them (`SelectionApi.ts`, about line 709), with the `createFrom("selection")` reading: induced when nodes are selected, listed for edges alone. |
-| `ResolvedScope` | Same shape. `nodes`, `edges` and `digest` lazy; `digest` is `d1:` and computed without strings. |
-| `RunScopeRecord` | Gains optional `set` and `reading`. |
-| `StaleNote` | Unchanged: scope drift, not read by sets. |
-| `SetOp` | Kept, deprecated; `SelectionOp` is its alias. |
-| `Filter`, `FilterDirection` | Kept, deprecated; `RuleTree` and `SelectionDirection` are their aliases. `neighborhood.seeds` is kept, not renamed. |
+| `session.scope.list()`           | **@deprecated**, pointing at `sets.list`. A projection to `SavedScope { id, name, spec, bound }`: one-leaf rules map back to `{ where }`, the keyword or `{ set }`; fixed induced sets to `{ nodes }`, returned in canonical order; anything else to `{ define }`. `bound` is freshness neither `detached` nor `unresolvable`, and at least one member present.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `session.scope.remove(id)`       | **@deprecated**, pointing at `sets.remove`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `SavedScope`                     | Kept, as the projection.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `selection.promote(name)`        | **@deprecated**, pointing at `sets.createFrom("selection")`. It stays synchronous: the selection is already materialised, so it dispatches `set.create` directly. It now keeps the selected edges instead of dropping them (`SelectionApi.ts`, about line 709), with the `createFrom("selection")` reading: induced when nodes are selected, listed for edges alone.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `ResolvedScope`                  | Same shape. `nodes`, `edges` and `digest` lazy; `digest` is `d1:` and computed without strings.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `RunScopeRecord`                 | Gains optional `set` and `reading`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `StaleNote`                      | Unchanged: scope drift, not read by sets.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `SetOp`                          | Kept, deprecated; `SelectionOp` is its alias.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `Filter`, `FilterDirection`      | Kept, deprecated; `RuleTree` and `SelectionDirection` are their aliases. `neighborhood.seeds` is kept, not renamed.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
 Deprecation is TSDoc only. The removal date is the owner's (the framework's one-way door 15); the
 recommendation is the major version that ships the project file, so the first file format is
@@ -2524,83 +2524,83 @@ The design studio's framework (`design/ui/framework/` in the main checkout) is f
 was built from its drafts, and every difference has been settled; `design/sets/reconciliation.md`
 gives each one, the decision or recommendation, and its reason. In brief:
 
-| Topic | Settled position |
-|---|---|
-| Path | A set kind that keeps its walk; its kind derived by `pathKind`; each step names the edge taken, a group only where the algorithm used one |
-| Edge readings | `induced`, `listed`, and `clipped` for rules; the framework's screen value is "Edges: clipped" |
-| Legacy saved `"visible"` | Frozen as listed (induced when no edge was hidden); `"selection"` as induced |
-| Combination | `combine` stays fixed; a `live` option is added with the screen verbs, which make a rule set; Create set on it freezes it |
-| Freshness | `unresolvable` added ("Cannot evaluate"); `detached` derived, never stored |
-| What a detached reference resolves to | Recommended: the tombstoned record, kept while referenced; `sets.restore` ships (section 15.3 item 33) |
-| Removal verb | `remove` in the API, Delete on screen |
-| Earlier run | "Use current" for follow-safe items, "Carry over to new run" for partition groups |
-| Layouts | The whole graph by default in 2.x; the filtered graph recommended in a later major (item 39); the carried scope is shown |
-| `Scope` | `{ set: SetId }` kept, `{ define }` added |
-| `Filter`, `seeds`, `FilterDirection`, `SetOp` | Kept and deprecated behind `RuleTree`, `SelectionDirection`, `SelectionOp` aliases; `seeds` kept (item 35) |
-| Membership leaf and rule scope | Recommended `member`/`of` and `scope?` (item 6) |
-| Item address | `ResultItem`; field names follow the run-id door (items 8, 34) |
-| Rule leaves | The framework's list now includes the membership leaf and `item`, and `threshold` keyed on a path |
-| `graphty.source` | Not stamped; decided with edge identity before the first project file (item 20) |
-| `set:changed` | Kept |
-| Old names | Removal recommended in the major version that ships the project file (item 37) |
-| Run ids | The framework's rule is adopted as the recommendation, and it blocks the merge (item 34) |
-| Path roots | `data` and `results` only; no `sets` root (item 36) |
-| Node identity | The framework's one-way door 4 is due before the first project file (item 11) |
-| Digest | `d1:` promised after a save and reopen of an embedded graph (item 11) |
-| Where sets live in a project | Per graph; the framework recommends project-owned style layers only |
-| Edge-id column in the file | The stable id under a name no snapshot uses for the session counter, decided with edge identity (item 11) |
-| Where the register and tombstones sit | The project's top level (item 11) |
-| Internal wording | The per-member edge-counter binding of section 4.2 is called "seeds" in code; "seed" is the random seed's word, so documents call it the counter binding |
+| Topic                                         | Settled position                                                                                                                                         |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Path                                          | A set kind that keeps its walk; its kind derived by `pathKind`; each step names the edge taken, a group only where the algorithm used one                |
+| Edge readings                                 | `induced`, `listed`, and `clipped` for rules; the framework's screen value is "Edges: clipped"                                                           |
+| Legacy saved `"visible"`                      | Frozen as listed (induced when no edge was hidden); `"selection"` as induced                                                                             |
+| Combination                                   | `combine` stays fixed; a `live` option is added with the screen verbs, which make a rule set; Create set on it freezes it                                |
+| Freshness                                     | `unresolvable` added ("Cannot evaluate"); `detached` derived, never stored                                                                               |
+| What a detached reference resolves to         | Recommended: the tombstoned record, kept while referenced; `sets.restore` ships (section 15.3 item 33)                                                   |
+| Removal verb                                  | `remove` in the API, Delete on screen                                                                                                                    |
+| Earlier run                                   | "Use current" for follow-safe items, "Carry over to new run" for partition groups                                                                        |
+| Layouts                                       | The whole graph by default in 2.x; the filtered graph recommended in a later major (item 39); the carried scope is shown                                 |
+| `Scope`                                       | `{ set: SetId }` kept, `{ define }` added                                                                                                                |
+| `Filter`, `seeds`, `FilterDirection`, `SetOp` | Kept and deprecated behind `RuleTree`, `SelectionDirection`, `SelectionOp` aliases; `seeds` kept (item 35)                                               |
+| Membership leaf and rule scope                | Recommended `member`/`of` and `scope?` (item 6)                                                                                                          |
+| Item address                                  | `ResultItem`; field names follow the run-id door (items 8, 34)                                                                                           |
+| Rule leaves                                   | The framework's list now includes the membership leaf and `item`, and `threshold` keyed on a path                                                        |
+| `graphty.source`                              | Not stamped; decided with edge identity before the first project file (item 20)                                                                          |
+| `set:changed`                                 | Kept                                                                                                                                                     |
+| Old names                                     | Removal recommended in the major version that ships the project file (item 37)                                                                           |
+| Run ids                                       | The framework's rule is adopted as the recommendation, and it blocks the merge (item 34)                                                                 |
+| Path roots                                    | `data` and `results` only; no `sets` root (item 36)                                                                                                      |
+| Node identity                                 | The framework's one-way door 4 is due before the first project file (item 11)                                                                            |
+| Digest                                        | `d1:` promised after a save and reopen of an embedded graph (item 11)                                                                                    |
+| Where sets live in a project                  | Per graph; the framework recommends project-owned style layers only                                                                                      |
+| Edge-id column in the file                    | The stable id under a name no snapshot uses for the session counter, decided with edge identity (item 11)                                                |
+| Where the register and tombstones sit         | The project's top level (item 11)                                                                                                                        |
+| Internal wording                              | The per-member edge-counter binding of section 4.2 is called "seeds" in code; "seed" is the random seed's word, so documents call it the counter binding |
 
 ## 20. Future uses
 
-| Use | Built now | Kept possible through |
-|---|---|---|
-| Kept sets, readings, created from, status, algebra, offers, memberships, "Used by" | Yes | -- |
-| Ordered filter steps and working sets | The `member` leaf; cycles through the filter refused | `session.visibility.steps`, each step holding a `Scope`; a step reading its predecessor names it explicitly |
-| The rule scope | A context snapshot inside the resolver (the full graph today) | Optional `scope?: Scope` on the rule (section 15.3 item 6); topology leaves and `top` read that scope's derived subgraph |
-| Search graph | -- | A `"search"` keyword, already refused inside the filter |
-| `has` and `text` leaves | -- | `{ kind: "has" }` (replacing `Selector { match: "has" }`) and `{ kind: "text" }` (replacing `SelectionTarget { text }`), additive to the open `Filter` |
-| File parallel-edge keys | `EdgeMember.key` reserved | A key-path data setting; the element then writes `key` |
-| Population-scoped runs | Central mask-back; the name `scopeAs`; masks on `ScopedInput` | `scopeAs: "population"` |
-| Relative thresholds and grouped ranking | `threshold` leaf | Its reserved `percentile`, `z`, `population` ("each group of" a partition) |
-| Incident edges and the cut | -- | An `"incident"` `EdgeReading` (the nodes plus every touching edge) and a `{ kind: "boundary", of }` leaf (edges with exactly one end in the set), both additive to open unions |
-| Time windows | -- | A `window` filter leaf |
-| Item comparisons ("within k hops", "the k-core") | Array containment | An optional `op` (`eq`, `le`, `ge`) on `ItemKey`; cumulative level offers; a k-core offer from a k-shell result |
-| Keyed items (a component by smallest node, a path by edges, a match) | Open `ItemKey` | `{ smallestNode }`, `{ edges }`, `{ binds }`; `{ kind: "component", containing }` |
-| A whole partition as an input (shell layout rings, bipartite sides) | -- | `ResultField { run, field, execution? }`; `node-set` options accept a `Scope`, `partition` options a `ResultField` |
-| Carrying groups across re-runs | `earlierRuns`, captured members | "Carry over to new run": a rebind by overlap |
-| Extending a path one hop | `set.redefine` | `sets.extendPath(id, edge)` |
-| Merge nodes | -- | Fixed, path and item ids resolved through the forwarding map, as a hook inside the resolver |
-| Restoring a removed set | Tombstones keep the record | `sets.restore(id)`, recommended for this release (section 15.3 item 33) |
-| Attribution | -- | An optional `by?: { kind: "assistant" } \| { kind: "plugin"; name }` create option recorded on `createdFrom` |
-| Carrying resolutions across a freeze | Resolutions tagged with snapshot serial and store instance; the freeze benchmark row | Built when that row is measured worse than its projection and the owner asks for it. Carry only when the store is the same, the report's predecessor is the tagged snapshot and no report was skipped; then remap the bitmaps and evaluate element-local leaves only on appended or changed rows |
-| Dirty-row rule re-evaluation | Per-field attribute revisions | Re-evaluate element-local leaves on the rows an attribute write touched |
-| Members in undo history as an op-log | Whole values | A `sets/<id>/members` sub-key with add and remove primitives, agreed with the undo branch |
-| Export | -- | An element export verb taking a `Scope`, attaching attribute and result columns |
-| Provenance by source | `EdgeMember.dataSource` reserved | A `graphty.source` column stamped at import |
-| Comparison (Jaccard, overlap) | Bitmaps | `sets.compare(a, b)` |
-| Faster scoped simulation | Hold mask | Simulate members plus a one-hop boundary held fixed |
-| A scoped simulation sized to its neighbourhood | Held rows are left out of the envelope fit | Fit the members inside the extent of the held nodes they touch |
-| Static layouts over a set | Refused | A placement design, then the induced subgraph |
-| Layout settings kept per set | -- | A map keyed by `SetId` in view state |
-| Collapse and combos | Stable ids | View state `collapsed: SetId[]`; graph-format `contract` |
-| Neighbourhood of a set | `neighborhood.seeds` | Optional `of?: Scope`, `direction`, `depth: "all"` |
-| "Within each group" | -- | An `{ each: ... }` scope form |
-| A list of scopes as a run form (each item of a result, without each item, windows, null-model samples) | -- | A run option taking `readonly Scope[]` or a generator form beside `{ each }`, one run record per scope |
-| Groups of a categorical attribute as offers and Memberships | `categories` rules | `sets.offers` over an attribute, and an optional attribute-groups field on the open `Memberships` |
-| Live combinations | Rules over `member` leaves via `sets.create` | `combine(..., { live: true })`, and an optional leaf field that makes an induced operand speak its edges; built with the screen's Union, Subtract, Intersect and Exclude |
-| External codec reading newer files | Internal load mode | A `mode` option on `parseSetDefinition` |
-| Cross-session digests | `d1:` within a session and store | A `d2:` over stable identities, for notes that cite a set |
-| The object selection; a selection that remembers its query | -- | `session.selection.object`; `via?: SelectionTarget` on the selection `createdFrom` |
-| Metadata (description, colour hint) | -- | Optional `meta` and a `set.meta` op |
-| Assistant commands | `parseSetDefinition` | `ai/commands/SetCommands.ts` |
-| Plugin rule leaves | Unknown leaves round-trip opaquely; the colon rule | A leaf registry keyed on `<package>:<kind>` |
-| GPU kernels with an alive mask | Masks on `ScopedInput` | `scopeInput: "mask"` and an optional mask parameter per kernel |
-| Two graphs in one project | -- | An optional `graph` field on the record, `ResultItem` and `{ set }` |
-| Library across projects | Namespaced ids | A `library` `createdFrom`; imported ids become `set_<ns>.<rest>`, so no reference or run id is rewritten |
-| Undo | Store, prepare, five operations | A rename onto the dispatcher (section 13.4) |
-| Project file | Persisted form, validator | The codec |
+| Use                                                                                                    | Built now                                                                            | Kept possible through                                                                                                                                                                                                                                                                            |
+| ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Kept sets, readings, created from, status, algebra, offers, memberships, "Used by"                     | Yes                                                                                  | --                                                                                                                                                                                                                                                                                               |
+| Ordered filter steps and working sets                                                                  | The `member` leaf; cycles through the filter refused                                 | `session.visibility.steps`, each step holding a `Scope`; a step reading its predecessor names it explicitly                                                                                                                                                                                      |
+| The rule scope                                                                                         | A context snapshot inside the resolver (the full graph today)                        | Optional `scope?: Scope` on the rule (section 15.3 item 6); topology leaves and `top` read that scope's derived subgraph                                                                                                                                                                         |
+| Search graph                                                                                           | --                                                                                   | A `"search"` keyword, already refused inside the filter                                                                                                                                                                                                                                          |
+| `has` and `text` leaves                                                                                | --                                                                                   | `{ kind: "has" }` (replacing `Selector { match: "has" }`) and `{ kind: "text" }` (replacing `SelectionTarget { text }`), additive to the open `Filter`                                                                                                                                           |
+| File parallel-edge keys                                                                                | `EdgeMember.key` reserved                                                            | A key-path data setting; the element then writes `key`                                                                                                                                                                                                                                           |
+| Population-scoped runs                                                                                 | Central mask-back; the name `scopeAs`; masks on `ScopedInput`                        | `scopeAs: "population"`                                                                                                                                                                                                                                                                          |
+| Relative thresholds and grouped ranking                                                                | `threshold` leaf                                                                     | Its reserved `percentile`, `z`, `population` ("each group of" a partition)                                                                                                                                                                                                                       |
+| Incident edges and the cut                                                                             | --                                                                                   | An `"incident"` `EdgeReading` (the nodes plus every touching edge) and a `{ kind: "boundary", of }` leaf (edges with exactly one end in the set), both additive to open unions                                                                                                                   |
+| Time windows                                                                                           | --                                                                                   | A `window` filter leaf                                                                                                                                                                                                                                                                           |
+| Item comparisons ("within k hops", "the k-core")                                                       | Array containment                                                                    | An optional `op` (`eq`, `le`, `ge`) on `ItemKey`; cumulative level offers; a k-core offer from a k-shell result                                                                                                                                                                                  |
+| Keyed items (a component by smallest node, a path by edges, a match)                                   | Open `ItemKey`                                                                       | `{ smallestNode }`, `{ edges }`, `{ binds }`; `{ kind: "component", containing }`                                                                                                                                                                                                                |
+| A whole partition as an input (shell layout rings, bipartite sides)                                    | --                                                                                   | `ResultField { run, field, execution? }`; `node-set` options accept a `Scope`, `partition` options a `ResultField`                                                                                                                                                                               |
+| Carrying groups across re-runs                                                                         | `earlierRuns`, captured members                                                      | "Carry over to new run": a rebind by overlap                                                                                                                                                                                                                                                     |
+| Extending a path one hop                                                                               | `set.redefine`                                                                       | `sets.extendPath(id, edge)`                                                                                                                                                                                                                                                                      |
+| Merge nodes                                                                                            | --                                                                                   | Fixed, path and item ids resolved through the forwarding map, as a hook inside the resolver                                                                                                                                                                                                      |
+| Restoring a removed set                                                                                | Tombstones keep the record                                                           | `sets.restore(id)`, recommended for this release (section 15.3 item 33)                                                                                                                                                                                                                          |
+| Attribution                                                                                            | --                                                                                   | An optional `by?: { kind: "assistant" } \| { kind: "plugin"; name }` create option recorded on `createdFrom`                                                                                                                                                                                     |
+| Carrying resolutions across a freeze                                                                   | Resolutions tagged with snapshot serial and store instance; the freeze benchmark row | Built when that row is measured worse than its projection and the owner asks for it. Carry only when the store is the same, the report's predecessor is the tagged snapshot and no report was skipped; then remap the bitmaps and evaluate element-local leaves only on appended or changed rows |
+| Dirty-row rule re-evaluation                                                                           | Per-field attribute revisions                                                        | Re-evaluate element-local leaves on the rows an attribute write touched                                                                                                                                                                                                                          |
+| Members in undo history as an op-log                                                                   | Whole values                                                                         | A `sets/<id>/members` sub-key with add and remove primitives, agreed with the undo branch                                                                                                                                                                                                        |
+| Export                                                                                                 | --                                                                                   | An element export verb taking a `Scope`, attaching attribute and result columns                                                                                                                                                                                                                  |
+| Provenance by source                                                                                   | `EdgeMember.dataSource` reserved                                                     | A `graphty.source` column stamped at import                                                                                                                                                                                                                                                      |
+| Comparison (Jaccard, overlap)                                                                          | Bitmaps                                                                              | `sets.compare(a, b)`                                                                                                                                                                                                                                                                             |
+| Faster scoped simulation                                                                               | Hold mask                                                                            | Simulate members plus a one-hop boundary held fixed                                                                                                                                                                                                                                              |
+| A scoped simulation sized to its neighbourhood                                                         | Held rows are left out of the envelope fit                                           | Fit the members inside the extent of the held nodes they touch                                                                                                                                                                                                                                   |
+| Static layouts over a set                                                                              | Refused                                                                              | A placement design, then the induced subgraph                                                                                                                                                                                                                                                    |
+| Layout settings kept per set                                                                           | --                                                                                   | A map keyed by `SetId` in view state                                                                                                                                                                                                                                                             |
+| Collapse and combos                                                                                    | Stable ids                                                                           | View state `collapsed: SetId[]`; graph-format `contract`                                                                                                                                                                                                                                         |
+| Neighbourhood of a set                                                                                 | `neighborhood.seeds`                                                                 | Optional `of?: Scope`, `direction`, `depth: "all"`                                                                                                                                                                                                                                               |
+| "Within each group"                                                                                    | --                                                                                   | An `{ each: ... }` scope form                                                                                                                                                                                                                                                                    |
+| A list of scopes as a run form (each item of a result, without each item, windows, null-model samples) | --                                                                                   | A run option taking `readonly Scope[]` or a generator form beside `{ each }`, one run record per scope                                                                                                                                                                                           |
+| Groups of a categorical attribute as offers and Memberships                                            | `categories` rules                                                                   | `sets.offers` over an attribute, and an optional attribute-groups field on the open `Memberships`                                                                                                                                                                                                |
+| Live combinations                                                                                      | Rules over `member` leaves via `sets.create`                                         | `combine(..., { live: true })`, and an optional leaf field that makes an induced operand speak its edges; built with the screen's Union, Subtract, Intersect and Exclude                                                                                                                         |
+| External codec reading newer files                                                                     | Internal load mode                                                                   | A `mode` option on `parseSetDefinition`                                                                                                                                                                                                                                                          |
+| Cross-session digests                                                                                  | `d1:` within a session and store                                                     | A `d2:` over stable identities, for notes that cite a set                                                                                                                                                                                                                                        |
+| The object selection; a selection that remembers its query                                             | --                                                                                   | `session.selection.object`; `via?: SelectionTarget` on the selection `createdFrom`                                                                                                                                                                                                               |
+| Metadata (description, colour hint)                                                                    | --                                                                                   | Optional `meta` and a `set.meta` op                                                                                                                                                                                                                                                              |
+| Assistant commands                                                                                     | `parseSetDefinition`                                                                 | `ai/commands/SetCommands.ts`                                                                                                                                                                                                                                                                     |
+| Plugin rule leaves                                                                                     | Unknown leaves round-trip opaquely; the colon rule                                   | A leaf registry keyed on `<package>:<kind>`                                                                                                                                                                                                                                                      |
+| GPU kernels with an alive mask                                                                         | Masks on `ScopedInput`                                                               | `scopeInput: "mask"` and an optional mask parameter per kernel                                                                                                                                                                                                                                   |
+| Two graphs in one project                                                                              | --                                                                                   | An optional `graph` field on the record, `ResultItem` and `{ set }`                                                                                                                                                                                                                              |
+| Library across projects                                                                                | Namespaced ids                                                                       | A `library` `createdFrom`; imported ids become `set_<ns>.<rest>`, so no reference or run id is rewritten                                                                                                                                                                                         |
+| Undo                                                                                                   | Store, prepare, five operations                                                      | A rename onto the dispatcher (section 13.4)                                                                                                                                                                                                                                                      |
+| Project file                                                                                           | Persisted form, validator                                                            | The codec                                                                                                                                                                                                                                                                                        |
 
 ---
 
@@ -2631,7 +2631,7 @@ gives each one, the decision or recommendation, and its reason. In brief:
 - **Moving visibility and selection to packed bits.** Converting at the boundary is one pass.
 - **Offers from `pair-list`, metric and temporal shapes.** Section 8.2 gives the reasons.
 - **An edge-identity field on the import report.** A field such as `edgeIdentity: { fileIds,
-  ordinalMatched }` would tell the reader when edges have no file id and when ordinal members were
+ordinalMatched }` would tell the reader when edges have no file id and when ordinal members were
   matched by position, so a re-import that reorders id-less parallel edges could warn instead of
   silently binding a member to a different record. It is a new public field on `ImportReport`, a
   one-way door, so it waits for the owner (section 15.3 item 38, recommended before the first
@@ -2693,54 +2693,54 @@ gives each one, the decision or recommendation, and its reason. In brief:
 
 ## 23. Alternatives rejected
 
-| Alternative | Why rejected |
-|---|---|
-| Per-leaf node and edge "lanes" for rules | A second meaning for the published `Filter` tree; breaks weighted thresholding and the filter-to-set identity |
-| A `member` leaf that always speaks edges | Changes the edges shown when an inline rule is swapped for a reference to the same set |
-| Clipping in listed set algebra | Discards the edge differences users compare (two spanning trees share every node) |
-| `listed` meaning the clipped reading | Contradicts the studio's word; paths and edge sets would need a fourth name |
-| Separate `top` and `above` leaves | Two doors the studio retires in favour of one `threshold` |
-| `RunRef` in stored leaves | A live handle cannot be cloned, hashed or persisted |
-| Widen `{ set: ScopeId }` to take a definition | Breaks every reader of `spec.set` as a string |
-| Several new `Scope` arms (`rule`, `combine`, `item`) | Each is a door; `{ define }` covers all |
-| Offers as JMESPath text | 1,322 ns per element, hides its run, cannot hold an execution |
-| The rule-first model (`combine` live by default) | `combine` is the materializing door, the framework's Create set on a combined set; the live form is an option the screen's set operations pass (section 7) |
-| An edge-first path definition (`start` plus edges) | Fails whenever an algorithm marks a reciprocal pair or a parallel group |
-| Reserve the path kind | A path kept as a flat set loses its order |
-| Path kind as a stored field | Can disagree with the walk after a redefine; derived costs nothing |
-| An ordinal computed at persist time, or from the current graph | Deleting a sibling would change a frozen record and its revision with no set write |
-| An ordinal over id-less edges only, or across loads | Configuring `edgeIdPath` later would orphan every stored ordinal; counting across loads makes `among` disagree with the ordinal |
-| Ordinals for edges added in the session | Delete-then-add on a pair would reuse an ordinal and bind a different edge after a reload |
-| A per-leaf opaque unit on load | A leaf read as empty under `not` resolves to wrong members; needs a partial-evaluation rule per node type |
-| The layout scope on the web component | The assistant command and the default layout call `Graph.setLayout` directly and would drop it |
-| A layout hold that follows its scope live | A click or a filter change would move the hold of a running simulation; the studio records a layout over a frozen scope |
-| Reading a selection as listed when one edge is selected | One stray edge changes every density and scoped run over the set |
-| Hashing edge members from their data objects at digest time | 10M property walks and string hashes; seconds at 10M edges |
-| `origin` as the record field | Collides with the published `AttributeDescriptor.origin`, which has its own `"result"` value |
-| A threshold keyed on a run | Cannot express "top 10 by `data.revenue`"; making `run` optional later breaks readers |
-| Ignoring unknown fields on load | An older element evaluates a newer field's rule silently wrong and drops it on save |
-| Revision, set id or execution as a per-object counter | Repeats after undo or reload |
-| Edge members keyed on the session counter | The counter restarts every session; every edge member would read missing after a reload |
-| Storing induced edges in a fixed set | 10M edge objects for one `createFrom("largest-component")` |
-| Carrying bitmaps on every freeze report | Binds a set to the wrong rows after a replacing import of equal size |
-| Random set id suffixes | The register gives uniqueness; run ids stay deterministic |
-| A global `setsRevision()` in every signature | Any write, even a rename, invalidates every resolution; undo always misses |
-| One global attribute version | A label edit re-resolves every rule on any field |
-| Digest over id strings, or `BigInt` sums | Builds 500,000 strings, or costs about 100 ns per add, on the run hot path |
-| Entry-count cache bound | 64 entries could hold gigabytes once id sets attach |
-| A synchronous `sets.count` beside `scope.count` | Two ways to count, and a synchronous resolve that cannot move to a worker |
-| `session.scope.subgraph` for export | No attributes travel with the snapshot |
-| Writing the scope hold into the pin lane | Leaks into persisted pins and exports |
-| A required `scoped` on the authored layout descriptor | Breaks every third-party layout registration at compile time |
-| Mask input for every algorithm | Needs a change to every CPU and GPU kernel |
-| Undirect, then induce | Hands a thresholded run a hidden edge's weight |
-| Induce after simplification | Simplifies the full graph even for a 1% set |
-| Per-source sets or snapshots | One builder; a cross-source edge would belong to neither |
-| Keep resolutions as `Set`s of ids | 416 ms and 82 MB against 85 ms and 0.75 MB |
-| Captures of held items as a cache | Undo of a layer removal and a save and reload would change what is painted |
-| Synchronous materialising doors | Would fix rule evaluation on the main thread forever |
-| A live saved `"selection"` or `"visible"` | Changes on every click; `"visible"` in the filter is a cycle |
-| Deleting a set cascades to its layers | One operation writing two slices; not needed now |
+| Alternative                                                    | Why rejected                                                                                                                                               |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Per-leaf node and edge "lanes" for rules                       | A second meaning for the published `Filter` tree; breaks weighted thresholding and the filter-to-set identity                                              |
+| A `member` leaf that always speaks edges                       | Changes the edges shown when an inline rule is swapped for a reference to the same set                                                                     |
+| Clipping in listed set algebra                                 | Discards the edge differences users compare (two spanning trees share every node)                                                                          |
+| `listed` meaning the clipped reading                           | Contradicts the studio's word; paths and edge sets would need a fourth name                                                                                |
+| Separate `top` and `above` leaves                              | Two doors the studio retires in favour of one `threshold`                                                                                                  |
+| `RunRef` in stored leaves                                      | A live handle cannot be cloned, hashed or persisted                                                                                                        |
+| Widen `{ set: ScopeId }` to take a definition                  | Breaks every reader of `spec.set` as a string                                                                                                              |
+| Several new `Scope` arms (`rule`, `combine`, `item`)           | Each is a door; `{ define }` covers all                                                                                                                    |
+| Offers as JMESPath text                                        | 1,322 ns per element, hides its run, cannot hold an execution                                                                                              |
+| The rule-first model (`combine` live by default)               | `combine` is the materializing door, the framework's Create set on a combined set; the live form is an option the screen's set operations pass (section 7) |
+| An edge-first path definition (`start` plus edges)             | Fails whenever an algorithm marks a reciprocal pair or a parallel group                                                                                    |
+| Reserve the path kind                                          | A path kept as a flat set loses its order                                                                                                                  |
+| Path kind as a stored field                                    | Can disagree with the walk after a redefine; derived costs nothing                                                                                         |
+| An ordinal computed at persist time, or from the current graph | Deleting a sibling would change a frozen record and its revision with no set write                                                                         |
+| An ordinal over id-less edges only, or across loads            | Configuring `edgeIdPath` later would orphan every stored ordinal; counting across loads makes `among` disagree with the ordinal                            |
+| Ordinals for edges added in the session                        | Delete-then-add on a pair would reuse an ordinal and bind a different edge after a reload                                                                  |
+| A per-leaf opaque unit on load                                 | A leaf read as empty under `not` resolves to wrong members; needs a partial-evaluation rule per node type                                                  |
+| The layout scope on the web component                          | The assistant command and the default layout call `Graph.setLayout` directly and would drop it                                                             |
+| A layout hold that follows its scope live                      | A click or a filter change would move the hold of a running simulation; the studio records a layout over a frozen scope                                    |
+| Reading a selection as listed when one edge is selected        | One stray edge changes every density and scoped run over the set                                                                                           |
+| Hashing edge members from their data objects at digest time    | 10M property walks and string hashes; seconds at 10M edges                                                                                                 |
+| `origin` as the record field                                   | Collides with the published `AttributeDescriptor.origin`, which has its own `"result"` value                                                               |
+| A threshold keyed on a run                                     | Cannot express "top 10 by `data.revenue`"; making `run` optional later breaks readers                                                                      |
+| Ignoring unknown fields on load                                | An older element evaluates a newer field's rule silently wrong and drops it on save                                                                        |
+| Revision, set id or execution as a per-object counter          | Repeats after undo or reload                                                                                                                               |
+| Edge members keyed on the session counter                      | The counter restarts every session; every edge member would read missing after a reload                                                                    |
+| Storing induced edges in a fixed set                           | 10M edge objects for one `createFrom("largest-component")`                                                                                                 |
+| Carrying bitmaps on every freeze report                        | Binds a set to the wrong rows after a replacing import of equal size                                                                                       |
+| Random set id suffixes                                         | The register gives uniqueness; run ids stay deterministic                                                                                                  |
+| A global `setsRevision()` in every signature                   | Any write, even a rename, invalidates every resolution; undo always misses                                                                                 |
+| One global attribute version                                   | A label edit re-resolves every rule on any field                                                                                                           |
+| Digest over id strings, or `BigInt` sums                       | Builds 500,000 strings, or costs about 100 ns per add, on the run hot path                                                                                 |
+| Entry-count cache bound                                        | 64 entries could hold gigabytes once id sets attach                                                                                                        |
+| A synchronous `sets.count` beside `scope.count`                | Two ways to count, and a synchronous resolve that cannot move to a worker                                                                                  |
+| `session.scope.subgraph` for export                            | No attributes travel with the snapshot                                                                                                                     |
+| Writing the scope hold into the pin lane                       | Leaks into persisted pins and exports                                                                                                                      |
+| A required `scoped` on the authored layout descriptor          | Breaks every third-party layout registration at compile time                                                                                               |
+| Mask input for every algorithm                                 | Needs a change to every CPU and GPU kernel                                                                                                                 |
+| Undirect, then induce                                          | Hands a thresholded run a hidden edge's weight                                                                                                             |
+| Induce after simplification                                    | Simplifies the full graph even for a 1% set                                                                                                                |
+| Per-source sets or snapshots                                   | One builder; a cross-source edge would belong to neither                                                                                                   |
+| Keep resolutions as `Set`s of ids                              | 416 ms and 82 MB against 85 ms and 0.75 MB                                                                                                                 |
+| Captures of held items as a cache                              | Undo of a layer removal and a save and reload would change what is painted                                                                                 |
+| Synchronous materialising doors                                | Would fix rule evaluation on the main thread forever                                                                                                       |
+| A live saved `"selection"` or `"visible"`                      | Changes on every click; `"visible"` in the filter is a cycle                                                                                               |
+| Deleting a set cascades to its layers                          | One operation writing two slices; not needed now                                                                                                           |
 
 ---
 
@@ -2750,18 +2750,18 @@ The decisions in `design/sets/reconciliation.md` and section 15.3, all decided b
 2026-09-27, needed these changes on this branch. Paths are under `graphty-element/src/` unless
 another package is named; tests under `graphty-element/test/`.
 
-| # | Change | Where | Test | State |
-|---|---|---|---|---|
-| 1 | A derived run id is the result's id, hashed from the frozen scope (the visibility filter and window for `"visible"`, the selected ids for `"selection"`), never the keyword; parameters and seed out of the id, so new ones re-run the result in place (item 34) | `session/runs/runId.ts` (`freezeScope`, `deriveResultId`), `session/runs/RunsApi.ts` (`start`, `reuse`), `session/runs/Run.ts` (`retune`, a replaced execution's answer dropped), `session/GraphSession.ts` (`liveScope`) | `session/runs/run-id-scope.test.ts` (two filters, two results; a layer bound to the first keeps painting the first graph; two selections; a new seed), `session/runs/runs-api.test.ts` | Done |
-| 2 | The membership leaf `{ kind: "member", of }`, the selector `{ match: "member", of }`, the reserved rule field `scope` in place of `within` (item 6) | `catalog/types.ts`, `catalog/sets/parse.ts`, `catalog/sets/canonical.ts`, `session/styles/selector.ts`, `session/visibility/filter.ts`, every walker in `session/sets/`, `graphty/src/components/sidebar/panels/StyleLayerPropertiesPanel.tsx` | the sets, filter and selector suites, `catalog/sets/colon-rule.test.ts` | Done |
-| 3 | `SelectionOp`, `RuleTree`, `SelectionDirection` are the definitions; `SetOp`, `Filter`, `FilterDirection` deprecated aliases in the entry files (item 35) | `catalog/types.ts`, `session/selection/SelectionApi.ts`, `session.ts`, `catalog.ts`, `schema.ts` | type-checked by every suite | Done |
-| 4 | `sets.restore(id)`, refusing `live`, `unknown-id` or `record-dropped` (item 33) | `session/sets/SetsApi.ts`, `session/sets/types.ts` | `session/sets/store.test.ts`, `session/sets/status.model.test.ts` | Done |
-| 5 | A tombstone keeps its record while anything names the id, no byte cap; a reference to a removed set resolves through the record; new runs over one refused (item 33) | `session/sets/store.ts` (`forget`), `session/sets/signature.ts` (`keptDefinition`), `session/sets/resolve.ts`, `session/scope/ScopeApi.ts` (`count`), `session/GraphSession.ts` (runs refuse `missing-set`) | `session/visibility/VisibilityApi.sets.test.ts` (removing a set never changes the filter; a new filter over a removed set shows its members), `session/styles/selector.scope.test.ts`, `session/sets/write-doors.test.ts` | Done |
-| 6 | Field paths refuse a root other than `data` or `results` (`reserved-root`); no result field named `runs` (item 36) | `catalog/sets/parse.ts` (`checkRoot`), `catalog/registry.ts` | `catalog/sets/parse.test.ts`, `catalog/reserved-field.test.ts` | Done |
-| 7 | `d1:` digests and `r1:` revisions identical after a save and reopen of an embedded graph with minted and ordinal edge members (item 11) | test only | `session/sets/save-reopen.test.ts` | Done |
-| 8 | A path step's one-edge group stored as that edge; Dijkstra marks only the parallel edge it took, one per direction of a reciprocal pair read undirected (item 3) | `catalog/sets/canonical.ts`, `algorithms/DijkstraAlgorithm.ts` | `catalog/sets/parse.test.ts`, `algorithms/scoped/Dijkstra.scoped.test.ts`, `session/sets/createPath.test.ts`, `algorithms/accelerated-adapters.test.ts` | Done |
-| 9 | `ResultItem { result, run?, key }`, `ResultId` an alias of `RunId` (item 8) | `catalog/types.ts`, every reader of an item's fields | the sets and filter suites | Done |
-| 10 | `ImportReport.edgeIdentity { idPath, byId, byPosition }` (item 38) | `data/report.ts`, `managers/DataManager.ts` | `unit/edge-identity.test.ts` | Done |
-| 11 | `combine(op, of, { live: true })`, writing a rule over membership leaves with the section 7 edge rule (item 1) | `session/sets/algebra.ts`, `session/sets/SetsApi.ts` | the section 22 property test, extended to mixed readings | Later: built with the screen's set operations |
-| 12 | The node type in node members and `h(n)`, bumping the revision prefix | `catalog/sets/canonical.ts`, `catalog/sets/hash.ts` | -- | Later: only if the framework's one-way door 4 makes the type part of node identity, before the first project file |
-| 13 | Rename the internal edge-counter "seeds" to "bindings" | `session/sets/store.ts` | -- | Optional, internal |
+| #   | Change                                                                                                                                                                                                                                                           | Where                                                                                                                                                                                                                                          | Test                                                                                                                                                                                                                      | State                                                                                                             |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| 1   | A derived run id is the result's id, hashed from the frozen scope (the visibility filter and window for `"visible"`, the selected ids for `"selection"`), never the keyword; parameters and seed out of the id, so new ones re-run the result in place (item 34) | `session/runs/runId.ts` (`freezeScope`, `deriveResultId`), `session/runs/RunsApi.ts` (`start`, `reuse`), `session/runs/Run.ts` (`retune`, a replaced execution's answer dropped), `session/GraphSession.ts` (`liveScope`)                      | `session/runs/run-id-scope.test.ts` (two filters, two results; a layer bound to the first keeps painting the first graph; two selections; a new seed), `session/runs/runs-api.test.ts`                                    | Done                                                                                                              |
+| 2   | The membership leaf `{ kind: "member", of }`, the selector `{ match: "member", of }`, the reserved rule field `scope` in place of `within` (item 6)                                                                                                              | `catalog/types.ts`, `catalog/sets/parse.ts`, `catalog/sets/canonical.ts`, `session/styles/selector.ts`, `session/visibility/filter.ts`, every walker in `session/sets/`, `graphty/src/components/sidebar/panels/StyleLayerPropertiesPanel.tsx` | the sets, filter and selector suites, `catalog/sets/colon-rule.test.ts`                                                                                                                                                   | Done                                                                                                              |
+| 3   | `SelectionOp`, `RuleTree`, `SelectionDirection` are the definitions; `SetOp`, `Filter`, `FilterDirection` deprecated aliases in the entry files (item 35)                                                                                                        | `catalog/types.ts`, `session/selection/SelectionApi.ts`, `session.ts`, `catalog.ts`, `schema.ts`                                                                                                                                               | type-checked by every suite                                                                                                                                                                                               | Done                                                                                                              |
+| 4   | `sets.restore(id)`, refusing `live`, `unknown-id` or `record-dropped` (item 33)                                                                                                                                                                                  | `session/sets/SetsApi.ts`, `session/sets/types.ts`                                                                                                                                                                                             | `session/sets/store.test.ts`, `session/sets/status.model.test.ts`                                                                                                                                                         | Done                                                                                                              |
+| 5   | A tombstone keeps its record while anything names the id, no byte cap; a reference to a removed set resolves through the record; new runs over one refused (item 33)                                                                                             | `session/sets/store.ts` (`forget`), `session/sets/signature.ts` (`keptDefinition`), `session/sets/resolve.ts`, `session/scope/ScopeApi.ts` (`count`), `session/GraphSession.ts` (runs refuse `missing-set`)                                    | `session/visibility/VisibilityApi.sets.test.ts` (removing a set never changes the filter; a new filter over a removed set shows its members), `session/styles/selector.scope.test.ts`, `session/sets/write-doors.test.ts` | Done                                                                                                              |
+| 6   | Field paths refuse a root other than `data` or `results` (`reserved-root`); no result field named `runs` (item 36)                                                                                                                                               | `catalog/sets/parse.ts` (`checkRoot`), `catalog/registry.ts`                                                                                                                                                                                   | `catalog/sets/parse.test.ts`, `catalog/reserved-field.test.ts`                                                                                                                                                            | Done                                                                                                              |
+| 7   | `d1:` digests and `r1:` revisions identical after a save and reopen of an embedded graph with minted and ordinal edge members (item 11)                                                                                                                          | test only                                                                                                                                                                                                                                      | `session/sets/save-reopen.test.ts`                                                                                                                                                                                        | Done                                                                                                              |
+| 8   | A path step's one-edge group stored as that edge; Dijkstra marks only the parallel edge it took, one per direction of a reciprocal pair read undirected (item 3)                                                                                                 | `catalog/sets/canonical.ts`, `algorithms/DijkstraAlgorithm.ts`                                                                                                                                                                                 | `catalog/sets/parse.test.ts`, `algorithms/scoped/Dijkstra.scoped.test.ts`, `session/sets/createPath.test.ts`, `algorithms/accelerated-adapters.test.ts`                                                                   | Done                                                                                                              |
+| 9   | `ResultItem { result, run?, key }`, `ResultId` an alias of `RunId` (item 8)                                                                                                                                                                                      | `catalog/types.ts`, every reader of an item's fields                                                                                                                                                                                           | the sets and filter suites                                                                                                                                                                                                | Done                                                                                                              |
+| 10  | `ImportReport.edgeIdentity { idPath, byId, byPosition }` (item 38)                                                                                                                                                                                               | `data/report.ts`, `managers/DataManager.ts`                                                                                                                                                                                                    | `unit/edge-identity.test.ts`                                                                                                                                                                                              | Done                                                                                                              |
+| 11  | `combine(op, of, { live: true })`, writing a rule over membership leaves with the section 7 edge rule (item 1)                                                                                                                                                   | `session/sets/algebra.ts`, `session/sets/SetsApi.ts`                                                                                                                                                                                           | the section 22 property test, extended to mixed readings                                                                                                                                                                  | Later: built with the screen's set operations                                                                     |
+| 12  | The node type in node members and `h(n)`, bumping the revision prefix                                                                                                                                                                                            | `catalog/sets/canonical.ts`, `catalog/sets/hash.ts`                                                                                                                                                                                            | --                                                                                                                                                                                                                        | Later: only if the framework's one-way door 4 makes the type part of node identity, before the first project file |
+| 13  | Rename the internal edge-counter "seeds" to "bindings"                                                                                                                                                                                                           | `session/sets/store.ts`                                                                                                                                                                                                                        | --                                                                                                                                                                                                                        | Optional, internal                                                                                                |

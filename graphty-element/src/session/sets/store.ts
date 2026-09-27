@@ -263,7 +263,11 @@ export class SetsStore implements RecordView {
         const group: Group = outer ?? { before: new Map(), minted: [], saves: [], cause };
         // A nested call is a savepoint: when it throws, only its own writes and mints are undone
         // and the outer group carries on, so a refused door inside a group leaves no trace.
-        const save = { values: new Map<SetId, ElementSet | undefined>(), minted: group.minted.length, order: this.highestOrder };
+        const save = {
+            values: new Map<SetId, ElementSet | undefined>(),
+            minted: group.minted.length,
+            order: this.highestOrder,
+        };
         group.saves.push(save);
         this.group = group;
         let result: T;
@@ -359,7 +363,15 @@ export class SetsStore implements RecordView {
                 throw badSlice("A stored tombstone is { id, name, record? }.");
             }
 
-            return live.has(t.id) ? [] : [Object.freeze({ id: t.id, name: t.name, ...(t.record === undefined ? {} : { record: loadRecord(t.record) }) })];
+            return live.has(t.id)
+                ? []
+                : [
+                      Object.freeze({
+                          id: t.id,
+                          name: t.name,
+                          ...(t.record === undefined ? {} : { record: loadRecord(t.record) }),
+                      }),
+                  ];
         });
 
         this.transact(() => {
@@ -367,7 +379,7 @@ export class SetsStore implements RecordView {
                 this.put(record);
             }
         }, "load");
-        for (const id of [...(value.register), ...records.map((record) => record.id), ...tombstones.map((t) => t.id)]) {
+        for (const id of [...value.register, ...records.map((record) => record.id), ...tombstones.map((t) => t.id)]) {
             this.issued.add(id);
         }
 
@@ -482,7 +494,9 @@ export class SetsStore implements RecordView {
             return;
         }
 
-        const committed = Object.freeze(changes.map((change) => Object.freeze({ ...change, fields: Object.freeze(change.fields) })));
+        const committed = Object.freeze(
+            changes.map((change) => Object.freeze({ ...change, fields: Object.freeze(change.fields) })),
+        );
         for (const listener of [...this.commitListeners]) {
             try {
                 listener(committed);
@@ -519,5 +533,10 @@ export class SetsStore implements RecordView {
  * @returns The error to throw.
  */
 function badSlice(message: string, details: Record<string, unknown> = {}): GraphtyError {
-    return new GraphtyError({ code: "E_BAD_COMMAND", message, source: "data", details: { reason: "bad-slice", ...details } });
+    return new GraphtyError({
+        code: "E_BAD_COMMAND",
+        message,
+        source: "data",
+        details: { reason: "bad-slice", ...details },
+    });
 }

@@ -42,7 +42,13 @@ import type { ElementSet, SetStatus, SetStatusReason } from "./types";
 type Freshness = SetStatus["freshness"];
 
 /** Freshness from best to worst. */
-const RANK: Readonly<Record<Freshness, number>> = { current: 0, "out-of-date": 1, "cannot-rerun": 2, detached: 3, unresolvable: 4 };
+const RANK: Readonly<Record<Freshness, number>> = {
+    current: 0,
+    "out-of-date": 1,
+    "cannot-rerun": 2,
+    detached: 3,
+    unresolvable: 4,
+};
 
 /** What status reads about one run. */
 export interface StatusRun {
@@ -86,7 +92,9 @@ export interface StatusSources {
      * @param record - The set.
      * @returns The outcome, or undefined when no pass has.
      */
-    readonly outcome?: (record: ElementSet) => { readonly problem?: Resolution["problem"]; readonly ambiguousEdges: number } | undefined;
+    readonly outcome?: (
+        record: ElementSet,
+    ) => { readonly problem?: Resolution["problem"]; readonly ambiguousEdges: number } | undefined;
 }
 
 /**
@@ -107,9 +115,14 @@ function schemeOf(revision: string): string {
  * @param sets.get - One live set.
  * @returns `changed`, `unknown` (revisions of different schemes) or `same`.
  */
-function runInputs(run: StatusRun, sets: StatusSources["sets"]): "changed" | "unknown" | "same" | { readonly gone: SetId; readonly name: string } {
+function runInputs(
+    run: StatusRun,
+    sets: StatusSources["sets"],
+): "changed" | "unknown" | "same" | { readonly gone: SetId; readonly name: string } {
     const recorded = run.scope.set;
-    const named = recorded?.id ?? (typeof run.scope.spec === "object" && "set" in run.scope.spec ? run.scope.spec.set : undefined);
+    const named =
+        recorded?.id ??
+        (typeof run.scope.spec === "object" && "set" in run.scope.spec ? run.scope.spec.set : undefined);
     const removed = named === undefined ? undefined : sets.tombstone(named);
     if (named !== undefined && removed !== undefined) {
         return { gone: named, name: removed.name };
@@ -161,7 +174,11 @@ class Builder {
     }
 
     done(): SetStatus {
-        return Object.freeze({ freshness: this.freshness, reasons: Object.freeze(this.reasons), earlierRuns: Object.freeze([...this.earlier]) });
+        return Object.freeze({
+            freshness: this.freshness,
+            reasons: Object.freeze(this.reasons),
+            earlierRuns: Object.freeze([...this.earlier]),
+        });
     }
 }
 
@@ -177,14 +194,21 @@ function reasonOfProblem(problem: NonNullable<Resolution["problem"]>): SetStatus
     }
 
     if (problem.code === "E_UNSUPPORTED") {
-        return { kind: "missing-capability", name: typeof details.needs === "string" ? details.needs : problem.message };
+        return {
+            kind: "missing-capability",
+            name: typeof details.needs === "string" ? details.needs : problem.message,
+        };
     }
 
     return { kind: "invalid", message: problem.message };
 }
 
 /** A status with nothing to report. */
-const CURRENT: SetStatus = Object.freeze({ freshness: "current", reasons: Object.freeze([]), earlierRuns: Object.freeze([]) });
+const CURRENT: SetStatus = Object.freeze({
+    freshness: "current",
+    reasons: Object.freeze([]),
+    earlierRuns: Object.freeze([]),
+});
 
 /**
  * Status of any scope: a kept set by `{ set }`, an inline definition, a query, or a keyword (always
@@ -343,7 +367,12 @@ class StatusWalk {
      * @param ring - The sets on the cycle this set is caught in, which report it themselves.
      * @param builder - Where the status is collected.
      */
-    private dependencies(definition: SetDefinition, record: ElementSet | undefined, ring: ReadonlySet<string>, builder: Builder): void {
+    private dependencies(
+        definition: SetDefinition,
+        record: ElementSet | undefined,
+        ring: ReadonlySet<string>,
+        builder: Builder,
+    ): void {
         const { sources } = this;
         for (const dependency of dependenciesOf(definition, sources.dependencies.pathsOf)) {
             if (dependency.kind === "set") {
@@ -417,4 +446,3 @@ class StatusWalk {
         }
     }
 }
-

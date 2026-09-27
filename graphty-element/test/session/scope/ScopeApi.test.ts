@@ -77,7 +77,11 @@ describe("resolving a scope", () => {
         const resolved = await scope.resolve("graph");
 
         assert.deepStrictEqual([...resolved.nodes].sort(), ["a", "b", "c"]);
-        assert.deepStrictEqual([...resolved.edges], [edgeBetween(harness, "a", "b")], "an edge is addressed by its endpoints");
+        assert.deepStrictEqual(
+            [...resolved.edges],
+            [edgeBetween(harness, "a", "b")],
+            "an edge is addressed by its endpoints",
+        );
         assert.strictEqual(resolved.nodeCount, 3);
         assert.strictEqual(resolved.edgeCount, 1);
         assert.strictEqual(resolved.spec, "graph");
@@ -141,9 +145,18 @@ describe("resolving a scope", () => {
         const harness = harnessOf([{ id: "a" }]);
         const scope = createScopeApi({ snapshot: () => harness.store.getSnapshot() });
 
-        assert.strictEqual(codeOf(() => scope.resolveNow("everything" as unknown as Scope)), "E_BAD_COMMAND");
-        assert.strictEqual(codeOf(() => scope.resolveNow({} as unknown as Scope)), "E_BAD_COMMAND");
-        assert.strictEqual(codeOf(() => scope.resolveNow(null as unknown as Scope)), "E_BAD_COMMAND");
+        assert.strictEqual(
+            codeOf(() => scope.resolveNow("everything" as unknown as Scope)),
+            "E_BAD_COMMAND",
+        );
+        assert.strictEqual(
+            codeOf(() => scope.resolveNow({} as unknown as Scope)),
+            "E_BAD_COMMAND",
+        );
+        assert.strictEqual(
+            codeOf(() => scope.resolveNow(null as unknown as Scope)),
+            "E_BAD_COMMAND",
+        );
         harness.session.dispose();
     });
 });
@@ -194,7 +207,7 @@ describe("the scope digest", () => {
         harness.session.dispose();
     });
 
-    it("tells the number 1 from the string \"1\"", () => {
+    it('tells the number 1 from the string "1"', () => {
         const numeric = harnessOf([{ id: 1 }, { id: 2 }]);
         const textual = harnessOf([{ id: "1" }, { id: "2" }]);
         const left = createScopeApi({ snapshot: () => numeric.store.getSnapshot() });
@@ -225,7 +238,11 @@ describe("resolving against what is visible and what is selected", () => {
         const resolved = await scope.resolve("visible");
 
         assert.strictEqual(resolved.nodeCount, 3);
-        assert.deepStrictEqual([...resolved.edges], [edgeBetween(harness, "a", "b")], "b:c is filtered out even though b and c show");
+        assert.deepStrictEqual(
+            [...resolved.edges],
+            [edgeBetween(harness, "a", "b")],
+            "b:c is filtered out even though b and c show",
+        );
         harness.session.dispose();
     });
 
@@ -266,7 +283,11 @@ describe("resolving against what is visible and what is selected", () => {
         const scope = createScopeApi({ snapshot: () => harness.store.getSnapshot() });
 
         for (const spec of ["selection", "largest-component"] as const) {
-            assert.strictEqual(codeOf(() => scope.resolveNow(spec)), "E_UNSUPPORTED", spec);
+            assert.strictEqual(
+                codeOf(() => scope.resolveNow(spec)),
+                "E_UNSUPPORTED",
+                spec,
+            );
         }
 
         harness.session.dispose();
@@ -289,7 +310,10 @@ describe("resolving the largest component and a predicate", () => {
         const resolved = await scope.resolve("largest-component");
 
         assert.deepStrictEqual([...resolved.nodes].sort(), ["c", "d", "e"]);
-        assert.deepStrictEqual([...resolved.edges].sort(), [edgeBetween(harness, "c", "d"), edgeBetween(harness, "d", "e")]);
+        assert.deepStrictEqual([...resolved.edges].sort(), [
+            edgeBetween(harness, "c", "d"),
+            edgeBetween(harness, "d", "e"),
+        ]);
         harness.session.dispose();
     });
 
@@ -326,7 +350,10 @@ describe("resolving the largest component and a predicate", () => {
         const harness = harnessOf([{ id: "a" }]);
         const scope = createScopeApi({ snapshot: () => harness.store.getSnapshot() });
 
-        assert.strictEqual(codeOf(() => scope.resolveNow({ where: "a == `1`" })), "E_UNSUPPORTED");
+        assert.strictEqual(
+            codeOf(() => scope.resolveNow({ where: "a == `1`" })),
+            "E_UNSUPPORTED",
+        );
         harness.session.dispose();
     });
 });
@@ -404,8 +431,14 @@ describe("counting a scope", () => {
         const harness = line();
         const scope = createScopeApi({ snapshot: () => harness.store.getSnapshot() });
 
-        assert.strictEqual(codeOf(() => scope.count("selection", { sample: 0 })), "E_OPTION_RANGE");
-        assert.strictEqual(codeOf(() => scope.count("selection", { sample: 1.5 })), "E_OPTION_RANGE");
+        assert.strictEqual(
+            codeOf(() => scope.count("selection", { sample: 0 })),
+            "E_OPTION_RANGE",
+        );
+        assert.strictEqual(
+            codeOf(() => scope.count("selection", { sample: 1.5 })),
+            "E_OPTION_RANGE",
+        );
         harness.session.dispose();
     });
 });
@@ -442,8 +475,15 @@ describe("saving a scope under a name", () => {
         const scope = createScopeApi({ snapshot: () => harness.store.getSnapshot() });
         scope.save("mine", "graph");
 
-        assert.strictEqual(codeOf(() => scope.save("mine", { nodes: ["a"] })), "E_DUPLICATE_ID");
-        assert.strictEqual(codeOf(() => scope.save("  ", "graph")), "E_BAD_COMMAND", "a name is how a person finds it");
+        assert.strictEqual(
+            codeOf(() => scope.save("mine", { nodes: ["a"] })),
+            "E_DUPLICATE_ID",
+        );
+        assert.strictEqual(
+            codeOf(() => scope.save("  ", "graph")),
+            "E_BAD_COMMAND",
+            "a name is how a person finds it",
+        );
         harness.session.dispose();
     });
 
@@ -451,7 +491,10 @@ describe("saving a scope under a name", () => {
         const harness = harnessOf([{ id: "a" }]);
         const scope = createScopeApi({ snapshot: () => harness.store.getSnapshot() });
 
-        assert.strictEqual(codeOf(() => scope.save("broken", { set: "set_nothing" })), "E_BAD_COMMAND");
+        assert.strictEqual(
+            codeOf(() => scope.save("broken", { set: "set_nothing" })),
+            "E_BAD_COMMAND",
+        );
         harness.session.dispose();
     });
 
@@ -469,8 +512,14 @@ describe("saving a scope under a name", () => {
         const harness = harnessOf([{ id: "a" }]);
         const scope = createScopeApi({ snapshot: () => harness.store.getSnapshot() });
 
-        assert.strictEqual(codeOf(() => scope.resolveNow({ set: "set_nothing" })), "E_BAD_COMMAND");
-        assert.strictEqual(codeOf(() => scope.remove("set_nothing")), "E_BAD_COMMAND");
+        assert.strictEqual(
+            codeOf(() => scope.resolveNow({ set: "set_nothing" })),
+            "E_BAD_COMMAND",
+        );
+        assert.strictEqual(
+            codeOf(() => scope.remove("set_nothing")),
+            "E_BAD_COMMAND",
+        );
         harness.session.dispose();
     });
 
@@ -487,7 +536,11 @@ describe("saving a scope under a name", () => {
             [{ name: "outer", bound: true }],
             "a set whose reference was removed keeps resolving through the removed set's kept record",
         );
-        assert.strictEqual(scope.sets.status({ set: scope.list()[0].id }).freshness, "detached", "and says it is detached");
+        assert.strictEqual(
+            scope.sets.status({ set: scope.list()[0].id }).freshness,
+            "detached",
+            "and says it is detached",
+        );
         harness.session.dispose();
     });
 
@@ -496,7 +549,10 @@ describe("saving a scope under a name", () => {
         const scope = createScopeApi({ snapshot: () => harness.store.getSnapshot() });
         scope.save("all", "graph");
         // Saving the selection keeps its current members, so it needs the selection now.
-        assert.strictEqual(codeOf(() => scope.save("chosen", "selection")), "E_UNSUPPORTED");
+        assert.strictEqual(
+            codeOf(() => scope.save("chosen", "selection")),
+            "E_UNSUPPORTED",
+        );
         scope.save("biggest", "largest-component");
         scope.save("matched", { where: "a == `1`" });
         scope.save("departed", { nodes: ["gone"] });
@@ -523,7 +579,13 @@ describe("saving a scope under a name", () => {
         // A removed id is never issued again, so the ring can only be closed by redefining the
         // first to name the second: first -> second -> first. That write is refused.
         assert.strictEqual(
-            codeOf(() => scope.sets.redefine(first, { kind: "rule", where: { kind: "member", of: { set: second } }, reading: "induced" })),
+            codeOf(() =>
+                scope.sets.redefine(first, {
+                    kind: "rule",
+                    where: { kind: "member", of: { set: second } },
+                    reading: "induced",
+                }),
+            ),
             "E_BAD_COMMAND",
         );
         scope.remove(first);

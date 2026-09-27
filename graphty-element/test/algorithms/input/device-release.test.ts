@@ -71,7 +71,11 @@ function setup(): { graph: InputGraph; fake: FakeAccelerator } {
  * @param during - What happens mid-run.
  * @returns The snapshot it computed over.
  */
-function scopedRun(graph: InputGraph, scope: () => ResolvedInputScope, during?: (snapshot: GraphSnapshot) => Promise<void> | void): Promise<GraphSnapshot> {
+function scopedRun(
+    graph: InputGraph,
+    scope: () => ResolvedInputScope,
+    during?: (snapshot: GraphSnapshot) => Promise<void> | void,
+): Promise<GraphSnapshot> {
     const algorithm = new ScopedRank(graph.asGraph());
 
     return withRunInput(algorithm, graph, scope, undefined, () => algorithm.rank(during));
@@ -100,7 +104,11 @@ describe("uploaded equals released", () => {
             await scopedRun(graph, () => scope);
         }
 
-        assert.strictEqual(new Set(fake.calls.uploaded).size, 1, "a repeated scope hands the accelerator the same snapshot");
+        assert.strictEqual(
+            new Set(fake.calls.uploaded).size,
+            1,
+            "a repeated scope hands the accelerator the same snapshot",
+        );
         assert.lengthOf(fake.calls.release, 0, "still cached, so still resident");
         assertBalanced(graph, fake);
     });
@@ -192,7 +200,9 @@ function everyMember(): FakeAccelerator {
     const fake = createFakeAccelerator({
         members: {
             sssp: recorded("sssp", (snapshot, source: number) => cpu.sssp(snapshot, source)),
-            breadthFirstSearch: recorded("breadthFirstSearch", (snapshot, source: number) => cpu.breadthFirstSearch(snapshot, source)),
+            breadthFirstSearch: recorded("breadthFirstSearch", (snapshot, source: number) =>
+                cpu.breadthFirstSearch(snapshot, source),
+            ),
             minimumSpanningTree: recorded("minimumSpanningTree", (snapshot) => cpu.minimumSpanningTree(snapshot)),
         },
     });
@@ -222,12 +232,22 @@ describe("uploaded equals released, through the five real adapters", () => {
             const run = async (): Promise<void> => {
                 const algorithm = build(graph.asGraph());
                 const scope = graph.scope(["n0", "n1", "n2", "n3"]);
-                await withRunInput(algorithm, graph, () => scope, undefined, () => algorithm.publishResult(detachedRunContext(), "r"));
+                await withRunInput(
+                    algorithm,
+                    graph,
+                    () => scope,
+                    undefined,
+                    () => algorithm.publishResult(detachedRunContext(), "r"),
+                );
             };
 
             await run();
             await run();
-            assert.strictEqual(new Set(fake.calls.uploaded).size, 1, "a repeated scope hands the accelerator the same snapshot");
+            assert.strictEqual(
+                new Set(fake.calls.uploaded).size,
+                1,
+                "a repeated scope hands the accelerator the same snapshot",
+            );
             assert.strictEqual(fake.calls.uploaded[0].nodeCount, 4, "the scope's input, not the whole graph");
 
             graph.add(["late"]);

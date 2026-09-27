@@ -197,7 +197,12 @@ export function StyleLayerPropertiesPanel(props: StyleLayerPropertiesPanelProps)
             return;
         }
 
-        onUpdate?.(layer.id, trimmed === "" ? { selector: { match: "everything" } } : { selector: { match: "expression", where: trimmed } });
+        onUpdate?.(
+            layer.id,
+            trimmed === ""
+                ? { selector: { match: "everything" } }
+                : { selector: { match: "expression", where: trimmed } },
+        );
     }, [expression, layer.id, layer.selector, onUpdate]);
 
     /**
@@ -303,7 +308,15 @@ export function StyleLayerPropertiesPanel(props: StyleLayerPropertiesPanelProps)
                 </FieldRow>,
             );
         } else {
-            rows.push(<LabelStyleRows key={channel} channel={channel} style={labelStyleOf(value)} disabled={disabled} onWrite={writeChannel} />);
+            rows.push(
+                <LabelStyleRows
+                    key={channel}
+                    channel={channel}
+                    style={labelStyleOf(value)}
+                    disabled={disabled}
+                    onWrite={writeChannel}
+                />,
+            );
         }
 
         if (boundTo !== undefined) {

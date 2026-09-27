@@ -34,12 +34,18 @@ describe("the canonical form of a set definition", () => {
             json(canonicalSetDefinition(withUndefined as unknown as SetDefinition)),
             '{"kind":"path","nodes":["a","b"]}',
         );
-        assert.strictEqual(json(canonicalSetDefinition({ kind: "path", nodes: ["a"], directed: false })), '{"kind":"path","nodes":["a"]}');
+        assert.strictEqual(
+            json(canonicalSetDefinition({ kind: "path", nodes: ["a"], directed: false })),
+            '{"kind":"path","nodes":["a"]}',
+        );
         assert.strictEqual(
             json(canonicalSetDefinition({ kind: "fixed", nodes: [1], edges: [], reading: "induced" })),
             '{"kind":"fixed","nodes":[1],"reading":"induced"}',
         );
-        assert.strictEqual(json(canonicalSetDefinition({ kind: "path", nodes: ["a"], directed: true })), '{"directed":true,"kind":"path","nodes":["a"]}');
+        assert.strictEqual(
+            json(canonicalSetDefinition({ kind: "path", nodes: ["a"], directed: true })),
+            '{"directed":true,"kind":"path","nodes":["a"]}',
+        );
     });
 
     it("keeps a path step's null, which means every edge between that pair", () => {
@@ -49,10 +55,13 @@ describe("the canonical form of a set definition", () => {
             edges: [null, { source: "b", target: "c", id: 7 }],
         });
 
-        assert.strictEqual(json(out), '{"edges":[null,{"id":7,"source":"b","target":"c"}],"kind":"path","nodes":["a","b","c"]}');
+        assert.strictEqual(
+            json(out),
+            '{"edges":[null,{"id":7,"source":"b","target":"c"}],"kind":"path","nodes":["a","b","c"]}',
+        );
     });
 
-    it("sorts node members numbers first, then strings by code unit, keeping 1 and \"1\" and dropping duplicates", () => {
+    it('sorts node members numbers first, then strings by code unit, keeping 1 and "1" and dropping duplicates', () => {
         const out = canonicalSetDefinition({
             kind: "fixed",
             nodes: ["b", 10, "a", 2, "1", 2, "b", "Z", "\uFFFF", "\u{1F600}", -0],
@@ -122,7 +131,13 @@ describe("the canonical form of a set definition", () => {
                 kind: "any",
                 of: [
                     { kind: "degree", min: 5 },
-                    { kind: "all", of: [{ kind: "edges", where: "b" }, { kind: "expression", where: "a" }] },
+                    {
+                        kind: "all",
+                        of: [
+                            { kind: "edges", where: "b" },
+                            { kind: "expression", where: "a" },
+                        ],
+                    },
                 ],
             },
         });
@@ -135,7 +150,11 @@ describe("the canonical form of a set definition", () => {
     });
 
     it("turns a one-leaf expression tree into the bare query", () => {
-        const out = canonicalSetDefinition({ kind: "rule", reading: "induced", where: { kind: "expression", where: "data.x > 1" } });
+        const out = canonicalSetDefinition({
+            kind: "rule",
+            reading: "induced",
+            where: { kind: "expression", where: "data.x > 1" },
+        });
 
         assert.strictEqual(json(out), '{"kind":"rule","reading":"induced","where":"data.x > 1"}');
     });

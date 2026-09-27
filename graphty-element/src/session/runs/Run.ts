@@ -910,7 +910,9 @@ export class ManagedRun<T = RunResult> implements Run<T> {
 
         const controller = new AbortController();
         this.timeBoxTimer = setTimeout(() => {
-            controller.abort(new DOMException(`Run "${this.id}" reached its ${timeBoxMs} ms time box.`, "TimeoutError"));
+            controller.abort(
+                new DOMException(`Run "${this.id}" reached its ${timeBoxMs} ms time box.`, "TimeoutError"),
+            );
         }, timeBoxMs);
 
         return controller.signal;

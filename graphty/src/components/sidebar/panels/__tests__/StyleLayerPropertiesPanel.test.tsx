@@ -129,7 +129,11 @@ describe("StyleLayerPropertiesPanel", () => {
     });
 
     it("describes a layer that paints a set rather than counting it as named elements", () => {
-        renderPanel(<StyleLayerPropertiesPanel layer={makeLayer("layer-6", "Suspects", { selector: { match: "member", of: { set: "set_suspects" } } })} />);
+        renderPanel(
+            <StyleLayerPropertiesPanel
+                layer={makeLayer("layer-6", "Suspects", { selector: { match: "member", of: { set: "set_suspects" } } })}
+            />,
+        );
 
         expect(screen.queryByLabelText("Node Selector")).not.toBeInTheDocument();
         expect(screen.getByText("the members of a set")).toBeInTheDocument();

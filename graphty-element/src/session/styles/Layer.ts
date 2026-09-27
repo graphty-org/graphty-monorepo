@@ -632,9 +632,9 @@ function checkChannel(
     const descriptor = channelDescriptor(channel);
 
     if (descriptor === undefined) {
-        const available = (target === null ? [...channelsFor("node"), ...channelsFor("edge")] : channelsFor(target)).map(
-            (entry) => entry.channel,
-        );
+        const available = (
+            target === null ? [...channelsFor("node"), ...channelsFor("edge")] : channelsFor(target)
+        ).map((entry) => entry.channel);
 
         report(log, {
             code: "E_UNKNOWN_CHANNEL",
@@ -782,7 +782,9 @@ function resolveTarget(spec: LayerSpec, channels: readonly string[], log: Proble
         return null;
     }
 
-    const targets = new Set(channels.map(targetOfChannelName).filter((entry): entry is SelectorTarget => entry !== null));
+    const targets = new Set(
+        channels.map(targetOfChannelName).filter((entry): entry is SelectorTarget => entry !== null),
+    );
 
     if (targets.size === 1) {
         return [...targets][0] ?? null;
@@ -884,7 +886,12 @@ function checkSelector(
  */
 function admitSelectorScope(spec: LayerSpec, options: LayerCheckOptions, log: ProblemLog): LayerSpec {
     const selector = spec.selector as { match?: unknown; of?: unknown } | undefined;
-    if (options.admitScope === undefined || typeof selector !== "object" || selector === null || selector.match !== "member") {
+    if (
+        options.admitScope === undefined ||
+        typeof selector !== "object" ||
+        selector === null ||
+        selector.match !== "member"
+    ) {
         return spec;
     }
 

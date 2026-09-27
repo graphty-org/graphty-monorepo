@@ -328,8 +328,8 @@ function unscopedLayout(type: string): GraphtyError {
         code: "E_UNSUPPORTED",
         message:
             `the layout "${type}" cannot lay out a scope: it computes every position from scratch, so it has ` +
-            "no way to hold the nodes outside the scope still. Use a live simulation such as \"ngraph\", " +
-            "\"d3\" or \"forceatlas2\", whose catalogue entry reads `scoped: true`",
+            'no way to hold the nodes outside the scope still. Use a live simulation such as "ngraph", ' +
+            '"d3" or "forceatlas2", whose catalogue entry reads `scoped: true`',
         source: "layout",
         details: { layout: type, field: "scope" },
     });
@@ -702,11 +702,7 @@ export class LayoutManager implements Manager {
                 const init: SimulationEngineInit = {
                     type: simulationType,
                     layoutType: type,
-                    options: resolveSimulationOptions(
-                        simulationType,
-                        layoutOpts,
-                        this.styles.config.behavior.layout,
-                    ),
+                    options: resolveSimulationOptions(simulationType, layoutOpts, this.styles.config.behavior.layout),
                     controller: this.acceleration,
                     report: (error) => {
                         this.reportLayoutFailure(type, error, "stepped");
@@ -874,7 +870,11 @@ export class LayoutManager implements Manager {
      * to start.
      * @returns The error to throw.
      */
-    private reportLayoutFailure(type: string, error: unknown, phase: "built" | "initialised" | "stepped"): GraphtyError {
+    private reportLayoutFailure(
+        type: string,
+        error: unknown,
+        phase: "built" | "initialised" | "stepped",
+    ): GraphtyError {
         const thrown = error instanceof Error ? error : new Error(String(error));
 
         this.logger.error(`Layout could not be ${phase}`, thrown, { layoutType: type });
@@ -954,7 +954,8 @@ export class LayoutManager implements Manager {
      * @internal
      */
     carryScope(scope: ScopeInput | undefined): void {
-        this.carriedScope = scope === undefined || scope === "graph" ? undefined : this.requireScopeSource().canonical(scope);
+        this.carriedScope =
+            scope === undefined || scope === "graph" ? undefined : this.requireScopeSource().canonical(scope);
     }
 
     /**
@@ -977,7 +978,12 @@ export class LayoutManager implements Manager {
      * @returns The user and the scope, or undefined.
      * @internal
      */
-    scopeUser(): { readonly user: { readonly kind: "layout"; readonly id?: string; readonly label: string }; readonly scope: Scope } | undefined {
+    scopeUser():
+        | {
+              readonly user: { readonly kind: "layout"; readonly id?: string; readonly label: string };
+              readonly scope: Scope;
+          }
+        | undefined {
         const scope = this.carriedScope;
         const type = this.layoutType;
         if (this.members === null || scope === undefined || type === undefined) {
@@ -1039,7 +1045,8 @@ export class LayoutManager implements Manager {
             if (source.detached(scope)) {
                 throw new GraphtyError({
                     code: "E_BAD_COMMAND",
-                    message: "the scope names a set that was removed or cannot be resolved, so there is nothing to lay out",
+                    message:
+                        "the scope names a set that was removed or cannot be resolved, so there is nothing to lay out",
                     source: "layout",
                     details: { field: "scope", reason: "detached" },
                 });

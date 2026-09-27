@@ -238,7 +238,11 @@ export interface PlanningContext {
  * @returns The seconds.
  */
 export function derivationSeconds(nodes: number, edges: number, keptEdges: number): number {
-    return DERIVATION_FIXED_SECONDS + DERIVATION_PER_ELEMENT_SECONDS * (nodes + edges) + DERIVATION_PER_KEPT_EDGE_SECONDS * keptEdges;
+    return (
+        DERIVATION_FIXED_SECONDS +
+        DERIVATION_PER_ELEMENT_SECONDS * (nodes + edges) +
+        DERIVATION_PER_KEPT_EDGE_SECONDS * keptEdges
+    );
 }
 
 /** a: the fixed part of a derivation. */
@@ -289,10 +293,13 @@ function costInput(
             ...(descriptor === undefined ? {} : { descriptor }),
             ...(command.params === undefined ? {} : { params: command.params }),
             statistics,
-            scope: scoped || whole
-                ? { nodes: scope.nodeCount, edges: scope.edgeCount, spec, exact: true }
-                : { nodes: statistics.nodeCount, edges: statistics.edgeCount, spec, exact: true },
-            ...(scoped ? { derivationSeconds: derivationSeconds(statistics.nodeCount, statistics.edgeCount, scope.edgeCount) } : {}),
+            scope:
+                scoped || whole
+                    ? { nodes: scope.nodeCount, edges: scope.edgeCount, spec, exact: true }
+                    : { nodes: statistics.nodeCount, edges: statistics.edgeCount, spec, exact: true },
+            ...(scoped
+                ? { derivationSeconds: derivationSeconds(statistics.nodeCount, statistics.edgeCount, scope.edgeCount) }
+                : {}),
             ...(calibration === undefined ? {} : { calibration }),
             ...(measurements === undefined ? {} : { measurements }),
             acceleratorAvailable: context.acceleratorAvailable(),

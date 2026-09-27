@@ -75,7 +75,11 @@ describe("session.scope", () => {
         const whole = await harness.session.scope.resolve("graph");
 
         assert.deepStrictEqual([...visible.nodes].sort(), ["a", "b", "c"]);
-        assert.deepStrictEqual([...visible.edges].sort(), [edgeBetween(harness, "a", "b"), edgeBetween(harness, "b", "c")], "an edge needs both endpoints");
+        assert.deepStrictEqual(
+            [...visible.edges].sort(),
+            [edgeBetween(harness, "a", "b"), edgeBetween(harness, "b", "c")],
+            "an edge needs both endpoints",
+        );
         assert.strictEqual(whole.nodeCount, 5);
         harness.session.dispose();
     });
@@ -87,7 +91,11 @@ describe("session.scope", () => {
         const scope = await harness.session.scope.resolve("selection");
 
         assert.deepStrictEqual([...scope.nodes].sort(), ["a", "b"]);
-        assert.deepStrictEqual([...scope.edges], [edgeBetween(harness, "a", "b")], "a scope's edges are induced from its nodes");
+        assert.deepStrictEqual(
+            [...scope.edges],
+            [edgeBetween(harness, "a", "b")],
+            "a scope's edges are induced from its nodes",
+        );
         harness.session.dispose();
     });
 
@@ -139,7 +147,10 @@ describe("session.scope", () => {
         const harness = harnessOf();
 
         assert.strictEqual((await harness.session.scope.count({ where: "data.type == 'host'" })).nodes, 3);
-        assert.strictEqual(codeOf(() => harness.session.scope.count({ where: "data.type == `host`" })), "E_BAD_SELECTOR");
+        assert.strictEqual(
+            codeOf(() => harness.session.scope.count({ where: "data.type == `host`" })),
+            "E_BAD_SELECTOR",
+        );
         harness.session.dispose();
     });
 });

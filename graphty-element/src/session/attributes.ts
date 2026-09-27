@@ -172,7 +172,10 @@ function describe(name: string, kind: "node" | "edge", accumulator: Accumulator,
  * @param read - the attribute bag of one row, by index
  * @returns the accumulators, in the order the keys were first seen
  */
-function walk(total: number, read: (index: number) => Readonly<Record<string, unknown>> | undefined): Map<string, Accumulator> {
+function walk(
+    total: number,
+    read: (index: number) => Readonly<Record<string, unknown>> | undefined,
+): Map<string, Accumulator> {
     const found = new Map<string, Accumulator>();
 
     for (let index = 0; index < total; index++) {
@@ -428,7 +431,11 @@ export function writeUpdates(
  * @param owner.data - its current attributes
  * @param record - the new attributes, held by reference as the constructor holds the first
  */
-export function replaceAttributes<T extends object>(revisions: AttributeRevisions, owner: { data: T }, record: T): void {
+export function replaceAttributes<T extends object>(
+    revisions: AttributeRevisions,
+    owner: { data: T },
+    record: T,
+): void {
     const fields = new Set([...Object.keys(owner.data), ...Object.keys(record)]);
     owner.data = record;
     revisions.bump(fields);

@@ -71,7 +71,10 @@ describe("sets.containing", () => {
         await h.session.runs.start("degree", {}, { as: "deg", scope: "graph", style: false });
         h.session.sets.create({ kind: "fixed", nodes: ["a", "b"], reading: "induced" }, { name: "Pair" });
         h.session.sets.create({ kind: "fixed", nodes: ["e"], reading: "induced" }, { name: "Elsewhere" });
-        h.session.sets.create({ kind: "rule", where: { kind: "range", attribute: "data.weight", max: 3 }, reading: "induced" }, { name: "Light" });
+        h.session.sets.create(
+            { kind: "rule", where: { kind: "range", attribute: "data.weight", max: 3 }, reading: "induced" },
+            { name: "Light" },
+        );
 
         const found = await h.session.sets.containing({ node: "b" });
 
@@ -83,17 +86,29 @@ describe("sets.containing", () => {
         const steps = h.session.runs.get("steps");
         assert.deepStrictEqual(found.items, [
             {
-                item: { result: "pieces", key: { field: "group", value: 0 }, run: resultExecutionOf(h.session.results, "pieces") },
+                item: {
+                    result: "pieces",
+                    key: { field: "group", value: 0 },
+                    run: resultExecutionOf(h.session.results, "pieces"),
+                },
                 label: `${pieces?.label ?? ""}: community 0 of 3`,
                 of: 3,
             },
             {
-                item: { result: "steps", key: { field: "level", value: 1 }, run: resultExecutionOf(h.session.results, "steps") },
+                item: {
+                    result: "steps",
+                    key: { field: "level", value: 1 },
+                    run: resultExecutionOf(h.session.results, "steps"),
+                },
                 label: `${steps?.label ?? ""}: level 1 of 4`,
                 of: 4,
             },
         ]);
-        assert.deepStrictEqual((await h.session.sets.containing({ node: "g" })).items.map((entry) => entry.of), [3], "g was never reached by the search");
+        assert.deepStrictEqual(
+            (await h.session.sets.containing({ node: "g" })).items.map((entry) => entry.of),
+            [3],
+            "g was never reached by the search",
+        );
     });
 
     it("answers a fixed set by binary search, without resolving it", async () => {
@@ -103,7 +118,11 @@ describe("sets.containing", () => {
 
         assert.deepStrictEqual(await setNames(h, { node: "e" }), ["Odd"]);
         assert.deepStrictEqual(await setNames(h, { node: "b" }), []);
-        assert.deepStrictEqual(await setNames(h, { edge: edgeBetween(h, "a", "c") }), ["Odd"], "an induced set holds the edge between two members");
+        assert.deepStrictEqual(
+            await setNames(h, { edge: edgeBetween(h, "a", "c") }),
+            ["Odd"],
+            "an induced set holds the edge between two members",
+        );
         assert.deepStrictEqual(await setNames(h, { edge: edgeBetween(h, "a", "b") }), []);
 
         assert.strictEqual(resolutionWork(), before, "nothing was resolved");
@@ -111,7 +130,10 @@ describe("sets.containing", () => {
 
     it("evaluates a rule of element-local leaves on the one element", async () => {
         const h = fixture();
-        h.session.sets.create({ kind: "rule", where: { kind: "range", attribute: "data.weight", min: 4 }, reading: "induced" }, { name: "Heavy" });
+        h.session.sets.create(
+            { kind: "rule", where: { kind: "range", attribute: "data.weight", min: 4 }, reading: "induced" },
+            { name: "Heavy" },
+        );
         let reads = 0;
         const get = h.nodeAttributes.get.bind(h.nodeAttributes);
         h.nodeAttributes.get = (index: number) => {
@@ -124,7 +146,11 @@ describe("sets.containing", () => {
         assert.strictEqual(reads, 1, "one element's value was read");
         assert.deepStrictEqual(await setNames(h, { node: "b" }), []);
         assert.strictEqual(reads, 2);
-        assert.deepStrictEqual(await setNames(h, { edge: edgeBetween(h, "d", "e") }), ["Heavy"], "an induced rule holds the edge between two members");
+        assert.deepStrictEqual(
+            await setNames(h, { edge: edgeBetween(h, "d", "e") }),
+            ["Heavy"],
+            "an induced rule holds the edge between two members",
+        );
         assert.deepStrictEqual(await setNames(h, { edge: edgeBetween(h, "c", "d") }), []);
         assert.isAtMost(reads, 6, "an edge reads its two endpoints");
 
@@ -134,11 +160,14 @@ describe("sets.containing", () => {
     it("resolves a rule with a top leaf once and serves the next question from the cache", async () => {
         const h = fixture();
         await h.session.runs.start("degree", {}, { as: "deg", scope: "graph", style: false });
-        h.session.sets.create({ kind: "rule", where: { kind: "threshold", path: "results.deg.value", top: 2 }, reading: "induced" }, { name: "Hubs" });
+        h.session.sets.create(
+            { kind: "rule", where: { kind: "threshold", path: "results.deg.value", top: 2 }, reading: "induced" },
+            { name: "Hubs" },
+        );
 
         assert.deepStrictEqual(await setNames(h, { node: "c" }), ["Hubs"]);
         const work = resolutionWork();
-        const {hits} = cacheCounters;
+        const { hits } = cacheCounters;
 
         assert.deepStrictEqual(await setNames(h, { node: "d" }), ["Hubs"]);
         assert.deepStrictEqual(await setNames(h, { node: "a" }), []);
@@ -153,7 +182,11 @@ describe("sets.containing", () => {
         const ab = edgeBetween(h, "a", "b");
         h.session.sets.create({ kind: "fixed", nodes: [], edges: [ab], reading: "listed" }, { name: "One edge" });
 
-        assert.deepStrictEqual(await setNames(h, { node: "a" }), ["One edge"], "a fixed set's node half holds its edges' endpoints");
+        assert.deepStrictEqual(
+            await setNames(h, { node: "a" }),
+            ["One edge"],
+            "a fixed set's node half holds its edges' endpoints",
+        );
         assert.deepStrictEqual(await setNames(h, { node: "c" }), []);
         assert.deepStrictEqual(await setNames(h, { edge: ab }), ["One edge"]);
         assert.deepStrictEqual(await setNames(h, { edge: edgeBetween(h, "b", "c") }), []);

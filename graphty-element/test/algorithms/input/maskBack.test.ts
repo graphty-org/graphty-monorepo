@@ -34,7 +34,13 @@ function ring(): InputGraph {
  * @returns The result.
  */
 async function publishOver(algorithm: Algorithm, graph: InputGraph, scope: ResolvedInputScope): Promise<RunResult> {
-    const result = await withRunInput(algorithm, graph, () => scope, undefined, () => algorithm.publishResult(detachedRunContext(), "r"));
+    const result = await withRunInput(
+        algorithm,
+        graph,
+        () => scope,
+        undefined,
+        () => algorithm.publishResult(detachedRunContext(), "r"),
+    );
     assert.isDefined(result);
 
     return result;
@@ -48,7 +54,10 @@ class ScopedCounter extends DeclaredAlgorithm {
 
     compute(): Promise<AlgorithmOutput> {
         const snapshot = this.input("declared").subgraph();
-        const nodes = Array.from({ length: snapshot.nodeCount }, (_, index) => ({ id: snapshot.ids.idOf(index), values: { value: snapshot.nodeCount } }));
+        const nodes = Array.from({ length: snapshot.nodeCount }, (_, index) => ({
+            id: snapshot.ids.idOf(index),
+            values: { value: snapshot.nodeCount },
+        }));
 
         return Promise.resolve({
             shape: "node-metric",
@@ -78,8 +87,17 @@ describe("every value outside the scope reads missing", () => {
         const graph = ring();
         const result = await publishOver(new WholeDegree(graph.asGraph()), graph, graph.scope(["a", "b", "c"]));
 
-        assert.deepStrictEqual(result.ranking("value").map((entry) => entry.id).sort(), ["a", "b", "c"]);
-        assert.strictEqual(result.histogram("value").bins.reduce((sum, bin) => sum + bin.count, 0), 3);
+        assert.deepStrictEqual(
+            result
+                .ranking("value")
+                .map((entry) => entry.id)
+                .sort(),
+            ["a", "b", "c"],
+        );
+        assert.strictEqual(
+            result.histogram("value").bins.reduce((sum, bin) => sum + bin.count, 0),
+            3,
+        );
         assert.strictEqual(result.summary().measured, 3);
         assert.strictEqual(result.column("value").length, 3);
     });
@@ -93,12 +111,26 @@ describe("every value outside the scope reads missing", () => {
 
     it("Dijkstra's Infinity and onPath: false defaults outside the scope are dropped", async () => {
         // "z" is isolated: the whole-graph search reports it at Infinity, off the route.
-        const graph = new InputGraph(["a", "b", "c", "d", "z"], [["a", "b"], ["b", "c"], ["c", "d"]]);
-        const whole = await new WholeDijkstra(graph.asGraph(), { source: "a", target: "b" }).publishResult(detachedRunContext(), "r");
+        const graph = new InputGraph(
+            ["a", "b", "c", "d", "z"],
+            [
+                ["a", "b"],
+                ["b", "c"],
+                ["c", "d"],
+            ],
+        );
+        const whole = await new WholeDijkstra(graph.asGraph(), { source: "a", target: "b" }).publishResult(
+            detachedRunContext(),
+            "r",
+        );
         assert.deepInclude(whole?.node("z"), { distance: Infinity, onPath: false });
         assert.deepInclude(whole?.edge("2"), { onPath: false });
 
-        const result = await publishOver(new WholeDijkstra(graph.asGraph(), { source: "a", target: "b" }), graph, graph.scope(["a", "b"]));
+        const result = await publishOver(
+            new WholeDijkstra(graph.asGraph(), { source: "a", target: "b" }),
+            graph,
+            graph.scope(["a", "b"]),
+        );
 
         assert.isUndefined(result.node("z"));
         assert.isUndefined(result.node("d"));
@@ -109,14 +141,29 @@ describe("every value outside the scope reads missing", () => {
 
     it("the many-to-one edge remap is masked: a merged reciprocal half outside a listed scope reads missing", async () => {
         // The undirected view merges a>b and b>a, so both declared halves are on the route.
-        const graph = new InputGraph(["a", "b", "c"], [["a", "b"], ["b", "a"], ["b", "c"]], true);
-        const whole = await new WholeDijkstra(graph.asGraph(), { source: "a", target: "b" }).publishResult(detachedRunContext(), "r");
+        const graph = new InputGraph(
+            ["a", "b", "c"],
+            [
+                ["a", "b"],
+                ["b", "a"],
+                ["b", "c"],
+            ],
+            true,
+        );
+        const whole = await new WholeDijkstra(graph.asGraph(), { source: "a", target: "b" }).publishResult(
+            detachedRunContext(),
+            "r",
+        );
         assert.deepInclude(whole?.edge("0"), { onPath: true });
         assert.deepInclude(whole?.edge("1"), { onPath: true });
 
         // Both endpoints of b>a are members; only a>b is listed.
         const listed = graph.scope(["a", "b"], (source) => source === "a");
-        const result = await publishOver(new WholeDijkstra(graph.asGraph(), { source: "a", target: "b" }), graph, listed);
+        const result = await publishOver(
+            new WholeDijkstra(graph.asGraph(), { source: "a", target: "b" }),
+            graph,
+            listed,
+        );
 
         assert.deepInclude(result.edge("0"), { onPath: true });
         assert.isUndefined(result.edge("1"), "outside the listed edges though both endpoints are members");
@@ -140,7 +187,13 @@ describe("every value outside the scope reads missing", () => {
             fields: [],
             measured: { nodes: 1, edges: 0 },
             nodes: [{ id: "a", values: { value: 1 } }],
-            caveats: { exact: true, direction: "as-loaded" as const, precision: "f64" as const, method: "m", notes: [] },
+            caveats: {
+                exact: true,
+                direction: "as-loaded" as const,
+                precision: "f64" as const,
+                method: "m",
+                notes: [],
+            },
             durationMs: 0,
         };
 
@@ -176,7 +229,10 @@ describe("the run says what it computed on", () => {
             const scope = { ...graph.scope(["a", "b", "c"], (source) => source === "a"), reading };
             const result = await publishOver(new ScopedCounter(graph.asGraph()), graph, scope);
 
-            assert.include(result.summary().caveats.notes, "Computed on the subgraph of 3 nodes and the 1 edge in scope.");
+            assert.include(
+                result.summary().caveats.notes,
+                "Computed on the subgraph of 3 nodes and the 1 edge in scope.",
+            );
         });
     }
 });

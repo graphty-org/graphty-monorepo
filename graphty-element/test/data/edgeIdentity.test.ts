@@ -157,7 +157,10 @@ function ordinals(snapshot: GraphSnapshot): string[] {
  * @param snapshot - the snapshot
  * @param fileIds - file ids by counter, for edges that carry one
  */
-function assertHashesMatchIdentity(snapshot: GraphSnapshot, fileIds: ReadonlyMap<number, string | number> = new Map()): void {
+function assertHashesMatchIdentity(
+    snapshot: GraphSnapshot,
+    fileIds: ReadonlyMap<number, string | number> = new Map(),
+): void {
     const { nodeHash, edgeHash } = identityColumnsOf(snapshot);
     for (let i = 0; i < snapshot.nodeCount; i++) {
         const { a, b } = hashNodeId(snapshot.ids.idOf(i));
@@ -307,7 +310,12 @@ describe("the identity columns", () => {
         const unordered = newStore("auto");
         load(unordered, records);
         assert.deepEqual(ordinals(unordered.getSnapshot()), ["0/3", "1/3", "0/1", "2/3"]);
-        assert.deepEqual(stableEdgeMember(unordered.getSnapshot(), 1), { source: "a", target: "b", ordinal: 1, among: 3 });
+        assert.deepEqual(stableEdgeMember(unordered.getSnapshot(), 1), {
+            source: "a",
+            target: "b",
+            ordinal: 1,
+            among: 3,
+        });
 
         const ordered = newStore(true);
         load(ordered, records);
@@ -397,10 +405,14 @@ describe("the identity columns", () => {
 
         it("error", () => {
             const store = newStore(true);
-            load(store, [
-                { s: "a", t: "b" },
-                { s: "b", t: "c" },
-            ], { policy: "error" });
+            load(
+                store,
+                [
+                    { s: "a", t: "b" },
+                    { s: "b", t: "c" },
+                ],
+                { policy: "error" },
+            );
             assert.deepEqual(ordinals(store.getSnapshot()), ["0/1", "0/1"]);
             expect(() => {
                 load(store, ab3, { policy: "error" });
@@ -460,15 +472,27 @@ describe("the identity columns", () => {
         const rows = new Uint32Array(src.map((_, i) => i));
         const run = (offset: number): string[] => {
             const out: string[] = [];
-            const graph = { endpoints: (e: number) => [src[e] + offset, dst[e] + offset] as const, idOf: (n: number) => `n${n - offset}` };
-            completeLoad(rows, graph, false, () => undefined, (row, ordinal, among, hash) => {
-                out[row] = `${ordinal}/${among}/${hash.a}/${hash.b}`;
-            });
+            const graph = {
+                endpoints: (e: number) => [src[e] + offset, dst[e] + offset] as const,
+                idOf: (n: number) => `n${n - offset}`,
+            };
+            completeLoad(
+                rows,
+                graph,
+                false,
+                () => undefined,
+                (row, ordinal, among, hash) => {
+                    out[row] = `${ordinal}/${among}/${hash.a}/${hash.b}`;
+                },
+            );
             return out;
         };
         // Offset 0 keeps the node range within four per edge (counting sort); offset 1000 does not.
         assert.deepEqual(run(0), run(1000));
-        assert.deepEqual(run(0).map((cell) => cell.split("/").slice(0, 2).join("/")), ["0/3", "1/3", "0/3", "2/3", "0/1", "1/3", "2/3", "0/1"]);
+        assert.deepEqual(
+            run(0).map((cell) => cell.split("/").slice(0, 2).join("/")),
+            ["0/3", "1/3", "0/3", "2/3", "0/1", "1/3", "2/3", "0/1"],
+        );
         const member = { source: "n0", target: "n1", ordinal: 0, among: 3 };
         const { a, b } = hashEdgeMember(member, false);
         assert.strictEqual(run(0)[0], `0/3/${a}/${b}`);

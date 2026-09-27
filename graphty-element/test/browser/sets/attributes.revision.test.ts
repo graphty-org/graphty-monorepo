@@ -22,7 +22,8 @@ describe("attribute revisions through the element", () => {
      * @param fields - the fields
      * @returns their revisions, in order
      */
-    const revisions = (kind: "nodes" | "edges", ...fields: string[]): number[] => fields.map((f) => counters[kind].of(f));
+    const revisions = (kind: "nodes" | "edges", ...fields: string[]): number[] =>
+        fields.map((f) => counters[kind].of(f));
 
     /**
      * Load a JSON document through the element's data source path.
@@ -57,7 +58,10 @@ describe("attribute revisions through the element", () => {
     });
 
     it("ingest bumps every field it writes, on nodes and on edges", async () => {
-        await graph.addNodes([{ id: "a", label: "A" }, { id: "b", weight: 2 }]);
+        await graph.addNodes([
+            { id: "a", label: "A" },
+            { id: "b", weight: 2 },
+        ]);
         await graph.addEdges([{ source: "a", target: "b", kind: "x" }]);
         await graph.operationQueue.waitForCompletion();
 

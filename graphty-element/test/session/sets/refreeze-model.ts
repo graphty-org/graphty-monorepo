@@ -112,7 +112,12 @@ export type Op =
     | { readonly op: "remove-node"; readonly node: number }
     | { readonly op: "add-edge"; readonly record: EdgeRecord; readonly policy: (typeof POLICIES)[number] }
     | { readonly op: "remove-edge"; readonly pick: number }
-    | { readonly op: "load"; readonly records: EdgeRecord[]; readonly policy: (typeof POLICIES)[number]; readonly chunks: number }
+    | {
+          readonly op: "load";
+          readonly records: EdgeRecord[];
+          readonly policy: (typeof POLICIES)[number];
+          readonly chunks: number;
+      }
     | {
           readonly op: "replace";
           readonly records: EdgeRecord[];
@@ -125,8 +130,18 @@ export type Op =
     | { readonly op: "id-path"; readonly path: (typeof ID_PATHS)[number] }
     | { readonly op: "create"; readonly spec: DefinitionSpec }
     | { readonly op: "redefine"; readonly pick: number; readonly spec: DefinitionSpec }
-    | { readonly op: "add-members"; readonly pick: number; readonly nodes: readonly number[]; readonly edges: readonly number[] }
-    | { readonly op: "remove-members"; readonly pick: number; readonly nodes: readonly number[]; readonly edges: readonly number[] };
+    | {
+          readonly op: "add-members";
+          readonly pick: number;
+          readonly nodes: readonly number[];
+          readonly edges: readonly number[];
+      }
+    | {
+          readonly op: "remove-members";
+          readonly pick: number;
+          readonly nodes: readonly number[];
+          readonly edges: readonly number[];
+      };
 
 // ---------------------------------------------------------------------------------------------
 // Arbitraries
@@ -135,7 +150,13 @@ export type Op =
 const nodePick = fc.nat({ max: NODES.length - 1 });
 const fileIdArb = fc.constantFrom<string | number>("x", "y", 7, "7");
 const RECORD: fc.Arbitrary<EdgeRecord> = fc
-    .record({ s: nodePick, t: nodePick, w: fc.integer({ min: 1, max: 3 }), eid: fc.option(fileIdArb), alt: fc.option(fileIdArb) })
+    .record({
+        s: nodePick,
+        t: nodePick,
+        w: fc.integer({ min: 1, max: 3 }),
+        eid: fc.option(fileIdArb),
+        alt: fc.option(fileIdArb),
+    })
     .map(({ s, t, w, eid, alt }) => ({
         s: NODES[s],
         t: NODES[t],
@@ -163,33 +184,41 @@ const SPEC: fc.Arbitrary<DefinitionSpec> = fc.record({
 export function opsFor(options: { embed: boolean; declared: boolean }): fc.Arbitrary<Op>[] {
     const declared = options.declared ? fc.constantFrom(undefined, true, false) : fc.constant(undefined);
     const all: fc.Arbitrary<Op>[] = [
-    nodePick.map((node) => ({ op: "add-node", node })),
-    nodePick.map((node) => ({ op: "remove-node", node })),
-    fc.record({ record: RECORD, policy: POLICY }).map((r) => ({ op: "add-edge", ...r })),
-    fc.nat().map((pick) => ({ op: "remove-edge", pick })),
-    fc.nat().map((pick) => ({ op: "remove-edge", pick })),
-    fc.record({ records: RECORDS, policy: POLICY, chunks: fc.integer({ min: 1, max: 3 }) }).map((r) => ({ op: "load", ...r })),
-    fc
-        .record({ records: RECORDS, policy: POLICY, chunks: fc.integer({ min: 1, max: 3 }), declared })
-        .map((r) => ({ op: "replace", ...r })),
-    fc
-        .record({ drop: fc.option(fc.nat()), declared })
-        .map((r) => ({ op: "reimport", ...r })),
-    fc
-        .record({ drop: fc.option(fc.nat()), declared })
-        .map((r) => ({ op: "reimport", ...r })),
-    fc.record({ records: RECORDS, policy: POLICY, chunks: fc.integer({ min: 1, max: 3 }) }).map((r) => ({ op: "load", ...r })),
-    ...(options.embed ? [fc.nat().map((seed): Op => ({ op: "embed", seed }))] : []),
-    fc.constantFrom(...ID_PATHS).map((path) => ({ op: "id-path", path })),
-    SPEC.map((spec) => ({ op: "create", spec })),
-    SPEC.map((spec) => ({ op: "create", spec })),
-    fc.record({ pick: fc.nat(), spec: SPEC }).map((r) => ({ op: "redefine", ...r })),
-    fc
-        .record({ pick: fc.nat(), nodes: fc.array(nodePick, { maxLength: 2 }), edges: fc.array(fc.nat(), { maxLength: 3 }) })
-        .map((r) => ({ op: "add-members", ...r })),
-    fc
-        .record({ pick: fc.nat(), nodes: fc.array(nodePick, { maxLength: 1 }), edges: fc.array(fc.nat(), { maxLength: 2 }) })
-        .map((r) => ({ op: "remove-members", ...r })),
+        nodePick.map((node) => ({ op: "add-node", node })),
+        nodePick.map((node) => ({ op: "remove-node", node })),
+        fc.record({ record: RECORD, policy: POLICY }).map((r) => ({ op: "add-edge", ...r })),
+        fc.nat().map((pick) => ({ op: "remove-edge", pick })),
+        fc.nat().map((pick) => ({ op: "remove-edge", pick })),
+        fc
+            .record({ records: RECORDS, policy: POLICY, chunks: fc.integer({ min: 1, max: 3 }) })
+            .map((r) => ({ op: "load", ...r })),
+        fc
+            .record({ records: RECORDS, policy: POLICY, chunks: fc.integer({ min: 1, max: 3 }), declared })
+            .map((r) => ({ op: "replace", ...r })),
+        fc.record({ drop: fc.option(fc.nat()), declared }).map((r) => ({ op: "reimport", ...r })),
+        fc.record({ drop: fc.option(fc.nat()), declared }).map((r) => ({ op: "reimport", ...r })),
+        fc
+            .record({ records: RECORDS, policy: POLICY, chunks: fc.integer({ min: 1, max: 3 }) })
+            .map((r) => ({ op: "load", ...r })),
+        ...(options.embed ? [fc.nat().map((seed): Op => ({ op: "embed", seed }))] : []),
+        fc.constantFrom(...ID_PATHS).map((path) => ({ op: "id-path", path })),
+        SPEC.map((spec) => ({ op: "create", spec })),
+        SPEC.map((spec) => ({ op: "create", spec })),
+        fc.record({ pick: fc.nat(), spec: SPEC }).map((r) => ({ op: "redefine", ...r })),
+        fc
+            .record({
+                pick: fc.nat(),
+                nodes: fc.array(nodePick, { maxLength: 2 }),
+                edges: fc.array(fc.nat(), { maxLength: 3 }),
+            })
+            .map((r) => ({ op: "add-members", ...r })),
+        fc
+            .record({
+                pick: fc.nat(),
+                nodes: fc.array(nodePick, { maxLength: 1 }),
+                edges: fc.array(fc.nat(), { maxLength: 2 }),
+            })
+            .map((r) => ({ op: "remove-members", ...r })),
     ];
 
     return all;
@@ -234,7 +263,9 @@ function doorMember(model: Model, real: Driver, counter: number): EdgeMember {
         return { source, target, id: fileId };
     }
 
-    return edge.ordinal >= 0 ? { source, target, ordinal: edge.ordinal, among: edge.among } : { source, target, id: mintedEdgeId(counter) };
+    return edge.ordinal >= 0
+        ? { source, target, ordinal: edge.ordinal, among: edge.among }
+        : { source, target, id: mintedEdgeId(counter) };
 }
 
 /**
@@ -270,7 +301,8 @@ function bind(model: Model, member: EdgeMember, seed: number | undefined): numbe
     for (const [counter, edge] of model.edges) {
         const pair = model.ordered
             ? edge.s === member.source && edge.t === member.target
-            : (edge.s === member.source && edge.t === member.target) || (edge.s === member.target && edge.t === member.source);
+            : (edge.s === member.source && edge.t === member.target) ||
+              (edge.s === member.target && edge.t === member.source);
         if (!pair) {
             continue;
         }
@@ -278,7 +310,9 @@ function bind(model: Model, member: EdgeMember, seed: number | undefined): numbe
         const identity = ingestedIdentity(edge, counter);
         // An ordinal counts for every load edge, file id or not (edgeIdPath may have changed).
         const match =
-            member.id === undefined ? edge.ordinal >= 0 && edge.ordinal === member.ordinal && edge.among === member.among : identity.id === member.id;
+            member.id === undefined
+                ? edge.ordinal >= 0 && edge.ordinal === member.ordinal && edge.among === member.among
+                : identity.id === member.id;
         if (match) {
             hits.push(counter);
         }
@@ -432,10 +466,16 @@ function modelDigest(model: Model, expected: Expected): string {
 
     let edgeSum = EMPTY_SUM;
     for (const counter of expected.edges) {
-        edgeSum = addToSum(edgeSum, hashEdgeMember(ingestedIdentity(model.edges.get(counter) as ModelEdge, counter), model.ordered));
+        edgeSum = addToSum(
+            edgeSum,
+            hashEdgeMember(ingestedIdentity(model.edges.get(counter) as ModelEdge, counter), model.ordered),
+        );
     }
 
-    return membershipDigestOf({ count: expected.nodes.size, sum: nodeSum }, { count: expected.edges.size, sum: edgeSum });
+    return membershipDigestOf(
+        { count: expected.nodes.size, sum: nodeSum },
+        { count: expected.edges.size, sum: edgeSum },
+    );
 }
 
 /**
@@ -472,7 +512,13 @@ function completeLoad(model: Model, created: readonly number[]): void {
  * @param created - The edges it created.
  * @param asLoad - Whether it was a load (else session edges).
  */
-function ingested(model: Model, real: Driver, records: readonly EdgeRecord[], created: readonly number[], asLoad: boolean): void {
+function ingested(
+    model: Model,
+    real: Driver,
+    records: readonly EdgeRecord[],
+    created: readonly number[],
+    asLoad: boolean,
+): void {
     for (const record of records.slice(0, real.lastLoadRead)) {
         model.nodes.add(record.s);
         model.nodes.add(record.t);
@@ -499,7 +545,11 @@ function ingested(model: Model, real: Driver, records: readonly EdgeRecord[], cr
  * @param spec - The spec.
  * @returns The input, the session edges it names with their members, and the model's set.
  */
-function build(model: Model, real: Driver, spec: DefinitionSpec): { input: SetDefinitionInput; named: [number, EdgeMember][]; set: Omit<ModelSet, "seeds"> } | null {
+function build(
+    model: Model,
+    real: Driver,
+    spec: DefinitionSpec,
+): { input: SetDefinitionInput; named: [number, EdgeMember][]; set: Omit<ModelSet, "seeds"> } | null {
     const live = liveCounters(model);
     const nodes = spec.nodes.map((i) => NODES[i]);
     const named: [number, EdgeMember][] = [];
@@ -513,10 +563,22 @@ function build(model: Model, real: Driver, spec: DefinitionSpec): { input: SetDe
         const counters = live.length === 0 ? [] : spec.edges.map(pick);
         const members = new Map(named.map(([, member]) => [edgeMemberKey(member), member]));
         return {
-            input: { kind: "fixed", nodes, ...(counters.length === 0 ? {} : { edges: counters.map((c) => real.edgeId(c)) }), reading: spec.reading },
+            input: {
+                kind: "fixed",
+                nodes,
+                ...(counters.length === 0 ? {} : { edges: counters.map((c) => real.edgeId(c)) }),
+                reading: spec.reading,
+            },
             named,
             // A fixed set's node list is canonical: no duplicates.
-            set: { kind: "fixed", nodes: [...new Set(nodes)], reading: spec.reading === "induced" ? "induced" : "listed", members, steps: undefined, directed: false },
+            set: {
+                kind: "fixed",
+                nodes: [...new Set(nodes)],
+                reading: spec.reading === "induced" ? "induced" : "listed",
+                members,
+                steps: undefined,
+                directed: false,
+            },
         };
     }
 
@@ -582,7 +644,12 @@ function keysOf(set: Omit<ModelSet, "seeds"> | undefined): Set<string> {
  * @param next - Its members after.
  * @param named - The session edges the write named, in order.
  */
-function seedWrite(seeds: Map<string, number>, prior: Set<string>, next: Set<string>, named: readonly [number, EdgeMember][]): void {
+function seedWrite(
+    seeds: Map<string, number>,
+    prior: Set<string>,
+    next: Set<string>,
+    named: readonly [number, EdgeMember][],
+): void {
     const done = new Set<string>();
     for (const [counter, member] of named) {
         const key = edgeMemberKey(member);
@@ -726,7 +793,11 @@ async function apply(op: Op, model: Model, real: Driver): Promise<void> {
             model.edges = new Map();
             model.ordered = op.declared === true;
             for (const [i, load] of loads.entries()) {
-                const created = await real.load(load.records, { policy: load.policy, chunks: load.chunks }, i === 0 ? op.declared : undefined);
+                const created = await real.load(
+                    load.records,
+                    { policy: load.policy, chunks: load.chunks },
+                    i === 0 ? op.declared : undefined,
+                );
                 ingested(model, real, load.records, created, true);
             }
 
@@ -783,7 +854,9 @@ async function apply(op: Op, model: Model, real: Driver): Promise<void> {
             const counters = live.length === 0 ? [] : op.edges.map((i) => live[i % live.length]);
             const named: [number, EdgeMember][] = counters.map((c) => [c, doorMember(model, real, c)]);
             const delta = { nodes, edges: counters.map((c) => real.edgeId(c)) };
-            const ran = attempt(() => (op.op === "add-members" ? real.sets.addMembers(id, delta) : real.sets.removeMembers(id, delta)));
+            const ran = attempt(() =>
+                op.op === "add-members" ? real.sets.addMembers(id, delta) : real.sets.removeMembers(id, delta),
+            );
             assert.strictEqual(ran, set.kind === "fixed", "member edits run on fixed sets only");
             if (!ran) {
                 return;
@@ -872,17 +945,28 @@ function verify(model: Model, real: Driver): void {
                 ? resolveFixed(definition, { snapshot }, seeds)
                 : resolvePath(definition as Extract<SetDefinition, { kind: "path" }>, { snapshot }, seeds);
         // Served through the cache, it equals the fresh resolution, and is of this snapshot.
-        const served = resolveSet({ id, definition }, { snapshot, store: real.storeTag(), sets: real.setsStore, cache: model.cache });
+        const served = resolveSet(
+            { id, definition },
+            { snapshot, store: real.storeTag(), sets: real.setsStore, cache: model.cache },
+        );
         assert.strictEqual(served.serial, snapshot.serial, `${id} served from this serial`);
-        assert.deepStrictEqual([served.nodes, served.edges], [resolution.nodes, resolution.edges], `${id} served equals fresh`);
+        assert.deepStrictEqual(
+            [served.nodes, served.edges],
+            [resolution.nodes, resolution.edges],
+            `${id} served equals fresh`,
+        );
         assert.deepStrictEqual(
             [served.missingNodes, served.missingEdges, served.ambiguousEdges],
             [resolution.missingNodes, resolution.missingEdges, resolution.ambiguousEdges],
             `${id} served counts`,
         );
         const expected = expect(model, real, set);
-        const nodes = new Set(Array.from(maskToIndices(resolution.nodes, snapshot.nodeCount), (i) => snapshot.ids.idOf(i)));
-        const edges = new Set(Array.from(maskToIndices(resolution.edges, snapshot.edgeCount), (e) => real.counterAt(e)));
+        const nodes = new Set(
+            Array.from(maskToIndices(resolution.nodes, snapshot.nodeCount), (i) => snapshot.ids.idOf(i)),
+        );
+        const edges = new Set(
+            Array.from(maskToIndices(resolution.edges, snapshot.edgeCount), (e) => real.counterAt(e)),
+        );
         assert.deepStrictEqual(sorted(nodes), sorted(expected.nodes), `${id} nodes`);
         assert.deepStrictEqual(sorted(edges), sorted(expected.edges), `${id} edges`);
         assert.strictEqual(resolution.missingNodes, expected.missingNodes, `${id} missing nodes`);
@@ -890,10 +974,12 @@ function verify(model: Model, real: Driver): void {
         assert.strictEqual(resolution.ambiguousEdges, expected.ambiguous, `${id} ambiguous`);
         for (const e of maskToIndices(resolution.edges, snapshot.edgeCount)) {
             const ends = [snapshot.edgeSource(e), snapshot.edgeTarget(e)];
-            assert.isTrue(ends.every((i) => (resolution.nodes[i >>> 5] & (1 << (i & 31))) !== 0), `${id} endpoint invariant`);
+            assert.isTrue(
+                ends.every((i) => (resolution.nodes[i >>> 5] & (1 << (i & 31))) !== 0),
+                `${id} endpoint invariant`,
+            );
         }
 
         assert.strictEqual(digestOf(resolution, snapshot), modelDigest(model, expected), `${id} digest`);
     }
 }
-

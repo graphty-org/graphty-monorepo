@@ -62,8 +62,14 @@ const WHOLE = "whole-degree";
 
 describe("a run over a scope is planned by what its descriptor says it computes on", () => {
     beforeEach(() => {
-        const { legacyKeys: _legacy, ...degree } = algorithmByKey("degree") as AlgorithmDescriptor & { legacyKeys: unknown };
-        publishAlgorithmDescriptor({ descriptor: { ...degree, key: WHOLE, scopeInput: "none" }, namespace: "acme", type: WHOLE });
+        const { legacyKeys: _legacy, ...degree } = algorithmByKey("degree") as AlgorithmDescriptor & {
+            legacyKeys: unknown;
+        };
+        publishAlgorithmDescriptor({
+            descriptor: { ...degree, key: WHOLE, scopeInput: "none" },
+            namespace: "acme",
+            type: WHOLE,
+        });
     });
 
     afterEach(() => {
@@ -72,7 +78,11 @@ describe("a run over a scope is planned by what its descriptor says it computes 
 
     it("the built-ins publish that they compute over their scope", () => {
         assert.strictEqual(algorithmByKey("degree")?.scopeInput, "subgraph");
-        assert.strictEqual(algorithmByKey("shortest-path")?.scopeInput, "subgraph", "a folded key: every class behind it declares it");
+        assert.strictEqual(
+            algorithmByKey("shortest-path")?.scopeInput,
+            "subgraph",
+            "a folded key: every class behind it declares it",
+        );
     });
 
     it("an algorithm that does not compute over its scope is estimated over the whole graph", () => {
@@ -145,7 +155,13 @@ describe("the kept sets a refused run is pointed at", () => {
         } as unknown as PlanningContext;
 
         assert.deepStrictEqual(keptSetScopes(context), [
-            { scope: { set: "set_a" }, label: "Ten", nodes: 10, edges: 9, derivationSeconds: derivationSeconds(100, 99, 9) },
+            {
+                scope: { set: "set_a" },
+                label: "Ten",
+                nodes: 10,
+                edges: 9,
+                derivationSeconds: derivationSeconds(100, 99, 9),
+            },
         ]);
     });
 });

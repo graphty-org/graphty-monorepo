@@ -32,14 +32,20 @@ type PathDefinition = Extract<SetDefinition, { kind: "path" }>;
  * The walk's named edge members, flattened, with the step each belongs to. Memoised per frozen
  * definition, so the binding table sees one member array per path.
  */
-const flattened = new WeakMap<PathDefinition, { readonly members: readonly EdgeMember[]; readonly stepOf: Uint32Array }>();
+const flattened = new WeakMap<
+    PathDefinition,
+    { readonly members: readonly EdgeMember[]; readonly stepOf: Uint32Array }
+>();
 
 /**
  * A path's named edge members and their steps.
  * @param definition - The path.
  * @returns The members, in step order, and the step of each.
  */
-function namedMembers(definition: PathDefinition): { readonly members: readonly EdgeMember[]; readonly stepOf: Uint32Array } {
+function namedMembers(definition: PathDefinition): {
+    readonly members: readonly EdgeMember[];
+    readonly stepOf: Uint32Array;
+} {
     let entry = flattened.get(definition);
     if (entry === undefined) {
         const members: EdgeMember[] = [];
@@ -145,7 +151,13 @@ export function resolvePath(definition: PathDefinition, context: ResolveContext,
         missingSteps += covered[step] === 1 ? 0 : 1;
     }
 
-    return resolutionOf({ nodes, constraint: null, all: false, missingNodes: absent.size }, edges, context, missingSteps, ambiguous);
+    return resolutionOf(
+        { nodes, constraint: null, all: false, missingNodes: absent.size },
+        edges,
+        context,
+        missingSteps,
+        ambiguous,
+    );
 }
 
 /**
@@ -176,7 +188,10 @@ export function pathKind(definition: PathDefinition): PathKind {
         const named = definition.edges?.[step] ?? null;
         let key: string;
         if (named === null) {
-            const [a, b] = directed || nodes[step] <= nodes[step + 1] ? [nodes[step], nodes[step + 1]] : [nodes[step + 1], nodes[step]];
+            const [a, b] =
+                directed || nodes[step] <= nodes[step + 1]
+                    ? [nodes[step], nodes[step + 1]]
+                    : [nodes[step + 1], nodes[step]];
             key = `p${JSON.stringify([a, b])}`;
         } else {
             const members = Array.isArray(named) ? (named as readonly EdgeMember[]) : [named as EdgeMember];

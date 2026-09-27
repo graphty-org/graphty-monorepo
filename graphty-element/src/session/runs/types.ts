@@ -16,7 +16,19 @@
  * run was started from, which arrives with the command union.
  */
 
-import type { AlgorithmKey, EdgeId, EdgeReading, FieldDescriptor, LayerId, NodeId, ResultShape, RunId, Scope, ScopeInput, SetId } from "../../catalog/types";
+import type {
+    AlgorithmKey,
+    EdgeId,
+    EdgeReading,
+    FieldDescriptor,
+    LayerId,
+    NodeId,
+    ResultShape,
+    RunId,
+    Scope,
+    ScopeInput,
+    SetId,
+} from "../../catalog/types";
 import type { GraphtyError } from "../../errors/GraphtyError";
 import type { ResultSummary, RunResult } from "../results/types";
 import type { StyleSuggestion } from "../styles/derive";

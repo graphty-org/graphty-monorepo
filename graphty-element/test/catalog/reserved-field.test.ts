@@ -17,9 +17,14 @@ describe("the reserved result field runs", () => {
     });
 
     it("is published by no built-in algorithm", () => {
-        const offenders = BUILT_IN_ALGORITHMS.filter((descriptor) => descriptor.fields.some((field) => field.name === "runs"));
+        const offenders = BUILT_IN_ALGORITHMS.filter((descriptor) =>
+            descriptor.fields.some((field) => field.name === "runs"),
+        );
 
-        assert.deepStrictEqual(offenders.map((descriptor) => descriptor.key), []);
+        assert.deepStrictEqual(
+            offenders.map((descriptor) => descriptor.key),
+            [],
+        );
     });
 
     it("is refused when a plugin publishes it", () => {

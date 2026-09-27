@@ -70,7 +70,10 @@ describe("records", () => {
         const edges = [edge("a", "b", "x")];
         const values = ["red"];
         const fixed = sets.create({ kind: "fixed", nodes, edges, reading: "listed" }, { name: "F" });
-        const rule = sets.create({ kind: "rule", where: { kind: "categories", attribute: "data.colour", values }, reading: "induced" }, { name: "R" });
+        const rule = sets.create(
+            { kind: "rule", where: { kind: "categories", attribute: "data.colour", values }, reading: "induced" },
+            { name: "R" },
+        );
         nodes.push("c");
         (edges[0] as { id: string }).id = "changed";
         values.push("blue");
@@ -105,7 +108,10 @@ describe("records", () => {
 
     it("a redefine that changes only the reading shares the member arrays", () => {
         const { sets } = harness();
-        const id = sets.create({ kind: "fixed", nodes: ["a", "b"], edges: [edge("a", "b", "x")], reading: "induced" }, { name: "A" });
+        const id = sets.create(
+            { kind: "fixed", nodes: ["a", "b"], edges: [edge("a", "b", "x")], reading: "induced" },
+            { name: "A" },
+        );
         const before = sets.get(id)?.definition as Extract<SetDefinition, { kind: "fixed" }>;
         sets.redefine(id, { kind: "fixed", nodes: ["b", "a"], edges: [edge("a", "b", "x")], reading: "listed" });
         const after = sets.get(id)?.definition as Extract<SetDefinition, { kind: "fixed" }>;
@@ -124,10 +130,18 @@ describe("records", () => {
 
     it("no-ops change no record", () => {
         const { sets } = harness();
-        const id = sets.create({ kind: "fixed", nodes: ["a", "b"], edges: [edge("a", "b", "x")], reading: "listed" }, { name: "A" });
+        const id = sets.create(
+            { kind: "fixed", nodes: ["a", "b"], edges: [edge("a", "b", "x")], reading: "listed" },
+            { name: "A" },
+        );
         const record = sets.get(id);
         sets.rename(id, "  A  ");
-        sets.redefine(id, { kind: "fixed", nodes: ["b", "a", "b"], edges: [edge("a", "b", "x"), edge("a", "b", "x")], reading: "clipped" });
+        sets.redefine(id, {
+            kind: "fixed",
+            nodes: ["b", "a", "b"],
+            edges: [edge("a", "b", "x"), edge("a", "b", "x")],
+            reading: "clipped",
+        });
         sets.addMembers(id, { nodes: ["a"], edges: [edge("a", "b", "x")] });
         sets.removeMembers(id, { nodes: ["q"], edges: [edge("a", "b", "y")] });
         assert.strictEqual(sets.get(id), record);
@@ -140,7 +154,9 @@ describe("member edits", () => {
         const id = sets.create({ kind: "fixed", nodes: [2, "b"], reading: "listed" }, { name: "A" });
         sets.addMembers(id, { nodes: ["a", 1, 3], edges: [edge("c", "d", "z"), edge("a", "b", "x"), "7"] });
         assert.deepStrictEqual(sets.get(id)?.definition, {
-            edges: [edge("a", "b", "e7"), edge("a", "b", "x"), edge("c", "d", "z")].map(({ id: e, source, target }) => ({ id: e, source, target })),
+            edges: [edge("a", "b", "e7"), edge("a", "b", "x"), edge("c", "d", "z")].map(
+                ({ id: e, source, target }) => ({ id: e, source, target }),
+            ),
             kind: "fixed",
             nodes: [1, 2, 3, "a", "b"],
             reading: "listed",
@@ -160,7 +176,12 @@ describe("member edits", () => {
             {
                 kind: "fixed",
                 nodes: ["u", "v"],
-                edges: [edge("u", "v", "1"), edge("w", "u", "2"), edge("v", "w", "3"), { source: "u", target: "x", ordinal: 0, among: 2 }],
+                edges: [
+                    edge("u", "v", "1"),
+                    edge("w", "u", "2"),
+                    edge("v", "w", "3"),
+                    { source: "u", target: "x", ordinal: 0, among: 2 },
+                ],
                 reading: "listed",
             },
             { name: "A" },
@@ -236,15 +257,24 @@ describe("member edits", () => {
         const id = sets.create({ kind: "fixed", nodes: [], edges, reading: "listed" }, { name: "Big" });
         const record = sets.get(id);
         assert.strictEqual(refusal(() => sets.addMembers(id, { nodes: ["n"] })).code, "E_TOO_LARGE");
-        assert.strictEqual(refusal(() => sets.removeMembers(id, { edges: [{ source: 0, target: 1, id: 0 }] })).code, "E_TOO_LARGE");
+        assert.strictEqual(
+            refusal(() => sets.removeMembers(id, { edges: [{ source: 0, target: 1, id: 0 }] })).code,
+            "E_TOO_LARGE",
+        );
         assert.strictEqual(sets.get(id), record);
 
         // At the limit an edit is allowed until it would cross it.
         const small = harness(2);
-        const at = small.sets.create({ kind: "fixed", nodes: [], edges: [edge("a", "b", "1"), edge("a", "b", "2")], reading: "listed" }, { name: "At" });
+        const at = small.sets.create(
+            { kind: "fixed", nodes: [], edges: [edge("a", "b", "1"), edge("a", "b", "2")], reading: "listed" },
+            { name: "At" },
+        );
         small.sets.removeMembers(at, { edges: [edge("a", "b", "1")] });
         small.sets.addMembers(at, { edges: [edge("a", "b", "1")] });
-        assert.strictEqual(refusal(() => small.sets.addMembers(at, { edges: [edge("a", "b", "3")] })).code, "E_TOO_LARGE");
+        assert.strictEqual(
+            refusal(() => small.sets.addMembers(at, { edges: [edge("a", "b", "3")] })).code,
+            "E_TOO_LARGE",
+        );
     }, 60_000);
 });
 
@@ -253,10 +283,13 @@ describe("the revision moves by the delta", () => {
         it(`adding 3 members to a ${size}-member set makes 3 hashes and 3 sums`, () => {
             const { sets } = harness();
             const nodes = Array.from({ length: size }, (_, i) => i);
-            const id = sets.create({ kind: "fixed", nodes, edges: [edge("a", "b", "x")], reading: "listed" }, { name: "A" });
+            const id = sets.create(
+                { kind: "fixed", nodes, edges: [edge("a", "b", "x")], reading: "listed" },
+                { name: "A" },
+            );
             const before = sets.get(id)?.revision;
             const hashes = hashCounters.memberHashes;
-            const {sums} = hashCounters;
+            const { sums } = hashCounters;
 
             sets.addMembers(id, { nodes: [-1, "p", "q"] });
             const revision = sets.get(id)?.revision;
@@ -270,11 +303,21 @@ describe("the revision moves by the delta", () => {
 
     it("removing members, and adding edge members, keeps the memoised revision exact", () => {
         const { sets } = harness();
-        const id = sets.create({ kind: "fixed", nodes: ["a", "b", "c"], edges: [edge("a", "b", "x"), edge("b", "c", "y")], reading: "listed" }, { name: "A" });
+        const id = sets.create(
+            {
+                kind: "fixed",
+                nodes: ["a", "b", "c"],
+                edges: [edge("a", "b", "x"), edge("b", "c", "y")],
+                reading: "listed",
+            },
+            { name: "A" },
+        );
         void sets.get(id)?.revision;
         sets.removeMembers(id, { nodes: ["a"] });
         sets.addMembers(id, { edges: [edge("c", "d", "z"), { source: "d", target: "c", ordinal: 1, among: 3 }] });
-        sets.removeMembers(id, { edges: [edge("b", "c", "y"), edge("c", "d", "z"), { source: "d", target: "c", ordinal: 1, among: 3 }] });
+        sets.removeMembers(id, {
+            edges: [edge("b", "c", "y"), edge("c", "d", "z"), { source: "d", target: "c", ordinal: 1, among: 3 }],
+        });
         const record = sets.get(id);
         assert.strictEqual(record?.revision, revisionOf(record?.definition as SetDefinition));
         assert.deepStrictEqual(record?.definition, { kind: "fixed", nodes: ["b", "c"], reading: "listed" });
@@ -310,7 +353,9 @@ describe("unknown top-level fields", () => {
         const { store, sets } = harness();
         const definition = { kind: "plugin:ring", centre: "a", radius: 2 };
         store.transact(() => {
-            store.put(loadRecord({ id: "set_ring", name: "Ring", order: 1, definition, createdFrom: { kind: "user" } }));
+            store.put(
+                loadRecord({ id: "set_ring", name: "Ring", order: 1, definition, createdFrom: { kind: "user" } }),
+            );
         });
         sets.rename("set_ring", "Ring 2");
         assert.deepStrictEqual(sets.get("set_ring")?.definition as unknown, definition);

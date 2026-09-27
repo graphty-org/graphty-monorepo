@@ -40,7 +40,6 @@ export type { GraphtyErrorCode };
  */
 export type { DrawingMode };
 
-
 // ---------------------------------------------------------------------------------------------
 // Identity
 // ---------------------------------------------------------------------------------------------
@@ -127,7 +126,10 @@ export type KnownAlgorithm = (typeof KNOWN_ALGORITHMS)[number];
  * unless it is implemented first: `all-paths` is tracked by issue #329 and
  * `clustering-coefficient` by issue #330.
  */
-export const DEPRECATED_ALGORITHMS = ["all-paths", "clustering-coefficient"] as const satisfies readonly KnownAlgorithm[];
+export const DEPRECATED_ALGORITHMS = [
+    "all-paths",
+    "clustering-coefficient",
+] as const satisfies readonly KnownAlgorithm[];
 
 /** A built-in algorithm name the element reserves but does not run, and will remove. */
 export type DeprecatedAlgorithm = (typeof DEPRECATED_ALGORITHMS)[number];
@@ -258,7 +260,6 @@ export const RESULT_SHAPES = [
 
 /** The shape of an algorithm's result. */
 export type ResultShape = (typeof RESULT_SHAPES)[number];
-
 
 /** One field a result publishes, per element or for the graph as a whole. */
 export interface FieldDescriptor {

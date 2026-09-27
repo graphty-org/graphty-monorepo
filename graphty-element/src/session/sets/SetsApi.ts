@@ -12,7 +12,14 @@
 
 import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
-import { EDGE_READINGS, inducedEdgeLeaf, parseScope, parseSetDefinition, speaksEdges, stabiliseEdgeRefs } from "../../catalog/sets/parse";
+import {
+    EDGE_READINGS,
+    inducedEdgeLeaf,
+    parseScope,
+    parseSetDefinition,
+    speaksEdges,
+    stabiliseEdgeRefs,
+} from "../../catalog/sets/parse";
 import type {
     EdgeId,
     EdgeMember,
@@ -60,7 +67,7 @@ import {
     prepareRename,
 } from "./prepare";
 import { edgeMemberKey } from "./resolve";
-import { statusOf,type StatusRun, type StatusSources } from "./status";
+import { statusOf, type StatusRun, type StatusSources } from "./status";
 import { SetsStore } from "./store";
 import type { ElementSet, Memberships, SetMemberDelta, SetOffer, SetsApi, SetStatus, SetUser } from "./types";
 
@@ -167,7 +174,12 @@ const creatorsOf = new WeakMap<SetsApi, CreateAs>();
  * @returns The minted id.
  * @throws An Error for doors it did not build; otherwise as `create` refuses.
  */
-export function createSetAs(api: SetsApi, definition: SetDefinitionInput, name: string | undefined, createdFrom: SetCreatedFrom): SetId {
+export function createSetAs(
+    api: SetsApi,
+    definition: SetDefinitionInput,
+    name: string | undefined,
+    createdFrom: SetCreatedFrom,
+): SetId {
     const create = creatorsOf.get(api);
     if (create === undefined) {
         throw new Error("Not a SetsApi built by createSetsApi.");
@@ -228,7 +240,8 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
         return member;
     };
 
-    const canonicalEnds = (member: EdgeMember): EdgeMember => canonicalEdgeEnds(member, dependencies.pairsOrdered?.() !== false);
+    const canonicalEnds = (member: EdgeMember): EdgeMember =>
+        canonicalEdgeEnds(member, dependencies.pairsOrdered?.() !== false);
 
     /**
      * Run a conversion to stable form and collect the session edges it named.
@@ -262,7 +275,11 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
         const entries = new Map<string, number>();
         for (const [ref, member] of refs) {
             const key = edgeMemberKey(member);
-            if (!entries.has(key) && (prior === undefined || !holdsEdgeMember(prior.definition, member)) && holdsEdgeMember(next.definition, member)) {
+            if (
+                !entries.has(key) &&
+                (prior === undefined || !holdsEdgeMember(prior.definition, member)) &&
+                holdsEdgeMember(next.definition, member)
+            ) {
                 entries.set(key, edgeCounterOf(ref));
             }
         }
@@ -292,24 +309,26 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
      * @param id - The set.
      * @returns The conversion.
      */
-    const removable = (id: SetId) => (ref: EdgeRef): EdgeMember => {
-        if (typeof ref === "string" && dependencies.edgeMember(ref) === undefined) {
-            const counter = edgeCounterOf(ref);
-            const counters = store.seedsOf(id)?.counters;
-            const definition = store.get(id)?.definition;
-            if (counters !== undefined && definition?.kind === "fixed") {
-                const members = listedEdgesOf(definition);
-                for (let row = 0; row < members.length; row++) {
-                    const member = members.at(row) as EdgeMember;
-                    if (counters.get(edgeMemberKey(member)) === counter) {
-                        return member;
+    const removable =
+        (id: SetId) =>
+        (ref: EdgeRef): EdgeMember => {
+            if (typeof ref === "string" && dependencies.edgeMember(ref) === undefined) {
+                const counter = edgeCounterOf(ref);
+                const counters = store.seedsOf(id)?.counters;
+                const definition = store.get(id)?.definition;
+                if (counters !== undefined && definition?.kind === "fixed") {
+                    const members = listedEdgesOf(definition);
+                    for (let row = 0; row < members.length; row++) {
+                        const member = members.at(row) as EdgeMember;
+                        if (counters.get(edgeMemberKey(member)) === counter) {
+                            return member;
+                        }
                     }
                 }
             }
-        }
 
-        return stable(ref);
-    };
+            return stable(ref);
+        };
 
     const references: DependencySources = dependencies.dependencies ?? { referent: (id) => store.get(id)?.definition };
 
@@ -322,7 +341,13 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
      * @returns The error to throw.
      */
     const refuseChain = (message: string, id: SetId, reason: string, through: readonly ChainStep[]): GraphtyError =>
-        new GraphtyError({ code: "E_BAD_COMMAND", message, source: "data", target: { kind: "scope", id }, details: { id, reason, through } });
+        new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message,
+            source: "data",
+            target: { kind: "scope", id },
+            details: { id, reason, through },
+        });
 
     /**
      * Refuse a kept rule the doors cannot keep: one that reads the live selection, one that reaches
@@ -365,7 +390,10 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
             throw followsGroup(group);
         }
 
-        if (definition.reading === "induced" && speaksEdges(definition.where, referentReading(references), references.fieldKinds)) {
+        if (
+            definition.reading === "induced" &&
+            speaksEdges(definition.where, referentReading(references), references.fieldKinds)
+        ) {
             throw inducedEdgeLeaf();
         }
     };
@@ -387,7 +415,9 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
         const id = store.transact(() => {
             const name = given ?? defaultName(store);
             const minted = store.mint(typeof name === "string" ? name.trim() : "");
-            write(prepareCreate(store, { id: minted, name, order: store.nextOrder(), definition: concrete, createdFrom }));
+            write(
+                prepareCreate(store, { id: minted, name, order: store.nextOrder(), definition: concrete, createdFrom }),
+            );
 
             return minted;
         });
@@ -472,7 +502,10 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
      */
     const requireCurrent = (offer: SetOffer): SetOffer => {
         const { result: run, run: execution } = offer.item;
-        const current = dependencies.executionOf === undefined ? dependencies.runs?.get(run)?.execution : dependencies.executionOf(run);
+        const current =
+            dependencies.executionOf === undefined
+                ? dependencies.runs?.get(run)?.execution
+                : dependencies.executionOf(run);
         if (execution === undefined || execution !== current) {
             throw new GraphtyError({
                 code: "E_BAD_COMMAND",
@@ -486,7 +519,11 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
         // spread or edited offer cannot store one item's members under another's createdFrom.
         return {
             ...offer,
-            definition: parseSetDefinition({ kind: "rule", where: { kind: "item", item: offer.item }, reading: offer.reading }),
+            definition: parseSetDefinition({
+                kind: "rule",
+                where: { kind: "item", item: offer.item },
+                reading: offer.reading,
+            }),
         };
     };
 
@@ -504,7 +541,10 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
             throw followsGroup({ result, key });
         }
 
-        return createAs({ kind: "rule", where: { kind: "item", item: { result, key } }, reading }, name, { kind: "result", item: offer.item });
+        return createAs({ kind: "rule", where: { kind: "item", item: { result, key } }, reading }, name, {
+            kind: "result",
+            item: offer.item,
+        });
     };
 
     const statusSources: StatusSources = {
@@ -523,7 +563,12 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
     const readScope = (ref: ScopeInput): Scope => {
         const inline = typeof ref === "object" && "define" in ref;
         const scope = parseScope(inline ? { define: collect(() => stabilise(ref.define))[0] } : ref);
-        if (typeof scope === "object" && "set" in scope && store.get(scope.set) === undefined && !store.register().has(scope.set)) {
+        if (
+            typeof scope === "object" &&
+            "set" in scope &&
+            store.get(scope.set) === undefined &&
+            !store.register().has(scope.set)
+        ) {
             throw new GraphtyError({
                 code: "E_BAD_COMMAND",
                 message: `No set was ever called "${scope.set}".`,
@@ -552,7 +597,12 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
         usedBy(id: SetId): readonly SetUser[] {
             const users: SetUser[] = [];
             for (const set of store.list()) {
-                if (set.id !== id && dependenciesOf(set.definition).some((dependency) => dependency.kind === "set" && dependency.id === id)) {
+                if (
+                    set.id !== id &&
+                    dependenciesOf(set.definition).some(
+                        (dependency) => dependency.kind === "set" && dependency.id === id,
+                    )
+                ) {
                     users.push(Object.freeze({ kind: "set", id: set.id, label: set.name }));
                 }
             }
@@ -573,7 +623,8 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
             return Object.freeze(users);
         },
 
-        create: (definition: SetDefinitionInput, options: { readonly name?: string } = {}): SetId => createAs(definition, options.name, { kind: "user" }),
+        create: (definition: SetDefinitionInput, options: { readonly name?: string } = {}): SetId =>
+            createAs(definition, options.name, { kind: "user" }),
 
         offers: (run: RunId, options: { readonly limit?: number } = {}) => {
             const { limit: most } = options;
@@ -617,7 +668,11 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
             return commit(concrete, options.name);
         },
 
-        async combine(op: SetCombine, of: readonly ScopeInput[], options: { readonly name?: string; readonly reading?: EdgeReading } = {}): Promise<SetId> {
+        async combine(
+            op: SetCombine,
+            of: readonly ScopeInput[],
+            options: { readonly name?: string; readonly reading?: EdgeReading } = {},
+        ): Promise<SetId> {
             if (!SET_COMBINES.includes(op)) {
                 throw new GraphtyError({
                     code: "E_BAD_COMMAND",
@@ -712,9 +767,18 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
 
         restore(id: SetId): void {
             const refuse = (reason: string, message: string): GraphtyError =>
-                new GraphtyError({ code: "E_BAD_COMMAND", message, source: "data", target: { kind: "scope", id }, details: { id, reason } });
+                new GraphtyError({
+                    code: "E_BAD_COMMAND",
+                    message,
+                    source: "data",
+                    target: { kind: "scope", id },
+                    details: { id, reason },
+                });
             if (store.get(id) !== undefined) {
-                throw refuse("live", `The set "${store.get(id)?.name ?? id}" was not removed, so there is nothing to restore.`);
+                throw refuse(
+                    "live",
+                    `The set "${store.get(id)?.name ?? id}" was not removed, so there is nothing to restore.`,
+                );
             }
 
             const tombstone = store.tombstone(id);

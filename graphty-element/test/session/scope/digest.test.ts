@@ -5,7 +5,7 @@
 
 import { assert, describe, it } from "vitest";
 
-import { EMPTY_SUM, hashNodeId, type LanePair, membershipDigestOf,memberSum } from "../../../src/catalog/sets/hash";
+import { EMPTY_SUM, hashNodeId, type LanePair, membershipDigestOf, memberSum } from "../../../src/catalog/sets/hash";
 import type { NodeId } from "../../../src/catalog/types";
 import { identityColumnsOf } from "../../../src/data/edgeIdentity";
 import { createScopeApi, edgeSpaceOf, ElementMask, nodeSpaceOf } from "../../../src/session/scope/index";
@@ -46,7 +46,11 @@ describe("the d1 membership digest", () => {
 
         const byList = scope.resolveNow({ nodes: ["a", "b"] }).digest;
 
-        assert.strictEqual(scope.resolveNow({ nodes: ["b", "a", "gone"] }).digest, byList, "order and missing ids are not membership");
+        assert.strictEqual(
+            scope.resolveNow({ nodes: ["b", "a", "gone"] }).digest,
+            byList,
+            "order and missing ids are not membership",
+        );
         assert.strictEqual(scope.resolveNow("selection").digest, byList);
         assert.strictEqual(scope.resolveNow({ set: saved }).digest, byList);
         assert.strictEqual(
@@ -76,7 +80,7 @@ describe("the d1 membership digest", () => {
         );
     });
 
-    it("tells the number 1 from the string \"1\"", () => {
+    it('tells the number 1 from the string "1"', () => {
         const numeric = harness([{ id: 1 }, { id: 2 }]);
         const textual = harness([{ id: "1" }, { id: "2" }]);
         const left = createScopeApi({ snapshot: () => numeric.store.getSnapshot() });
@@ -105,7 +109,11 @@ describe("the d1 membership digest", () => {
         assert.strictEqual(resolveCounters.digestSums - before, 1, "two objects over one resolution share one sum");
 
         h.add([{ id: "e" }]);
-        assert.strictEqual(scope.resolveNow({ nodes: ["a", "b"] }).digest, digest, "survives a freeze that kept the membership");
+        assert.strictEqual(
+            scope.resolveNow({ nodes: ["a", "b"] }).digest,
+            digest,
+            "survives a freeze that kept the membership",
+        );
         assert.strictEqual(resolveCounters.digestSums - before, 2, "a new snapshot is a new resolution");
         h.session.dispose();
     });

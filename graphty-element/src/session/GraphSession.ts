@@ -21,7 +21,21 @@ import {
     type GraphAccelerator,
 } from "../acceleration";
 import { readingOfScope } from "../catalog/sets/parse";
-import type { EdgeId, EdgeMember, EdgeReading, NodeId, Path, Query, ResultItem, RuleTree, RunId, Scope, ScopeInput, SetId, StaticStyle } from "../catalog/types";
+import type {
+    EdgeId,
+    EdgeMember,
+    EdgeReading,
+    NodeId,
+    Path,
+    Query,
+    ResultItem,
+    RuleTree,
+    RunId,
+    Scope,
+    ScopeInput,
+    SetId,
+    StaticStyle,
+} from "../catalog/types";
 import { DataConfig } from "../config/DataConfig";
 import { defaultEdgeStyle } from "../config/EdgeStyle";
 import { defaultNodeStyle } from "../config/NodeStyle";
@@ -678,7 +692,9 @@ function fieldKindsOf(
         const dot = rest.indexOf(".");
         const field = rest.slice(dot + 1);
 
-        return (fieldsOf(rest.slice(0, dot)) ?? []).filter((descriptor) => descriptor.name === field).map((descriptor) => descriptor.kind);
+        return (fieldsOf(rest.slice(0, dot)) ?? [])
+            .filter((descriptor) => descriptor.name === field)
+            .map((descriptor) => descriptor.kind);
     }
 
     return data
@@ -870,8 +886,7 @@ function answerablePaths(data: SessionDataApi, runs: RunsApi, target: "node" | "
  */
 function pathDirectoryOf(data: SessionDataApi, runs: RunsApi): PathDirectory {
     return {
-        answers: (path: Path, target: "node" | "edge"): boolean =>
-            answerablePaths(data, runs, target).includes(path),
+        answers: (path: Path, target: "node" | "edge"): boolean => answerablePaths(data, runs, target).includes(path),
         candidates: (_path: Path, target: "node" | "edge"): readonly Path[] => answerablePaths(data, runs, target),
     };
 }
@@ -883,7 +898,10 @@ function pathDirectoryOf(data: SessionDataApi, runs: RunsApi): PathDirectory {
  * @param runs - The runs this session holds.
  * @returns A reader for the words, answering undefined for a path nothing in the session names.
  */
-function fieldWordsOf(data: SessionDataApi, runs: RunsApi): (path: Path, target: "node" | "edge") => FieldWords | undefined {
+function fieldWordsOf(
+    data: SessionDataApi,
+    runs: RunsApi,
+): (path: Path, target: "node" | "edge") => FieldWords | undefined {
     return (path: Path, target: "node" | "edge"): FieldWords | undefined => {
         for (const attribute of data.attributes()) {
             if (attribute.path === path && attribute.kind === target) {
@@ -1159,7 +1177,12 @@ function buildSession(options: CreateGraphSessionOptions): Session {
     const components = componentLabelsOf(data);
     // Kept sets, published as `session.sets`.
     const edgeMember = (id: EdgeId): EdgeMember | undefined =>
-        sessionEdgeMember(snapshot(), id, (row) => options.records?.edgeAttributes(row), readData().knownFields.edgeIdPath);
+        sessionEdgeMember(
+            snapshot(),
+            id,
+            (row) => options.records?.edgeAttributes(row),
+            readData().knownFields.edgeIdPath,
+        );
     // What a `{ set }` reference names and what "visible" reads, so a door can refuse a chain of
     // references that loops (design/sets 5.2). Read through calls: the sets and the visibility
     // API are built below.
@@ -1184,7 +1207,11 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         captures: runs.heldOf(run.id),
     });
     // Offers and Memberships. Read through calls: the runs and the scope resolver are built below.
-    const offerRun = (run: Run): { id: RunId; label: string; result: Run["result"] } => ({ id: run.id, label: run.label, result: run.result });
+    const offerRun = (run: Run): { id: RunId; label: string; result: Run["result"] } => ({
+        id: run.id,
+        label: run.label,
+        result: run.result,
+    });
     const offering = createOffering({
         run: (id: RunId) => {
             const run = runs.get(id);
@@ -1216,9 +1243,13 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         // So is the visibility filter, once however many of its leaves name the set.
         users: () => [
             ...(stack?.list() ?? []).flatMap((layer) =>
-                layer.selector.match === "member" ? [{ user: { kind: "layer" as const, id: layer.id, label: layer.name }, scope: layer.selector.of }] : [],
+                layer.selector.match === "member"
+                    ? [{ user: { kind: "layer" as const, id: layer.id, label: layer.name }, scope: layer.selector.of }]
+                    : [],
             ),
-            ...(visibility.filter === null ? [] : [{ user: { kind: "filter" as const, label: "Visibility filter" }, scope: visibility.filter }]),
+            ...(visibility.filter === null
+                ? []
+                : [{ user: { kind: "filter" as const, label: "Visibility filter" }, scope: visibility.filter }]),
             ...hostUsers.flatMap((provider) => [...provider()]),
         ],
         materialise: createMaterialiser({
@@ -1226,7 +1257,10 @@ function buildSession(options: CreateGraphSessionOptions): Session {
             resolve: (spec: Scope) => scope.resolutionOf(spec),
             readingOf: (spec: Scope) => scope.readingOf(spec),
             edgeMember,
-            selection: () => ({ nodes: requireSelection(selection).nodeMembers(), edges: requireSelection(selection).edgeMembers() }),
+            selection: () => ({
+                nodes: requireSelection(selection).nodeMembers(),
+                edges: requireSelection(selection).edgeMembers(),
+            }),
             offering,
         }),
     });
@@ -1397,13 +1431,18 @@ function buildSession(options: CreateGraphSessionOptions): Session {
             const result = resultSource(runId);
             const graph = snapshot();
             const space = edgeSpaceOf(graph);
-            const held = heldItems([...keptSets.list().map((set) => set.definition), ...layerScopesOf(stack), visibility.filter], runId);
+            const held = heldItems(
+                [...keptSets.list().map((set) => set.definition), ...layerScopesOf(stack), visibility.filter],
+                runId,
+            );
 
             return nextCaptures(
                 prior,
                 held,
                 executionOf(runId),
-                result === undefined ? undefined : (key) => captureItem(result, key, graph, (row) => edgeMember(space.idOf(row))),
+                result === undefined
+                    ? undefined
+                    : (key) => captureItem(result, key, graph, (row) => edgeMember(space.idOf(row))),
             );
         },
         ...(runsOptions.defaultCaveats === undefined ? {} : { defaultCaveats: runsOptions.defaultCaveats }),
@@ -1571,11 +1610,13 @@ function buildSession(options: CreateGraphSessionOptions): Session {
                 return undefined;
             }
 
-            return painter.repaintElements(stack.compiled(), dirty, { signal: teardown.signal, report: () => undefined }).catch((error: unknown) => {
-                if (!teardown.signal.aborted) {
-                    console.error("[graphty] Could not repaint the layers naming a set that changed.", error);
-                }
-            });
+            return painter
+                .repaintElements(stack.compiled(), dirty, { signal: teardown.signal, report: () => undefined })
+                .catch((error: unknown) => {
+                    if (!teardown.signal.aborted) {
+                        console.error("[graphty] Could not repaint the layers naming a set that changed.", error);
+                    }
+                });
         },
     });
     teardown.signal.addEventListener("abort", () => {

@@ -17,7 +17,16 @@ describeScopedAdapter("prim", build);
 describe("prim over a graph in several pieces", () => {
     /** a - b - c and d - e, joined only through x. */
     const graph = (): InputGraph =>
-        new InputGraph(["a", "b", "c", "x", "d", "e"], [["a", "b", 1], ["b", "c", 2], ["c", "x", 1], ["x", "d", 1], ["d", "e", 3]]);
+        new InputGraph(
+            ["a", "b", "c", "x", "d", "e"],
+            [
+                ["a", "b", 1],
+                ["b", "c", 2],
+                ["c", "x", 1],
+                ["x", "d", 1],
+                ["d", "e", 3],
+            ],
+        );
 
     it("spans every piece of a scope that cuts the graph, as Kruskal does", async () => {
         const g = graph();
@@ -32,7 +41,13 @@ describe("prim over a graph in several pieces", () => {
     });
 
     it("spans every piece of a whole graph that is not connected", async () => {
-        const g = new InputGraph(["a", "b", "c", "d"], [["a", "b", 1], ["c", "d", 2]]);
+        const g = new InputGraph(
+            ["a", "b", "c", "d"],
+            [
+                ["a", "b", 1],
+                ["c", "d", 2],
+            ],
+        );
         const result = await runWhole(build, g);
 
         assert.deepInclude(result?.graph, { totalWeight: 3 });
@@ -40,7 +55,11 @@ describe("prim over a graph in several pieces", () => {
 
     it("grows the named start node's piece from it", async () => {
         const g = graph();
-        const result = await runScoped((h) => new PrimAlgorithm(h, { startNode: "e" }), g, g.scope(["a", "b", "c", "d", "e"]));
+        const result = await runScoped(
+            (h) => new PrimAlgorithm(h, { startNode: "e" }),
+            g,
+            g.scope(["a", "b", "c", "d", "e"]),
+        );
 
         assert.deepInclude(result?.graph, { totalWeight: 6 });
     });

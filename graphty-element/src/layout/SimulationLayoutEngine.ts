@@ -235,11 +235,7 @@ function resolveCentre(centre: ArrayLike<number> | null | undefined): [number, n
         return [0, 0, 0];
     }
 
-    return [
-        centre.length > 0 ? centre[0] : 0,
-        centre.length > 1 ? centre[1] : 0,
-        centre.length > 2 ? centre[2] : 0,
-    ];
+    return [centre.length > 0 ? centre[0] : 0, centre.length > 1 ? centre[1] : 0, centre.length > 2 ? centre[2] : 0];
 }
 
 /**

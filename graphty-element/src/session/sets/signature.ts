@@ -42,7 +42,10 @@ import type { EdgeSeeds, ResolveContext } from "./resolve";
  * @returns The definition, or undefined.
  */
 export function keptDefinition(id: SetId, context: ResolveContext): SetDefinition | undefined {
-    return (context.sets?.get(id) as { readonly definition?: SetDefinition } | undefined)?.definition ?? context.sets?.tombstone?.(id)?.record?.definition;
+    return (
+        (context.sets?.get(id) as { readonly definition?: SetDefinition } | undefined)?.definition ??
+        context.sets?.tombstone?.(id)?.record?.definition
+    );
 }
 
 /** Invocation counts the complexity tests read. `walks`: saved-scope and kept-set parts computed, not memoised. */
@@ -158,7 +161,12 @@ function queryPart(where: Query, context: ResolveContext, revisions = context.re
  * @param seen - The saved ids followed so far.
  * @returns The part, or null when it cannot be enumerated.
  */
-function scopePart(scope: Scope, context: ResolveContext, parts: Map<unknown, string | null> | null, seen: Set<ScopeId>): string | null {
+function scopePart(
+    scope: Scope,
+    context: ResolveContext,
+    parts: Map<unknown, string | null> | null,
+    seen: Set<ScopeId>,
+): string | null {
     switch (scope) {
         case "graph":
             return "g";
@@ -212,7 +220,12 @@ function scopePart(scope: Scope, context: ResolveContext, parts: Map<unknown, st
  * @param seen - The ids followed so far.
  * @returns The part, or null.
  */
-function contentPart(definition: SetDefinition, context: ResolveContext, parts: Map<unknown, string | null> | null, seen: Set<ScopeId>): string | null {
+function contentPart(
+    definition: SetDefinition,
+    context: ResolveContext,
+    parts: Map<unknown, string | null> | null,
+    seen: Set<ScopeId>,
+): string | null {
     switch (definition.kind) {
         case "fixed":
         case "path":
@@ -232,7 +245,12 @@ function contentPart(definition: SetDefinition, context: ResolveContext, parts: 
  * @param seen - The ids followed so far.
  * @returns The part, or null when some leaf's inputs cannot be enumerated.
  */
-function rulePart(where: Query | RuleTree, context: ResolveContext, parts: Map<unknown, string | null> | null, seen: Set<ScopeId>): string | null {
+function rulePart(
+    where: Query | RuleTree,
+    context: ResolveContext,
+    parts: Map<unknown, string | null> | null,
+    seen: Set<ScopeId>,
+): string | null {
     if (typeof where === "string") {
         return queryPart(where, context);
     }
@@ -242,7 +260,8 @@ function rulePart(where: Query | RuleTree, context: ResolveContext, parts: Map<u
         case "expression":
             return queryPart(where.where, context);
         case "edges": {
-            const part = context.edgeRevisions === undefined ? null : queryPart(where.where, context, context.edgeRevisions);
+            const part =
+                context.edgeRevisions === undefined ? null : queryPart(where.where, context, context.edgeRevisions);
             return part === null ? null : `e${part}`;
         }
         case "range":
@@ -253,17 +272,23 @@ function rulePart(where: Query | RuleTree, context: ResolveContext, parts: Map<u
                 return context.executionOf === undefined ? null : `r${JSON.stringify(dependency.run)}=${token ?? "-"}`;
             }
 
-            return context.revisions === undefined ? null : `a${JSON.stringify(dependency.field)}=${context.revisions.of(dependency.field)}`;
+            return context.revisions === undefined
+                ? null
+                : `a${JSON.stringify(dependency.field)}=${context.revisions.of(dependency.field)}`;
         }
         case "item": {
             // Follow or hold, the members move exactly when the run's current execution does.
             const run = String(runIdOfRef(where.item.result));
-            return context.executionOf === undefined ? null : `r${JSON.stringify(run)}=${context.executionOf(run) ?? "-"}`;
+            return context.executionOf === undefined
+                ? null
+                : `r${JSON.stringify(run)}=${context.executionOf(run) ?? "-"}`;
         }
         case "threshold": {
             const dependency = dependencyOf(where.path);
             if ("run" in dependency) {
-                return context.executionOf === undefined ? null : `r${JSON.stringify(dependency.run)}=${context.executionOf(dependency.run) ?? "-"}`;
+                return context.executionOf === undefined
+                    ? null
+                    : `r${JSON.stringify(dependency.run)}=${context.executionOf(dependency.run) ?? "-"}`;
             }
 
             // A data threshold ranks whichever half carries the field: both revisions key it.
@@ -311,7 +336,12 @@ function rulePart(where: Query | RuleTree, context: ResolveContext, parts: Map<u
  * @param seen - The saved ids followed so far.
  * @returns The part, or null.
  */
-function savedPart(id: ScopeId, context: ResolveContext, parts: Map<unknown, string | null> | null, seen: Set<ScopeId>): string | null {
+function savedPart(
+    id: ScopeId,
+    context: ResolveContext,
+    parts: Map<unknown, string | null> | null,
+    seen: Set<ScopeId>,
+): string | null {
     const key = `saved:${id}`;
     if (parts?.has(key) === true) {
         return parts.get(key) ?? null;
@@ -383,7 +413,13 @@ function seedsPart(seeds: EdgeSeeds | undefined): string {
  * @param seen - The ids followed so far, this one included.
  * @returns The part, or null.
  */
-function definitionPart(id: SetId, definition: SetDefinition, context: ResolveContext, parts: Map<unknown, string | null> | null, seen: Set<ScopeId>): string | null {
+function definitionPart(
+    id: SetId,
+    definition: SetDefinition,
+    context: ResolveContext,
+    parts: Map<unknown, string | null> | null,
+    seen: Set<ScopeId>,
+): string | null {
     switch (definition.kind) {
         case "fixed":
             // `in`, not a read: reading `edges` would materialise a fixed set's compact members.
@@ -406,7 +442,12 @@ function definitionPart(id: SetId, definition: SetDefinition, context: ResolveCo
  * @param memo - The epoch memo, when the caller keeps one.
  * @returns The signature, or null when it must not be cached.
  */
-export function definitionSignature(id: SetId, definition: SetDefinition, context: ResolveContext, memo?: SignatureMemo): string | null {
+export function definitionSignature(
+    id: SetId,
+    definition: SetDefinition,
+    context: ResolveContext,
+    memo?: SignatureMemo,
+): string | null {
     const parts = partsFor(context, memo);
     const key = `set:${id}:${identityOf(definition)}`;
     let part: string | null | undefined = parts?.get(key);
@@ -416,5 +457,7 @@ export function definitionSignature(id: SetId, definition: SetDefinition, contex
         parts?.set(key, part);
     }
 
-    return part === null || part === undefined ? null : `${identityOf(storeOf(context))}|${context.snapshot.serial}|${part}`;
+    return part === null || part === undefined
+        ? null
+        : `${identityOf(storeOf(context))}|${context.snapshot.serial}|${part}`;
 }

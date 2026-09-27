@@ -51,8 +51,20 @@ const OP: fc.Arbitrary<Op> = fc.oneof(
     fc.record({ op: fc.constant("redefine-base" as const) }),
 );
 
-const GROUPS: Published = { shape: "community", nodes: new Map([["a", { group: 0 }], ["b", { group: 1 }]]) };
-const SCORES: Published = { shape: "node-metric", nodes: new Map([["a", { value: 1 }], ["b", { value: 5 }]]) };
+const GROUPS: Published = {
+    shape: "community",
+    nodes: new Map([
+        ["a", { group: 0 }],
+        ["b", { group: 1 }],
+    ]),
+};
+const SCORES: Published = {
+    shape: "node-metric",
+    nodes: new Map([
+        ["a", { value: 1 }],
+        ["b", { value: 5 }],
+    ]),
+};
 const BASE = [
     { kind: "fixed", nodes: ["a", "b"], reading: "induced" },
     { kind: "fixed", nodes: ["a"], reading: "induced" },
@@ -113,13 +125,21 @@ class Model {
             case "fixed":
                 return { freshness: "current", earlier: [], notKept: false };
             case "from-louv":
-                return { freshness: "current", earlier: louv !== undefined && louv !== made.execution ? ["louv"] : [], notKept: false };
+                return {
+                    freshness: "current",
+                    earlier: louv !== undefined && louv !== made.execution ? ["louv"] : [],
+                    notKept: false,
+                };
             case "follow-pr":
                 if (!this.executions.has("pr")) {
                     return { freshness: "detached", earlier: [], notKept: false };
                 }
 
-                return { freshness: this.prRead === this.base ? "current" : "out-of-date", earlier: [], notKept: false };
+                return {
+                    freshness: this.prRead === this.base ? "current" : "out-of-date",
+                    earlier: [],
+                    notKept: false,
+                };
             case "hold-louv":
                 if (louv === undefined) {
                     return { freshness: "detached", earlier: [], notKept: false };
@@ -129,7 +149,11 @@ class Model {
                     return { freshness: "current", earlier: [], notKept: false };
                 }
 
-                return { freshness: "current", earlier: ["louv"], notKept: !this.captures.has(`${made.execution}/${made.group}`) };
+                return {
+                    freshness: "current",
+                    earlier: ["louv"],
+                    notKept: !this.captures.has(`${made.execution}/${made.group}`),
+                };
             case "reads": {
                 const input = this.expect(made.target);
                 return { freshness: input.freshness, earlier: [], notKept: false };
@@ -190,7 +214,11 @@ async function apply(op: Op, model: Model, real: Real): Promise<void> {
     switch (op.op) {
         case "run":
             if (!model.executions.has(op.run)) {
-                await session.runs.start("degree", undefined, { as: op.run, scope: op.run === "pr" ? { set: real.base } : "graph", style: false });
+                await session.runs.start("degree", undefined, {
+                    as: op.run,
+                    scope: op.run === "pr" ? { set: real.base } : "graph",
+                    style: false,
+                });
                 stamp(model, real, op.run);
                 if (op.run === "pr") {
                     model.prRead = model.base;
@@ -240,13 +268,20 @@ async function apply(op: Op, model: Model, real: Real): Promise<void> {
                 made = { kind: "hold-louv", execution: louv, group: op.group };
                 id = session.sets.create({
                     kind: "rule",
-                    where: { kind: "item", item: { result: "louv", key: { field: "group", value: op.group }, run: token } },
+                    where: {
+                        kind: "item",
+                        item: { result: "louv", key: { field: "group", value: op.group }, run: token },
+                    },
                     reading: "induced",
                 });
             } else if (op.make === 4 && live.length > 0) {
                 const target = live[op.pick % live.length];
                 made = { kind: "reads", target };
-                id = session.sets.create({ kind: "rule", where: { kind: "member", of: { set: target } }, reading: "induced" });
+                id = session.sets.create({
+                    kind: "rule",
+                    where: { kind: "member", of: { set: target } },
+                    reading: "induced",
+                });
             } else {
                 made = { kind: "fixed" };
                 id = session.sets.create({ kind: "fixed", nodes: ["b"], reading: "induced" });
@@ -270,7 +305,11 @@ async function apply(op: Op, model: Model, real: Real): Promise<void> {
             const store = setsStoreOf(session.sets);
             for (const id of [...model.removed.keys()]) {
                 const read = [...model.live.values()].some((made) => made.kind === "reads" && made.target === id);
-                assert.strictEqual(store.tombstone(id)?.record !== undefined, read, `the record of ${id} is kept while it is read`);
+                assert.strictEqual(
+                    store.tombstone(id)?.record !== undefined,
+                    read,
+                    `the record of ${id} is kept while it is read`,
+                );
                 if (!read) {
                     model.removed.delete(id);
                 }

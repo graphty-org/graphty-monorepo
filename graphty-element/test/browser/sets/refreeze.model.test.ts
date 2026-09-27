@@ -128,7 +128,13 @@ class DataManagerDriver implements Driver {
         const policy = options.policy ?? "keep";
         const before = new Set(this.counters());
         const nodes = [...new Set(records.flatMap((record) => [record.s, record.t]))].map((id) => ({ id }));
-        const edges = records.map((record, rid) => ({ source: record.s, target: record.t, weight: record.w ?? 1, rid, ...record.fields }));
+        const edges = records.map((record, rid) => ({
+            source: record.s,
+            target: record.t,
+            weight: record.w ?? 1,
+            rid,
+            ...record.fields,
+        }));
         this.created.length = 0;
         this.lastLoadRead = records.length;
         this.lastLoadSources = [];

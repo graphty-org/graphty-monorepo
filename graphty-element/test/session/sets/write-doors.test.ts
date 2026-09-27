@@ -77,7 +77,11 @@ describe("a session edge id inside an inline definition", () => {
         const leaf = h.session.visibility.filter as unknown as { of: { define: { edges: unknown[] } } };
         assert.strictEqual(typeof leaf.of.define.edges[0], "object", "the filter holds the stable member");
 
-        const layer = await h.session.styles.add({ name: "Edge", selector: { match: "member", of: edgeScope(h) as Scope }, set: { "node.color": "#ff0000" } });
+        const layer = await h.session.styles.add({
+            name: "Edge",
+            selector: { match: "member", of: edgeScope(h) as Scope },
+            set: { "node.color": "#ff0000" },
+        });
         const held = layer.selector as unknown as { of: { define: { edges: unknown[] } } };
         assert.strictEqual(typeof held.of.define.edges[0], "object", "the layer holds the stable member");
     });
@@ -87,7 +91,9 @@ describe("a session edge id inside an inline definition", () => {
         const where: RuleTree = { kind: "member", of: edgeScope(h) as Scope };
         const id = h.session.sets.create({ kind: "rule", where, reading: "listed" });
 
-        const stored = h.session.sets.get(id)?.definition as unknown as { where: { of: { define: { edges: unknown[] } } } };
+        const stored = h.session.sets.get(id)?.definition as unknown as {
+            where: { of: { define: { edges: unknown[] } } };
+        };
         assert.strictEqual(typeof stored.where.of.define.edges[0], "object");
     });
 });
@@ -100,7 +106,10 @@ describe("small inputs at the doors", () => {
         assert.strictEqual(await codeOf(() => h.session.sets.offers("dg", { limit: 1.5 })), "E_BAD_COMMAND");
         assert.strictEqual(await codeOf(() => h.session.sets.offers("dg", { limit: 0 })), null);
         const fixed = { kind: "fixed", nodes: ["a"], reading: "induced" } as const;
-        assert.strictEqual(await codeOf(() => h.session.sets.create(fixed, { name: "x".repeat(257) })), "E_BAD_COMMAND");
+        assert.strictEqual(
+            await codeOf(() => h.session.sets.create(fixed, { name: "x".repeat(257) })),
+            "E_BAD_COMMAND",
+        );
         assert.strictEqual(await codeOf(() => h.session.sets.create(fixed, { name: "x".repeat(256) })), null);
     });
 });
@@ -112,13 +121,24 @@ describe("a set id never issued", () => {
         const h = fixture();
         assert.strictEqual(await codeOf(() => h.session.selection.apply({ scope: nope })), "E_BAD_COMMAND");
         assert.strictEqual(await codeOf(() => h.session.visibility.set({ kind: "member", of: nope })), "E_BAD_COMMAND");
-        assert.strictEqual(await codeOf(() => h.session.runs.start("degree", {}, { scope: nope, style: false })), "E_BAD_COMMAND");
         assert.strictEqual(
-            await codeOf(() => h.session.sets.create({ kind: "rule", where: { kind: "member", of: nope }, reading: "induced" })),
+            await codeOf(() => h.session.runs.start("degree", {}, { scope: nope, style: false })),
+            "E_BAD_COMMAND",
+        );
+        assert.strictEqual(
+            await codeOf(() =>
+                h.session.sets.create({ kind: "rule", where: { kind: "member", of: nope }, reading: "induced" }),
+            ),
             "E_BAD_COMMAND",
         );
         assert.notStrictEqual(
-            await codeOf(() => h.session.styles.add({ name: "Nope", selector: { match: "member", of: nope }, set: { "node.color": "#ff0000" } })),
+            await codeOf(() =>
+                h.session.styles.add({
+                    name: "Nope",
+                    selector: { match: "member", of: nope },
+                    set: { "node.color": "#ff0000" },
+                }),
+            ),
             null,
         );
     });
@@ -130,7 +150,13 @@ describe("a set id never issued", () => {
 
         assert.strictEqual(await codeOf(() => h.session.visibility.set({ kind: "member", of: { set: id } })), null);
         assert.strictEqual(
-            await codeOf(() => h.session.styles.add({ name: "Gone", selector: { match: "member", of: { set: id } }, set: { "node.color": "#ff0000" } })),
+            await codeOf(() =>
+                h.session.styles.add({
+                    name: "Gone",
+                    selector: { match: "member", of: { set: id } },
+                    set: { "node.color": "#ff0000" },
+                }),
+            ),
             null,
         );
     });
@@ -150,10 +176,18 @@ describe("a set id never issued", () => {
 
         assert.isTrue(isGraphtyError(refusal));
         assert.strictEqual((refusal as { details: { reason: string } }).details.reason, "missing-set");
-        assert.deepStrictEqual([...h.session.visibility.nodes].sort(), ["a", "b"], "the filter still reads the kept record");
+        assert.deepStrictEqual(
+            [...h.session.visibility.nodes].sort(),
+            ["a", "b"],
+            "the filter still reads the kept record",
+        );
         const unscoped = h.session.runs.start("degree", {}, { style: false });
         await unscoped;
-        assert.strictEqual(unscoped.scope.nodeCount, 2, "a run over what the filter shows is not work over the removed set");
+        assert.strictEqual(
+            unscoped.scope.nodeCount,
+            2,
+            "a run over what the filter shows is not work over the removed set",
+        );
     });
 });
 
@@ -162,13 +196,23 @@ describe("a run over an empty set", () => {
         const h = fixture();
         const empty = h.session.sets.create({ kind: "fixed", nodes: [], reading: "induced" });
         for (const scope of [{ set: empty }, { nodes: [] }, { nodes: ["zz"] }, { where: "id == 'nope'" }] as Scope[]) {
-            assert.strictEqual(await codeOf(() => h.session.runs.start("degree", {}, { scope, style: false })), "E_SCOPE_EMPTY", JSON.stringify(scope));
+            assert.strictEqual(
+                await codeOf(() => h.session.runs.start("degree", {}, { scope, style: false })),
+                "E_SCOPE_EMPTY",
+                JSON.stringify(scope),
+            );
         }
     });
 
     it("is not refused over the whole graph, which a caller did not choose as a set", async () => {
-        const h = makeSession({ directed: false, runs: { execute: () => Promise.resolve({ fields: [], nodes: new Map(), edges: new Map() }) as never } });
-        assert.notStrictEqual(await codeOf(() => h.session.runs.start("degree", {}, { scope: "graph", style: false })), "E_SCOPE_EMPTY");
+        const h = makeSession({
+            directed: false,
+            runs: { execute: () => Promise.resolve({ fields: [], nodes: new Map(), edges: new Map() }) as never },
+        });
+        assert.notStrictEqual(
+            await codeOf(() => h.session.runs.start("degree", {}, { scope: "graph", style: false })),
+            "E_SCOPE_EMPTY",
+        );
     });
 });
 
@@ -189,7 +233,12 @@ describe("the deprecated scope.save", () => {
 describe("an undirected edge member spelt with its ends reversed", () => {
     it("is the same member: adding it is a no-op and the revision is unchanged", () => {
         const h = fixture();
-        const id = h.session.sets.create({ kind: "fixed", nodes: [], edges: [edgeBetween(h, "a", "b")], reading: "listed" });
+        const id = h.session.sets.create({
+            kind: "fixed",
+            nodes: [],
+            edges: [edgeBetween(h, "a", "b")],
+            reading: "listed",
+        });
         const before = h.session.sets.get(id);
         const member = (before?.definition as { edges: readonly { source: string; target: string }[] }).edges[0];
 
@@ -205,13 +254,19 @@ describe("an undirected edge member spelt with its ends reversed", () => {
      * @returns Both spellings.
      */
     const spellings = (h: Harness): [EdgeMember, EdgeMember] => {
-        const probe = h.session.sets.create({ kind: "fixed", nodes: [], edges: [edgeBetween(h, "a", "b")], reading: "listed" });
+        const probe = h.session.sets.create({
+            kind: "fixed",
+            nodes: [],
+            edges: [edgeBetween(h, "a", "b")],
+            reading: "listed",
+        });
         const member = (h.session.sets.get(probe)?.definition as { edges: readonly EdgeMember[] }).edges[0];
         h.session.sets.remove(probe);
 
         return [member, { ...member, source: member.target, target: member.source }];
     };
-    const edgesOf = (h: Harness, id: SetId): readonly EdgeMember[] => (h.session.sets.get(id)?.definition as { edges: readonly EdgeMember[] }).edges;
+    const edgesOf = (h: Harness, id: SetId): readonly EdgeMember[] =>
+        (h.session.sets.get(id)?.definition as { edges: readonly EdgeMember[] }).edges;
 
     it("is one member when both spellings are created together, with the revision of either alone", () => {
         const h = fixture();
@@ -240,7 +295,9 @@ describe("an undirected edge member spelt with its ends reversed", () => {
         const [ab, ba] = spellings(h);
         const inline = { define: { kind: "fixed", nodes: [], edges: [ba, ab], reading: "listed" } } as const;
         const id = h.session.sets.create({ kind: "rule", where: { kind: "member", of: inline }, reading: "listed" });
-        const {where} = (h.session.sets.get(id)?.definition as unknown as { where: { of: { define: { edges: EdgeMember[] } } } });
+        const { where } = h.session.sets.get(id)?.definition as unknown as {
+            where: { of: { define: { edges: EdgeMember[] } } };
+        };
         assert.deepStrictEqual(where.of.define.edges, [ab]);
 
         await h.session.visibility.set({ kind: "member", of: inline });
@@ -262,7 +319,9 @@ describe("a path step's edge", () => {
     it("is refused when it joins a pair other than the step's two nodes", async () => {
         const h = fixture();
 
-        const code = await codeOf(() => h.session.sets.create({ kind: "path", nodes: ["a", "b"], edges: [edgeBetween(h, "c", "d")] }));
+        const code = await codeOf(() =>
+            h.session.sets.create({ kind: "path", nodes: ["a", "b"], edges: [edgeBetween(h, "c", "d")] }),
+        );
 
         assert.strictEqual(code, "E_BAD_COMMAND");
         const id = h.session.sets.create({ kind: "path", nodes: ["b", "a"], edges: [edgeBetween(h, "a", "b")] });
@@ -284,7 +343,11 @@ describe("rename", () => {
         });
     }
 
-    const over = (scope: Scope): unknown => ({ kind: "rule", where: { kind: "member", of: scope }, reading: "induced" });
+    const over = (scope: Scope): unknown => ({
+        kind: "rule",
+        where: { kind: "member", of: scope },
+        reading: "induced",
+    });
 
     it("renames a loaded set in a cycle, one naming a set never issued, and one reading the selection", () => {
         const h = fixture();

@@ -181,7 +181,13 @@ export type {
     SummaryGroup,
     TopRanking,
 } from "./src/session/results";
-export { defaultReading, RESULT_FIELD_NAMES, RESULT_ROOT, RESULT_SHAPE_CONTRACTS, resultPath } from "./src/session/results";
+export {
+    defaultReading,
+    RESULT_FIELD_NAMES,
+    RESULT_ROOT,
+    RESULT_SHAPE_CONTRACTS,
+    resultPath,
+} from "./src/session/results";
 
 // ---------------------------------------------------------------------------------------------
 // Which elements a piece of work is allowed to look at
@@ -194,7 +200,16 @@ export { DEFAULT_SCOPE_SAMPLE } from "./src/session/scope";
 // Kept sets: named groups, kept selections, communities and paths, as `session.sets`
 // ---------------------------------------------------------------------------------------------
 
-export type { ElementSet, Memberships, SetChange, SetOffer, SetsApi, SetStatus, SetStatusReason, SetUser } from "./src/session/sets/types";
+export type {
+    ElementSet,
+    Memberships,
+    SetChange,
+    SetOffer,
+    SetsApi,
+    SetStatus,
+    SetStatusReason,
+    SetUser,
+} from "./src/session/sets/types";
 
 // ---------------------------------------------------------------------------------------------
 // What is selected: two sets, five set operations, one selection per session
@@ -231,13 +246,7 @@ export type {
 // Asking what something would do and cost, before doing it
 // ---------------------------------------------------------------------------------------------
 
-export type {
-    AlgorithmRunCommand,
-    Plan,
-    PlanBlock,
-    PlanEffect,
-    SessionCommand,
-} from "./src/session";
+export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./src/session";
 export { isAlgorithmRunCommand } from "./src/session";
 export type {
     CostConfidence,
@@ -342,11 +351,7 @@ export type {
     WorkerCapability,
     XrCapability,
 } from "./src/acceleration";
-export {
-    ACCELERATION_POLICIES,
-    ACCELERATION_POLICY_DEFAULT,
-    isAccelerationPolicy,
-} from "./src/acceleration";
+export { ACCELERATION_POLICIES, ACCELERATION_POLICY_DEFAULT, isAccelerationPolicy } from "./src/acceleration";
 export type { DefaultableLimits } from "./src/session";
 export { DEFAULT_LIMITS } from "./src/session";
 
@@ -362,7 +367,13 @@ export type {
     GraphtyErrorSource,
     GraphtyErrorTarget,
 } from "./src/errors";
-export { ACCELERATION_ERROR_CODES, GRAPHTY_ERROR_CODES, GraphtyError, isGraphtyError, isGraphtyErrorCode } from "./src/errors";
+export {
+    ACCELERATION_ERROR_CODES,
+    GRAPHTY_ERROR_CODES,
+    GraphtyError,
+    isGraphtyError,
+    isGraphtyErrorCode,
+} from "./src/errors";
 
 /**
  * A rule tree: what the visibility filter keeps.

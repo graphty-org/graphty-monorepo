@@ -54,16 +54,31 @@ const PAIR: SetDefinition = { kind: "fixed", nodes: ["b", "a"], reading: "induce
 
 describe("parseScope, door mode", () => {
     it("returns every form older than { define } as it was given", () => {
-        for (const scope of ["visible", "graph", "selection", "largest-component", { set: "set_a" }, { where: "data.x > `1`" }, { nodes: ["b", "a"] }] as Scope[]) {
+        for (const scope of [
+            "visible",
+            "graph",
+            "selection",
+            "largest-component",
+            { set: "set_a" },
+            { where: "data.x > `1`" },
+            { nodes: ["b", "a"] },
+        ] as Scope[]) {
             assert.strictEqual(parseScope(scope), scope);
         }
     });
 
     it("canonicalises an inline definition", () => {
-        assert.deepStrictEqual(parseScope({ define: PAIR }), { define: { kind: "fixed", nodes: ["a", "b"], reading: "induced" } });
-        assert.deepStrictEqual(parseScope({ define: { kind: "rule", where: { kind: "expression", where: "data.x > `1`" }, reading: "induced" } }), {
-            define: { kind: "rule", where: "data.x > `1`", reading: "induced" },
+        assert.deepStrictEqual(parseScope({ define: PAIR }), {
+            define: { kind: "fixed", nodes: ["a", "b"], reading: "induced" },
         });
+        assert.deepStrictEqual(
+            parseScope({
+                define: { kind: "rule", where: { kind: "expression", where: "data.x > `1`" }, reading: "induced" },
+            }),
+            {
+                define: { kind: "rule", where: "data.x > `1`", reading: "induced" },
+            },
+        );
     });
 
     it("refuses the reserved keyword search, and names it", () => {
@@ -73,13 +88,24 @@ describe("parseScope, door mode", () => {
     });
 
     it("refuses an unknown keyword, an unknown form, a reserved field and a malformed form", () => {
-        for (const value of ["everything", { within: "graph" }, { set: "set_a", graph: "g" }, { set: "" }, { where: " " }, { nodes: "a" }, 3, null]) {
+        for (const value of [
+            "everything",
+            { within: "graph" },
+            { set: "set_a", graph: "g" },
+            { set: "" },
+            { where: " " },
+            { nodes: "a" },
+            3,
+            null,
+        ]) {
             assert.strictEqual(refusal(() => parseScope(value)).code, "E_BAD_COMMAND", JSON.stringify(value));
         }
     });
 
     it("refuses an inline rule read induced that holds an edge-speaking leaf", () => {
-        const error = refusal(() => parseScope({ define: { kind: "rule", where: { kind: "member", of: "visible" }, reading: "induced" } }));
+        const error = refusal(() =>
+            parseScope({ define: { kind: "rule", where: { kind: "member", of: "visible" }, reading: "induced" } }),
+        );
         assert.strictEqual(error.details?.reason, "induced-edge-leaf");
     });
 });
@@ -90,28 +116,55 @@ describe("{ define } at every write position", () => {
         const resolved = await harness.session.scope.resolve({ define: PAIR });
         assert.deepStrictEqual([...resolved.nodes].sort(), ["a", "b"]);
         assert.deepStrictEqual([...resolved.edges], [edgeBetween(harness, "a", "b")]);
-        assert.deepStrictEqual(await harness.session.scope.count({ define: PAIR }), { nodes: 2, edges: 1, exact: true });
-        assert.strictEqual(refusal(() => harness.session.scope.count({ define: { kind: "fixed", nodes: "a" } as unknown as SetDefinition })).code, "E_BAD_COMMAND");
+        assert.deepStrictEqual(await harness.session.scope.count({ define: PAIR }), {
+            nodes: 2,
+            edges: 1,
+            exact: true,
+        });
+        assert.strictEqual(
+            refusal(() =>
+                harness.session.scope.count({ define: { kind: "fixed", nodes: "a" } as unknown as SetDefinition }),
+            ).code,
+            "E_BAD_COMMAND",
+        );
     });
 
     it("accepts session edge ids inside an inline definition and resolves their edges", async () => {
         const harness = harnessOf();
         const bc = edgeBetween(harness, "b", "c");
-        const resolved = await harness.session.scope.resolve({ define: { kind: "fixed", nodes: [], edges: [bc], reading: "listed" } });
+        const resolved = await harness.session.scope.resolve({
+            define: { kind: "fixed", nodes: [], edges: [bc], reading: "listed" },
+        });
 
         assert.deepStrictEqual([...resolved.nodes].sort(), ["b", "c"]);
         assert.deepStrictEqual([...resolved.edges], [bc]);
-        assert.deepStrictEqual(resolved.spec, { define: { kind: "fixed", nodes: [], edges: [{ source: "b", target: "c", id: `graphty:e${bc}` }], reading: "listed" } }, "the getter holds the stable form");
+        assert.deepStrictEqual(
+            resolved.spec,
+            {
+                define: {
+                    kind: "fixed",
+                    nodes: [],
+                    edges: [{ source: "b", target: "c", id: `graphty:e${bc}` }],
+                    reading: "listed",
+                },
+            },
+            "the getter holds the stable form",
+        );
     });
 
     it("camera framing reads the node ids of an inline definition", () => {
         const harness = harnessOf();
-        assert.deepStrictEqual([...scopeResolverOfSession(harness.session).nodeIdsOf({ define: PAIR })].sort(), ["a", "b"]);
+        assert.deepStrictEqual([...scopeResolverOfSession(harness.session).nodeIdsOf({ define: PAIR })].sort(), [
+            "a",
+            "b",
+        ]);
     });
 
     it("selection targets", async () => {
         const harness = harnessOf();
-        await harness.session.selection.apply({ scope: { define: { kind: "rule", where: "data.type == 'host'", reading: "induced" } } });
+        await harness.session.selection.apply({
+            scope: { define: { kind: "rule", where: "data.type == 'host'", reading: "induced" } },
+        });
 
         assert.isTrue(harness.session.selection.has("a"));
         assert.isTrue(harness.session.selection.has("b"));
@@ -135,12 +188,23 @@ describe("{ define } at every write position", () => {
 });
 
 describe("derived run ids", () => {
-    const identity = (scope: Scope): RunIdentity => ({ algorithm: "degree", params: {}, scope, seed: null, sample: null, exact: null });
+    const identity = (scope: Scope): RunIdentity => ({
+        algorithm: "degree",
+        params: {},
+        scope,
+        seed: null,
+        sample: null,
+        exact: null,
+    });
 
     it("give an inline definition the id of the older form it equals", () => {
         assert.strictEqual(deriveRunId(identity({ define: PAIR })), deriveRunId(identity({ nodes: ["a", "b"] })));
         assert.strictEqual(
-            deriveRunId(identity({ define: { kind: "rule", where: { kind: "expression", where: "data.x > `1`" }, reading: "induced" } })),
+            deriveRunId(
+                identity({
+                    define: { kind: "rule", where: { kind: "expression", where: "data.x > `1`" }, reading: "induced" },
+                }),
+            ),
             deriveRunId(identity({ where: "data.x > `1`" })),
         );
     });
@@ -152,6 +216,10 @@ describe("derived run ids", () => {
             deriveRunId(identity({ define: { kind: "rule", where: "data.x > `1`", reading: "clipped" } })),
             deriveRunId(identity({ where: "data.x > `1`" })),
         );
-        assert.strictEqual(listed, deriveRunId(identity({ define: { kind: "fixed", nodes: ["a", "b", "a"], reading: "listed" } })), "canonical first");
+        assert.strictEqual(
+            listed,
+            deriveRunId(identity({ define: { kind: "fixed", nodes: ["a", "b", "a"], reading: "listed" } })),
+            "canonical first",
+        );
     });
 });

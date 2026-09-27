@@ -2,8 +2,13 @@ import { assert, describe, it } from "vitest";
 
 import type { NodeId, Path } from "../../../src/catalog/types";
 import { isGraphtyError } from "../../../src/errors";
-import { columnsFor, type ElementColumns, type SelectorSource, type SelectorTarget } from "../../../src/session/styles/predicate";
-import { compileSelector,type Selector } from "../../../src/session/styles/selector";
+import {
+    columnsFor,
+    type ElementColumns,
+    type SelectorSource,
+    type SelectorTarget,
+} from "../../../src/session/styles/predicate";
+import { compileSelector, type Selector } from "../../../src/session/styles/selector";
 
 /** One element's columns, as a plain bag of values keyed by the path the selector names. */
 type Row = Readonly<Record<Path, unknown>>;
@@ -56,7 +61,12 @@ function makeSource(nodes: readonly Row[], edges: readonly Row[] = [], withPrese
 }
 
 /** Which of the rows a selector paints, as a list of indices. */
-function matched(selector: Selector, rows: readonly Row[], harness: Harness, target: SelectorTarget = "node"): number[] {
+function matched(
+    selector: Selector,
+    rows: readonly Row[],
+    harness: Harness,
+    target: SelectorTarget = "node",
+): number[] {
     const compiled = compileSelector(selector, target, harness.source);
     const hits: number[] = [];
 
@@ -98,7 +108,12 @@ describe("selector shapes", () => {
     });
 
     it("matches the elements carrying a column value", () => {
-        const rows: Row[] = [{ "results.louvain.group": 0 }, {}, { "results.louvain.group": null }, { "results.louvain.group": 7 }];
+        const rows: Row[] = [
+            { "results.louvain.group": 0 },
+            {},
+            { "results.louvain.group": null },
+            { "results.louvain.group": 7 },
+        ];
         const harness = makeSource(rows);
 
         assert.deepStrictEqual(matched({ match: "has", path: "results.louvain.group" }, rows, harness), [0, 3]);
@@ -150,13 +165,19 @@ describe("selector shapes", () => {
         };
         const compiled = compileSelector({ match: "ids", nodes: ["b"] }, "node", source);
 
-        assert.deepStrictEqual([0, 1, 2].filter((index) => compiled.test?.(index)), [1]);
+        assert.deepStrictEqual(
+            [0, 1, 2].filter((index) => compiled.test?.(index)),
+            [1],
+        );
 
         // The graph is re-frozen and "b" moves to row 2, which is what a removal does.
         ids[1] = "c";
         ids[2] = "b";
 
-        assert.deepStrictEqual([0, 1, 2].filter((index) => compiled.test?.(index)), [2]);
+        assert.deepStrictEqual(
+            [0, 1, 2].filter((index) => compiled.test?.(index)),
+            [2],
+        );
     });
 });
 
@@ -220,7 +241,8 @@ describe("a top selector", () => {
         const harness = makeSource([{}]);
 
         assert.strictEqual(
-            refusalOf(() => compileSelector({ match: "top", path: "results.r1.value", n: 3 }, "node", harness.source)).code,
+            refusalOf(() => compileSelector({ match: "top", path: "results.r1.value", n: 3 }, "node", harness.source))
+                .code,
             "E_UNSUPPORTED",
         );
     });
@@ -231,7 +253,10 @@ describe("a top selector", () => {
         const source = { ...harness.source, topCut: () => 4 };
         const compiled = compileSelector({ match: "top", path: "results.r1.value", n: 2 }, "node", source);
 
-        assert.deepStrictEqual([0, 1, 2, 3].map((index) => compiled.test?.(index)), [true, false, false, true]);
+        assert.deepStrictEqual(
+            [0, 1, 2, 3].map((index) => compiled.test?.(index)),
+            [true, false, false, true],
+        );
         assert.deepStrictEqual([...compiled.paths], ["results.r1.value"]);
     });
 });
@@ -308,13 +333,19 @@ describe("the expression subset: the shapes the element ships", () => {
     it("reads a presence test written as an expression", () => {
         const harness = makeSource(rows);
 
-        assert.deepStrictEqual(matched({ match: "expression", where: "results.dijkstra.isInPath != `null`" }, rows, harness), [0, 1, 3]);
+        assert.deepStrictEqual(
+            matched({ match: "expression", where: "results.dijkstra.isInPath != `null`" }, rows, harness),
+            [0, 1, 3],
+        );
     });
 
     it("reads an equality against a literal", () => {
         const harness = makeSource(rows);
 
-        assert.deepStrictEqual(matched({ match: "expression", where: "results.dijkstra.isInPath == `true`" }, rows, harness), [0, 3]);
+        assert.deepStrictEqual(
+            matched({ match: "expression", where: "results.dijkstra.isInPath == `true`" }, rows, harness),
+            [0, 3],
+        );
     });
 
     it("reads a raw-string comparison", () => {
@@ -335,14 +366,20 @@ describe("the expression subset: the shapes the element ships", () => {
     it("treats a measured zero as a value, not as false", () => {
         const harness = makeSource(rows);
 
-        assert.deepStrictEqual(matched({ match: "expression", where: "data.weight != `null`" }, rows, harness), [0, 1, 2, 3]);
+        assert.deepStrictEqual(
+            matched({ match: "expression", where: "data.weight != `null`" }, rows, harness),
+            [0, 1, 2, 3],
+        );
         assert.deepStrictEqual(matched({ match: "expression", where: "data.weight" }, rows, harness), [0, 1, 2, 3]);
     });
 
     it("routes a null comparison through the presence test a columnar store can answer cheaply", () => {
         const harness = makeSource(rows, [], true);
 
-        assert.deepStrictEqual(matched({ match: "expression", where: "results.dijkstra.isInPath != `null`" }, rows, harness), [0, 1, 3]);
+        assert.deepStrictEqual(
+            matched({ match: "expression", where: "results.dijkstra.isInPath != `null`" }, rows, harness),
+            [0, 1, 3],
+        );
         assert.strictEqual(harness.presenceReads, rows.length);
         assert.strictEqual(harness.reads, 0);
     });
@@ -374,7 +411,10 @@ describe("the expression subset: semantics", () => {
     it("combines with && and ||, and && binds tighter", () => {
         const harness = makeSource(rows);
 
-        assert.deepStrictEqual(matched({ match: "expression", where: "data.a > `0` && data.b == 'x'" }, rows, harness), [0]);
+        assert.deepStrictEqual(
+            matched({ match: "expression", where: "data.a > `0` && data.b == 'x'" }, rows, harness),
+            [0],
+        );
         assert.deepStrictEqual(
             matched({ match: "expression", where: "data.a == `5` || data.b == 'x' && data.a == `1`" }, rows, harness),
             [0, 1],
@@ -546,6 +586,9 @@ describe("the expression subset: expressions that ignore the element", () => {
     it("accepts a comparison against a literal, because it reads the element", () => {
         const rows: Row[] = [{ "data.a": false }, { "data.a": true }];
 
-        assert.deepStrictEqual(matched({ match: "expression", where: "data.a == `false`" }, rows, makeSource(rows)), [0]);
+        assert.deepStrictEqual(
+            matched({ match: "expression", where: "data.a == `false`" }, rows, makeSource(rows)),
+            [0],
+        );
     });
 });

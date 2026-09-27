@@ -329,7 +329,11 @@ export interface RepaintEngine extends ElementPaint {
      * @param context - The signal to stop on and the progress channel.
      * @returns How much was painted.
      */
-    repaintElements(stack: readonly CompiledLayer[], dirty: ElementIndices, context: RepaintContext): Promise<RepaintReport>;
+    repaintElements(
+        stack: readonly CompiledLayer[],
+        dirty: ElementIndices,
+        context: RepaintContext,
+    ): Promise<RepaintReport>;
 }
 
 /** Dense indices per kind of element. */
@@ -1590,7 +1594,11 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             );
         },
 
-        repaintElements(stack: readonly CompiledLayer[], dirty: ElementIndices, context: RepaintContext): Promise<RepaintReport> {
+        repaintElements(
+            stack: readonly CompiledLayer[],
+            dirty: ElementIndices,
+            context: RepaintContext,
+        ): Promise<RepaintReport> {
             return exclusively(async () =>
                 runPass(
                     stack,

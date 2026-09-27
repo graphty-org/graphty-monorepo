@@ -147,7 +147,10 @@ describe("runs over the element's own operation queue", () => {
         first.cancel("no longer wanted");
 
         assert.strictEqual(first.status, "canceled");
-        assert.deepStrictEqual(runs.queue.map((entry) => entry.runId), [second.id]);
+        assert.deepStrictEqual(
+            runs.queue.map((entry) => entry.runId),
+            [second.id],
+        );
 
         queueManager.resume();
         await queueManager.waitForCompletion();

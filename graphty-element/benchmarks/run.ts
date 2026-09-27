@@ -127,20 +127,34 @@ function runResolveBenchmarks(): BenchResult[] {
         bench(
             "resolve",
             `resolveNow({ nodes }) 50%, counts only, ${label}`,
-            { setup: () => createScopeApi({ snapshot: () => snapshot }), run: (api) => api.resolveNow({ nodes: half }).edgeCount },
+            {
+                setup: () => createScopeApi({ snapshot: () => snapshot }),
+                run: (api) => api.resolveNow({ nodes: half }).edgeCount,
+            },
             opts,
         ),
-        bench("resolve", `old Set-based resolve + fold, 50%, ${label}`, { setup: () => half, run: (ids) => setBasedResolve(snapshot, ids) }, opts),
+        bench(
+            "resolve",
+            `old Set-based resolve + fold, 50%, ${label}`,
+            { setup: () => half, run: (ids) => setBasedResolve(snapshot, ids) },
+            opts,
+        ),
         bench(
             "resolve",
             `resolveFixed induced 50% (with edge pass), ${label}`,
-            { setup: () => ({ kind: "fixed", nodes: half, reading: "induced" }) as const, run: (d) => resolveFixed(d, { snapshot }) },
+            {
+                setup: () => ({ kind: "fixed", nodes: half, reading: "induced" }) as const,
+                run: (d) => resolveFixed(d, { snapshot }),
+            },
             opts,
         ),
         bench(
             "resolve",
             `resolveFixed listed 50% (no edge pass), ${label}`,
-            { setup: () => ({ kind: "fixed", nodes: half, reading: "listed" }) as const, run: (d) => resolveFixed(d, { snapshot }) },
+            {
+                setup: () => ({ kind: "fixed", nodes: half, reading: "listed" }) as const,
+                run: (d) => resolveFixed(d, { snapshot }),
+            },
             opts,
         ),
         bench(
@@ -190,12 +204,22 @@ function runListedBenchmarks(): BenchResult[] {
         seeds.set(edgeMemberKey(member), counters[e]);
     }
 
-    const fresh = (): Extract<SetDefinition, { kind: "fixed" }> => ({ kind: "fixed", nodes: [], edges: members, reading: "listed" });
+    const fresh = (): Extract<SetDefinition, { kind: "fixed" }> => ({
+        kind: "fixed",
+        nodes: [],
+        edges: members,
+        reading: "listed",
+    });
     const opts = { items: members.length, unit: "members" };
     const label = `${members.length} of ${snapshot.edgeCount} edges`;
 
     return [
-        bench("listed", `first resolution, by identity, ${label}`, { setup: fresh, run: (d) => resolveFixed(d, { snapshot }).edgeCount }, opts),
+        bench(
+            "listed",
+            `first resolution, by identity, ${label}`,
+            { setup: fresh, run: (d) => resolveFixed(d, { snapshot }).edgeCount },
+            opts,
+        ),
         bench(
             "listed",
             `first resolution, seeded (merge), ${label}`,
@@ -268,21 +292,36 @@ function runLoadBenchmarks(): BenchResult[] {
     };
 
     return [
-        bench("load", `completion pass and first freeze, ${LABEL}`, {
+        bench(
+            "load",
+            `completion pass and first freeze, ${LABEL}`,
+            {
                 setup: ingested,
                 run: (store) => {
                     store.closeLoad();
                     return store.getSnapshot();
                 },
-            }, { runs: 3 }),
-        bench("load", `completion pass alone, ${LABEL}`, {
+            },
+            { runs: 3 },
+        ),
+        bench(
+            "load",
+            `completion pass alone, ${LABEL}`,
+            {
                 setup: ingested,
                 run: (store) => {
                     store.closeLoad();
                     return store;
                 },
-            }, { runs: 3 }),
-        bench("load", `first freeze alone, ${LABEL}`, { setup: closed, run: (store) => store.getSnapshot() }, { runs: 3 }),
+            },
+            { runs: 3 },
+        ),
+        bench(
+            "load",
+            `first freeze alone, ${LABEL}`,
+            { setup: closed, run: (store) => store.getSnapshot() },
+            { runs: 3 },
+        ),
     ];
 }
 
@@ -294,7 +333,10 @@ function runLoadBenchmarks(): BenchResult[] {
 function runAlgebraBenchmarks(): BenchResult[] {
     const graph = barabasiAlbertGraph({ n: NODES, m: M, seed: 1 });
     const snapshot = fromEdgeArrays(graph);
-    const induced = resolveFixed({ kind: "fixed", nodes: Array.from({ length: Math.ceil(NODES / 2) }, (_, i) => 2 * i), reading: "induced" }, { snapshot });
+    const induced = resolveFixed(
+        { kind: "fixed", nodes: Array.from({ length: Math.ceil(NODES / 2) }, (_, i) => 2 * i), reading: "induced" },
+        { snapshot },
+    );
     const listedEdges = makeMask(snapshot.edgeCount);
     const listedNodes = makeMask(snapshot.nodeCount);
     for (let e = 0; e < snapshot.edgeCount; e += 3) {
@@ -309,7 +351,12 @@ function runAlgebraBenchmarks(): BenchResult[] {
     const label = `${LABEL} / ${snapshot.edgeCount} edges, 50% induced with 33% listed`;
 
     return (["union", "intersection", "difference", "symmetric-difference"] as const).map((op) =>
-        bench("algebra", `combineMasks ${op}, ${label}`, { setup: () => operands, run: (of) => combineMasks(op, of, snapshot) }, opts),
+        bench(
+            "algebra",
+            `combineMasks ${op}, ${label}`,
+            { setup: () => operands, run: (of) => combineMasks(op, of, snapshot) },
+            opts,
+        ),
     );
 }
 
@@ -320,47 +367,59 @@ function runAlgebraBenchmarks(): BenchResult[] {
  * @returns The results.
  */
 async function runDoorBenchmarks(): Promise<BenchResult[]> {
-    const visible = await benchTimed("doors", `createFrom("visible"), no filter, ${LABEL} (projection at 1M: under 200 ms)`, async () => {
-        const { session } = sessionOverGraph();
-        const start = performance.now();
-        await session.sets.createFrom("visible");
+    const visible = await benchTimed(
+        "doors",
+        `createFrom("visible"), no filter, ${LABEL} (projection at 1M: under 200 ms)`,
+        async () => {
+            const { session } = sessionOverGraph();
+            const start = performance.now();
+            await session.sets.createFrom("visible");
 
-        return performance.now() - start;
-    });
+            return performance.now() - start;
+        },
+    );
 
     const commits: number[] = [];
-    const total = await benchTimed("doors", `createFrom of a listed scope of every other edge, ${LABEL}, total`, async () => {
-        const { session, snapshot } = sessionOverGraph();
-        const resolver = scopeResolverOfSession(session);
-        const edgeMember = (id: string): ReturnType<typeof sessionEdgeMember> => sessionEdgeMember(snapshot, id, () => undefined, null);
-        const real = createMaterialiser({
-            snapshot: () => session.data.snapshot(),
-            resolve: (spec) => resolver.resolutionOf(spec),
-            readingOf: (spec) => resolver.readingOf(spec),
-            edgeMember,
-        });
-        let resolved = 0;
-        const sets = createSetsApi({
-            edgeMember,
-            materialise: {
-                ...real,
-                from: async (source, reading) => {
-                    const concrete = await real.from(source, reading);
-                    resolved = performance.now();
+    const total = await benchTimed(
+        "doors",
+        `createFrom of a listed scope of every other edge, ${LABEL}, total`,
+        async () => {
+            const { session, snapshot } = sessionOverGraph();
+            const resolver = scopeResolverOfSession(session);
+            const edgeMember = (id: string): ReturnType<typeof sessionEdgeMember> =>
+                sessionEdgeMember(snapshot, id, () => undefined, null);
+            const real = createMaterialiser({
+                snapshot: () => session.data.snapshot(),
+                resolve: (spec) => resolver.resolutionOf(spec),
+                readingOf: (spec) => resolver.readingOf(spec),
+                edgeMember,
+            });
+            let resolved = 0;
+            const sets = createSetsApi({
+                edgeMember,
+                materialise: {
+                    ...real,
+                    from: async (source, reading) => {
+                        const concrete = await real.from(source, reading);
+                        resolved = performance.now();
 
-                    return concrete;
+                        return concrete;
+                    },
                 },
-            },
-        });
-        const space = edgeSpaceOf(snapshot);
-        const edges = Array.from({ length: Math.floor(snapshot.edgeCount / 2) }, (_, i) => space.idOf(2 * i));
-        const start = performance.now();
-        await sets.createFrom({ define: { kind: "fixed", nodes: [], edges, reading: "listed" } }, { reading: "listed" });
-        const end = performance.now();
-        commits.push(end - resolved);
+            });
+            const space = edgeSpaceOf(snapshot);
+            const edges = Array.from({ length: Math.floor(snapshot.edgeCount / 2) }, (_, i) => space.idOf(2 * i));
+            const start = performance.now();
+            await sets.createFrom(
+                { define: { kind: "fixed", nodes: [], edges, reading: "listed" } },
+                { reading: "listed" },
+            );
+            const end = performance.now();
+            commits.push(end - resolved);
 
-        return end - start;
-    });
+            return end - start;
+        },
+    );
     // The first entry is the warm-up's, as in every other row.
     const measured = commits.slice(1).sort((x, y) => x - y);
     const commit: BenchResult = {
@@ -425,9 +484,13 @@ const names = selected.length === 0 ? Object.keys(GROUPS) : selected;
 // garbage collection inside a later group's timed region.
 if (names.length > 1 && names.every((name) => name in GROUPS)) {
     for (const name of names) {
-        const child = spawnSync(process.execPath, [...process.execArgv, process.argv[1], name, ...args.filter((a) => a.startsWith("--"))], {
-            stdio: "inherit",
-        });
+        const child = spawnSync(
+            process.execPath,
+            [...process.execArgv, process.argv[1], name, ...args.filter((a) => a.startsWith("--"))],
+            {
+                stdio: "inherit",
+            },
+        );
         if (child.status !== 0) {
             process.exitCode = child.status ?? 1;
         }

@@ -37,7 +37,14 @@ export function resultOf(runId: string, published: Published): RunResult {
         }
 
         for (const name of names) {
-            fields.push({ name, plainName: name, technicalName: name, kind, type: "number" as const, path: `results.${runId}.${name}` });
+            fields.push({
+                name,
+                plainName: name,
+                technicalName: name,
+                kind,
+                type: "number" as const,
+                path: `results.${runId}.${name}`,
+            });
         }
     }
 

@@ -10,7 +10,14 @@
 
 import { assert, describe, it } from "vitest";
 
-import type { EdgeId, LayerSpec, NodeId, RuleTree, SetDefinition, SetDefinitionInput } from "../../../src/catalog/types";
+import type {
+    EdgeId,
+    LayerSpec,
+    NodeId,
+    RuleTree,
+    SetDefinition,
+    SetDefinitionInput,
+} from "../../../src/catalog/types";
 import { setsNotifierOfSession, setsOfSession } from "../../../src/session/GraphSession";
 import { resultExecutionOf } from "../../../src/session/results/ResultsApi";
 import type { SessionRunsApi } from "../../../src/session/runs";
@@ -93,10 +100,17 @@ describe("the visibility filter follows the sets it names", () => {
     it("removing a set the filter and a layer both name throws nowhere, and changes nothing either shows", async () => {
         const h = path();
         const id = h.session.sets.create({ kind: "fixed", nodes: ["b", "c"], reading: "induced" });
-        const layer: LayerSpec = { name: "Painted", selector: { match: "member", of: { set: id } }, set: { "node.color": "#ff0000" } };
+        const layer: LayerSpec = {
+            name: "Painted",
+            selector: { match: "member", of: { set: id } },
+            set: { "node.color": "#ff0000" },
+        };
         await h.session.styles.add(layer);
         const session = h.session as ElementSession;
-        await session.paint.repaintAll(session.styles.compiled(), { signal: new AbortController().signal, report: () => undefined });
+        await session.paint.repaintAll(session.styles.compiled(), {
+            signal: new AbortController().signal,
+            report: () => undefined,
+        });
         await h.session.visibility.set({ kind: "not", of: { kind: "member", of: { set: id } } });
         assert.deepStrictEqual(shown(h), ["a", "d", "e"]);
         const edgesBefore = shownEdges(h);
@@ -109,13 +123,20 @@ describe("the visibility filter follows the sets it names", () => {
         assert.deepStrictEqual(shown(h), ["a", "d", "e"]);
         assert.deepStrictEqual(shownEdges(h), edgesBefore);
         assert.strictEqual(h.session.sets.status({ set: id }).freshness, "detached");
-        await session.paint.repaintAll(session.styles.compiled(), { signal: new AbortController().signal, report: () => undefined });
+        await session.paint.repaintAll(session.styles.compiled(), {
+            signal: new AbortController().signal,
+            report: () => undefined,
+        });
     });
 
     it("a new filter naming a removed set shows the set's kept members, never a blank graph", async () => {
         const h = path();
         const id = h.session.sets.create({ kind: "fixed", nodes: ["b", "c"], reading: "induced" });
-        await h.session.styles.add({ name: "Painted", selector: { match: "member", of: { set: id } }, set: { "node.color": "#ff0000" } });
+        await h.session.styles.add({
+            name: "Painted",
+            selector: { match: "member", of: { set: id } },
+            set: { "node.color": "#ff0000" },
+        });
         h.session.sets.remove(id);
 
         await h.session.visibility.set({ kind: "member", of: { set: id } });
@@ -149,8 +170,16 @@ describe("the visibility filter follows the sets it names", () => {
         const cases: { name: string; define: (h: Harness) => SetDefinitionInput; hidden: string[] }[] = [
             { name: "induced", define: () => ({ kind: "fixed", nodes: ["b"], reading: "induced" }), hidden: ["b"] },
             // Listed: its nodes are b plus the endpoints of its edge c-d.
-            { name: "listed", define: (h) => ({ kind: "fixed", nodes: ["b"], edges: [edgeBetween(h, "c", "d")], reading: "listed" }), hidden: ["b", "c", "d"] },
-            { name: "rule", define: () => ({ kind: "rule", where: { kind: "degree", min: 2 }, reading: "clipped" }), hidden: ["b", "c", "d"] },
+            {
+                name: "listed",
+                define: (h) => ({ kind: "fixed", nodes: ["b"], edges: [edgeBetween(h, "c", "d")], reading: "listed" }),
+                hidden: ["b", "c", "d"],
+            },
+            {
+                name: "rule",
+                define: () => ({ kind: "rule", where: { kind: "degree", min: 2 }, reading: "clipped" }),
+                hidden: ["b", "c", "d"],
+            },
         ];
 
         for (const { name, define, hidden } of cases) {
@@ -158,13 +187,21 @@ describe("the visibility filter follows the sets it names", () => {
             const id = h.session.sets.create(define(h));
             const without: RuleTree = {
                 kind: "member",
-                of: { define: { kind: "rule", where: { kind: "not", of: { kind: "member", of: { set: id } } }, reading: "clipped" } },
+                of: {
+                    define: {
+                        kind: "rule",
+                        where: { kind: "not", of: { kind: "member", of: { set: id } } },
+                        reading: "clipped",
+                    },
+                },
             };
             await h.session.visibility.set(without);
 
             const rest = ["a", "b", "c", "d", "e"].filter((node) => !hidden.includes(node));
             assert.deepStrictEqual(shown(h), rest, name);
-            const kept = ["ab", "bc", "cd", "de"].filter((pair) => !hidden.includes(pair[0]) && !hidden.includes(pair[1]));
+            const kept = ["ab", "bc", "cd", "de"].filter(
+                (pair) => !hidden.includes(pair[0]) && !hidden.includes(pair[1]),
+            );
             assert.deepStrictEqual(shownEdges(h), kept, name);
         }
     });
@@ -172,7 +209,13 @@ describe("the visibility filter follows the sets it names", () => {
     it("usedBy lists the filter, once, and stops when the filter no longer names the set", async () => {
         const h = path();
         const id = h.session.sets.create({ kind: "fixed", nodes: ["a"], reading: "induced" });
-        await h.session.visibility.set({ kind: "any", of: [{ kind: "member", of: { set: id } }, { kind: "not", of: { kind: "member", of: { set: id } } }] });
+        await h.session.visibility.set({
+            kind: "any",
+            of: [
+                { kind: "member", of: { set: id } },
+                { kind: "not", of: { kind: "member", of: { set: id } } },
+            ],
+        });
 
         assert.deepStrictEqual(h.session.sets.usedBy(id), [{ kind: "filter", label: "Visibility filter" }]);
 
@@ -181,8 +224,18 @@ describe("the visibility filter follows the sets it names", () => {
     });
 
     it("an item the filter holds is captured when its run re-runs, and the filter's compile reads the capture", async () => {
-        const first: Published = { shape: "community", nodes: new Map(Object.entries({ a: { group: 0 }, b: { group: 0 }, c: { group: 1 }, d: { group: 1 }, e: { group: 1 } })) };
-        const second: Published = { shape: "community", nodes: new Map(Object.entries({ a: { group: 1 }, b: { group: 0 }, c: { group: 0 }, d: { group: 0 }, e: { group: 0 } })) };
+        const first: Published = {
+            shape: "community",
+            nodes: new Map(
+                Object.entries({ a: { group: 0 }, b: { group: 0 }, c: { group: 1 }, d: { group: 1 }, e: { group: 1 } }),
+            ),
+        };
+        const second: Published = {
+            shape: "community",
+            nodes: new Map(
+                Object.entries({ a: { group: 1 }, b: { group: 0 }, c: { group: 0 }, d: { group: 0 }, e: { group: 0 } }),
+            ),
+        };
         const table = new Map<string, Published>([["louv", first]]);
         const h = path({ execute: publishing(table) });
         const run = h.session.runs.start("degree", undefined, { as: "louv", scope: "graph", style: false });
@@ -196,7 +249,9 @@ describe("the visibility filter follows the sets it names", () => {
         await run.rerun();
 
         const held = (h.session.runs as SessionRunsApi).heldOf("louv");
-        assert.deepStrictEqual(Object.fromEntries(held.get(execution) ?? []), { [itemKeyOf(key)]: { nodes: ["c", "d", "e"] } });
+        assert.deepStrictEqual(Object.fromEntries(held.get(execution) ?? []), {
+            [itemKeyOf(key)]: { nodes: ["c", "d", "e"] },
+        });
 
         // A freeze makes the filter compile again; the held execution is no longer current, so it
         // reads what was captured rather than nothing (or the new group 1, a).

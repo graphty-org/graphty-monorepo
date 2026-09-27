@@ -718,7 +718,9 @@ export function estimateCost(input: CostInput): CostEstimate {
     const confidence = iterationsAreGuessed && modelled.confidence !== "modelled" ? "modelled" : modelled.confidence;
     const derivation = input.derivationSeconds ?? 0;
     const seconds =
-        Number.isFinite(modelled.seconds) && modelled.seconds >= 0 ? modelled.seconds + derivation : Number.POSITIVE_INFINITY;
+        Number.isFinite(modelled.seconds) && modelled.seconds >= 0
+            ? modelled.seconds + derivation
+            : Number.POSITIVE_INFINITY;
 
     const notes = [
         sizes,
@@ -819,7 +821,8 @@ function modelFromRates(
     }
 
     const own = OWN_COST_MODELS[descriptor.key];
-    const seconds = own === undefined || ownUnits ? units / rate : own.seconds(nodes, edges, rates, iterations) * sampleFactor;
+    const seconds =
+        own === undefined || ownUnits ? units / rate : own.seconds(nodes, edges, rates, iterations) * sampleFactor;
 
     if (probed) {
         return {
@@ -1002,10 +1005,7 @@ export function resultBytes(descriptor: AlgorithmDescriptor, nodes: number, edge
  * @param edges - Edges in scope.
  * @returns The count that is too large and what it is, or undefined when nothing is.
  */
-function structuralOverflow(
-    nodes: number,
-    edges: number,
-): { kind: string; count: number } | undefined {
+function structuralOverflow(nodes: number, edges: number): { kind: string; count: number } | undefined {
     if (nodes > MAX_COLUMN_LENGTH) {
         return { kind: "nodes", count: nodes };
     }
@@ -1046,7 +1046,11 @@ function fittingScopes(
     if (statistics.components.count > 1 && largestSize > 0 && statistics.nodeCount > 0) {
         const share = largestSize / statistics.nodeCount;
         const edges = Math.round(statistics.edgeCount * share);
-        const estimate = estimateCost({ ...input, sample: undefined, scope: { nodes: largestSize, edges, exact: false } });
+        const estimate = estimateCost({
+            ...input,
+            sample: undefined,
+            scope: { nodes: largestSize, edges, exact: false },
+        });
         if (estimate.available && estimate.seconds <= cap) {
             fitting.push(
                 Object.freeze({
@@ -1064,7 +1068,12 @@ function fittingScopes(
     const sets = [...keptSets()].sort((left, right) => left.nodes - right.nodes || left.edges - right.edges);
     for (const candidate of sets) {
         const { scope, label, nodes, edges, derivationSeconds } = candidate;
-        const estimate = estimateCost({ ...input, sample: undefined, derivationSeconds, scope: { nodes, edges, spec: scope, exact: true } });
+        const estimate = estimateCost({
+            ...input,
+            sample: undefined,
+            derivationSeconds,
+            scope: { nodes, edges, spec: scope, exact: true },
+        });
         if (estimate.available && estimate.seconds <= cap) {
             fitting.push(Object.freeze({ scope, label, nodes, edges, seconds: estimate.seconds, exact: true }));
         }

@@ -137,7 +137,10 @@ describe("a layout over a set", () => {
     });
 
     it("refuses an explicit scope with no members with E_SCOPE_EMPTY, as a run does", async () => {
-        const empty = session.sets.create({ kind: "fixed", nodes: ["not-a-node"], reading: "induced" }, { name: "Empty" });
+        const empty = session.sets.create(
+            { kind: "fixed", nodes: ["not-a-node"], reading: "induced" },
+            { name: "Empty" },
+        );
         const codeOf = async (scope: unknown): Promise<unknown> => {
             try {
                 await graph.setLayout("ngraph", {}, { scope: scope as never });
@@ -149,7 +152,10 @@ describe("a layout over a set", () => {
         };
 
         assert.strictEqual(await codeOf({ set: empty }), "E_SCOPE_EMPTY");
-        assert.isNull(graph.getLayoutManager().layoutEngine?.holdMask ?? null, "nothing was held for the refused scope");
+        assert.isNull(
+            graph.getLayoutManager().layoutEngine?.holdMask ?? null,
+            "nothing was held for the refused scope",
+        );
     });
 
     it("refuses an explicit scope on a layout that cannot hold nodes still, with E_UNSUPPORTED", async () => {
@@ -169,7 +175,10 @@ describe("a layout over a set", () => {
 
         await session.selection.apply({ nodes: ["n15"] });
         await session.visibility.set({ kind: "expression", where: "data.group == `2`" });
-        await graph.updateNodes([{ id: "n15", group: 1 }, { id: "n0", group: 2 }]);
+        await graph.updateNodes([
+            { id: "n15", group: 1 },
+            { id: "n0", group: 2 },
+        ]);
         await graph.operationQueue.waitForCompletion();
         graph.getDataManager().getSnapshot();
 

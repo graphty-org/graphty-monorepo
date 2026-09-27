@@ -16,23 +16,35 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import {
-    type GraphSnapshot,
-    INVALID_INDEX,
-    makeMask,
-    maskCount,
-    type U32,
-} from "@graphty/graph-format";
+import { type GraphSnapshot, INVALID_INDEX, makeMask, maskCount, type U32 } from "@graphty/graph-format";
 
 import { EMPTY_SUM, hashEdgeMember, type LanePair, membershipDigestOf } from "../../catalog/sets/hash";
 import { inducedEdgeLeaf, readingOfScope, speaksEdges } from "../../catalog/sets/parse";
-import type { EdgeId, EdgeMember, NodeId, Path, Query, RuleTree, RunId, Scope, ScopeId, SetDefinition, SetId } from "../../catalog/types";
+import type {
+    EdgeId,
+    EdgeMember,
+    NodeId,
+    Path,
+    Query,
+    RuleTree,
+    RunId,
+    Scope,
+    ScopeId,
+    SetDefinition,
+    SetId,
+} from "../../catalog/types";
 import { EDGE_ID_COLUMN, identityColumnsOf, pairsOrdered } from "../../data/edgeIdentity";
 import { GraphtyError, isGraphtyError } from "../../errors";
 import type { AttributeRevisions, InputTick } from "../attributes";
 import { canonicalize } from "../runs/runId";
 import type { ElementMask } from "../scope/ElementMask";
-import { type CompiledHalves, compileFilter, type FilterSources, type FilterValueSource, type ScopeLeaf } from "../visibility/filter";
+import {
+    type CompiledHalves,
+    compileFilter,
+    type FilterSources,
+    type FilterValueSource,
+    type ScopeLeaf,
+} from "../visibility/filter";
 import type { SetsCache } from "./cache";
 import { referentReading } from "./dependencies";
 import { resolvePath } from "./path";
@@ -144,7 +156,9 @@ export interface ResolveContext {
          * A removed id's tombstone: the name it had, and its record while anything names it, which
          * a reference to the removed set resolves through.
          */
-        tombstone?(id: SetId): { readonly name: string; readonly record?: { readonly definition: SetDefinition } } | undefined;
+        tombstone?(
+            id: SetId,
+        ): { readonly name: string; readonly record?: { readonly definition: SetDefinition } } | undefined;
     };
     // What an input signature reads (./signature). Without them a query is resolved, never cached.
     /**
@@ -402,7 +416,6 @@ function halfOf(resolution: Resolution): NodeHalf {
     return { nodes: resolution.nodes, constraint: resolution.edges, all: false, missingNodes: resolution.missingNodes };
 }
 
-
 /**
  * The refusal of a chain of references that reaches a set already on it.
  * @param id - The set met again.
@@ -430,7 +443,12 @@ function cycleAt(id: SetId, seen: readonly SetId[]): GraphtyError {
  * @returns The resolution.
  * @throws A `GraphtyError` with `details.reason: "cycle"`, or as the definition's resolution does.
  */
-function resolveKept(id: SetId, definition: SetDefinition, context: ResolveContext, seen: readonly SetId[]): Resolution {
+function resolveKept(
+    id: SetId,
+    definition: SetDefinition,
+    context: ResolveContext,
+    seen: readonly SetId[],
+): Resolution {
     if (seen.includes(id)) {
         throw cycleAt(id, seen);
     }
@@ -543,8 +561,13 @@ function resolveIn(scope: Scope, context: ResolveContext, seen: readonly SetId[]
  * @returns The halves.
  * @throws A `GraphtyError` when a leaf needs a capability the context lacks.
  */
-export function ruleHalves(definition: Extract<SetDefinition, { kind: "rule" }>, context: ResolveContext, seen: readonly SetId[] = []): CompiledHalves {
-    const tree: RuleTree = typeof definition.where === "string" ? { kind: "expression", where: definition.where } : definition.where;
+export function ruleHalves(
+    definition: Extract<SetDefinition, { kind: "rule" }>,
+    context: ResolveContext,
+    seen: readonly SetId[] = [],
+): CompiledHalves {
+    const tree: RuleTree =
+        typeof definition.where === "string" ? { kind: "expression", where: definition.where } : definition.where;
 
     return compileFilter(context.snapshot, tree, {
         ...(context.match === undefined ? {} : { match: context.match }),
@@ -567,7 +590,11 @@ export function ruleHalves(definition: Extract<SetDefinition, { kind: "rule" }>,
  * @returns The resolution.
  * @throws A `GraphtyError` when a leaf needs a capability the context lacks or a reference fails.
  */
-function resolveRule(definition: Extract<SetDefinition, { kind: "rule" }>, context: ResolveContext, seen: readonly SetId[]): Resolution {
+function resolveRule(
+    definition: Extract<SetDefinition, { kind: "rule" }>,
+    context: ResolveContext,
+    seen: readonly SetId[],
+): Resolution {
     const { snapshot } = context;
     const { reading } = definition;
     // The door refuses this form; a referent redefined since, or a load, can still make it. It
@@ -606,7 +633,10 @@ function resolveRule(definition: Extract<SetDefinition, { kind: "rule" }>, conte
 
             if (reading === "listed") {
                 addEdgeRow(edge, snapshot, nodes, edges);
-            } else if ((nodes[src[edge] >>> 5] & (1 << (src[edge] & 31))) !== 0 && (nodes[dst[edge] >>> 5] & (1 << (dst[edge] & 31))) !== 0) {
+            } else if (
+                (nodes[src[edge] >>> 5] & (1 << (src[edge] & 31))) !== 0 &&
+                (nodes[dst[edge] >>> 5] & (1 << (dst[edge] & 31))) !== 0
+            ) {
                 edges[edge >>> 5] |= 1 << (edge & 31);
             }
         }
@@ -625,7 +655,12 @@ function resolveRule(definition: Extract<SetDefinition, { kind: "rule" }>, conte
  * @throws A `GraphtyError` when a rule cannot be evaluated: a cycle, a missing referent, a
  * capability the context lacks.
  */
-export function resolveDefinitionIn(definition: SetDefinition, context: ResolveContext, seen: readonly SetId[] = [], id?: SetId): Resolution {
+export function resolveDefinitionIn(
+    definition: SetDefinition,
+    context: ResolveContext,
+    seen: readonly SetId[] = [],
+    id?: SetId,
+): Resolution {
     if (opaqueName(definition) !== null) {
         return emptyResolution(context);
     }
@@ -684,7 +719,13 @@ export function deriveEdges(half: NodeHalf, snapshot: GraphSnapshot): U32 {
  * @param ambiguousEdges - Of those, the ones more than one edge carries.
  * @returns The resolution.
  */
-export function resolutionOf(half: NodeHalf, edges: U32, context: ResolveContext, missingEdges: number, ambiguousEdges = 0): Resolution {
+export function resolutionOf(
+    half: NodeHalf,
+    edges: U32,
+    context: ResolveContext,
+    missingEdges: number,
+    ambiguousEdges = 0,
+): Resolution {
     const { snapshot } = context;
 
     return Object.freeze({
@@ -765,7 +806,14 @@ export interface EdgeSeeds {
  * @returns The key.
  */
 export function edgeMemberKey(member: EdgeMember): string {
-    return JSON.stringify([member.source, member.target, member.id ?? null, member.key ?? null, member.ordinal ?? null, member.among ?? null]);
+    return JSON.stringify([
+        member.source,
+        member.target,
+        member.id ?? null,
+        member.key ?? null,
+        member.ordinal ?? null,
+        member.among ?? null,
+    ]);
 }
 
 /**
@@ -803,7 +851,10 @@ function planOf(key: object, members: EdgeMemberList, seeds: EdgeSeeds | undefin
     const pairs: [counter: number, member: number][] = [];
     const unseeded: number[] = [];
     for (let i = 0; i < members.length; i++) {
-        const counter = seeds === undefined || seeds.counters.size === 0 ? undefined : seeds.counters.get(edgeMemberKey(members.at(i) as EdgeMember));
+        const counter =
+            seeds === undefined || seeds.counters.size === 0
+                ? undefined
+                : seeds.counters.get(edgeMemberKey(members.at(i) as EdgeMember));
         if (counter === undefined) {
             unseeded.push(i);
         } else {
@@ -906,7 +957,12 @@ function bindSeeded(plan: BindingPlan, snapshot: GraphSnapshot, rowOf: Int32Arra
  * @param context - What the resolution reads.
  * @param rowOf - Written: each bound member's row, or {@link EDGE_AMBIGUOUS}.
  */
-function bindByIdentity(members: EdgeMemberList, which: readonly number[], context: ResolveContext, rowOf: Int32Array): void {
+function bindByIdentity(
+    members: EdgeMemberList,
+    which: readonly number[],
+    context: ResolveContext,
+    rowOf: Int32Array,
+): void {
     const { snapshot } = context;
     const ids = context.ids ?? snapshot.ids;
     const ordered = pairsOrdered(snapshot);
@@ -971,7 +1027,12 @@ function bindByIdentity(members: EdgeMemberList, which: readonly number[], conte
  * @param seeds - The set's seeds, if any.
  * @returns One entry per member: its row, {@link EDGE_MISSING} or {@link EDGE_AMBIGUOUS}.
  */
-export function bindEdgeMembers(key: object, members: EdgeMemberList, context: ResolveContext, seeds?: EdgeSeeds): Int32Array {
+export function bindEdgeMembers(
+    key: object,
+    members: EdgeMemberList,
+    context: ResolveContext,
+    seeds?: EdgeSeeds,
+): Int32Array {
     const rowOf = new Int32Array(members.length).fill(EDGE_MISSING);
     if (members.length === 0) {
         return rowOf;
@@ -1014,7 +1075,11 @@ export function addEdgeRow(row: number, snapshot: GraphSnapshot, nodes: U32, edg
  * @param seeds - The set's seeds, for a kept set.
  * @returns The resolution.
  */
-export function resolveFixed(definition: Extract<SetDefinition, { kind: "fixed" }>, context: ResolveContext, seeds?: EdgeSeeds): Resolution {
+export function resolveFixed(
+    definition: Extract<SetDefinition, { kind: "fixed" }>,
+    context: ResolveContext,
+    seeds?: EdgeSeeds,
+): Resolution {
     const { snapshot } = context;
     const nodes = makeMask(snapshot.nodeCount);
     const missingNodes = addIds(definition.nodes, nodes, context);

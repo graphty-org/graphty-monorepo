@@ -19,13 +19,31 @@ describe("pagerank over generated scopes", () => {
 
 describe("pagerank over a scope, on the reference route", () => {
     it("a personalized run ranks over the scope, and its ranks sum to 1 across the scope", async () => {
-        const graph = new InputGraph(["a", "x", "b", "c"], [["a", "b"], ["b", "c"], ["c", "a"], ["a", "x"], ["x", "c"]], true);
+        const graph = new InputGraph(
+            ["a", "x", "b", "c"],
+            [
+                ["a", "b"],
+                ["b", "c"],
+                ["c", "a"],
+                ["a", "x"],
+                ["x", "c"],
+            ],
+            true,
+        );
         const personalization = new Map([["a", 1]]);
         const scope = graph.scope(["a", "b", "c"]);
-        const result = await assertComputesOverScope((g) => new PageRankAlgorithm(g, { personalization }), graph, scope);
+        const result = await assertComputesOverScope(
+            (g) => new PageRankAlgorithm(g, { personalization }),
+            graph,
+            scope,
+        );
 
         const ranks = ["a", "b", "c"].map((id) => Number(result?.node(id)?.value));
-        assert.closeTo(ranks.reduce((sum, value) => sum + value, 0), 1, 1e-6);
+        assert.closeTo(
+            ranks.reduce((sum, value) => sum + value, 0),
+            1,
+            1e-6,
+        );
         assert.strictEqual(result?.measured.nodes, 3);
     });
 });

@@ -69,7 +69,11 @@ function descriptor(over: Partial<AlgorithmDescriptor> = {}): AlgorithmDescripto
 }
 
 /** The error behind a refusal, asserted to be one. */
-function refusal(decision: CostGateDecision): { code: string; details: Readonly<Record<string, unknown>>; message: string } {
+function refusal(decision: CostGateDecision): {
+    code: string;
+    details: Readonly<Record<string, unknown>>;
+    message: string;
+} {
     assert.equal(decision.kind, "refused");
     assert.isTrue(decision.kind === "refused" && isGraphtyError(decision.error));
     if (decision.kind !== "refused") {
@@ -101,8 +105,14 @@ describe("gateRun: at or below the cap", () => {
             statistics: statistics(),
         };
 
-        assert.equal(gateRun(input, { limits: { exactComputationSeconds: 10, runColumnBudgetBytes: 1e9 } }).kind, "exact");
-        assert.equal(gateRun(input, { limits: { exactComputationSeconds: 9.9, runColumnBudgetBytes: 1e9 } }).kind, "refused");
+        assert.equal(
+            gateRun(input, { limits: { exactComputationSeconds: 10, runColumnBudgetBytes: 1e9 } }).kind,
+            "exact",
+        );
+        assert.equal(
+            gateRun(input, { limits: { exactComputationSeconds: 9.9, runColumnBudgetBytes: 1e9 } }).kind,
+            "refused",
+        );
     });
 });
 
@@ -282,7 +292,12 @@ describe("gateRun: above the cap with no approximate method", () => {
             { keptSets: () => [kept("set_whole", 60000), kept("set_mid", 2000), kept("set_small", 500)] },
         );
 
-        const scopes = refusal(decision).details.scopes as readonly { scope: unknown; label: string; seconds: number; exact: boolean }[];
+        const scopes = refusal(decision).details.scopes as readonly {
+            scope: unknown;
+            label: string;
+            seconds: number;
+            exact: boolean;
+        }[];
         assert.deepStrictEqual(
             scopes.map((entry) => entry.scope),
             ["largest-component", { set: "set_small" }, { set: "set_mid" }],
@@ -310,7 +325,11 @@ describe("gateRun: above the cap with no approximate method", () => {
                     },
                 }),
             },
-            { keptSets: () => [{ scope: { set: "set_small" }, label: "small", nodes: 500, edges: 2500, derivationSeconds: 0.01 }] },
+            {
+                keptSets: () => [
+                    { scope: { set: "set_small" }, label: "small", nodes: 500, edges: 2500, derivationSeconds: 0.01 },
+                ],
+            },
         );
 
         assert.lengthOf(refusal(decision).details.scopes as readonly unknown[], 0);

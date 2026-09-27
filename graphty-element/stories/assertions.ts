@@ -276,9 +276,12 @@ async function until(done: () => boolean, deadline: number, complaint: string): 
 async function within(work: Promise<unknown>, deadline: number, complaint: string): Promise<void> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const expired = new Promise<"expired">((resolve) => {
-        timer = setTimeout(() => {
-            resolve("expired");
-        }, Math.max(0, deadline - Date.now()));
+        timer = setTimeout(
+            () => {
+                resolve("expired");
+            },
+            Math.max(0, deadline - Date.now()),
+        );
     });
 
     const outcome = await Promise.race([work.then(() => "done" as const), expired]);
@@ -537,7 +540,10 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
     // One read per SOURCE mesh, not per node: a thousand nodes instanced from three shapes cost
     // three digests.
     const digests = new Map<number, string>();
-    const digestOf = (mesh: { uniqueId: number; getVerticesData: (kind: string) => Float32Array | number[] | null }): string => {
+    const digestOf = (mesh: {
+        uniqueId: number;
+        getVerticesData: (kind: string) => Float32Array | number[] | null;
+    }): string => {
         const seen = digests.get(mesh.uniqueId);
 
         if (seen !== undefined) {
@@ -604,10 +610,12 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
     // generated name, so nothing in the scene graph distinguishes them; the edge that owns a
     // caption knows which end it hangs from, and that is the only place the answer exists.
     const captions: DrawnCaption[] = [...graph.getDataManager().edges.values()].flatMap((edge) =>
-        ([
-            ["arrowHead", edge.arrowHeadText],
-            ["arrowTail", edge.arrowTailText],
-        ] as const)
+        (
+            [
+                ["arrowHead", edge.arrowHeadText],
+                ["arrowTail", edge.arrowTailText],
+            ] as const
+        )
             .filter(([, caption]) => caption !== null)
             .map(([end, caption]) => {
                 const read = labelInk(caption?.labelMesh ?? null);
@@ -796,7 +804,10 @@ export async function assertDrawnColour(
  * @param expected - The ids of the nodes on screen.
  */
 export async function assertNodesShown(scene: Drawn, expected: readonly string[]): Promise<void> {
-    const shown = scene.nodes.filter((node) => node.enabled).map((node) => node.id).sort();
+    const shown = scene.nodes
+        .filter((node) => node.enabled)
+        .map((node) => node.id)
+        .sort();
     const want = [...expected].sort();
 
     await holds(
@@ -871,13 +882,11 @@ export async function assertLabelsDrawn(
     scene: Drawn,
     options: { readonly ids?: readonly string[]; readonly minimumInk?: number } = {},
 ): Promise<void> {
-    const wanted = options.ids === undefined ? scene.nodes : scene.nodes.filter((node) => options.ids?.includes(node.id));
+    const wanted =
+        options.ids === undefined ? scene.nodes : scene.nodes.filter((node) => options.ids?.includes(node.id));
     const minimumInk = options.minimumInk ?? 1;
 
-    await holds(
-        wanted.length > 0,
-        `${scene.story}: no node of the ones this assertion names is in the graph at all`,
-    );
+    await holds(wanted.length > 0, `${scene.story}: no node of the ones this assertion names is in the graph at all`);
 
     const missing = wanted.filter((node) => !node.hasLabelMesh).map((node) => node.id);
 
@@ -898,7 +907,9 @@ export async function assertLabelsDrawn(
     );
 
     if (options.ids !== undefined) {
-        const extra = scene.nodes.filter((node) => !options.ids?.includes(node.id) && node.hasLabelMesh).map((n) => n.id);
+        const extra = scene.nodes
+            .filter((node) => !options.ids?.includes(node.id) && node.hasLabelMesh)
+            .map((n) => n.id);
 
         await holds(
             extra.length === 0,
@@ -1234,18 +1245,20 @@ function arrangementDistance(
         return Number.POSITIVE_INFINITY;
     }
 
-    const normalise = (
-        cloud: ReadonlyMap<string, readonly [number, number, number]>,
-    ): [number, number, number][] => {
+    const normalise = (cloud: ReadonlyMap<string, readonly [number, number, number]>): [number, number, number][] => {
         const points = shared.map((id) => cloud.get(id) as readonly [number, number, number]);
         const centre = [0, 1, 2].map((axis) => points.reduce((sum, p) => sum + p[axis], 0) / points.length);
         const radius =
             Math.sqrt(
-                points.reduce((sum, p) => sum + [0, 1, 2].reduce((d, axis) => d + (p[axis] - centre[axis]) ** 2, 0), 0) /
-                    points.length,
+                points.reduce(
+                    (sum, p) => sum + [0, 1, 2].reduce((d, axis) => d + (p[axis] - centre[axis]) ** 2, 0),
+                    0,
+                ) / points.length,
             ) || 1;
 
-        return points.map((p) => [0, 1, 2].map((axis) => (p[axis] - centre[axis]) / radius) as [number, number, number]);
+        return points.map(
+            (p) => [0, 1, 2].map((axis) => (p[axis] - centre[axis]) / radius) as [number, number, number],
+        );
     };
 
     const left = normalise(a);
@@ -1709,8 +1722,7 @@ export async function assertBackgroundColour(scene: Drawn, hex: string): Promise
 
     await holds(
         close,
-        `${scene.story}: asks for a ${hex} background and the scene is cleared to ` +
-            `rgb(${drawn_.join(", ")})`,
+        `${scene.story}: asks for a ${hex} background and the scene is cleared to ` + `rgb(${drawn_.join(", ")})`,
     );
 }
 
@@ -1738,8 +1750,9 @@ export async function assertNodesOnACircle(scene: Drawn, tolerance = 0.05): Prom
     await holds(
         mean > 0 && spread / mean <= tolerance,
         `${scene.story}: a circular layout draws every node the same distance from the centre, and these run ` +
-            `from ${Math.min(...radii).toFixed(3)} to ${Math.max(...radii).toFixed(3)} around a mean of ${ 
-            mean.toFixed(3)}`,
+            `from ${Math.min(...radii).toFixed(3)} to ${Math.max(...radii).toFixed(3)} around a mean of ${mean.toFixed(
+                3,
+            )}`,
     );
 }
 
@@ -1813,7 +1826,7 @@ export async function assertSelectionDrawn(scene: Drawn, id: string): Promise<vo
     const haloed = scene.graph
         .getNodes()
         .filter((node) => {
-            const {halo} = (node as unknown as { halo?: { isDisposed: () => boolean } | null });
+            const { halo } = node as unknown as { halo?: { isDisposed: () => boolean } | null };
 
             return halo !== undefined && halo !== null && !halo.isDisposed();
         })

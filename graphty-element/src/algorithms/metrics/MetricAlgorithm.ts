@@ -100,20 +100,22 @@ export abstract class MetricAlgorithm<
            built-in metric and a third party's would come to name the same node differently. */
         const labelOf = nodeLabelReader(this.graph);
 
-        const result = createRunResult(maskBack(this, {
-            ...(labelOf === undefined ? {} : { labelOf }),
-            runId: context.runId,
-            shape: "node-metric",
-            fields: this.resultFields(),
-            measured: { nodes: input.nodeCount, edges: input.edgeCount },
-            // The only graph-level field a metric publishes itself. Everything else the shape
-            // promises -- the range, the average, how many elements were measured, how many sit at
-            // the bottom -- is computed from the column the measurement produced.
-            graph: { normalization: measurement.normalization },
-            nodes: measurement.nodes,
-            caveats: measurement.caveats,
-            durationMs: Date.now() - startedAt,
-        }));
+        const result = createRunResult(
+            maskBack(this, {
+                ...(labelOf === undefined ? {} : { labelOf }),
+                runId: context.runId,
+                shape: "node-metric",
+                fields: this.resultFields(),
+                measured: { nodes: input.nodeCount, edges: input.edgeCount },
+                // The only graph-level field a metric publishes itself. Everything else the shape
+                // promises -- the range, the average, how many elements were measured, how many sit at
+                // the bottom -- is computed from the column the measurement produced.
+                graph: { normalization: measurement.normalization },
+                nodes: measurement.nodes,
+                caveats: measurement.caveats,
+                durationMs: Date.now() - startedAt,
+            }),
+        );
 
         this.#result = result;
 
@@ -132,8 +134,5 @@ export abstract class MetricAlgorithm<
      * @param nodeIds - The nodes to measure, in the input's row order.
      * @returns One value per node, how they were scaled, and what qualifies them.
      */
-    protected abstract measure(
-        context: MetricRunContext,
-        nodeIds: readonly NodeId[],
-    ): Promise<MetricMeasurement>;
+    protected abstract measure(context: MetricRunContext, nodeIds: readonly NodeId[]): Promise<MetricMeasurement>;
 }

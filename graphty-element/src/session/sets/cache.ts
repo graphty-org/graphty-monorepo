@@ -293,9 +293,13 @@ function resolveDefinition(id: SetId, definition: SetDefinition, context: Resolv
  * @param context - What the resolution reads; `context.cache` is consulted when present.
  * @returns The resolution.
  */
-export function resolveSet(record: { readonly id: SetId; readonly definition: SetDefinition }, context: ResolveContext): Resolution {
+export function resolveSet(
+    record: { readonly id: SetId; readonly definition: SetDefinition },
+    context: ResolveContext,
+): Resolution {
     const { cache } = context;
-    const signature = cache === undefined ? null : definitionSignature(record.id, record.definition, context, cache.memo);
+    const signature =
+        cache === undefined ? null : definitionSignature(record.id, record.definition, context, cache.memo);
     if (cache === undefined) {
         return resolveDefinition(record.id, record.definition, context);
     }
@@ -331,7 +335,14 @@ export function resolveSet(record: { readonly id: SetId; readonly definition: Se
  * @param resolution - Its resolution.
  * @param context - What was resolved against.
  */
-function summarise(cache: SetsCache, id: SetId, definition: SetDefinition, signature: string, resolution: Resolution, context: ResolveContext): void {
+function summarise(
+    cache: SetsCache,
+    id: SetId,
+    definition: SetDefinition,
+    signature: string,
+    resolution: Resolution,
+    context: ResolveContext,
+): void {
     const known = cache.summaries.get(id);
     if (known?.signature !== signature || known.definition !== definition) {
         cache.summaries.set(
@@ -372,7 +383,8 @@ export function countsOf(
     context: ResolveContext,
 ): Pick<SetSummary, "nodeCount" | "edgeCount" | "missingNodes" | "missingEdges"> {
     const { cache } = context;
-    const signature = cache === undefined ? null : definitionSignature(record.id, record.definition, context, cache.memo);
+    const signature =
+        cache === undefined ? null : definitionSignature(record.id, record.definition, context, cache.memo);
     const known = signature === null ? undefined : cache?.summaries.get(record.id);
     if (known?.signature === signature && known.definition === record.definition) {
         return known;

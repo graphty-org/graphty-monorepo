@@ -611,7 +611,10 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         // Read before the compile, as the notifier reads a watch's signature before resolving it.
         evaluatedSignature = signatureOf(filterValue);
         // Compiled before the masks are cleared: nothing a compile reads may see them half-written.
-        const compiled = filterValue === null && windowValue === null ? null : compileVisibility(graph, filterValue, windowValue, passSources(graph));
+        const compiled =
+            filterValue === null && windowValue === null
+                ? null
+                : compileVisibility(graph, filterValue, windowValue, passSources(graph));
         nodeMaskValue.grow(graph.nodeCount);
         edgeMaskValue.grow(graph.edgeCount);
         nodeMaskValue.clear();

@@ -26,9 +26,16 @@ export type EdgeSpec = readonly [string, string, number?];
 /** A graph whose store a test can grow between runs. */
 export class InputGraph {
     readonly store: GraphStore;
-    readonly acceleration = new AccelerationController({ policy: "auto", minNodes: 0, registry: new AcceleratorRegistry() });
+    readonly acceleration = new AccelerationController({
+        policy: "auto",
+        minNodes: 0,
+        registry: new AcceleratorRegistry(),
+    });
     readonly nodes = new Map<string, { id: string }>();
-    readonly edges = new Map<string, { id: string; srcId: string; dstId: string; index: number; data?: Record<string, unknown> }>();
+    readonly edges = new Map<
+        string,
+        { id: string; srcId: string; dstId: string; index: number; data?: Record<string, unknown> }
+    >();
 
     /**
      * A graph over some records.
@@ -108,7 +115,10 @@ export class InputGraph {
      * @param keepEdge - Which induced edges stay, by `[source, target]` id.
      * @returns The scope.
      */
-    scope(nodeIds: readonly string[], keepEdge?: (source: string, target: string, index: number) => boolean): ResolvedInputScope {
+    scope(
+        nodeIds: readonly string[],
+        keepEdge?: (source: string, target: string, index: number) => boolean,
+    ): ResolvedInputScope {
         const graph = this.snapshot();
         const nodes = makeMask(graph.nodeCount);
         for (const id of nodeIds) {
@@ -118,8 +128,13 @@ export class InputGraph {
         const edges = makeMask(graph.edgeCount);
         const { src, dst } = graph.edgeList();
         for (let edge = 0; edge < graph.edgeCount; edge++) {
-            const inside = (nodes[src[edge] >>> 5] & (1 << (src[edge] & 31))) !== 0 && (nodes[dst[edge] >>> 5] & (1 << (dst[edge] & 31))) !== 0;
-            if (inside && (keepEdge?.(String(graph.ids.idOf(src[edge])), String(graph.ids.idOf(dst[edge])), edge) ?? true)) {
+            const inside =
+                (nodes[src[edge] >>> 5] & (1 << (src[edge] & 31))) !== 0 &&
+                (nodes[dst[edge] >>> 5] & (1 << (dst[edge] & 31))) !== 0;
+            if (
+                inside &&
+                (keepEdge?.(String(graph.ids.idOf(src[edge])), String(graph.ids.idOf(dst[edge])), edge) ?? true)
+            ) {
                 maskSet(edges, edge, true);
             }
         }
@@ -134,7 +149,15 @@ export class InputGraph {
     everything(): ResolvedInputScope {
         const graph = this.snapshot();
 
-        return { graph, resolution: resolutionOver(graph, makeMask(graph.nodeCount, true), makeMask(graph.edgeCount, true), this.store) };
+        return {
+            graph,
+            resolution: resolutionOver(
+                graph,
+                makeMask(graph.nodeCount, true),
+                makeMask(graph.edgeCount, true),
+                this.store,
+            ),
+        };
     }
 }
 
@@ -146,7 +169,12 @@ export class InputGraph {
  * @param store - The store.
  * @returns The resolution.
  */
-export function resolutionOver(graph: GraphSnapshot, nodes: U32, edges: U32, store: object | null): ResolvedInputScope["resolution"] {
+export function resolutionOver(
+    graph: GraphSnapshot,
+    nodes: U32,
+    edges: U32,
+    store: object | null,
+): ResolvedInputScope["resolution"] {
     return Object.freeze({
         nodes,
         edges,
@@ -179,7 +207,8 @@ export function edgesOf(snapshot: GraphSnapshot): string[] {
 
     return Array.from(
         { length: snapshot.edgeCount },
-        (_, edge) => `${String(snapshot.ids.idOf(src[edge]))}>${String(snapshot.ids.idOf(dst[edge]))}:${String(weights === null ? 1 : Math.round(weights[edge] * 1000) / 1000)}`,
+        (_, edge) =>
+            `${String(snapshot.ids.idOf(src[edge]))}>${String(snapshot.ids.idOf(dst[edge]))}:${String(weights === null ? 1 : Math.round(weights[edge] * 1000) / 1000)}`,
     );
 }
 

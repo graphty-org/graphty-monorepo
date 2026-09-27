@@ -74,7 +74,12 @@ export function heldItems(holders: Iterable<unknown>, run: RunId): Map<string, M
 
         if (node.kind === "item") {
             const item = node.item as Partial<ResultItem> | undefined;
-            if (isObject(item) && typeof item.run === "string" && isObject(item.key) && runIdOfRef(item.result) === run) {
+            if (
+                isObject(item) &&
+                typeof item.run === "string" &&
+                isObject(item.key) &&
+                runIdOfRef(item.result) === run
+            ) {
                 const keys = found.get(item.run) ?? new Map<string, ItemKey>();
                 keys.set(itemKeyOf(item.key), item.key);
                 found.set(item.run, keys);
@@ -152,7 +157,9 @@ export function captureItem(
             }
         }
 
-        edges = compactEdgeMembers(keyed.sort((a, b) => (a[0] < b[0] ? -1 : Number(a[0] > b[0]))).map(([, member]) => member));
+        edges = compactEdgeMembers(
+            keyed.sort((a, b) => (a[0] < b[0] ? -1 : Number(a[0] > b[0]))).map(([, member]) => member),
+        );
     }
 
     return Object.freeze({
@@ -181,7 +188,8 @@ export function nextCaptures(
     for (const [execution, keys] of held) {
         const kept = new Map<string, Capture>();
         for (const [name, key] of keys) {
-            const value = execution === current && capture !== undefined ? capture(key) : prior.get(execution)?.get(name);
+            const value =
+                execution === current && capture !== undefined ? capture(key) : prior.get(execution)?.get(name);
             if (value !== undefined) {
                 kept.set(name, value);
             }
@@ -205,7 +213,10 @@ export function captureOf(captures: HeldCaptures, item: ResultItem): Capture | u
     return item.run === undefined ? undefined : captures.get(item.run)?.get(itemKeyOf(item.key));
 }
 
-const bitmaps = new WeakMap<Capture, { readonly serial: number; readonly store: object | null; readonly halves: CapturedHalves }>();
+const bitmaps = new WeakMap<
+    Capture,
+    { readonly serial: number; readonly store: object | null; readonly halves: CapturedHalves }
+>();
 
 /**
  * A capture as bitmaps over the context snapshot, rebound like a fixed set's members: node ids

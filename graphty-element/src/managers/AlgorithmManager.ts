@@ -378,18 +378,23 @@ export class AlgorithmManager implements Manager {
         // The run's scope is handed to the algorithm through the input accessor, which gives it to a
         // class that declares a scoped input and the whole graph to every other; whatever it
         // derives is held until the work settles, and what it publishes is masked back to it.
-        const published = await withRunInput(algorithm, this.graph, () => this.scopeOf(context), context.signal, () =>
-            algorithm.publishResult(
-                {
-                    signal: context.signal,
-                    report: (progress: RunProgressReport) => {
-                        context.report(progress);
+        const published = await withRunInput(
+            algorithm,
+            this.graph,
+            () => this.scopeOf(context),
+            context.signal,
+            () =>
+                algorithm.publishResult(
+                    {
+                        signal: context.signal,
+                        report: (progress: RunProgressReport) => {
+                            context.report(progress);
+                        },
+                        yieldNow: yieldToHost,
                     },
-                    yieldNow: yieldToHost,
-                },
-                context.runId,
-                descriptor.fields,
-            ),
+                    context.runId,
+                    descriptor.fields,
+                ),
         );
 
         return published ?? emptyResult(context, descriptor);

@@ -7,7 +7,17 @@
 
 import { fromEdgeArrays } from "../src/populate/from-edge-arrays.js";
 import { type DerivedGraph, type U32 } from "../src/types/index.js";
-import { makeMask, maskAnd, maskAndNot, maskCount, maskNot, maskOr, maskSet, maskTest, maskXor } from "../src/util/mask.js";
+import {
+    makeMask,
+    maskAnd,
+    maskAndNot,
+    maskCount,
+    maskNot,
+    maskOr,
+    maskSet,
+    maskTest,
+    maskXor,
+} from "../src/util/mask.js";
 import { randomEdges } from "./datasets.js";
 import { bench, type BenchResult, makeRandom } from "./harness.js";
 

@@ -42,11 +42,27 @@ import { type GraphSnapshot, INVALID_INDEX, maskTest, type U32 } from "@graphty/
 
 import { runIdOfRef } from "../../catalog/sets/canonical";
 import { assertRuleTree, parseScope } from "../../catalog/sets/parse";
-import type { EdgeId, NodeId, Path, Query, ResultItem, RuleTree, RunId, Scope, SelectionDirection } from "../../catalog/types";
+import type {
+    EdgeId,
+    NodeId,
+    Path,
+    Query,
+    ResultItem,
+    RuleTree,
+    RunId,
+    Scope,
+    SelectionDirection,
+} from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import { rankEntries, topOfRanking } from "../results/statistics";
-import { type ComponentLabels, edgeSpaceOf,type ElementMask } from "../scope/index";
-import { type ChainStep, type DependencySources, followedGroup, followsGroup, visibilityCycle } from "../sets/dependencies";
+import { type ComponentLabels, edgeSpaceOf, type ElementMask } from "../scope/index";
+import {
+    type ChainStep,
+    type DependencySources,
+    followedGroup,
+    followsGroup,
+    visibilityCycle,
+} from "../sets/dependencies";
 
 // ---------------------------------------------------------------------------------------------
 // What a consumer asks for
@@ -384,7 +400,7 @@ function assertFilter(filter: RuleTree): void {
 
     // Kept beside the switch, and typed as a plain string, so the refusal below can name a kind
     // the union does not contain -- which is exactly the case a runtime check exists for.
-    const {kind} = filter;
+    const { kind } = filter;
 
     switch (filter.kind) {
         case "expression":
@@ -555,7 +571,11 @@ function assertTimeWindow(window: TimeWindow): void {
  *     one whose item follows a partition group (`"follow-group"`).
  * @throws A `GraphtyError` when either is malformed.
  */
-export function assertVisibility(filter: RuleTree | null, window: TimeWindow | null, dependencies?: DependencySources): void {
+export function assertVisibility(
+    filter: RuleTree | null,
+    window: TimeWindow | null,
+    dependencies?: DependencySources,
+): void {
     if (filter !== null) {
         assertFilter(filter);
 
@@ -635,12 +655,7 @@ function markFor(context: CompileContext, path: Path): PathMark {
  * @param mark - The mark to set when a value is there.
  * @returns The value, or undefined when there is none.
  */
-function readValue(
-    read: (index: number, path: Path) => unknown,
-    index: number,
-    path: Path,
-    mark: PathMark,
-): unknown {
+function readValue(read: (index: number, path: Path) => unknown, index: number, path: Path, mark: PathMark): unknown {
     const value = read(index, path);
 
     if (value === undefined || value === null) {
@@ -1159,7 +1174,10 @@ function compileOne(filter: RuleTree, context: CompileContext): CompiledHalves {
             const leaf = context.sources.scope(filter.of);
             const { edges } = leaf;
 
-            return { node: (index) => maskTest(leaf.nodes, index), edge: edges === null ? null : (index) => maskTest(edges, index) };
+            return {
+                node: (index) => maskTest(leaf.nodes, index),
+                edge: edges === null ? null : (index) => maskTest(edges, index),
+            };
         }
         case "item":
             return compileItem(context, filter.item);
@@ -1283,16 +1301,19 @@ export function compileVisibility(
         halves.push(compileWindow(window, context));
     }
 
-    const folded = halves.length === 0 ? SILENT : {
-        node: fold(
-            halves.map((half) => half.node),
-            "all",
-        ),
-        edge: fold(
-            halves.map((half) => half.edge),
-            "all",
-        ),
-    };
+    const folded =
+        halves.length === 0
+            ? SILENT
+            : {
+                  node: fold(
+                      halves.map((half) => half.node),
+                      "all",
+                  ),
+                  edge: fold(
+                      halves.map((half) => half.edge),
+                      "all",
+                  ),
+              };
 
     return {
         node: folded.node,
@@ -1406,8 +1427,8 @@ export async function runPassInSlices(
     signal: AbortSignal,
     report: (completed: number, total: number) => void,
 ): Promise<void> {
-    const {nodeCount} = pass.graph;
-    const {edgeCount} = pass.graph;
+    const { nodeCount } = pass.graph;
+    const { edgeCount } = pass.graph;
     const total = nodeCount + edgeCount;
     let deadline = performance.now() + SLICE_MS;
 

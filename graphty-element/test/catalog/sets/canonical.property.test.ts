@@ -14,7 +14,11 @@ const nodeId: fc.Arbitrary<NodeId> = fc.oneof(
 );
 
 const edgeMember: fc.Arbitrary<EdgeMember> = fc.oneof(
-    fc.record({ source: nodeId, target: nodeId, id: fc.oneof(fc.integer({ min: 0, max: 3 }), fc.constantFrom("x", "y")) }),
+    fc.record({
+        source: nodeId,
+        target: nodeId,
+        id: fc.oneof(fc.integer({ min: 0, max: 3 }), fc.constantFrom("x", "y")),
+    }),
     fc
         .record({ source: nodeId, target: nodeId, among: fc.integer({ min: 1, max: 3 }), shift: fc.nat(2) })
         .map(({ source, target, among, shift }) => ({ source, target, among, ordinal: shift % among })),
@@ -30,9 +34,19 @@ const { tree } = fc.letrec<{ tree: unknown }>((tie) => ({
         { depthSize: "small", maxDepth: 4 },
         query.map((where) => ({ kind: "expression", where })),
         query.map((where) => ({ kind: "edges", where })),
-        fc.record({ kind: fc.constant("range"), attribute: fc.constant("data.x"), min: fc.integer({ min: 0, max: 5 }) }, { requiredKeys: ["kind", "attribute"] }),
-        fc.record({ kind: fc.constant("categories"), attribute: fc.constant("data.t"), values: fc.array(fc.constantFrom("a", "b"), { maxLength: 3 }) }),
-        fc.record({ kind: fc.constant("degree"), min: fc.nat(4), direction: fc.constantFrom("in", "out", "all") }, { requiredKeys: ["kind"] }),
+        fc.record(
+            { kind: fc.constant("range"), attribute: fc.constant("data.x"), min: fc.integer({ min: 0, max: 5 }) },
+            { requiredKeys: ["kind", "attribute"] },
+        ),
+        fc.record({
+            kind: fc.constant("categories"),
+            attribute: fc.constant("data.t"),
+            values: fc.array(fc.constantFrom("a", "b"), { maxLength: 3 }),
+        }),
+        fc.record(
+            { kind: fc.constant("degree"), min: fc.nat(4), direction: fc.constantFrom("in", "out", "all") },
+            { requiredKeys: ["kind"] },
+        ),
         fc.record({ kind: fc.constant("component"), id: fc.nat(3) }),
         fc.record({ kind: fc.constant("neighborhood"), seeds: fc.array(nodeId, { maxLength: 3 }), depth: fc.nat(2) }),
         opaqueLeaf,
@@ -62,10 +76,13 @@ const path = fc.array(nodeId, { minLength: 1, maxLength: 6 }).chain((nodes) =>
         {
             kind: fc.constant("path"),
             nodes: fc.constant(nodes),
-            edges: fc.array(fc.oneof(fc.constant(null), edgeMember, fc.array(edgeMember, { minLength: 1, maxLength: 3 })), {
-                minLength: nodes.length - 1,
-                maxLength: nodes.length - 1,
-            }),
+            edges: fc.array(
+                fc.oneof(fc.constant(null), edgeMember, fc.array(edgeMember, { minLength: 1, maxLength: 3 })),
+                {
+                    minLength: nodes.length - 1,
+                    maxLength: nodes.length - 1,
+                },
+            ),
             directed: fc.boolean(),
         },
         { requiredKeys: ["kind", "nodes"] },
@@ -83,7 +100,7 @@ const definition = fc.oneof(fixed, rule, path, opaqueDefinition) as unknown as f
  * @returns The shuffled copy.
  */
 function permuteMembers(value: SetDefinition, pick: (min: number, max: number) => number): SetDefinition {
-    const shuffle = <T,>(items: readonly T[]): T[] => {
+    const shuffle = <T>(items: readonly T[]): T[] => {
         const out = [...items];
         for (let i = out.length - 1; i > 0; i--) {
             const j = pick(0, i);
@@ -94,11 +111,18 @@ function permuteMembers(value: SetDefinition, pick: (min: number, max: number) =
     };
 
     if (value.kind === "fixed") {
-        return { ...value, nodes: shuffle(value.nodes), ...(value.edges === undefined ? {} : { edges: shuffle(value.edges) }) };
+        return {
+            ...value,
+            nodes: shuffle(value.nodes),
+            ...(value.edges === undefined ? {} : { edges: shuffle(value.edges) }),
+        };
     }
 
     if (value.kind === "path" && value.edges !== undefined) {
-        return { ...value, edges: value.edges.map((step) => (Array.isArray(step) ? shuffle(step as readonly EdgeMember[]) : step)) };
+        return {
+            ...value,
+            edges: value.edges.map((step) => (Array.isArray(step) ? shuffle(step as readonly EdgeMember[]) : step)),
+        };
     }
 
     return value;

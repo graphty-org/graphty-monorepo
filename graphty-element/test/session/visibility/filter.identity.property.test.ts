@@ -49,7 +49,11 @@ const GRAPH: fc.Arbitrary<GraphCase> = fc.integer({ min: 1, max: 10 }).chain((no
         scores: fc.array(fc.option(fc.integer({ min: 0, max: 5 })), { minLength: nodeCount, maxLength: nodeCount }),
         types: fc.array(fc.option(fc.constantFrom("x", "y")), { minLength: nodeCount, maxLength: nodeCount }),
         edges: fc.array(
-            fc.tuple(fc.integer({ min: 0, max: nodeCount - 1 }), fc.integer({ min: 0, max: nodeCount - 1 }), fc.integer({ min: 0, max: 9 })),
+            fc.tuple(
+                fc.integer({ min: 0, max: nodeCount - 1 }),
+                fc.integer({ min: 0, max: nodeCount - 1 }),
+                fc.integer({ min: 0, max: 9 }),
+            ),
             { maxLength: 20 },
         ),
         levels: fc.array(fc.integer({ min: 0, max: 2 }), { minLength: nodeCount, maxLength: nodeCount }),
@@ -62,21 +66,42 @@ const GRAPH: fc.Arbitrary<GraphCase> = fc.integer({ min: 1, max: 10 }).chain((no
 const NODE_LEAF: fc.Arbitrary<RuleTree> = fc.oneof(
     fc.integer({ min: 0, max: 5 }).map((k): RuleTree => ({ kind: "expression", where: `data.score > \`${k}\`` })),
     fc
-        .tuple(fc.option(fc.integer({ min: 0, max: 5 }), { nil: undefined }), fc.option(fc.integer({ min: 0, max: 5 }), { nil: undefined }))
+        .tuple(
+            fc.option(fc.integer({ min: 0, max: 5 }), { nil: undefined }),
+            fc.option(fc.integer({ min: 0, max: 5 }), { nil: undefined }),
+        )
         .map(([a, b]): RuleTree => {
             const [min, max] = a !== undefined && b !== undefined && a > b ? [b, a] : [a, b];
-            return { kind: "range", attribute: "data.score", ...(min === undefined ? {} : { min }), ...(max === undefined ? {} : { max }) };
+            return {
+                kind: "range",
+                attribute: "data.score",
+                ...(min === undefined ? {} : { min }),
+                ...(max === undefined ? {} : { max }),
+            };
         }),
     fc.subarray(["x", "y"]).map((values): RuleTree => ({ kind: "categories", attribute: "data.type", values })),
-    fc.record({ min: fc.integer({ min: 0, max: 4 }), direction: fc.constantFrom<"in" | "out" | "all">("in", "out", "all") }).map((d): RuleTree => ({ kind: "degree", ...d })),
+    fc
+        .record({
+            min: fc.integer({ min: 0, max: 4 }),
+            direction: fc.constantFrom<"in" | "out" | "all">("in", "out", "all"),
+        })
+        .map((d): RuleTree => ({ kind: "degree", ...d })),
     fc.constant<RuleTree>({ kind: "component", id: 0 }),
     fc
-        .record({ seeds: fc.array(fc.integer({ min: 0, max: 12 }), { maxLength: 3 }), depth: fc.integer({ min: 0, max: 2 }) })
+        .record({
+            seeds: fc.array(fc.integer({ min: 0, max: 12 }), { maxLength: 3 }),
+            depth: fc.integer({ min: 0, max: 2 }),
+        })
         .map((n): RuleTree => ({ kind: "neighborhood", seeds: n.seeds.map(idOf), depth: n.depth })),
-    fc.integer({ min: 0, max: 3 }).map((level): RuleTree => ({ kind: "item", item: { result: "lvl", key: { field: "level", value: level } } })),
+    fc
+        .integer({ min: 0, max: 3 })
+        .map((level): RuleTree => ({ kind: "item", item: { result: "lvl", key: { field: "level", value: level } } })),
     fc
         .tuple(fc.constantFrom("data.score", "results.met.value"), fc.boolean(), fc.integer({ min: 0, max: 5 }))
-        .map(([path, top, n]): RuleTree => (top ? { kind: "threshold", path, top: n } : { kind: "threshold", path, above: n - 1 })),
+        .map(
+            ([path, top, n]): RuleTree =>
+                top ? { kind: "threshold", path, top: n } : { kind: "threshold", path, above: n - 1 },
+        ),
 );
 
 /** Scope leaves over the forms that exist today, inline definitions included. */
@@ -85,9 +110,11 @@ const SCOPE_LEAF: fc.Arbitrary<RuleTree> = fc
         fc.constantFrom<Scope>("graph", "largest-component"),
         fc.array(fc.integer({ min: 0, max: 12 }), { maxLength: 4 }).map((ids): Scope => ({ nodes: ids.map(idOf) })),
         fc.integer({ min: 0, max: 5 }).map((k): Scope => ({ where: `data.score >= \`${k}\`` })),
-        fc
-            .tuple(fc.integer({ min: 0, max: 9 }), fc.constantFrom<"listed" | "clipped">("listed", "clipped"))
-            .map(([w, reading]): Scope => ({ define: { kind: "rule", where: { kind: "edges", where: `data.weight > \`${w}\`` }, reading } })),
+        fc.tuple(fc.integer({ min: 0, max: 9 }), fc.constantFrom<"listed" | "clipped">("listed", "clipped")).map(
+            ([w, reading]): Scope => ({
+                define: { kind: "rule", where: { kind: "edges", where: `data.weight > \`${w}\`` }, reading },
+            }),
+        ),
     )
     .map((scope): RuleTree => ({ kind: "member", of: scope }));
 
@@ -95,11 +122,18 @@ const EDGE_LEAF: fc.Arbitrary<RuleTree> = fc.oneof(
     fc.integer({ min: 0, max: 9 }).map((w): RuleTree => ({ kind: "edges", where: `data.weight > \`${w}\`` })),
     fc
         .tuple(fc.boolean(), fc.integer({ min: 0, max: 9 }))
-        .map(([top, n]): RuleTree => (top ? { kind: "threshold", path: "data.weight", top: n } : { kind: "threshold", path: "data.weight", above: n })),
+        .map(
+            ([top, n]): RuleTree =>
+                top
+                    ? { kind: "threshold", path: "data.weight", top: n }
+                    : { kind: "threshold", path: "data.weight", above: n },
+        ),
 );
 
 /** Leaves that speak both halves: the path's nodes and edges. */
-const BOTH_LEAF: fc.Arbitrary<RuleTree> = fc.boolean().map((value): RuleTree => ({ kind: "item", item: { result: "route", key: { field: "onPath", value } } }));
+const BOTH_LEAF: fc.Arbitrary<RuleTree> = fc
+    .boolean()
+    .map((value): RuleTree => ({ kind: "item", item: { result: "route", key: { field: "onPath", value } } }));
 
 const LEAF = fc.oneof(NODE_LEAF, EDGE_LEAF, SCOPE_LEAF, BOTH_LEAF);
 
@@ -195,13 +229,25 @@ async function harnessOf(graph: GraphCase): Promise<Harness> {
     const snapshot = harness.session.data.snapshot();
     const space = edgeSpaceOf(snapshot);
     const nodes = (value: (i: number) => Record<string, unknown> | null): Map<NodeId, Record<string, unknown>> =>
-        new Map(Array.from({ length: graph.nodeCount }, (_, i) => [idOf(i), value(i)] as const).filter((entry): entry is [NodeId, Record<string, unknown>] => entry[1] !== null));
+        new Map(
+            Array.from({ length: graph.nodeCount }, (_, i) => [idOf(i), value(i)] as const).filter(
+                (entry): entry is [NodeId, Record<string, unknown>] => entry[1] !== null,
+            ),
+        );
     table.set("lvl", { shape: "layered-grouping", nodes: nodes((i) => ({ level: graph.levels[i] })) });
-    table.set("met", { shape: "node-metric", nodes: nodes((i) => (graph.metric[i] === null ? null : { value: graph.metric[i] })) });
+    table.set("met", {
+        shape: "node-metric",
+        nodes: nodes((i) => (graph.metric[i] === null ? null : { value: graph.metric[i] })),
+    });
     table.set("route", {
         shape: "path",
         nodes: nodes((i) => ({ onPath: graph.onPath[i] })),
-        edges: new Map(Array.from({ length: snapshot.edgeCount }, (_, e) => [space.idOf(e), { onPath: graph.onPath[e % graph.nodeCount] }] as const)),
+        edges: new Map(
+            Array.from(
+                { length: snapshot.edgeCount },
+                (_, e) => [space.idOf(e), { onPath: graph.onPath[e % graph.nodeCount] }] as const,
+            ),
+        ),
     });
     for (const as of table.keys()) {
         await harness.session.runs.start("degree", undefined, { as, scope: "graph", style: false });
@@ -241,13 +287,18 @@ describe("the visibility filter and a rule read clipped are one evaluator", () =
 
     it("replacing a node leaf with its equivalent scope inside any, all and not changes no mask", async () => {
         await fc.assert(
-            fc.asyncProperty(GRAPH, TREE, fc.array(fc.integer({ min: 0, max: 2 }), { minLength: 40, maxLength: 40 }), async (graph, filter, choices) => {
-                const harness = await harnessOf(graph);
-                const direct = await masksOf(harness, filter);
-                const rewritten = await masksOf(harness, replaced(filter, [...choices]));
+            fc.asyncProperty(
+                GRAPH,
+                TREE,
+                fc.array(fc.integer({ min: 0, max: 2 }), { minLength: 40, maxLength: 40 }),
+                async (graph, filter, choices) => {
+                    const harness = await harnessOf(graph);
+                    const direct = await masksOf(harness, filter);
+                    const rewritten = await masksOf(harness, replaced(filter, [...choices]));
 
-                assert.deepStrictEqual(rewritten, direct);
-            }),
+                    assert.deepStrictEqual(rewritten, direct);
+                },
+            ),
             fcParams(1000),
         );
     });

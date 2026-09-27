@@ -36,7 +36,6 @@ const TO_MIGRATE: readonly string[] = [
     "EigenvectorCentralityAlgorithm.ts",
     "FloydWarshallAlgorithm.ts",
     "GirvanNewmanAlgorithm.ts",
-    "KruskalAlgorithm.ts",
     "LabelPropagationAlgorithm.ts",
     "LeidenAlgorithm.ts",
     "LinkPredictionAlgorithm.ts",

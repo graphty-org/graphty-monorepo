@@ -11,6 +11,7 @@ import { INVALID_INDEX } from "@graphty/graph-format";
 import type { EdgeId } from "../catalog/types";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import { scopeEdges } from "./input/ScopedInput";
 import {
     type AlgorithmOutput,
     type AlgorithmRunContext,
@@ -21,11 +22,13 @@ import {
 } from "./results";
 
 /**
- *
+ * Kruskal's minimum spanning tree: the cheapest edges that join the graph, or the run's scope.
  */
 export class KruskalAlgorithm extends DeclaredAlgorithm {
     static namespace = "graphty";
     static type = "kruskal";
+    /** Spans the run's scope: the edge list and the graph both come from the input. */
+    static scopeInput = "subgraph" as const;
 
     /**
      * Find the cheapest set of edges that still joins every node.
@@ -37,7 +40,8 @@ export class KruskalAlgorithm extends DeclaredAlgorithm {
      * @returns The edge set, or null when there are no edges to choose from.
      */
     async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
-        const graphEdges = Array.from(this.graph.getDataManager().edges.values());
+        // The declared edges of the run's input: its scope's, or every edge of the graph.
+        const graphEdges = scopeEdges(this.input("undirected"));
 
         if (graphEdges.length === 0) {
             return null;
@@ -57,7 +61,7 @@ export class KruskalAlgorithm extends DeclaredAlgorithm {
 
         const edges: ResultElementValues<EdgeId>[] = [];
         await forEachChunked(context, "Marking the network", graphEdges, (edge) => {
-            const merged = edgeRemap === null ? edge.index : (edgeRemap[edge.index] ?? INVALID_INDEX);
+            const merged = edgeRemap === null ? edge.row : (edgeRemap[edge.row] ?? INVALID_INDEX);
             edges.push({ id: edge.id, values: { in: chosen.has(merged) } });
         });
 

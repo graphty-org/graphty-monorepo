@@ -41,7 +41,7 @@ const EXPECTED: Readonly<Record<string, "on" | "off">> = {
     "graphty:hits": "on",
     "graphty:k-core": "on",
     "graphty:katz": "on",
-    "graphty:kruskal": "off",
+    "graphty:kruskal": "on",
     "graphty:label-propagation": "off",
     "graphty:leiden": "off",
     "graphty:link-prediction": "off",

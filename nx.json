@@ -82,7 +82,7 @@
             "dependsOn": ["^build"]
         },
         "lint": {
-            "inputs": ["default", "{workspaceRoot}/eslint.config.js"],
+            "inputs": ["default", "^production", "{workspaceRoot}/eslint.config.js"],
             "cache": true
         },
         "@nx/vitest:test": {

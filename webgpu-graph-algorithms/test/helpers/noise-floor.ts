@@ -115,6 +115,42 @@ export function noiseFixturePath(kernel: string, fixture: string, adapterClass: 
     return resolve(noiseDir(), `${safe(kernel)}-${safe(fixture)}-${safe(adapterClass)}.json`);
 }
 
+/** The largest subgroup / workgroup lane count a strided sample must reach every residue of (both are powers of two). */
+export const LANE_RESIDUES = 64;
+
+/**
+ * Every `stride`-th record of `width` values (records 0, stride, 2 x stride, ...): the sample a strided noise fixture
+ * keeps. Record i runs on invocation i, so a power-of-two stride keeps only the lanes it divides and a defect on the
+ * other lanes never reaches a cross-adapter comparison (issue #267). The stride must therefore be odd, which makes it
+ * coprime with every subgroup and workgroup size, and a stride above 1 must leave at least LANE_RESIDUES records, so
+ * every residue modulo LANE_RESIDUES is sampled.
+ * @param values - the values, `width` per record
+ * @param stride - the record stride (odd)
+ * @param width - the values per record (default 1)
+ * @param records - the record count (default: every whole record of `values`)
+ * @returns the sampled values
+ */
+export function sampleStrided(
+    values: ArrayLike<number>,
+    stride: number,
+    width = 1,
+    records = Math.floor(values.length / width),
+): number[] {
+    const count = Math.ceil(records / stride);
+    if (stride % 2 !== 1 || (stride > 1 && count < LANE_RESIDUES)) {
+        throw new Error(
+            `sampleStrided: stride ${stride} over ${records} records misses lane residues (it must be odd and leave at least ${LANE_RESIDUES} records)`,
+        );
+    }
+    const out: number[] = [];
+    for (let r = 0; r < records; r += stride) {
+        for (let k = 0; k < width; k++) {
+            out.push(values[width * r + k]);
+        }
+    }
+    return out;
+}
+
 /**
  * Writes this adapter's raw output (only when GRAPHTY_NOISE_FLOOR_WRITE=1) in the same JSON shape as the
  * vitest.config.ts `writeNoiseFixture` command (2.5).

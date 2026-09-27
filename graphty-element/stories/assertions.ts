@@ -1056,33 +1056,38 @@ export async function assertAlgorithmPainted(
     algorithm: string,
     options: { readonly paints?: "node" | "edge" | "either"; readonly atLeast?: number } = {},
 ): Promise<void> {
-    const finished = scene.session.runs.list().filter((run) => run.status === "succeeded");
+    // The runs this address names, as the element resolves it: every suggestion is built from one
+    // finished run of the algorithm, and names that run.
+    const runIds = new Set(
+        scene.graph.getSuggestedStyles(algorithm).map(({ spec: { run } }) => {
+            if (typeof run === "string") {
+                return run;
+            }
+
+            return "runId" in run ? run.runId : run.id;
+        }),
+    );
 
     await holds(
-        finished.length > 0,
-        `${scene.story}: no run in this session succeeded, so the picture is the element's defaults. It holds ` +
-            `[${scene.session.runs
+        runIds.size > 0,
+        `${scene.story}: no run of "${algorithm}" succeeded with anything to draw, so none of the picture is ` +
+            `its. The session holds [${scene.session.runs
                 .list()
                 .map((run) => `${String(run.algorithm)}:${run.status}`)
                 .join(", ")}]`,
     );
 
-    await holds(
-        scene.graph.getSuggestedStyles(algorithm).length > 0,
-        `${scene.story}: "${algorithm}" finished and suggests nothing to draw, so applySuggestedStyles had ` +
-            "nothing to apply and the picture is the element's defaults",
-    );
-
     const fromRun = scene.session.styles
         .list()
-        .filter((layer) => (layer.source as { by?: string } | undefined)?.by === "run");
+        .filter((layer) => layer.source?.by === "run" && runIds.has(layer.source.runId));
 
     await holds(
         fromRun.length > 0,
-        `${scene.story}: "${algorithm}" succeeded and no layer in the stack is sourced from a run, so nothing ` +
-            `it computed is being drawn. The stack is [${scene.session.styles
+        `${scene.story}: "${algorithm}" succeeded and no layer in the stack is sourced from its runs ` +
+            `[${[...runIds].join(", ")}], so nothing it computed is being drawn. The stack is ` +
+            `[${scene.session.styles
                 .list()
-                .map((layer) => layer.name)
+                .map((layer) => `${layer.name} (${layer.source?.by === "run" ? layer.source.runId : "not a run"})`)
                 .join(", ")}]`,
     );
 

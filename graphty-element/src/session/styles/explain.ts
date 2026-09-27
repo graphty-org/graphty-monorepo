@@ -520,16 +520,19 @@ function read(path: Path, target: ExplainTarget, sources: ExplainSources): unkno
  * @param layerId - The layer.
  * @param sources - Where the stack is read.
  * @returns The layer.
- * @throws A `GraphtyError` with code `E_BAD_COMMAND` when the stack holds no layer with that id.
+ * @throws A `GraphtyError` with code `E_UNKNOWN_LAYER` when the stack holds no layer with that id.
  */
 function requireLayer(layerId: LayerId, sources: ExplainSources): Layer {
     const stack = sources.stack();
     const found = stack.find((entry) => entry.layer.id === layerId);
 
     if (found === undefined) {
-        throw cannotResolve(`There is no style layer with the id "${layerId}".`, layerId, {
-            id: layerId,
-            known: stack.map((entry) => entry.layer.id),
+        throw new GraphtyError({
+            code: "E_UNKNOWN_LAYER",
+            message: `There is no style layer with the id "${layerId}".`,
+            source: "style",
+            target: { kind: "layer", id: layerId },
+            details: { id: layerId, known: stack.map((entry) => entry.layer.id) },
         });
     }
 
@@ -550,9 +553,9 @@ function requireLayer(layerId: LayerId, sources: ExplainSources): Layer {
  * @param at - The element whose painted value to fix on. Absent, the rule is asked about the
  *     largest group it found, or the middle of the extent it measured.
  * @returns The fixed value and the patch that writes it.
- * @throws A `GraphtyError`: `E_PROTECTED` for an element-owned layer, and `E_BAD_COMMAND` when
- *     the stack holds no such layer, when that layer works the channel out from nothing, or when
- *     the rule paints nothing at the value it was asked about.
+ * @throws A `GraphtyError`: `E_PROTECTED` for an element-owned layer, `E_UNKNOWN_LAYER` when the
+ *     stack holds no such layer, and `E_BAD_COMMAND` when that layer works the channel out from
+ *     nothing or when the rule paints nothing at the value it was asked about.
  */
 export function resolveToStatic(
     layerId: LayerId,

@@ -159,6 +159,7 @@ export type {
     EventCallbackType,
     EventType,
     GraphDataAddedEvent,
+    GraphDataClearedEvent,
     GraphDataLoadedEvent,
     GraphErrorEvent,
     GraphEvent,
@@ -177,6 +178,7 @@ export type {
     NodeEventType,
     NodeGenericEvent,
     NodeHoverEvent,
+    StyleChangedEvent,
 } from "./src/events";
 
 // =============================================================================

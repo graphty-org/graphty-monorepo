@@ -133,8 +133,9 @@ import {
     runCommunityDetection,
     runDegreePass,
 } from "./analysis/runs";
+import { useCanvasBottomStack } from "./canvas/canvasBottomStack";
 import { readPersistedCanvasLayout, resolveCanvasLayout, writePersistedCanvasLayout } from "./canvas/canvasMemory";
-import { CanvasRegion, type CanvasRegionOwnProps, useCanvasBottomStack } from "./canvas/CanvasRegion";
+import { CanvasRegion, type CanvasRegionOwnProps } from "./canvas/CanvasRegion";
 import type { DataDrawerTab } from "./canvas/DataTableDrawer";
 import type { InsightCard } from "./canvas/InsightsStrip";
 import type { LegendChannel } from "./canvas/Legend";
@@ -214,7 +215,7 @@ import { DEFAULT_EDGE_NOUN, GRAPH_SUMMARY_EMPTY_READING, graphSummaryReading } f
 import { nodeMetricHeadline, nodeMetricReading, nodeMetricResultBody } from "./readings/nodeMetricReading";
 import { formatCount } from "./readings/readingFormat";
 import { caveatsLine, runRecordLine } from "./readings/runRecord";
-import { ShellProvider, useShell } from "./ShellContext";
+import { ShellProvider } from "./ShellContext";
 import { formatAcceleration } from "./statusbar/formatAcceleration";
 import { formatCountPair, formatCountsTitle } from "./statusbar/formatCounts";
 import { StatusBar } from "./statusbar/StatusBar";
@@ -223,6 +224,7 @@ import { CanvasToolbar, type CanvasToolbarComponentProps } from "./toolbar/Canva
 import { TopBar } from "./topbar/TopBar";
 import { historyRows, useUndoStore } from "./topbar/undoStore";
 import type { ActivityId, CanvasViewMode, PrimaryActivityId, SelectionKind, ShellStateAxis } from "./types";
+import { useShell } from "./useShell";
 import { useShellKeyBindings } from "./useShellKeyBindings";
 
 /**
@@ -2849,7 +2851,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 setRunningMetric(null);
             }
         },
-        [degreeResults, layers, openPanelAt, undoStore],
+        [layers, openPanelAt, undoStore],
     );
 
     /* ---------------------------------------------------------------------- */
@@ -2983,14 +2985,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         apply().catch((error: unknown) => {
             console.error("[shell] could not apply the load defaults:", error);
         });
-    }, [
-        dataLoaded,
-        graphData.nodes.length,
-        graphStatistics.edgeCount,
-        graphStatistics.nodeCount,
-        loadCompletions,
-        runFindGroups,
-    ]);
+    }, [dataLoaded, graphData.nodes.length, graphStatistics, loadCompletions, runFindGroups]);
 
     /* ---------------------------------------------------------------------- */
     /* The canvas's docks and overlays                                        */
@@ -4019,12 +4014,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         degreeResults,
         edgeCount,
         graphReading,
-        graphStatistics.components.count,
-        graphStatistics.density,
-        graphStatistics.directedness,
-        graphStatistics.repeatedEdgeCount,
-        graphStatistics.selfLoopCount,
-        handleLayersChange,
+        graphStatistics,
         layers,
         mostConnected,
         neighborsOf,
@@ -4033,9 +4023,11 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         openPanelAt,
         pinnedNodes,
         removeResultLayers,
+        resolveLayerChannel,
         selectedLayerId,
         selectedNode,
         togglePin,
+        updateLayer,
         zoomToSelection,
     ]);
 

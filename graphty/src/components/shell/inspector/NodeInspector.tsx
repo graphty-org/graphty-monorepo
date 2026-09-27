@@ -83,7 +83,7 @@ export type NodeActionId =
  * {@link NodeInspectorProps.comingActions} starts from this list.
  * @public
  */
-export const DEFAULT_NODE_COMING_ACTIONS: readonly NodeActionId[] = [
+const DEFAULT_NODE_COMING_ACTIONS: readonly NodeActionId[] = [
     "egoNetwork",
     "radialLayout",
     "distanceFromHere",

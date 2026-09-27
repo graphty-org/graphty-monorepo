@@ -28,7 +28,7 @@ import {
 import { createFakeSession, type FakeSession } from "../../../test/fakeSession";
 import { ACCELERATION_SETTINGS_STORAGE_KEY } from "../defaults/accelerationSettings";
 import { METRIC_VALUE_FIELD, SHELL_DEFAULTS_TEMPLATE_ID } from "../defaults/styleDescriptors";
-import { SHELL_LAYOUT_STORAGE_KEY } from "../ShellContext";
+import { SHELL_LAYOUT_STORAGE_KEY } from "../shellLayoutStorage";
 
 /**
  * Renders the shell with the store pinned, so a board decides its own breakpoint and

@@ -130,8 +130,8 @@ export const SHARDS = [
         "test-command": "pnpm exec nx run remote-logger:coverage",
         "needs-browser": true,
     },
-    // visual-review - single shard (Node.js, plus Chromium for the review page test; coverage counts only
-    // trusted/lib)
+    // visual-review - single shard (Node.js, plus Chromium for the review page and capture tests;
+    // coverage counts trusted/lib, trusted/gate.mjs and capture/)
     {
         shard: "visual-review",
         package: "visual-review",

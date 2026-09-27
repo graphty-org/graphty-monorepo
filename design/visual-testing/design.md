@@ -58,11 +58,38 @@ for this milestone", gives the reason for each.
   reads the newest attempt's `results.json` of this CI run, and fails when that capture holds any
   item other than `unchanged` or `excluded`, or is missing or unfinished. "Seeded" is read from
   the base branch, so deleting a project's baselines in the pull request does not switch the gate
-  off; the newest attempt is used, so "Re-run failed jobs" cannot skip it. The owner's accept
-  commit turns the items `unchanged`, which clears it. It shows that a review happened, not who
-  did it, and it lives in `ci.yml`, which the pull request controls. Master pushes are not gated,
-  and the `visual` job has `continue-on-error: true`, so a capture crash never fails master's run
-  (release, deploy and coverage wait on it); on a pull request a crash blocks through the gate.
+  off; the newest attempt is used, so "Re-run failed jobs" cannot skip it; a `results.json` that
+  fails validation counts as missing. The owner's accept commit turns the items `unchanged`,
+  which clears it.
+- **The gate also checks review records.** Every baseline PNG, and every settings file that
+  excludes a story, that differs between the base tip and the pull request (the merge ref's first
+  parent and the merge ref) must appear, with its new SHA-256, as the `to` of an item in a record
+  the pull request adds under `visual-baselines/reviews/`; a record the base already holds may
+  not be changed or deleted. Without this, committing the captured PNGs into `visual-baselines/`
+  cleared the gate with no review: in a scratch clone a rejected item's PNG, committed by hand,
+  turned the next capture all `unchanged` and the old gate passed.
+- **What the gate proves.** That the pull request's captures match its own baselines, and that
+  every baseline change carries a record in Finish's format. It does not prove the owner pressed
+  Finish: a record is a plain file anyone who can push can write, including an agent holding the
+  owner's credentials, and the gate lives in `ci.yml`, which the pull request controls. Signed
+  records (milestone 3) close that. Master pushes are not gated.
+- **A capture crash never fails a run by itself.** The `visual` job has job-level
+  `continue-on-error: true`, and the "Check all jobs passed" step skips the `visual` entry of
+  `needs` altogether, so whatever result GitHub reports for a failed matrix job under
+  `continue-on-error` cannot fail master's run (release, deploy and coverage wait on it). On a
+  pull request a crash blocks through the gate instead, as a missing or unfinished capture.
+- **Not yet run in CI.** The branch has not been pushed, so none of these is measured: the visual
+  jobs themselves, the gate's artifact download and its depth-2, blob-less checkout, the wall
+  time of each project on a runner, and whether two CI runs of one commit produce byte-identical
+  PNGs, which the whole approach depends on. Milestone 1 is done only when the tooling pull
+  request's own run shows them: both visual jobs green with a complete `results.json`, All
+  Checks Pass green, a deliberate capture crash on a throwaway branch still leaving the run
+  green, a re-run of the visual job whose hashes equal the first attempt's, and each project's
+  wall time. Record the results here.
+- **Capture time.** On the development server (i9-14900KF, 4 workers) compact-mantine took 2 min
+  12 s with all 828 items new and 1 min 00 s when seeded; graphty-element took 6 min 49 s with
+  all 169 stories new (each new item is captured twice) and 3 min 39 s when seeded. The job's
+  timeout is 45 minutes until the first CI runs are measured.
 - **The gate is inactive until the first baselines are on master.** No `visual-baselines/`
   directory exists yet, so no project is seeded and nothing is blocked.
 - **`trusted/` has one dependency**, `pngjs`, for decoding PNGs in the comparison. The
@@ -84,13 +111,21 @@ for this milestone", gives the reason for each.
 - **WebGPU is removed from every captured page** (`navigator.gpu` is deleted before any page
   script runs), so graphty-element always takes its CPU path. No Chromium switch hides WebGPU.
 - **A failed capture is retried once** in a fresh browser context before it is reported `failed`.
-- **Records are `"unproven": true`.** An agent holding the owner's credentials could press Accept.
+- **Records are `"unproven": true`.** An agent holding the owner's credentials could press Accept,
+  or write a record by hand.
 - **Rejects are one pull request comment** with a machine-readable block; nothing is committed.
 - **Tests.** The unit tests cover `trusted/lib/`, `trusted/gate.mjs` and `capture/capture.mjs`
   (against a stand-in Storybook) under the 80/75 thresholds. The review page is driven in Chromium
   by `test/page.test.mjs`, but browser code is not counted in coverage, and `trusted/cli.mjs` is
-  only argument parsing around them. The CI workflow semantics (the gate across attempts,
-  `continue-on-error`) are proven only by a run of the pull request itself.
+  only argument parsing around them, so it is left out of coverage; the gate's command line is run
+  as a subprocess. `npm run lint` also type-checks `trusted/` and `capture/` from their JSDoc
+  (`tsc --checkJs`, not strict). The CI workflow semantics are proven only by a run of the pull
+  request itself (above).
+- **The review page crops.** Thumbnails, side by side and flash show only the box holding
+  everything that differs from the frame's background colour, plus 16 pixels, enlarged up to four
+  times; Z shows the full frame. Most stories are a small component on a 1200 x 900 frame.
+- **A local preview (`serve --results`) offers only Reject.** Accept and Exclude are hidden and
+  refused by the page's API, because Finish accepts only CI captures.
 
 The owner's guide to reviewing is `visual-review/README.md`.
 

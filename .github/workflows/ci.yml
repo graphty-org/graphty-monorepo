@@ -907,7 +907,9 @@ jobs:
     # avoids upload-artifact v4's same-name conflict on a re-run; readers take the highest attempt). Changes are never a failure here:
     # the job fails only when the tool itself crashes, and continue-on-error keeps even that from failing
     # the run, because release.yml, deploy-pages.yml and coverage.yml gate on the run's conclusion. What
-    # blocks a pull request is the step in "All Checks Pass" that reads the results.
+    # blocks a pull request is the step in "All Checks Pass" that reads the results. 45 minutes: an
+    # unseeded project captures every story twice (as new), about 7 minutes for graphty-element on a
+    # 4-worker development machine; CI runners are slower and not yet measured.
     visual:
         name: visual (${{ matrix.project }})
         needs: build
@@ -915,7 +917,7 @@ jobs:
         permissions:
             contents: read
         continue-on-error: true
-        timeout-minutes: 30
+        timeout-minutes: 45
         strategy:
             fail-fast: false
             matrix:
@@ -1021,8 +1023,11 @@ jobs:
                   [[ "$EVENT" == "pull_request" ]] && ok='["success","skipped"]'
                   jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$NEEDS"
                   # Chromatic jobs are opt-in (see chromatic-element), so a skipped one passes on every event.
+                  # The visual job never decides here, whatever result job-level continue-on-error makes
+                  # it report: on a pull request the gate step below judges its results.json, and on
+                  # master a capture crash must not hold release, deploy or coverage.
                   bad=$(jq -r --argjson ok "$ok" \
-                      'to_entries[] | select(.value.result as $r | (($ok | index($r)) == null and ((.key | startswith("chromatic-")) and $r == "skipped" | not)) or (.key == "build" and $r != "success")) | .key' \
+                      'to_entries[] | select(.key != "visual") | select(.value.result as $r | (($ok | index($r)) == null and ((.key | startswith("chromatic-")) and $r == "skipped" | not)) or (.key == "build" and $r != "success")) | .key' \
                       <<<"$NEEDS")
                   if [[ -n "$bad" ]]; then
                       echo "::error::jobs that did not pass: $(echo $bad)"
@@ -1033,15 +1038,22 @@ jobs:
             # Until the owner has reviewed a pull request's visual changes, it does not merge. A project
             # with baselines on the base branch fails here when its newest capture (the highest attempt
             # of this run, so "Re-run failed jobs" cannot skip it) holds anything but unchanged or
-            # excluded items, or when that capture is missing or unfinished. The owner's accept commit
-            # turns the items unchanged, so this clears when the owner presses Finish. It shows that a
-            # review happened, not who did it. Pull requests only, so master's release, deploy and
-            # coverage never wait. The logic is visual-review/trusted/gate.mjs (standard library only).
+            # excluded items, or when that capture is missing, unfinished or invalid. It also fails when
+            # a baseline PNG or an excluding settings file differs from the base without a review record
+            # added in the pull request that names its new hash. So it shows the captures match the pull
+            # request's baselines and that each baseline change carries a record in Finish's format; it
+            # does NOT prove the owner pressed Finish, since anyone who can push can write a record
+            # (visual-review/README.md, "What this does and does not guarantee"). Pull requests only, so
+            # master's release, deploy and coverage never wait. The logic is visual-review/trusted/gate.mjs
+            # (standard library only). Depth 2 so HEAD^1, the merge ref's first parent, is the base tip
+            # the pull request was merged onto; blobs are fetched only for the changed baselines.
             - name: Check out the gate
               if: github.event_name == 'pull_request'
               uses: actions/checkout@v4
               with:
                   sparse-checkout: visual-review
+                  fetch-depth: 2
+                  filter: blob:none
 
             - name: Download visual captures
               if: github.event_name == 'pull_request'
@@ -1051,11 +1063,6 @@ jobs:
                   pattern: visual-*
                   path: ${{ runner.temp }}/visual
 
-            - name: Check visual changes were reviewed
+            - name: Check visual changes were accepted
               if: github.event_name == 'pull_request'
-              env:
-                  BASE_REF: ${{ github.base_ref }}
-              run: |
-                  # Trees only: seeded is read from the base tip's file list, never its PNGs.
-                  git fetch -q --depth=1 --filter=blob:none --no-tags origin "$BASE_REF"
-                  node visual-review/trusted/gate.mjs --captures "$RUNNER_TEMP/visual" --base FETCH_HEAD
+              run: node visual-review/trusted/gate.mjs --captures "$RUNNER_TEMP/visual" --base HEAD^1 --head HEAD

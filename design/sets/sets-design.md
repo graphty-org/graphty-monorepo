@@ -1807,6 +1807,9 @@ are separate from the recorded patch**: a consumer cannot supply an id, an order
 A checklist against the code as merged. Every path is under `graphty-element/src/`. No undo code is
 imported anywhere on this branch; each item names where the undo branch plugs in.
 
+The full merge checklist, with the door-list rows and the affected undo plan phases, is
+`design/sets/undo-integration.md`.
+
 - [ ] **The five prepare functions are the command bodies.** `session/sets/prepare.ts` exports
   `prepareCreate`, `prepareRename`, `prepareRedefine`, `prepareMembers` (both `addMembers` and
   `removeMembers`) and `prepareRemove`. Each is pure over a `RecordView` and one concrete command

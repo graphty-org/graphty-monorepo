@@ -52,6 +52,11 @@ run_step() {
     fi
 }
 
+# No checked-in commit tooling may turn GPG signing off. This runs on every push, whatever it
+# touches. The [s] and [-] keep the patterns from matching this line itself.
+run_step "No signing bypass in tools/ and .husky/" \
+    "! git grep -niE -e 'no-gpg[-]sign' -e 'gpg[s]ign *[= ] *false' -- tools/ .husky/"
+
 # The affected projects, as nx names them. The base is where this branch left origin/master,
 # so commits other people landed on master since then do not count as this push's changes.
 if [ "${PREPUSH_ALL:-0}" = "1" ]; then
@@ -66,8 +71,8 @@ affected() { echo ",$PROJECT_LIST," | grep -q ",$1,"; }
 DIR_LIST=$(echo "$PROJECT_LIST" | tr ',' ' ' | sed 's#@graphty/##g')
 
 if [ -z "$PROJECT_LIST" ]; then
-    echo -e "${GREEN}No package is affected by this push; nothing to check.${NC}"
-    exit 0
+    echo -e "${GREEN}No package is affected by this push; no package to check.${NC}"
+    exit "$FAILED"
 fi
 echo "Affected packages: $PROJECT_LIST"
 echo ""

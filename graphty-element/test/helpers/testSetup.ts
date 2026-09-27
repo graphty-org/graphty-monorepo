@@ -189,40 +189,21 @@ export async function styleEveryEdge(graph: Graph, set: StaticStyle, name = "tes
 }
 
 /**
- * Creates a test graph instance.
- * By default uses NullEngine for unit tests.
- * Pass useRealEngine: true for interaction tests that need WebGL picking.
+ * Creates and initializes a test graph in a 414x207 container.
+ *
+ * The graph always renders on the real WebGL engine that RenderManager builds (SwiftShader in
+ * CI), so pixels, picking and shader readiness are all real. A test that needs no rendering
+ * should use createTestScene(), which runs on a NullEngine, instead of a whole graph.
  */
-export async function createTestGraph(options: { useRealEngine?: boolean } = {}): Promise<Graph> {
-    // Create a container element
+export async function createTestGraph(): Promise<Graph> {
     const container = document.createElement("div");
     container.id = "test-graph-container";
     container.style.width = "414px";
     container.style.height = "207px";
     document.body.appendChild(container);
 
-    // Create graph instance
     const graph = new Graph(container);
-
-    // For unit tests, use NullEngine to avoid WebGL requirements
-    // For interaction tests, use real engine for proper picking
-    if (!options.useRealEngine) {
-        const graphWithEngine = graph as Graph & { createEngine: () => unknown; engine: unknown };
-        const originalCreateEngine = graphWithEngine.createEngine;
-        graphWithEngine.createEngine = function () {
-            this.engine = new NullEngine();
-            return this.engine;
-        };
-
-        // Initialize
-        await graph.init();
-
-        // Restore original method
-        graphWithEngine.createEngine = originalCreateEngine;
-    } else {
-        // Use real WebGL engine
-        await graph.init();
-    }
+    await graph.init();
 
     return graph;
 }

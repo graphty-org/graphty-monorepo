@@ -121,6 +121,17 @@
                 "memoryDeltaBytes": 0,
                 "rate": 31200000,
                 "rateUnit": "nodes/s"
+            },
+            {
+                "group": "betweenness",
+                "name": "betweenness exact karate",
+                "medianMs": 3.1,
+                "minMs": 3.0,
+                "maxMs": 3.4,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": 11000,
+                "rateUnit": "sources/s"
             }
         ]
     }

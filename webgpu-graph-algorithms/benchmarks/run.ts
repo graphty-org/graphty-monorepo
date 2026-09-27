@@ -28,6 +28,7 @@ import { writeFileSync } from "node:fs";
 import { type GpuContext } from "../src/context.js";
 import { createNodeGpuContext } from "../src/node/index.js";
 import { ATTRACTION_SCALE_GROUP, runAttractionScaleBenchmarks } from "./attraction-scale.bench.js";
+import { BETWEENNESS_GROUP, runBetweennessBenchmarks } from "./betweenness.bench.js";
 import { BFS_GROUP, runBfsBenchmarks } from "./bfs.bench.js";
 import {
     appendSession,
@@ -49,7 +50,7 @@ import { runWccBenchmarks } from "./wcc.bench.js";
 /**
  * The groups and the T-targets they record (6.3): upload T-1, roundtrip T-2 / T-3, layout-exact T-4 and the Node side
  * of T-5, `pagerank` T-8, `wcc` T-9, `layout-fr` T-14, `layout-grid` T-6 / T-7 and the grid rows of the 7.8
- * re-check, `bfs` T-10 (P8). `attraction-scale` records no target: it is the G4-F16 diagnostic, a ratio curve rather than
+ * re-check, `bfs` T-10 (P8), `betweenness` T-11. `attraction-scale` records no target: it is the G4-F16 diagnostic, a ratio curve rather than
  * a gate row. Every group is REQUIRED by scripts/bench-append-session.js: a session appended to a baseline must carry
  * all of them, so a new group is added there and to test/benchmarks.test.ts in the same change.
  */
@@ -63,6 +64,7 @@ const GROUPS: Readonly<Record<string, (ctx: GpuContext) => Promise<BenchResult[]
     [LAYOUT_GRID_GROUP]: runLayoutGridBenchmarks,
     [ATTRACTION_SCALE_GROUP]: runAttractionScaleBenchmarks,
     [BFS_GROUP]: runBfsBenchmarks,
+    [BETWEENNESS_GROUP]: runBetweennessBenchmarks,
 };
 
 /** The parsed command line. */

@@ -105,8 +105,14 @@ function schemeOf(revision: string): string {
  * @param sets.get - One live set.
  * @returns `changed`, `unknown` (revisions of different schemes) or `same`.
  */
-function runInputs(run: StatusRun, sets: { get(id: SetId): ElementSet | undefined }): "changed" | "unknown" | "same" {
+function runInputs(run: StatusRun, sets: StatusSources["sets"]): "changed" | "unknown" | "same" | { readonly gone: SetId; readonly name: string } {
     const recorded = run.scope.set;
+    const named = recorded?.id ?? (typeof run.scope.spec === "object" && "set" in run.scope.spec ? run.scope.spec.set : undefined);
+    const removed = named === undefined ? undefined : sets.tombstone(named);
+    if (named !== undefined && removed !== undefined) {
+        return { gone: named, name: removed.name };
+    }
+
     if (recorded !== undefined) {
         const live = sets.get(recorded.id);
         if (live === undefined) {
@@ -383,6 +389,13 @@ class StatusWalk {
             }
 
             const inputs = runInputs(run, sources.sets);
+            if (typeof inputs === "object") {
+                // The run's own scope set was removed: its values stand, but it cannot re-run.
+                builder.worsen("cannot-rerun");
+                builder.reason({ kind: "missing-set", id: inputs.gone, name: inputs.name });
+                continue;
+            }
+
             if (!run.registered) {
                 builder.reason({ kind: "missing-capability", name: run.algorithm });
                 if (inputs === "changed") {

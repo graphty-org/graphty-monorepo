@@ -195,7 +195,15 @@ describe("the item leaf", () => {
 
         assert.deepStrictEqual(await visible(harness, onPath), { nodes: ["a", "b", "c"], edges: edgesOf(harness, "ab", "bc") });
         assert.deepStrictEqual(await members(harness, rule(onPath, "listed")), { nodes: ["a", "b", "c"], edges: edgesOf(harness, "ab", "bc") });
-        assert.deepStrictEqual(await members(harness, rule(onPath, "induced")), { nodes: ["a", "b", "c"], edges: edgesOf(harness, "ab", "ac", "bc") });
+        // Read induced, the edge half would be ignored: refused, as the doors refuse a kept one.
+        let reason: unknown = null;
+        try {
+            await members(harness, rule(onPath, "induced"));
+        } catch (error) {
+            reason = isGraphtyError(error) ? (error.details as { reason?: unknown } | undefined)?.reason : error;
+        }
+
+        assert.strictEqual(reason, "induced-edge-leaf");
         harness.session.dispose();
     });
 

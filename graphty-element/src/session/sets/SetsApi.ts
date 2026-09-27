@@ -12,7 +12,6 @@
 
 import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
-import { compareIds } from "../../catalog/sets/canonical";
 import { EDGE_READINGS, inducedEdgeLeaf, parseScope, speaksEdges, stabiliseEdgeRefs } from "../../catalog/sets/parse";
 import type {
     EdgeId,
@@ -30,7 +29,7 @@ import type {
     SetDefinitionInput,
     SetId,
 } from "../../catalog/types";
-import { edgeCounterOf, stableEdgeMember } from "../../data/edgeIdentity";
+import { canonicalEdgeEnds, edgeCounterOf, stableEdgeMember } from "../../data/edgeIdentity";
 import { readEndpoint } from "../../data/endpoints";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { SessionAttributes } from "../types";
@@ -226,22 +225,7 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
         return member;
     };
 
-    /**
-     * A stable member with its ends in canonical order when pairs are unordered, so `b -> a`
-     * and `a -> b` spell one member of an undirected graph. Anything that is not a well-formed
-     * pair of ids passes through for the validator to judge.
-     * @param member - The member as given.
-     * @returns The member.
-     */
-    const canonicalEnds = (member: EdgeMember): EdgeMember => {
-        const { source, target } = member as { source?: unknown; target?: unknown };
-        const isId = (value: unknown): value is NodeId => typeof value === "string" || typeof value === "number";
-        if (!isId(source) || !isId(target) || dependencies.pairsOrdered?.() !== false || compareIds(target, source) >= 0) {
-            return member;
-        }
-
-        return { ...member, source: target, target: source };
-    };
+    const canonicalEnds = (member: EdgeMember): EdgeMember => canonicalEdgeEnds(member, dependencies.pairsOrdered?.() !== false);
 
     /**
      * Run a conversion to stable form and collect the session edges it named.
@@ -547,7 +531,19 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
 
         create: (definition: SetDefinitionInput, options: { readonly name?: string } = {}): SetId => createAs(definition, options.name, { kind: "user" }),
 
-        offers: (run: RunId, options: { readonly limit?: number } = {}) => offering().offers(run, options.limit),
+        offers: (run: RunId, options: { readonly limit?: number } = {}) => {
+            const { limit: most } = options;
+            if (most !== undefined && (!Number.isInteger(most) || most < 0)) {
+                throw new GraphtyError({
+                    code: "E_BAD_COMMAND",
+                    message: `An offers limit is a whole number of at least 0, not ${String(most)}.`,
+                    source: "data",
+                    details: { limit: most },
+                });
+            }
+
+            return offering().offers(run, most);
+        },
 
         containing: async (element: { readonly node: NodeId } | { readonly edge: EdgeId }): Promise<Memberships> => {
             await Promise.resolve();

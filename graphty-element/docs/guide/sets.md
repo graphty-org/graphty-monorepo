@@ -144,6 +144,21 @@ The short forms from before sets existed still work everywhere, and mean what th
 | `{ nodes: [...] }` | An inline fixed set of nodes |
 | `{ define: definition }` | An inline set of any kind |
 
+### Checking a definition before using it
+
+`parseSetDefinition` and `parseScope` (from `@graphty/graphty-element/catalog` or `/session`, both
+free of Babylon.js and the DOM) check a value from a form, a file or an assistant and return its
+canonical form -- members sorted and duplicate-free -- or throw a `GraphtyError` with code
+`E_BAD_COMMAND` and a `details.reason` saying what is wrong. They check shape only: whether a set
+id or a node exists is checked by the doors, against the session.
+
+```typescript
+import { parseSetDefinition } from "@graphty/graphty-element/catalog";
+
+const definition = parseSetDefinition(JSON.parse(userInput)); // throws on anything malformed
+element.session.sets.create(definition);
+```
+
 ## Using a set
 
 **An algorithm run** computes over the set's subgraph, not the whole graph, and says so in its
@@ -303,6 +318,37 @@ see `offer.followable`) can be kept with `{ follow: true }` and then tracks the 
 
 An offer from a run that has since been re-run is refused with `E_BAD_COMMAND`, reason
 `stale-offer`: ask for the offers again.
+
+### One result item inside a rule
+
+An offer's definition is a rule with one `item` leaf: "this item of this run's result". The leaf
+can be used in any rule, so a community can be combined with other conditions. Here, the
+high-PageRank nodes of community 3, held at the execution the offer came from:
+
+```typescript
+const community = offers[1].item; // { run, key: { field: "group", value: 3 }, execution }
+const pagerank = element.run("pagerank");
+await pagerank;
+
+const hubs = element.session.sets.create(
+    {
+        kind: "rule",
+        where: {
+            kind: "all",
+            of: [
+                { kind: "item", item: community },
+                { kind: "threshold", path: `results.${pagerank.id}.value`, top: 10 },
+            ],
+        },
+        reading: "induced",
+    },
+    { name: "Hubs of community 3" },
+);
+```
+
+An item without `execution` follows the run's latest result. That is refused for a community
+number, which means nothing in another run, and allowed for fields that mean the same in every run
+(`onPath`, a category, a level).
 
 ## Paths
 

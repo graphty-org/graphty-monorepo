@@ -25,7 +25,7 @@ import {
 } from "@graphty/graph-format";
 
 import { EMPTY_SUM, hashEdgeMember, type LanePair, membershipDigestOf } from "../../catalog/sets/hash";
-import { readingOfScope } from "../../catalog/sets/parse";
+import { inducedEdgeLeaf, readingOfScope, speaksEdges } from "../../catalog/sets/parse";
 import type { EdgeId, EdgeMember, Filter, NodeId, Path, Query, RunId, Scope, ScopeId, SetDefinition, SetId } from "../../catalog/types";
 import { EDGE_ID_COLUMN, identityColumnsOf, pairsOrdered } from "../../data/edgeIdentity";
 import { GraphtyError, isGraphtyError } from "../../errors";
@@ -140,6 +140,8 @@ export interface ResolveContext {
         list(): readonly unknown[];
         get(id: SetId): unknown;
         seedsOf(id: SetId): EdgeSeeds | undefined;
+        /** A removed id's tombstone, so a refusal names the set by the name it had. */
+        tombstone?(id: SetId): { readonly name: string } | undefined;
     };
     // What an input signature reads (./signature). Without them a query is resolved, never cached.
     /**
@@ -162,6 +164,13 @@ export interface ResolveContext {
     readonly tick?: InputTick;
     /** The resolution cache. Absent: every resolution is computed. */
     readonly cache?: SetsCache;
+    /**
+     * Which halves carry a value path. Absent: an `item` or `threshold` leaf is not known to
+     * speak edges.
+     * @param path - The path.
+     * @returns `"node"`, `"edge"`, or both.
+     */
+    readonly fieldKinds?: (path: Path) => readonly string[];
 }
 
 /** The node half of a resolution, before the root applies the reading. */
@@ -327,6 +336,18 @@ export function resolveNodeHalf(scope: Scope, context: ResolveContext, seen: Set
             return halfOf(resolveKept(scope.set, kept, context, [...seen]));
         }
 
+        const removed = record === undefined ? context.sets?.tombstone?.(scope.set) : undefined;
+        if (removed !== undefined) {
+            // Detached: a pass resolves it to nothing; a caller that needs members is refused.
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `The set "${removed.name}" was removed, so it holds nothing. Restore it or choose another set.`,
+                source: "run",
+                target: { kind: "scope", id: scope.set },
+                details: { scope, reason: "missing-set", id: scope.set, name: removed.name },
+            });
+        }
+
         if (record === undefined) {
             throw new GraphtyError({
                 code: "E_BAD_COMMAND",
@@ -467,7 +488,16 @@ export function resolveQuietly(resolve: () => Resolution, context: ResolveContex
  * @returns The reading.
  */
 function readingIn(scope: Scope, context: ResolveContext): string {
-    return readingOfScope(scope, referentReading({ referent: (id) => context.saved?.get(id)?.spec ?? keptDefinition(id, context) }));
+    return readingOfScope(scope, referentsIn(context));
+}
+
+/**
+ * The reading of the set an id names, following references.
+ * @param context - What the resolution reads.
+ * @returns The lookup.
+ */
+function referentsIn(context: ResolveContext): (id: SetId) => string | undefined {
+    return referentReading({ referent: (id) => context.saved?.get(id)?.spec ?? keptDefinition(id, context) });
 }
 
 /**
@@ -545,6 +575,12 @@ export function ruleHalves(definition: Extract<SetDefinition, { kind: "rule" }>,
 function resolveRule(definition: Extract<SetDefinition, { kind: "rule" }>, context: ResolveContext, seen: readonly SetId[]): Resolution {
     const { snapshot } = context;
     const { reading } = definition;
+    // The door refuses this form; a referent redefined since, or a load, can still make it. It
+    // resolves to nothing, as its status says (design 4.3).
+    if (reading === "induced" && speaksEdges(definition.where, referentsIn(context), context.fieldKinds)) {
+        throw inducedEdgeLeaf();
+    }
+
     const halves = ruleHalves(definition, context, seen);
 
     const n = snapshot.nodeCount;

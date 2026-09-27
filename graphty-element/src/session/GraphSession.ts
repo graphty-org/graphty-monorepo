@@ -1306,6 +1306,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         tick: inputs.tick,
         sets,
         edgeMember,
+        fieldKinds: dependencies.fieldKinds,
         matchEdges: (where: Query) => requireQuery(query).edges(where),
         ...(options.records === undefined ? {} : { values: valueSourceOf(options.records, snapshot) }),
     });

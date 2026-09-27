@@ -214,7 +214,8 @@ export interface SetsApi {
      * @param options - How many to return.
      * @param options.limit - The most offers returned; 100 by default.
      * @returns The largest `limit` offers and how many were left out.
-     * @throws `E_UNKNOWN_RUN` for a run this session does not hold.
+     * @throws `E_UNKNOWN_RUN` for a run this session does not hold; `E_BAD_COMMAND` for a limit that
+     * is not a whole number of at least 0.
      */
     offers(
         run: RunId,
@@ -242,7 +243,8 @@ export interface SetsApi {
      * ids and are stored in stable form.
      * @param definition - The definition.
      * @param options - How to keep it.
-     * @param options.name - The name; "Set N" (the smallest free N) when absent.
+     * @param options.name - The name; "Set N" (the smallest free N) when absent. At most 256
+     * characters, because the id is minted from it.
      * @returns The minted id.
      */
     create(definition: SetDefinitionInput, options?: { readonly name?: string }): SetId;

@@ -721,13 +721,15 @@ export function parseScope(value: unknown): Scope {
 }
 
 /**
- * A write door's value with every session edge id inside an inline definition replaced by its
- * stable member, at any depth: a scope's `{ define }`, a fixed or path definition's edges, a
+ * A write door's value with every edge reference inside an inline definition passed through
+ * `stable` (a session edge id becomes its stable member; an object member is handed over as
+ * given, for the door to canonicalise), at any depth: a scope's `{ define }`, a fixed or path definition's edges, a
  * rule's tree, the `scope` leaves of a rule tree and a `{ match: "scope" }` selector. Everything
- * else is returned as given for the validator to judge, and a value holding no session edge id is
+ * else is returned as given for the validator to judge, and a value `stable` changes nothing in is
  * returned unchanged (the same object).
  * @param value - A scope, a set definition, a rule tree or a selector, as given.
- * @param stable - The stable member of a session edge id; throws for an edge the graph lacks.
+ * @param stable - The stable member of a session edge id or an object member; throws for an edge
+ * the graph lacks.
  * @returns The value, stable.
  */
 export function stabiliseEdgeRefs<T>(value: T, stable: (ref: string) => unknown): T {
@@ -745,7 +747,8 @@ export function stabiliseEdgeRefs<T>(value: T, stable: (ref: string) => unknown)
             const next = list.map(step);
             return next.every((item, i) => item === list[i]) ? list : next;
         };
-        const ref = (item: unknown): unknown => (typeof item === "string" ? stable(item) : item);
+        // Object members go through `stable` too, so a write door puts their ends in canonical order.
+        const ref = (item: unknown): unknown => (typeof item === "string" || isObject(item) ? stable(item as string) : item);
 
         if (node.define !== undefined) {
             return swap("define", walk(node.define));

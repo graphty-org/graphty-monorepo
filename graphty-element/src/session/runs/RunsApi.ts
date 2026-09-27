@@ -31,7 +31,7 @@ import {
     type ScopeInput,
     type SetId,
 } from "../../catalog/types";
-import { GraphtyError } from "../../errors";
+import { GraphtyError, isGraphtyError } from "../../errors";
 import type { RunResult } from "../results/types";
 import type { HeldCaptures } from "../sets/captures";
 import type { AutoApplyPolicy } from "../styles/autoApply";
@@ -923,15 +923,27 @@ class Runs implements SessionRunsApi {
             return null;
         }
 
-        const current = this.options.resolveScope(run.scope.spec);
+        let nowVisible: number;
+        try {
+            const current = this.options.resolveScope(run.scope.spec);
+            if (current.digest === run.scope.digest) {
+                return null;
+            }
 
-        if (current.digest === run.scope.digest) {
-            return null;
+            nowVisible = current.nodeCount;
+        } catch (error) {
+            // A scope that no longer resolves (its set was removed) holds nothing now; reading a
+            // run's record must never throw.
+            if (!isGraphtyError(error)) {
+                throw error;
+            }
+
+            nowVisible = 0;
         }
 
         return Object.freeze({
             ranOn: run.scope.nodeCount,
-            nowVisible: current.nodeCount,
+            nowVisible,
             scopeSpec: run.scope.spec,
         });
     }

@@ -28,6 +28,7 @@
 
 import { compareIds } from "../../catalog/sets/canonical";
 import type { SetId } from "../../catalog/types";
+import { GraphtyError } from "../../errors/GraphtyError";
 import { loadRecord, recordBytes, type RecordView } from "./prepare";
 import type { EdgeSeeds } from "./resolve";
 import type { ElementSet, SetChange } from "./types";
@@ -312,8 +313,12 @@ export class SetsStore implements RecordView {
      * Load a stored slice into this empty store: every record validated in load mode and `put`,
      * the register and the tombstones restored. One write group, told as `load`. Internal.
      * @param stored - What {@link toLogicalRecords} returned, after any JSON round trip.
-     * @throws `E_BAD_COMMAND` for a malformed record; an Error for a non-empty store or a malformed
-     *     register or tombstone.
+     *
+     * A record's `createdFrom` of a kind this version does not know is kept as given and written
+     * back unchanged, as an unknown definition kind is (design 12.5). A tombstone whose id is also
+     * a live record is dropped: a tombstone speaks only for an absent id.
+     * @throws `E_BAD_COMMAND` for a malformed slice, record or tombstone, or two records with one
+     *     id; an Error for a non-empty store.
      */
     loadLogicalRecords(stored: unknown): void {
         const value = stored as { records?: unknown; register?: unknown; tombstones?: unknown } | null;
@@ -329,17 +334,26 @@ export class SetsStore implements RecordView {
             !value.register.every((id) => typeof id === "string") ||
             !Array.isArray(value.tombstones)
         ) {
-            throw new Error("Stored sets are { records, register, tombstones }.");
+            throw badSlice("Stored sets are { records, register, tombstones }.");
         }
 
         const records = value.records.map((record) => loadRecord(record));
-        const tombstones = value.tombstones.map((entry: unknown): Tombstone => {
-            const t = entry as { id?: unknown; name?: unknown; record?: unknown } | null;
-            if (typeof t !== "object" || t === null || typeof t.id !== "string" || typeof t.name !== "string") {
-                throw new Error("A stored tombstone is { id, name, record? }.");
+        const live = new Set<SetId>();
+        for (const record of records) {
+            if (live.has(record.id)) {
+                throw badSlice(`Two stored sets have the id "${record.id}".`, { id: record.id });
             }
 
-            return Object.freeze({ id: t.id, name: t.name, ...(t.record === undefined ? {} : { record: loadRecord(t.record) }) });
+            live.add(record.id);
+        }
+
+        const tombstones = value.tombstones.flatMap((entry: unknown): Tombstone[] => {
+            const t = entry as { id?: unknown; name?: unknown; record?: unknown } | null;
+            if (typeof t !== "object" || t === null || typeof t.id !== "string" || typeof t.name !== "string") {
+                throw badSlice("A stored tombstone is { id, name, record? }.");
+            }
+
+            return live.has(t.id) ? [] : [Object.freeze({ id: t.id, name: t.name, ...(t.record === undefined ? {} : { record: loadRecord(t.record) }) })];
         });
 
         this.transact(() => {
@@ -509,4 +523,14 @@ export class SetsStore implements RecordView {
             }
         }
     }
+}
+
+/**
+ * The refusal of a malformed stored slice.
+ * @param message - What is wrong.
+ * @param details - What names it.
+ * @returns The error to throw.
+ */
+function badSlice(message: string, details: Record<string, unknown> = {}): GraphtyError {
+    return new GraphtyError({ code: "E_BAD_COMMAND", message, source: "data", details: { reason: "bad-slice", ...details } });
 }

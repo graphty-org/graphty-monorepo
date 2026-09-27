@@ -43,7 +43,7 @@ import type {
     SetDefinition,
     SetDefinitionInput,
 } from "../../catalog/types";
-import { edgeCounterOf, edgeIdOf } from "../../data/edgeIdentity";
+import { canonicalEdgeEnds, edgeCounterOf, edgeIdOf, pairsOrdered } from "../../data/edgeIdentity";
 import { GraphtyError, isGraphtyError } from "../../errors";
 import type { AttributeRevisions, InputTick } from "../attributes";
 import type { ResolvedScope } from "../runs/types";
@@ -224,6 +224,13 @@ export interface ScopeSources {
      * @returns The member, or undefined when the graph holds no such edge.
      */
     readonly edgeMember?: (id: EdgeId) => EdgeMember | undefined;
+    /**
+     * Which halves carry a value path, so an `induced` rule over an edge field resolves to nothing
+     * as its status says. Absent: such a leaf is not known to speak edges.
+     * @param path - The path.
+     * @returns `"node"`, `"edge"`, or both.
+     */
+    readonly fieldKinds?: (path: Path) => readonly string[];
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -583,6 +590,7 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
         ...(sources.matchEdges === undefined ? {} : { matchEdges: sources.matchEdges }),
         ...(sources.values === undefined ? {} : { values: sources.values }),
         ...(sources.result === undefined ? {} : { result: sources.result }),
+        ...(sources.fieldKinds === undefined ? {} : { fieldKinds: sources.fieldKinds }),
     });
 
     /**
@@ -593,7 +601,7 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
      */
     const stable = (ref: EdgeRef): EdgeMember => {
         if (typeof ref !== "string") {
-            return ref;
+            return canonicalEdgeEnds(ref, pairsOrdered(sources.snapshot()));
         }
 
         // A resolver built without the session's reader reads the snapshot alone: no file ids.

@@ -447,6 +447,49 @@ describe("status beyond the table", () => {
         assert.strictEqual(cacheCounters.misses, misses, "no resolution was computed");
     });
 
+    it("an induced rule whose referent was redefined to speak edges: invalid, and every consumer gets nothing", async () => {
+        const f = fixture();
+        const { session } = f.harness;
+        const referent = session.sets.create({ kind: "fixed", nodes: ["a", "b"], reading: "induced" });
+        const rule = session.sets.create({ kind: "rule", where: { kind: "scope", scope: { set: referent } }, reading: "induced" });
+        session.sets.redefine(referent, { kind: "fixed", nodes: ["a", "b"], reading: "listed" });
+
+        assert.strictEqual(statusOfSet(f, rule).freshness, "unresolvable");
+        assert.strictEqual(statusOfSet(f, rule).reasons[0]?.kind, "invalid");
+        assert.deepStrictEqual(await countOf(f, rule), [0, 0]);
+        await session.visibility.set({ kind: "scope", scope: { set: rule } });
+        assert.strictEqual([...session.visibility.nodes].length, 0, "a filter over it shows nothing");
+        let refused: unknown = null;
+        try {
+            await session.runs.start("degree", undefined, { scope: { set: rule }, style: false });
+        } catch (error) {
+            refused = error;
+        }
+
+        assert.ok(refused instanceof GraphtyError, "a run over it is refused");
+    });
+
+    it("a rule reading a run whose scope set was removed: cannot-rerun, missing-set by name, the run's values", async () => {
+        const f = fixture();
+        const { session } = f.harness;
+        const scope = session.sets.create({ kind: "fixed", nodes: ["a", "b", "c"], reading: "induced" }, { name: "Scope" });
+        await run(f, "pr", { set: scope });
+        const reads = session.sets.create(OVER_PR);
+        session.sets.remove(scope);
+
+        assert.deepStrictEqual(statusOfSet(f, reads), status("cannot-rerun", [{ kind: "missing-set", id: scope, name: "Scope" }]));
+        assert.ok((await nodesOf(f, reads)).length > 0, "it still reads the run's values");
+        assert.strictEqual(session.runs.get("pr")?.record.stale?.nowVisible, 0, "the run's record reads, and its scope holds nothing");
+        let message = "";
+        try {
+            await rerun(f, "pr");
+        } catch (error) {
+            message = String(error);
+        }
+
+        assert.match(message, /"Scope" was removed/);
+    });
+
     it("refuses a set id that was never issued, and reads a keyword as current", () => {
         const f = fixture();
         assert.throws(() => f.harness.session.sets.status({ set: "set_never" }), /never/);

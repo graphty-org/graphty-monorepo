@@ -111,7 +111,8 @@ function requireRecord(records: RecordView, id: SetId): ElementSet {
  * @param name - The candidate.
  * @param self - The set being renamed, which may keep its own name.
  * @returns The trimmed name.
- * @throws `E_BAD_COMMAND` for an empty name, `E_DUPLICATE_ID` for one another set holds.
+ * @throws `E_BAD_COMMAND` for an empty name or one longer than {@link MAX_NAME_LENGTH},
+ * `E_DUPLICATE_ID` for one another set holds.
  */
 function checkName(records: RecordView, name: unknown, self?: SetId): string {
     if (typeof name !== "string" || name.trim() === "") {
@@ -119,6 +120,12 @@ function checkName(records: RecordView, name: unknown, self?: SetId): string {
     }
 
     const trimmed = name.trim();
+    if (trimmed.length > MAX_NAME_LENGTH) {
+        throw refuse("E_BAD_COMMAND", `A set name is at most ${MAX_NAME_LENGTH} characters, because its id is minted from it.`, self, {
+            length: trimmed.length,
+        });
+    }
+
     for (const record of records.values()) {
         if (record.name === trimmed && record.id !== self) {
             throw refuse("E_DUPLICATE_ID", `A set called "${trimmed}" already exists.`, record.id, { name: trimmed });
@@ -127,6 +134,9 @@ function checkName(records: RecordView, name: unknown, self?: SetId): string {
 
     return trimmed;
 }
+
+/** The longest set name a door accepts. */
+export const MAX_NAME_LENGTH = 256;
 
 /**
  * The name the element picks when none is given: "Set N" for the smallest free N.

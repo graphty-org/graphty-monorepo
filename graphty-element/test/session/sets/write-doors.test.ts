@@ -7,7 +7,7 @@
 
 import { assert, describe, it } from "vitest";
 
-import type { Filter, Scope, ScopeInput } from "../../../src/catalog/types";
+import type { EdgeMember, Filter, Scope, ScopeInput, SetId } from "../../../src/catalog/types";
 import { isGraphtyError } from "../../../src/errors";
 import { edgeBetween, type Harness, makeSession } from "../helpers";
 import { builtInRuns } from "./algorithms";
@@ -90,6 +90,19 @@ describe("a session edge id inside an inline definition", () => {
     });
 });
 
+describe("small inputs at the doors", () => {
+    it("refuses an offers limit that is negative or not whole, and a name longer than 256 characters", async () => {
+        const h = fixture();
+        await h.session.runs.start("degree", {}, { as: "dg", style: false });
+        assert.strictEqual(await codeOf(() => h.session.sets.offers("dg", { limit: -1 })), "E_BAD_COMMAND");
+        assert.strictEqual(await codeOf(() => h.session.sets.offers("dg", { limit: 1.5 })), "E_BAD_COMMAND");
+        assert.strictEqual(await codeOf(() => h.session.sets.offers("dg", { limit: 0 })), null);
+        const fixed = { kind: "fixed", nodes: ["a"], reading: "induced" } as const;
+        assert.strictEqual(await codeOf(() => h.session.sets.create(fixed, { name: "x".repeat(257) })), "E_BAD_COMMAND");
+        assert.strictEqual(await codeOf(() => h.session.sets.create(fixed, { name: "x".repeat(256) })), null);
+    });
+});
+
 describe("a set id never issued", () => {
     const nope: Scope = { set: "set_nope" };
 
@@ -162,5 +175,62 @@ describe("an undirected edge member spelt with its ends reversed", () => {
         const after = h.session.sets.get(id);
         assert.strictEqual((after?.definition as { edges: readonly unknown[] }).edges.length, 1);
         assert.strictEqual(after?.revision, before?.revision);
+    });
+    /**
+     * The member of edge a-b, and the same member with its ends swapped.
+     * @param h - The harness.
+     * @returns Both spellings.
+     */
+    const spellings = (h: Harness): [EdgeMember, EdgeMember] => {
+        const probe = h.session.sets.create({ kind: "fixed", nodes: [], edges: [edgeBetween(h, "a", "b")], reading: "listed" });
+        const member = (h.session.sets.get(probe)?.definition as { edges: readonly EdgeMember[] }).edges[0];
+        h.session.sets.remove(probe);
+
+        return [member, { ...member, source: member.target, target: member.source }];
+    };
+    const edgesOf = (h: Harness, id: SetId): readonly EdgeMember[] => (h.session.sets.get(id)?.definition as { edges: readonly EdgeMember[] }).edges;
+
+    it("is one member when both spellings are created together, with the revision of either alone", () => {
+        const h = fixture();
+        const [ab, ba] = spellings(h);
+        const both = h.session.sets.create({ kind: "fixed", nodes: [], edges: [ab, ba], reading: "listed" });
+        const forward = h.session.sets.create({ kind: "fixed", nodes: [], edges: [ab], reading: "listed" });
+        const reversed = h.session.sets.create({ kind: "fixed", nodes: [], edges: [ba], reading: "listed" });
+
+        assert.deepStrictEqual(edgesOf(h, both), [ab]);
+        assert.deepStrictEqual(edgesOf(h, reversed), [ab]);
+        assert.strictEqual(h.session.sets.get(reversed)?.revision, h.session.sets.get(forward)?.revision);
+        assert.strictEqual(h.session.sets.get(both)?.revision, h.session.sets.get(forward)?.revision);
+    });
+
+    it("is canonical through redefine", () => {
+        const h = fixture();
+        const [ab, ba] = spellings(h);
+        const id = h.session.sets.create({ kind: "fixed", nodes: ["a"], reading: "listed" });
+        h.session.sets.redefine(id, { kind: "fixed", nodes: [], edges: [ba, ab], reading: "listed" });
+
+        assert.deepStrictEqual(edgesOf(h, id), [ab]);
+    });
+
+    it("is canonical inside an inline define, at the sets door and the scope door", async () => {
+        const h = fixture();
+        const [ab, ba] = spellings(h);
+        const inline = { define: { kind: "fixed", nodes: [], edges: [ba, ab], reading: "listed" } } as const;
+        const id = h.session.sets.create({ kind: "rule", where: { kind: "scope", scope: inline }, reading: "listed" });
+        const {where} = (h.session.sets.get(id)?.definition as unknown as { where: { scope: { define: { edges: EdgeMember[] } } } });
+        assert.deepStrictEqual(where.scope.define.edges, [ab]);
+
+        await h.session.visibility.set({ kind: "scope", scope: inline });
+        const leaf = h.session.visibility.filter as unknown as { scope: { define: { edges: EdgeMember[] } } };
+        // The filter door stores the tree as given, so both entries remain; each has canonical ends.
+        assert.deepStrictEqual(leaf.scope.define.edges, [ab, ab]);
+    });
+
+    it("is canonical as a path step", () => {
+        const h = fixture();
+        const [ab, ba] = spellings(h);
+        const id = h.session.sets.create({ kind: "path", nodes: ["b", "a"], edges: [ba] });
+
+        assert.deepStrictEqual(h.session.sets.get(id)?.definition, { kind: "path", nodes: ["b", "a"], edges: [ab] });
     });
 });

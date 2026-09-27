@@ -359,6 +359,29 @@ export function pairsOrdered(snapshot: GraphSnapshot): boolean {
 }
 
 /**
+ * A stable edge member with its ends in the canonical comparator order when pairs are unordered,
+ * so `b -> a` and `a -> b` spell one member of an undirected graph. Anything that is not a pair
+ * of ids passes through unchanged for a validator to judge; an already canonical member is
+ * returned as the same object.
+ * @param member - the member as given
+ * @param ordered - whether the graph's pairs are ordered
+ * @returns the member
+ */
+export function canonicalEdgeEnds<T>(member: T, ordered: boolean): T {
+    if (ordered || typeof member !== "object" || member === null) {
+        return member;
+    }
+
+    const { source, target } = member as { source?: unknown; target?: unknown };
+    const isId = (value: unknown): value is NodeId => typeof value === "string" || typeof value === "number";
+    if (!isId(source) || !isId(target) || compareIds(target, source) >= 0) {
+        return member;
+    }
+
+    return { ...member, source: target, target: source };
+}
+
+/**
  * The completion pass's view of a snapshot.
  * @param snapshot - the snapshot
  * @returns the view

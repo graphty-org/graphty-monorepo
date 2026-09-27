@@ -720,6 +720,7 @@ come from `session.scope.count({ set: id })` (section 15.2).
 | Rule `results.pr.score > 0.01`, then `pr` re-runs | `current` | -- | re-resolves |
 | Rule reading `results.pr`, and `pr` is out of date (section 5.2) | `out-of-date`, `run-out-of-date` | -- | re-resolves |
 | Rule reading a run whose algorithm is no longer registered | `current`, `missing-capability` | -- | the run's current values |
+| Rule reading a run whose own scope set was removed | `cannot-rerun`, `missing-set` naming the removed set | -- | the run's current values; a re-run is refused, naming the removed set |
 | The same, after an input of that run changed | `cannot-rerun`, `missing-capability` | -- | the run's current values |
 | Names a removed set or run | `detached`, `missing-set` or `missing-run` | -- | nothing, never throws |
 | Caught in a cycle, its last compile failed, or holds an unknown kind or field | `unresolvable`, `cycle`, `invalid` or `missing-capability` | -- | nothing, never throws |
@@ -920,8 +921,11 @@ the plan's benchmark task re-measures it at the stated target.
 - **Load completion is paid by every consumer**, whether or not it uses sets: the identity
   columns are filled when a load closes (section 12.3), because an ordinal counted later would
   move when an edge is deleted. Budget: the completion pass at most about the cost of the first
-  freeze it precedes, and never more than twice it; at 100k / 500k it is 160 ms against a 48 ms
-  freeze, at 1M / 5M 2.5 s against 1.3 s (Node). Two things keep it there: the float64 bytes of
+  freeze it precedes, and never more than twice it. That budget holds at 1M / 5M (2.6 s against
+  1.3 s, Node, right at twice) and does not hold at 100k / 500k (156 ms against a 45 ms freeze,
+  about 3.5 times): the pass has a fixed cost a small graph's freeze does not amortise. Every
+  consumer now pays about 1.5 to 3.5 times master's first freeze on top of it at load; whether
+  that is acceptable is the owner's decision. Two things keep it there: the float64 bytes of
   each numeric part are read as two words and fed from local variables, and the load's edges are
   grouped by pair with two counting-sort passes (a small load onto a large graph sorts by
   comparator, so its transient memory follows the load, not the graph). The hash bytes are
@@ -970,7 +974,8 @@ the plan's benchmark task re-measures it at the stated target.
   bytes per set.
 
 **Recorded timings, 2026-09-27** (re-recorded after the load completion pass was made cheaper
-and the full repaints after a freeze were coalesced; the 1M / 10M Node door rows were not rerun). Intel i9-14900, Node 22.22.1 (Node runner,
+and the full repaints after a freeze were coalesced, then every row below rerun on the finished
+branch; the 1M / 10M door rows with a 24 GB heap). Intel i9-14900, Node 22.22.1 (Node runner,
 `benchmarks/run.ts`) and headless Chromium 143 (browser runner,
 `test/bench-browser/*.bench-browser.ts`). Medians of five runs (Node) or three (browser input
 row); the freeze rows are single measurements. Graphs are Barabasi-Albert, m = 5 (m = 10 for the
@@ -979,22 +984,23 @@ row); the freeze rows are single measurements. Graphs are Barabasi-Albert, m = 5
 | Row | Runner | Projection | 100k / 500k | 1M / 5M | 1M / 10M |
 |---|---|---|---|---|---|
 | Digest of `"visible"`, nothing hidden | Node | under 150 ms at 10M | 2.2 ms | 9.5 ms | 17.0 ms |
-| First resolution of a listed fixed set, by identity (half the edges at 100k, 1M members at 1M / 5M) | Node | about 85 ms at 1M / 5M | 98 ms | 1,165 ms, WORSE | -- |
-| The same, seeded (one merge of the edge-id column) | Node | about 85 ms at 1M / 5M | 114 ms | 504 ms, WORSE | -- |
-| Three-node `addMembers` on a set of half the nodes (50,000; 500,000) | Node | O(delta) | 2.6 ms | 28.7 ms, WORSE: grows with the set | -- |
+| First resolution of a listed fixed set, by identity (half the edges at 100k, 1M members at 1M / 5M) | Node | about 85 ms at 1M / 5M | 73 ms | 974 ms, WORSE | -- |
+| The same, seeded (one merge of the edge-id column) | Node | about 85 ms at 1M / 5M | 115 ms | 548 ms, WORSE | -- |
+| Three-node `addMembers` on a set of half the nodes (50,000; 500,000) | Node | O(delta) | 2.7 ms | 29.6 ms, WORSE: grows with the set | -- |
 | `revisionOf`, fixed set of every node | Node | none stated | 5.7 ms | 64 ms | -- |
 | `revisionOf`, fixed set of as many listed edges | Node | none stated | 65 ms | 706 ms | -- |
-| `createFrom("visible")`, no filter | Node | under 200 ms | 23 ms | 235 ms, WORSE | 329 ms, WORSE |
-| `createFrom` of a scope listing every other edge, total (250k; 2.5M; 5M edges) | Node | under 2 s at 5M edges | 1,626 ms | 21.3 s | 56.4 s, WORSE; runs out of Node's default 4 GB heap, measured with 24 GB |
-| The same, its synchronous commit | Node | under 50 ms at 5M edges | 487 ms, WORSE | 7.4 s | 18.1 s, WORSE |
+| `createFrom("visible")`, no filter | Node | under 200 ms | 16 ms | 173 ms | 390 ms, WORSE |
+| `createFrom` of a scope listing every other edge, total (250k; 2.5M; 5M edges) | Node | under 2 s at 5M edges | 1,471 ms | 22.6 s | 46.4 s, WORSE; runs out of Node's default 4 GB heap, measured with 24 GB |
+| The same, its synchronous commit | Node | under 50 ms at 5M edges | 476 ms, WORSE | 7.3 s | 14.9 s, WORSE |
 | `combineMasks` union / intersection / difference / symmetric difference, 50% induced with 33% listed | Node | none stated | 4.5 / 1.4 / 2.2 / 4.0 ms | 46 / 15 / 23 / 47 ms | 88 / 31 / 45 / 85 ms |
-| Load completion (`closeLoad`) and first freeze, timed together | browser | completion at most about the freeze | 212 ms | 3,495 ms | 6,712 ms |
-| The same, Node: completion pass / first freeze | Node | completion at most about the freeze | 160 / 48 ms | 2,517 / 1,283 ms | -- |
-| Freeze with live sets: the freeze itself (add one node) | browser | none stated | 59 ms | 1,094 ms | 2,723 ms |
-| Freeze with live sets: to the first layer repainted (a fixed set's, which the new node does not affect) | browser | under 200 ms | 538 ms, WORSE | 4,905 ms, WORSE | 9,979 ms, WORSE |
-| Freeze with live sets: to every layer repainted | browser | within the re-resolution time | 851 ms, WORSE | 8.1 s, WORSE | 15.8 s, WORSE |
-| Freeze with live sets: the re-resolution alone, all ten sets | browser | none stated | 59 ms | 701 ms | 1,236 ms |
-| Freeze with live sets: a 200-row `scope.count` panel after it | browser | none stated | 0.6 ms | 0.3 ms | 0.4 ms |
+| Load completion (`closeLoad`) and first freeze, timed together | browser | completion at most about the freeze | 183 ms | 3,343 ms | 8,265 ms |
+| The same, browser: completion pass alone | browser | at most about the freeze | 141 ms | 2,382 ms | 4,392 ms, WORSE |
+| The same, Node: completion pass / first freeze | Node | completion at most about the freeze | 156 / 45 ms, WORSE | 2,596 / 1,271 ms, WORSE | -- |
+| Freeze with live sets: the freeze itself (add one node) | browser | none stated | 58 ms | 1,151 ms | 2,518 ms |
+| Freeze with live sets: to the first layer repainted (a fixed set's, which the new node does not affect) | browser | under 200 ms | 607 ms, WORSE | 4,926 ms, WORSE | 9,968 ms, WORSE |
+| Freeze with live sets: to every layer repainted | browser | within the re-resolution time | 987 ms, WORSE | 7.9 s, WORSE | 19.5 s, WORSE |
+| Freeze with live sets: the re-resolution alone, all ten sets | browser | none stated | 68 ms | 739 ms | 1,067 ms |
+| Freeze with live sets: a 200-row `scope.count` panel after it | browser | none stated | 0.7 ms | 0.4 ms | 0.5 ms |
 | One 50% scoped run's input, declared and undirected | browser | must complete | 42 ms | 365 ms | 869 ms |
 
 What the freeze rows say. Re-resolving all ten live sets after the freeze costs about 1 s at
@@ -1002,9 +1008,9 @@ What the freeze rows say. Re-resolving all ten live sets after the freeze costs 
 time is in the paint: each layer whose resolution is ready asks for a full pass of both halves
 (section 6.2). Those full passes are coalesced: while one runs, every further request becomes one
 more pass after it, over the graph as it then stands, so ten live sets cost two whole-graph passes
-instead of ten (every layer repainted: 3.8 s to 0.85 s at 100k, 34.6 s to 8.1 s at 1M / 5M,
-60.7 s to 15.8 s at 1M / 10M). The first layer still waits for one whole-graph pass, 5 to 10 s at
-1M. The carry of section 6.2 would remove at most the re-resolution; a repaint that paints only
+instead of ten (every layer repainted: 3.8 s to about 1 s at 100k, 34.6 s to about 8 s at
+1M / 5M, 60.7 s to 16 to 20 s at 1M / 10M). The first layer still waits for one whole-graph pass,
+5 to 10 s at 1M, 3 to 50 times its 200 ms budget. The carry of section 6.2 would remove at most the re-resolution; a repaint that paints only
 the carried rows of the layers whose sets moved would remove the rest. Which, if either, to build
 is the owner's decision.
 
@@ -1846,8 +1852,12 @@ export interface SetChange {
     readonly fields: readonly ("name" | "definition" | "order")[];
     /** The frozen record after the change; null after removal. */
     readonly set: ElementSet | null;
-    /** What caused it. OPEN UNION: "command" on master; undo, redo and load are added later. */
-    readonly cause: "command";
+    /**
+     * What caused it. OPEN UNION: "command" for every door; "load" for a stored slice loaded
+     * whole, which only the internal loader emits until a public load or the undo port calls it;
+     * undo and redo are added later.
+     */
+    readonly cause: "command" | "load";
 }
 // SessionEventMap gains: "set:changed": SetChange
 ```
@@ -1955,7 +1965,7 @@ export interface SetsApi {                                     // NEW, as sessio
      * element-local (expression, edges, range, categories, degree, item, threshold `above`) is
      * evaluated on this element alone. A rule with a population or topology leaf (threshold `top`, component,
      * largest-component, neighborhood, or a scope over such a rule) is resolved in full, once,
-     * and cached. An edge's row comes from `Edge.index`.
+     * and cached. An edge's row is looked up by its session id (the open item of section 6.3).
      */
     containing(element: { readonly node: NodeId } | { readonly edge: EdgeId }): Promise<Memberships>;
     /** What names this set: the studio's "Used by". A new kind of user appears with its label. */
@@ -2042,7 +2052,11 @@ selection points at `createFrom("selection")`.
 **Derived run ids.** Before hashing, a `{ define }` whose definition equals a legacy form is
 canonicalised to that form (`{ define: fixed induced nodes }` to `{ nodes }`, a rule over one query
 to `{ where }`), so one scope has one run id and existing ids are unchanged
-(`session/runs/runId.ts:268-289`).
+(`session/runs/runId.ts:268-289`). A legacy `{ nodes }` is hashed exactly as written, as in 2.x, while
+a `{ define }` is sorted and de-duplicated first, so only a sorted, duplicate-free `{ nodes }`
+shares its run id with the equivalent `{ define }`: `{ nodes: ["b", "a"] }` and `{ define: {
+kind: "fixed", nodes: ["b", "a"], reading: "induced" } }` get two ids. Sorting legacy lists too
+would move every existing unsorted run id, a one-way door not taken.
 
 **Refusals reuse existing codes** and the existing error target `{ kind: "scope", id }`:
 
@@ -2120,7 +2134,10 @@ on the branch, not a follow-up.
    unique across sessions (the studio's per-execution run id); a key matches by equality or array
    containment; follow mode is refused for partition groups. The studio's `ItemAddress` maps onto
    this shape (section 19).
-9. **`"set:changed"`** and its payload, including `fields` and `cause`.
+9. **`"set:changed"`** and its payload, including `fields` and `cause`, whose published values
+   are `"command"` and `"load"`. No public verb emits `"load"` yet: it is published now so the
+   undo port and a project load add no union member. Narrowing it to `"command"` is the
+   alternative; widening later is additive only because the union is declared open.
 10. **The extension and layout members**: `RunScopeRecord.set` and `.reading`;
     `ScopeCount.missingNodes` and `missingEdges`; `SetLayoutOptions.scope`; `scoped?` on
     `LayoutEngineStatics`, `static scoped` on `LayoutEngine` and the derived
@@ -2132,7 +2149,11 @@ on the branch, not a follow-up.
     `layout` and `layoutConfig` changes, its members frozen when each layout starts, a detached
     carried scope inactive, an unscoped layout read as `undefined`; `AlgorithmRunContext.input`
     with its `simplify` option (default `"sum"`), with `ScopedInput.edges` in declared space
-    only; `AlgorithmDescriptor.scopeInput`; the reserved `scopeAs`. `ScopedInput`
+    only; `static scopeInput` on the published `Algorithm` class, the declaration a plugin
+    writes, typed `ScopeInputDeclaration` (`"none" | "subgraph"`, exported from `./extend`), and
+    the derived `AlgorithmDescriptor.scopeInput`; the reserved `scopeAs`. `Algorithm` also gains
+    the `@internal` `static parallelEdges` and the protected `input()` and `edgeRecord()`, which a
+    subclass can see although they are not documented for plugins. `ScopedInput`
     exposes graph-format's `GraphSnapshot`, `NodeMask` and `EdgeMask`, tying `./extend` to
     graph-format 1.x.
 11. **The persisted form** (section 12): the record shape, the file key `sets`, the project-wide
@@ -2191,7 +2212,18 @@ on the branch, not a follow-up.
 26. **Edge members' ends in an undirected graph are stored in canonical order** at the doors
     (section 12.1), so `revision` and `definition.edges` of a set created from a reversed spelling
     differ from what earlier builds of this branch stored. Nothing is released yet, so this only
-    fixes what the first release promises.
+    fixes what the first release promises. Every door canonicalises: `create`, `redefine`,
+    `addMembers`, `removeMembers`, path steps, and an inline `{ define }` at any depth at the sets
+    and scope doors.
+27. **A removed set's id is accepted at `visibility.set` and `styles.add`** and resolves to
+    nothing, while a never-issued id is refused (item 24). A new filter `{ scope: { set: removed }
+    }` therefore hides every node without a refusal, the silent blank screen item 24 argues
+    against. Recommendation: keep accepting it, because a restored project or an undo writes the
+    same filter back and must not fail; the alternative is to refuse a removed id at the doors and
+    keep the detached reading only for filters live when the set was removed.
+28. **Door limits**: a set name is at most 256 characters, because the id is minted from it;
+    `sets.offers` refuses a `limit` that is not a whole number of at least 0. The deprecated
+    `scope.save` shares the name check, so a longer name it accepted in 2.x is now refused.
 
 ---
 

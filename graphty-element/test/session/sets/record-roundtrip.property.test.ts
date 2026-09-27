@@ -15,6 +15,7 @@ import { assert, describe, it } from "vitest";
 import { compareIds } from "../../../src/catalog/sets/canonical";
 import type { EdgeId, NodeId, Query, SetDefinitionInput } from "../../../src/catalog/types";
 import { identityColumnsOf, resumeEdgeCounter } from "../../../src/data/edgeIdentity";
+import { isGraphtyError } from "../../../src/errors";
 import { resolveSet } from "../../../src/session/sets/cache";
 import { loadRecord } from "../../../src/session/sets/prepare";
 import type { Resolution } from "../../../src/session/sets/resolve";
@@ -309,5 +310,28 @@ describe("a stored set survives JSON into a fresh session", () => {
         const graph = new TestGraph();
         graph.sets.create({ kind: "fixed", nodes: ["a"], reading: "induced" });
         assert.throws(() => graph.setsStore.loadLogicalRecords({ records: [], register: [], tombstones: [] }), /empty store/);
+    });
+
+    it("refuses a malformed slice and two records with one id, and drops a tombstone for a live id", () => {
+        const source = new TestGraph();
+        const id = source.sets.create({ kind: "fixed", nodes: ["a"], reading: "induced" }, { name: "A" });
+        const [record] = JSON.parse(JSON.stringify(source.setsStore.toLogicalRecords())).records as Record<string, unknown>[];
+        const codeOf = (stored: unknown): string | null => {
+            try {
+                new TestGraph().setsStore.loadLogicalRecords(stored);
+            } catch (error) {
+                return isGraphtyError(error) ? error.code : "not-a-graphty-error";
+            }
+
+            return null;
+        };
+
+        assert.strictEqual(codeOf({ records: "x" }), "E_BAD_COMMAND");
+        assert.strictEqual(codeOf({ records: [record, { ...record, name: "B" }], register: [], tombstones: [] }), "E_BAD_COMMAND");
+
+        const target = new TestGraph();
+        target.setsStore.loadLogicalRecords({ records: [record], register: [], tombstones: [{ id, name: "Old" }] });
+        assert.strictEqual(target.setsStore.tombstone(id), undefined);
+        assert.deepStrictEqual(target.setsStore.toLogicalRecords().tombstones, []);
     });
 });

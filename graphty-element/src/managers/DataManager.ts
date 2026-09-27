@@ -7,9 +7,11 @@ import { GraphStore } from "../data/GraphStore";
 import type { ElementPositions } from "../data/positions";
 import type { ImportReport } from "../data/report";
 import { Edge, EdgeMap } from "../Edge";
+import { GraphtyError } from "../errors/GraphtyError";
 import type { LayoutEngine } from "../layout/LayoutEngine";
 import { MeshCache } from "../meshes/MeshCache";
 import { Node, NodeIdType } from "../Node";
+import { legacyScopeOf } from "../session/commands/algo";
 import { type DataMutation, replaceEdgesCommand } from "../session/commands/data";
 import type { Dispatcher, UndoableContext } from "../session/project/Dispatcher";
 import { GraphOps, type GraphWriter } from "../session/project/graphOps";
@@ -21,6 +23,9 @@ import type { EventManager } from "./EventManager";
 import type { GraphContext } from "./GraphContext";
 import type { Manager } from "./interfaces";
 import { bootstrapEdgePaint, bootstrapNodePaint } from "./StylePainter";
+
+/** The graph value a plugin algorithm's graph-level results are kept under. */
+const GRAPH_RESULTS = "graphResults";
 
 /** An id that is an integer written as text, and so has a second spelling worth retrying. */
 const INTEGER_ID = /^-?\d+$/;
@@ -117,8 +122,39 @@ export class DataManager implements Manager {
     /** The one graph-format builder and its cached snapshot; replaced only by `clear()`/`dispose()`. */
     private store: GraphStore;
 
-    // Graph-level algorithm results storage
-    graphResults?: AdHocData;
+    /**
+     * Graph-level results a plugin algorithm without a descriptor wrote, kept as the `graphResults`
+     * value of the graph. Read-only, except to a plugin while `algo.legacy` runs it: what it writes
+     * then is part of that command's step.
+     * @returns The value, or undefined when none was written.
+     */
+    get graphResults(): AdHocData | undefined {
+        const { values } = this.graph.slice;
+        const scope = legacyScopeOf(this.dispatcher);
+        return (scope === undefined ? values.get(GRAPH_RESULTS) : scope.graph(values)[GRAPH_RESULTS]) as
+            | AdHocData
+            | undefined;
+    }
+
+    /**
+     * Write graph-level results; only a plugin can, while `algo.legacy` runs it.
+     * @param value - The results.
+     * @throws A `GraphtyError` with `E_UNSUPPORTED` outside a plugin run.
+     */
+    set graphResults(value: AdHocData | undefined) {
+        const scope = legacyScopeOf(this.dispatcher);
+        if (scope === undefined) {
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message:
+                    "graphResults is written by a plugin algorithm while graph.runAlgorithm runs it, so the write is " +
+                    "part of that step; it cannot be written from anywhere else.",
+                source: "data",
+            });
+        }
+
+        scope.graph(this.graph.slice.values)[GRAPH_RESULTS] = value;
+    }
 
     // Mesh cache for performance
     meshCache: MeshCache;
@@ -265,6 +301,9 @@ export class DataManager implements Manager {
                 if (mutation.kind === "add-nodes" || mutation.kind === "add-edges") {
                     hooks.rowsAdded(after);
                 }
+            },
+            values: (values, draft) => {
+                this.graph.writer(draft, this.store).setGraphValues(values);
             },
             import: async (command, draft, signal, after) => {
                 const writer = this.graph.writer(draft, this.store);
@@ -486,7 +525,6 @@ export class DataManager implements Manager {
         this.edgesByIndex.length = 0;
         this.pendingEdges = [];
         this.pendingByPair.clear();
-        this.graphResults = undefined;
         this.meshCache.clear();
     }
 
@@ -849,9 +887,6 @@ export class DataManager implements Manager {
 
         // Drop the graph data itself, not only the render objects built from it.
         this.resetStore();
-
-        // Clear graph-level results
-        this.graphResults = undefined;
 
         // Clear mesh cache
         this.meshCache.clear();

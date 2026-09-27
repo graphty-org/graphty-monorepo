@@ -146,6 +146,13 @@ export interface DataService {
      * @returns Settles once the last chunk is written.
      */
     import(command: DataImportCommand, draft: Draft, signal: AbortSignal, after?: UndoableContext["after"]): Promise<void>;
+    /**
+     * Set graph-level values through `draft`: what a plugin algorithm wrote to `graphResults`.
+     * A renderer's only; a headless session runs no plugin.
+     * @param values - The values by name.
+     * @param draft - The command's draft.
+     */
+    values?(values: Readonly<Record<string, unknown>>, draft: Draft): void;
 }
 
 /** The graph value naming where the graph was last loaded from. */

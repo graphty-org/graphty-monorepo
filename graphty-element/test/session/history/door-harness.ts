@@ -26,6 +26,7 @@ export async function dispatchesOf(
     member: string,
     call: DoorCall,
 ): Promise<unknown[]> {
+    const restore = call.kind === "call" ? await call.around?.(target) : undefined;
     const seen: unknown[] = [];
     const previous = dispatcher.events.dispatched;
     dispatcher.events.dispatched = (command) => {
@@ -57,6 +58,7 @@ export async function dispatchesOf(
         return seen;
     } finally {
         dispatcher.events.dispatched = previous;
+        await restore?.();
     }
 }
 

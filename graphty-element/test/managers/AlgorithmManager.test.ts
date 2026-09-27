@@ -4,13 +4,8 @@ import { Algorithm } from "../../src/algorithms/Algorithm";
 import type { Graph } from "../../src/Graph";
 import { AlgorithmManager } from "../../src/managers/AlgorithmManager";
 import type { EventManager } from "../../src/managers/EventManager";
-
-// Mock the Algorithm registry
-vi.mock("../../src/algorithms/Algorithm", () => ({
-    Algorithm: {
-        get: vi.fn(),
-    },
-}));
+import { dispatcherOf } from "../../src/session/GraphSession";
+import { makeSession } from "../session/helpers";
 
 describe("AlgorithmManager", () => {
     let algorithmManager: AlgorithmManager;
@@ -19,8 +14,11 @@ describe("AlgorithmManager", () => {
     let mockAlgorithm: { run: ReturnType<typeof vi.fn> };
 
     beforeEach(() => {
-        // Reset mocks
+        // Reset mocks, and stand in for the registry: the real module stays loaded, because the
+        // session and the algorithms it registers subclass the real class.
+        vi.restoreAllMocks();
         vi.clearAllMocks();
+        vi.spyOn(Algorithm, "get");
 
         // Create mock event manager
         mockEventManager = {
@@ -28,9 +26,12 @@ describe("AlgorithmManager", () => {
             emitGraphEvent: vi.fn(),
         } as unknown as EventManager;
 
-        // Create mock graph with getDataManager method
+        // A mock graph over a real headless session: a 1.10 run is an `algo.legacy` command, which
+        // the session's dispatcher runs through the manager's legacy service.
+        const { session } = makeSession();
         mockGraph = {
             id: "test-graph",
+            getSession: () => session,
             getDataManager: vi.fn().mockReturnValue({
                 nodes: new Map(),
                 edges: new Map(),
@@ -48,7 +49,18 @@ describe("AlgorithmManager", () => {
         vi.mocked(Algorithm.get).mockReturnValue(mockAlgorithm as unknown as Algorithm);
 
         algorithmManager = new AlgorithmManager(mockEventManager, mockGraph);
+        const manager = algorithmManager;
+        dispatcherOf(session).services.legacy = { run: (command, ctx) => manager.runLegacy(command, ctx) };
     });
+
+    /**
+     * Whether a value is the graph's facade: the plugin is handed one, not the graph itself.
+     * @param value - What the plugin was handed.
+     */
+    function assertFacade(value: unknown): void {
+        assert.notStrictEqual(value, mockGraph, "the plugin is handed a facade, not the graph");
+        assert.strictEqual((value as { id?: unknown }).id, "test-graph", "a facade of this graph");
+    }
 
     describe("initialization", () => {
         it("should initialize without errors", async () => {
@@ -73,9 +85,10 @@ describe("AlgorithmManager", () => {
                 mock: { calls: algorithmRunCalls },
             } = mockAlgorithm.run;
             assert.equal(algorithmGetCalls.length, 1);
-            assert.deepEqual(algorithmGetCalls[0], [mockGraph, "test", "algorithm", undefined]);
+            assertFacade(algorithmGetCalls[0][0]);
+            assert.deepEqual(algorithmGetCalls[0].slice(1), ["test", "algorithm", undefined]);
             assert.equal(algorithmRunCalls.length, 1);
-            assert.equal(algorithmRunCalls[0][0], mockGraph);
+            assert.strictEqual(algorithmRunCalls[0][0], algorithmGetCalls[0][0], "run with the facade it was built with");
         });
 
         it("should handle algorithm not found", async () => {
@@ -251,7 +264,8 @@ describe("AlgorithmManager", () => {
                 mock: { calls: algorithmGetCalls },
             } = vi.mocked(Algorithm.get);
             assert.equal(algorithmGetCalls.length, 2);
-            assert.deepEqual(algorithmGetCalls[0], [mockGraph, "algo1", "type1", undefined]);
+            assertFacade(algorithmGetCalls[0][0]);
+            assert.deepEqual(algorithmGetCalls[0].slice(1), ["algo1", "type1", undefined]);
         });
     });
 
@@ -348,10 +362,16 @@ describe("AlgorithmManager", () => {
             } = vi.mocked(Algorithm.get);
             assert.equal(algorithmGetCalls.length, 4);
             // Verify all algorithms were called with correct parameters
-            assert.deepEqual(algorithmGetCalls[0], [mockGraph, "preprocessing", "normalize", undefined]);
-            assert.deepEqual(vi.mocked(Algorithm.get).mock.calls[1], [mockGraph, "layout", "force", undefined]);
-            assert.deepEqual(vi.mocked(Algorithm.get).mock.calls[2], [mockGraph, "analysis", "centrality", undefined]);
-            assert.deepEqual(vi.mocked(Algorithm.get).mock.calls[3], [mockGraph, "visualization", "highlight", undefined]);
+            const expected = [
+                ["preprocessing", "normalize", undefined],
+                ["layout", "force", undefined],
+                ["analysis", "centrality", undefined],
+                ["visualization", "highlight", undefined],
+            ];
+            expected.forEach((args, at) => {
+                assertFacade(algorithmGetCalls[at][0]);
+                assert.deepEqual(algorithmGetCalls[at].slice(1), args);
+            });
         });
 
         it("should handle partial failures in complex workflow", async () => {

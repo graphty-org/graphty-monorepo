@@ -71,7 +71,7 @@ export const PHASES = [
 type PlanPhase = (typeof PHASES)[number];
 
 /** The phase this branch has reached. Each phase's commit raises it. */
-export const PLAN_PHASE: PlanPhase = "17";
+export const PLAN_PHASE: PlanPhase = "18a";
 
 /** How the doors tests call a door. */
 export type DoorCall =
@@ -79,6 +79,11 @@ export type DoorCall =
           readonly kind: "call";
           /** The arguments, or a function building them where they cannot be plain data. */
           readonly args: readonly unknown[] | (() => readonly unknown[]);
+          /**
+           * For a door that does nothing in the doors test's default state: sets up the state it
+           * acts on before the spy is attached, and returns what puts it back afterwards.
+           */
+          readonly around?: (target: object) => Promise<() => Promise<unknown>>;
       }
     | { readonly kind: "set"; readonly value: unknown };
 
@@ -133,17 +138,6 @@ const READ: Door = { kind: "readOnly" };
  */
 function exempt(reason: string): Door {
     return { kind: "exempt", reason };
-}
-
-/**
- * A door that will dispatch `op` once `phase` ports it, called as a method.
- * @param phase - The phase that ports it.
- * @param op - The op it will dispatch.
- * @param args - The arguments to call it with.
- * @returns The door.
- */
-function gap(phase: PlanPhase, op: string, args: readonly unknown[] | (() => readonly unknown[]) = []): Door {
-    return { kind: "knownGap", phase, op, call: { kind: "call", args } };
 }
 
 /**
@@ -347,6 +341,20 @@ const BUDGET = exempt("The history's own budget, not project state.");
  * own step when it finishes, so they are not dispatched.
  */
 const RUN_DEGREE: SessionCommand = { op: "algo.run", algorithm: "degree" };
+
+/** The command a 1.10 address dispatches: `degree` constructed and run the way a plugin is. */
+const LEGACY_DEGREE: SessionCommand = { op: "algo.legacy", namespace: "graphty", type: "degree" };
+
+/**
+ * Turn the template's on-load algorithms on for one call, with `degree` in them, and off again.
+ * @param target - The graph.
+ * @returns What turns them off.
+ */
+async function withTemplateDegree(target: object): Promise<() => Promise<unknown>> {
+    const { config } = (target as { getSession(): { config: { set(values: object): Promise<unknown> } } }).getSession();
+    await config.set({ runAlgorithmsOnLoad: true, data: { algorithms: ["degree"] } });
+    return () => config.set({ runAlgorithmsOnLoad: false, data: { algorithms: [] } });
+}
 
 /** The rows of `GraphSession`, shared with the element's wider form of it. */
 const SESSION: Readonly<Record<string, Door>> = {
@@ -683,7 +691,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             eventManager: READ,
             operationQueue: escape("18c"),
             shutdown: LIFECYCLE,
-            runAlgorithmsFromTemplate: gap("18a", "algo.legacy", []),
+            runAlgorithmsFromTemplate: {
+                kind: "dispatches",
+                op: "algo.run",
+                call: { kind: "call", args: [], around: withTemplateDegree },
+                expect: [RUN_DEGREE],
+            },
             init: LIFECYCLE,
             update: RENDER,
             setBackground: calls(
@@ -967,7 +980,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             nodeCache: RENDER,
             edgeCache: escape("18c"),
             edgesByIndex: escape("18c"),
-            graphResults: escape("18a"),
+            // Written only by a plugin while `algo.legacy` runs it, and then into that step.
+            graphResults: READ,
             meshCache: RENDER,
             getSnapshot: escape("18b"),
             undirected: READ,
@@ -1559,8 +1573,11 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             execute: exempt(
                 "Computes a result for a run and hands it back; the run records it, and this writes nothing.",
             ),
-            runAlgorithmsFromTemplate: gap("18a", "algo.legacy", [["graphty:degree"]]),
-            runAlgorithm: gap("18a", "algo.legacy", ["graphty", "degree"]),
+            runAlgorithmsFromTemplate: calls([["graphty:degree"]], [LEGACY_DEGREE]),
+            runAlgorithm: calls(["graphty", "degree"], [LEGACY_DEGREE]),
+            runLegacy: exempt(
+                "Carries out an algo.legacy command the dispatcher has already started, writing only through its draft.",
+            ),
             hasAlgorithm: READ,
             getAvailableAlgorithms: READ,
         },

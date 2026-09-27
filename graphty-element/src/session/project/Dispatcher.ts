@@ -29,7 +29,7 @@
 import type { NodeId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { OperationCategory } from "../../managers/OperationQueueManager";
-import type { RunService } from "../commands/algo";
+import type { LegacyService, RunService } from "../commands/algo";
 import type { DataService } from "../commands/data";
 import type { LayoutAdvice, LayoutService } from "../commands/layout";
 import type { ScopeService } from "../commands/scope";
@@ -52,7 +52,7 @@ import {
 import { GraphOps, nodeKey } from "./graphOps";
 import { History, type HistoryChangeReason, type OpenArrangement } from "./History";
 import { createProjectState, type ProjectState } from "./state";
-import { checkSoleHolder, strictStateEnabled } from "./strict";
+import { checkInlineKey, checkSoleHolder, strictStateEnabled } from "./strict";
 
 /** The part of a command the dispatcher reads: its op. */
 interface CommandLike {
@@ -80,6 +80,8 @@ interface CommandServices {
     /** The arrangement: where `positions.*` write. Always present. */
     positions?: Arrangement;
     runs?: RunService;
+    /** A renderer's: constructs a plugin algorithm that has no descriptor, for `algo.legacy`. */
+    legacy?: LegacyService;
     styles?: StyleService;
     visibility?: VisibilityService;
     scopes?: ScopeService;
@@ -136,6 +138,12 @@ export interface UndoableContext {
      * it through the dispatch it is handed.
      */
     readonly after: (key: string, start: (dispatch: DispatchFunction) => void) => void;
+    /**
+     * Dispatch into this command's own group, now, whatever the dispatched command's lane: what
+     * `algo.legacy` hands the plugin it runs, through the graph facade (design section 4.5). The
+     * command writes only keys that are free or this group's own; one another group holds fails.
+     */
+    readonly inline: DispatchFunction;
 }
 
 /** What an exempt command executes with. No draft, so it cannot write project state. */
@@ -187,6 +195,11 @@ interface DefinitionBase<C extends CommandLike> {
     members?(command: C): { readonly label: string; readonly steps: readonly CommandLike[] };
     /** Settling, whether it commits or fails, closes the baseline window (an import). */
     readonly closesBaseline?: boolean;
+    /**
+     * Carried out only on a renderer, which registers the service it needs: a headless session
+     * refuses it, so its round trip is checked on a renderer only.
+     */
+    readonly renderer?: boolean;
 }
 
 /** A command that changes project state: one step, labelled. */
@@ -458,6 +471,8 @@ interface Job {
     readonly queuedKey: string | null;
     /** A run, which a transaction does not wait for. */
     readonly run: boolean;
+    /** Dispatched inline by a running member of its group: it neither seals nor rolls back the group. */
+    readonly inline: boolean;
     readonly controller: AbortController;
     slot: ScheduledSlot | null;
     /** The group whose hold it is waiting on. */
@@ -716,6 +731,8 @@ export class Dispatcher {
     private syncFailure: { error: unknown } | null = null;
     /** Whether commits still become the baseline rather than steps (design section 3.3). */
     private baselineOpen: boolean;
+    /** Where an untagged dispatch goes during a call through a group-tagged facade; see {@link Dispatcher.routed}. */
+    private route: DispatchFunction | null = null;
 
     /**
      * Create a dispatcher over a state it alone will write.
@@ -828,7 +845,39 @@ export class Dispatcher {
      * or with an `AbortError` when it was cancelled.
      */
     dispatch<C extends CommandLike>(command: Dispatchable<C>, options: DispatchOptions = {}): Promise<unknown> {
+        if (this.route !== null) {
+            return this.route(command, options);
+        }
+
         return settle(() => this.submit(command, null, options));
+    }
+
+    /**
+     * Whether a call through a group-tagged facade is on the stack, so a door that would take a
+     * turn on the operation queue dispatches at once instead: the queue's slot is the running
+     * command's own, and waiting for it would never end.
+     * @returns True during such a call.
+     */
+    get routing(): boolean {
+        return this.route !== null;
+    }
+
+    /**
+     * Run `fn` with every untagged dispatch, transaction and immediate dispatch it makes routed
+     * to `via`. Membership is by origin: the routing lasts for the synchronous part of `fn` only,
+     * which is where a door dispatches, so nothing dispatched from anywhere else joins.
+     * @param via - Where the dispatches go: a running command's `inline`.
+     * @param fn - The call.
+     * @returns What `fn` returned.
+     */
+    routed<T>(via: DispatchFunction, fn: () => T): T {
+        const previous = this.route;
+        this.route = via;
+        try {
+            return fn();
+        } finally {
+            this.route = previous;
+        }
     }
 
     /**
@@ -851,6 +900,16 @@ export class Dispatcher {
      * @returns What `fn` returned.
      */
     transaction<T>(label: string, fn: TransactionBody<T>, options: TransactionOptions = {}): Promise<T> {
+        const via = this.route;
+        if (via !== null) {
+            // Already inside one command's group: the transaction's members join it.
+            const scope: TransactionScope = {
+                dispatch: (command, dispatched) => via(command, dispatched),
+                transaction: (_label, body) => settle(() => body(scope, new AbortController().signal)),
+            };
+            return settle(() => fn(scope, new AbortController().signal));
+        }
+
         const controller = new AbortController();
         const group = this.group(
             label,
@@ -1010,6 +1069,10 @@ export class Dispatcher {
      * @returns What `execute` returned.
      */
     dispatchNow<C extends CommandLike>(command: Dispatchable<C>): unknown {
+        if (this.route !== null) {
+            return this.route(command);
+        }
+
         this.syncFailure = null;
         const promise = this.submit(command, null) as Promise<unknown>;
         const failure = this.syncFailure as { error: unknown } | null;
@@ -1422,6 +1485,64 @@ export class Dispatcher {
     }
 
     /**
+     * Execute one command now in a running job's group, whatever its lane: `UndoableContext.inline`.
+     * It seals nothing and rolls back only its own writes when it fails; the group seals when the
+     * job that dispatched it does.
+     * @param command - The command, or a function from state to one.
+     * @param parent - The running job.
+     * @returns What an exempt command returned, or the command's promise.
+     */
+    private inline(command: Dispatchable, parent: Job): unknown {
+        if (parent.status !== "running") {
+            throw cancelledError(parent.group.label, "cancel");
+        }
+
+        const { state } = this.store;
+        const raw = typeof command === "function" ? command(state) : command;
+        const definition = this.definitions.get(raw.op);
+        const concrete = deepFreezeArgs(raw, definition?.byReference);
+        this.events.dispatched?.(concrete);
+        if (definition === undefined) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `There is no command "${concrete.op}".`,
+                source: "history",
+                details: { op: concrete.op },
+            });
+        }
+
+        if (definition.undo.kind === "exempt") {
+            return (definition as ExemptDefinition<CommandLike>).execute(concrete, { state, services: this.services });
+        }
+
+        const compound = definition.members?.(concrete);
+        if (compound !== undefined) {
+            return Promise.all(compound.steps.map((step) => settle(() => this.inline(step, parent))));
+        }
+
+        const undoable = definition as UndoableDefinition<CommandLike>;
+        const keys = undoable.keys(concrete, state);
+        const { group } = parent;
+        const blocker = this.blocker(opLogKeys(keys), group);
+        if (blocker !== null) {
+            if (this.strict) {
+                checkInlineKey(concrete.op, blocker.key, blocker.group.label);
+            }
+
+            throw heldError(concrete.op, blocker.key, blocker.group);
+        }
+
+        const job = this.job(concrete, keys, undoable, group, null, true);
+        for (const key of keys) {
+            group.keys.add(key);
+        }
+
+        group.jobs.add(job);
+        this.start(job);
+        return job.promise;
+    }
+
+    /**
      * A queued job whose slot is not yet started and whose queued coalesce key is `key`.
      * @param key - The queued coalesce key.
      * @param tx - The transaction dispatching, or null.
@@ -1505,7 +1626,10 @@ export class Dispatcher {
             }
         }
 
-        if (group.tx === null && group.after === null) {
+        if (job.inline) {
+            // Its own writes, reverted when it fails; the job that dispatched it goes on.
+            job.revert = group.draft.checkpoint();
+        } else if (group.tx === null && group.after === null) {
             group.label = definition.undo.label(command, state);
             group.key = definition.undo.coalesce?.(command) ?? null;
             if (this.open.has(group)) {
@@ -1540,6 +1664,7 @@ export class Dispatcher {
                     job.group.onSeal.set(key, start);
                 }
             },
+            inline: (inner) => settle(() => this.inline(inner, job)),
         };
         let out: unknown;
         try {
@@ -1579,7 +1704,7 @@ export class Dispatcher {
         const { group } = job;
         group.jobs.delete(job);
         group.ops.push(job.command.op);
-        if (group.tx === null) {
+        if (group.tx === null && !job.inline) {
             this.seal(group);
         }
 
@@ -1605,7 +1730,7 @@ export class Dispatcher {
         const { group } = job;
         group.jobs.delete(job);
         this.waiters.delete(job);
-        if (group.tx === null) {
+        if (group.tx === null && !job.inline) {
             this.rollback(group);
         } else {
             this.reverted(job.revert?.() ?? []);
@@ -2139,6 +2264,7 @@ export class Dispatcher {
      * @param definition - Its definition.
      * @param group - The group it writes into.
      * @param queuedKey - Its queued coalesce key.
+     * @param inline - Dispatched inline by a running job of its group.
      * @returns The job.
      */
     private job(
@@ -2147,6 +2273,7 @@ export class Dispatcher {
         definition: UndoableDefinition<CommandLike>,
         group: Group,
         queuedKey: string | null,
+        inline = false,
     ): Job {
         let yes: (value: unknown) => void = () => undefined;
         let no: (error: unknown) => void = () => undefined;
@@ -2165,7 +2292,8 @@ export class Dispatcher {
             group,
             status: "new",
             queuedKey,
-            run: definition.lane.kind === "queued" && definition.lane.category === RUN_CATEGORY,
+            run: !inline && definition.lane.kind === "queued" && definition.lane.category === RUN_CATEGORY,
+            inline,
             controller: new AbortController(),
             slot: null,
             blockedBy: null,

@@ -14,6 +14,8 @@
  * each fixture's round trip also restores where the nodes were.
  */
 
+import "../helpers/legacyPlugins";
+
 import { PhotoDome } from "@babylonjs/core";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import { afterEach, assert, describe, it } from "vitest";

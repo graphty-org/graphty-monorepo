@@ -5,7 +5,8 @@
  * the rest at run time: the published table and the dispatcher's definitions agree op for op,
  * exempt ops say why, and every undoable op has a round-trip fixture for every value of its
  * argument's discriminant (read from the definition's `variants`, never written again here),
- * with a renderer fixture when it changes what is drawn. An op whose every door is still
+ * with a renderer fixture when it changes what is drawn (only that, for an op that runs only on a
+ * renderer, which a session must refuse). An op whose every door is still
  * `knownGap` is not yet reachable through the history, so its fixture checks are pending, named
  * with the phase that ports it. The checks that need a slice not yet ported (design/undo/undo-design.md
  * section 12.2) are written here and skip, naming the phase that brings the slice.
@@ -98,7 +99,19 @@ describe("the vocabulary", () => {
             );
 
         const fixtureTitle = `${definition.op} has a round-trip fixture for every value of its discriminant`;
-        if (pending === null) {
+        if (pending === null && definition.renderer === true) {
+            it(`${definition.op} runs only on a renderer, and a session refuses it`, async () => {
+                const session = await fixtureSession();
+                const refused = await Promise.resolve(
+                    dispatcherOf(session).dispatch({ op: definition.op } as SessionCommand),
+                ).then(
+                    () => undefined,
+                    (error: unknown) => error,
+                );
+                assert.propertyVal(refused, "code", "E_UNSUPPORTED");
+                session.dispose();
+            });
+        } else if (pending === null) {
             it(fixtureTitle, () => {
                 assert.deepEqual(covers("session"), [], `${definition.op}: values with no session fixture`);
             });

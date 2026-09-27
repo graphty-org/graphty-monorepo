@@ -643,6 +643,11 @@ export class Graph implements GraphContext {
 
         // Initialize AlgorithmManager
         this.algorithmManager = new AlgorithmManager(this.eventManager, this);
+        // A plugin algorithm with no descriptor is constructed with a `Graph`, so only a renderer
+        // carries out `algo.legacy`.
+        dispatcherOf(this.session).services.legacy = {
+            run: (command, ctx) => this.algorithmManager.runLegacy(command, ctx),
+        };
 
         // Initialize SelectionManager
         this.selectionManager = new SelectionManager(this.eventManager);
@@ -1859,46 +1864,38 @@ export class Graph implements GraphContext {
         // A key nothing in the catalogue carries: a plugin registered through `Algorithm.register`
         // that declared no descriptor. It takes the 1.10 path, which addresses the registry
         // directly, and gets none of what a run offers -- which is the trade its author made by
-        // not declaring one.
-        /* A PLUGIN'S WRITES NEED THE REPAINT ASKED FOR HERE. A catalogue algorithm runs as a
-           session run, and the session announcing that run's end is what brings the picture up
-           to date. A plugin has no run to announce: it writes straight onto the element's node
-           and edge records, which the session reads as attributes, so a layer selecting on one
-           of those paths would go on showing the picture from before the algorithm without this.
-           Asked for HERE, where a plugin is known to have just written, rather than from a
-           trigger on the whole queue category -- visibility edits share that category, and each
-           had already repainted exactly what it touched. */
-        if (options?.skipQueue) {
-            await this.algorithmManager.runAlgorithm(namespace, type, options.algorithmOptions);
-
-            if (options.applySuggestedStyles) {
-                this.applySuggestedStyles(`${namespace}:${type}`);
+        // not declaring one. It is still one step: `algo.legacy` runs it with a facade of this
+        // graph, and what it writes, the doors it calls and the suggested styles asked for here
+        // are recorded together.
+        const command = {
+            op: "algo.legacy" as const,
+            namespace,
+            type,
+            ...(options?.algorithmOptions === undefined ? {} : { options: options.algorithmOptions }),
+            ...(options?.applySuggestedStyles === true ? { applySuggestedStyles: true } : {}),
+        };
+        try {
+            const done = (dispatch ?? ((each, dispatched) => dispatcherOf(this.session).dispatch(each, dispatched)))(
+                command,
+                options?.skipQueue === true ? { beside: true } : {},
+            );
+            // Inside `batchOperations` the queue holds it until the batch closes, after this call
+            // has returned, so it resolves at once and the batch is what the caller awaits.
+            if (this.operationQueue.isInBatchMode()) {
+                done.catch(() => undefined);
+                return;
             }
 
-            await this.repaintFromSession();
+            await done;
+        } catch (error) {
+            const algorithmError = error instanceof Error ? error : new Error(String(error));
+            this.eventManager.emitGraphError(this, algorithmError, "algorithm", {
+                algorithm: `${namespace}:${type}`,
+                component: "AlgorithmManager",
+            });
 
-            return;
+            throw algorithmError;
         }
-
-        await this.operationQueue.queueOperationAsync(
-            "algorithm-run",
-            async (context) => {
-                if (context.signal.aborted) {
-                    throw new Error("Operation cancelled");
-                }
-
-                await this.algorithmManager.runAlgorithm(namespace, type, options?.algorithmOptions);
-                if (options?.applySuggestedStyles) {
-                    this.applySuggestedStyles(`${namespace}:${type}`);
-                }
-
-                await this.repaintFromSession();
-            },
-            {
-                description: `Running ${namespace}:${type} algorithm`,
-                ...options,
-            },
-        );
     }
 
     /**
@@ -2262,7 +2259,9 @@ export class Graph implements GraphContext {
             await dispatcherOf(this.session).dispatch("op" in mutation ? mutation : { op: "data.apply", mutation });
         };
 
-        if (options?.skipQueue) {
+        // Called through a plugin's graph facade, the running command holds the queue's slot, so
+        // the change joins that command at once rather than waiting behind it.
+        if (options?.skipQueue || dispatcherOf(this.session).routing) {
             await dispatch();
             return;
         }

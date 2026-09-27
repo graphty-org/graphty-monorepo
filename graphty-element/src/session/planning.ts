@@ -18,7 +18,7 @@
 
 import type { AlgorithmDescriptor, AlgorithmKey, FieldDescriptor, RunId, Scope } from "../catalog/types";
 import type { GraphtyErrorCode } from "../errors";
-import type { AlgoRemoveCommand } from "./commands/algo";
+import type { AlgoLegacyCommand, AlgoRemoveCommand } from "./commands/algo";
 import type { ConfigSetCommand } from "./commands/config";
 import type { DataCommand } from "./commands/data";
 import type { BatchCommand } from "./commands/index";
@@ -85,6 +85,7 @@ export interface AlgorithmRunCommand {
  */
 export type SessionCommand =
     | AlgorithmRunCommand
+    | AlgoLegacyCommand
     | AlgoRemoveCommand
     | DataCommand
     | StyleCommand

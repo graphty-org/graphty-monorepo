@@ -746,6 +746,8 @@ export type TransactionScope = Omit<GraphSession, "undo" | "redo" | "history" | 
 export interface CommandOutcomeMap {
     /** The run's handle; awaiting it yields the result. */
     "algo.run": Run;
+    /** Settles once the plugin has run and everything it wrote is recorded as one step. */
+    "algo.legacy": Promise<void>;
     /** What went with the run, once the removal is recorded. */
     "algo.remove": Promise<RunRemoval>;
     /** Settles once every member is recorded as one step and the pass that draws it has run. */

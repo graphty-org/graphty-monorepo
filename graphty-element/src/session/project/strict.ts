@@ -48,3 +48,14 @@ export function checkSoleHolder(key: string, holder: string | null): void {
         throw strictViolation(`${key} is being acquired while the open group "${holder}" holds it`);
     }
 }
+
+/**
+ * Strict: a command dispatched inline through a group-tagged facade touches only keys that are
+ * free or held by its own group (design section 4.5).
+ * @param op - The inline command's op.
+ * @param key - The op-log key another group holds.
+ * @param holder - The label of that group.
+ */
+export function checkInlineKey(op: string, key: string, holder: string): void {
+    throw strictViolation(`"${op}", dispatched inline through a plugin's graph facade, needs ${key}, which "${holder}" holds`);
+}

@@ -215,6 +215,12 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "algo.run", algorithm: "degree", as: "fixture-deg", applySuggestedStyles: true },
     },
     {
+        // The plugin is registered by test/helpers/legacyPlugins.ts; only a renderer constructs one.
+        name: "algo.legacy: a plugin writing results onto nodes, edges and the graph",
+        tags: ["renderer"],
+        command: { op: "algo.legacy", namespace: "fixture", type: "write-everywhere" },
+    },
+    {
         name: "algo.remove: a run and the layer bound to it",
         tags: BOTH,
         before: async (session) => {

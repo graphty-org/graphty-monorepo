@@ -1,6 +1,7 @@
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { fireEvent, render, screen } from "../../../../test/test-utils";
+import { fireEvent, render, screen, waitFor } from "../../../../test/test-utils";
 import { COMING_LABEL, LAYOUT_MENU_LABEL, LayoutChipMenu } from "../LayoutChipMenu";
 import type { LayoutQuickPick } from "../statusBarModel";
 
@@ -75,6 +76,21 @@ describe("LayoutChipMenu", () => {
             fireEvent.click(screen.getByRole("button", { name: LAYOUT_MENU_LABEL }));
 
             expect(props.onOpenChange).toHaveBeenCalledWith(true);
+        });
+
+        it("hides its tooltip once the menu it opens is open", async () => {
+            const user = userEvent.setup();
+            const { rerender } = render(<LayoutChipMenu {...defaultProps()} opened={false} />);
+
+            await user.hover(screen.getByRole("button", { name: LAYOUT_MENU_LABEL }));
+
+            expect(await screen.findByText(LAYOUT_MENU_LABEL)).toBeInTheDocument();
+
+            rerender(<LayoutChipMenu {...defaultProps()} opened />);
+
+            await waitFor(() => {
+                expect(screen.queryByText(LAYOUT_MENU_LABEL)).not.toBeInTheDocument();
+            });
         });
     });
 

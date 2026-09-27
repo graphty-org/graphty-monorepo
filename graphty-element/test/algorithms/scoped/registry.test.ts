@@ -27,7 +27,7 @@ import { assertComputesOverScope, type Build, coveredBy, handBuilt, runScoped, r
 /** Each registered algorithm's `scopeInput`: on computes over the scope, off over the whole graph. */
 const EXPECTED: Readonly<Record<string, "on" | "off">> = {
     "graphty:bellman-ford": "off",
-    "graphty:betweenness": "off",
+    "graphty:betweenness": "on",
     "graphty:bfs": "off",
     "graphty:bipartite-matching": "off",
     "graphty:closeness": "on",

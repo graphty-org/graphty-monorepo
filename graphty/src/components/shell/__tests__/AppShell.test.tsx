@@ -28,7 +28,7 @@ import {
 import { createFakeSession, type FakeSession } from "../../../test/fakeSession";
 import { ACCELERATION_SETTINGS_STORAGE_KEY } from "../defaults/accelerationSettings";
 import { METRIC_VALUE_FIELD, SHELL_DEFAULTS_TEMPLATE_ID } from "../defaults/styleDescriptors";
-import { SHELL_LAYOUT_STORAGE_KEY } from "../ShellContext";
+import { SHELL_LAYOUT_STORAGE_KEY } from "../shellLayoutStorage";
 
 /**
  * Renders the shell with the store pinned, so a board decides its own breakpoint and
@@ -1882,6 +1882,48 @@ describe("AppShell", () => {
             expect(container.querySelector("[data-canvas-graph='true']")).not.toBeNull();
             expect(container.querySelector("[data-canvas-welcome='true']")).not.toBeNull();
         });
+
+        /* A dataset boundary takes away whatever had focus -- the Welcome rows, the docks, the
+           inspector -- so the shell hands focus to the canvas region rather than dropping a
+           keyboard reader on the page body (issue #259). */
+        it("moves focus to the canvas region when a sample loads", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+            await loadCatSample(container);
+
+            const canvas = container.querySelector<HTMLElement>('[data-shell-region="canvas"]');
+
+            await waitFor(() => {
+                expect(document.activeElement).toBe(canvas);
+            });
+            expect(canvas?.tabIndex).toBe(-1);
+        });
+
+        it("moves focus to the canvas region, not the page body, when the dataset is closed", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+            await loadCatSample(container);
+            fireEvent.click(screen.getByRole("button", { name: "Data" }));
+            fireEvent.click(within(screen.getByRole("region", { name: "Data" })).getByRole("button", { name: "More" }));
+
+            const close = await screen.findByText("Close dataset. Starts a new session");
+
+            /* Focus parked on the menu row, so a canvas that already held it from the load
+               cannot pass this on its own. */
+            close.closest<HTMLElement>("[role='menuitem']")?.focus();
+            fireEvent.click(close);
+            await flushMicrotasks();
+
+            expect(container.querySelector("[data-canvas-welcome='true']")).not.toBeNull();
+            await waitFor(() => {
+                expect(document.activeElement).toBe(container.querySelector('[data-shell-region="canvas"]'));
+            });
+            expect(document.activeElement).not.toBe(document.body);
+        });
     });
 
     describe("the Explore search field", () => {
@@ -2085,6 +2127,36 @@ describe("AppShell", () => {
 
             return result;
         }
+
+        /* graphty-element refuses a layer that writes no channel, so "+" asked for one it would
+           always refuse and swallowed the refusal: nothing appeared and nothing said why
+           (issue #380). */
+        it("adds a layer that paints one channel, so the element accepts it", async () => {
+            const { container } = await renderStylePanel();
+            const fake = installGraph(container, []);
+
+            await settleSession();
+            fireEvent.click(screen.getByRole("button", { name: "Add a style layer" }));
+            await settleSession();
+
+            const added = fake.layers().find((layer) => layer.name === "New Layer 1");
+
+            expect(added).toBeDefined();
+            expect(Object.keys(added?.set ?? {})).toHaveLength(1);
+            expect(within(screen.getByTestId("style-layers")).getByText("New Layer 1")).toBeInTheDocument();
+        });
+
+        it("tells the reader why the element refused a new layer", async () => {
+            const { container } = await renderStylePanel();
+            const fake = installGraph(container, []);
+
+            vi.spyOn(fake.session.styles, "add").mockRejectedValueOnce(new Error("the element said no"));
+            await settleSession();
+            fireEvent.click(screen.getByRole("button", { name: "Add a style layer" }));
+            await settleSession();
+
+            expect(statusToast(container)).toHaveTextContent("the element said no");
+        });
 
         it("commits an inline rename to graphty-element, which owns the names", async () => {
             const { container } = await renderStylePanel();
@@ -4629,6 +4701,52 @@ describe("AppShell", () => {
             fireEvent.click(screen.getByText("GPU acceleration: on"));
 
             expect(screen.getByTestId("settings-acceleration")).toBeInTheDocument();
+        });
+
+        /* The chip and the device-lost toast both open Settings, so both go through the
+           shell's one opener: a shortcuts sheet or a pop-out left open would be drawn beside
+           or over Settings (issue #184). */
+        it("closes the shortcuts sheet and an open pop-out when the chip opens Settings", async () => {
+            const { container } = await renderMeasuredShell();
+
+            await reportAcceleration(container, { policy: "auto", state: "idle", backend: "webgpu" });
+            fireEvent.click(screen.getByRole("button", { name: "History" }));
+            expect(await screen.findByText(/entries|entry/)).toBeInTheDocument();
+            fireEvent.click(screen.getByRole("button", { name: "Help and keyboard shortcuts" }));
+            fireEvent.click(await screen.findByRole("menuitem", { name: /Keyboard shortcuts/ }));
+            expect(screen.getByTestId("keyboard-shortcuts")).toBeInTheDocument();
+
+            fireEvent.click(screen.getByText("GPU acceleration: on"));
+
+            expect(screen.getByTestId("settings-acceleration")).toBeInTheDocument();
+            expect(screen.queryByTestId("keyboard-shortcuts")).toBeNull();
+            await waitFor(() => {
+                expect(screen.queryByText(/entries|entry/)).toBeNull();
+            });
+        });
+
+        it("closes the shortcuts sheet and an open pop-out when the device-lost toast opens Settings", async () => {
+            const { container } = await renderMeasuredShell();
+
+            await reportAcceleration(container, {
+                policy: "auto",
+                state: "error",
+                code: "E_DEVICE_LOST",
+                reason: "the accelerator's device was lost: reset",
+            });
+            fireEvent.click(screen.getByRole("button", { name: "History" }));
+            expect(await screen.findByText(/entries|entry/)).toBeInTheDocument();
+            fireEvent.click(screen.getByRole("button", { name: "Help and keyboard shortcuts" }));
+            fireEvent.click(await screen.findByRole("menuitem", { name: /Keyboard shortcuts/ }));
+            expect(screen.getByTestId("keyboard-shortcuts")).toBeInTheDocument();
+
+            fireEvent.click(within(statusToast(container) as HTMLElement).getByText("Open Settings"));
+
+            expect(screen.getByTestId("settings-acceleration")).toBeInTheDocument();
+            expect(screen.queryByTestId("keyboard-shortcuts")).toBeNull();
+            await waitFor(() => {
+                expect(screen.queryByText(/entries|entry/)).toBeNull();
+            });
         });
 
         it("reports a lost device through the toast and flips the chip, without dismissing itself", async () => {

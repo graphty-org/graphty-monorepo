@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { fireEvent, render, screen } from "../../../../test/test-utils";
 import { LEGEND_MAX_HEIGHT, LEGEND_WIDTH, OVERLAY_INSET } from "../../constants";
-import { capLegendCategories, Legend, type LegendChannel, type LegendOtherRow, orderLegendChannels } from "../Legend";
+import { Legend, type LegendChannel, type LegendOtherRow } from "../Legend";
+import { capLegendCategories, orderLegendChannels } from "../legendChannels";
 
 const SPAN = { selector: "span" } as const;
 

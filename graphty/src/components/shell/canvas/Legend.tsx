@@ -31,7 +31,8 @@ import { PANEL_INK, ProseBlock } from "@graphty/compact-mantine";
 import React from "react";
 
 import { CANVAS_TOOLBAR_Z_INDEX, LEGEND_MIN_HEIGHT, LEGEND_WIDTH, OVERLAY_INSET } from "../constants";
-import { CANVAS_LEADING, CANVAS_METRICS, CANVAS_SPACE, CANVAS_TYPE, LEGEND_BLOCK_ORDER, type LegendChannelId, OVERLAY_REFLOW_TRANSITION_MS } from "./canvasLayout";
+import { CANVAS_LEADING, CANVAS_METRICS, CANVAS_SPACE, CANVAS_TYPE, type LegendChannelId, OVERLAY_REFLOW_TRANSITION_MS } from "./canvasLayout";
+import { capLegendCategories, orderLegendChannels } from "./legendChannels";
 
 /**
  * One end of a quantitative domain: MIN, MIDPOINT or MAX. The middle stop carries the
@@ -142,26 +143,6 @@ export interface LegendProps {
 }
 
 const LEGEND_LABEL = "Legend";
-
-/**
- * Puts the encoded channels into the legend's fixed block order and drops anything
- * that is not one of the five channels. A channel with no encoding never reaches here.
- * @param channels - the encoded channels, in any order.
- * @returns the channels in the order Color, Size, Outline, Edge width, Arrow.
- */
-export function orderLegendChannels(channels: readonly LegendChannel[]): readonly LegendChannel[] {
-    return LEGEND_BLOCK_ORDER.flatMap((id) => channels.filter((channel) => channel.channel === id));
-}
-
-/**
- * Applies the canvas's own categorical cap: the five largest categories, and the Other
- * row that follows carries the coverage footer for everything else.
- * @param categories - the categories the encoding model supplies, largest first.
- * @returns at most five of them.
- */
-export function capLegendCategories(categories: readonly LegendCategory[]): readonly LegendCategory[] {
-    return categories.slice(0, CANVAS_METRICS.LEGEND_MAX_CATEGORY_ROWS);
-}
 
 function ChannelHeading(props: { readonly channel: LegendChannel }): React.JSX.Element {
     const { channel } = props;

@@ -16,7 +16,7 @@
         "test:coverage": "vitest run --coverage",
         "coverage": "vitest run --coverage",
         "coverage:preview": "npx serve coverage -p ${PORT:?start it through servherd, which sets PORT}",
-        "lint": "eslint && tsc --noEmit",
+        "lint": "eslint --max-warnings 0 && tsc --noEmit",
         "lint:fix": "eslint --fix",
         "lint:knip": "cd .. && pnpm run lint:knip -- --workspace graphty",
         "typecheck": "tsc --noEmit",

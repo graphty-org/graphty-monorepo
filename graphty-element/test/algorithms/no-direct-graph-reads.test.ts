@@ -44,7 +44,6 @@ const TO_MIGRATE: readonly string[] = [
     "LouvainAlgorithm.ts",
     "MaxFlowAlgorithm.ts",
     "MinCutAlgorithm.ts",
-    "PageRankAlgorithm.ts",
     "PrimAlgorithm.ts",
     "StronglyConnectedComponentsAlgorithm.ts",
     "utils/communityUtils.ts",

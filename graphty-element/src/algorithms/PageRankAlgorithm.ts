@@ -141,6 +141,8 @@ function legacyPageRankReason(run: {
 export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
     static namespace = "graphty";
     static type = "pagerank";
+    /** Ranks over the run's scope: the node list and the graph both come from the input. */
+    static scopeInput = "subgraph" as const;
 
     /**
      * NEW: Zod-based options schema for unified validation and UI metadata
@@ -253,10 +255,10 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
         /* Directed: rank flows along out-edges, so the declared direction is the whole model --
            and whether the snapshot IS directed is one of the three things that decide whether any
            index-based port answers this run at all. So it is read here, from the declared
-           snapshot, BEFORE the route is taken: a run that ends on the reference implementation
-           must not first pay for the parallel-edge merge it will never look at. */
+           snapshot the input covers, BEFORE the route is taken: a run that ends on the reference
+           implementation must not first pay for the parallel-edge merge it will never look at. */
         const legacyReason = legacyPageRankReason({
-            directed: this.graph.getDataManager().getSnapshot().directed,
+            directed: this.input("declared").graph.directed,
             hasInitialRanks: initialRanks !== undefined,
             hasPersonalization: personalization !== undefined,
         });

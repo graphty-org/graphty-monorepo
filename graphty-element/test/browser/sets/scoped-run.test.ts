@@ -35,7 +35,7 @@ describe("a run over a set", () => {
         container.remove();
     });
 
-    it("a PageRank over a 20-node set reports 20 values, carries the caveat, and records 20 nodes", async () => {
+    it("a PageRank over a 20-node set reports 20 values, says it computed on them, and measured 20 nodes", async () => {
         const session = graph.getSession() as ElementSession;
         const id = session.sets.create({ kind: "fixed", nodes: IDS.slice(0, 20), reading: "induced" }, { name: "First half" });
 
@@ -45,12 +45,13 @@ describe("a run over a set", () => {
         assert.strictEqual(result.column("value").length, 20);
         assert.isDefined(result.node("n0"));
         assert.isUndefined(result.node("n30"));
-        assert.include(run.record.caveats.notes, WHOLE_GRAPH_CAVEAT);
+        assert.include(run.record.caveats.notes, "Computed on the induced subgraph of 20 nodes.");
+        assert.notInclude(run.record.caveats.notes, WHOLE_GRAPH_CAVEAT);
         assert.strictEqual(run.record.scope.nodes, 20);
         assert.strictEqual(run.record.scope.reading, "induced");
         assert.deepStrictEqual(run.record.scope.set, { id, revision: session.sets.get(id)?.revision });
-        // Until the adapters read their node lists from the input, `measured` counts the graph.
-        assert.strictEqual(result.measured.nodes, 40);
+        // PageRank computes over its scope, so what it measured is the set.
+        assert.strictEqual(result.measured.nodes, 20);
     });
 
     it("a run over the whole graph carries no scope caveat", async () => {

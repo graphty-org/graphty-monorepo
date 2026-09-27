@@ -19,7 +19,7 @@ import { type EdgeSpec, InputGraph } from "../input/harness";
 /** Builds one algorithm over a graph. */
 export type Build = (graph: Graph) => Algorithm;
 
-/** A run's values as plain data: nodes by id, edges by `source>target#k` (the k-th such edge in row order). */
+/** A run's values as plain data: nodes by id, edges by `source>target#k` (the k-th such kept edge in row order). */
 export interface Values {
     readonly nodes: Record<string, unknown>;
     readonly edges: Record<string, unknown>;
@@ -77,17 +77,23 @@ export function handBuilt(graph: InputGraph, scope: ResolvedInputScope): InputGr
 }
 
 /**
- * The key of every edge of a graph, by edge id: `source>target#k`, k counting that ordered pair's
- * edges in row order, so two graphs holding the same edges in the same order key them alike.
+ * The key of every kept edge of a graph, by edge id: `source>target#k`, k counting that ordered
+ * pair's kept edges in row order, so two graphs holding the same edges in the same order key them
+ * alike.
  * @param graph - The graph.
- * @returns Edge id to key.
+ * @param keep - Which edge rows to key.
+ * @returns Edge id to key, for the kept edges.
  */
-function edgeKeys(graph: InputGraph): Map<string, string> {
+function edgeKeys(graph: InputGraph, keep: (row: number) => boolean): Map<string, string> {
     const snapshot = graph.snapshot();
     const { src, dst } = snapshot.edgeList();
     const seen = new Map<string, number>();
     const byRow = new Map<number, string>();
     for (let row = 0; row < snapshot.edgeCount; row++) {
+        if (!keep(row)) {
+            continue;
+        }
+
         const pair = `${String(snapshot.ids.idOf(src[row]))}>${String(snapshot.ids.idOf(dst[row]))}`;
         const k = seen.get(pair) ?? 0;
         seen.set(pair, k + 1);
@@ -96,7 +102,10 @@ function edgeKeys(graph: InputGraph): Map<string, string> {
 
     const keys = new Map<string, string>();
     for (const edge of graph.edges.values()) {
-        keys.set(edge.id, byRow.get(edge.index) ?? edge.id);
+        const key = byRow.get(edge.index);
+        if (key !== undefined) {
+            keys.set(edge.id, key);
+        }
     }
 
     return keys;
@@ -132,14 +141,14 @@ export function canonicalGroups(nodes: Record<string, unknown>, field = "group")
  * @param result - The result.
  * @param graph - The graph it ran on.
  * @param keepNode - Which node ids to read; all of them by default.
- * @param keepEdge - Which edge keys to read; all of them by default.
+ * @param keepEdge - Which edge rows to read; all of them by default.
  * @returns The values; a partition's labels canonicalised.
  */
 export function valuesOf(
     result: RunResult | undefined,
     graph: InputGraph,
     keepNode: (id: string) => boolean = () => true,
-    keepEdge: (key: string) => boolean = () => true,
+    keepEdge: (row: number) => boolean = () => true,
 ): Values {
     assert.isDefined(result, "the run published a result");
     const snapshot = graph.snapshot();
@@ -152,11 +161,11 @@ export function valuesOf(
     }
 
     const edges: Record<string, unknown> = {};
-    const keys = edgeKeys(graph);
+    const keys = edgeKeys(graph, keepEdge);
     const ordered = [...graph.edges.values()].sort((a, b) => a.index - b.index);
     for (const edge of ordered) {
-        const key = keys.get(edge.id) ?? edge.id;
-        if (keepEdge(key)) {
+        const key = keys.get(edge.id);
+        if (key !== undefined) {
             edges[key] = result.edge(edge.id);
         }
     }
@@ -165,25 +174,18 @@ export function valuesOf(
 }
 
 /**
- * The node ids and edge keys a scope covers.
+ * The node ids and edge rows a scope covers.
  * @param graph - The graph.
  * @param scope - The scope.
  * @returns Two predicates.
  */
-export function coveredBy(graph: InputGraph, scope: ResolvedInputScope): { node: (id: string) => boolean; edge: (key: string) => boolean } {
+export function coveredBy(graph: InputGraph, scope: ResolvedInputScope): { node: (id: string) => boolean; edge: (row: number) => boolean } {
     const snapshot = graph.snapshot();
     const { nodes, edges } = scope.resolution;
-    const keys = edgeKeys(graph);
-    const inEdges = new Set<string>();
-    for (const edge of graph.edges.values()) {
-        if (maskTest(edges, edge.index)) {
-            inEdges.add(keys.get(edge.id) ?? edge.id);
-        }
-    }
 
     return {
         node: (id) => maskTest(nodes, snapshot.ids.indexOf(id)),
-        edge: (key) => inEdges.has(key),
+        edge: (row) => maskTest(edges, row),
     };
 }
 

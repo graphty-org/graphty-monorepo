@@ -48,7 +48,7 @@ const EXPECTED: Readonly<Record<string, "on" | "off">> = {
     "graphty:louvain": "off",
     "graphty:max-flow": "off",
     "graphty:min-cut": "off",
-    "graphty:pagerank": "off",
+    "graphty:pagerank": "on",
     "graphty:prim": "off",
     "graphty:scc": "off",
 };

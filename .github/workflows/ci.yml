@@ -791,6 +791,55 @@ jobs:
                   retention-days: 90
                   if-no-files-found: ignore
 
+    # graphty-element's cost estimates held against a stopwatch (issue #236). The test times real
+    # algorithm runs and scales the estimate by the element's own calibration probe, so it reads the
+    # same on this runner as on a workstation. It is a measurement, not a gate: master and dispatch
+    # only, and not in "All Checks Pass", so a drift shows as a red job on master and never blocks a
+    # pull request. Each failure names the row, the graph, n, m, both times and the ratio; every
+    # row's ratio also lands in the job summary.
+    cost-accuracy:
+        name: Cost Estimate Accuracy
+        needs: build
+        if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: pnpm/action-setup@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            - name: Download all package builds
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-packages
+                  path: .
+
+            - name: Time the estimates against real runs
+              working-directory: graphty-element
+              run: |
+                  set -o pipefail
+                  COST_GUARD_VERBOSE=1 npm run test:cost 2>&1 | tee "$RUNNER_TEMP/cost.log"
+
+            - name: Write the ratios to the job summary
+              if: ${{ !cancelled() }}
+              run: |
+                  {
+                      echo "### Cost estimate / measured run (bounds 0.95 to 4)"
+                      echo '```'
+                      grep -E "ratio [0-9.]+, machine speed" "$RUNNER_TEMP/cost.log" || echo "no rows ran"
+                      echo '```'
+                  } >> "$GITHUB_STEP_SUMMARY"
+
     # Gate job - ensures all required checks pass before release/deploy. It is the required status check,
     # so it runs even when a job it needs failed (if: always()) and decides for itself.
     # On a pull request a job this run chose not to start (a test job or Chromatic job for an unaffected

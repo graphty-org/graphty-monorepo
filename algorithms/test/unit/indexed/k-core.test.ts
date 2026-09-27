@@ -1,9 +1,9 @@
 import { GraphBuilder } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
+import { kCoreDecomposition as legacyKCore } from "../../../src/clustering/k-core.js";
 import { Graph } from "../../../src/core/graph.js";
 import { kCoreDecomposition } from "../../../src/indexed/k-core.js";
-import { kCoreDecomposition as legacyKCore } from "../../../src/clustering/k-core.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { undirectedFixtures } from "./port-fixtures.js";
 

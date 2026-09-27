@@ -136,13 +136,7 @@ function modularityOf(level: Level, comm: Uint32Array, count: number, resolution
  * @param maxVisitsPerNode - Cap on node visits, as a multiple of the node count
  * @returns Whether any node moved
  */
-function localMove(
-    level: Level,
-    comm: Uint32Array,
-    resolution: number,
-    m2: number,
-    maxVisitsPerNode: number,
-): boolean {
+function localMove(level: Level, comm: Uint32Array, resolution: number, m2: number, maxVisitsPerNode: number): boolean {
     const { n } = level;
     const tot = new Float64Array(n);
     for (let u = 0; u < n; u++) {

@@ -57,7 +57,12 @@ function best(reps: number, run: () => void): number {
 
 const sizes = [1000, 10000, 100000];
 const budgetMs = 120000;
-console.log("load average at start:", loadavg().map((l) => l.toFixed(2)).join(" "));
+console.log(
+    "load average at start:",
+    loadavg()
+        .map((l) => l.toFixed(2))
+        .join(" "),
+);
 for (const n of sizes) {
     const reps = n <= 10000 ? 3 : 1;
     const undirected = build(n, false);
@@ -100,4 +105,9 @@ for (const n of sizes) {
         );
     }
 }
-console.log("\nload average at end:", loadavg().map((l) => l.toFixed(2)).join(" "));
+console.log(
+    "\nload average at end:",
+    loadavg()
+        .map((l) => l.toFixed(2))
+        .join(" "),
+);

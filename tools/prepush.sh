@@ -140,9 +140,15 @@ affected graph-samples && { (cd graph-samples && npm run test:run) || { FAILED=1
 # webgpu-graph-algorithms - the node project only (design 12.5): Dawn on the local adapter -- NVIDIA when
 # LD_LIBRARY_PATH carries the libEGL tree (package CLAUDE.md), else Mesa lavapipe (about 5 minutes); the
 # browser project and the no-subgroups pass run in CI. GRAPHTY_GPU_REQUIRE=any: a machine with no adapter
-# fails up front instead of skipping every GPU test and reporting a vacuous pass
+# fails up front instead of skipping every GPU test and reporting a vacuous pass. The libEGL tree comes from
+# GRAPHTY_EGL_LIB_DIR (the variable the browser project already reads), else the main checkout's gitignored
+# tmp/egl/ (found through the git common dir, so a push from a worktree finds it too); it is prepended to
+# LD_LIBRARY_PATH for this one command. The test setup prints the adapter that ran.
 echo "  Testing webgpu-graph-algorithms..."
-affected webgpu-graph-algorithms && { (cd webgpu-graph-algorithms && GRAPHTY_GPU_REQUIRE=any npm run test:run) || { FAILED=1; TESTS_FAILED=1; }; }
+EGL_LIB_DIR="${GRAPHTY_EGL_LIB_DIR:-$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/tmp/egl/root/usr/lib/x86_64-linux-gnu}"
+WEBGPU_LD_PATH="$LD_LIBRARY_PATH"
+[ -d "$EGL_LIB_DIR" ] && WEBGPU_LD_PATH="$EGL_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+affected webgpu-graph-algorithms && { (cd webgpu-graph-algorithms && LD_LIBRARY_PATH="$WEBGPU_LD_PATH" GRAPHTY_GPU_REQUIRE=any npm run test:run) || { FAILED=1; TESTS_FAILED=1; }; }
 
 # algorithms - has test:run that runs --project=default
 echo "  Testing algorithms..."

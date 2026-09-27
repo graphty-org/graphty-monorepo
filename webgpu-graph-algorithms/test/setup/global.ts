@@ -142,7 +142,8 @@ async function failFastWithoutAdapter(): Promise<void> {
         handle?.dispose();
     }
     const verdict = checkAdapter(info, policy);
-    if (verdict.ok) {
+    if (verdict.ok && info !== null) {
+        console.warn(`[gpu] node project adapter: ${info.vendor} / ${info.architecture}`);
         return;
     }
     const lines = [

@@ -107,6 +107,37 @@ function freshenWorldMatrix(mesh: AbstractMesh, frame: number): void {
     mesh.computeWorldMatrix(true);
 }
 
+/**
+ * Node shapes whose outline is a circle from every direction, so where a line meets one can be
+ * worked out rather than searched for.
+ *
+ * Deliberately short. A cone, a box or a torus looks different from different sides, and the only
+ * honest answer for those is still to intersect the drawn geometry.
+ */
+const SPHERICAL_SHAPES: ReadonlySet<string> = new Set(["sphere", "icosphere"]);
+
+/**
+ * How far a node's drawn surface is from its centre, when that distance is the same in every
+ * direction.
+ * @param node - The node.
+ * @returns The radius in world units, or null when this node's outline is not a circle.
+ */
+function sphericalRadius(node: Node): number | null {
+    if (!SPHERICAL_SHAPES.has(node.shapeType ?? "icosphere")) {
+        return null;
+    }
+
+    // THE BOX'S HALF-WIDTH, NOT THE BOUNDING SPHERE'S RADIUS. Babylon builds a bounding sphere
+    // around the bounding BOX, so for a node drawn at radius 0.75 it reads 1.299 -- the box's
+    // half-diagonal, 0.75 times the square root of three. Trimming a line there stops it well
+    // outside the node with a visible gap, which is what the first version of this did and what
+    // the older fallback path in `transformArrowCap` still does. The half-width is the radius:
+    // measured against where a ray actually lands on the drawn surface of an icosphere, 0.75
+    // against 0.739 to 0.746 depending on the direction, because the flat faces of the hull sit
+    // just inside the sphere they approximate.
+    return node.mesh.getBoundingInfo().boundingBox.extendSizeWorld.x;
+}
+
 interface EdgeOpts {
     metadata?: object;
 }
@@ -1325,35 +1356,66 @@ export class Edge {
         const srcMesh = this.srcNode.mesh;
         const dstMesh = this.dstNode.mesh;
 
-        // AIMED HERE, BY THE ONE EDGE THAT IS ABOUT TO FIRE IT. A pass over every edge in the
-        // graph used to do this, once a frame, whether or not the edge had moved: it allocated a
-        // direction vector per edge, added both endpoints to a set, and then recomputed a world
-        // matrix for every mesh in that set. At the render ceiling that is a million vectors and
-        // two million set writes a frame for a graph that is standing still. The work is the same
-        // work; it is now done by the edges that need it, at the moment they need it.
-        this.ray.origin = srcMesh.position;
-        dstMesh.position.subtractToRef(srcMesh.position, this.ray.direction);
-
-        const frame = this.context.getScene().getFrameId();
-
-        freshenWorldMatrix(srcMesh, frame);
-        freshenWorldMatrix(dstMesh, frame);
-
-        const dstHitInfo = this.ray.intersectsMeshes([dstMesh]);
-        const srcHitInfo = this.ray.intersectsMeshes([srcMesh]);
-
         let srcPoint: Vector3 | null = null;
         let dstPoint: Vector3 | null = null;
         let newEndPoint: Vector3 | null = null;
-        if (dstHitInfo.length && srcHitInfo.length) {
+
+        const srcRadius = sphericalRadius(this.srcNode);
+        const dstRadius = sphericalRadius(this.dstNode);
+
+        if (srcRadius !== null && dstRadius !== null) {
+            // WORKED OUT RATHER THAN SEARCHED FOR. Where a straight line crosses a sphere is one
+            // multiply away from the centre and the radius, and this is the answer for the shapes
+            // the element draws by default. The search it replaces -- two ray-against-mesh
+            // intersections per edge, each walking the triangles of a node's geometry -- measured
+            // 137 ms of a 151 ms frame on a graph of two thousand nodes with a live layout, which
+            // was the whole of what a moving graph cost. It also needed both endpoint meshes to
+            // have a freshly computed world matrix; a radius does not move when a node does, so
+            // that is gone too.
+            const srcCentre = srcMesh.position;
+            const dstCentre = dstMesh.position;
+            const dx = dstCentre.x - srcCentre.x;
+            const dy = dstCentre.y - srcCentre.y;
+            const dz = dstCentre.z - srcCentre.z;
+            const span = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+            // Two nodes closer than their own surfaces have no line between them to trim, which
+            // is the same case the intersection search reported by finding no hit.
+            if (span > srcRadius + dstRadius) {
+                const ux = dx / span;
+                const uy = dy / span;
+                const uz = dz / span;
+
+                srcPoint = new Vector3(srcCentre.x + ux * srcRadius, srcCentre.y + uy * srcRadius, srcCentre.z + uz * srcRadius);
+                dstPoint = new Vector3(dstCentre.x - ux * dstRadius, dstCentre.y - uy * dstRadius, dstCentre.z - uz * dstRadius);
+            }
+        } else {
+            // AIMED HERE, BY THE ONE EDGE THAT IS ABOUT TO FIRE IT. A pass over every edge in the
+            // graph used to do this, once a frame, whether or not the edge had moved.
+            this.ray.origin = srcMesh.position;
+            dstMesh.position.subtractToRef(srcMesh.position, this.ray.direction);
+
+            const frame = this.context.getScene().getFrameId();
+
+            freshenWorldMatrix(srcMesh, frame);
+            freshenWorldMatrix(dstMesh, frame);
+
+            const dstHitInfo = this.ray.intersectsMeshes([dstMesh]);
+            const srcHitInfo = this.ray.intersectsMeshes([srcMesh]);
+
+            if (dstHitInfo.length && srcHitInfo.length) {
+                dstPoint = dstHitInfo[0].pickedPoint;
+                srcPoint = srcHitInfo[0].pickedPoint;
+
+                if (!srcPoint || !dstPoint) {
+                    throw new TypeError("error picking points");
+                }
+            }
+        }
+
+        if (srcPoint !== null && dstPoint !== null) {
             const style = this.currentStyle;
             const hasArrowHead = style.arrowHead?.type && style.arrowHead.type !== "none";
-
-            dstPoint = dstHitInfo[0].pickedPoint;
-            srcPoint = srcHitInfo[0].pickedPoint;
-            if (!srcPoint || !dstPoint) {
-                throw new TypeError("error picking points");
-            }
 
             // Only adjust endpoint if we have an arrow head
             if (hasArrowHead) {

@@ -12,7 +12,8 @@
  * dedupe-claim and dedupe-filter; P8-T4 adds frontier-finalize with the FrontierCounters and FrontierParams blocks;
  * P8-T5 adds advance-expand; P8-T6 adds bfs-contract and sssp-pred; P8-T7 adds bfs-fused; P8-T8 adds bfs-bottom-up,
  * bfs-bitset-build and bfs-unvisited-flags; P8-T9 adds sssp-relax; P8-T10 adds bf-relax with the BfParams and BfFlags
- * blocks; P8-T11 adds closeness-sweep and closeness-reduce. This file is the only importer of src/wgsl/** (spec 3.2;
+ * blocks; P8-T11 adds closeness-sweep and closeness-reduce; all-pairs shortest paths (design 8.7) adds apsp-init
+ * and apsp-fw with the ApspParams block. This file is the only importer of src/wgsl/** (spec 3.2;
  * test/layers.test.ts).
  */
 
@@ -23,6 +24,8 @@ import { type BindingDecl, type OverrideDecl, type WgslModuleSpec } from "./kern
 import { type CoreBinding } from "./memory/residency.js";
 import { type Binding } from "./types/memory.js";
 import { advanceExpandWgsl } from "./wgsl/advance-expand.wgsl.js";
+import { apspFwWgsl } from "./wgsl/apsp-fw.wgsl.js";
+import { apspInitWgsl } from "./wgsl/apsp-init.wgsl.js";
 import { bfRelaxWgsl } from "./wgsl/bf-relax.wgsl.js";
 import { bfsBitsetBuildWgsl } from "./wgsl/bfs-bitset-build.wgsl.js";
 import { bfsBottomUpWgsl } from "./wgsl/bfs-bottom-up.wgsl.js";
@@ -69,7 +72,7 @@ import { wccLinkEdgesWgsl } from "./wgsl/wcc-link-edges.wgsl.js";
 import { wccLinkSampleWgsl } from "./wgsl/wcc-link-sample.wgsl.js";
 import { wccSampleWgsl } from "./wgsl/wcc-sample.wgsl.js";
 
-/** Every module id of P1-P4, P7 and P8 (later ids are appended, never renamed). */
+/** Every module id of P1-P4, P7, P8 and P9 (later ids are appended, never renamed). */
 export type KernelId =
     | "degree"
     | "reduce"
@@ -116,7 +119,9 @@ export type KernelId =
     | "sssp-relax"
     | "bf-relax"
     | "closeness-sweep"
-    | "closeness-reduce";
+    | "closeness-reduce"
+    | "apsp-init"
+    | "apsp-fw";
 
 /** One registry entry: everything of a WgslModuleSpec except the per-variant overrides and snippets. */
 export interface KernelEntry {
@@ -131,7 +136,7 @@ export interface KernelEntry {
     /** The snippet marker names the body carries (segmented-reduce: ["VALUE"]). */
     readonly snippetSlots: readonly string[];
     /** The phase the entry landed in (documentation and the compile-matrix filter). */
-    readonly phase: "P1" | "P2" | "P3" | "P4" | "P7" | "P8";
+    readonly phase: "P1" | "P2" | "P3" | "P4" | "P7" | "P8" | "P9";
 }
 
 // ---- the generated blocks (spec 5.3; contract 3.10.2): field order = byte order, offsets in the JSDoc
@@ -481,6 +486,14 @@ export const BF_FLAGS: UniformBlock = UniformBlock.define(
     ],
     { layout: "storage" },
 );
+
+/** `ApspParams` (uniform, 16 B; design 8.7): `n` @0 (the node count, the matrix side), `round` @4 (the pivot block index of the blocked Floyd-Warshall round), `blocks` @8 (`ceil(n / APSP_TILE)`), `infBits` @12 (`F32_INF_BITS`: a kernel reads `+Infinity` from a uniform because Tint refuses it as a constant expression). */
+export const APSP_PARAMS: UniformBlock = UniformBlock.define("ApspParams", [
+    ["n", "u32"],
+    ["round", "u32"],
+    ["blocks", "u32"],
+    ["infBits", "u32"],
+]);
 
 // ---- the entries (contract 3.10.1; group 0 = graph, 1 = state, 2 = params, 3 = cold)
 
@@ -1363,6 +1376,32 @@ const CLOSENESS_REDUCE: KernelEntry = {
     phase: "P8",
 };
 
+/** `apsp-init` (design 8.7): one lane per row writes that row's arcs into the `+Infinity`-filled `n x n` matrix, the cheapest of parallel arcs, then the diagonal zero; 5 storage bindings (the four graph slots -- `perm` bound to its dummy, the rows are never permuted -- and `dist`). */
+const APSP_INIT: KernelEntry = {
+    id: "apsp-init",
+    body: apspInitWgsl,
+    entryPoint: "apsp_init",
+    bindings: GRAPH_SLOTS.concat(decl(1, 0, "dist", "storage", "array<f32>"), decl(2, 0, "P", "uniform", "ApspParams")),
+    overrideDecls: [],
+    uniforms: [APSP_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P9",
+};
+
+/** `apsp-fw` (design 8.7): one phase of one blocked Floyd-Warshall round over 32 x 32 tiles in workgroup memory -- `PHASE` 0 the pivot block, 1 the pivot row and column, 2 every other block; 1 storage binding (`dist`, read-write). */
+const APSP_FW: KernelEntry = {
+    id: "apsp-fw",
+    body: apspFwWgsl,
+    entryPoint: "apsp_fw",
+    bindings: [decl(1, 0, "dist", "storage", "array<f32>"), decl(2, 0, "P", "uniform", "ApspParams")],
+    overrideDecls: [{ name: "PHASE", type: "u32", default: 0 }],
+    uniforms: [APSP_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P9",
+};
+
 /**
  * The entries by id, in dispatch order. PLAN DECISION: `KernelId` is declared in full (contract 3.10) while the
  * entries landed phase by phase, so the table is built as a Partial record and exported below through the
@@ -1372,7 +1411,8 @@ const CLOSENESS_REDUCE: KernelEntry = {
  * and `"fa2-to-scene"`; M8b-T3 landed the seven P7 entries and P4 its thirteen; P8-T3 landed the three compact /
  * dedupe entries, P8-T4 `"frontier-finalize"`, P8-T5 `"advance-expand"`, P8-T6 `"bfs-contract"` and `"sssp-pred"` and
  * P8-T7 `"bfs-fused"`, P8-T8 `"bfs-bottom-up"`, `"bfs-bitset-build"` and `"bfs-unvisited-flags"`, P8-T9
- * `"sssp-relax"`, P8-T10 `"bf-relax"` and P8-T11 `"closeness-sweep"` and `"closeness-reduce"`, so every member of
+ * `"sssp-relax"`, P8-T10 `"bf-relax"` and P8-T11 `"closeness-sweep"` and `"closeness-reduce"`, and all-pairs shortest
+ * paths `"apsp-init"` and `"apsp-fw"`, so every member of
  * `KernelId` is present and the assertion is exact.
  */
 const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze({
@@ -1422,6 +1462,8 @@ const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze
     "bf-relax": BF_RELAX,
     "closeness-sweep": CLOSENESS_SWEEP,
     "closeness-reduce": CLOSENESS_REDUCE,
+    "apsp-init": APSP_INIT,
+    "apsp-fw": APSP_FW,
 });
 
 /** THE registry (spec 3.5): every entry, keyed by id. */

@@ -15,6 +15,7 @@ import { PRELUDE_WGSL } from "../../src/kernel/prelude.js";
 import { type UniformBlock } from "../../src/kernel/struct-block.js";
 import { composeWgsl, entryPointOf, STANDARD_OVERRIDES } from "../../src/kernel/wgsl.js";
 import {
+    APSP_PARAMS,
     BF_PARAMS,
     COMPACT_PARAMS,
     FA2_PARAMS,
@@ -59,7 +60,7 @@ interface ExpectedEntry {
     readonly uniforms: readonly UniformBlock[];
     readonly needs: readonly "subgroups"[];
     readonly snippetSlots: readonly string[];
-    readonly phase: "P1" | "P2" | "P3" | "P4" | "P7" | "P8";
+    readonly phase: "P1" | "P2" | "P3" | "P4" | "P7" | "P8" | "P9";
     /** Storage-buffer count per stage (3.10.1: "degree 5, reduce 2, fill 1, segmented-reduce 5, K1 3, K2 6, K3 6, K4 3, K5 6, toScene 2"; design 8.10: spmvPull 8, pr-scale 5, pr-finalize 1, Afforest link 3 / compress 1, sample 2; wcc-link-sample 5 = the graph slots + comp). */
     readonly storageCount: number;
 }
@@ -811,6 +812,32 @@ const TABLE: Readonly<Record<KernelId, ExpectedEntry>> = {
         snippetSlots: [],
         phase: "P8",
         storageCount: 3,
+    },
+    "apsp-init": {
+        entryPoint: "apsp_init",
+        bindings: withGraph([
+            [1, 0, "dist", "storage", "array<f32>"],
+            [2, 0, "P", "uniform", "ApspParams"],
+        ]),
+        overrideDecls: [],
+        uniforms: [APSP_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P9",
+        storageCount: 5,
+    },
+    "apsp-fw": {
+        entryPoint: "apsp_fw",
+        bindings: [
+            [1, 0, "dist", "storage", "array<f32>"],
+            [2, 0, "P", "uniform", "ApspParams"],
+        ],
+        overrideDecls: [["PHASE", "u32", 0]],
+        uniforms: [APSP_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P9",
+        storageCount: 1,
     },
 };
 

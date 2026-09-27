@@ -61,6 +61,7 @@ const BFS_TEST = "test/algorithms/bfs.test.ts";
 const SSSP_TEST = "test/algorithms/sssp.test.ts";
 const BF_TEST = "test/algorithms/bellman-ford.test.ts";
 const CLOSENESS_TEST = "test/algorithms/closeness.test.ts";
+const ALL_PAIRS_TEST = "test/algorithms/all-pairs.test.ts";
 
 /** At least three mutations per kernel that has rows (spec 13 rule f); PARTIAL so a phase's kernels can land before its rows (the coverage test below gates by phase). */
 export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> = Object.freeze({
@@ -1414,6 +1415,81 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             test: CLOSENESS_TEST,
         },
     ]),
+    "apsp-init": Object.freeze([
+        {
+            // the diagonal keeps the fill's +Infinity: a node's distance to itself becomes its shortest cycle, or
+            // stays unreachable
+            name: "diagonal-not-zeroed",
+            find: "dist[rowBase + u] = 0.0;",
+            replace: "// diagonal left as filled",
+            minFactor: 10,
+            test: ALL_PAIRS_TEST,
+        },
+        {
+            // the last of parallel arcs wins instead of the cheapest (the parallel fixture lists the cheaper arc
+            // first on one pair)
+            name: "parallel-arcs-last-wins",
+            find: "dist[rowBase + v] = min(dist[rowBase + v], w);",
+            replace: "dist[rowBase + v] = w;",
+            minFactor: 10,
+            test: ALL_PAIRS_TEST,
+        },
+        {
+            // every arc costs 1: the weighted matrix becomes hop counts
+            name: "weight-ignored",
+            find: "select(1.0, weights[a], HAS_WEIGHTS)",
+            replace: "1.0",
+            minFactor: 10,
+            test: ALL_PAIRS_TEST,
+        },
+    ]),
+    "apsp-fw": Object.freeze([
+        {
+            // the pivot tile is loaded from block (k, k + 1): phase 0 writes that block's relaxed copy over the
+            // pivot, and phase 1 reads it as the pivot
+            name: "pivot-tile-shifted",
+            find: "var a = vec2<u32>(r, r);",
+            replace: "var a = vec2<u32>(r, r + 1u);",
+            minFactor: 10,
+            test: ALL_PAIRS_TEST,
+        },
+        {
+            // phase 2 stops one pivot short of the block: paths through the last node of every block are lost off
+            // the pivot row and column
+            name: "inner-loop-31",
+            find: "kr < APSP_TILE;",
+            replace: "kr < APSP_TILE - 1u;",
+            minFactor: 10,
+            test: ALL_PAIRS_TEST,
+        },
+        {
+            // no barrier after staging: a lane reads tile cells another lane has not loaded yet (workgroup memory
+            // starts zeroed, so the stale reads are 0-length paths)
+            name: "barrier-after-stage-removed",
+            find: "workgroupBarrier();                                               // every staged cell is visible",
+            replace: "// the staging barrier removed",
+            minFactor: 10,
+            test: ALL_PAIRS_TEST,
+        },
+        {
+            // an edge tile stores its out-of-range columns into the next row (row i, column n + c is entry
+            // (i + 1, c)): the 33-node fixture's last block column is a one-column tile
+            name: "edge-store-guard-dropped",
+            find: "if (i >= P.n || j >= P.n) { return; }",
+            replace: "if (i >= P.n) { return; }",
+            minFactor: 10,
+            test: ALL_PAIRS_TEST,
+        },
+        {
+            // phase 2 stages the pivot block (k, k) in place of the pivot-column block (i, k): block row k and block
+            // column k stay right and every other block is wrong (the 30 x 30 grid: 29 blocks per side)
+            name: "phase2-stages-pivot",
+            find: "a = vec2<u32>(own.x, r);",
+            replace: "a = vec2<u32>(r, r);",
+            minFactor: 10,
+            test: ALL_PAIRS_TEST,
+        },
+    ]),
 });
 
 /**
@@ -1940,8 +2016,16 @@ export const SABOTAGE_P4_LAW: Readonly<Partial<Record<KernelId, readonly Mutatio
     ]),
 });
 
-/** The phases whose kernels ALL have their rows: ["P1"] at P1-T5, + "P2" at P2-T2, + "P3" at P3-T5, + "P7" at M8b-T10, + "P4" at P4-T12 (PD-1: when the last P4 kernel has its rows), + "P8" at P8-T15 (the frontier-family kernels, 58 rows written by the tasks that wrote the kernels over fifteen of them, plus `bfs-next-degree`'s 3 for issue #391: sixteen kernels, 61 rows); test/sabotage/coverage.test.ts asserts every KERNELS entry whose `phase` is listed here has >= 3 rows, except SABOTAGE_EXEMPT. */
-export const SABOTAGE_PHASES: readonly KernelEntry["phase"][] = Object.freeze(["P1", "P2", "P3", "P7", "P4", "P8"]);
+/** The phases whose kernels ALL have their rows: ["P1"] at P1-T5, + "P2" at P2-T2, + "P3" at P3-T5, + "P7" at M8b-T10, + "P4" at P4-T12 (PD-1: when the last P4 kernel has its rows), + "P8" at P8-T15 (the frontier-family kernels, 58 rows written by the tasks that wrote the kernels over fifteen of them, plus `bfs-next-degree`'s 3 for issue #391: sixteen kernels, 61 rows), + "P9" with all-pairs shortest paths (apsp-init 3 rows, apsp-fw 5); test/sabotage/coverage.test.ts asserts every KERNELS entry whose `phase` is listed here has >= 3 rows, except SABOTAGE_EXEMPT. */
+export const SABOTAGE_PHASES: readonly KernelEntry["phase"][] = Object.freeze([
+    "P1",
+    "P2",
+    "P3",
+    "P7",
+    "P4",
+    "P8",
+    "P9",
+]);
 
 /**
  * Kernels with no oracle-sensitive arithmetic to mutate: a wrong fill / toScene fails the exact-equality tests

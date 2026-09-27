@@ -259,3 +259,15 @@ export const BEAMER_BETA = 24;
 export const SSSP_DELTA_FACTOR = 32;
 /** The bit pattern of +Infinity, the unreached sentinel of `dist` (P8 PD-9); interpolated into the prelude as `F32_INF_BITS` so no body types the literal. */
 export const F32_INF_BITS = 0x7f800000;
+/**
+ * Design 8.7: all-pairs shortest paths is a blocked Floyd-Warshall over `APSP_TILE x APSP_TILE` tiles. One tile of
+ * f32 is 4 KiB of workgroup memory and a workgroup stages at most two (8 KiB), inside the 16 KiB
+ * `maxComputeWorkgroupStorageSize` every WebGPU device reports. Interpolated into the prelude as `APSP_TILE`.
+ */
+export const APSP_TILE = 32;
+/**
+ * The blocked sweep records `3 x ceil(n / APSP_TILE)` dispatches (543 at the 5,792-node default ceiling, 2,172 at a
+ * raised 23,170); above this many the driver splits the sweep into further submits, so a raised-limit run never
+ * builds one unbounded command buffer.
+ */
+export const APSP_MAX_DISPATCHES_PER_SUBMIT = 4096;

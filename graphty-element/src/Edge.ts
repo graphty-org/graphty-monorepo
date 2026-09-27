@@ -107,37 +107,6 @@ function freshenWorldMatrix(mesh: AbstractMesh, frame: number): void {
     mesh.computeWorldMatrix(true);
 }
 
-/**
- * Node shapes whose outline is a circle from every direction, so where a line meets one can be
- * worked out rather than searched for.
- *
- * Deliberately short. A cone, a box or a torus looks different from different sides, and the only
- * honest answer for those is still to intersect the drawn geometry.
- */
-const SPHERICAL_SHAPES: ReadonlySet<string> = new Set(["sphere", "icosphere"]);
-
-/**
- * How far a node's drawn surface is from its centre, when that distance is the same in every
- * direction.
- * @param node - The node.
- * @returns The radius in world units, or null when this node's outline is not a circle.
- */
-function sphericalRadius(node: Node): number | null {
-    if (!SPHERICAL_SHAPES.has(node.shapeType ?? "icosphere")) {
-        return null;
-    }
-
-    // THE BOX'S HALF-WIDTH, NOT THE BOUNDING SPHERE'S RADIUS. Babylon builds a bounding sphere
-    // around the bounding BOX, so for a node drawn at radius 0.75 it reads 1.299 -- the box's
-    // half-diagonal, 0.75 times the square root of three. Trimming a line there stops it well
-    // outside the node with a visible gap, which is what the first version of this did and what
-    // the older fallback path in `transformArrowCap` still does. The half-width is the radius:
-    // measured against where a ray actually lands on the drawn surface of an icosphere, 0.75
-    // against 0.739 to 0.746 depending on the direction, because the flat faces of the hull sit
-    // just inside the sphere they approximate.
-    return node.mesh.getBoundingInfo().boundingBox.extendSizeWorld.x;
-}
-
 interface EdgeOpts {
     metadata?: object;
 }
@@ -1360,8 +1329,8 @@ export class Edge {
         let dstPoint: Vector3 | null = null;
         let newEndPoint: Vector3 | null = null;
 
-        const srcRadius = sphericalRadius(this.srcNode);
-        const dstRadius = sphericalRadius(this.dstNode);
+        const srcRadius = this.srcNode.roundRadius;
+        const dstRadius = this.dstNode.roundRadius;
 
         if (srcRadius !== null && dstRadius !== null) {
             // WORKED OUT RATHER THAN SEARCHED FOR. Where a straight line crosses a sphere is one

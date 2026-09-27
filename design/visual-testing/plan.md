@@ -391,6 +391,12 @@ same way.
 
 ### Phase 7: the first real reviews, and the graphty-element seed
 
+**Starts after** phase 6: the tooling pull request and the compact-mantine seed pull request have
+both merged, so a merge of master brings the `visual` job and compact-mantine's baselines into a
+waiting pull request. Before that, merging master into these branches gains nothing. Steps 1 and 2
+commit and push to other pull requests' branches, so whoever runs them needs the owner's go-ahead
+for those branches; an agent limited to the tooling branch cannot do them.
+
 1. An agent brings one waiting compact-mantine pull request (#511, #365 or #364) up to date with
    master by merge. Every pull request that predates the seed needs this before its accept, and the
    page badges it "merge master first" until it has it.

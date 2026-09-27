@@ -8,6 +8,7 @@ import { bfsRingSlots } from "../../src/algorithms/bfs.js";
 import {
     ARC_WINDOW_ALIGN,
     BEAMER_BETA,
+    BORUVKA_ROUNDS_PER_SUBMIT,
     DEFAULT_STAGING_SLOTS,
     DEFAULT_WARN_UNRELEASED_SNAPSHOTS,
     EXACT_MAX_NODES,
@@ -27,6 +28,10 @@ import {
     GRID_HUB_CELL,
     GRID_MIN_SIDE,
     GRID_SORT_BITS,
+    GROUP_HASH_LOAD_FACTOR,
+    GROUP_ROW_THREAD_LIMIT,
+    GROUP_ROW_THREAD_MAX,
+    LABEL_PROP_PASSES_PER_SUBMIT,
     LAYOUT_TUNING_DEFAULTS,
     MAX_1D_ITEMS,
     MAX_ITERATIONS_PER_STEP,
@@ -45,6 +50,7 @@ import {
     STATE_HEADER_BYTES,
     STORAGE_ALIGN,
     TRACE_RECORD_BYTES,
+    TRIANGLE_BINARY_SEARCH_RATIO,
     U32_MAX,
     UNIFORM_SLOT_BYTES,
     WORKGROUP_SIZE,
@@ -249,6 +255,20 @@ describe("constants.ts (contract 3.2)", () => {
         expect(BEAMER_BETA).toBe(24);
         expect(SSSP_DELTA_FACTOR).toBe(32);
         expect(F32_INF_BITS).toBe(0x7f800000);
+    });
+
+    it("pins the structure and community constants (design 8.5, 8.6; issue #422)", () => {
+        // at least 8 passes per readback: below it the 10,000-node call loses to the CPU in Chromium; even, so a
+        // submit holds as many descending as ascending passes of the direction rule
+        expect(LABEL_PROP_PASSES_PER_SUBMIT).toBe(8);
+        expect(LABEL_PROP_PASSES_PER_SUBMIT % 2).toBe(0);
+        expect(BORUVKA_ROUNDS_PER_SUBMIT).toBe(4);
+        expect(GROUP_ROW_THREAD_MAX).toBe(32);
+        // the thread tier's pairwise scan is about d^2 / 2 + d^2 / 2 + d steps: under llvmpipe's 65,535 at the limit
+        expect(GROUP_ROW_THREAD_LIMIT * GROUP_ROW_THREAD_LIMIT + 2 * GROUP_ROW_THREAD_LIMIT).toBeLessThan(65535);
+        expect(GROUP_ROW_THREAD_MAX).toBeLessThanOrEqual(GROUP_ROW_THREAD_LIMIT);
+        expect(GROUP_HASH_LOAD_FACTOR).toBe(2);
+        expect(TRIANGLE_BINARY_SEARCH_RATIO).toBe(32);
     });
 
     it("pins the BFS ring arithmetic (P8-T12): 304 at one window, 1,200 at eight, 4 x levels per extra window once the level submit is the larger batch (a fifth per-window kernel must change this pin), and never below the result batch's 34 + w at any cadence", () => {

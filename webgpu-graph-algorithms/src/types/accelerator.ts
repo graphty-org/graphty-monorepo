@@ -47,6 +47,7 @@ import type {
     SpringElectricalStats,
 } from "./layout.js";
 import type { ForceAtlas2Options, FruchtermanReingoldOptions, SpringElectricalOptions } from "./options.js";
+import type { GpuTriangleResult } from "./structure.js";
 import type { GpuBellmanFordResult, GpuBfsResult, GpuSsspResult } from "./traversal.js";
 
 // ---- the real @graphty/layout interfaces (spec 9.3, D27): imported at W1b, re-exported so the package's public
@@ -91,7 +92,8 @@ export interface AcceleratorOptions {
     readonly algorithms?:
         | {
               readonly betweenness?:
-                  { readonly k?: number | undefined; readonly sources?: readonly number[] | undefined } | undefined;
+                  | { readonly k?: number | undefined; readonly sources?: readonly number[] | undefined }
+                  | undefined;
           }
         | undefined;
 }
@@ -107,8 +109,10 @@ export interface AcceleratorOptions {
  * the mirror declares none and an extra REQUIRED parameter would stop the member satisfying it. The four traversals
  * take the seam's OWN option types (PD-19: `BfsOptions`, `SsspOptions` for both `sssp` and `bellmanFord`,
  * `HitsOptionsLike` for `closenessCentrality`), so a key the CPU dispatcher forwards is exactly a key the GPU reads;
- * `test/types/conformance.test-d.ts` holds each parameter EQUAL to the seam's, not merely assignable. Later phases add
- * one member per shipped algorithm.
+ * `test/types/conformance.test-d.ts` holds each parameter EQUAL to the seam's, not merely assignable. P11 adds
+ * `triangleCount` (its result carries `coefficient` and `transitivity` beyond the seam's `{ perNode, total }`, which a
+ * wider object satisfies) and `labelPropagation` (the seam's `HitsOptionsLike`: `maxIterations` and `weighted`
+ * honoured, `tolerance` refused). Later phases add one member per shipped algorithm.
  * Exported: implemented by src/accelerator.ts (P3-T3); re-exported from src/index.ts at P3-T3.
  * @public
  */
@@ -120,7 +124,9 @@ export interface GpuAccelerator extends AlgorithmAccelerator, LayoutAccelerator 
     fruchtermanReingold(
         options?: FruchtermanReingoldOptions,
     ): GpuLayoutSimulation<FruchtermanReingoldOptions, FruchtermanReingoldStats>;
-    springElectrical(options?: SpringElectricalOptions): GpuLayoutSimulation<SpringElectricalOptions, SpringElectricalStats>;
+    springElectrical(
+        options?: SpringElectricalOptions,
+    ): GpuLayoutSimulation<SpringElectricalOptions, SpringElectricalStats>;
     pageRank(s: GraphSnapshot, options?: PageRankOptions): Promise<GpuPageRankResult>;
     personalizedPageRank(
         s: GraphSnapshot,
@@ -136,6 +142,8 @@ export interface GpuAccelerator extends AlgorithmAccelerator, LayoutAccelerator 
     sssp(s: GraphSnapshot, source: number, options?: SsspOptions): Promise<GpuSsspResult>;
     bellmanFord(s: GraphSnapshot, source: number, options?: SsspOptions): Promise<GpuBellmanFordResult>;
     closenessCentrality(s: GraphSnapshot, options?: HitsOptionsLike): Promise<GpuScoresResult>;
+    triangleCount(s: GraphSnapshot): Promise<GpuTriangleResult>;
+    labelPropagation(s: GraphSnapshot, options?: HitsOptionsLike): Promise<GpuLabelResult>;
     release(s: GraphSnapshot): void;
     dispose(): void;
 }

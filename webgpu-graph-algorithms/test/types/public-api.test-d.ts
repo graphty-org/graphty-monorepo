@@ -52,6 +52,7 @@ import {
     type GpuRunOptions,
     type GpuScoresResult,
     type GpuSsspResult,
+    type GpuTriangleResult,
     hasErrorCode,
     hits,
     type HitsOptions,
@@ -61,6 +62,8 @@ import {
     isWebGpuGraphError,
     katzCentrality,
     type KatzOptions,
+    labelPropagation,
+    type LabelPropagationOptions,
     type LabelResultLike,
     LAYOUT_TUNING_DEFAULTS,
     type LayoutAccelerator,
@@ -93,6 +96,7 @@ import {
     sssp,
     type SsspResultLike,
     STORAGE_ALIGN,
+    triangleCount,
     WebGpuGraphError,
     type WebGpuGraphErrorCode,
     WORKGROUP_SIZE,
@@ -347,6 +351,20 @@ expectTypeOf<GpuAccelerator["bellmanFord"]>().returns.resolves.toEqualTypeOf<Gpu
 expectTypeOf<GpuAccelerator["closenessCentrality"]>().parameter(1).toEqualTypeOf<HitsOptionsLike | undefined>();
 expectTypeOf<GpuAccelerator["closenessCentrality"]>().returns.resolves.toEqualTypeOf<GpuScoresResult>();
 
+// ---- P11: triangle counting and label propagation (design 3.3 lines 806-807, 8.5, 8.6)
+expectTypeOf(triangleCount).parameter(1).toEqualTypeOf<GraphSnapshot>();
+expectTypeOf(triangleCount).parameter(2).toEqualTypeOf<GpuRunOptions | undefined>();
+expectTypeOf(triangleCount).returns.resolves.toEqualTypeOf<GpuTriangleResult>();
+expectTypeOf<keyof GpuTriangleResult>().toEqualTypeOf<"perNode" | "total" | "coefficient" | "transitivity">();
+expectTypeOf<GpuTriangleResult["perNode"]>().toEqualTypeOf<U32>();
+expectTypeOf<GpuTriangleResult["coefficient"]>().toEqualTypeOf<F32>();
+expectTypeOf(labelPropagation).parameter(2).toEqualTypeOf<(LabelPropagationOptions & GpuRunOptions) | undefined>();
+expectTypeOf(labelPropagation).returns.resolves.toEqualTypeOf<GpuLabelResult>();
+expectTypeOf<keyof LabelPropagationOptions>().toEqualTypeOf<"maxIterations" | "weighted">();
+expectTypeOf<GpuAccelerator["triangleCount"]>().returns.resolves.toEqualTypeOf<GpuTriangleResult>();
+expectTypeOf<GpuAccelerator["labelPropagation"]>().parameter(1).toEqualTypeOf<HitsOptionsLike | undefined>();
+expectTypeOf<GpuAccelerator["labelPropagation"]>().returns.resolves.toEqualTypeOf<GpuLabelResult>();
+
 // ---- layouts (P3; contract 3.3, 3.13)
 expectTypeOf(seedPositions).parameter(2).toEqualTypeOf<number | null>();
 expectTypeOf(seedPositions).parameter(3).toEqualTypeOf<2 | 3>();
@@ -372,17 +390,23 @@ expectTypeOf(createFruchtermanReingold)
 expectTypeOf(createFruchtermanReingold).returns.toEqualTypeOf<FrSim>();
 expectTypeOf<FrSim>().toMatchTypeOf<LayoutSimulation>();
 expectTypeOf(createSpringElectrical).parameter(0).toEqualTypeOf<GpuContext>();
-expectTypeOf(createSpringElectrical).parameter(1).toEqualTypeOf<(SpringElectricalOptions & GpuLayoutTuning) | undefined>();
+expectTypeOf(createSpringElectrical)
+    .parameter(1)
+    .toEqualTypeOf<(SpringElectricalOptions & GpuLayoutTuning) | undefined>();
 expectTypeOf(createSpringElectrical).returns.toEqualTypeOf<SeSim>();
 expectTypeOf<SeSim>().toMatchTypeOf<LayoutSimulation>();
 expectTypeOf<FruchtermanReingoldStats>().toMatchTypeOf<LayoutStatsBase>();
 expectTypeOf<FruchtermanReingoldStats["temperature"]>().toBeNumber();
 expectTypeOf<FruchtermanReingoldStats["trace"]>().toEqualTypeOf<ReadonlyArray<FruchtermanReingoldTraceRecord>>();
-expectTypeOf<keyof FruchtermanReingoldTraceRecord>().toEqualTypeOf<"temperature" | "meanDisplacement" | "settledCount">();
+expectTypeOf<keyof FruchtermanReingoldTraceRecord>().toEqualTypeOf<
+    "temperature" | "meanDisplacement" | "settledCount"
+>();
 expectTypeOf<SpringElectricalStats>().toMatchTypeOf<LayoutStatsBase>();
 expectTypeOf<SpringElectricalStats["kineticEnergy"]>().toBeNumber();
 expectTypeOf<SpringElectricalStats["trace"]>().toEqualTypeOf<ReadonlyArray<SpringElectricalTraceRecord>>();
-expectTypeOf<keyof SpringElectricalTraceRecord>().toEqualTypeOf<"kineticEnergy" | "meanDisplacement" | "settledCount">();
+expectTypeOf<keyof SpringElectricalTraceRecord>().toEqualTypeOf<
+    "kineticEnergy" | "meanDisplacement" | "settledCount"
+>();
 expectTypeOf<FrSim["stats"]>().toEqualTypeOf<FruchtermanReingoldStats>();
 expectTypeOf<FrSim["setParams"]>().parameter(0).toEqualTypeOf<Partial<FruchtermanReingoldOptions>>();
 expectTypeOf<SeSim["stats"]>().toEqualTypeOf<SpringElectricalStats>();
@@ -426,7 +450,9 @@ expectTypeOf<GpuAccelerator["connectedComponents"]>().returns.resolves.toEqualTy
 expectTypeOf<GpuAccelerator["weaklyConnectedComponents"]>().parameter(1).toEqualTypeOf<ComponentsOptions | undefined>();
 expectTypeOf<GpuAccelerator["weaklyConnectedComponents"]>().returns.resolves.toEqualTypeOf<GpuLabelResult>();
 // the two P5 layout members (spec 3.3 lines 892-893; PD-19): the CPU option type in, the GPU simulation out
-expectTypeOf<GpuAccelerator["fruchtermanReingold"]>().parameter(0).toEqualTypeOf<FruchtermanReingoldOptions | undefined>();
+expectTypeOf<GpuAccelerator["fruchtermanReingold"]>()
+    .parameter(0)
+    .toEqualTypeOf<FruchtermanReingoldOptions | undefined>();
 expectTypeOf<GpuAccelerator["fruchtermanReingold"]>().returns.toEqualTypeOf<FrSim>();
 expectTypeOf<GpuAccelerator["springElectrical"]>().parameter(0).toEqualTypeOf<SpringElectricalOptions | undefined>();
 expectTypeOf<GpuAccelerator["springElectrical"]>().returns.toEqualTypeOf<SeSim>();

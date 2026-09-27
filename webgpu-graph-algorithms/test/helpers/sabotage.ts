@@ -61,6 +61,10 @@ const BFS_TEST = "test/algorithms/bfs.test.ts";
 const SSSP_TEST = "test/algorithms/sssp.test.ts";
 const BF_TEST = "test/algorithms/bellman-ford.test.ts";
 const CLOSENESS_TEST = "test/algorithms/closeness.test.ts";
+const COO_TEST = "test/primitives/coo-to-csr.test.ts";
+const GROUP_TEST = "test/primitives/group-by-key.test.ts";
+const TRIANGLES_TEST = "test/algorithms/triangles.test.ts";
+const LPA_TEST = "test/algorithms/label-propagation.test.ts";
 
 /** At least three mutations per kernel that has rows (spec 13 rule f); PARTIAL so a phase's kernels can land before its rows (the coverage test below gates by phase). */
 export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> = Object.freeze({
@@ -1414,6 +1418,214 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             test: CLOSENESS_TEST,
         },
     ]),
+    "coo-emit": Object.freeze([
+        {
+            // both arcs of an edge are written in its declared direction: the graph stops being symmetric
+            name: "one-direction-only",
+            find: "let forward = (a % 2u) == 0u;",
+            replace: "let forward = true;",
+            minFactor: 10,
+            test: COO_TEST,
+        },
+        {
+            // the self-loop guard inverted: every real edge is dropped and every self-loop kept
+            name: "self-loop-guard-inverted",
+            find: "if (u == v) {",
+            replace: "if (u != v) {",
+            minFactor: 10,
+            test: COO_TEST,
+        },
+        {
+            // the weight read by arc instead of by edge: every merged weight is wrong on a weighted snapshot
+            name: "weight-by-arc",
+            find: "if (WEIGHTED) { w = edgeWeight[e]; }",
+            replace: "if (WEIGHTED) { w = edgeWeight[a]; }",
+            minFactor: 10,
+            test: COO_TEST,
+        },
+    ]),
+    "run-flags": Object.freeze([
+        {
+            // a run keyed by the source alone: every row collapses to its first target
+            name: "source-key-only",
+            find: "(a != keysA[i - 1u] || keysB[i] != keysB[i - 1u])",
+            replace: "(a != keysA[i - 1u])",
+            minFactor: 10,
+            test: COO_TEST,
+        },
+        {
+            // the first arc never opens a run: vertex 0's first neighbour is lost
+            name: "first-arc-unmarked",
+            find: "var first = a != INVALID_INDEX;",
+            replace: "var first = a != INVALID_INDEX && i > 0u;",
+            minFactor: 10,
+            test: COO_TEST,
+        },
+        {
+            // every valid arc opens a run: parallel arcs stop merging and rows hold duplicate targets
+            name: "parallels-kept",
+            find: "flags[i] = select(0u, 1u, first);",
+            replace: "flags[i] = select(0u, 1u, a != INVALID_INDEX);",
+            minFactor: 10,
+            test: COO_TEST,
+        },
+    ]),
+    "coo-scatter": Object.freeze([
+        {
+            // the cursor read but not advanced: every arc of a row lands in the row's first slot (cursor mode)
+            name: "cursor-not-advanced",
+            find: "slot = rowPtr[s] + atomicAdd(&cursors[s], 1u);",
+            replace: "slot = rowPtr[s] + atomicLoad(&cursors[s]);",
+            minFactor: 10,
+            test: COO_TEST,
+        },
+        {
+            // the cursor based on the next row's start: every row writes into the next (cursor mode)
+            name: "cursor-next-row",
+            find: "rowPtr[s] + atomicAdd(",
+            replace: "rowPtr[s + 1u] + atomicAdd(",
+            minFactor: 10,
+            test: COO_TEST,
+        },
+        {
+            // the order-preserving slot taken as the raw index: every row but the first writes past its end
+            name: "sorted-slot-raw-index",
+            find: "let within = i - rowPtr[s];",
+            replace: "let within = i;",
+            minFactor: 10,
+            test: COO_TEST,
+        },
+        {
+            // the precondition flag never raised: unsorted input is accepted silently
+            name: "precondition-silenced",
+            find: "atomicStore(&cursors[0], 1u);",
+            replace: "atomicStore(&cursors[0], 0u);",
+            minFactor: 10,
+            test: COO_TEST,
+        },
+    ]),
+    "orient-flags": Object.freeze([
+        {
+            // the id tie-break dropped: both arcs between equal-degree vertices survive and their triangles double
+            name: "id-tie-break-dropped",
+            find: "(dv == du && v > u)",
+            replace: "(dv == du)",
+            minFactor: 10,
+            test: TRIANGLES_TEST,
+        },
+        {
+            // every arc kept: each triangle is found at several arcs
+            name: "flag-always-set",
+            find: "flags[a] = select(0u, 1u, keep);",
+            replace: "flags[a] = 1u;",
+            minFactor: 10,
+            test: TRIANGLES_TEST,
+        },
+        {
+            // only equal-degree pairs oriented: every arc between vertices of different degree is lost
+            name: "degree-order-dropped",
+            find: "let keep = dv > du ||",
+            replace: "let keep = false ||",
+            minFactor: 10,
+            test: TRIANGLES_TEST,
+        },
+    ]),
+    "tri-intersect": Object.freeze([
+        {
+            // the merge advances both rows on a mismatch: triangles are skipped
+            name: "merge-advances-both",
+            find: "else if (x < y) { i = i + 1u; }",
+            replace: "else if (x < y) { i = i + 1u; j = j + 1u; }",
+            minFactor: 10,
+            test: TRIANGLES_TEST,
+        },
+        {
+            // the third corner of a merged triangle never counted: the total holds, perNode does not
+            name: "merge-third-corner-dropped",
+            find: "if (x == y) { atomicAdd(&counts[x], 1u); found = found + 1u;",
+            replace: "if (x == y) { found = found + 1u;",
+            minFactor: 10,
+            test: TRIANGLES_TEST,
+        },
+        {
+            // the arc's second endpoint never counted
+            name: "second-endpoint-dropped",
+            find: "atomicAdd(&counts[u], found); atomicAdd(&counts[v], found);",
+            replace: "atomicAdd(&counts[u], found);",
+            minFactor: 10,
+            test: TRIANGLES_TEST,
+        },
+        {
+            // the binary search skips an element per step: found only by the forced-search run
+            name: "search-skips",
+            find: "if (y < x) { lo = mid + 1u; }",
+            replace: "if (y < x) { lo = mid + 2u; }",
+            minFactor: 10,
+            test: TRIANGLES_TEST,
+        },
+    ]),
+    "group-by-key-row": Object.freeze([
+        {
+            // ties go to the HIGHEST key: plausible, reproducible and wrong -- the tie rows catch it
+            name: "tie-to-highest",
+            find: "return sum > bestSum || (sum == bestSum && key < bestKey0);",
+            replace: "return sum > bestSum || (sum == bestSum && key > bestKey0 && bestKey0 != INVALID_INDEX);",
+            minFactor: 10,
+            test: GROUP_TEST,
+        },
+        {
+            // the region cleared to key 0 instead of empty: no slot is ever free, so every probe loop exhausts its
+            // bound (a probe step of 2 over the 2 x degree slots is NOT a mutation: its half of the slots still holds
+            // every distinct key of the row)
+            name: "region-cleared-to-zero",
+            find: "atomicStore(&hashRegion[base + 2u * j], INVALID_INDEX);",
+            replace: "atomicStore(&hashRegion[base + 2u * j], 0u);",
+            minFactor: 10,
+            test: GROUP_TEST,
+        },
+        {
+            // the accumulate a store: a key's sum is one arbitrary weight
+            name: "accumulate-not-atomic",
+            find: "atomicAdd(&hashRegion[base + 2u * slot + 1u], q);",
+            replace: "atomicStore(&hashRegion[base + 2u * slot + 1u], q);",
+            minFactor: 10,
+            test: GROUP_TEST,
+        },
+        {
+            // the thread tier's sum starts after the key's first arc: every sum one weight short
+            name: "thread-sum-skips-first",
+            find: "for (var b = a; b < hi; b = b + 1u) {",
+            replace: "for (var b = a + 1u; b < hi; b = b + 1u) {",
+            minFactor: 10,
+            test: GROUP_TEST,
+        },
+    ]),
+    "lpa-step": Object.freeze([
+        {
+            // moves never counted: the run stops after one submit, before a long path has settled
+            name: "moves-uncounted",
+            find: "if (next != cur) { atomicAdd(&moved, 1u); }",
+            replace: "if (next != cur) { atomicAdd(&moved, 0u); }",
+            minFactor: 10,
+            test: LPA_TEST,
+        },
+        {
+            // the direction rule dropped: the two ends of a pair swap labels forever
+            name: "direction-rule-dropped",
+            find: "if (down == (P.direction == 0u)) { next = best; }",
+            replace: "next = best;",
+            minFactor: 10,
+            test: LPA_TEST,
+        },
+        {
+            // the current label read from the output buffer: the pass compares against the label of two passes ago
+            name: "current-from-output",
+            find: "let cur = labelsIn[v];",
+            replace: "let cur = labelsOut[v];",
+            minFactor: 10,
+            test: LPA_TEST,
+        },
+    ]),
 });
 
 /**
@@ -1940,8 +2152,16 @@ export const SABOTAGE_P4_LAW: Readonly<Partial<Record<KernelId, readonly Mutatio
     ]),
 });
 
-/** The phases whose kernels ALL have their rows: ["P1"] at P1-T5, + "P2" at P2-T2, + "P3" at P3-T5, + "P7" at M8b-T10, + "P4" at P4-T12 (PD-1: when the last P4 kernel has its rows), + "P8" at P8-T15 (the frontier-family kernels, 58 rows written by the tasks that wrote the kernels over fifteen of them, plus `bfs-next-degree`'s 3 for issue #391: sixteen kernels, 61 rows); test/sabotage/coverage.test.ts asserts every KERNELS entry whose `phase` is listed here has >= 3 rows, except SABOTAGE_EXEMPT. */
-export const SABOTAGE_PHASES: readonly KernelEntry["phase"][] = Object.freeze(["P1", "P2", "P3", "P7", "P4", "P8"]);
+/** The phases whose kernels ALL have their rows: ["P1"] at P1-T5, + "P2" at P2-T2, + "P3" at P3-T5, + "P7" at M8b-T10, + "P4" at P4-T12 (PD-1: when the last P4 kernel has its rows), + "P8" at P8-T15 (the frontier-family kernels, 58 rows written by the tasks that wrote the kernels over fifteen of them, plus `bfs-next-degree`'s 3 for issue #391: sixteen kernels, 61 rows), + "P11" (the seven kernels of the graph build, triangle counting, the group-by-key and label propagation: 24 rows, measured by test/sabotage/structure.test.ts and test/sabotage/community.test.ts); test/sabotage/coverage.test.ts asserts every KERNELS entry whose `phase` is listed here has >= 3 rows, except SABOTAGE_EXEMPT. */
+export const SABOTAGE_PHASES: readonly KernelEntry["phase"][] = Object.freeze([
+    "P1",
+    "P2",
+    "P3",
+    "P7",
+    "P4",
+    "P8",
+    "P11",
+]);
 
 /**
  * Kernels with no oracle-sensitive arithmetic to mutate: a wrong fill / toScene fails the exact-equality tests

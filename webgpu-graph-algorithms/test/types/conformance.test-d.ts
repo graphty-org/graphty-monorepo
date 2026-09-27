@@ -6,6 +6,7 @@ import type {
     BfsResultLike,
     HitsOptionsLike,
     IndexedPageRankOptions,
+    LabelResultLike,
     PageRankResultLike,
     ScoresResultLike,
     SsspOptions,
@@ -60,7 +61,9 @@ expectTypeOf(injected).toMatchTypeOf<LayoutAccelerator>();
 expectTypeOf<GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2Stats>>().toMatchTypeOf<LayoutSimulation>();
 expectTypeOf<ReturnType<NonNullable<LayoutAccelerator["forceAtlas2"]>>>().toEqualTypeOf<LayoutSimulation>();
 // P5: the two other layout members route the same way (spec 9.3 lines 3018-3025; PD-19)
-expectTypeOf<GpuLayoutSimulation<FruchtermanReingoldOptions, FruchtermanReingoldStats>>().toMatchTypeOf<LayoutSimulation>();
+expectTypeOf<
+    GpuLayoutSimulation<FruchtermanReingoldOptions, FruchtermanReingoldStats>
+>().toMatchTypeOf<LayoutSimulation>();
 expectTypeOf<GpuLayoutSimulation<SpringElectricalOptions, SpringElectricalStats>>().toMatchTypeOf<LayoutSimulation>();
 expectTypeOf<ReturnType<NonNullable<LayoutAccelerator["fruchtermanReingold"]>>>().toEqualTypeOf<LayoutSimulation>();
 expectTypeOf<ReturnType<NonNullable<LayoutAccelerator["springElectrical"]>>>().toEqualTypeOf<LayoutSimulation>();
@@ -122,3 +125,11 @@ expectTypeOf<Awaited<ReturnType<GpuAccelerator["breadthFirstSearch"]>>>().toMatc
 expectTypeOf<Awaited<ReturnType<GpuAccelerator["sssp"]>>>().toMatchTypeOf<SsspResultLike>();
 expectTypeOf<Awaited<ReturnType<GpuAccelerator["bellmanFord"]>>>().toMatchTypeOf<BellmanFordResultLike>();
 expectTypeOf<Awaited<ReturnType<GpuAccelerator["closenessCentrality"]>>>().toMatchTypeOf<ScoresResultLike>();
+// ---- P11: labelPropagation takes the seam's HitsOptionsLike; triangleCount's wider result satisfies the seam's
+// `{ perNode, total }` (the coefficient and the transitivity are extra fields, which a dispatcher typed against the
+// seam does not see until the seam declares them)
+expectTypeOf<HitsOptionsLike | undefined>().toEqualTypeOf<Parameters<GpuAccelerator["labelPropagation"]>[1]>();
+expectTypeOf<Awaited<ReturnType<GpuAccelerator["labelPropagation"]>>>().toMatchTypeOf<LabelResultLike>();
+expectTypeOf<Awaited<ReturnType<GpuAccelerator["triangleCount"]>>>().toMatchTypeOf<
+    Awaited<ReturnType<NonNullable<AlgorithmAccelerator["triangleCount"]>>>
+>();

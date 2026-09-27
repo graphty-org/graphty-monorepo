@@ -555,6 +555,7 @@ export class Graph implements GraphContext {
                 this.renderManager.applyBackground(graph.background, (url) => {
                     this.eventManager.emitGraphEvent("skybox-loaded", { graph: this, url });
                 });
+                this.updateManager.meshesAdded();
             }
 
             if (changed("selectionStyle")) {
@@ -3186,6 +3187,8 @@ export class Graph implements GraphContext {
 
             edge.updateStyle();
         }
+
+        this.updateManager.meshesAdded();
     }
 
     /**

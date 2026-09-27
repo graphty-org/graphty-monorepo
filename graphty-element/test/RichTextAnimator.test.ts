@@ -1,5 +1,5 @@
 import { Mesh, NullEngine, Scene, StandardMaterial, Vector3 } from "@babylonjs/core";
-import { assert, beforeEach, describe, test, vi } from "vitest";
+import { assert, beforeEach, describe, type Mock, test, vi } from "vitest";
 
 import { type AnimationOptions, type AnimationType, RichTextAnimator } from "../src/meshes/RichTextAnimator";
 
@@ -8,7 +8,7 @@ describe("RichTextAnimator", () => {
     let mesh: Mesh;
     let material: StandardMaterial;
     let animator: RichTextAnimator;
-    let mockProgressCallback: ReturnType<typeof vi.fn>;
+    let mockProgressCallback: Mock<(value: number) => void>;
 
     beforeEach(() => {
         const engine = new NullEngine();

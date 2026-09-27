@@ -142,6 +142,9 @@ jobs:
             - name: Published dependencies
               run: pnpm run check:published-deps
 
+            - name: Declared build tools
+              run: pnpm run check:declared-tools
+
             - name: Build Storybook (graphty-element)
               run: pnpm exec nx run graphty-element:build-storybook
 

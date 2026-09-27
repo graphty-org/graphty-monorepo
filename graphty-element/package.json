@@ -186,8 +186,10 @@
         "@types/lodash": "^4.17.19",
         "@types/papaparse": "^5.5.0",
         "@types/toposort": "^2.0.7",
+        "@vitest/browser-playwright": "catalog:",
         "ai": "^5.0.104",
         "encrypt-storage": "^2.14.7",
+        "eslint": "^9.29.0",
         "eslint-plugin-jsdoc": "^50.6.17",
         "fast-check": "^4.2.0",
         "iwer": "^2.1.1",
@@ -200,10 +202,12 @@
         "typedoc-plugin-markdown": "^4.9.0",
         "typedoc-vitepress-theme": "^1.1.2",
         "typescript": "^5.9.3",
+        "typescript-eslint": "^8.34.1",
+        "vite": "^7.0.0",
         "vite-plugin-cem": "^0.8.2",
         "vite-plugin-eslint": "^1.8.1",
         "vitepress": "^1.6.3",
-        "vitest": "^3.2.4"
+        "vitest": "catalog:"
     },
     "peerDependencies": {
         "@ai-sdk/anthropic": "^2.0.50",

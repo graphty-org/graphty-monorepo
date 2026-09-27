@@ -27,6 +27,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
+import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
 /**
@@ -106,7 +107,7 @@ const browserGpu = process.env.GRAPHTY_BROWSER_GPU ?? "";
  * On a workstation whose NVIDIA userspace is not where Chromium looks, headless Chromium finds
  * the card only with an extracted libEGL tree ahead of it on LD_LIBRARY_PATH.
  * GRAPHTY_EGL_LIB_DIR names that tree; unset, Playwright inherits the environment untouched.
- * @returns The environment map for `launch.env`, or undefined to inherit.
+ * @returns The environment map for `launchOptions.env`, or undefined to inherit.
  */
 function browserLaunchEnv(): Record<string, string> | undefined {
     const eglDir = process.env.GRAPHTY_EGL_LIB_DIR;
@@ -132,15 +133,8 @@ function browserLaunchEnv(): Record<string, string> | undefined {
 interface ChromiumInstance {
     /** The browser to launch. */
     browser: "chromium";
-    /** Playwright's launch options: the switches, the build to use, and the child's environment. */
-    launch?: {
-        /** The Chromium switches. */
-        args?: string[];
-        /** The Playwright channel, when the default headless shell will not do. */
-        channel?: string;
-        /** The child's environment, when it needs one of its own. */
-        env?: Record<string, string>;
-    };
+    /** The provider carrying Playwright's launch options: the switches, the build and the environment. */
+    provider?: ReturnType<typeof playwright>;
 }
 
 /**
@@ -164,7 +158,9 @@ function browserInstance(): ChromiumInstance {
 
     return {
         browser: "chromium",
-        launch: { args: [...args], channel: BROWSER_GPU_CHANNEL[browserGpu], env: browserLaunchEnv() },
+        provider: playwright({
+            launchOptions: { args: [...args], channel: BROWSER_GPU_CHANNEL[browserGpu], env: browserLaunchEnv() },
+        }),
     };
 }
 
@@ -187,6 +183,9 @@ const FAILURE_SCREENSHOT_DIR = path.resolve(dirname, "tmp/vitest-screenshots");
 
 export default defineConfig({
     test: {
+        // Vitest 4 also copies each failure screenshot into an attachments directory, by default
+        // .vitest-attachments/ beside this file. Same diagnostics, same place as the screenshots.
+        attachmentsDir: path.resolve(dirname, "tmp/vitest-attachments"),
         projects: [
             {
                 test: {
@@ -373,15 +372,15 @@ export default defineConfig({
                         "**/.{idea,git,cache,output,temp}/**",
                         "**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*",
                     ],
+                    // Disable file parallelism to prevent route.fulfill errors
+                    // when browser contexts are garbage collected during parallel execution
+                    fileParallelism: false,
                     browser: {
                         enabled: true,
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
-                        provider: "playwright",
+                        provider: playwright(),
                         instances: [{ browser: "chromium" }],
-                        // Disable file parallelism to prevent route.fulfill errors
-                        // when browser contexts are garbage collected during parallel execution
-                        fileParallelism: false,
                     },
                 },
             },
@@ -402,13 +401,13 @@ export default defineConfig({
                     name: "xr",
                     setupFiles: ["./test/setup.ts"],
                     include: XR_BROWSER_TESTS,
+                    fileParallelism: false,
                     browser: {
                         enabled: true,
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
-                        provider: "playwright",
+                        provider: playwright(),
                         instances: [{ browser: "chromium" }],
-                        fileParallelism: false,
                     },
                 },
             },
@@ -466,15 +465,15 @@ export default defineConfig({
                         "**/.{idea,git,cache,output,temp}/**",
                         "**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*",
                     ],
+                    // Disable file parallelism to prevent route.fulfill errors
+                    // when browser contexts are garbage collected during parallel execution
+                    fileParallelism: false,
                     browser: {
                         enabled: true,
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
-                        provider: "playwright",
+                        provider: playwright(),
                         instances: [browserInstance()],
-                        // Disable file parallelism to prevent route.fulfill errors
-                        // when browser contexts are garbage collected during parallel execution
-                        fileParallelism: false,
                     },
                 },
             },
@@ -495,14 +494,14 @@ export default defineConfig({
                         "**/.{idea,git,cache,output,temp}/**",
                         "**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*",
                     ],
+                    // Disable file parallelism to prevent race conditions and flaky tests
+                    fileParallelism: false,
                     browser: {
                         enabled: true,
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
-                        provider: "playwright",
+                        provider: playwright(),
                         instances: [{ browser: "chromium" }],
-                        // Disable file parallelism to prevent race conditions and flaky tests
-                        fileParallelism: false,
                     },
                     // Interaction tests load complex scenes and may need longer timeout
                     testTimeout: 30000,
@@ -538,15 +537,15 @@ export default defineConfig({
                         "**/.{idea,git,cache,output,temp}/**",
                         "**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*",
                     ],
+                    // Disable file parallelism to prevent route.fulfill errors
+                    // when browser contexts are garbage collected during parallel execution
+                    fileParallelism: false,
                     browser: {
                         enabled: true,
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
-                        provider: "playwright",
+                        provider: playwright(),
                         instances: [{ browser: "chromium" }],
-                        // Disable file parallelism to prevent route.fulfill errors
-                        // when browser contexts are garbage collected during parallel execution
-                        fileParallelism: false,
                     },
                     setupFiles: [".storybook/vitest.setup.ts"],
                     // Storybook tests load complex 3D scenes and need longer timeout
@@ -580,16 +579,11 @@ export default defineConfig({
                     hookTimeout: 30000,
                     // Run tests sequentially to avoid rate limits
                     pool: "forks",
-                    poolOptions: {
-                        forks: {
-                            singleFork: true,
-                        },
-                    },
+                    fileParallelism: false,
                 },
             },
         ],
         coverage: {
-            all: true,
             provider: "v8",
             reporter: ["text", "json-summary", "json", "lcov", "html"],
             // Allow override via COVERAGE_DIR env var for sharded coverage runs

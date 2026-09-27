@@ -144,6 +144,10 @@ export interface GraphtyHandle {
     /**
      * The data source a URL names, for `session.data.import`: the format from the extension, or
      * from the content when the extension says nothing. Touches nothing on the element.
+     *
+     * Temporary: this detection belongs in the element. `session.data.import` requires the
+     * format to be named, so the app detects it here; delete this and both detectors once the
+     * import detects it itself (GitHub issue #539).
      */
     sourceFromUrl: (url: string, format?: string) => Promise<DataSourceInput>;
     /** The data source a file holds, for `session.data.import`, detected the same way. */

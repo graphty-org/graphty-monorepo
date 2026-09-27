@@ -11,8 +11,15 @@ import { resolveOptionValues } from "../../catalog/options";
 import type { AlgorithmDescriptor, FieldDescriptor, RunId } from "../../catalog/types";
 import { createRunResult, resultPath, type RunResult } from "../../session/results";
 import { Algorithm } from "../Algorithm";
+import { maskBack } from "../input/maskBack";
 import { nodeLabelReader } from "./labels";
-import { type AlgorithmOutput, type AlgorithmRunContext, detachedRunContext, type ResultFieldSpec } from "./types";
+import {
+    type AlgorithmOutput,
+    type AlgorithmRunContext,
+    detachedRunContext,
+    type ResultFieldSpec,
+    type RunControls,
+} from "./types";
 
 /**
  * Turn a run's own account of a field into the descriptor the result object carries.
@@ -91,7 +98,7 @@ export abstract class DeclaredAlgorithm<
      *   declare, or `E_OPTION_RANGE` for a value it would not accept.
      */
     protected override resolveOptions(options?: Partial<TOptions>): TOptions {
-        const {descriptor} = this.constructor as typeof DeclaredAlgorithm;
+        const { descriptor } = this.constructor as typeof DeclaredAlgorithm;
 
         if (descriptor === undefined) {
             return super.resolveOptions(options);
@@ -152,7 +159,7 @@ export abstract class DeclaredAlgorithm<
      * @throws Whatever the context's signal throws once the run has been cancelled.
      */
     publishResult(
-        context: AlgorithmRunContext,
+        context: RunControls,
         runId: RunId,
         fields?: readonly FieldDescriptor[],
     ): Promise<RunResult | undefined> {
@@ -166,6 +173,7 @@ export abstract class DeclaredAlgorithm<
      * because the catalogue states what a reader sees a field called and cannot be imported here
      * without a cycle -- it reads these classes to publish their options.
      * @param context - What the element gave the run: a signal, a progress channel and a yield.
+     *   The graph the run computes over is bound here, as the context's `input`.
      * @param runId - The id the result is published under, which is the `<runId>` in
      *   `results.<runId>`.
      * @param declared - The catalogue's descriptors for this algorithm's fields, when the caller
@@ -175,36 +183,50 @@ export abstract class DeclaredAlgorithm<
      *   `DOMException` named `AbortError`.
      */
     async computeRun(
-        context: AlgorithmRunContext,
+        context: RunControls,
         runId: RunId,
         declared?: readonly FieldDescriptor[],
     ): Promise<RunResult | undefined> {
         const startedAt = Date.now();
-        const output = await this.compute(context);
+        // The input is bound here, to this algorithm, so whoever started the run never has to know
+        // which scope a class declares it computes over.
+        const bound: AlgorithmRunContext = {
+            signal: context.signal,
+            report: (progress) => {
+                context.report(progress);
+            },
+            yieldNow: () => context.yieldNow(),
+            input: (orientation, options) => this.input(orientation, options),
+        };
+        const output = await this.compute(bound);
 
         if (output === null) {
             return undefined;
         }
 
-        const dataManager = this.graph.getDataManager();
+        // What the run computed over: its scope when the class declares a scoped input, else the
+        // whole graph.
+        const input = this.input("declared");
         /* WHAT TO CALL A NODE, as distinct from how to address it. A summary row and the
            sentence the element writes from it are read by a person, and an id is only sometimes
            a name -- a GML file keys its nodes by integer and carries the name beside it. Read
            through the shared reader rather than inline, because the metric pipeline needs the
            same answer and a second copy is how the two would come to disagree about it. */
         const labelOf = nodeLabelReader(this.graph);
-        const result: RunResult = createRunResult({
-            ...(labelOf === undefined ? {} : { labelOf }),
-            runId,
-            shape: output.shape,
-            fields: output.fields.map((spec) => toFieldDescriptor(spec, runId, declared)),
-            measured: { nodes: dataManager.nodes.size, edges: dataManager.edges.size },
-            graph: output.graph,
-            nodes: output.nodes,
-            edges: output.edges,
-            caveats: output.caveats,
-            durationMs: Date.now() - startedAt,
-        });
+        const result: RunResult = createRunResult(
+            maskBack(this, {
+                ...(labelOf === undefined ? {} : { labelOf }),
+                runId,
+                shape: output.shape,
+                fields: output.fields.map((spec) => toFieldDescriptor(spec, runId, declared)),
+                measured: { nodes: input.nodeCount, edges: input.edgeCount },
+                graph: output.graph,
+                nodes: output.nodes,
+                edges: output.edges,
+                caveats: output.caveats,
+                durationMs: Date.now() - startedAt,
+            }),
+        );
 
         this.#result = result;
 

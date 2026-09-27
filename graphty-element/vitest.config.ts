@@ -23,6 +23,8 @@
  * it; this one invoked it from 27 scripts and relied on hoisting.
  */
 
+import { appendFileSync, mkdirSync } from "node:fs";
+import { hostname } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -181,8 +183,26 @@ function browserInstance(): ChromiumInstance {
  */
 const FAILURE_SCREENSHOT_DIR = path.resolve(dirname, "tmp/vitest-screenshots");
 
+/**
+ * Append a `bench-browser` timing row to `benchmarks/results/browser-<host>.jsonl`. Every other
+ * console line is left to the reporter.
+ * @param log - one console line from a test
+ * @returns undefined, so the line is still printed
+ */
+function appendBenchRow(log: string): undefined {
+    const prefix = "bench-row ";
+    if (log.startsWith(prefix)) {
+        const dir = path.resolve(dirname, "benchmarks/results");
+        mkdirSync(dir, { recursive: true });
+        appendFileSync(path.join(dir, `browser-${hostname()}.jsonl`), `${log.slice(prefix.length).trim()}\n`);
+    }
+
+    return undefined;
+}
+
 export default defineConfig({
     test: {
+        onConsoleLog: appendBenchRow,
         // Vitest 4 also copies each failure screenshot into an attachments directory, by default
         // .vitest-attachments/ beside this file. Same diagnostics, same place as the screenshots.
         attachmentsDir: path.resolve(dirname, "tmp/vitest-attachments"),
@@ -416,10 +436,11 @@ export default defineConfig({
                 // Naming it as a prefix is what puts it on `import.meta.env` in the browser --
                 // Vite copies every matching variable out of the process environment -- and
                 // test/browser/webgpu-layout.test.ts skips itself when it is absent, so the five
-                // CI shards never try to use a WebGPU that is not there.
+                // CI shards never try to use a WebGPU that is not there. GRAPHTY_FC_ carries a
+                // property test's reproduction seed and path (test/helpers/fc-params.ts).
                 // GRAPHTY_UPDATE_RENDER_BUDGET makes test/browser/render-budget.test.ts rewrite its
                 // baseline instead of checking against it.
-                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_UPDATE_RENDER_BUDGET"],
+                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_FC_", "GRAPHTY_UPDATE_RENDER_BUDGET"],
                 // Pre-bundle IWER up front: discovered mid-run, Vite re-optimizes and reloads the
                 // page under the running test (test/browser/xr-session.test.ts imports it).
                 optimizeDeps: { include: ["iwer", ...BABYLON_SIDE_EFFECTS] },
@@ -466,6 +487,29 @@ export default defineConfig({
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
                         instances: [browserInstance()],
+                    },
+                },
+            },
+            {
+                // Browser timing rows for the sets work (design/sets/sets-plan.md 1.4): rows that need
+                // the element's store, a DataManager or a run, which the Node runner in benchmarks/
+                // cannot reach. Never asserts, never in CI or the pre-push gate, and its suffix is one
+                // no other project includes. Run with: npx vitest run --project=bench-browser, and
+                // GRAPHTY_BENCH_SCALE=large for the 1M and 10M rows. A row is a console line starting
+                // "bench-row ", appended to benchmarks/results/browser-<host>.jsonl by the root
+                // onConsoleLog below (vitest reads that hook from the root config only).
+                envPrefix: ["VITE_", "GRAPHTY_BENCH_SCALE"],
+                test: {
+                    name: "bench-browser",
+                    include: ["test/bench-browser/**/*.bench-browser.ts"],
+                    testTimeout: 0,
+                    fileParallelism: false,
+                    browser: {
+                        enabled: true,
+                        headless: true,
+                        screenshotDirectory: FAILURE_SCREENSHOT_DIR,
+                        provider: playwright(),
+                        instances: [{ browser: "chromium" }],
                     },
                 },
             },

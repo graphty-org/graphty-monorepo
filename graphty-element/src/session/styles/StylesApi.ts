@@ -163,7 +163,8 @@ export interface TemplateReport {
     /** The layers that bound and now paint, bottom first. */
     readonly applied: readonly LayerId[];
     /**
-     * The layers that read nothing this session answers.
+     * The layers that read nothing this session answers, and the layers naming a set this project
+     * does not hold (detached).
      *
      * They are IN the stack and disabled, never dropped: a layer naming a run that has not been
      * started is a correct layer over a session that will answer it later, and the way to make it
@@ -470,6 +471,8 @@ export interface StylesSources {
      * across a freeze that renumbers the index space.
      */
     readonly elements: SelectorSource;
+    /** See {@link LayerCheckOptions.admitScope}. */
+    readonly admitScope?: LayerCheckOptions["admitScope"];
     /**
      * The element's own layers, seeded at the bottom of the stack in the order given.
      *
@@ -1067,14 +1070,19 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * Check one layer specification against this session.
      * @param spec - The specification.
      * @param id - The id it would carry.
+     * @param admit - Whether a scope selector is admitted as at a write door (false for a
+     *     document's layer, which may name a set of the session it was saved in).
      * @returns The verdict and, when it is sound, the compiled layer.
      */
-    const check = (spec: LayerSpec, id: LayerId): LayerCheck => {
+    const check = (spec: LayerSpec, id: LayerId, admit = true): LayerCheck => {
         const options: LayerCheckOptions = {
             id,
             elements: sources.elements,
             scales,
             ...(sources.paths === undefined ? {} : { paths: sources.paths }),
+            // A document's layer may name a set of the session it was saved in: kept, and reported
+            // detached, rather than refused.
+            ...(sources.admitScope === undefined || !admit ? {} : { admitScope: sources.admitScope }),
         };
 
         return checkLayerSpec(spec, options);
@@ -1225,7 +1233,14 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             engine,
             exact: null,
             fields: NO_FIELDS,
-            id: deriveRunId({ algorithm: `styles.${verb}`, exact: null, params, sample: null, scope: WHOLE_GRAPH, seed: null }),
+            id: deriveRunId({
+                algorithm: `styles.${verb}`,
+                exact: null,
+                params,
+                sample: null,
+                scope: WHOLE_GRAPH,
+                seed: null,
+            }),
             params,
             sample: null,
             seed: null,
@@ -1439,20 +1454,26 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         },
 
         add(spec: LayerSpec, at?: LayerPosition, options: RunOptions = {}): Run<Layer> {
-            return startEdit<Layer>("add", "add", `Add layer "${spec.name}"`, () => {
-                if (isElementSource(sourceOf(spec))) {
-                    throw new GraphtyError({
-                        code: "E_PROTECTED",
-                        message:
-                            "Only the element mints an element-owned layer. Leave the source unstated for a layer " +
-                            'of your own, or name the template or plugin it came from.',
-                        source: "style",
-                        details: { source: spec.source },
-                    });
-                }
+            return startEdit<Layer>(
+                "add",
+                "add",
+                `Add layer "${spec.name}"`,
+                () => {
+                    if (isElementSource(sourceOf(spec))) {
+                        throw new GraphtyError({
+                            code: "E_PROTECTED",
+                            message:
+                                "Only the element mints an element-owned layer. Leave the source unstated for a layer " +
+                                "of your own, or name the template or plugin it came from.",
+                            source: "style",
+                            details: { source: spec.source },
+                        });
+                    }
 
-                return planInsert(spec, insertionIndex(at), mint(spec.name));
-            }, options);
+                    return planInsert(spec, insertionIndex(at), mint(spec.name));
+                },
+                options,
+            );
         },
 
         update(id: LayerId, patch: Partial<LayerSpec>, options: RunOptions = {}): Run<Layer> {
@@ -1460,314 +1481,354 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         },
 
         remove(id: LayerId, options: RunOptions = {}): Run<void> {
-            return startEdit("remove", "remove", `Remove layer ${id}`, () => {
-                const current = require(id);
+            return startEdit(
+                "remove",
+                "remove",
+                `Remove layer ${id}`,
+                () => {
+                    const current = require(id);
 
-                if (current.layer.locked) {
-                    throw protectedLayer(current.layer, "removed");
-                }
+                    if (current.layer.locked) {
+                        throw protectedLayer(current.layer, "removed");
+                    }
 
-                const index = positionOf(id);
-                const next = stack.filter((entry) => entry.layer.id !== id);
+                    const index = positionOf(id);
+                    const next = stack.filter((entry) => entry.layer.id !== id);
 
-                return {
-                    stack: next,
-                    edits: [{ previous: current, next: null }],
-                    fromIndex: index,
-                    result: undefined,
-                    layers: [id],
-                    unresolvedPaths: NO_PATHS,
-                };
-            }, options);
+                    return {
+                        stack: next,
+                        edits: [{ previous: current, next: null }],
+                        fromIndex: index,
+                        result: undefined,
+                        layers: [id],
+                        unresolvedPaths: NO_PATHS,
+                    };
+                },
+                options,
+            );
         },
 
         move(id: LayerId, before: LayerId | null, options: RunOptions = {}): Run<void> {
-            return startEdit("move", "move", `Move layer ${id}`, () => {
-                const current = require(id);
+            return startEdit(
+                "move",
+                "move",
+                `Move layer ${id}`,
+                () => {
+                    const current = require(id);
 
-                if (current.layer.locked) {
-                    throw protectedLayer(current.layer, "moved");
-                }
-
-                if (before === id) {
-                    throw new GraphtyError({
-                        code: "E_BAD_COMMAND",
-                        message: "A layer cannot be moved below itself.",
-                        source: "style",
-                        target: { kind: "layer", id },
-                        details: { id },
-                    });
-                }
-
-                const from = positionOf(id);
-                const without = stack.filter((entry) => entry.layer.id !== id);
-                let to = without.length;
-
-                if (before !== null) {
-                    require(before);
-                    to = without.findIndex((entry) => entry.layer.id === before);
-                }
-
-                const next = [...without];
-                next.splice(to, 0, current);
-
-                return {
-                    stack: next,
-                    edits: [{ previous: current, next: current }],
-                    fromIndex: Math.min(from, to),
-                    result: undefined,
-                    layers: [id],
-                    unresolvedPaths: NO_PATHS,
-                };
-            }, options);
-        },
-
-        removeBySource(predicate: (source: LayerSource) => boolean, options: RunOptions = {}): Run<readonly LayerId[]> {
-            return startEdit<readonly LayerId[]>("sweep", "sweep", "Remove layers by source", () => {
-                const doomed = stack.filter((entry) => !entry.layer.locked && predicate(entry.layer.source));
-                const ids = doomed.map((entry) => entry.layer.id);
-                const removing = new Set(ids);
-                const next = stack.filter((entry) => !removing.has(entry.layer.id));
-                const lowest = stack.findIndex((entry) => removing.has(entry.layer.id));
-
-                return {
-                    stack: next,
-                    edits: doomed.map((entry) => ({ previous: entry, next: null })),
-                    fromIndex: lowest === -1 ? next.length : lowest,
-                    result: Object.freeze(ids),
-                    layers: ids,
-                    unresolvedPaths: NO_PATHS,
-                };
-            }, options);
-        },
-
-        encode(spec: EncodingSpec, options: RunOptions = {}): Run<Layer> {
-            return startEdit<Layer>("encode", "add", `Encode ${spec.channel}`, () => {
-                const planned = planEncoding(spec, requireRuns("encode"));
-                const source = sourceOf(planned);
-                const previous =
-                    source.by === "run"
-                        ? stack.find((entry) => isDerivedFor(entry.layer, source.runId, spec.channel))
-                        : undefined;
-
-                if (previous === undefined) {
-                    return planInsert(planned, stack.length, mint(planned.name));
-                }
-
-                // The one place a locked layer is written rather than refused, and it is what the
-                // replacement rule is for: the layer being taken over is the one the element
-                // derived from this very run, and what replaces it says so in its source. A layer
-                // somebody wrote by hand is never this layer -- `isDerivedFor` asks what the layer
-                // paints, not what it is called.
-                const { id } = previous.layer;
-                const checked = check(planned, id);
-
-                if (checked.layer === null) {
-                    throw refusedSpec(planned.name, checked.result);
-                }
-
-                const index = positionOf(id);
-                const next = [...stack];
-                next[index] = checked.layer;
-
-                return {
-                    stack: next,
-                    edits: [{ previous, next: checked.layer }],
-                    fromIndex: index,
-                    result: checked.layer.layer,
-                    layers: [id],
-                    unresolvedPaths: checked.result.unresolvedPaths,
-                    reason: "update",
-                };
-            }, options);
-        },
-
-        highlight(spec: HighlightSpec, options: RunOptions = {}): Run<readonly Layer[]> {
-            return startEdit<readonly Layer[]>("highlight", "add", "Highlight a result", () => {
-                const run = requireRun(spec.run, requireRuns("highlight"));
-
-                if (!isHighlightShape(run.shape)) {
-                    throw badCommand(
-                        `A "${run.shape}" result measures every element rather than choosing some, so it is painted ` +
-                            "with encode() rather than highlighted.",
-                        { run: run.id, shape: run.shape },
-                    );
-                }
-
-                const field = spec.field ?? resultShapeContract(run.shape).primaryField ?? "";
-                const chosen = run.fields.filter((entry) => entry.name === field);
-
-                if (!chosen.some((entry) => entry.kind === "node" || entry.kind === "edge")) {
-                    const published = run.fields.map((entry) => entry.name);
-
-                    throw new GraphtyError({
-                        code: "E_UNKNOWN_ATTRIBUTE",
-                        message: `The run "${run.id}" publishes no field called "${field}" on its nodes or its edges.`,
-                        source: "style",
-                        details: {
-                            run: run.id,
-                            field,
-                            available: published,
-                            candidates: nearestNames(field, published),
-                        },
-                    });
-                }
-
-                // One entry per half the run chose AND the style has something to say about, so a
-                // route styled with an edge colour alone paints the route's edges and leaves its
-                // nodes to the layers underneath.
-                const painting = new Map<SelectorTarget, StaticStyle>();
-
-                for (const half of HALVES) {
-                    const set = chosen.some((entry) => entry.kind === half) ? halfOfStyle(spec.set, half) : null;
-
-                    if (set !== null) {
-                        painting.set(half, set);
-                    }
-                }
-
-                if (painting.size === 0) {
-                    throw badCommand(
-                        `The style names no channel that paints the ${chosen.map((entry) => entry.kind).join(" or ")} ` +
-                            `the run "${run.id}" chose, so the highlight would paint nothing.`,
-                        { run: run.id, field, set: spec.set },
-                    );
-                }
-
-                const path = resultPath(run.id, field);
-                const called = spec.name ?? run.label;
-                const id = minter();
-                const added: CompiledLayer[] = [];
-                const unresolved = new Set<Path>();
-
-                for (const [half, set] of painting) {
-                    const layerSpec: LayerSpec = {
-                        name: painting.size > 1 ? `${called} (${half}s)` : called,
-                        target: half,
-                        kind: "highlight",
-                        // The membership column carries FALSE for the elements the run looked at
-                        // and did not choose, so a presence test would paint the whole
-                        // neighbourhood of a route in the colour of the route. The value is what
-                        // says "chosen", so the value is what is asked about.
-                        selector: { match: "expression", where: `${quotePath(path)} == \`true\`` },
-                        set,
-                        source: { by: "run", runId: run.id, algorithm: run.algorithm, params: run.params },
-                    };
-                    const checked = check(layerSpec, id(layerSpec.name));
-
-                    if (checked.layer === null) {
-                        throw refusedSpec(layerSpec.name, checked.result);
+                    if (current.layer.locked) {
+                        throw protectedLayer(current.layer, "moved");
                     }
 
-                    for (const unanswered of checked.result.unresolvedPaths) {
-                        unresolved.add(unanswered);
-                    }
-
-                    added.push(checked.layer);
-                }
-
-                const doomed = stack.filter((entry) => !entry.layer.locked && entry.layer.kind === "highlight");
-                const removing = new Set(doomed.map((entry) => entry.layer.id));
-                const kept = stack.filter((entry) => !removing.has(entry.layer.id));
-                const lowest = stack.findIndex((entry) => removing.has(entry.layer.id));
-                const edits: LayerEdit[] = [
-                    ...doomed.map((entry): LayerEdit => ({ previous: entry, next: null })),
-                    ...added.map((entry): LayerEdit => ({ previous: null, next: entry })),
-                ];
-
-                return {
-                    stack: [...kept, ...added],
-                    edits,
-                    fromIndex: lowest === -1 ? kept.length : Math.min(lowest, kept.length),
-                    result: Object.freeze(added.map((entry) => entry.layer)),
-                    layers: [...removing, ...added.map((entry) => entry.layer.id)],
-                    unresolvedPaths: Object.freeze([...unresolved]),
-                };
-            }, options);
-        },
-
-        resolveToStatic(id: LayerId, channel: Channel, at?: ExplainTarget, options: RunOptions = {}): Run<Layer> {
-            return startEdit<Layer>("resolve", "update", `Fix ${channel} on layer ${id}`, () => {
-                // The value and the patch are worked out by the same reading that reported the
-                // channel uneditable, and applied by the same update any other patch goes through.
-                const resolution = resolveRule(id, channel, explainSources, at);
-
-                return planUpdate(id, resolution.patch);
-            }, options);
-        },
-
-        applyTemplate(document: StyleDocument, options: TemplateOptions = {}): Run<TemplateReport> {
-            return startEdit<TemplateReport>("template", "add", "Apply a style document", () => {
-                checkDocument(document);
-
-                const id = minter();
-                const imported: ImportedLayer[] = [];
-                const unresolved = new Set<Path>();
-
-                for (const spec of document.layers) {
-                    const authored = stamped(spec, options.templateId);
-
-                    if (isElementSource(sourceOf(authored))) {
+                    if (before === id) {
                         throw new GraphtyError({
-                            code: "E_PROTECTED",
-                            message:
-                                `"${authored.name}" claims to be one of the element's own layers, and only the ` +
-                                "element mints those. A document carries the layers somebody chose.",
+                            code: "E_BAD_COMMAND",
+                            message: "A layer cannot be moved below itself.",
                             source: "style",
-                            details: { name: authored.name, source: authored.source },
+                            target: { kind: "layer", id },
+                            details: { id },
                         });
                     }
 
-                    const checked = check(authored, id(authored.name));
+                    const from = positionOf(id);
+                    const without = stack.filter((entry) => entry.layer.id !== id);
+                    let to = without.length;
+
+                    if (before !== null) {
+                        require(before);
+                        to = without.findIndex((entry) => entry.layer.id === before);
+                    }
+
+                    const next = [...without];
+                    next.splice(to, 0, current);
+
+                    return {
+                        stack: next,
+                        edits: [{ previous: current, next: current }],
+                        fromIndex: Math.min(from, to),
+                        result: undefined,
+                        layers: [id],
+                        unresolvedPaths: NO_PATHS,
+                    };
+                },
+                options,
+            );
+        },
+
+        removeBySource(predicate: (source: LayerSource) => boolean, options: RunOptions = {}): Run<readonly LayerId[]> {
+            return startEdit<readonly LayerId[]>(
+                "sweep",
+                "sweep",
+                "Remove layers by source",
+                () => {
+                    const doomed = stack.filter((entry) => !entry.layer.locked && predicate(entry.layer.source));
+                    const ids = doomed.map((entry) => entry.layer.id);
+                    const removing = new Set(ids);
+                    const next = stack.filter((entry) => !removing.has(entry.layer.id));
+                    const lowest = stack.findIndex((entry) => removing.has(entry.layer.id));
+
+                    return {
+                        stack: next,
+                        edits: doomed.map((entry) => ({ previous: entry, next: null })),
+                        fromIndex: lowest === -1 ? next.length : lowest,
+                        result: Object.freeze(ids),
+                        layers: ids,
+                        unresolvedPaths: NO_PATHS,
+                    };
+                },
+                options,
+            );
+        },
+
+        encode(spec: EncodingSpec, options: RunOptions = {}): Run<Layer> {
+            return startEdit<Layer>(
+                "encode",
+                "add",
+                `Encode ${spec.channel}`,
+                () => {
+                    const planned = planEncoding(spec, requireRuns("encode"));
+                    const source = sourceOf(planned);
+                    const previous =
+                        source.by === "run"
+                            ? stack.find((entry) => isDerivedFor(entry.layer, source.runId, spec.channel))
+                            : undefined;
+
+                    if (previous === undefined) {
+                        return planInsert(planned, stack.length, mint(planned.name));
+                    }
+
+                    // The one place a locked layer is written rather than refused, and it is what the
+                    // replacement rule is for: the layer being taken over is the one the element
+                    // derived from this very run, and what replaces it says so in its source. A layer
+                    // somebody wrote by hand is never this layer -- `isDerivedFor` asks what the layer
+                    // paints, not what it is called.
+                    const { id } = previous.layer;
+                    const checked = check(planned, id);
 
                     if (checked.layer === null) {
-                        throw refusedSpec(authored.name, checked.result);
+                        throw refusedSpec(planned.name, checked.result);
                     }
 
-                    for (const unanswered of checked.result.unresolvedPaths) {
-                        unresolved.add(unanswered);
+                    const index = positionOf(id);
+                    const next = [...stack];
+                    next[index] = checked.layer;
+
+                    return {
+                        stack: next,
+                        edits: [{ previous, next: checked.layer }],
+                        fromIndex: index,
+                        result: checked.layer.layer,
+                        layers: [id],
+                        unresolvedPaths: checked.result.unresolvedPaths,
+                        reason: "update",
+                    };
+                },
+                options,
+            );
+        },
+
+        highlight(spec: HighlightSpec, options: RunOptions = {}): Run<readonly Layer[]> {
+            return startEdit<readonly Layer[]>(
+                "highlight",
+                "add",
+                "Highlight a result",
+                () => {
+                    const run = requireRun(spec.run, requireRuns("highlight"));
+
+                    if (!isHighlightShape(run.shape)) {
+                        throw badCommand(
+                            `A "${run.shape}" result measures every element rather than choosing some, so it is painted ` +
+                                "with encode() rather than highlighted.",
+                            { run: run.id, shape: run.shape },
+                        );
                     }
 
-                    imported.push({ spec: authored, compiled: checked.layer });
-                }
+                    const field = spec.field ?? resultShapeContract(run.shape).primaryField ?? "";
+                    const chosen = run.fields.filter((entry) => entry.name === field);
 
-                // Asked of the imported layers ALONE, so a layer that was already in the stack and
-                // has been waiting for its run is not reported as this import's problem.
-                const unbound = unboundLayers({
-                    ...explainSources,
-                    stack: () => imported.map((entry) => entry.compiled),
-                });
-                const disabled = new Set(unbound.map((entry) => entry.layerId));
-                const final = imported.map((entry): CompiledLayer => {
-                    if (!disabled.has(entry.compiled.layer.id)) {
-                        return entry.compiled;
+                    if (!chosen.some((entry) => entry.kind === "node" || entry.kind === "edge")) {
+                        const published = run.fields.map((entry) => entry.name);
+
+                        throw new GraphtyError({
+                            code: "E_UNKNOWN_ATTRIBUTE",
+                            message: `The run "${run.id}" publishes no field called "${field}" on its nodes or its edges.`,
+                            source: "style",
+                            details: {
+                                run: run.id,
+                                field,
+                                available: published,
+                                candidates: nearestNames(field, published),
+                            },
+                        });
                     }
 
-                    const off = check({ ...entry.spec, enabled: false }, entry.compiled.layer.id);
+                    // One entry per half the run chose AND the style has something to say about, so a
+                    // route styled with an edge colour alone paints the route's edges and leaves its
+                    // nodes to the layers underneath.
+                    const painting = new Map<SelectorTarget, StaticStyle>();
 
-                    if (off.layer === null) {
-                        throw refusedSpec(entry.spec.name, off.result);
+                    for (const half of HALVES) {
+                        const set = chosen.some((entry) => entry.kind === half) ? halfOfStyle(spec.set, half) : null;
+
+                        if (set !== null) {
+                            painting.set(half, set);
+                        }
                     }
 
-                    return off.layer;
-                });
+                    if (painting.size === 0) {
+                        throw badCommand(
+                            `The style names no channel that paints the ${chosen.map((entry) => entry.kind).join(" or ")} ` +
+                                `the run "${run.id}" chose, so the highlight would paint nothing.`,
+                            { run: run.id, field, set: spec.set },
+                        );
+                    }
 
-                return {
-                    stack: [...stack, ...final],
-                    edits: final.map((entry): LayerEdit => ({ previous: null, next: entry })),
-                    fromIndex: stack.length,
-                    result: Object.freeze({
-                        applied: Object.freeze(
-                            final
-                                .filter((entry) => !disabled.has(entry.layer.id))
-                                .map((entry) => entry.layer.id),
-                        ),
-                        unbound,
-                    }),
-                    layers: final.map((entry) => entry.layer.id),
-                    unresolvedPaths: Object.freeze([...unresolved]),
-                };
-            }, options);
+                    const path = resultPath(run.id, field);
+                    const called = spec.name ?? run.label;
+                    const id = minter();
+                    const added: CompiledLayer[] = [];
+                    const unresolved = new Set<Path>();
+
+                    for (const [half, set] of painting) {
+                        const layerSpec: LayerSpec = {
+                            name: painting.size > 1 ? `${called} (${half}s)` : called,
+                            target: half,
+                            kind: "highlight",
+                            // The membership column carries FALSE for the elements the run looked at
+                            // and did not choose, so a presence test would paint the whole
+                            // neighbourhood of a route in the colour of the route. The value is what
+                            // says "chosen", so the value is what is asked about.
+                            selector: { match: "expression", where: `${quotePath(path)} == \`true\`` },
+                            set,
+                            source: { by: "run", runId: run.id, algorithm: run.algorithm, params: run.params },
+                        };
+                        const checked = check(layerSpec, id(layerSpec.name));
+
+                        if (checked.layer === null) {
+                            throw refusedSpec(layerSpec.name, checked.result);
+                        }
+
+                        for (const unanswered of checked.result.unresolvedPaths) {
+                            unresolved.add(unanswered);
+                        }
+
+                        added.push(checked.layer);
+                    }
+
+                    const doomed = stack.filter((entry) => !entry.layer.locked && entry.layer.kind === "highlight");
+                    const removing = new Set(doomed.map((entry) => entry.layer.id));
+                    const kept = stack.filter((entry) => !removing.has(entry.layer.id));
+                    const lowest = stack.findIndex((entry) => removing.has(entry.layer.id));
+                    const edits: LayerEdit[] = [
+                        ...doomed.map((entry): LayerEdit => ({ previous: entry, next: null })),
+                        ...added.map((entry): LayerEdit => ({ previous: null, next: entry })),
+                    ];
+
+                    return {
+                        stack: [...kept, ...added],
+                        edits,
+                        fromIndex: lowest === -1 ? kept.length : Math.min(lowest, kept.length),
+                        result: Object.freeze(added.map((entry) => entry.layer)),
+                        layers: [...removing, ...added.map((entry) => entry.layer.id)],
+                        unresolvedPaths: Object.freeze([...unresolved]),
+                    };
+                },
+                options,
+            );
+        },
+
+        resolveToStatic(id: LayerId, channel: Channel, at?: ExplainTarget, options: RunOptions = {}): Run<Layer> {
+            return startEdit<Layer>(
+                "resolve",
+                "update",
+                `Fix ${channel} on layer ${id}`,
+                () => {
+                    // The value and the patch are worked out by the same reading that reported the
+                    // channel uneditable, and applied by the same update any other patch goes through.
+                    const resolution = resolveRule(id, channel, explainSources, at);
+
+                    return planUpdate(id, resolution.patch);
+                },
+                options,
+            );
+        },
+
+        applyTemplate(document: StyleDocument, options: TemplateOptions = {}): Run<TemplateReport> {
+            return startEdit<TemplateReport>(
+                "template",
+                "add",
+                "Apply a style document",
+                () => {
+                    checkDocument(document);
+
+                    const id = minter();
+                    const imported: ImportedLayer[] = [];
+                    const unresolved = new Set<Path>();
+
+                    for (const spec of document.layers) {
+                        const authored = stamped(spec, options.templateId);
+
+                        if (isElementSource(sourceOf(authored))) {
+                            throw new GraphtyError({
+                                code: "E_PROTECTED",
+                                message:
+                                    `"${authored.name}" claims to be one of the element's own layers, and only the ` +
+                                    "element mints those. A document carries the layers somebody chose.",
+                                source: "style",
+                                details: { name: authored.name, source: authored.source },
+                            });
+                        }
+
+                        const checked = check(authored, id(authored.name), false);
+
+                        if (checked.layer === null) {
+                            throw refusedSpec(authored.name, checked.result);
+                        }
+
+                        for (const unanswered of checked.result.unresolvedPaths) {
+                            unresolved.add(unanswered);
+                        }
+
+                        imported.push({ spec: authored, compiled: checked.layer });
+                    }
+
+                    // Asked of the imported layers ALONE, so a layer that was already in the stack and
+                    // has been waiting for its run is not reported as this import's problem.
+                    const unbound = unboundLayers({
+                        ...explainSources,
+                        stack: () => imported.map((entry) => entry.compiled),
+                    });
+                    const disabled = new Set(unbound.map((entry) => entry.layerId));
+                    const final = imported.map((entry): CompiledLayer => {
+                        if (!disabled.has(entry.compiled.layer.id)) {
+                            return entry.compiled;
+                        }
+
+                        const off = check({ ...entry.spec, enabled: false }, entry.compiled.layer.id, false);
+
+                        if (off.layer === null) {
+                            throw refusedSpec(entry.spec.name, off.result);
+                        }
+
+                        return off.layer;
+                    });
+
+                    return {
+                        stack: [...stack, ...final],
+                        edits: final.map((entry): LayerEdit => ({ previous: null, next: entry })),
+                        fromIndex: stack.length,
+                        result: Object.freeze({
+                            applied: Object.freeze(
+                                final.filter((entry) => !disabled.has(entry.layer.id)).map((entry) => entry.layer.id),
+                            ),
+                            unbound,
+                        }),
+                        layers: final.map((entry) => entry.layer.id),
+                        unresolvedPaths: Object.freeze([...unresolved]),
+                    };
+                },
+                options,
+            );
         },
 
         legend(): readonly LegendBlock[] {

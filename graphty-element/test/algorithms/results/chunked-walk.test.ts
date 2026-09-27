@@ -1,11 +1,11 @@
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
-import { type AlgorithmRunContext, forEachChunked, YIELD_BUDGET_MS } from "../../../src/algorithms/results/types";
+import { forEachChunked, type RunControls, YIELD_BUDGET_MS } from "../../../src/algorithms/results/types";
 import type { RunProgressReport } from "../../../src/session/runs";
 
 /** A context that counts how often the frame was given back. */
 interface Recording {
-    context: AlgorithmRunContext;
+    context: RunControls;
     reports: RunProgressReport[];
     yields: number;
 }

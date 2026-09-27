@@ -2,6 +2,7 @@ import { stronglyConnectedComponents } from "@graphty/algorithms";
 
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import { type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
     type AlgorithmOutput,
     type AlgorithmRunContext,
@@ -17,6 +18,8 @@ import {
 export class StronglyConnectedComponentsAlgorithm extends DeclaredAlgorithm {
     static namespace = "graphty";
     static type = "scc";
+    /** Groups over the run's scope: the node list and the graph both come from the input. */
+    static scopeInput: ScopeInputDeclaration = "subgraph";
 
     /**
      * Find the pieces of the graph that a directed path can cross both ways.
@@ -28,7 +31,8 @@ export class StronglyConnectedComponentsAlgorithm extends DeclaredAlgorithm {
      * @returns The community result, or null when there are no nodes to group.
      */
     async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
-        const nodeIds = Array.from(this.graph.getDataManager().nodes.keys());
+        // The nodes of the run's input: its scope's, so a member with no edge in the scope stands alone.
+        const nodeIds = scopeNodeIds(this.input("declared"));
 
         if (nodeIds.length === 0) {
             return null;

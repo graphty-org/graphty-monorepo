@@ -130,6 +130,12 @@ interface Step<P> {
      * `bytes` on both sides of the cursor, and the first thing dropped when a limit is exceeded.
      */
     cache: { readonly value: unknown; readonly bytes: number } | null;
+    /**
+     * What the patch holds by reference and is counted once across the whole history (a run
+     * result, an id index no longer the resident snapshot's): counted on both sides of the cursor,
+     * re-estimated by {@link History.recharge}.
+     */
+    charge: number;
     view: HistoryStepView | undefined;
 }
 
@@ -279,6 +285,7 @@ export class History<P> {
             after: input.after ?? null,
             afterRows: null,
             cache: null,
+            charge: 0,
             view: undefined,
         });
         this.cursor++;
@@ -333,6 +340,32 @@ export class History<P> {
         step.view = undefined;
         this.changed("size");
         this.evictIfOver();
+    }
+
+    /**
+     * Re-estimate every step's charge, oldest first, and evict when that puts the history over a
+     * limit. Quiet: the caller calls it straight after the change that moved the charges, whose
+     * own `history:changed` already tells readers to look again.
+     * @param charge - A step's charge from its patch. Called oldest step first, so something
+     * counted once is counted against the oldest step that holds it.
+     */
+    recharge(charge: (patch: P) => number): void {
+        let changed = false;
+        for (const step of this.entries) {
+            const next = charge(step.patch);
+            if (next !== step.charge) {
+                this.total += next - step.charge;
+                step.charge = next;
+                step.view = undefined;
+                changed = true;
+            }
+        }
+
+        if (changed) {
+            this.changes++;
+            this.published = undefined;
+            this.evictIfOver();
+        }
     }
 
     /**
@@ -560,7 +593,9 @@ export class History<P> {
      * @returns Bytes, with the fixed overhead.
      */
     private size(step: Step<P>, done: boolean): number {
-        return (done ? step.doneBytes : step.undoneBytes) + STEP_OVERHEAD_BYTES + (step.cache?.bytes ?? 0);
+        return (
+            (done ? step.doneBytes : step.undoneBytes) + STEP_OVERHEAD_BYTES + (step.cache?.bytes ?? 0) + step.charge
+        );
     }
 
     /** Evict the oldest done steps, then the farthest redo steps, down to 90% of both limits. */

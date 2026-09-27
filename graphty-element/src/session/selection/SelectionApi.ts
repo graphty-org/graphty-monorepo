@@ -75,11 +75,12 @@ export const SET_OPS: readonly SetOp[] = Object.freeze(["replace", "add", "remov
 /**
  * Who asked for a selection change.
  *
- * A consumer reacts differently to the three: a change a person made with the mouse should move
- * the camera and open the inspector, and the identical change made by a script replaying a
- * saved document should do neither.
+ * A consumer reacts differently to each: a change a person made with the mouse should move the
+ * camera and open the inspector, and the identical change made by a script replaying a saved
+ * document should do neither. `history` is an undo, a redo or a restore selecting the elements
+ * it changed.
  */
-export type SelectionCause = "user" | "api" | "command";
+export type SelectionCause = "user" | "api" | "command" | "history";
 
 /** What one mutation changed. */
 export interface SelectionDelta {
@@ -251,6 +252,15 @@ export interface SelectionOwner extends SelectionApi {
      * @returns What changed.
      */
     applyNow(target: SelectionTarget, op?: SetOp, cause?: SelectionCause): SelectionDelta;
+    /**
+     * Change the selection at the next read instead of now, so a change made while the graph has
+     * edits not yet frozen does not freeze it: how an undo selects what it changed without paying
+     * for a rebuild nobody asked for. A later call replaces one still waiting.
+     * @param target - What to select.
+     * @param op - What to do with it.
+     * @param cause - Who asked.
+     */
+    applyAtNextRead(target: SelectionTarget, op: SetOp, cause: SelectionCause): void;
     /**
      * The node mask itself, for the scope resolver's `selection` source.
      * @returns The live mask, which the caller must not mutate.
@@ -468,6 +478,9 @@ class Selection implements SelectionOwner {
 
     #truncated = false;
 
+    /** A change {@link Selection.applyAtNextRead} is holding for the next read. */
+    #pending: { readonly target: SelectionTarget; readonly op: SetOp; readonly cause: SelectionCause } | null = null;
+
     /**
      * Build a selection over one session's sources, with nothing selected.
      * @param sources - Where to read the graph and the capabilities a target needs.
@@ -542,7 +555,7 @@ class Selection implements SelectionOwner {
         // One boolean in the common case. The frame is marked stale only by a freeze that
         // renumbered the elements, so this rebuilds once per freeze rather than once per call,
         // and the render loop's per-element test stays free of allocation.
-        if (this.#frameStale) {
+        if (this.#frameStale || this.#pending !== null) {
             this.#sync();
         }
 
@@ -672,6 +685,10 @@ class Selection implements SelectionOwner {
         return this.#delta(before, members.unmatched, members.unresolvedPaths, cause);
     }
 
+    applyAtNextRead(target: SelectionTarget, op: SetOp, cause: SelectionCause): void {
+        this.#pending = { target, op, cause };
+    }
+
     /**
      * Empty the selection.
      * @returns What changed.
@@ -774,6 +791,12 @@ class Selection implements SelectionOwner {
 
         if (this.#edges.count !== graph.edgeCount) {
             this.#edges.grow(graph.edgeCount);
+        }
+
+        const pending = this.#pending;
+        if (pending !== null) {
+            this.#pending = null;
+            this.applyNow(pending.target, pending.op, pending.cause);
         }
     }
 

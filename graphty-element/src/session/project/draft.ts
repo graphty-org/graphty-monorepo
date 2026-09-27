@@ -21,9 +21,11 @@
 
 import type { CameraState } from "../../camera/types";
 import type { RunId, ScopeId } from "../../catalog/types";
+import { retentionOf } from "../results/RunResult";
 import type { SavedScopeRecord } from "../scope/ScopeApi";
 import type { CompiledLayer } from "../styles/Layer";
 import { mergeRowPatches, type RowPatch, rowPatchBytes } from "./arrangement";
+import type { TouchedIds } from "./graphOps";
 import type { LayoutChoice, ProjectState, RunEntry, VisibilityState } from "./state";
 import { strictStateEnabled, strictViolation } from "./strict";
 
@@ -58,6 +60,11 @@ export interface OpLogEntry {
     redo(): void;
     /** What it retains, approximately, in bytes. */
     bytes(): number;
+    /**
+     * Report the node and edge ids it wrote, for the selection after an undo or a redo.
+     * @param into - Where to report them.
+     */
+    touched(into: TouchedIds): void;
 }
 
 /** What a sealed draft recorded. Frozen. */
@@ -85,6 +92,76 @@ export function isEmptyPatch(patch: Patch): boolean {
  */
 export function patchBytes(patch: Patch): number {
     return patch.log.reduce((sum, entry) => sum + entry.bytes(), patch.rows === null ? 0 : rowPatchBytes(patch.rows));
+}
+
+/**
+ * Report the node and edge ids a patch touched: its op-log writes, the rows `positions.set` wrote,
+ * and the explicit members of a scope it saved or removed. Value slices name no element.
+ * @param patch - The patch.
+ * @param into - Where to report them.
+ */
+export function touchedBy(patch: Patch, into: TouchedIds): void {
+    for (const entry of patch.log) {
+        entry.touched(into);
+    }
+
+    for (const id of patch.rows?.ids ?? []) {
+        into.node(id);
+    }
+
+    for (const entry of patch.entries) {
+        if (entry.slice !== "scopes") {
+            continue;
+        }
+
+        for (const record of [entry.prior, entry.next]) {
+            // ponytail: only a scope saved as a list of nodes names its members; one saved as an
+            // expression would need resolving here, and none of the history paths does that yet.
+            const spec = record === ABSENT ? null : (record as SavedScopeRecord).spec;
+            if (typeof spec === "object" && spec !== null && "nodes" in spec) {
+                for (const id of spec.nodes) {
+                    into.node(id);
+                }
+            }
+        }
+    }
+}
+
+/**
+ * What the run results a patch holds retain, counted once across the history: each result's
+ * columns and caches, and each id index that is not the resident snapshot's
+ * (design/undo/undo-design.md section 7).
+ * @param patch - The patch.
+ * @param token - The resident snapshot's graph token.
+ * @param seen - Results and indexes already counted against an older step.
+ * @returns Bytes.
+ */
+export function patchCharge(patch: Patch, token: number, seen: WeakSet<object>): number {
+    let bytes = 0;
+    for (const entry of patch.entries) {
+        if (entry.slice !== "runs") {
+            continue;
+        }
+
+        for (const value of [entry.prior, entry.next]) {
+            const result = value === ABSENT ? undefined : (value as RunEntry).result;
+            if (result === undefined || seen.has(result)) {
+                continue;
+            }
+
+            seen.add(result);
+            const retained = retentionOf(result);
+            bytes += retained.bytes;
+            for (const index of retained.indexes) {
+                if (index.token !== token && !seen.has(index.index)) {
+                    seen.add(index.index);
+                    bytes += index.bytes;
+                }
+            }
+        }
+    }
+
+    return bytes;
 }
 
 /** Writes one key of a keyed slice. */

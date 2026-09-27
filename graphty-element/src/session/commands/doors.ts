@@ -1416,6 +1416,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             ...SELECTION_API,
             applyNow: SELECTION,
+            applyAtNextRead: SELECTION,
             nodeMembers: READ,
             edgeMembers: READ,
             remapNodes: SELECTION,

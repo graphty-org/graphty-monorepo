@@ -46,10 +46,12 @@ import {
     mergePatches,
     type Patch,
     patchBytes,
+    patchCharge,
     type ProjectStore,
     type Slice,
+    touchedBy,
 } from "./draft";
-import { GraphOps, nodeKey } from "./graphOps";
+import { GraphOps, nodeKey, TouchedIds } from "./graphOps";
 import { History, type HistoryChangeReason, type OpenArrangement } from "./History";
 import { createProjectState, type ProjectState } from "./state";
 import { checkInlineKey, checkSoleHolder, strictStateEnabled, verifyFreshArrays } from "./strict";
@@ -281,6 +283,15 @@ interface DispatcherEvents {
     derived?: (change: ProjectChange) => void;
     /** Every command dispatched, as it arrives, before it runs; the doors test spies here. */
     dispatched?: (command: CommandLike) => void;
+    /**
+     * After an undo, a redo or a restore that touched node or edge ids: the session selects them
+     * (design section 8). Not called when the steps touched none, or {@link TouchedIds.skip}.
+     */
+    touched?: {
+        /** The most ids worth selecting. */
+        readonly cap: () => number;
+        select(ids: TouchedIds): void;
+    };
 }
 
 /** One slot a queued command holds on the queue. */
@@ -732,6 +743,8 @@ export class Dispatcher {
     private readonly reasons: HistoryReason[] = [];
     /** Above zero while a listener runs: a history call made then waits for a microtask. */
     private emitting = 0;
+    /** The ids the steps passed by the history call under way touched; null outside one. */
+    private touching: TouchedIds | null = null;
     /** What an immediate command threw synchronously, for {@link Dispatcher.dispatchNow}. */
     private syncFailure: { error: unknown } | null = null;
     /** Whether commits still become the baseline rather than steps (design section 3.3). */
@@ -781,9 +794,11 @@ export class Dispatcher {
         this.history = new History<Patch>({
             forward: (patch) => {
                 this.store.applyForward(patch);
+                this.collect(patch);
             },
             backward: (patch) => {
                 this.store.applyBackward(patch);
+                this.collect(patch);
             },
             merge: mergePatches,
             now: options.now,
@@ -1185,8 +1200,10 @@ export class Dispatcher {
         this.arrangement.seal();
         this.lane.restore(direction);
         this.arrangement.stop();
+        this.touching = this.startTouching();
         const step = direction === "undo" ? this.history.undo() : this.history.redo();
         if (step === null) {
+            this.touching = null;
             return { kind: "nothing" };
         }
 
@@ -1195,6 +1212,7 @@ export class Dispatcher {
         this.markUndone(direction, [step]);
         const change = { slices: step.slices, cause: direction };
         this.emit(change, [change]);
+        this.selectTouched();
         return { kind: direction === "undo" ? "undone" : "redone", steps: Object.freeze([step]) };
     }
 
@@ -1238,6 +1256,7 @@ export class Dispatcher {
         this.arrangement.seal();
         this.lane.restore();
         this.arrangement.stop();
+        this.touching = this.startTouching();
         const passed = this.history.restoreTo(id);
         this.arrangement.restore(this.history.takeArrangement());
         this.markUndone(target < position ? "undo" : "redo", passed);
@@ -1246,7 +1265,41 @@ export class Dispatcher {
             { slices, cause: "restore" },
             passed.map((step) => ({ slices: step.slices, cause: "restore" as const })),
         );
+        this.selectTouched();
         return { kind: "restored", steps: passed };
+    }
+
+    /**
+     * A collection for the history call starting, when anyone selects what it touched.
+     * @returns The collection, or null.
+     */
+    private startTouching(): TouchedIds | null {
+        const { touched } = this.events;
+        return touched === undefined ? null : new TouchedIds(touched.cap());
+    }
+
+    /**
+     * Report what a patch the history just applied touched, during a history call.
+     * @param patch - The patch.
+     */
+    private collect(patch: Patch): void {
+        if (this.touching !== null && !this.touching.skip) {
+            touchedBy(patch, this.touching);
+        }
+    }
+
+    /**
+     * Stop collecting, and hand what the history call touched to the session to select once the
+     * pass that derives the change has run.
+     */
+    private selectTouched(): void {
+        const ids = this.touching;
+        this.touching = null;
+        if (ids !== null && !ids.skip && ids.nodes.size + ids.edges.size > 0) {
+            void this.lane.settled().then(() => {
+                this.notify(() => this.events.touched?.select(ids));
+            });
+        }
     }
 
     /**
@@ -1274,6 +1327,13 @@ export class Dispatcher {
      * @param derived - The per-domain changes, one per step.
      */
     private emit(change: ProjectChange, derived: readonly ProjectChange[]): void {
+        if (change.slices.includes("graph") || change.slices.includes("runs")) {
+            // What run results and their id indexes cost depends on which snapshot is resident.
+            const { token } = this.store.state.graph;
+            const seen = new WeakSet();
+            this.history.recharge((patch) => patchCharge(patch, token, seen));
+        }
+
         this.notify(() => this.events.project?.(change));
         this.flushHistory();
         void this.lane.settled().then(() => {

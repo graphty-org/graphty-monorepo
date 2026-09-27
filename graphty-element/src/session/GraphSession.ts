@@ -54,6 +54,7 @@ import {
 import type { GraphSlice, LayoutChoice } from "./project/state";
 import { createQueryEngine, type QueryEngine } from "./query";
 import { createResultsApi, type ResultsApi, type ResultsRunEntry, type RunRef } from "./results";
+import { shareNodeIndex } from "./results/RunResult";
 import {
     type Caveats,
     createLocalRunQueue,
@@ -62,6 +63,7 @@ import {
     type ResolvedScope,
     type Run,
     type RunExecutionContext,
+    type RunExecutor,
     type RunOptions,
     type RunOutcome,
     type RunsApi,
@@ -294,6 +296,23 @@ function refuseToExecute(context: RunExecutionContext): Promise<RunOutcome> {
 }
 
 /**
+ * An executor whose results read their nodes through the snapshot's id index when they hold the
+ * same ids in the same order, so a finished result keeps its columns and not a second index
+ * (design/undo/undo-design.md section 7).
+ * @param execute - The executor.
+ * @param snapshot - The resident snapshot.
+ * @param token - The graph token now.
+ * @returns The executor, sharing.
+ */
+function sharingIndexes(execute: RunExecutor, snapshot: () => GraphSnapshot, token: () => number): RunExecutor {
+    return async (context) => {
+        const outcome = await execute(context);
+        shareNodeIndex(outcome.result, snapshot().ids, token());
+        return outcome;
+    };
+}
+
+/**
  * A graph with no view attached.
  *
  * Build one with {@link createGraphSession} rather than with `new`: the factory is what settles
@@ -374,6 +393,20 @@ class Session implements ElementSession {
         this.dispatcher.events.history = (reason) => {
             version++;
             publish(this.watchers, "history:changed", { reason });
+        };
+        // Undo and redo select what changed; selection itself is never a step.
+        this.dispatcher.events.touched = {
+            cap: () => this.selection.cap,
+            select: (ids) => {
+                const target = { nodes: [...ids.nodes], edges: [...ids.edges] };
+                // Resolving ids reads the graph; an undo that left rows to rebuild does not rebuild
+                // them only to select, it waits for whatever reads the graph next.
+                if (this.store instanceof GraphStore && this.store.stale) {
+                    this.selection.applyAtNextRead(target, "replace", "history");
+                } else {
+                    this.selection.applyNow(target, "replace", "history");
+                }
+            },
         };
         DISPATCHERS.set(this, this.dispatcher);
         LANES.set(this, this.store);
@@ -1686,7 +1719,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         dispatcher,
         catalog: SESSION_CATALOG_TABLES,
         resolveScope: (spec: Scope) => scope.resolveNow(spec),
-        execute: runsOptions.execute ?? refuseToExecute,
+        execute: sharingIndexes(runsOptions.execute ?? refuseToExecute, snapshot, () => dispatcher.state.graph.token),
         engine: runsOptions.engine ?? ENGINE_VERSIONS,
         defaultScope,
         ...(runsOptions.defaultCaveats === undefined ? {} : { defaultCaveats: runsOptions.defaultCaveats }),

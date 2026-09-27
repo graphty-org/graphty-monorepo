@@ -424,6 +424,61 @@ export class GraphOps {
     }
 }
 
+/**
+ * The node and edge ids the steps an undo, a redo or a restore passed touched, which the session
+ * then selects (design/undo/undo-design.md section 8). Collection stops, and nothing is selected,
+ * once a replace or a clear passes or more ids than the limit are touched: selecting everything
+ * says nothing, and a selection built only to be truncated says less.
+ */
+export class TouchedIds {
+    readonly nodes = new Set<NodeId>();
+    readonly edges = new Set<EdgeId>();
+    /** Whether to leave the selection as it is. */
+    skip = false;
+
+    /**
+     * An empty collection.
+     * @param limit - The most ids worth selecting: the selection cap.
+     */
+    constructor(private readonly limit: number) {}
+
+    /**
+     * A node was touched.
+     * @param id - The node.
+     */
+    node(id: NodeId): void {
+        if (!this.skip) {
+            this.nodes.add(id);
+            this.check();
+        }
+    }
+
+    /**
+     * An edge was touched.
+     * @param id - The edge.
+     */
+    edge(id: EdgeId): void {
+        if (!this.skip) {
+            this.edges.add(id);
+            this.check();
+        }
+    }
+
+    /** Everything was touched: a replace or a clear. Select nothing. */
+    all(): void {
+        this.skip = true;
+        this.nodes.clear();
+        this.edges.clear();
+    }
+
+    /** Give up once past the limit. */
+    private check(): void {
+        if (this.nodes.size + this.edges.size > this.limit) {
+            this.all();
+        }
+    }
+}
+
 /** One pin or release of several nodes, as the `pins` slice records it. */
 class PinsEntry implements OpLogEntry {
     readonly slice = "pins";
@@ -436,6 +491,12 @@ class PinsEntry implements OpLogEntry {
 
     bytes(): number {
         return 32 * this.ids.length;
+    }
+
+    touched(into: TouchedIds): void {
+        for (const id of this.ids) {
+            into.node(id);
+        }
     }
 
     undo(): void {
@@ -503,6 +564,50 @@ class GraphEntry implements OpLogEntry {
 
     bytes(): number {
         return this.retained;
+    }
+
+    touched(into: TouchedIds): void {
+        for (const op of this.ops) {
+            switch (op.kind) {
+                case "node":
+                    into.node(op.id);
+                    break;
+                case "edge":
+                    into.edge(edgeIdOf(op.edgeId));
+                    for (const id of op.created) {
+                        into.node(id);
+                    }
+
+                    break;
+                case "weight":
+                    into.edge(edgeIdOf(op.edgeId));
+                    break;
+                case "record":
+                    if (op.target === "node") {
+                        into.node(op.id);
+                    } else {
+                        into.edge(String(op.id));
+                    }
+
+                    break;
+                case "remove":
+                    for (const node of op.rows.nodes) {
+                        into.node(node.id);
+                    }
+
+                    for (const edge of op.rows.edges) {
+                        into.edge(edgeIdOf(edge.edgeId));
+                    }
+
+                    break;
+                case "replace":
+                    into.all();
+                    return;
+                default:
+                    // "value" and "direction" name no element.
+                    break;
+            }
+        }
     }
 
     /**

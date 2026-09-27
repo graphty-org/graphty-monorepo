@@ -325,42 +325,87 @@ export interface RankableEntry {
  * @returns The ranking, best first. Entries with no finite value are left out.
  */
 export function rankEntries(entries: readonly RankableEntry[]): readonly RankingEntry[] {
-    const ranked = entries
-        .filter((entry) => Number.isFinite(entry.value))
-        .map((entry) => ({ entry, label: String(entry.id) }));
+    const valueAt = (position: number): number => entries[position].value;
+    const idAt = (position: number): NodeId => entries[position].id;
+    const order = rankOrder(entries.length, valueAt, idAt);
 
-    ranked.sort((left, right) => {
-        if (left.entry.value !== right.entry.value) {
-            return right.entry.value - left.entry.value;
+    return rankedPrefix(order, order.length, valueAt, idAt);
+}
+
+/**
+ * The order {@link rankEntries} ranks in, as positions: best first, ties in printed-id order,
+ * elements with no finite value left out. Four bytes per ranked element, so a result can keep one
+ * per field instead of an object per element.
+ * @param length - How many positions there are.
+ * @param valueAt - The value at a position.
+ * @param idAt - The id at a position.
+ * @returns The ranked positions, best first.
+ */
+export function rankOrder(
+    length: number,
+    valueAt: (position: number) => number,
+    idAt: (position: number) => NodeId,
+): Uint32Array {
+    const positions: number[] = [];
+    for (let position = 0; position < length; position++) {
+        if (Number.isFinite(valueAt(position))) {
+            positions.push(position);
+        }
+    }
+
+    // Printed once per element rather than once per comparison.
+    const labels: string[] = [];
+    for (const position of positions) {
+        labels[position] = String(idAt(position));
+    }
+
+    positions.sort((left, right) => {
+        const a = valueAt(left);
+        const b = valueAt(right);
+        if (a !== b) {
+            return b - a;
         }
 
-        if (left.label === right.label) {
+        const leftLabel = labels[left];
+        const rightLabel = labels[right];
+        if (leftLabel === rightLabel) {
             return 0;
         }
 
-        return left.label < right.label ? -1 : 1;
+        return leftLabel < rightLabel ? -1 : 1;
     });
 
-    const measured = ranked.length;
+    return Uint32Array.from(positions);
+}
+
+/**
+ * The first entries of a ranking, built from its order. Ties share a rank: the next distinct
+ * value takes the rank its place implies, so ranks run 1, 2, 2, 4.
+ * @param order - The ranked positions, from {@link rankOrder}.
+ * @param count - How many entries to build, at most `order.length`.
+ * @param valueAt - The value at a position.
+ * @param idAt - The id at a position.
+ * @returns The entries, best first, frozen.
+ */
+export function rankedPrefix(
+    order: Uint32Array,
+    count: number,
+    valueAt: (position: number) => number,
+    idAt: (position: number) => NodeId,
+): readonly RankingEntry[] {
+    const measured = order.length;
     const result: RankingEntry[] = [];
     let rank = 0;
     let previous = Number.NaN;
 
-    for (let index = 0; index < measured; index++) {
-        const { entry } = ranked[index];
-        if (entry.value !== previous) {
+    for (let index = 0; index < Math.min(count, measured); index++) {
+        const value = valueAt(order[index]);
+        if (value !== previous) {
             rank = index + 1;
-            previous = entry.value;
+            previous = value;
         }
 
-        result.push(
-            Object.freeze({
-                id: entry.id,
-                value: entry.value,
-                rank,
-                percentile: (measured - rank + 1) / measured,
-            }),
-        );
+        result.push(Object.freeze({ id: idAt(order[index]), value, rank, percentile: (measured - rank + 1) / measured }));
     }
 
     return Object.freeze(result);

@@ -1,0 +1,192 @@
+# Session mutation inventory
+
+Every public way to change the state of a graphty-element session, for the undo and redo design.
+A mutation path missing from this list is a place where undo would silently fail to restore the
+graph, so the table errs toward listing too much.
+
+All paths are relative to `graphty-element/src/session/` unless they start with another
+directory. Line numbers are those of the source at the time of writing.
+
+## How to read the tables
+
+- **Sync / async.** "sync" returns after the state has changed. "async (Run)" returns a `Run`
+  immediately; the state changes later, inside the run's executor, on the session's one shared
+  queue (`GraphSession.ts:1089`). A cancelled run changes nothing.
+- **Saved in the project file.** No project file exists yet. The column applies the rule from the
+  undo requirements: the project file holds data edits, imports, filters, analysis runs and their
+  results, style layers, groups and saved sets, notes, saved views, and the layout choice and its
+  settings. Camera, hover, UI state, the selection and computation still in flight are not saved.
+  "Proposed" marks a call the requirements do not settle; the undo design must confirm it.
+- **Undo notes** record what an inverse has to restore beyond the obvious, and any hidden state
+  the method touches.
+
+## Session root (`GraphSession.ts`, interface in `types.ts:469`)
+
+| Method | Where | Sync / async | State it changes | Where the state lives | Saved in project file | Undo notes |
+|---|---|---|---|---|---|---|
+| `acceleration = policy` (setter) | `GraphSession.ts:382`, `types.ts:543` | sync | Acceleration policy (auto, off, require) | `AccelerationController` (`controller.setPolicy`), outside the session | No (proposed): a preference about this machine's hardware, not about the graph | Exempt. Also reachable through the element's attributes, so it has two writers |
+| `setAccelerator(a)` | `GraphSession.ts:393`, `types.ts:551` | sync | Attached accelerator | `AccelerationController` | No: a live device handle cannot be saved | Exempt |
+| `run(command, options)` | `GraphSession.ts:421`, `types.ts:571` | async (Run) | Everything `runs.start` changes (below) | Runs registry | Yes | Thin wrapper over `runs.start`; the only command in the current vocabulary (`planning.ts:67`, `SessionCommand = AlgorithmRunCommand`) |
+| `on(event, handler)` | `GraphSession.ts:461` | sync | Adds a subscriber | `watchers` map | No | Exempt: observers, not project state |
+| `dispose()` | `GraphSession.ts:484` | sync | Cancels all runs, clears watchers, disposes data, owned store and owned accelerator | Everywhere | No | Exempt: ends the session; history is discarded with it |
+| `positions` (getter) | `GraphSession.ts:279` | sync | Returns the LIVE `ElementPositions`, whose public `write`, `fillUnplaced`, `setPinned`, `grow`, `remap` (`../data/positions.ts:223-446`) mutate coordinates and pins in place | `GraphStore.positions` (`../data/GraphStore.ts:113`) | Proposed yes for pins and for a finished layout's coordinates (they are a layout's expensive result); no for coordinates of a layout still running | Bypass: any holder of the getter can write. Not routed through anything the session sees |
+| `positions.pinnedView(n)` | `../data/positions.ts:351` | sync | **Found in the completeness check.** Returns a writable `Uint8Array` window over the pin bytes of the live lane; a write pins or releases nodes with no `setPinned` call | `GraphStore.positions` | Yes (pins) | Bypass, like the other lane methods above |
+| `snapshot()`, and the same object from `data.snapshot()` (`data.ts:76`) and `data.store.getSnapshot()` | `GraphSession.ts:402` | sync | **Found in the completeness check.** The returned `GraphSnapshot` is the resident one the store caches (`../data/GraphStore.ts:241`), and its attribute tables are writable: `nodes.set` / `remove` / `rename`, the same on `edges` (`graph-format/src/types/columns.ts:636-653`), and every column's typed `data` array. Its position column and `graphty.pinned` column (`../data/GraphStore.ts:388`) are the live positions lane | Resident snapshot; the lane | Yes (weights, ids and other columns runs read; positions and pins) | Bypass with no event. A column write lasts until the next freeze replaces the snapshot; a lane write lasts. Freezing in tests has to cover column arrays, or the handed-out snapshot has to be a read-only view |
+| `estimate`, `plan`, `snapshot`, `fingerprint`, `status`, `config`, `capabilities`, `acceleration` (getter), `seededNodeCount` | `GraphSession.ts:289-458` | sync / Promise | None. `capabilities` starts the owned controller's hardware probe (`GraphSession.ts:365`) | -- | No | Reads. The probe is a side effect on machine state, not project state |
+
+## Data (`data.ts`, interface `types.ts:304`)
+
+The session's data surface is read-only. Every verb reads the store's current snapshot.
+
+| Method | Where | Sync / async | State it changes | Where the state lives | Saved | Undo notes |
+|---|---|---|---|---|---|---|
+| `snapshot`, `undirected`, `node`, `edge`, `lastImport`, `attributes`, `statistics`, `fingerprint` | `data.ts:77-172` | sync | Only a per-snapshot memo (`derived`, `data.ts:196`) | `SessionData.derived` | No | Reads. The memo keys on snapshot identity, so restoring an old snapshot object restores its memo for free |
+| `store` (field) | `data.ts:51`, `types.ts:306` | -- | Exposes the store object. Typed as the read-only `SessionGraphStore`, but at runtime it is a `GraphStore` whose public `builder` (`../data/GraphStore.ts:111`), `touch()` (`:203`), `nextEdgeId()` (`:213`) and `recordDirectionFromFile()` (`:481`) mutate the graph | `GraphStore` | Yes (nodes, edges, attributes, direction) | Bypass by cast. See "Writers outside the session" below |
+| `dispose()` | `data.ts:179` | sync | Refuses further reads | `SessionData.disposed` | No | Exempt |
+| `node(id)`, `edge(id)` | `data.ts:98`, `:118` | sync | **Found in the completeness check.** The record is `Object.freeze({ ...attributes, id })`: only the top level is frozen. A nested value in the attribute bag (an object or array attribute, `algorithmResults`) is the same object that lives on `Node.data` / `Edge.data` (`../Graph.ts:360-367`), so writing into it edits the live record | `Node.data`, `Edge.data` | Yes (attributes) | Bypass with no event and no repaint. A deep freeze in tests, or a deep copy, closes it |
+
+**The session has no verb that adds, removes or edits nodes, edges or attributes.** Imports and
+data edits happen in the element's `DataManager` and `ingest`, which write the store directly.
+Undo of data edits and imports needs a dispatcher path that does not exist in the session yet.
+
+## Runs (`runs/RunsApi.ts`, `runs/Run.ts`, interfaces `runs/types.ts:483` and `:620`)
+
+| Method | Where | Sync / async | State it changes | Where the state lives | Saved | Undo notes |
+|---|---|---|---|---|---|---|
+| `runs.start(algorithm, params, options)` | `runs/RunsApi.ts:412`, `runs/types.ts:620` | registration sync, result async (Run) | Adds a run to `runs`, `identities`, `derivedIds` (`RunsApi.ts:677-682`); later sets its result, status, caveats, fields (`Run.ts:828`); on success the auto-apply policy adds or replaces style layers (`RunsApi.ts:671`, `styles/autoApply.ts:254`) | `Runs.runs` Map (`RunsApi.ts:377`), `ManagedRun` private fields (`Run.ts:402-450`), style stack | Yes (run, its parameters and its result) | One gesture spans the run AND the style edits it triggers; they commit at different moments on the queue. `queue: "replace"` also cancels sibling runs of the same algorithm (`RunsApi.ts:635`). Starting an id that already exists REUSES it and may call `rerun()` (`RunsApi.ts:712`), see `rerun` |
+| `runs.batch(specs, options)` | `RunsApi.ts:458`, `runs/types.ts:627` | async (Run) | Starts each member through `start`; holds the auto-apply policy so styling lands once (`RunsApi.ts:966-996`). The batch run itself is kept in `batches` (`RunsApi.ts:500`), NOT in `runs`, so it never appears in `list()` | `Runs.batches` Set, plus every member | Members yes; the batch wrapper no (proposed) | One step for the whole batch. A cancelled batch keeps the members that finished |
+| `runs.remove(id)` | `RunsApi.ts:548`, `runs/types.ts:647` | run removal sync; layer removal async (fire and forget) | Cancels the run, deletes it from `runs`, `identities`, `derivedIds`, clears the auto-apply "already painted" mark (`styles/autoApply.ts:291`), removes every style layer bound to it through `styles.remove` (`GraphSession.ts:1167`) | Runs registry, auto-apply `painted` Set (`styles/autoApply.ts:208`), style stack | Yes | Inverse must restore the run object with its stored result, its identity and derived-id flag, the `painted` mark, AND the removed layers at their stack positions. Layer removals are separate style edits today, with errors only logged |
+| `run.cancel(reason)` | `Run.ts:682`, `runs/types.ts:548` | sync | Status to canceled; a batch publishes partial results instead (`Run.ts:688`) | `ManagedRun` | No: in-flight work is not saved | Exempt. Undo during a run should call this |
+| `run.rerun()` | `Run.ts:713`, `runs/types.ts:557` | async | `resetForRerun()` (`Run.ts:1071`) DISCARDS the stored result, summary, caveats and error, then runs again under the same id | `ManagedRun` | Yes (the result is replaced) | Inverse must keep the old result object; today it is dropped before the new one exists. The auto-apply policy does not repaint a re-run (`autoApply.ts:257`) |
+| `get`, `list`, `bindings`, `queue`, `run.suggestEncodings()`, all `Run` getters | `RunsApi.ts:513-588`, `Run.ts:475-733` | sync | None | -- | -- | Reads |
+| `dispose()` (session-internal `SessionRunsApi`) | `RunsApi.ts:591` | sync | Cancels and forgets every run | Runs registry | No | Exempt |
+
+## Results (`results/ResultsApi.ts`, `results/RunResult.ts`, interface `results/types.ts:886`)
+
+| Method | Where | Sync / async | State it changes | Saved | Undo notes |
+|---|---|---|---|---|---|
+| `path`, `term`, `get`, `has`, `roots` | `results/ResultsApi.ts:133-175` | sync | None | -- | Read-only view over the runs registry. Results change only when runs change |
+| `RunResult.node`, `edge`, `column`, `ranking`, `top`, `histogram`, `summary`, `reading` | `results/RunResult.ts:631-770` | sync | None (lazy caches inside the result) | -- | Reads. A result object is immutable once published, so history can hold it by reference |
+
+## Scope (`scope/ScopeApi.ts`, interface `scope/ScopeApi.ts:300`)
+
+| Method | Where | Sync / async | State it changes | Where the state lives | Saved | Undo notes |
+|---|---|---|---|---|---|---|
+| `scope.save(name, spec)` | `scope/ScopeApi.ts:947`, interface `:314` | sync | Adds a saved scope; bumps `savedRevision` | `saved` Map in the `createScopeApi` closure (`ScopeApi.ts:511-512`) | Yes (saved sets) | Emits NO event, so nothing can observe it today. The id is minted from the name with a numeric suffix (`:984-993`); redo must reuse the same id |
+| `scope.remove(id)` | `ScopeApi.ts:1012`, interface `:324` | sync | Deletes a saved scope; bumps `savedRevision` | same | Yes | No event. Does not check whether another saved scope or a run's scope refers to it; the inverse must reinsert with the same id and name |
+| `scope.list()[i].spec` | `ScopeApi.ts:993`, `:999-1010` | sync | **Found in the completeness check.** `save` stores the caller's `spec` object by reference, and `list()` freezes the record but hands back that same `spec`. A caller who keeps the object, or reads it back, and writes into it changes the saved scope | `saved` Map | Yes | Bypass with no event and no `savedRevision` bump, so resolution caches keep answering from the old membership. History holding the spec by reference would be corrupted by the same write |
+| `resolve`, `count`, `list`, `resolveNow` | `ScopeApi.ts:893-1010` | sync / Promise | Only resolution caches keyed on snapshot and mask versions (`:723`, `:791`) | closure | No | Reads |
+
+## Selection (`selection/SelectionApi.ts`, interface `:177-275`)
+
+Selection is not an undo step, but undo and redo must be able to set it to "what changed".
+
+| Method | Where | Sync / async | State it changes | Where the state lives | Saved | Undo notes |
+|---|---|---|---|---|---|---|
+| `selection.apply(target, op)` | `selection/SelectionApi.ts:622`, interface `:213` | Promise (resolves at once) | Node and edge membership, truncation flag | `#nodes`, `#edges`, `#truncated` (`SelectionApi.ts:451-460`) | No | Exempt: selection. The undo engine will call `applyNow` to select what changed |
+| `selection.applyNow(target, op, cause)` | `SelectionApi.ts:641`, interface `:253` (owner only) | sync | same | same | No | Exempt |
+| `selection.clear()` | `SelectionApi.ts:679`, interface `:218` | sync | Empties membership | same | No | Exempt |
+| `selection.promote(name)` | `SelectionApi.ts:696`, interface `:228` | sync | Calls `scope.save(name, { nodes })` (`:718`): creates a SAVED SCOPE | Scope `saved` Map | Yes | NOT exempt: it is a saved-set creation reached through the selection API, and it must be one undo step |
+| `nodeMembers()`, `edgeMembers()` | `SelectionApi.ts:580-590`, interface `:258-263` | sync | Return the LIVE `ElementMask` objects, which have public `clear`, `union`, `add`, `remap` | `#nodes`, `#edges` | No | Bypass risk only (selection is exempt), but a caller can change selection without a `selection:changed` event |
+| `remapNodes`, `remapEdges` | `SelectionApi.ts:601-611` | sync | Renumber membership after a freeze | same | No | Internal follower of store freezes (`GraphSession.ts:1076`) |
+| `has`, `nodeMask`, `edgeMask`, `statistics`, getters | `SelectionApi.ts:489-760` | sync / Promise | Frame resync only | -- | -- | Reads (`nodeMask` returns a copy) |
+
+## Visibility (`visibility/VisibilityApi.ts`, interface `:151`)
+
+| Method | Where | Sync / async | State it changes | Where the state lives | Saved | Undo notes |
+|---|---|---|---|---|---|---|
+| `visibility.set(filter, options)` | `visibility/VisibilityApi.ts:816`, interface `:215` | async (Run) | Filter value, node and edge visibility masks, unresolved paths; commits at `:730-732`, emits `visibility:changed` | `filterValue`, `nodeMaskValue`, `edgeMaskValue` in the closure (`:422-440`) | Yes (filters) | A newer `set` or `setWindow` cancels the pending one (`:680`). Masks are derived from filter plus window plus snapshot, so the inverse only needs the previous filter and window, not the masks |
+| `visibility.setWindow(window, options)` | `VisibilityApi.ts:820`, interface `:228` | async (Run) | Time window, masks | `windowValue` (`:423`) and masks | Yes (proposed: a time window is a filter) | Same as `set` |
+| `visibility.showContext = value` | `VisibilityApi.ts:828`, interface `:238` | sync | Whether hidden context is drawn; emits `visibility:changed` with kind `context` | `showContextValue` (`:424`) | Proposed yes (part of the filter's settings) | Must be a step or be declared exempt; it is the only synchronous visibility write |
+| `masks.nodes()`, `masks.edges()` | `VisibilityApi.ts:837-847`, interface `:251` (session-internal) | sync | Return the LIVE masks | closure | -- | Bypass risk: a holder can clear or union them with no event. Typed only on `SessionVisibilityApi`, not on the consumer-facing `VisibilityApi` |
+| `visibility.filter`, `visibility.window` (getters) | `VisibilityApi.ts:808`, `:812` | sync | **Found in the completeness check.** Return the object the caller passed to `set` / `setWindow`, stored by reference and never copied or frozen (`:730-731`). Writing into it changes the stored filter without a pass, so the filter and the masks disagree | `filterValue`, `windowValue` | Yes | Bypass with no event. History must copy or deep-freeze the filter it keeps |
+| `nodeMask`, `edgeMask`, `isVisible`, `nodes`, `edges`, `summary`, `filter`, `window` | `VisibilityApi.ts:751-814` | sync | Lazy re-evaluation when the snapshot changed (`:460`, `:478`) | -- | -- | Reads |
+
+## Styles (`styles/StylesApi.ts`, interfaces `:190` and `:422`)
+
+Every public style write goes through one internal function, `startEdit` (`styles/StylesApi.ts:1204`),
+which plans a new stack, repaints, and then replaces the stack in one assignment through `commit`
+(`:985`, called at `:1250`). Each plan carries the per-layer `edits` list of
+`{ previous, next }` pairs, which is already a forward and inverse change record. The one other
+caller of `commit` is `seed` at construction (`:1396-1413`), which installs the element's own base
+layers.
+
+| Method | Where | Sync / async | State it changes | Where the state lives | Saved | Undo notes |
+|---|---|---|---|---|---|---|
+| `styles.add(spec, at)` | `styles/StylesApi.ts:1432`, interface `:236` | async (Run) | Inserts a layer | `stack` and `byId` in the closure (`:976-977`) | Yes | Layer id minted from the name (`:1085`); redo must restore the same id |
+| `styles.update(id, patch)` | `:1449`, interface `:250` | async (Run) | Replaces one layer | same | Yes | Covers slider drags: consecutive updates of one layer need merging into one step |
+| `styles.remove(id)` | `:1453`, interface `:258` | async (Run) | Removes a layer; locked layers refused | same | Yes | Inverse must reinsert at the old index |
+| `styles.move(id, before)` | `:1475`, interface `:271` | async (Run) | Reorders | same | Yes | |
+| `styles.removeBySource(predicate)` | `:1516`, interface `:289` | async (Run) | Removes every unlocked layer whose source matches | same | Yes | Many layers, one step |
+| `styles.encode(spec)` | `:1535`, interface `:308` | async (Run) | Adds a layer, or REPLACES the layer the element derived from the same run and channel, even when locked (`:1539-1566`) | same | Yes | Also the auto-apply path after a run |
+| `styles.highlight(spec)` | `:1576`, interface `:325` | async (Run) | Removes every unlocked highlight layer and adds the new ones (exclusive) | same | Yes | Compound: removals and additions in one edit |
+| `styles.resolveToStatic(id, channel, at)` | `:1680`, interface `:385` | async (Run) | Replaces a computed channel with a fixed value | same | Yes | |
+| `styles.applyTemplate(document, options)` | `:1690`, interface `:403` | async (Run) | Appends every layer of a style document; unbound ones added disabled | same | Yes | Many layers, one step |
+| Layer objects from `list`, `get`, `compiled` | `styles/Layer.ts:963-980` (`buildLayer`) | sync | **Found in the completeness check.** A layer is frozen one level deep only. `set` and `encode` are shallow copies, so a nested encoding (a scale, a domain, a palette list) is the caller's object; `selector` and `source` are the caller's objects; `userData` is kept by reference on purpose. Writing into any of them changes a layer in the stack with no edit, no repaint and no `style:changed` | `stack` | Yes | Bypass. The claim that a kept stack array is a cheap, safe undo snapshot holds only once layers are deep-frozen (or deep-copied) at `buildLayer`; `userData` is the consumer's and can stay exempt |
+| `list`, `get`, `compiled`, `validate`, `legend`, `settled`, `explain`, `toDocument` | `:1416-1791` | sync / Promise | None | -- | -- | Reads. `toDocument` is the existing serialiser for the style part of a project file |
+
+Hidden style state an undo must account for:
+
+- The auto-apply policy's `painted` Set and `pending` Map (`styles/autoApply.ts:208-210`) decide
+  whether a run's completion paints. Undoing a run's first completion without clearing its mark
+  leaves a redone run that never paints.
+- The repaint engine's prepared bindings (`GraphSession.ts:1193`, `:1243`) are caches. They are
+  derived and need invalidating, not restoring.
+- The scale registry (`GraphSession.ts:1239`, `styles/scales.ts:544`) accepts plugins through
+  `register`. It is not reachable from the session surface and is code, not project state: exempt.
+
+## Paint (`session.paint`, `styles/repaint.ts:151`, wired at `GraphSession.ts:967`)
+
+| Method | Sync / async | State it changes | Saved | Undo notes |
+|---|---|---|---|---|
+| `paint.repaintAll(stack, context)` | Promise | Per-element style columns | No | Derived from stack plus data plus results. Restoring those restores the picture |
+| `paint.onPainted(listener)` | sync | Adds a listener | No | Exempt |
+| `styleOf`, `meshKeyOf`, `meshStyleOf`, `meshCount`, `lastPainted`, `painting`, `problems` | sync | None | -- | Reads |
+
+## Modules with no mutation paths
+
+`layout.ts` (`recommendLayout`, a pure recommendation; it sets no layout), `statistics.ts`,
+`metrics.ts`, `planning.ts`, `catalog.ts`, `attributes.ts`, `query.ts`, `limits.ts`, and `cost/`.
+The one module-level mutable state among them is the machine calibration cache in
+`cost/calibrate.ts:382-385`, which is a measurement of this machine and is exempt.
+
+Note: the layout CHOICE and its settings, which the project file holds, are not on the session at
+all. They live in the element (layout manager and configuration).
+
+## Writers outside the session that change project state the session reads
+
+The session reads these but never writes them, so no session-level dispatcher sees them today.
+
+| Writer | Where | What it changes |
+|---|---|---|
+| Node add and merge during import | `data/ingest.ts:90-102` | Store builder nodes, seed coordinates column |
+| Edge add during import | `data/ingest.ts:162-165` | Store builder edges, edge id column |
+| Direction stated by the file | `data/ingest.ts:211`, `:226` | `GraphStore.directionSettledBy` |
+| Node removal | `managers/DataManager.ts:824-825` | Builder nodes and their edges |
+| Repeated-edge weight merge | `managers/DataManager.ts:1182-1185` | Edge weights |
+| Edge removal | `managers/DataManager.ts:1326-1327` | Builder edges |
+| Coordinate and pin writes | `data/positions.ts:223-446` (`grow`, `remap`, `setPinned`, `write`, `fillUnplaced`) | Positions, reachable from `session.positions` |
+| Data configuration | `managers/DataManager.ts:328`, `:932` read `config.data.knownFields`, which the element mutates in place (`GraphSession.ts:562`) | Id paths, repeated-edge policy, position scale |
+| Acceleration policy | element attributes, through `AccelerationController.setPolicy` | Policy (exempt) |
+
+## Gaps this inventory exposes
+
+1. No session verb edits data. Imports, node and edge edits, and attribute changes need session
+   commands before they can be steps.
+2. `scope.save`, `scope.remove` and `selection.promote` change saved sets with no change event.
+3. `run.rerun()` and reusing a run id through `runs.start` discard the previous result before the
+   new one exists, so a stored result cannot be restored today.
+4. `runs.remove` removes bound layers as separate fire-and-forget style edits; with undo they have
+   to join the run removal as one step.
+5. A run and the style layers auto-applied on its completion commit at different moments; they are
+   one gesture.
+6. Live mutable objects escape through `session.positions`, `data.store`, `selection.nodeMembers()`
+   / `edgeMembers()` and `visibility.masks`. Freezing project state in tests has to cover them or
+   hide them.
+7. `visibility.showContext` is the only synchronous visibility write and has no run.
+8. Positions, pins, and the layout choice are project state with no session writer.
+9. Found in the completeness check: several read surfaces freeze only one level or hand back the
+   caller's own object -- snapshot attribute tables, `data.node` / `data.edge`, saved scope specs,
+   the visibility filter and window, and style layers below their top level. Each is a way to
+   change project state with no event, and each would corrupt a history entry that holds the
+   object by reference.

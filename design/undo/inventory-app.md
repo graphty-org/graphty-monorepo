@@ -1,0 +1,205 @@
+# What the graphty app changes on graphty-element, and what undo needs from it
+
+This is an inventory of every place the graphty app (`graphty/src`) changes state that lives in
+graphty-element, plus every piece of the app's own undo machinery. It exists so that undo and
+redo can move into the element with no path left uncovered: a mutation missing from this list
+is a change the element's history would never record.
+
+Paths are relative to `graphty/src/`. Line numbers are from branch `feat/element-undo` as of
+2026-09-26. "Proposed" is the classification the element's command vocabulary should give the
+change: **undoable** (saved in the project and reverted by undo) or **exempt** (with the
+reason). Where the owner's rule -- "everything saved in the project file is undoable and nothing
+else" -- does not settle a row because the element has no project file yet, the row says
+**decide** and names the question.
+
+## 1. How the app reaches the element
+
+The app has four doors into the element. Every mutation below goes through one of them.
+
+| Door | Where | What it exposes |
+|---|---|---|
+| React props on `<Graphty>` | `components/shell/canvas/CanvasRegion.tsx:438-450`, fed from `components/shell/AppShell.tsx:4955-4964` | `layout`, `layoutConfig`, `viewMode`, `acceleration`, `layers` (ignored), `dataSource`/`dataSourceConfig`/`replaceExisting` (never passed by the shell) |
+| The `GraphtyHandle` imperative handle | `components/Graphty.tsx:210-402` | `loadFromUrl`, `loadFromFile`, `loadData`, `clearData`, `pin`, `unpin`, `captureScreenshot`, `getData`, `graph`, `session` |
+| The raw `Graph` object, `handle.graph` | `components/Graphty.tsx:192-208`, narrowed by `components/shell/analysis/elementBridge.ts:86-112`, invoked by name in `components/shell/graphCommands.ts:71-94` | `getSession()`, `runAlgorithm`, camera verbs, `selectNode`, `deselectNode`, `setXRConfig`, `addListener`, `dataManager` (private) |
+| The session, `graph.getSession()` / `handle.session` | `elementSession()` at `components/shell/analysis/elementBridge.ts:110` | `styles.*`, `runs.*`, `selection.*`, `data.statistics()`, `estimate`, `catalog` |
+
+Only the session door is a command surface. The other three write element state through
+property setters and private members, which a dispatcher cannot see. Moving them onto session
+commands is a precondition for the lint rule the issue asks for.
+
+## 2. Every mutation of element state
+
+### 2.1 Data: loads, clears, imports
+
+| # | File:line | Gesture | Element call | What changes | Proposed | Notes |
+|---|---|---|---|---|---|---|
+| D1 | `components/Graphty.tsx:326-327` | Load from URL, format sniffed from content | `element.dataSource = fmt; element.dataSourceConfig = {data}` | Whole node/edge set (async, chunked) | undoable (import) | Property setter, not a command. Format sniffing is app-side (`Graphty.tsx:108-186`) and is itself an element gap |
+| D2 | `components/Graphty.tsx:332-333` | Load from URL, format known | `element.dataSource = fmt; element.dataSourceConfig = {url}` | Same | undoable (import) | Same |
+| D3 | `components/Graphty.tsx:360-361` | Load from file | `element.dataSource = fmt; element.dataSourceConfig = {data}` | Same | undoable (import) | Same |
+| D4 | `components/Graphty.tsx:368-369` | Paste, inline sample, `?test` fixture | `element.dataSource = fmt; element.dataSourceConfig = config` | Same | undoable (import) | Same |
+| D5 | `components/Graphty.tsx:392` | Any `handle.clearData()` | `element.clearData()` | Drops all data, resets the per-load guard | undoable (part of the gesture that calls it) | Emits no event (`AppShell.tsx:1940-1944` comment) |
+| D6 | `components/Graphty.tsx:422-428` | Prop-driven load | `graph.dataManager.clear()` then `dataSource`/`dataSourceConfig` setters | Same | undoable | Dead path today: the shell never passes `dataSource` to `<Graphty>` (`AppShell.tsx:4957-4964`). Reaches a private member; delete rather than migrate |
+| D7 | `components/shell/AppShell.tsx:2336-2470` (`handleLoad`), clear at `2383`, loads at `2388`/`2394`/`2400` | Load data dialog (`LoadDataModal.tsx:369`), Data panel drop (`panel/DataPanel.tsx:369`), Welcome drop (`AppShell.tsx:4995`) | `clearData()` + `crossDatasetBoundary()` + D1-D4 | Replaces the dataset | undoable, ONE step with everything in 2.6 | Additive loads over a live graph are refused app-side (`2376-2378`) |
+| D8 | `components/shell/AppShell.tsx:2474-2535` (`loadSample`), clear at `2506`, loads at `2516`/`2523` | Sample row in Data panel (`3824`), Welcome list (`4925`), sample hint (`4933`) | `clearData()` + `crossDatasetBoundary()` + D2/D4 | Replaces the dataset | undoable, one step | A hint click also runs Find groups afterwards (2.6) |
+| D9 | `components/shell/AppShell.tsx:2284` | `?test` URL parameter on first mount | `loadData("json", ...)` | Loads the cat fixture | exempt (test harness), or undoable as an import | No `clearData` first |
+| D10 | `components/shell/AppShell.tsx:1985` | A load that failed (`reportLoadFailure`) | `clearData()` | Drops the partial records | decide: should a failed load leave any step at all? | Recovery, not a user gesture. Proposal: a failed import is never recorded and restores the previous state |
+| D11 | `components/shell/AppShell.tsx:3743` + `crossDatasetBoundary()` at `3752` | Data panel overflow, "Close dataset" | `clearData()` + style sweep | Empties the graph | undoable | Still in `CONFIRMED_IRREVERSIBLE_ACTIONS` (`topbar/undoStore.ts:133-137`); once undoable it should lose its confirmation |
+
+### 2.2 Style layers
+
+| # | File:line | Gesture | Element call | What changes | Proposed | Notes |
+|---|---|---|---|---|---|---|
+| S1 | `components/shell/AppShell.tsx:2572-2588` (`updateLayer`) | Inspector channel edit (`sidebar/panels/StyleLayerPropertiesPanel.tsx:168-185`), selector edit (`:187-196`), rename (below) | `session.styles.update(id, patch)` | One layer's spec | undoable | **Gesture merging needed:** the colour picker (`sidebar/controls/CompactColorInput.tsx:76-97`, Mantine `ColorPicker` `onChange` at `:176`) fires on every drag frame, one `update` per frame. Number and hex inputs commit on blur (`StyleNumberInput.tsx:73-83`, `CompactColorInput.tsx:111-121`) |
+| S2 | `components/shell/AppShell.tsx:2596-2612` (`resolveLayerChannel`) | "Make editable" on a data-driven channel (`StyleLayerPropertiesPanel.tsx:310`) | `session.styles.resolveToStatic(id, channel)` | Converts a rule to a literal | undoable | |
+| S3 | `components/shell/AppShell.tsx:2622-2670` (`handleLayersChange`); rename at `2634`, move at `2658` | Layer list rename (`layout/LeftSidebar.tsx:122-137`, `:257-260`) and drag reorder (`LeftSidebar.tsx:239-254`) | `styles.update(id, {name})`, `styles.move(id, aboveId)` | Name; stack order | undoable | A rename is reported as a whole-list change and diffed app-side |
+| S4 | `components/shell/AppShell.tsx:2676-2693` (`handleAddLayer`) | Style panel "Add layer" | `session.styles.add({...})` | New user layer | undoable | Name counter `layerCounter` (`1150`) is app state and does not rewind on undo -- harmless |
+| S5 | `components/shell/AppShell.tsx:3762-3782` | Style panel overflow, "Reset styles" | `session.styles.removeBySource(() => true)` | Removes every non-element layer | undoable | |
+| S6 | `components/shell/AppShell.tsx:2163-2170` (inside `crossDatasetBoundary`) | Every replacing load and Close dataset | `styles.removeBySource(shell-template or run)` | Removes load defaults and run layers | undoable, folded into the load/close step | |
+| S7 | `components/shell/AppShell.tsx:3344` | Automatic, after each load (2.6) | `session.styles.add(topDegreeLabelLayer(...))` (`defaults/styleDescriptors.ts`) | Adds the top-degree label layer | undoable, folded into the load step | |
+| S8 | `components/shell/AppShell.tsx:3079` | Running a node metric whose run did not paint | `session.styles.encode({run, channel: "node.color"})` | Adds a run-owned encoding layer | undoable, folded into the run step | |
+| S9 | `components/shell/AppShell.tsx:4169-4182` (`removeResultLayers`) -> `defaults/encodingReport.ts:117-121` (`removeRunLayers`) | Result card "Delete layer" (`4241`) and "Remove result" (`4275`) | `styles.removeBySource(run == id)` | Removes a run's layers | undoable | "Remove result" promises "deletes the run and every layer that reads it" (`4271-4274`) but removes ONLY the layers; the run stays in `session.runs`. Needs a `runs.remove` command |
+| S10 | `components/Graphty.tsx:438` | Mount | `element.layoutBehavior = {labels: {declutter: true}}` | Label declutter behaviour | exempt (consumer configuration, set once) | Property setter |
+
+### 2.3 Algorithm runs and results
+
+| # | File:line | Gesture | Element call | What changes | Proposed | Notes |
+|---|---|---|---|---|---|---|
+| R1 | `components/shell/analysis/runs.ts:188-193` (`runDegreePass`), called at `AppShell.tsx:3313` | Automatic, after each load | `session.runs.start("degree", {}, {style: false})` | Adds a run and its result | undoable, folded into the load step | Background work the reader did not ask for; must not be its own step |
+| R2 | `components/shell/analysis/runs.ts:205-236` (`runCommunityDetection`), called from `runFindGroups` `AppShell.tsx:2815-2914` | Groups card (`3857`), insight strip card (`4858-4864`), sample hint after load (`3368`) | `session.runs.start(community)` | Run, result, and the categorical encoding the run paints itself | undoable, one step (run + result + style + legend) | App pushes its own history entry at `2896-2904` |
+| R3 | `components/shell/analysis/nodeMetrics.ts:470-477` (`runNodeMetric`), called from `runNodeMetricCard` `AppShell.tsx:2996-3242` | Suggested card (`3874`), insight strip (`4870-4884`), command palette (`4723-4730`), size-gate confirm (`5360`) | `session.runs.start(metric)` + possibly S8 | Run, result, encoding | undoable, one step | App pushes its own history entry at `3215-3223` |
+| R4 | `components/RunAlgorithmModal.tsx:123-183`, call at `166-169` | Analyze panel "Run an algorithm..." dialog (`panel/AnalyzePanel.tsx:1174-1180`) | `graph.runAlgorithm(ns, type, {applySuggestedStyles, algorithmOptions})` | Run, result, suggested styles | undoable, one step | Uses the raw `Graph` door, not `session.runs.start`; records no history entry at all. Also reads `graph.dataManager.nodes` (`:56-58`), a private member |
+| R5 | `hooks/useAiManager.ts:84-108`, `:130-150`; send at `components/shell/AppShell.tsx:3946` | AI panel message | `AiManager.init(graph)`, `manager.execute(text)` | Anything the element's AI tools do: `setLayout`, `setDimension`, `setImmersiveMode`, `runAlgorithm`, `findAndStyleNodes`, `findAndStyleEdges`, `clearStyles`, camera (`graphty-element/src/ai/commands/*.ts`) | each tool undoable or exempt by its own command; one message = one step | The tools run inside the element, so the element's dispatcher covers them only if they go through it. `setLayout` by the AI also leaves the app's `layoutType` state (below) stale |
+
+### 2.4 Layout, view mode, pins
+
+| # | File:line | Gesture | Element call | What changes | Proposed | Notes |
+|---|---|---|---|---|---|---|
+| L1 | `components/Graphty.tsx:443-450` (effect), fed by `setLayoutType`/`setLayoutConfig` at `AppShell.tsx:2695-2698` (`handleApplyLayout`) | Style panel layout select (`panel/StylePanel.tsx:284-286`), layout dialog (`panel/StylePanel.tsx:380-382`, `RunLayoutsModal.tsx`), status bar layout picks (`AppShell.tsx:4490-4492`) | `element.layout = type; element.layoutConfig = config` | Layout engine and options (and then every position) | undoable (layout choice is saved) | **Prop-driven, so it fights undo:** the element's layout is also held in React state (`AppShell.tsx:1125-1126`); after an undo the app would keep and later re-push the stale value. The app must read layout from the element and change it through a command |
+| L2 | `components/shell/AppShell.tsx:3308-3309` | Automatic, after each load: `recommendLayout` | Same as L1 | Layout | undoable, folded into the load step | |
+| L3 | `components/shell/AppShell.tsx:4541-4543` | Status bar layout menu "Re-run" | `handleApplyLayout(sameType, sameConfig)` | Nothing: same values are a React no-op | decide: is a re-run (new positions, same choice) a step? | A separate bug: the verb does nothing today |
+| L4 | `components/Graphty.tsx:458-462`, fed by `setViewMode` at `AppShell.tsx:3455-3457` and `5220` | Toolbar 2D/3D segment, key binding, palette row (`4669-4673`) | `element.viewMode = "2d" or "3d"` | Dimension of the scene and layout | decide: saved in the project, or a view setting like the camera? | Prop-driven, same stale-state problem as L1 |
+| L5 | `components/shell/AppShell.tsx:4092-4108` (`togglePin`) -> `components/Graphty.tsx:371-376` | Node inspector Pin/Unpin (`4390-4397`) | `element.pin(id)`, `element.unpin(id)` | Pinned flag and fixed position | undoable if pins are saved (they survive layout and dimension changes today) | The element also pins on DRAG (`pinOnDrag`, `graphty-element/src/Node.ts:70`), which moves a node and pins it with no app call at all. A drag is a gesture the element must record itself |
+| L6 | `components/shell/graphCommands.ts:230-232`, called at `AppShell.tsx:1609` | Mount | `graph.setXRConfig({ui: {enabled: false}})` | Built-in XR buttons off | exempt (chrome configuration) | |
+| L7 | `components/Graphty.tsx:564`, `AppShell.tsx:1210-1213` | Settings, acceleration policy | `acceleration` attribute | GPU policy | exempt (reader preference, stored in the browser, not the project) | |
+
+### 2.5 Camera and selection (not steps, but they touch the element)
+
+| # | File:line | Gesture | Element call | Proposed | Notes |
+|---|---|---|---|---|---|
+| C1 | `components/shell/graphCommands.ts:116-200`; handlers at `AppShell.tsx:3431-3454`, `5242`, palette `4654-4667` | Zoom in/out/fit/selection, Reset view, Top/Front/Side | `zoomToFit`, `getCameraState`/`setCameraState`, `setCameraZoom`, `setCameraTarget`, `resetCamera` | exempt (camera) | |
+| C2 | `components/shell/graphCommands.ts:211-221`; calls at `AppShell.tsx:2860`, `3133`, `3145`, `3508`, `3537`, `4329`, `4383` | Deselect around a run, Escape, open a result, Most connected row, neighbour row | `graph.selectNode(id)`, `graph.deselectNode()` | exempt (selection) | The raw `Graph` door, not `session.selection` |
+| C3 | `components/shell/AppShell.tsx:1639-1667` | Explore search field | `session.selection.clear()`, `session.selection.apply({text, scope})` | exempt (selection) | |
+| C4 | `components/Graphty.tsx:380-386`, `AppShell.tsx:1224-1245` | Present panel export/copy image | `captureScreenshot` | exempt (read-only) | |
+
+### 2.6 One gesture that makes many changes
+
+A replacing load is the gesture that most needs `session.transaction`. From one click it
+performs, in order and partly asynchronously:
+
+1. `clearData()` (D5) and the style sweep (S6), `AppShell.tsx:2383-2384` / `2506-2507`
+2. the import itself (D1-D4), which completes in chunks and is announced by `data-loaded`
+3. on the first complete load, `AppShell.tsx:3281-3395`: the recommended layout (L2), the
+   degree pass (R1), the top-degree label layer (S7) and, for a sample hint, Find groups (R2)
+
+The issue requires that to be one step, labelled with the file name. Today steps 1-3 are spread
+across an event handler, a DOM event listener and a React effect, so the element cannot see
+them as one gesture unless it owns the whole load-and-defaults sequence or the app wraps it in
+one transaction that stays open until the defaults finish.
+
+The same is true of a node-metric run that also encodes (R3 + S8) and of a Close dataset
+(D11 + S6).
+
+## 3. Mutations the app offers but has not wired
+
+These surfaces are drawn but call nothing, or are marked not shipped. Each is an undoable
+change the element's vocabulary must cover the day it lands.
+
+| File:line | Surface | Change it would make |
+|---|---|---|
+| `components/shell/AppShell.tsx:3831-3844` (props passed to `ExplorePanel`); sections at `panel/ExplorePanel.tsx:444-545` | Filter builder, saved filters, sets, views, notes, time window | Filters, time window, saved sets and views, notes -- none of the `on*` props are passed |
+| `components/shell/AppShell.tsx:4372-4381` | Node inspector notes | `onToggleNoteDone`, `onDeleteNote` are `() => undefined`; `onAddNote` only opens Explore |
+| `components/shell/inspector/NodeInspector.tsx:56-75` | Merge with, Tag, Bookmark, Expand neighbours, Radial layout, Use as root | Node merge, tags, bookmarks |
+| `components/shell/inspector/EdgeInspector.tsx:84-89` | Delete edge ("undoable" per its header, `:7`) | Edge deletion |
+| `components/shell/inspector/MultiSelectionInspector.tsx:70-77` | Filter to selection, Save as set/subgraph, Style selection, Merge | Filters, sets, styles, merges |
+| `components/shell/inspector/CleaningStepInspector.tsx:7-9`, `:63-64` | Cleaning step "Undo this step", "Re-apply this step" | Per-step undo of a data mutation; its header says it waits on "a mutation API that returns an inverse for undo" -- this work |
+| `components/shell/panel/StylePanel.tsx:125-129`, `:302`, `:341`, `:352` | Apply style preset, Save style | Preset application (not passed by `AppShell`) |
+| `components/shell/AppShell.tsx:4337-4338` | Graph summary "Filter to type", "Select all of type" | Filters |
+| `components/shell/canvas/CanvasRegion.tsx:565-569` | Time slider step/play | Time window (no handlers passed) |
+| `components/shell/AppShell.tsx:5249-5250` | Enter VR / Enter AR | Not a step (`exitXrSession` is listed exempt in `undoStore.ts:66-72`); provenance "in VR" is expected on history rows |
+| `components/shell/panel/AnalyzePanel.tsx:1151` | Analyze "History" section | Drawn `empty`; the spec's filtered view of the whole history |
+| (none) | Data panel "Cleaning steps" view | Named in `undoStore.ts:6-8` and served by `cleaningSteps()` (`:337`), but no component renders it |
+
+## 4. The app's own undo machinery
+
+| File:line | What it is | What happens to it |
+|---|---|---|
+| `components/shell/topbar/undoStore.ts` (whole file) | The history store: categories, entries, `pushEntry`/`undo`/`redo`/`restoreTo`, `cleaningSteps`, `historyRows`, `useUndoStore`. It moves an index and reverts nothing | Delete. `historyRows` (XR grouping) and the category-to-panel mapping are presentation and may survive in a small app module over the session's history |
+| `components/shell/topbar/undoStore.ts:133-177` | `CONFIRMED_IRREVERSIBLE_ACTIONS`, `needsConfirmation`, `isConfirmedIrreversibleAction` | Used only by its own test. Delete, or move the rule into the element's command metadata (undoable commands need no confirmation) |
+| `components/shell/constants.ts:813-816` | `UNDO_DEPTH = 50` | Delete: the issue caps history by memory, in the element. Also asserted in `components/shell/__tests__/constants.test.ts` |
+| `components/shell/AppShell.tsx:232` | Import of `historyRows`, `useUndoStore` | Replace with the session |
+| `components/shell/AppShell.tsx:1476-1483` | `const undoStore = useUndoStore()` | Replace with a hook that reads `session.history` and subscribes to its change event |
+| `components/shell/AppShell.tsx:2896-2904` | History push for Find groups | Delete: the run is the step |
+| `components/shell/AppShell.tsx:3215-3223` | History push for a node metric | Delete: the run is the step |
+| `components/shell/AppShell.tsx:3654`, `3660` | Key bindings `redo`/`undo` -> `undoStore.redo`/`undoStore.undo` | Call `session.redo()`/`session.undo()` |
+| `components/shell/AppShell.tsx:5127-5157` | `TopBar` props: `canUndo`, `canRedo`, `onUndo`, `onRedo`, `onOpenHistory` (no-op), `history.rows/entryCount/undoneCount/onRestore/onOpenOwningPanel` | Feed from the session |
+| `components/shell/bindings.ts:348`, `:367`, `:813-830` | `undo` (Mod+Z) and `redo` (Shift+Mod+Z, Ctrl+Y) bindings | Keep; handlers change. See the double-key note in section 5 |
+| `components/shell/bindings.ts:631` | A Cleaning-step binding note ("undoable, with a toast carrying Undo") | Unshipped; no toast exists |
+| `components/shell/useShellKeyBindings.ts:130-225` | The dispatcher that runs the bindings on `window` | Unchanged |
+| `components/shell/topbar/UndoSplitButton.tsx` | Undo button with the History caret | Keep; takes `canUndo`/`onUndo` |
+| `components/shell/topbar/HistoryPopover.tsx` (imports `HistoryEntry`, `HistoryEntryRow`, `HistoryRow` at `:67`; `onRestore` `:139`, `onPreview` `:100`) | The History pop-out | Keep; its row types must come from the session's history entry. `onPreview` is never passed by `AppShell` |
+| `components/shell/topbar/TopBar.tsx:32`, `:68-69`, `:83-111`, `:142-156`, `:200-215`, `:360-370` | Wires the button, Redo and the pop-out; `TopBarHistory` type | Keep; retype over the session's entries |
+| `components/shell/types.ts:517-526` | `canUndo`, `canRedo`, `onUndo`, `onRedo`, `onOpenHistory` on `TopBarProps` | Keep |
+| `components/shell/topbar/topBarStrings.ts:119`, `:148`, `:171`, `:244-254`; `topBarGeometry.ts` pop-out constants; `topBarGlyphs.tsx:25-30` | Labels, geometry, glyphs | Keep |
+| `components/shell/canvas/legendAvailability.ts:44` | Comment about "Undo the layers" | Unchanged |
+| Tests: `topbar/__tests__/undoStore.test.ts`, `UndoSplitButton.test.tsx`, `HistoryPopover.test.tsx`, `TopBar.test.tsx`, `topBarStrings.test.ts`, `topBarGeometry.test.ts`, `__tests__/constants.test.ts`, `__tests__/AppShell.test.tsx:1463-1490`, `:2412-2431`, `:3607-3619`, `:4147` | Assert the app store and "1 entry, 0 undone" after a run | `undoStore.test.ts` goes; the AppShell cases must assert the session's history instead, and `test/fakeSession.ts` needs `undo`/`redo`/`history` |
+| `graphty-element/src/managers/InputManager.ts:295-300` (element side) | Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z, Ctrl/Cmd+Y on the canvas emit `input:undo`/`input:redo` | Nothing in the app listens (no match for `input:undo` in `graphty/src`). The element should run its own undo on these keys, which then collides with the app's window-level Mod+Z (section 5) |
+
+## 5. What the app needs from graphty-element before its store can be deleted
+
+1. **History on the session.** `session.undo()`, `session.redo()`, `session.canUndo`,
+   `session.canRedo`, and `session.history`: entries oldest first, with the current position,
+   and a change event. Each entry carries a stable id, a user-facing label in the reader's own
+   words ("Ran Bridges (betweenness)", "Merge acct-0093 into acct-4471"), a timestamp, the
+   command id or category, and whether it is a data mutation (so the app can filter a Cleaning
+   steps view without keeping its own table). Optional provenance ("by voice, in VR") and an XR
+   session id let the pop-out keep its grouping.
+2. **Jump and clear.** `session.history.restoreTo(entryId)` for a History row click, and a
+   history clear for "Clear history".
+3. **Transactions that span async work.** `session.transaction(label, fn)` must stay open across
+   an awaited import that completes on `data-loaded` and the defaults that follow it (section
+   2.6), or the element must own the whole load-and-defaults sequence so the app never has to
+   group it. Continuous gestures -- the colour picker drag (S1) and a node drag that pins (L5) --
+   need merging too.
+4. **Every app mutation as a session command.** Today these bypass the session and cannot be
+   recorded: the `dataSource`/`dataSourceConfig` setters (D1-D4, D6), `clearData` (D5),
+   `element.layout`/`layoutConfig` (L1), `element.viewMode` (L4), `pin`/`unpin` on the element
+   (L5), `graph.runAlgorithm` (R4), `graph.selectNode`/`deselectNode` (C2), and the private
+   `graph.dataManager` reads (`Graphty.tsx:272-296`, `RunAlgorithmModal.tsx:56-58`).
+5. **A way to remove a run.** "Remove result" promises to delete the run; only its layers go
+   (S9). A `runs.remove(runId)` command, undoable, whose undo restores the stored result
+   without recomputing it.
+6. **Read-back events for state the app mirrors.** After an undo the app must re-read, not
+   remember: layout and layout config (L1, today React state that would re-push a stale value),
+   view mode (L4), the pinned set (L5, today refreshed only on the app's own verb and on
+   drag-end), node and edge data and statistics (an undone import removes records, and
+   `DataManager.clear()` emits no event), and runs (the app holds the active result card,
+   `degreePass`, `labelShortfall` and the legend channel in React state, written only when its
+   own run returns). Either the element publishes a change event for each, or one
+   `history:change` event tells the app to re-read everything.
+7. **Selection after undo.** Undo and redo select what changed and report it through the
+   existing `graphty-selection-change` event with a cause the app can tell from "user" and
+   "api", so the Explore field (`AppShell.tsx:1672-1690`) does not treat it as its own.
+8. **One owner for the undo keys.** The element's `InputManager` already sees Mod+Z on the
+   canvas; the app's dispatcher sees it on `window`. Once both act, one press undoes twice. The
+   element needs either to own the keys (and the app drops its bindings, keeping the button) or
+   an option to leave them to the host.
+9. **Runs during undo.** Undo while a run is in flight cancels it (the issue's rule). The app's
+   `runningMetric` spinner (`AppShell.tsx:3037-3240`) must end when the element reports the run
+   cancelled; today it ends only in the `finally` of its own await.
+10. **AI tools through the dispatcher.** The assistant's tools (R5) mutate the element from
+    inside it; they are covered only if they go through the same command path, and one
+    assistant message should be one step.
+
+Open classification questions for the design (the element has no project file yet, so "saved in
+the project" is not yet a checkable rule): whether 2D/3D view mode is project state (L4),
+whether node positions and pins are (L3, L5), and whether a failed load leaves any trace (D10).

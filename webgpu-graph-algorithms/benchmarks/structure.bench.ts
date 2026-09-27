@@ -3,9 +3,9 @@
  * the edge-list upload, the simple symmetric graph build and the result readback, on the seeded G(n, m) of every tier
  * (10k / 100k, 100k / 1M, 1M / 10M). The snapshot is built once per tier outside the case; `teardown` releases it, so
  * every run re-uploads, as a first call on a fresh snapshot does. Label propagation runs to its fixed point (the
- * passes are printed beside the row, because the wall time is proportional to them). No target yet: the rows exist
- * so the crossover against the CPU can be measured on a quiet machine; they are not in bench-append-session's
- * required groups until a baseline carrying them is recorded.
+ * passes are printed beside the row, because the wall time is proportional to them). No target: the crossover
+ * against the CPU was measured separately, with both arms interleaved in one process, and is recorded in
+ * design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md.
  */
 
 import { labelPropagation } from "../src/algorithms/label-propagation.js";

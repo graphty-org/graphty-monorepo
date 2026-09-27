@@ -221,8 +221,9 @@ export interface SelectionApi {
      * Keep this selection under a name, as a kept set created from the selection, so it can be
      * named as `{ set: id }` later.
      *
-     * The kept set holds the selected NODES: its edges are induced from its nodes, so a selected
-     * edge whose endpoints are not selected is not an edge any work over that set could follow.
+     * The kept set holds the selected nodes and the selected edges. With nodes selected it reads
+     * `induced`: every edge between its nodes comes with it, and the selected edges are kept
+     * beside them. With edges alone it reads `listed`: those edges and their endpoints.
      * @deprecated Use `session.sets.createFrom("selection")` once it is available; this verb
      * keeps working.
      * @param name - The name to save it under.
@@ -700,11 +701,12 @@ class Selection implements SelectionOwner {
     }
 
     /**
-     * Keep this selection under a name, as a kept set over its nodes, created from the selection.
+     * Keep this selection under a name, as a kept set of its nodes and edges, created from the
+     * selection.
      * @param name - The name to save it under.
      * @returns The minted set id.
      * @throws A `GraphtyError` coded `E_UNSUPPORTED` when no scope resolver is attached, or
-     *   `E_SCOPE_EMPTY` when no node is selected.
+     *   `E_SCOPE_EMPTY` when nothing is selected.
      */
     promote(name: string): ScopeId {
         this.#sync();
@@ -719,16 +721,18 @@ class Selection implements SelectionOwner {
             });
         }
 
-        if (this.#nodes.size === 0) {
+        if (this.#nodes.size === 0 && this.#edges.size === 0) {
             throw new GraphtyError({
                 code: "E_SCOPE_EMPTY",
-                message: `No node is selected, so there is nothing to save as "${name}".`,
+                message: `Nothing is selected, so there is nothing to save as "${name}".`,
                 source: "run",
-                details: { name, edges: this.#edges.size },
+                details: { name },
             });
         }
 
-        return createSetAs(scope.sets, { kind: "fixed", nodes: this.#nodes.ids(), reading: "induced" }, name, { kind: "selection" });
+        const reading = this.#nodes.size === 0 ? "listed" : "induced";
+
+        return createSetAs(scope.sets, { kind: "fixed", nodes: this.#nodes.ids(), edges: this.#edges.ids(), reading }, name, { kind: "selection" });
     }
 
     /**

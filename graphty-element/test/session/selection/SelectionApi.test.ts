@@ -611,6 +611,9 @@ describe("keeping a selection under a name", () => {
 
         assert.strictEqual(id, "set_core-hosts");
         assert.deepStrictEqual([...scope.resolveNow({ set: id }).nodes].sort(), ["a", "b"]);
+        const definition = scope.sets.get(id)?.definition;
+        assert.strictEqual(definition?.kind === "fixed" ? definition.edges?.length : undefined, 1, "the selected edge is kept");
+        assert.strictEqual(definition?.kind === "fixed" ? definition.reading : undefined, "induced", "nodes were selected");
         harness.session.dispose();
     });
 
@@ -623,6 +626,13 @@ describe("keeping a selection under a name", () => {
 
         assert.strictEqual(codeOf(() => withScopes.promote("empty")), "E_SCOPE_EMPTY");
         assert.strictEqual(codeOf(() => without.promote("nowhere")), "E_UNSUPPORTED");
+
+        // Edges alone are something: they are kept, listed, with their endpoints.
+        withScopes.applyNow({ edges: [edgeBetween(harness, "a", "b")] });
+        const id = withScopes.promote("edges");
+        const kept = scope.sets.get(id)?.definition;
+        assert.strictEqual(kept?.kind === "fixed" ? kept.reading : undefined, "listed");
+        assert.deepStrictEqual([...scope.resolveNow({ set: id }).nodes].sort(), ["a", "b"]);
         harness.session.dispose();
     });
 });

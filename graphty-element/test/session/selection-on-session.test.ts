@@ -131,7 +131,7 @@ describe("session.selection", () => {
 
     it("keeps a selection under a name, and the scope resolves to it afterwards", async () => {
         const harness = harnessOf();
-        await harness.session.selection.apply({ nodes: ["a", "b"] });
+        await harness.session.selection.apply({ nodes: ["a", "b"], edges: [edgeBetween(harness, "a", "b")] });
 
         const id = harness.session.selection.promote("my picks");
         harness.session.selection.clear();
@@ -140,6 +140,12 @@ describe("session.selection", () => {
 
         assert.deepStrictEqual([...scope.nodes].sort(), ["a", "b"], "the saved set outlives the selection");
         assert.strictEqual(harness.session.scope.list()[0]?.name, "my picks");
+        const definition = harness.session.sets.get(id)?.definition;
+        assert.deepStrictEqual(
+            definition?.kind === "fixed" ? [definition.reading, definition.edges?.length] : [],
+            ["induced", 1],
+            "the selected edge is kept beside the selected nodes",
+        );
         harness.session.dispose();
     });
 

@@ -100,6 +100,8 @@ const HITS_FIELDS: readonly FieldDescriptor[] = [
 export class HITSAlgorithm extends MetricAlgorithm<HITSOptions> {
     static namespace = "graphty";
     static type = "hits";
+    /** Computes over the run's scope: the node list and the graph both come from the input. */
+    static scopeInput = "subgraph" as const;
 
     static zodOptionsSchema: ZodOptionsSchema = hitsOptionsSchema;
 

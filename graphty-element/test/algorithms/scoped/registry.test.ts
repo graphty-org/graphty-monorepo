@@ -38,7 +38,7 @@ const EXPECTED: Readonly<Record<string, "on" | "off">> = {
     "graphty:eigenvector": "off",
     "graphty:floyd-warshall": "off",
     "graphty:girvan-newman": "off",
-    "graphty:hits": "off",
+    "graphty:hits": "on",
     "graphty:k-core": "off",
     "graphty:katz": "off",
     "graphty:kruskal": "off",

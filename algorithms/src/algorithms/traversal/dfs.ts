@@ -86,7 +86,7 @@ function dfsIterative(
             }
 
             // Early termination if target found
-            if (options.targetNode && current.node === options.targetNode) {
+            if (options.targetNode !== undefined && current.node === options.targetNode) {
                 break;
             }
 
@@ -135,7 +135,7 @@ function dfsRecursive(
         }
 
         // Early termination if target found
-        if (options.targetNode && node === options.targetNode) {
+        if (options.targetNode !== undefined && node === options.targetNode) {
             return;
         }
     }

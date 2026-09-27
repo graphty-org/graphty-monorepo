@@ -55,7 +55,7 @@ export function dijkstra(graph: Graph, source: NodeId, options: DijkstraOptions 
         visited.add(currentNode);
 
         // Early termination if target reached
-        if (options.target && currentNode === options.target) {
+        if (options.target !== undefined && currentNode === options.target) {
             break;
         }
 

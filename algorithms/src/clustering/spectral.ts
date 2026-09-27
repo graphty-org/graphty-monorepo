@@ -102,7 +102,7 @@ export function spectralClustering(graph: Graph, options: SpectralClusteringOpti
     for (let i = 0; i < nodeIds.length; i++) {
         const clusterId = kmeans.assignments[i] ?? 0;
         const nodeId = nodeIds[i];
-        if (!nodeId) {
+        if (nodeId === undefined) {
             continue;
         }
 
@@ -151,7 +151,7 @@ function buildAdjacencyMatrix(graph: Graph, nodeIds: NodeId[]): number[][] {
 
     for (let i = 0; i < n; i++) {
         const nodeId = nodeIds[i];
-        if (!nodeId) {
+        if (nodeId === undefined) {
             continue;
         }
 

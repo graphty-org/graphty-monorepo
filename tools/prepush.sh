@@ -124,6 +124,10 @@ run_step "Knip (production dependencies)" "pnpm run lint:knip:prod"
 # WebGPU peer fell four breaking releases behind. Needs the build above. About 3 seconds (2026-09-24).
 run_step "Published dependencies" "pnpm run check:published-deps -- $DIR_LIST"
 
+# Every tool a package's scripts run or its *.config.* files import is declared by that package,
+# not only by the root, where hoisting hides the gap until the package builds somewhere else.
+run_step "Declared build tools" "pnpm run check:declared-tools"
+
 # Dead relative links and #anchors in the Markdown, MDX and HTML, and links to this repository's own
 # files on GitHub, resolved against the working tree. Offline: the network half of the check
 # (github.com/graphty-org, and graphty.app against the assembled site) runs in CI's "Links" job,

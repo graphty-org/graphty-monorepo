@@ -7,8 +7,8 @@
  */
 import { ActionIcon, Button, Checkbox, MantineProvider, Switch, TextInput } from "@mantine/core";
 import { render } from "@testing-library/react";
-import { userEvent } from "@vitest/browser/context";
 import { describe, expect, it } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { compactTheme } from "../../src";
 

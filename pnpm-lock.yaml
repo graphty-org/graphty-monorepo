@@ -632,6 +632,9 @@ importers:
       '@babylonjs/core':
         specifier: ^8.36.1
         version: 8.43.0
+      '@graphty/graph-samples':
+        specifier: workspace:^
+        version: link:../graph-samples
       '@graphty/remote-logger':
         specifier: workspace:^
         version: link:../remote-logger

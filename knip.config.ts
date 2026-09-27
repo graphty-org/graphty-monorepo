@@ -162,8 +162,17 @@ const config: KnipConfig = {
                 "stories/**/*.stories.ts",
                 "scripts/**/*.{ts,js}",
                 ".storybook/*.js",
+                // The Node timing runner (`npm run benchmark`); records, never asserts.
+                "benchmarks/run.ts",
             ],
-            project: ["*.ts!", "src/**/*.ts!", "test/**/*.ts", "stories/**/*.ts", "scripts/**/*.{ts,js}"],
+            project: [
+                "*.ts!",
+                "src/**/*.ts!",
+                "test/**/*.ts",
+                "stories/**/*.ts",
+                "scripts/**/*.{ts,js}",
+                "benchmarks/**/*.ts",
+            ],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
             ignoreDependencies: [
                 // Peer dependencies (provided by consumer)

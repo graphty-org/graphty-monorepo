@@ -1,0 +1,64 @@
+[
+    {
+        "date": "2026-09-27T00:56:24.435Z",
+        "host": "dev.ato.ms",
+        "node": "v22.22.1",
+        "cpu": "Intel(R) Core(TM) i9-14900KF",
+        "exposeGc": false,
+        "results": [
+            {
+                "group": "sets",
+                "name": "revisionOf(fixed, 100k nodes)",
+                "medianMs": 9.609137000000004,
+                "minMs": 9.382256000000012,
+                "maxMs": 11.272542999999985,
+                "runs": 5,
+                "memoryDeltaBytes": -6422120,
+                "rate": 10406761.814302363,
+                "rateUnit": "members/s"
+            },
+            {
+                "group": "sets",
+                "name": "revisionOf(fixed, 100k listed edges)",
+                "medianMs": 139.95905300000004,
+                "minMs": 137.87802699999997,
+                "maxMs": 148.43888199999992,
+                "runs": 5,
+                "memoryDeltaBytes": -1709096,
+                "rate": 714494.6886715501,
+                "rateUnit": "members/s"
+            }
+        ]
+    },
+    {
+        "date": "2026-09-27T00:56:39.197Z",
+        "host": "dev.ato.ms",
+        "node": "v22.22.1",
+        "cpu": "Intel(R) Core(TM) i9-14900KF",
+        "exposeGc": false,
+        "results": [
+            {
+                "group": "sets",
+                "name": "revisionOf(fixed, 1M nodes)",
+                "medianMs": 103.47534000000019,
+                "minMs": 102.78682200000003,
+                "maxMs": 153.97834899999998,
+                "runs": 5,
+                "memoryDeltaBytes": 35419152,
+                "rate": 9664138.3347955,
+                "rateUnit": "members/s"
+            },
+            {
+                "group": "sets",
+                "name": "revisionOf(fixed, 1M listed edges)",
+                "medianMs": 1446.563314000001,
+                "minMs": 1433.023909,
+                "maxMs": 1489.3151830000006,
+                "runs": 5,
+                "memoryDeltaBytes": 93542136,
+                "rate": 691293.6269860355,
+                "rateUnit": "members/s"
+            }
+        ]
+    }
+]

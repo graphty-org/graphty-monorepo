@@ -16,7 +16,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { AlgorithmDescriptor, AlgorithmKey, FieldDescriptor, RunId, Scope } from "../catalog/types";
+import type { AlgorithmDescriptor, AlgorithmKey, FieldDescriptor, RunId, Scope, SetId } from "../catalog/types";
 import type { GraphtyErrorCode } from "../errors";
 import {
     type CostEstimate,
@@ -26,6 +26,7 @@ import {
     estimateCost,
     gateRun,
     type MachineCalibration,
+    type ScopeCandidate,
 } from "./cost";
 import type { Caveats, ResolvedScope } from "./runs";
 import type { GraphStatistics } from "./types";
@@ -212,12 +213,10 @@ export interface PlanningContext {
     /** Reads the most recent timing of each algorithm on this machine. */
     readonly measurements?: () => ReadonlyMap<AlgorithmKey, CostMeasurement> | undefined;
     /**
-     * Whether the class a command would build computes over its scope (declares `scopeInput`).
-     * Absent, or answering false, a run over a scope computes on the whole graph and is estimated
-     * over it. Filled by the element, which holds the classes; a session built without one has
-     * none, and estimating over the whole graph never admits a run that should be refused.
+     * The kept sets, in listing order, for the scopes a refused run is pointed at.
+     * @returns Each set's id and name.
      */
-    scopedInput?: (algorithm: AlgorithmKey, params: Readonly<Record<string, unknown>>) => boolean;
+    readonly keptSets?: () => readonly { readonly id: SetId; readonly name: string }[];
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -282,7 +281,7 @@ function costInput(
        -- and refused -- over the whole graph: a small scope must not admit a whole-graph run. A
        scoped one pays for deriving its input on top. */
     const whole = scope.nodeCount === statistics.nodeCount && scope.edgeCount === statistics.edgeCount;
-    const scoped = !whole && (context.scopedInput?.(command.algorithm, command.params ?? {}) ?? false);
+    const scoped = !whole && descriptor?.scopeInput === "subgraph";
 
     return {
         input: {
@@ -300,6 +299,38 @@ function costInput(
             ...(command.sample === undefined ? {} : { sample: command.sample }),
         },
     };
+}
+
+/**
+ * The kept sets a refused run could be pointed at, sized over the graph as it stands. A set that
+ * cannot be resolved now (a detached one) or holds no node is left out.
+ * @param context - What planning reads.
+ * @returns The candidates, in listing order.
+ */
+export function keptSetScopes(context: PlanningContext): ScopeCandidate[] {
+    const { nodeCount, edgeCount } = context.statistics();
+    const candidates: ScopeCandidate[] = [];
+    for (const set of context.keptSets?.() ?? []) {
+        const spec: Scope = { set: set.id };
+        let resolved: ResolvedScope;
+        try {
+            resolved = context.resolveScope(spec);
+        } catch {
+            continue;
+        }
+
+        if (resolved.nodeCount > 0) {
+            candidates.push({
+                scope: spec,
+                label: set.name,
+                nodes: resolved.nodeCount,
+                edges: resolved.edgeCount,
+                derivationSeconds: derivationSeconds(nodeCount, edgeCount, resolved.edgeCount),
+            });
+        }
+    }
+
+    return candidates;
 }
 
 /**
@@ -371,6 +402,7 @@ export function planCommand(context: PlanningContext, command: SessionCommand): 
 
     const decision = gateRun(built.input, {
         limits: context.limits,
+        keptSets: () => keptSetScopes(context),
         ...(command.exact === undefined ? {} : { exact: command.exact }),
         ...(command.sample === undefined ? {} : { sample: command.sample }),
     });

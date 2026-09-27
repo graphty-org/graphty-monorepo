@@ -19,7 +19,7 @@ import {
     type ScopedInputOptions,
     type ScopeInputDeclaration,
 } from "./input/ScopedInput";
-import type { AlgorithmRunContext } from "./results/types";
+import type { RunControls } from "./results/types";
 import { type OptionsFromSchema, type OptionsSchema, resolveOptions } from "./types/OptionSchema";
 import { type AlgorithmGraphMode, toAlgorithmGraph } from "./utils/snapshotGraph";
 
@@ -90,6 +90,11 @@ export interface AlgorithmStatics {
      * and nothing at all identifying the code that actually did the work.
      */
     version?: string;
+    /**
+     * What a run over a scope computes on. See {@link Algorithm.scopeInput}; `register` publishes
+     * it as the descriptor's `scopeInput`.
+     */
+    scopeInput?: ScopeInputDeclaration;
     optionsSchema: OptionsSchema;
     /** @deprecated Use getZodOptionsSchema() instead */
     getOptionsSchema(): OptionsSchema;
@@ -106,6 +111,45 @@ export interface AlgorithmStatics {
 // Shared with every other copy of graphty-element on the page, so a plugin registered through one
 // reaches them all.
 const algorithmRegistry = new SharedImplementationMap<AlgorithmClass>("algorithm");
+
+/** Each authored descriptor's published copies, one per declaration, so a re-registration hands the registry the same object. */
+const publishedDescriptors = new WeakMap<AlgorithmDescriptor, Map<ScopeInputDeclaration, AlgorithmDescriptor>>();
+
+/**
+ * The descriptor the catalogue publishes: the authored one with `scopeInput` taken from the class.
+ * @param authored - What the plugin wrote.
+ * @param declared - The class's `static scopeInput`, `"none"` when absent.
+ * @param address - The class's registry address, for the refusal.
+ * @returns The published descriptor.
+ * @throws A `GraphtyError` with `E_BAD_COMMAND` when the authored descriptor states a different
+ *   `scopeInput` from the class: the run would compute over one thing and the planner price another.
+ */
+function withScopeInput(authored: AlgorithmDescriptor, declared: ScopeInputDeclaration, address: string): AlgorithmDescriptor {
+    if (authored.scopeInput !== undefined && authored.scopeInput !== declared) {
+        throw new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message:
+                `the algorithm registered as "${address}" publishes scopeInput "${authored.scopeInput}" and its class declares ` +
+                `"${declared}". Declare it once, as "static scopeInput", and leave it out of the descriptor.`,
+            source: "registry",
+            details: { kind: "algorithm", field: "descriptor.scopeInput", key: authored.key, declared, published: authored.scopeInput },
+        });
+    }
+
+    let copies = publishedDescriptors.get(authored);
+    if (copies === undefined) {
+        copies = new Map();
+        publishedDescriptors.set(authored, copies);
+    }
+
+    let published = copies.get(declared);
+    if (published === undefined) {
+        published = { ...authored, scopeInput: declared };
+        copies.set(declared, published);
+    }
+
+    return published;
+}
 
 /**
  * One piece of accelerable work, with the decision "accelerator or CPU" already taken.
@@ -237,13 +281,16 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
     static zodOptionsSchema?: ZodOptionsSchema;
 
     /**
-     * Whether this algorithm computes over its run's scope. `"subgraph"`: the input accessor hands
-     * a run's algorithm the compact snapshot of its scope; absent or `"none"`: the whole graph.
+     * Whether this algorithm computes over its run's scope. `"subgraph"`: the run context's
+     * `input` hands the algorithm its scope (the compact snapshot, and the scope's masks over the
+     * full graph), and the planner estimates the run over the scope. Absent or `"none"`: the whole
+     * graph, of whose values the element keeps the scope's, with a caveat saying so; the planner
+     * estimates and refuses the run as a whole-graph one.
      *
-     * A fact about the class at run time, because an algorithm that still lists its nodes from the
-     * data manager would compute over a scoped topology while reporting every node. Declare it
-     * only once every node list, edge read and count the class takes comes from {@link input}.
-     * @internal
+     * THE ONE DECLARATION: the input, the caveat and the published `descriptor.scopeInput` all
+     * read it. Declare it only once every node list, edge read and count the class takes comes
+     * from the input, because an algorithm that lists its nodes some other way would compute over
+     * a scoped topology while reporting every node.
      */
     static scopeInput?: ScopeInputDeclaration;
 
@@ -488,7 +535,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      *   publish.
      */
     publishResult(
-        _context: AlgorithmRunContext,
+        _context: RunControls,
         runId: string,
         _fields?: readonly FieldDescriptor[],
     ): Promise<RunResult | undefined> {
@@ -526,7 +573,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
 
         if (descriptor !== undefined) {
             publishAlgorithmDescriptor({
-                descriptor,
+                descriptor: withScopeInput(descriptor, statics.scopeInput ?? "none", `${ns}:${t}`),
                 namespace: ns,
                 type: t,
                 ...(cost === undefined ? {} : { cost }),

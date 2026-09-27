@@ -154,6 +154,21 @@ describe("starting a run", () => {
         }
     });
 
+    it("refuses the reserved scopeAs option before any work, so accepting it later is additive", () => {
+        const { runs } = harness();
+
+        try {
+            runs.start("degree", {}, { scopeAs: "population" } as never);
+            assert.fail("scopeAs is reserved");
+        } catch (error) {
+            assert.isTrue(isGraphtyError(error));
+            assert.strictEqual(isGraphtyError(error) ? error.code : "", "E_BAD_COMMAND");
+            assert.strictEqual(isGraphtyError(error) ? error.details.reason : "", "reserved");
+        }
+
+        assert.lengthOf(runs.list(), 0, "no run was created");
+    });
+
     it("takes an author-assigned id and refuses one that does not match the pattern", () => {
         const { runs } = harness();
 

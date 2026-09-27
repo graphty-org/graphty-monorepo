@@ -5,12 +5,14 @@
  * a + b(N + E) + c(kept edges).
  */
 
-import { assert, describe, it } from "vitest";
+import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { algorithmByKey } from "../../src/catalog/algorithms";
+import { clearRegisteredAlgorithmsForTesting, publishAlgorithmDescriptor } from "../../src/catalog/registry";
+import type { AlgorithmDescriptor } from "../../src/catalog/types";
 import { resultBytes } from "../../src/session/cost/estimate";
-import { declareScopedInputs } from "../../src/session/GraphSession";
-import { derivationSeconds } from "../../src/session/planning";
+import { derivationSeconds, keptSetScopes, type PlanningContext } from "../../src/session/planning";
+import type { ResolvedScope } from "../../src/session/runs";
 import type { SessionRunsOptions } from "../../src/session/types";
 import { type Harness, makeSession } from "./helpers";
 
@@ -55,36 +57,46 @@ describe("the derivation model", () => {
     });
 });
 
-describe("a run over a scope is planned by what its algorithm computes on", () => {
-    it("an algorithm that does not declare a scoped input is estimated over the whole graph", () => {
+/** Degree as a plugin that computes on the whole graph whatever its scope. */
+const WHOLE = "whole-degree";
+
+describe("a run over a scope is planned by what its descriptor says it computes on", () => {
+    beforeEach(() => {
+        const { legacyKeys: _legacy, ...degree } = algorithmByKey("degree") as AlgorithmDescriptor & { legacyKeys: unknown };
+        publishAlgorithmDescriptor({ descriptor: { ...degree, key: WHOLE, scopeInput: "none" }, namespace: "acme", type: WHOLE });
+    });
+
+    afterEach(() => {
+        clearRegisteredAlgorithmsForTesting();
+    });
+
+    it("the built-ins publish that they compute over their scope", () => {
+        assert.strictEqual(algorithmByKey("degree")?.scopeInput, "subgraph");
+        assert.strictEqual(algorithmByKey("shortest-path")?.scopeInput, "subgraph", "a folded key: every class behind it declares it");
+    });
+
+    it("an algorithm that does not compute over its scope is estimated over the whole graph", () => {
         const harness = chain();
-        const estimate = harness.session.estimate({ op: "algo.run", algorithm: "degree", scope: TEN });
+        const estimate = harness.session.estimate({ op: "algo.run", algorithm: WHOLE, scope: TEN });
 
         assert.include(estimate.basis, "n=100 m=99");
         assert.notInclude(estimate.basis, "derive");
         harness.session.dispose();
     });
 
-    it("one that declares it is estimated over its scope, plus deriving its input", () => {
+    it("one that does is estimated over its scope, plus deriving its input", () => {
         const harness = chain();
-        const whole = harness.session.estimate({ op: "algo.run", algorithm: "degree", scope: TEN });
-        const asked: string[] = [];
-        declareScopedInputs(harness.session, (algorithm) => {
-            asked.push(algorithm);
-            return true;
-        });
+        const whole = harness.session.estimate({ op: "algo.run", algorithm: WHOLE, scope: TEN });
         const scoped = harness.session.estimate({ op: "algo.run", algorithm: "degree", scope: TEN });
 
         assert.include(scoped.basis, "n=10 m=9");
         assert.include(scoped.basis, "to derive the scope's subgraph");
-        assert.deepStrictEqual(asked, ["degree"]);
         assert.notStrictEqual(scoped.seconds, whole.seconds);
         harness.session.dispose();
     });
 
-    it("the whole graph as a scope derives nothing, declared or not", () => {
+    it("the whole graph as a scope derives nothing", () => {
         const harness = chain();
-        declareScopedInputs(harness.session, () => true);
         const estimate = harness.session.estimate({ op: "algo.run", algorithm: "degree", scope: "graph" });
 
         assert.include(estimate.basis, "n=100 m=99");
@@ -99,13 +111,41 @@ describe("a run over a scope is planned by what its algorithm computes on", () =
         const budget = (resultBytes(descriptor, 10, 9) + resultBytes(descriptor, 100, 99)) / 2;
         const harness = chain({ limits: { exactComputationSeconds: 30, runColumnBudgetBytes: budget } });
 
-        const undeclared = await harness.session.plan({ op: "algo.run", algorithm: "degree", scope: TEN });
+        const undeclared = await harness.session.plan({ op: "algo.run", algorithm: WHOLE, scope: TEN });
         assert.isFalse(undeclared.ok);
         assert.strictEqual(undeclared.blocked?.code, "E_OUT_OF_MEMORY");
 
-        declareScopedInputs(harness.session, () => true);
         const declared = await harness.session.plan({ op: "algo.run", algorithm: "degree", scope: TEN });
         assert.isTrue(declared.ok, "computed over its scope, the run fits");
         harness.session.dispose();
+    });
+});
+
+describe("the kept sets a refused run is pointed at", () => {
+    it("are sized over the graph as it stands, leaving out a set that cannot resolve or holds nothing", () => {
+        const sizes = new Map<string, ResolvedScope>([
+            ["set_a", { nodeCount: 10, edgeCount: 9 } as ResolvedScope],
+            ["set_empty", { nodeCount: 0, edgeCount: 0 } as ResolvedScope],
+        ]);
+        const context = {
+            statistics: () => ({ nodeCount: 100, edgeCount: 99 }),
+            resolveScope: (spec: { set: string }) => {
+                const size = sizes.get(spec.set);
+                if (size === undefined) {
+                    throw new Error("detached");
+                }
+
+                return size;
+            },
+            keptSets: () => [
+                { id: "set_a", name: "Ten" },
+                { id: "set_gone", name: "Gone" },
+                { id: "set_empty", name: "Nothing" },
+            ],
+        } as unknown as PlanningContext;
+
+        assert.deepStrictEqual(keptSetScopes(context), [
+            { scope: { set: "set_a" }, label: "Ten", nodes: 10, edges: 9, derivationSeconds: derivationSeconds(100, 99, 9) },
+        ]);
     });
 });

@@ -318,24 +318,6 @@ export class AlgorithmManager implements Manager {
     }
 
     /**
-     * Whether the class a run of one algorithm would build computes over its scope: what the
-     * planner asks before estimating a run over a scope.
-     * @param algorithm - The catalogue key.
-     * @param params - The parameters, which pick the class for a folded key.
-     * @param builtIn - The built-in catalogue entry for the key, when it has one, as for `execute`.
-     * @returns True when that class declares `scopeInput = "subgraph"`.
-     */
-    declaresScopedInput(algorithm: string, params: Readonly<Record<string, unknown>>, builtIn?: BuiltInAlgorithmDescriptor): boolean {
-        const registered = builtIn === undefined ? registeredAlgorithmByKey(algorithm) : undefined;
-        const target = builtIn !== undefined ? this.targetFor(builtIn, params) : registered;
-        if (target === undefined) {
-            return false;
-        }
-
-        return (Algorithm.getClass(target.namespace, target.type) as { scopeInput?: unknown } | null)?.scopeInput === "subgraph";
-    }
-
-    /**
      * Which registered class to build for one run, and with what.
      * @param descriptor - The algorithm's catalogue entry.
      * @param params - The parameters the run is starting with.

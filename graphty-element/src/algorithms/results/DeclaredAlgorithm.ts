@@ -13,7 +13,7 @@ import { createRunResult, resultPath, type RunResult } from "../../session/resul
 import { Algorithm } from "../Algorithm";
 import { maskBack } from "../input/maskBack";
 import { nodeLabelReader } from "./labels";
-import { type AlgorithmOutput, type AlgorithmRunContext, detachedRunContext, type ResultFieldSpec } from "./types";
+import { type AlgorithmOutput, type AlgorithmRunContext, detachedRunContext, type ResultFieldSpec, type RunControls } from "./types";
 
 /**
  * Turn a run's own account of a field into the descriptor the result object carries.
@@ -153,7 +153,7 @@ export abstract class DeclaredAlgorithm<
      * @throws Whatever the context's signal throws once the run has been cancelled.
      */
     publishResult(
-        context: AlgorithmRunContext,
+        context: RunControls,
         runId: RunId,
         fields?: readonly FieldDescriptor[],
     ): Promise<RunResult | undefined> {
@@ -167,6 +167,7 @@ export abstract class DeclaredAlgorithm<
      * because the catalogue states what a reader sees a field called and cannot be imported here
      * without a cycle -- it reads these classes to publish their options.
      * @param context - What the element gave the run: a signal, a progress channel and a yield.
+     *   The graph the run computes over is bound here, as the context's `input`.
      * @param runId - The id the result is published under, which is the `<runId>` in
      *   `results.<runId>`.
      * @param declared - The catalogue's descriptors for this algorithm's fields, when the caller
@@ -176,12 +177,22 @@ export abstract class DeclaredAlgorithm<
      *   `DOMException` named `AbortError`.
      */
     async computeRun(
-        context: AlgorithmRunContext,
+        context: RunControls,
         runId: RunId,
         declared?: readonly FieldDescriptor[],
     ): Promise<RunResult | undefined> {
         const startedAt = Date.now();
-        const output = await this.compute(context);
+        // The input is bound here, to this algorithm, so whoever started the run never has to know
+        // which scope a class declares it computes over.
+        const bound: AlgorithmRunContext = {
+            signal: context.signal,
+            report: (progress) => {
+                context.report(progress);
+            },
+            yieldNow: () => context.yieldNow(),
+            input: (orientation, options) => this.input(orientation, options),
+        };
+        const output = await this.compute(bound);
 
         if (output === null) {
             return undefined;

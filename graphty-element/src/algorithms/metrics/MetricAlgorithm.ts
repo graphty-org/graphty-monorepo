@@ -21,7 +21,7 @@ import { Algorithm } from "../Algorithm";
 import { maskBack } from "../input/maskBack";
 import { scopeNodeIds } from "../input/ScopedInput";
 import { nodeLabelReader } from "../results/labels";
-import type { AlgorithmRunContext } from "../results/types";
+import type { RunControls } from "../results/types";
 import { detachedRunContext } from "./context";
 import type { MetricMeasurement, MetricRunContext } from "./types";
 
@@ -69,7 +69,7 @@ export abstract class MetricAlgorithm<
      * @returns The result, or undefined when there was nothing to measure.
      * @throws Whatever the context's signal throws once the run has been cancelled.
      */
-    publishResult(context: AlgorithmRunContext, runId: string): Promise<RunResult | undefined> {
+    publishResult(context: RunControls, runId: string): Promise<RunResult | undefined> {
         return this.measureRun({ runId, ...context });
     }
 

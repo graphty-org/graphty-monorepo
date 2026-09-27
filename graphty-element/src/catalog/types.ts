@@ -577,6 +577,19 @@ export interface AlgorithmDescriptor {
         accelerator?: boolean;
         connected?: boolean;
     };
+    /**
+     * What a run over a scope computes on. `"subgraph"`: the scope's own nodes and edges, so a
+     * small scope is estimated and run as small. `"none"`: the whole graph, keeping only the
+     * scope's values, so the run is estimated -- and refused -- as a whole-graph run.
+     *
+     * DERIVED, NOT AUTHORED: `Algorithm.register` fills it from the class's `static scopeInput`,
+     * which is the one declaration the run, its caveat and this field all read. A plugin leaves
+     * it out of the descriptor it writes; one that disagrees with the class is refused.
+     *
+     * OPEN UNION: values may be added in a minor release (`"mask"` is reserved); treat an
+     * unknown value as `"none"`.
+     */
+    scopeInput?: "none" | "subgraph";
 }
 
 /** One layout the element can place a graph with. */

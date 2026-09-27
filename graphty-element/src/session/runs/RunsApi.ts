@@ -510,6 +510,17 @@ class Runs implements SessionRunsApi {
             });
         }
 
+        if ("scopeAs" in options) {
+            // Reserved (design/sets 10.1): "population" -- compute on the whole graph, keep and
+            // re-rank the scope's values -- is built later; refusing it now keeps accepting it additive.
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: 'The run option "scopeAs" is reserved and not accepted yet. A run computes over its scope as its algorithm declares.',
+                source: "run",
+                details: { algorithm, field: "scopeAs", reason: "reserved" },
+            });
+        }
+
         const descriptor = this.descriptorFor(algorithm);
         this.checkParams(descriptor, params);
 

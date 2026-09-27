@@ -179,6 +179,7 @@ export type { Node, NodeIdType } from "./src/Node";
  */
 export type { AlgorithmStatics } from "./src/algorithms/Algorithm";
 export { Algorithm } from "./src/algorithms/Algorithm";
+export type { ScopedInput, ScopedInputOptions } from "./src/algorithms/input/ScopedInput";
 export { metricField, nodeMetricFields } from "./src/algorithms/metrics/fields";
 export { DeclaredAlgorithm } from "./src/algorithms/results/DeclaredAlgorithm";
 export { communityFieldSpecs, LAYERED_GROUPING_FIELD_SPECS, metricFieldSpecs, PATH_FIELD_SPECS, setFieldSpecs } from "./src/algorithms/results/fields";
@@ -192,6 +193,15 @@ export type { RunId } from "./src/catalog/types";
 export type { ResultElementValues } from "./src/session/results/RunResult";
 export { checkShapeContract } from "./src/session/results/types";
 export type { Caveats, Progress } from "./src/session/runs/types";
+
+/*
+ * WHAT A RUN COMPUTES OVER. `context.input(orientation)` hands `compute` the graph as graph-format
+ * snapshots and bitmaps: the full `GraphSnapshot`, the scope's `NodeMask` and `EdgeMask` over it,
+ * and the compact `subgraph()` of the scope for a class that declares `static scopeInput =
+ * "subgraph"`. The three types are graph-format's own, published here so a plugin names them
+ * without a second dependency; they tie this entry point to `@graphty/graph-format` 1.x.
+ */
+export type { EdgeMask, GraphSnapshot, NodeMask } from "@graphty/graph-format";
 
 /*
  * THE OLDER OPTION SCHEMA, KEPT FOR BACK-COMPAT AND DEPRECATED. It is a second vocabulary for the

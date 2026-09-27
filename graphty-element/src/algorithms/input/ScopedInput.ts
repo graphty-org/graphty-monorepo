@@ -33,7 +33,7 @@ import {
     type U32,
 } from "@graphty/graph-format";
 
-import type { EdgeId, EdgeReading, NodeId } from "../../catalog/types";
+import type { AlgorithmDescriptor, EdgeId, EdgeReading, NodeId } from "../../catalog/types";
 import { EDGE_ID_COLUMN, edgeIdOf } from "../../data/edgeIdentity";
 import type { Resolution } from "../../session/sets/resolve";
 import {
@@ -111,7 +111,7 @@ export interface RunInput {
 }
 
 /** Which classes declare that they compute over their run's scope. OPEN UNION; "mask" is later. */
-export type ScopeInputDeclaration = "none" | "subgraph";
+export type ScopeInputDeclaration = NonNullable<AlgorithmDescriptor["scopeInput"]>;
 
 const bindings = new WeakMap<object, RunInput>();
 

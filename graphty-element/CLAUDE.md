@@ -191,8 +191,15 @@ plugin author who expected otherwise would be misled.
   -- belongs to the binding rather than to the palette. No built-in palette takes configuration
   either, so giving the point an options surface would be inventing a parity gap rather than
   closing one.
-- **`scope`, `seed`, `exact`, `sample` and `timeBox`** are resolved by a run and not forwarded to
-  `compute`, so no algorithm receives them: not a plugin's, and not one of the element's own.
+- **What reaches `compute`.** The run's scope does, through `context.input(orientation,
+  { simplify })`: the full graph-format `GraphSnapshot`, the scope's `NodeMask` and `EdgeMask` over
+  it, and `subgraph()`, the compact snapshot of the scope. A class declaring `static scopeInput =
+  "subgraph"` is handed its scope and is estimated over it; any other class is handed the whole
+  graph, keeps only the scope's values with the caveat "Computed on the whole graph; values kept
+  for the scope only.", and is estimated and refused as a whole-graph run. `register` publishes the
+  declaration as `descriptor.scopeInput`, and refuses a descriptor that states a different one.
+  `seed`, `exact`, `sample` and `timeBox` are resolved by a run and not forwarded, to a plugin or a
+  built-in; the run option `scopeAs` is reserved and refused with `E_BAD_COMMAND`.
 - **The element's own importers still throw plain `Error`s.** A registered format reports
   `E_PARSE_FAILED` and `E_FETCH_FAILED`; the seven built-in readers do not yet. A plugin is ahead
   of the built-ins here rather than behind them.

@@ -331,15 +331,8 @@ const componentStrengthOptions = defineOptions({
 // The table
 // ---------------------------------------------------------------------------------------------
 
-/**
- * Every algorithm this package registers, as a plain-JSON descriptor.
- *
- * Twenty-three descriptors for twenty-five registered algorithms: the two single-source
- * shortest-path engines are one key with a `method` parameter, and the two component algorithms
- * are one key with a `strength` parameter. Each descriptor's `legacyKeys` names the 1.10 keys it
- * replaces and the parameters that reproduce them.
- */
-export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
+/** The built-in descriptors as written, before what is read from the classes is added. */
+const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
     {
         key: "degree",
         plainName: "Connections",
@@ -777,6 +770,53 @@ export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         legacyKeys: [{ key: "link-prediction" }],
     },
 ];
+
+/** Every built-in class, by the 1.10 key its `static type` carries, for what the table derives from them. */
+const CLASSES: ReadonlyMap<string, { readonly scopeInput?: string }> = new Map(
+    [
+        BellmanFordAlgorithm,
+        BetweennessCentralityAlgorithm,
+        BFSAlgorithm,
+        BipartiteMatchingAlgorithm,
+        ClosenessCentralityAlgorithm,
+        ConnectedComponentsAlgorithm,
+        DegreeAlgorithm,
+        DFSAlgorithm,
+        DijkstraAlgorithm,
+        EigenvectorCentralityAlgorithm,
+        FloydWarshallAlgorithm,
+        GirvanNewmanAlgorithm,
+        HITSAlgorithm,
+        KatzCentralityAlgorithm,
+        KCoreAlgorithm,
+        KruskalAlgorithm,
+        LabelPropagationAlgorithm,
+        LeidenAlgorithm,
+        LinkPredictionAlgorithm,
+        LouvainAlgorithm,
+        MaxFlowAlgorithm,
+        MinCutAlgorithm,
+        PageRankAlgorithm,
+        PrimAlgorithm,
+        StronglyConnectedComponentsAlgorithm,
+    ].map((cls) => [cls.type, cls]),
+);
+
+/**
+ * Every algorithm this package registers, as a plain-JSON descriptor.
+ *
+ * Twenty-three descriptors for twenty-five registered algorithms: the two single-source
+ * shortest-path engines are one key with a `method` parameter, and the two component algorithms
+ * are one key with a `strength` parameter. Each descriptor's `legacyKeys` names the 1.10 keys it
+ * replaces and the parameters that reproduce them.
+ *
+ * `scopeInput` is read from the classes rather than written here, so it cannot disagree with what
+ * a run computes over: a folded key computes over its scope only when every class behind it does.
+ */
+export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = AUTHORED_ALGORITHMS.map((descriptor) => ({
+    ...descriptor,
+    scopeInput: descriptor.legacyKeys.every((legacy) => CLASSES.get(legacy.key)?.scopeInput === "subgraph") ? "subgraph" : "none",
+}));
 
 // ---------------------------------------------------------------------------------------------
 // Lookups

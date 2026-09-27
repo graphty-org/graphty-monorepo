@@ -201,6 +201,8 @@ function recordingContext(signal?: AbortSignal): RecordingContext {
             reports.push(progress);
         },
         yieldNow: () => Promise.resolve(),
+        // Built-ins read their input through the algorithm, never through the context.
+        input: detachedRunContext().input,
     };
 }
 

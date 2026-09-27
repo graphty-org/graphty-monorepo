@@ -90,7 +90,8 @@ export interface GraphContext {
     isRunning(): boolean;
 
     /**
-     * Set the running state
+     * Play or pause the layout on a consumer's behalf. A pause holds until `setRunning(true)`;
+     * the element's own restarts write `getLayoutManager().running`, which the pause refuses.
      */
     setRunning(running: boolean): void;
 
@@ -295,6 +296,6 @@ export class DefaultGraphContext implements GraphContext {
      * @param running - Whether layout should be running
      */
     setRunning(running: boolean): void {
-        this.layoutManager.running = running;
+        this.layoutManager.setPaused(!running);
     }
 }

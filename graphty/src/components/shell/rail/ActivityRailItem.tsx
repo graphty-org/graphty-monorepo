@@ -80,9 +80,14 @@ const TRAILING_KEY_CHIP = / \([^()]+\)$/;
 
 /**
  * Props of one rail item.
+ *
+ * Any other button prop, and the ref, go to the item's button. That is what lets the
+ * Help item be a Mantine `Menu.Target`: the menu hands its opener a ref, `aria-expanded`,
+ * `aria-controls` and the like.
  * @public
  */
-export interface ActivityRailItemProps {
+export interface ActivityRailItemProps
+    extends Omit<React.ComponentPropsWithRef<"button">, "children" | "disabled" | "onClick" | "title"> {
     /** Which rail destination this is; it also chooses the glyph. */
     readonly activity: ActivityId;
     /** The visible 11 px name under the glyph -- a floor item (6.10 item 6). */
@@ -163,7 +168,7 @@ function ariaLabelFor(title: string): string {
  * @returns the rail item element.
  */
 export function ActivityRailItem(props: ActivityRailItemProps): React.JSX.Element {
-    const { activity, label, title, active, disabled, badge = null, warningDot = false, onClick } = props;
+    const { activity, label, title, active, disabled, badge = null, warningDot = false, onClick, ...buttonProps } = props;
     const [hovered, setHovered] = useState(false);
 
     const handleClick = useCallback((): void => {
@@ -185,6 +190,7 @@ export function ActivityRailItem(props: ActivityRailItemProps): React.JSX.Elemen
     return (
         <Tooltip label={title} position="right" openDelay={TOOLTIP_DELAY_MS}>
             <UnstyledButton
+                {...buttonProps}
                 type="button"
                 aria-label={ariaLabelFor(title)}
                 aria-pressed={active}

@@ -176,11 +176,25 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
 
 /**
  * The built-in format names no registered data source reads. Listed rather than omitted, so a
- * consumer learns the gap from the catalogue instead of from a failed load.
+ * consumer learns the gap from the catalogue instead of from a failed load, and a load that names
+ * one fails with the reason given here.
+ *
+ * Both entries are deprecated: "sif" (issue #306) and "cx2" (issue #307) are removed from
+ * `FormatId` at the next major release unless graph-io gains a reader for them first.
  */
 export const UNSERVED_FORMAT_IDS: readonly UnservedFormat[] = [
-    { id: "sif", reason: "No data source reads the Cytoscape simple interaction format." },
-    { id: "cx2", reason: "No data source reads the Cytoscape Exchange format." },
+    {
+        id: "sif",
+        reason:
+            "No data source reads the Cytoscape simple interaction format. " +
+            "The name is deprecated and is removed at the next major release unless a reader lands.",
+    },
+    {
+        id: "cx2",
+        reason:
+            "No data source reads the Cytoscape Exchange format. " +
+            "The name is deprecated and is removed at the next major release unless a reader lands.",
+    },
 ];
 
 /**

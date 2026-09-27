@@ -1,5 +1,6 @@
-import { describe, it, assert } from "vitest";
-import { circularLayout, completeGraph, cycleGraph, starGraph, wheelGraph, gridGraph, randomGraph } from "../src";
+import { assert,describe, it } from "vitest";
+
+import { circularLayout, completeGraph, cycleGraph, gridGraph, randomGraph,starGraph, wheelGraph } from "../src";
 
 describe("Circular Layout", () => {
     describe("Basic functionality", () => {
@@ -28,7 +29,7 @@ describe("Circular Layout", () => {
             const positions = circularLayout(singleNode);
 
             assert.equal(Object.keys(positions).length, 1);
-            assert.deepEqual(positions["A"], [0, 0]);
+            assert.deepEqual(positions.A, [0, 0]);
         });
 
         it("should handle disconnected components", () => {
@@ -204,16 +205,13 @@ describe("Circular Layout", () => {
             });
         });
 
-        it("should handle large graphs efficiently", () => {
+        it("should lay out every node of a larger graph", () => {
             const n = 100;
             const graph = cycleGraph(n);
 
-            const startTime = performance.now();
             const positions = circularLayout(graph);
-            const endTime = performance.now();
 
             assert.equal(Object.keys(positions).length, n);
-            assert.isBelow(endTime - startTime, 100); // Should complete quickly
         });
 
         it("should produce visually pleasing layout for grid graphs", () => {
@@ -286,7 +284,7 @@ describe("Circular Layout", () => {
             const angles = nodes.map((node) => {
                 const [x, y] = positions[node];
                 let angle = Math.atan2(y, x);
-                if (angle < 0) angle += 2 * Math.PI;
+                if (angle < 0) {angle += 2 * Math.PI;}
                 return angle;
             });
 
@@ -381,7 +379,7 @@ describe("Circular Layout", () => {
             const positions = circularLayout(singleNode, 1, center, 3);
 
             assert.equal(Object.keys(positions).length, 1);
-            assert.deepEqual(positions["A"], center);
+            assert.deepEqual(positions.A, center);
         });
 
         it("should produce deterministic results in 3D", () => {

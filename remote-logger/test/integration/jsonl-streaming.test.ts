@@ -10,9 +10,9 @@ import * as os from "os";
 import * as path from "path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { JsonlWriter } from "../../src/server/jsonl-writer.js";
 import { createLogServer } from "../../src/server/log-server.js";
 import { LogStorage } from "../../src/server/log-storage.js";
-import { JsonlWriter } from "../../src/server/jsonl-writer.js";
 
 // Use a sequential port counter to avoid collisions between tests
 let portCounter = 0;
@@ -124,7 +124,8 @@ describe("JSONL streaming integration", () => {
         // Retry with exponential backoff for transient connection errors
         for (let i = 0; i < retries; i++) {
             try {
-                return await attempt();
+                await attempt();
+                return;
             } catch (err) {
                 const error = err as NodeJS.ErrnoException;
                 // Only retry on connection reset errors

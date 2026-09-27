@@ -1,5 +1,5 @@
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 
 import { CAT_SOCIAL_NETWORK, CAT_SOCIAL_NETWORK_NAME } from "../../../data/sampleGraphs";
 import { SAMPLE_MANIFEST, type SampleRecord, sampleSizeString } from "../../../data/sampleManifest";
@@ -33,9 +33,8 @@ import { LAYOUT_METADATA } from "../../../data/layoutMetadata";
 import { createFakeSession, type FakeSession } from "../../../test/fakeSession";
 import { ACCELERATION_SETTINGS_STORAGE_KEY } from "../defaults/accelerationSettings";
 import { METRIC_VALUE_FIELD, SHELL_DEFAULTS_TEMPLATE_ID } from "../defaults/styleDescriptors";
-import { SHELL_LAYOUT_STORAGE_KEY } from "../ShellContext";
+import { SHELL_LAYOUT_STORAGE_KEY } from "../shellLayoutStorage";
 import { LAYOUT_MENU_LABEL } from "../statusbar/LayoutChipMenu";
-import { STATUS_BAR_GEOMETRY } from "../statusbar/statusBarGeometry";
 
 /**
  * Renders the shell with the store pinned, so a board decides its own breakpoint and
@@ -640,9 +639,9 @@ interface StubGraph {
     /** Every algorithm run the shell asked for, in order. */
     readonly runAlgorithm: ReturnType<typeof vi.fn>;
     /** Every canvas selection the shell asked for, which is the spine's last hop. */
-    readonly selectNode: ReturnType<typeof vi.fn>;
+    readonly selectNode: Mock<(nodeId: string | number) => boolean>;
     /** Every clear of it. The element has to be told, or its own selection outlives the shell's. */
-    readonly deselectNode: ReturnType<typeof vi.fn>;
+    readonly deselectNode: Mock<() => void>;
     /** What the ELEMENT still holds, which is not always what the shell thinks it holds. */
     readonly elementHoldsSelection: () => string | number | null;
     /** The element's style stack, and the policy that paints a finished run. */
@@ -1384,7 +1383,7 @@ describe("AppShell", () => {
             expect(columns.split(" ")[0]).toBe(`${ACTIVITY_RAIL_WIDTH}px`);
         });
 
-        it("leaves the main row unclipped, so the Help menu may stand outside the rail", () => {
+        it("leaves the main row unclipped", () => {
             renderShell();
 
             expect(getComputedStyle(screen.getByTestId("shell-main-row")).overflow).toBe("visible");
@@ -1459,16 +1458,44 @@ describe("AppShell", () => {
             expect(screen.getByRole("tabpanel", { name: "AI providers" })).toBeInTheDocument();
         });
 
-        it("opens the Help menu as a sibling of the rail, not as one of its children", () => {
+        it("opens the Help menu from the Help button, drawn outside the clipping rail", async () => {
+            renderShell();
+
+            const help = screen.getByRole("button", { name: "Help and keyboard shortcuts" });
+
+            fireEvent.click(help);
+
+            const menu = await screen.findByRole("menu", { name: "Help and keyboard shortcuts" });
+            const rail = screen.getByRole("navigation", { name: "Activity rail" });
+
+            expect(help).toHaveAttribute("aria-expanded", "true");
+            expect(rail).not.toContainElement(menu);
+        });
+
+        it("closes the Help menu when the Help button is clicked again", async () => {
+            renderShell();
+
+            const help = screen.getByRole("button", { name: "Help and keyboard shortcuts" });
+
+            fireEvent.click(help);
+            await screen.findByRole("menu");
+            fireEvent.click(help);
+
+            await waitFor(() => {
+                expect(screen.queryByRole("menu")).toBeNull();
+            });
+        });
+
+        it("closes the Help menu on a click outside it", async () => {
             renderShell();
 
             fireEvent.click(screen.getByRole("button", { name: "Help and keyboard shortcuts" }));
+            await screen.findByRole("menu");
+            fireEvent.mouseDown(screen.getByTestId("shell-body-row"));
 
-            const menu = screen.getByRole("menu");
-            const rail = screen.getByRole("navigation", { name: "Activity rail" });
-
-            expect(rail).not.toContainElement(menu);
-            expect(screen.getByTestId("shell-main-row")).toContainElement(menu);
+            await waitFor(() => {
+                expect(screen.queryByRole("menu")).toBeNull();
+            });
         });
 
         it("leaves Help hovered rather than active while its menu is open", () => {
@@ -1484,11 +1511,11 @@ describe("AppShell", () => {
     });
 
     describe("the Help menu's destinations", () => {
-        it("opens the keyboard shortcuts surface from its first row", () => {
+        it("opens the keyboard shortcuts surface from its first row", async () => {
             renderShell();
 
             fireEvent.click(screen.getByRole("button", { name: "Help and keyboard shortcuts" }));
-            fireEvent.click(screen.getByRole("menuitem", { name: /Keyboard shortcuts/ }));
+            fireEvent.click(await screen.findByRole("menuitem", { name: /Keyboard shortcuts/ }));
 
             expect(screen.getByTestId("keyboard-shortcuts")).toBeInTheDocument();
         });
@@ -1497,27 +1524,30 @@ describe("AppShell", () => {
             renderShell();
 
             fireEvent.click(screen.getByRole("button", { name: "Help and keyboard shortcuts" }));
-            fireEvent.click(screen.getByRole("menuitem", { name: "Send feedback" }));
+            fireEvent.click(await screen.findByRole("menuitem", { name: "Send feedback" }));
 
             expect(await screen.findByRole("dialog")).toBeInTheDocument();
         });
     });
 
     describe("the Escape ladder", () => {
-        it("closes the Help menu on rung 2", () => {
+        it("closes the Help menu on rung 2", async () => {
             renderShell();
 
             fireEvent.click(screen.getByRole("button", { name: "Help and keyboard shortcuts" }));
+            await screen.findByRole("menu");
             fireEvent.keyDown(window, { key: "Escape" });
 
-            expect(screen.queryByRole("menu")).toBeNull();
+            await waitFor(() => {
+                expect(screen.queryByRole("menu")).toBeNull();
+            });
         });
 
-        it("closes the keyboard shortcuts surface on the same rung", () => {
+        it("closes the keyboard shortcuts surface on the same rung", async () => {
             renderShell();
 
             fireEvent.click(screen.getByRole("button", { name: "Help and keyboard shortcuts" }));
-            fireEvent.click(screen.getByRole("menuitem", { name: /Keyboard shortcuts/ }));
+            fireEvent.click(await screen.findByRole("menuitem", { name: /Keyboard shortcuts/ }));
             fireEvent.keyDown(window, { key: "Escape" });
 
             expect(screen.queryByTestId("keyboard-shortcuts")).toBeNull();
@@ -1528,6 +1558,9 @@ describe("AppShell", () => {
         it("opens from the top bar's trigger pill", async () => {
             renderShell();
 
+            /* Every other test here waits on this id to know the palette's rows are drawn, so
+               it must not be on anything that exists while the palette is closed (issue #403). */
+            expect(screen.queryByTestId("command-palette")).toBeNull();
             fireEvent.click(screen.getByRole("button", { name: /Search commands, nodes and edges/ }));
 
             expect(await screen.findByTestId("command-palette")).toBeInTheDocument();
@@ -1573,7 +1606,7 @@ describe("AppShell", () => {
             renderShell();
 
             fireEvent.click(screen.getByRole("button", { name: "Help and keyboard shortcuts" }));
-            fireEvent.click(screen.getByRole("menuitem", { name: /Keyboard shortcuts/ }));
+            fireEvent.click(await screen.findByRole("menuitem", { name: /Keyboard shortcuts/ }));
             expect(screen.getByTestId("keyboard-shortcuts")).toBeInTheDocument();
 
             act(() => {
@@ -1868,6 +1901,48 @@ describe("AppShell", () => {
             expect(container.querySelector("[data-canvas-graph='true']")).not.toBeNull();
             expect(container.querySelector("[data-canvas-welcome='true']")).not.toBeNull();
         });
+
+        /* A dataset boundary takes away whatever had focus -- the Welcome rows, the docks, the
+           inspector -- so the shell hands focus to the canvas region rather than dropping a
+           keyboard reader on the page body (issue #259). */
+        it("moves focus to the canvas region when a sample loads", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+            await loadCatSample(container);
+
+            const canvas = container.querySelector<HTMLElement>('[data-shell-region="canvas"]');
+
+            await waitFor(() => {
+                expect(document.activeElement).toBe(canvas);
+            });
+            expect(canvas?.tabIndex).toBe(-1);
+        });
+
+        it("moves focus to the canvas region, not the page body, when the dataset is closed", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+            await loadCatSample(container);
+            fireEvent.click(screen.getByRole("button", { name: "Data" }));
+            fireEvent.click(within(screen.getByRole("region", { name: "Data" })).getByRole("button", { name: "More" }));
+
+            const close = await screen.findByText("Close dataset. Starts a new session");
+
+            /* Focus parked on the menu row, so a canvas that already held it from the load
+               cannot pass this on its own. */
+            close.closest<HTMLElement>("[role='menuitem']")?.focus();
+            fireEvent.click(close);
+            await flushMicrotasks();
+
+            expect(container.querySelector("[data-canvas-welcome='true']")).not.toBeNull();
+            await waitFor(() => {
+                expect(document.activeElement).toBe(container.querySelector('[data-shell-region="canvas"]'));
+            });
+            expect(document.activeElement).not.toBe(document.body);
+        });
     });
 
     describe("the Explore search field", () => {
@@ -2077,6 +2152,36 @@ describe("AppShell", () => {
 
             return result;
         }
+
+        /* graphty-element refuses a layer that writes no channel, so "+" asked for one it would
+           always refuse and swallowed the refusal: nothing appeared and nothing said why
+           (issue #380). */
+        it("adds a layer that paints one channel, so the element accepts it", async () => {
+            const { container } = await renderStylePanel();
+            const fake = installGraph(container, []);
+
+            await settleSession();
+            fireEvent.click(screen.getByRole("button", { name: "Add a style layer" }));
+            await settleSession();
+
+            const added = fake.layers().find((layer) => layer.name === "New Layer 1");
+
+            expect(added).toBeDefined();
+            expect(Object.keys(added?.set ?? {})).toHaveLength(1);
+            expect(within(screen.getByTestId("style-layers")).getByText("New Layer 1")).toBeInTheDocument();
+        });
+
+        it("tells the reader why the element refused a new layer", async () => {
+            const { container } = await renderStylePanel();
+            const fake = installGraph(container, []);
+
+            vi.spyOn(fake.session.styles, "add").mockRejectedValueOnce(new Error("the element said no"));
+            await settleSession();
+            fireEvent.click(screen.getByRole("button", { name: "Add a style layer" }));
+            await settleSession();
+
+            expect(statusToast(container)).toHaveTextContent("the element said no");
+        });
 
         it("commits an inline rename to graphty-element, which owns the names", async () => {
             const { container } = await renderStylePanel();
@@ -4097,11 +4202,39 @@ describe("AppShell", () => {
             expect(screen.queryByRole("dialog")).toBeNull();
         });
 
-        /* The additive route, which the shell does not offer yet and once reported a SUCCESS
-           for: `finishLoad` renamed the dataset in the top bar over a canvas that had not
-           changed by one node. It is refused before the element is touched, with a sentence
-           naming the route that does work. */
-        it("refuses an additive load rather than claiming one the element cannot perform", async () => {
+        /* A file dropped on a drawn dataset replaces it, but only once the reader says so: a
+           file dropped by mistake must not throw away the dataset on the canvas. */
+        it("asks before a drop replaces the dataset, and replaces it once the reader confirms", async () => {
+            const { container } = await renderMeasuredShell();
+
+            const loads = captureLoads(container);
+
+            installNovicePathGraph(container);
+            await loadCatSample(container);
+
+            const loadsAfterSample = loads.length;
+
+            fireEvent.click(screen.getByRole("button", { name: "Data" }));
+            await dropFile(screen.getByTestId("data-drop-zone"), new File(["{}"], "extra.json"));
+
+            // Nothing reaches the element until the reader says so.
+            expect(loads).toHaveLength(loadsAfterSample);
+
+            const confirm = await screen.findByRole("dialog", { name: "Replace the current graph?" });
+
+            fireEvent.click(within(confirm).getByRole("button", { name: "Replace" }));
+            await flushMicrotasks();
+
+            expect(loads).toHaveLength(loadsAfterSample + 1);
+            expect(loads.at(-1)?.mode).not.toBe("merge");
+
+            await reportLoadComplete(container);
+
+            expect(screen.getByText("extra.json")).toBeInTheDocument();
+            expect(statusToast(container)).toBeNull();
+        });
+
+        it("loads nothing when the reader cancels the replace a drop asked for", async () => {
             const { container } = await renderMeasuredShell();
 
             const loads = captureLoads(container);
@@ -4109,54 +4242,21 @@ describe("AppShell", () => {
 
             await loadCatSample(container);
 
+            const layersBefore = graph.styles.layers().map((layer) => layer.id);
             const loadsAfterSample = loads.length;
 
-            /* Dropped on the Data panel's zone with a dataset already drawn, which is the
-               additive route (`replaceExisting: !loaded`). */
             fireEvent.click(screen.getByRole("button", { name: "Data" }));
             await dropFile(screen.getByTestId("data-drop-zone"), new File(["{}"], "extra.json"));
 
-            // Nothing reached the element, so nothing can have been silently swallowed.
+            const confirm = await screen.findByRole("dialog", { name: "Replace the current graph?" });
+
+            fireEvent.click(within(confirm).getByRole("button", { name: "Cancel" }));
+            await flushMicrotasks();
+
             expect(loads).toHaveLength(loadsAfterSample);
-
-            /* The canvas still holds its graph, and the top bar names the dataset that IS
-               drawn rather than the file that never arrived. */
             expect(graph.styles.session.history.steps).toHaveLength(1);
-            expect(container.querySelector("[data-canvas-welcome='true']")).toBeNull();
+            expect(graph.styles.layers().map((layer) => layer.id)).toEqual(layersBefore);
             expect(screen.getByText(CAT_SOCIAL_NETWORK_NAME)).toBeInTheDocument();
-            expect(container.querySelectorAll("[data-status-slot]").length).toBeGreaterThan(0);
-
-            /* And the Loaded data section still describes the dataset that IS drawn. The
-               surviving branch restores the summary as well as the name: `finishLoad`
-               overwrites both optimistically, so a branch that put back only the name left
-               the section describing a file that never arrived -- or, on this route, whose
-               format is "auto" and whose summary is therefore undefined, drew the whole
-               section in its empty form for a graph that is still on the canvas. */
-            const summary = container.querySelector('[data-testid="compound-segment-value"]');
-
-            expect(summary?.textContent).toBe("json");
-
-            /* Welcome is not on screen in the Loaded state, so the toast is the failure's
-               only surface here -- and it is the surface the additive route had none of. */
-            const toast = statusToast(container);
-
-            expect(toast).not.toBeNull();
-            expect(toast).toHaveAttribute("role", "alert");
-            expect(toast?.textContent).toContain(
-                "Could not load extra.json. Adding a file to a dataset that is already loaded is not built yet.",
-            );
-            expect(screen.getByRole("button", { name: "Open Data" })).toBeInTheDocument();
-
-            /* And it does not erase itself. An error on a six second timer is the silent
-               failure again in a nicer font, so the completion is passed with no
-               `onDismiss` and the toast has no timer to fire. */
-            vi.useFakeTimers();
-
-            act(() => {
-                vi.advanceTimersByTime(STATUS_BAR_GEOMETRY.TOAST_DURATION_MS * 2);
-            });
-
-            expect(statusToast(container)).not.toBeNull();
         });
 
         /* The retry the error sentence itself invites, on the zone it is drawn in. A failed
@@ -4319,6 +4419,13 @@ describe("AppShell", () => {
             await reportLoadComplete(container);
             fireEvent.click(screen.getByRole("button", { name: "Data" }));
             await dropFile(screen.getByTestId("data-drop-zone"), new File(["{oops"], "extra.json"));
+            fireEvent.click(
+                within(await screen.findByRole("dialog", { name: "Replace the current graph?" })).getByRole(
+                    "button",
+                    { name: "Replace" },
+                ),
+            );
+            await flushMicrotasks();
             await reportLoadingError(container, "Unexpected token o in JSON at position 1");
 
             expect(statusToast(container)).not.toBeNull();
@@ -4805,7 +4912,7 @@ describe("AppShell", () => {
         it("draws the chip as soon as the element reports, with or without a dataset", async () => {
             const { container } = await renderMeasuredShell();
 
-            await reportAcceleration(container, { state: "idle", backend: "webgpu", vendor: "nvidia", architecture: "ampere" });
+            await reportAcceleration(container, { policy: "auto", state: "idle", backend: "webgpu", vendor: "nvidia", architecture: "ampere" });
 
             expect(screen.getByText("GPU acceleration: on (nvidia ampere)")).toBeInTheDocument();
         });
@@ -4813,16 +4920,63 @@ describe("AppShell", () => {
         it("opens Settings > Performance from the chip", async () => {
             const { container } = await renderMeasuredShell();
 
-            await reportAcceleration(container, { state: "idle", backend: "webgpu" });
+            await reportAcceleration(container, { policy: "auto", state: "idle", backend: "webgpu" });
             fireEvent.click(screen.getByText("GPU acceleration: on"));
 
             expect(screen.getByTestId("settings-acceleration")).toBeInTheDocument();
+        });
+
+        /* The chip and the device-lost toast both open Settings, so both go through the
+           shell's one opener: a shortcuts sheet or a pop-out left open would be drawn beside
+           or over Settings (issue #184). */
+        it("closes the shortcuts sheet and an open pop-out when the chip opens Settings", async () => {
+            const { container } = await renderMeasuredShell();
+
+            await reportAcceleration(container, { policy: "auto", state: "idle", backend: "webgpu" });
+            fireEvent.click(screen.getByRole("button", { name: "History" }));
+            expect(await screen.findByText(/entries|entry/)).toBeInTheDocument();
+            fireEvent.click(screen.getByRole("button", { name: "Help and keyboard shortcuts" }));
+            fireEvent.click(await screen.findByRole("menuitem", { name: /Keyboard shortcuts/ }));
+            expect(screen.getByTestId("keyboard-shortcuts")).toBeInTheDocument();
+
+            fireEvent.click(screen.getByText("GPU acceleration: on"));
+
+            expect(screen.getByTestId("settings-acceleration")).toBeInTheDocument();
+            expect(screen.queryByTestId("keyboard-shortcuts")).toBeNull();
+            await waitFor(() => {
+                expect(screen.queryByText(/entries|entry/)).toBeNull();
+            });
+        });
+
+        it("closes the shortcuts sheet and an open pop-out when the device-lost toast opens Settings", async () => {
+            const { container } = await renderMeasuredShell();
+
+            await reportAcceleration(container, {
+                policy: "auto",
+                state: "error",
+                code: "E_DEVICE_LOST",
+                reason: "the accelerator's device was lost: reset",
+            });
+            fireEvent.click(screen.getByRole("button", { name: "History" }));
+            expect(await screen.findByText(/entries|entry/)).toBeInTheDocument();
+            fireEvent.click(screen.getByRole("button", { name: "Help and keyboard shortcuts" }));
+            fireEvent.click(await screen.findByRole("menuitem", { name: /Keyboard shortcuts/ }));
+            expect(screen.getByTestId("keyboard-shortcuts")).toBeInTheDocument();
+
+            fireEvent.click(within(statusToast(container) as HTMLElement).getByText("Open Settings"));
+
+            expect(screen.getByTestId("settings-acceleration")).toBeInTheDocument();
+            expect(screen.queryByTestId("keyboard-shortcuts")).toBeNull();
+            await waitFor(() => {
+                expect(screen.queryByText(/entries|entry/)).toBeNull();
+            });
         });
 
         it("reports a lost device through the toast and flips the chip, without dismissing itself", async () => {
             const { container } = await renderMeasuredShell();
 
             await reportAcceleration(container, {
+                policy: "auto",
                 state: "error",
                 code: "E_DEVICE_LOST",
                 reason: "the accelerator's device was lost: reset",
@@ -4837,7 +4991,7 @@ describe("AppShell", () => {
 
             /* The element attempts a fresh accelerator by itself, so the toast leaves when the
                next transition says the machine is working again. Nothing dismisses it here. */
-            await reportAcceleration(container, { state: "idle", backend: "webgpu" });
+            await reportAcceleration(container, { policy: "auto", state: "idle", backend: "webgpu" });
 
             expect(statusToast(container)).toBeNull();
         });
@@ -4849,6 +5003,7 @@ describe("AppShell", () => {
             await dropFile(container.querySelector("[data-dragging]") as HTMLElement, new File(["{oops"], "friends.json"));
             await reportLoadingError(container, "bad file");
             await reportAcceleration(container, {
+                policy: "auto",
                 state: "error",
                 code: "E_DEVICE_LOST",
                 reason: "the accelerator's device was lost: reset",
@@ -4871,6 +5026,7 @@ describe("AppShell", () => {
             const { container } = await renderMeasuredShell();
 
             await reportAcceleration(container, {
+                policy: "auto",
                 state: "unavailable",
                 code: "E_NO_WEBGPU",
                 reason: "this browser has no WebGPU",

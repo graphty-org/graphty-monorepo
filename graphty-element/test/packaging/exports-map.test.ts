@@ -5,6 +5,12 @@ import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { assert, describe, it } from "vitest";
 
+// Static imports, not `await import()` in a test body: see node-safe-entries.test.ts for why
+// loading an entry point inside a timed test made this file fail on a busy machine (#491).
+import * as catalog from "../../catalog";
+import * as format from "../../format";
+import * as schema from "../../schema";
+
 const PACKAGE_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 
 /** The manifest, as published. */
@@ -272,24 +278,20 @@ describe("the sibling packages", () => {
 });
 
 describe("the ./format entry point", () => {
-    it("carries the decode vocabulary", async () => {
-        const format = await import("../../format");
-
+    it("carries the decode vocabulary", () => {
         assert.strictEqual(typeof format.isGraphSnapshot, "function");
         assert.strictEqual(typeof format.maskToIndices, "function");
         assert.strictEqual(typeof format.expandEdges, "function");
         assert.typeOf(format.INVALID_INDEX, "number");
     });
 
-    it("carries neither the brand nor the format version, so nothing can forge a snapshot", async () => {
-        const format = await import("../../format");
-
+    it("carries neither the brand nor the format version, so nothing can forge a snapshot", () => {
         assert.notInclude(Object.keys(format), "SNAPSHOT_BRAND");
         assert.notInclude(Object.keys(format), "FORMAT_VERSION");
     });
 
-    it("carries nothing of the construction or wire halves", async () => {
-        const exported = Object.keys(await import("../../format"));
+    it("carries nothing of the construction or wire halves", () => {
+        const exported = Object.keys(format);
 
         for (const name of ["GraphBuilder", "AttributeTable", "NodeIdMap", "fromRecords", "fromWire", "fromBytes"]) {
             assert.notInclude(exported, name);
@@ -322,8 +324,7 @@ describe("the ./commands entry point", () => {
 });
 
 describe("the data entry points carry data, not objects", () => {
-    it("publishes the catalogue tables, and every one of them survives JSON", async () => {
-        const catalog = await import("../../catalog");
+    it("publishes the catalogue tables, and every one of them survives JSON", () => {
         const tables = [
             catalog.BUILT_IN_ALGORITHMS,
             catalog.LAYOUT_DESCRIPTORS,
@@ -338,11 +339,11 @@ describe("the data entry points carry data, not objects", () => {
         }
     });
 
-    it("publishes the palettes, shapes and style defaults an application would otherwise copy", async () => {
-        const schema = await import("../../schema");
-
+    it("publishes the palettes, shapes and style defaults an application would otherwise copy", () => {
         assert.isAbove(schema.VIRIDIS_COLORS.length, 0);
         assert.isAbove(Object.keys(schema.NodeShapes).length, 0);
+        assert.include(schema.EdgeLineTypes.options, "dash-dot");
+        assert.include(schema.EdgeArrowTypes.options, "open-diamond");
         assert.typeOf(schema.defaultNodeStyle, "object");
         assert.match(schema.MISSING_DATA_COLOR, /^#[0-9a-f]{6}$/i);
     });

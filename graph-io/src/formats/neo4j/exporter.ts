@@ -16,7 +16,9 @@
  * `type[]`), and derive it from the dtype otherwise. Temporal columns write their `.text`
  * companion when set and the canonical ISO form otherwise. Nodes are grouped into sections by
  * (id space, stored-id column) in index order, so a re-import restores the same node order;
- * relationships likewise by (start space, end space).
+ * relationships likewise by (start space, end space). A node of an id space is written under its
+ * `originalId` value (the id text the importer stored it under as `Space:id`), so a round trip
+ * reproduces the source file.
  */
 
 import {
@@ -291,6 +293,9 @@ class ExportPlan {
 
     readonly idSpace: Column | null;
 
+    /** The id text of the nodes of an id space (the importer's `originalId` column), or null. */
+    readonly originalId: Column | null;
+
     readonly labels: Column | null;
 
     readonly kind: Column | null;
@@ -311,6 +316,7 @@ class ExportPlan {
         this.options = options;
         this.common = common;
         this.idSpace = snapshot.nodes.byRole("idSpace");
+        this.originalId = [...snapshot.nodes].find((column) => isIdText(column.meta)) ?? null;
         this.labels = snapshot.nodes.byRole("labels");
         this.kind = snapshot.edges.byRole("kind");
         for (const column of snapshot.nodes) {
@@ -438,7 +444,10 @@ class ExportPlan {
             if (companions.has(column) || (role !== null && SKIPPED_ROLES.has(role))) {
                 continue;
             }
-            if (domain === "node" && (isStoredId(meta) || column === this.idSpace || column === this.labels)) {
+            if (
+                domain === "node" &&
+                (isStoredId(meta) || column === this.idSpace || column === this.labels || column === this.originalId)
+            ) {
                 continue;
             }
             if (domain === "edge" && (role === "id" || column === this.kind)) {
@@ -834,6 +843,20 @@ class ExportPlan {
     }
 
     /**
+     * The `:ID` / `:START_ID` / `:END_ID` text of a node: its originalId value when it has an id
+     * space (the importer stored it as `Space:id`), its id otherwise.
+     * @param index - the node index
+     * @returns the id text
+     */
+    idTextOf(index: number): string {
+        const { originalId } = this;
+        if (originalId !== null && originalId.isSet(index) && this.spaceOf(index) !== null) {
+            return textOf(originalId, index);
+        }
+        return idText(this.snapshot.ids.idOf(index));
+    }
+
+    /**
      * The stored-id column of a node: the first one set in declaration order.
      * @param index - the node index
      * @returns the column, or null
@@ -872,7 +895,6 @@ class ExportPlan {
      */
     private *nodeLines(): Generator<string, void, undefined> {
         const { snapshot, labels, nodeColumns } = this;
-        const { ids } = snapshot;
         const { delimiter } = this.options.syntax;
         const propertyHeaders = nodeColumns.map((plan) => plan.header).join(delimiter);
         let sections = 0;
@@ -897,7 +919,7 @@ class ExportPlan {
                 yield `${header.join(delimiter)}\n`;
             }
             cells.length = 0;
-            cells.push(this.cell(idText(ids.idOf(i))));
+            cells.push(this.cell(this.idTextOf(i)));
             if (labels !== null) {
                 cells.push(this.cell(this.labelsText(i)));
             }
@@ -926,7 +948,6 @@ class ExportPlan {
      */
     private *relationshipLines(): Generator<string, void, undefined> {
         const { snapshot, kind, weights, edgeColumns, folding } = this;
-        const { ids } = snapshot;
         const { delimiter } = this.options.syntax;
         const list = snapshot.edgeList();
         const propertyHeaders = edgeColumns.map((plan) => plan.header).join(delimiter);
@@ -964,7 +985,7 @@ class ExportPlan {
                 yield headerOf(startSpace, endSpace);
             }
             cells.length = 0;
-            cells.push(this.cell(idText(ids.idOf(u))), this.cell(idText(ids.idOf(v))));
+            cells.push(this.cell(this.idTextOf(u)), this.cell(this.idTextOf(v)));
             if (kind !== null) {
                 cells.push(this.cell(kind.isSet(e) ? textOf(kind, e) : null));
             }
@@ -1046,6 +1067,22 @@ class ExportPlan {
         const text = companion !== null && companion.isSet(row) ? textOf(companion, row) : null;
         return formatScalar(column.dtype === "json" ? column.values[row] : column.value(row), scalar, text);
     }
+}
+
+/**
+ * Whether a node column is the importer's id text of the nodes of an id space (`originalId`).
+ * @param meta - the column metadata
+ * @returns true for the role-less string column the Neo4j importer declares with origin id `:ID` and no type
+ */
+function isIdText(meta: ColumnMeta): boolean {
+    return (
+        meta.role === null &&
+        meta.dtype === "string" &&
+        meta.origin !== null &&
+        meta.origin.format === NEO4J &&
+        meta.origin.id === ":ID" &&
+        meta.origin.type === null
+    );
 }
 
 /**

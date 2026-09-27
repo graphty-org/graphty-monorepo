@@ -1,34 +1,12 @@
 #!/usr/bin/env tsx
 
 // Node.js K-Core Decomposition Performance Benchmark using Benchmark.js
-import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
-import { generateTestGraphs } from "../utils/test-data-generator";
-import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { kCoreDecomposition } from "../../src/clustering/k-core";
 import { saveBenchmarkSession } from "../utils/benchmark-result";
+import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
+import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { formatSystemInfo, getSystemInfo } from "../utils/system-info";
-import type { Graph } from "../../src/core/graph";
-
-// Convert Graph to Map<NodeId, Set<NodeId>> format expected by k-core
-function graphToAdjacencyMap(graph: Graph): Map<number, Set<number>> {
-    const adjacencyMap = new Map<number, Set<number>>();
-
-    // Initialize all nodes
-    for (const node of graph.nodes()) {
-        adjacencyMap.set(node.id as number, new Set());
-    }
-
-    // Add edges
-    for (const edge of graph.edges()) {
-        const sourceSet = adjacencyMap.get(edge.source as number);
-        const targetSet = adjacencyMap.get(edge.target as number);
-
-        if (sourceSet) sourceSet.add(edge.target as number);
-        if (targetSet && !graph.isDirected) targetSet.add(edge.source as number);
-    }
-
-    return adjacencyMap;
-}
+import { generateTestGraphs } from "../utils/test-data-generator";
 
 // Configuration for Node.js benchmarks
 const configs = {
@@ -48,7 +26,7 @@ const configs = {
 
 async function runKCoreBenchmark(configType: "quick" | "comprehensive") {
     console.log(`🚀 Running ${configType} K-Core Decomposition benchmarks in Node.js`);
-    console.log("=" + "=".repeat(50));
+    console.log(`=${  "=".repeat(50)}`);
     console.log(formatSystemInfo(getSystemInfo()));
     console.log("");
 
@@ -92,8 +70,7 @@ async function runKCoreBenchmark(configType: "quick" | "comprehensive") {
             benchmark.addTest(
                 `K-Core ${size} vertices (k=3, sparse)`,
                 () => {
-                    const adjacencyMap = graphToAdjacencyMap(testData.graph);
-                    const result = kCoreDecomposition(adjacencyMap);
+                    const result = kCoreDecomposition(testData.graph);
                     // Verify result to prevent dead code elimination
                     if (!result || !result.cores) {
                         throw new Error("K-Core returned invalid result");
@@ -134,8 +111,7 @@ async function runKCoreBenchmark(configType: "quick" | "comprehensive") {
                 benchmark.addTest(
                     `K-Core ${size} vertices (k=5, RMAT)`,
                     () => {
-                        const adjacencyMap = graphToAdjacencyMap(testData.graph);
-                        const result = kCoreDecomposition(adjacencyMap);
+                        const result = kCoreDecomposition(testData.graph);
                         if (!result || !result.cores) {
                             throw new Error("K-Core returned invalid result");
                         }
@@ -162,7 +138,7 @@ async function runKCoreBenchmark(configType: "quick" | "comprehensive") {
         const session = await benchmark.run();
 
         // Display summary
-        console.log("\n" + "=".repeat(70));
+        console.log(`\n${  "=".repeat(70)}`);
         console.log("BENCHMARK RESULTS SUMMARY");
         console.log("=".repeat(70));
         console.log("Size\tType\tK\tTime(ms)\tOps/sec\tCore Size\tMargin");
@@ -178,11 +154,12 @@ async function runKCoreBenchmark(configType: "quick" | "comprehensive") {
 
             if (testData) {
                 try {
-                    const adjacencyMap = graphToAdjacencyMap(testData.graph);
-                    const res = kCoreDecomposition(adjacencyMap);
+                    const res = kCoreDecomposition(testData.graph);
                     const kCoreNodes = res.cores.get(k);
                     coreSize = kCoreNodes ? kCoreNodes.size.toString() : "0";
-                } catch (e) {}
+                } catch {
+                    // The summary column stays "N/A" when the rerun fails
+                }
             }
 
             console.log(

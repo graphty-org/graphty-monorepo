@@ -41,7 +41,10 @@
  * multi-state twin comparison of fa2-twins.test.ts; it feeds the K4 state rows and the scalar twin row so those
  * floors cover ten geometries, not one), fa2-integrate / random1k-metrics100 (the layoutMetrics record
  * after 100 iterations, the "distributional" metric of test/helpers/fa2-parity.ts: the non-histogram metrics relative
- * under a 0.05 floor, the nearest-neighbour histogram as one total-variation distance). Writers: fa2-inspect.test.ts
+ * under a 0.05 floor, the nearest-neighbour histogram as one total-variation distance), fa2-integrate /
+ * random1k-paper-layout5 (the positions after 5 paper-mode iterations against @graphty/layout's CPU class, whose
+ * values carry the "oracle-f64" class, the fr-karate-layout10 precedent; the rows fa2-layout-oracle.*). Writers:
+ * fa2-layout-oracle.test.ts (the layout5 member), fa2-inspect.test.ts
  * (adapter and oracle-f64 of the eight stages), fa2-twins.test.ts (the -no-subgroups twins and their resync oracles),
  * fa2-trace-parity.test.ts (the traces and their references), fa2-distributional.test.ts (the metrics). The scalar
  * twin rows all feed one row id, fa2-twins.trace.twin (the maximum over the members), the basis of fa2-twins.trace;
@@ -95,19 +98,21 @@
  * counting-scatter / random1m-4096-keys, radix-hist / random1m-24-table, radix-scatter / random1m-24, grid-cell-key /
  * random20k (each recording `<kernel>.cross`); the f32 tier members segmented-reduce / hub10k-tiers, spmv-pull /
  * hub10k-tiers (elementwise) and fa2-attraction / hub10k-K2-tiers (floored stride-3); the grid stage members on the
- * UNSCALED random20k in 2D, every per-node one holding every 4th node -- grid-centroid / random20k-pyramid (the xyz
- * lanes of at most 1,024 cells of every level, floored stride-3; the mass lane is exact and checked bitwise by the
+ * UNSCALED random20k in 2D, every per-node one holding every 5th node -- grid-centroid / random20k-pyramid (the xyz
+ * lanes of about 1,024 cells of every level, floored stride-3; the mass lane is exact and checked bitwise by the
  * suite), grid-far-field / random20k-far (the force after G6: K2's attraction plus the far field), grid-near-field /
  * random20k-near (the force after G7, the whole total; its twin row grid-twins.force.twin), fa2-stats-finalize /
  * random20k-K1-grid (the eight grid-block values of the K1 fold of iteration 2), fa2-integrate / random20k-K5-grid
- * (the positions after K5) with its WIDENING member fa2-stats-finalize / isolated-K1-grid (the same eight values on
+ * (the positions after K5) with its WIDENING member fa2-integrate / clumpy100-K5-grid (the same positions on the
+ * unscaled clumpy100 fixture, whose blobs bring the far field's distance floor into play), and the K1 row's WIDENING
+ * member fa2-stats-finalize / isolated-K1-grid (the same eight values on
  * the unscaled isolated fixture, whose one-iteration jump to a radius near 200 gives the f32 rmsRadius fold a 3e-6
  * floor on the RTX 4070 SUPER), plus the two the T9 primitives suite writes, grid-downsample / random20k-L1 and
  * grid-centroid-hub / hubcell-L0 (the four lanes of the hub cell; its twin row grid-twins.hubCentroid.twin); and the
  * five approximation members of PD-20, whose "oracle-f64" class holds the EXACT GPU TIER's values on the same
  * adapter (PD-19: a known literal mismatch of the same kind as the oracle-f32 rows, the b field of the row names the
  * class): grid-exact / random20k-rms and random20k-p99 (the grid tier's force after G7 against the exact tier's
- * after K3, every 4th node, through the "floored-rms" / "floored-p99" metrics -- the RMS and the 99th percentile of
+ * after K3, every 5th node, through the "floored-rms" / "floored-p99" metrics -- the RMS and the 99th percentile of
  * the floored per-node error of spec 11.4, so the recorded floor IS the approximation error the gate reads),
  * grid-expansion / random20k-spread200 (the spread after 50 and 200 iterations of each tier, elementwise),
  * grid-distributional / random20k-metrics200 (the layoutMetrics record after 200 iterations, the "distributional"
@@ -394,6 +399,13 @@ const P3_NOISE_SET: readonly NoiseMember[] = [
         { "cross-adapter": "fa2-distributional.cross", twin: null, "oracle-f64": "fa2-distributional.oracle-f64" },
         { "cross-adapter": "fa2-distributional.cross", twin: null, "oracle-f64": "fa2-distributional" },
         "test/layouts/fa2-distributional.test.ts (adapter + oracle-f64)",
+    ),
+    p3Member(
+        "layout5",
+        "floored-stride3",
+        stageRows("fa2-layout-oracle", null),
+        stageTolerances("fa2-layout-oracle", null),
+        "test/layouts/fa2-layout-oracle.test.ts (adapter + the CPU class as oracle-f64)",
     ),
 ];
 
@@ -792,6 +804,7 @@ function random20kMetricsKeys(): readonly string[] {
 const P4_GRID_INSPECT_WRITER = "test/layouts/grid-inspect.test.ts (adapter + oracle-f64)";
 const P4_GRID_TWINS_WRITER = "test/layouts/grid-twins.test.ts (-no-subgroups)";
 const P4_GRID_EXACT_WRITER = "test/layouts/grid-exact.test.ts (adapter + the exact GPU tier under oracle-f64, PD-19)";
+const P4_GRID_LAW_WRITER = "test/layouts/grid-law.test.ts (adapter + the exact GPU tier under oracle-f64, PD-19)";
 
 /**
  * The P4 noise set (P4-T11 Step 3; rule (f): a row per kernel): the nine u32 primitive members (bitwise across
@@ -891,6 +904,14 @@ const P4_NOISE_SET: readonly NoiseMember[] = [
         stageTolerances("grid-inspect.positions", null),
         P4_GRID_INSPECT_WRITER,
     ),
+    // the widening member of the K5 row: the unscaled clumpy100 fixture (the grid-parity.ts module comment)
+    p4Member(
+        GRID_NOISE_FIXTURES.positionsClumpy,
+        "floored-stride3",
+        stageRows("grid-inspect.positions", null),
+        stageTolerances("grid-inspect.positions", null),
+        P4_GRID_INSPECT_WRITER,
+    ),
     p4Member(
         GRID_NOISE_FIXTURES.exactRms,
         "floored-rms",
@@ -904,6 +925,21 @@ const P4_NOISE_SET: readonly NoiseMember[] = [
         metricsRows("grid-exact.p99"),
         metricsTolerances("grid-exact.p99"),
         P4_GRID_EXACT_WRITER,
+    ),
+    // the widening members of the two exact-vs-grid rows: the spring-electrical model's grid tier (grid-parity.ts)
+    p4Member(
+        GRID_NOISE_FIXTURES.exactRmsSe,
+        "floored-rms",
+        metricsRows("grid-exact.rms"),
+        metricsTolerances("grid-exact.rms"),
+        P4_GRID_LAW_WRITER,
+    ),
+    p4Member(
+        GRID_NOISE_FIXTURES.exactP99Se,
+        "floored-p99",
+        metricsRows("grid-exact.p99"),
+        metricsTolerances("grid-exact.p99"),
+        P4_GRID_LAW_WRITER,
     ),
     p4Member(
         GRID_NOISE_FIXTURES.expansion,
@@ -1492,37 +1528,37 @@ describe("noise floor (benchmarks/results/noise-floor.json)", () => {
         expectBitwiseEqual(first.stateWords, second.stateWords, "state, run 1 vs run 2");
         writeNoiseFixture("fa2-repulsion-exact", "karate", cls, first.force, "f32");
         writeNoiseFixture("fa2-speed-finalize", "karate", cls, first.trace, "f32");
+        // every committed fixture is measured before the test fails, so one run lists every pair over its limit
+        const failures: string[] = [];
         let compared = 0;
-        for (const fixture of readNoiseFixtures("fa2-repulsion-exact", "karate")) {
-            if (!isAdapterClass(fixture.adapterClass)) {
-                continue;
+        const legs = [
+            { kernel: "fa2-repulsion-exact", what: "force", metric: "floored-stride3", live: first.force },
+            { kernel: "fa2-speed-finalize", what: "trace", metric: "elementwise", live: first.trace },
+        ] as const;
+        for (const leg of legs) {
+            const limitId = `fa2-skeleton.${leg.what}.cross`;
+            const limit = limitOf(limitId);
+            for (const fixture of readNoiseFixtures(leg.kernel, "karate")) {
+                if (!isAdapterClass(fixture.adapterClass)) {
+                    continue;
+                }
+                const err = pairError(leg.metric, leg.live, fixture.values);
+                console.warn(
+                    `[noise-floor] live ${leg.what} ${cls} vs committed ${fixture.adapterClass}: ${err.rel.toExponential(3)}`,
+                );
+                if (!(err.rel <= limit)) {
+                    failures.push(
+                        `live ${leg.what} ${cls} vs committed ${fixture.adapterClass}: ${err.rel.toExponential(3)} > ${limitId} (${limit.toExponential(3)})`,
+                    );
+                }
+                compared++;
             }
-            const err = pairError("floored-stride3", first.force, fixture.values);
-            console.warn(
-                `[noise-floor] live force ${cls} vs committed ${fixture.adapterClass}: ${err.rel.toExponential(3)}`,
-            );
-            expect(err.rel, `live force vs committed ${fixture.adapterClass}`).toBeLessThanOrEqual(
-                limitOf("fa2-skeleton.force.cross"),
-            );
-            compared++;
-        }
-        for (const fixture of readNoiseFixtures("fa2-speed-finalize", "karate")) {
-            if (!isAdapterClass(fixture.adapterClass)) {
-                continue;
-            }
-            const err = pairError("elementwise", first.trace, fixture.values);
-            console.warn(
-                `[noise-floor] live trace ${cls} vs committed ${fixture.adapterClass}: ${err.rel.toExponential(3)}`,
-            );
-            expect(err.rel, `live trace vs committed ${fixture.adapterClass}`).toBeLessThanOrEqual(
-                limitOf("fa2-skeleton.trace.cross"),
-            );
-            compared++;
         }
         expect(
             compared,
             "at least this adapter's own committed fixtures (or the ones just written) exist",
         ).toBeGreaterThan(0);
+        expect(failures, "live paper-leg output within the cross-adapter floor of every committed fixture").toEqual([]);
     });
 
     for (const member of NOISE_SET) {

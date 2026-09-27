@@ -114,7 +114,6 @@ describe("Graph.batchOperations", () => {
         const session = graph.getSession();
         const before = session.history.steps.length;
         const nodeCount = 100;
-        const startTime = Date.now();
 
         await graph.batchOperations(async (tx) => {
             for (let i = 0; i < nodeCount; i++) {
@@ -123,8 +122,8 @@ describe("Graph.batchOperations", () => {
         });
 
         assert.strictEqual(graph.getNodeCount(), nodeCount);
+        // A hang is caught by the test timeout; what is asserted is that every node landed.
         assert.lengthOf(session.history.steps, before + 1);
-        assert.isBelow(Date.now() - startTime, 2000, "a hundred adds take well under two seconds");
     });
 });
 

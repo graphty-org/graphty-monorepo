@@ -42,8 +42,11 @@ webgpu-graph-algorithms/
 +-- scripts/gpu-policy.js (+.d.ts)   # parseGpuRequire / checkAdapter / isSoftwareInfo -- the ONE copy of the adapter policy
 +-- scripts/runner-class.js (+.d.ts) # runnerClass(info, env) -- the ONE copy of the benchmark runner-class rule
 +-- scripts/gpu-report.js         # adapter report + policy exit code + nvidia-smi sample (imports dist/node.js only)
++-- scripts/grid-memory.mjs       # RSS against heapUsed across grid simulations, and a raw Dawn loop (issue #162; docs/grid-memory-retention.md)
 +-- scripts/run-browser-project.js   # timeout -k 10 600 around the browser project; exit 124 passes iff the JSON says all tests passed
 +-- scripts/bench-compare.js      # the regression check: a median AND a minimum above 1.35x the PINNED best of benchmarks/results/<runner-class>.json, and above it by at least 2.5 ms
++-- scripts/bench-targets.js      # judgeTarget: met / missed / recorded against benchmarks/results/targets.json (the T-table, one entry per row)
++-- scripts/bench-readme-tables.js   # `bench:readme`: regenerates the README's target tables between their markers; a node test fails on drift
 +-- scripts/bench-append-session.js  # `bench:append <out> <results>`: appends the last out session to a baseline; refuses a software session, a session missing any of the nine groups, a duplicate date
 +-- src/
 |   +-- index.ts                  # the ONLY public barrel; explicit named exports; /// <reference types="@webgpu/types" preserve="true" />
@@ -98,6 +101,8 @@ pnpm run test:browser:ci    # node scripts/run-browser-project.js (SwiftShader u
 pnpm run test:limits        # vitest run --project=node-limits (GPU lane only)
 pnpm run bench              # tsx benchmarks/run.ts -> benchmarks/out/<runner-class>.json
 pnpm run bench:compare      # the regression check: a median AND a minimum above 1.35x AND 2.5 ms over the pinned best of benchmarks/results/<runner-class>.json
+pnpm run bench:readme       # regenerate the README's target tables after changing targets.json or a results file
+pnpm run bench:ab --base <rev>   # the paired check of a pull request: base and candidate alternated on one card (ABBA), per-row ratio with a 95% interval; fails when the lower bound is above 1.08
 pnpm run bench:append benchmarks/out/<class>.json benchmarks/results/<class>.json   # append the last out session to the baseline (refuses software / incomplete / duplicate sessions)
 pnpm exec tsx benchmarks/layout-run.ts --nodes 100000 --edges 1000000   # the end-to-end exact-tier layout; exit 1 on a non-finite position or an unfinished run
 pnpm run gpu:report         # node scripts/gpu-report.js (after build:all): adapter report, policy exit code
@@ -146,8 +151,11 @@ after the `upload` group still see it). `test/benchmarks.test.ts` proves the har
 `bench-compare.js`, the ladder table, the 7.8 rule and the driver's helpers without a GPU. Browser numbers (T-3 in
 Chromium, T-5) arrive through the `appendBenchRecord` command of `vitest.config.ts` from `bench`-tagged browser tests
 (`test/browser/bench.test.ts`, run only under `GRAPHTY_BROWSER_GPU=nvidia`) into `benchmarks/out/<the browser's runner
-class>.json` (`nvidia-lovelace-driver0.json` on the dev box: Chromium redacts the driver string); they are recorded in the
-gate record and the README, never merged into a Node class file.
+class>.json` (`nvidia-lovelace-driver0.json` on the dev box: Chromium redacts the driver string); they are checked in as
+`benchmarks/results/<the browser's class>.json` (copied from the out file or the lane's artifact), never merged into a
+Node class file. The absolute targets live in `benchmarks/results/targets.json`: `bench:compare` prints met / missed /
+recorded per row and fails a run on a gating class (`gpu-linux-t4`) that misses a target not listed as that class's
+known miss, and `pnpm run bench:readme` regenerates the README tables from it (issue #277).
 
 `exactMaxNodes` (`EXACT_MAX_NODES` in `src/constants.ts`) is re-fixed from the ladder by the spec 7.8 rule, coded once as
 `exactMaxNodesFromLadder` in `benchmarks/layout-exact.bench.ts`: the largest rung with <= 4 ms per iteration, rounded down
@@ -178,6 +186,11 @@ for the node projects and `scripts/gpu-report.js`; `GRAPHTY_EGL_LIB_DIR=<that di
 SwiftShader -- which the tests turn RED under `GRAPHTY_GPU_REQUIRE=hardware` / `nvidia` and under
 `GRAPHTY_BROWSER_GPU=nvidia`, never into a silent pass. The tree is extracted per docs/HEADLESS_GPU_REPORT.md
 appendix D into the monorepo's gitignored tmp/egl/; Task M1-T5 of the integration plan re-extracts it.
+The pre-push gate (`tools/prepush.sh`) prepends `GRAPHTY_EGL_LIB_DIR`, or the main checkout's
+`tmp/egl/root/usr/lib/x86_64-linux-gnu` when the variable is unset, to `LD_LIBRARY_PATH` for the node
+tests, so it runs on the NVIDIA GPU when the tree exists and on lavapipe otherwise. The node project's
+global setup prints the adapter it ran on (`[gpu] node project adapter: <vendor> / <architecture>`)
+whenever `GRAPHTY_GPU_REQUIRE` is set.
 
 ## WGSL Conventions
 
@@ -244,7 +257,9 @@ Three vitest projects in one config (spec 11.1; benchmarks are a tsx harness, no
 | `browser`        | `test/setup/browser.ts`                                                                 | `test/browser/**`: the light smoke suite on Playwright Chromium, `browser.fileParallelism: false`, flags by `GRAPHTY_BROWSER_GPU`                                                                                                                                           | SwiftShader  | NVIDIA   |
 
 Rules of every test (spec 11.2, 11.9): a wrong result is never a skip; every kernel result is compared to an
-oracle or an invariant; every kernel test runs its kernel twice and asserts bitwise equality first; every
+oracle or an invariant; every kernel test runs its kernel twice and asserts bitwise equality first
+(`expectBitwiseEqual`), or says why not in a `run-twice exempt:` header line (`test/run-twice.test.ts`
+enforces it under `test/primitives`, `test/layouts` and `test/algorithms`); every
 `uncapturederror` fails the current test; fixture sizes scale with `gpuScale()` (1 on hardware, 1/50 on a
 software adapter). `acquireRaw()` / `acquire()` give a FRESH adapter per device because an adapter is consumed
 by its first `requestDevice` (spec 2.2 step 1). The device self-check (`src/primitives/verify.ts`) runs once per
@@ -357,6 +372,7 @@ Settled by the review probes (spec R-22, [M] = measured; the probes live in `doc
 | Default-lane coverage run                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | 00:04 wall on lavapipe for `--project=node --coverage` (34 files, 494 tests; T-12 budget 15 min for the lane); 97.83 / 100 / 96.17 / 97.83 against 80 / 80 / 75 / 80                                                                                                                                                          | P1-T7 Step 35                                                                                                                                                                                                                           |
 | Dawn-node object model                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | `createBuffer` / `destroy` / `mapAsync` live on the prototypes of extensible wrappers; own-property proxies and `delete` work (the LeakCounter relies on it); `degree` maps exactly one staging slot per call                                                                                                                 | `test/leak.test.ts`, 2026-09-15 probe on llvmpipe and NVIDIA                                                                                                                                                                            |
 | Dawn-node upload throughput of one `queue.writeBuffer` (the arena hot prefix)                                                                                                                                                                                                                                                                                                                                                                                                                         | 2.76 GB/s at 16.4 MB (5.9 ms), 1.29 GB/s at 164 MB (127 ms, above the 100 ms T-1 target; owner decision in G1.md section 7); `degree` + 400 KB readback 0.87 ms; the empty-submit round trip 0.083 ms median with a 0.04-0.69 ms spread                                                                                       | `benchmarks/results/nvidia-lovelace-driver580.json`, 2026-09-15                                                                                                                                                                         |
+| llvmpipe (lavapipe) caps one shader invocation at 65,535 loop iterations, counted over every loop together (gallivm's `LP_MAX_TGSI_LOOP_ITERATIONS`); past it every loop quietly breaks, with no error. A single-pass K3 costs WG + 2 iterations per 256-node tile, so it summed only j < 65,027 (= 254 x 256 + 3): 7 % force error at 70k, 35 % at 100k; NVIDIA was correct at every size | K3 sums at most `EXACT_TILES_PER_PASS` (128) tiles per dispatch and records ceil(tiles / 128) passes through `recordExactRepulsion` (issue #87); any other kernel whose per-invocation loop count can exceed 65,535 needs the same split | `test/layouts/exact-large.test.ts` (FA2, FR and spring-electrical at 70k against an f64 sum; red on lavapipe before the split), 2026-09-24 |
 
 To verify at G0 (P0-T4 replaces every "unverified" below with the measured answer and the run that
 measured it):

@@ -20,10 +20,10 @@
  *   `JSON.stringify`, a `postMessage` to a worker and a write to a saved document, and a
  *   closure survives none of those. A cost estimate that needs code belongs to
  *   `session.estimate()`, which runs where the code is.
- * - **The table only lists what ships.** Four members of `KNOWN_ALGORITHMS` -- `all-paths`,
- *   `clustering-coefficient`, `k-core` and `link-prediction` -- are not registered by this
- *   package and therefore have no descriptor here. A catalogue that advertised them would be
- *   lying about what the element can run.
+ * - **The table only lists what ships.** Two members of `KNOWN_ALGORITHMS` -- `all-paths` and
+ *   `clustering-coefficient`, listed in `DEPRECATED_ALGORITHMS` -- are not implemented and
+ *   therefore have no descriptor here. A catalogue that advertised them would be lying about
+ *   what the element can run.
  *
  * Two conventions worth stating once:
  *
@@ -56,9 +56,11 @@ import { FloydWarshallAlgorithm } from "../algorithms/FloydWarshallAlgorithm";
 import { GirvanNewmanAlgorithm } from "../algorithms/GirvanNewmanAlgorithm";
 import { HITSAlgorithm } from "../algorithms/HITSAlgorithm";
 import { KatzCentralityAlgorithm } from "../algorithms/KatzCentralityAlgorithm";
+import { KCoreAlgorithm } from "../algorithms/KCoreAlgorithm";
 import { KruskalAlgorithm } from "../algorithms/KruskalAlgorithm";
 import { LabelPropagationAlgorithm } from "../algorithms/LabelPropagationAlgorithm";
 import { LeidenAlgorithm } from "../algorithms/LeidenAlgorithm";
+import { LinkPredictionAlgorithm } from "../algorithms/LinkPredictionAlgorithm";
 import { LouvainAlgorithm } from "../algorithms/LouvainAlgorithm";
 import { MaxFlowAlgorithm } from "../algorithms/MaxFlowAlgorithm";
 import { MinCutAlgorithm } from "../algorithms/MinCutAlgorithm";
@@ -332,7 +334,7 @@ const componentStrengthOptions = defineOptions({
 /**
  * Every algorithm this package registers, as a plain-JSON descriptor.
  *
- * Twenty-one descriptors for twenty-three registered algorithms: the two single-source
+ * Twenty-three descriptors for twenty-five registered algorithms: the two single-source
  * shortest-path engines are one key with a `method` parameter, and the two component algorithms
  * are one key with a `strength` parameter. Each descriptor's `legacyKeys` names the 1.10 keys it
  * replaces and the parameters that reproduce them.
@@ -743,6 +745,36 @@ export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         costClass: "heavy",
         complexity: "O(n * m^2) between two nodes, O(n * m + n^2 log n) across the whole graph, O(k * n^2) with Karger",
         legacyKeys: [{ key: "min-cut" }],
+    },
+    {
+        key: "k-core",
+        plainName: "Core depth",
+        technicalName: "K-core decomposition",
+        description:
+            "Peels the graph layer by layer and gives each node the depth of the most tightly knit core it belongs to: a node of depth k has at least k neighbours inside that core.",
+        category: "structure",
+        shape: "node-metric",
+        fields: metricFields("node", { plainName: "Core depth", technicalName: "core number", type: "integer" }),
+        options: optionsOf(KCoreAlgorithm),
+        costClass: "instant",
+        complexity: "O(n + m)",
+        legacyKeys: [{ key: "k-core" }],
+    },
+    {
+        key: "link-prediction",
+        plainName: "Likely new links",
+        technicalName: "Link prediction",
+        description:
+            "Scores the pairs of nodes that are not yet joined by the neighbours they share, and lists the pairs most likely to be joined next.",
+        category: "prediction",
+        shape: "pair-list",
+        fields: [
+            field({ name: "pairs", plainName: "Likely new links", technicalName: "pairs", kind: "graph", type: "table" }),
+        ],
+        options: optionsOf(LinkPredictionAlgorithm),
+        costClass: "heavy",
+        complexity: "O(n^2 * d)",
+        legacyKeys: [{ key: "link-prediction" }],
     },
 ];
 

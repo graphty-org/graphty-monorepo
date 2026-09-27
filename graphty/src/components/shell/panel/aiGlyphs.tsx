@@ -34,7 +34,7 @@ const AI_GLYPH_STROKE = 1.5;
  * without redrawing a shape.
  * @public
  */
-export const AI_GLYPHS: Readonly<Record<AiGlyphName, ReactNode>> = {
+const AI_GLYPHS: Readonly<Record<AiGlyphName, ReactNode>> = {
     // REGISTER-1.5 section 1.4, "stop listening (voice)"; AiPanel.dc.html:539.
     stopListening: (
         <>

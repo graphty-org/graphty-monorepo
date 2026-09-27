@@ -312,6 +312,12 @@ describe("gateRun: the structural cases, which are not the cap", () => {
         assert.equal(refusal(decision).code, "E_UNKNOWN_ALGORITHM");
     });
 
+    it("reports a deprecated built-in name as E_UNSUPPORTED", () => {
+        const decision = gateRun({ algorithm: "all-paths", statistics: statistics() });
+
+        assert.equal(refusal(decision).code, "E_UNSUPPORTED");
+    });
+
     it("reports a requirement this graph does not meet as E_UNSUPPORTED", () => {
         const decision = gateRun({
             algorithm: "kruskal",

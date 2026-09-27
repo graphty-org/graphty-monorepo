@@ -5,7 +5,13 @@
  * index endpoints), JSON Graph Format v2 (nodes keyed by id, per-edge `directed`, hyperedges),
  * Cytoscape.js elements (`data.id` / `data.source` / `data.target`, `position`, `classes`,
  * `data.parent`), graphology serialisation (`key` / `attributes`, `undirected` edges, `options`)
- * and vis.js (`from` / `to`) -- and pushes it scalar by scalar into the sink.
+ * vis.js (`from` / `to`), and NetworkX adjacency_data (`nodes` + `adjacency`) and tree_data (nested
+ * `id` / `children`) -- and pushes it scalar by scalar into the sink.
+ *
+ * Python's json module writes the bare tokens NaN, Infinity and -Infinity, which strict JSON
+ * refuses; they are read as the JavaScript numbers with one warning. An integer literal beyond
+ * 2^53 is read as its exact digits (a string, the canonical id rule of the text formats) rather
+ * than a rounded float, again with one warning.
  *
  * JSON awaits the whole text (design section 8.4: `JSON.parse` on 100 MB is fine; a streaming
  * tokeniser is a later improvement). The parsed records are iterated in place; the importer never
@@ -72,10 +78,10 @@ import {
     CYTOSCAPE_STRUCTURAL_KEYS,
     DIALECT_DEFAULT_DIRECTED,
     hasKey,
-    isJsonDialect,
+    isJsonImportDialect,
     isJsonObject,
-    JSON_DIALECTS,
-    type JsonDialect,
+    JSON_IMPORT_DIALECTS,
+    type JsonImportDialect,
     type JsonShapeMeta,
     META_KEY,
     NODE_LINK_SOURCE_KEYS,
@@ -89,8 +95,11 @@ import {
 /** The format-specific options of the JSON importer. */
 export interface JsonImportOptions {
     /** The dialect to read; "auto" (default) sniffs the parsed document. */
-    dialect?: JsonDialect | "auto" | undefined;
-    /** node-link / d3 / vis: the node key holding the id; auto: "id" when any node has it, else "name". */
+    dialect?: JsonImportDialect | "auto" | undefined;
+    /**
+     * node-link / d3 / vis / adjacency / tree: the node key holding the id; auto: "id" (node-link /
+     * d3: "id" when any node has it, else "name").
+     */
     nodeIdKey?: string | undefined;
     /** node-link / d3: the top-level key holding the edges; auto: "edges" when present, else "links". */
     edgesKey?: string | undefined;
@@ -169,6 +178,10 @@ export const JSON_ISSUE = Object.freeze({
     INVALID_ENCODING: INVALID_ENCODING_CODE,
     /** Bytes that are not UTF-8 and declare no encoding were read as windows-1252. */
     ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
+    /** The document uses the non-standard tokens NaN / Infinity / -Infinity (Python's json writes them); read as numbers. */
+    NONSTANDARD_NUMBER: "W_JSON_NONSTANDARD_NUMBER",
+    /** Integer literals beyond 2^53 were read as their exact digits (strings), not as rounded numbers. */
+    BIG_INTEGER: "W_JSON_BIG_INTEGER",
     /** A declared encoding the platform cannot decode was ignored. */
     UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
 });
@@ -243,7 +256,7 @@ interface EdgeIdColumn {
 
 /** The resolved format-specific options. */
 interface ResolvedJsonOptions {
-    readonly dialect: JsonDialect | "auto";
+    readonly dialect: JsonImportDialect | "auto";
     readonly nodeIdKey: string | null;
     readonly edgesKey: string | null;
     readonly sourceKey: string | null;
@@ -262,8 +275,8 @@ interface ResolvedJsonOptions {
 function resolveJsonOptions(options: (JsonImportOptions & CommonImportOptions) | undefined): ResolvedJsonOptions {
     const o = options ?? {};
     const dialect = o.dialect ?? "auto";
-    if (dialect !== "auto" && !isJsonDialect(dialect)) {
-        throw unsupportedOption("dialect", dialect, [...JSON_DIALECTS, "auto"]);
+    if (dialect !== "auto" && !isJsonImportDialect(dialect)) {
+        throw unsupportedOption("dialect", dialect, [...JSON_IMPORT_DIALECTS, "auto"]);
     }
     const indexLinks = o.indexLinks ?? "auto";
     if (indexLinks !== "auto" && typeof indexLinks !== "boolean") {
@@ -506,7 +519,7 @@ class ImportContext {
      * @param dialect - the dialect
      * @param idField - where the dialect's ids come from, for the message
      */
-    reportNodeIdFrom(dialect: JsonDialect, idField: string): void {
+    reportNodeIdFrom(dialect: JsonImportDialect, idField: string): void {
         if (this.options.nodeIdFrom !== "id") {
             this.report.warning(
                 "unsupported",
@@ -523,7 +536,7 @@ class ImportContext {
      * @param dialect - the dialect
      * @returns the direction
      */
-    defaultDirected(dialect: JsonDialect): boolean {
+    defaultDirected(dialect: JsonImportDialect): boolean {
         return this.explicitDefaultDirected ? this.options.defaultDirected : DIALECT_DEFAULT_DIRECTED[dialect];
     }
 
@@ -962,12 +975,153 @@ function parseDocument(text: string, report: ImportReportBuilder): unknown {
     if (text.trim().length === 0) {
         report.fail(JSON_ISSUE.EMPTY_INPUT, "the input is empty");
     }
+    let root: unknown;
+    let syntaxError: string | null = null;
     try {
-        return JSON.parse(text) as unknown;
+        root = JSON.parse(text) as unknown;
     } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return report.fail(JSON_ISSUE.SYNTAX, `invalid JSON: ${message}`);
+        syntaxError = err instanceof Error ? err.message : String(err);
     }
+    // the fast path: strict JSON without a digit run long enough to be an unsafe integer
+    if (syntaxError === null && !MAYBE_UNSAFE_INTEGER.test(text)) {
+        return root;
+    }
+    const scan = rewriteNumbers(text);
+    if (scan.tokens.size > 0 || scan.bigIntegers.length > 0) {
+        try {
+            root = JSON.parse(scan.text, scan.tokens.size > 0 ? reviveNonstandard : undefined) as unknown;
+            syntaxError = null;
+        } catch {
+            // the rewrite did not make it valid JSON: report the parser's message on the original text
+        }
+    }
+    if (syntaxError !== null) {
+        return report.fail(JSON_ISSUE.SYNTAX, `invalid JSON: ${syntaxError}`);
+    }
+    if (scan.tokens.size > 0) {
+        report.warning(
+            "coercion",
+            JSON_ISSUE.NONSTANDARD_NUMBER,
+            `the document uses the non-standard token(s) ${[...scan.tokens].join(", ")}, which strict JSON does not allow; read as numbers`,
+        );
+    }
+    if (scan.bigIntegers.length > 0) {
+        const shown = scan.bigIntegers.slice(0, BIG_INTEGERS_SHOWN).join(", ");
+        const more = scan.bigIntegers.length - BIG_INTEGERS_SHOWN;
+        report.warning(
+            "precision",
+            JSON_ISSUE.BIG_INTEGER,
+            `${scan.bigIntegers.length} integer(s) beyond 2^53 kept as text so no digit is lost: ${shown}${more > 0 ? ` and ${more} more` : ""}`,
+        );
+    }
+    return root;
+}
+
+/** A run of 16 digits not inside a fraction: the shortest integer literal that can exceed 2^53 (9007199254740992). */
+const MAYBE_UNSAFE_INTEGER = /(?<![0-9.])[0-9]{16}/;
+
+/** How many of the integers kept as text the warning lists. */
+const BIG_INTEGERS_SHOWN = 10;
+
+/**
+ * The prefix of the string a non-standard token is rewritten to (a NUL character first, which no
+ * sensible attribute value starts with); reviveNonstandard() turns it back into the number.
+ */
+const NONSTANDARD_SENTINEL = `${String.fromCharCode(0)}graph-io:`;
+
+/** The non-standard tokens Python's json module writes, longest first so -Infinity wins over a bare minus. */
+const NONSTANDARD_TOKENS: readonly (readonly [string, number])[] = [
+    ["-Infinity", -Infinity],
+    ["Infinity", Infinity],
+    ["NaN", NaN],
+];
+
+/** A JSON integer literal (no fraction, no exponent, no leading zero), as CANONICAL_INTEGER in common/ids.ts. */
+const INTEGER_LITERAL = /^-?(0|[1-9][0-9]*)$/;
+
+/**
+ * Rewrite the numbers JSON.parse cannot read exactly, outside strings and in value positions only:
+ * NaN / Infinity / -Infinity become sentinel strings, an integer literal that is not a safe
+ * integer becomes a string of its digits. A container stack tells a value position (after `:`,
+ * `[`, or `,` inside an array) from a key position, so `{NaN: 1}` stays invalid.
+ * @param text - the document text
+ * @returns the rewritten text, the non-standard tokens seen and the integer literals quoted
+ */
+function rewriteNumbers(text: string): { text: string; tokens: Set<string>; bigIntegers: string[] } {
+    const parts: string[] = [];
+    const tokens = new Set<string>();
+    const bigIntegers: string[] = [];
+    const arrays: boolean[] = [];
+    let expectValue = true;
+    let copied = 0;
+    let i = 0;
+    const n = text.length;
+    while (i < n) {
+        const ch = text[i];
+        if (ch === '"') {
+            i++;
+            while (i < n && text[i] !== '"') {
+                i += text[i] === "\\" ? 2 : 1;
+            }
+            i++;
+            expectValue = false;
+            continue;
+        }
+        if (ch === "{" || ch === "[") {
+            arrays.push(ch === "[");
+            expectValue = ch === "[";
+        } else if (ch === "}" || ch === "]") {
+            arrays.pop();
+            expectValue = false;
+        } else if (ch === ":") {
+            expectValue = true;
+        } else if (ch === ",") {
+            expectValue = arrays.length > 0 && arrays[arrays.length - 1];
+        } else if (expectValue && ch !== " " && ch !== "\t" && ch !== "\n" && ch !== "\r") {
+            expectValue = false;
+            const token = NONSTANDARD_TOKENS.find(([word]) => text.startsWith(word, i));
+            let end = i;
+            let replacement: string | null = null;
+            if (token !== undefined) {
+                end = i + token[0].length;
+                tokens.add(token[0]);
+                replacement = JSON.stringify(`${NONSTANDARD_SENTINEL}${token[0]}`);
+            } else if (ch === "-" || (ch >= "0" && ch <= "9")) {
+                end = i + 1;
+                while (end < n && "0123456789+-.eE".includes(text[end])) {
+                    end++;
+                }
+                const literal = text.slice(i, end);
+                if (INTEGER_LITERAL.test(literal) && !Number.isSafeInteger(Number(literal))) {
+                    bigIntegers.push(literal);
+                    replacement = `"${literal}"`;
+                }
+            }
+            if (replacement !== null) {
+                parts.push(text.slice(copied, i), replacement);
+                copied = end;
+            }
+            i = Math.max(end, i + 1);
+            continue;
+        }
+        i++;
+    }
+    parts.push(text.slice(copied));
+    return { text: parts.join(""), tokens, bigIntegers };
+}
+
+/**
+ * The JSON.parse reviver that turns the sentinel strings of rewriteNumbers() back into numbers.
+ * @param _key - the member key (unused)
+ * @param value - the parsed value
+ * @returns the number for a sentinel string, the value otherwise
+ */
+function reviveNonstandard(_key: string, value: unknown): unknown {
+    if (typeof value === "string" && value.startsWith(NONSTANDARD_SENTINEL)) {
+        const found = NONSTANDARD_TOKENS.find(([word]) => word === value.slice(NONSTANDARD_SENTINEL.length));
+        return found === undefined ? value : found[1];
+    }
+    return value;
 }
 
 /**
@@ -978,7 +1132,11 @@ function parseDocument(text: string, report: ImportReportBuilder): unknown {
  * @param report - the report the failure is recorded in
  * @returns the dialect
  */
-function detectDialect(root: unknown, forced: JsonDialect | "auto", report: ImportReportBuilder): JsonDialect {
+function detectDialect(
+    root: unknown,
+    forced: JsonImportDialect | "auto",
+    report: ImportReportBuilder,
+): JsonImportDialect {
     if (forced !== "auto") {
         return forced;
     }
@@ -997,7 +1155,7 @@ function detectDialect(root: unknown, forced: JsonDialect | "auto", report: Impo
     }
     return report.fail(
         JSON_ISSUE.DIALECT,
-        "no known dialect: expected nodes / links / edges (node-link), elements (Cytoscape) or graph (JGF)",
+        "no known dialect: expected nodes / links / edges (node-link), nodes / adjacency (adjacency), children (tree), elements (Cytoscape) or graph (JGF)",
     );
 }
 
@@ -1094,7 +1252,7 @@ function isIndexBelow(value: unknown, bound: number): boolean {
  * @param root - the document
  * @param dialect - "node-link" or "d3"
  */
-function importNodeLink(ctx: ImportContext, root: JsonRecord, dialect: JsonDialect): void {
+function importNodeLink(ctx: ImportContext, root: JsonRecord, dialect: "node-link" | "d3"): void {
     const { report, json } = ctx;
     let { edgesKey } = json;
     if (edgesKey === null) {
@@ -1128,9 +1286,14 @@ function importNodeLink(ctx: ImportContext, root: JsonRecord, dialect: JsonDiale
             const what = Array.isArray(value)
                 ? `${String(value.length)} ${value.length === 1 ? "entry" : "entries"}`
                 : describe(value);
-            report.warning("unsupported", JSON_ISSUE.UNREAD_KEY, `top-level key ${key} (${what}) is not read; dropped`, {
-                element: key,
-            });
+            report.warning(
+                "unsupported",
+                JSON_ISSUE.UNREAD_KEY,
+                `top-level key ${key} (${what}) is not read; dropped`,
+                {
+                    element: key,
+                },
+            );
         }
     }
 
@@ -1458,6 +1621,227 @@ function importVis(ctx: ImportContext, root: JsonRecord): void {
         { dialect: "vis", nodeIdKey, sourceKey: sourceKey ?? undefined, targetKey: targetKey ?? undefined },
         ctx.weightOriginPatch(),
     );
+}
+
+// ============================================================ NetworkX adjacency_data / tree_data
+
+/**
+ * Read a NetworkX adjacency_data document: `nodes` as in node-link, and `adjacency[i]` the
+ * neighbour list of `nodes[i]`, one `{ id, key?, ...attributes }` entry per edge. An undirected
+ * file lists every edge from both ends, so an entry whose mirror (the same pair and `key`) was
+ * already read is that edge again and is not pushed twice; a self-loop is listed once.
+ * @param ctx - the context
+ * @param root - the document
+ */
+function importAdjacency(ctx: ImportContext, root: JsonRecord): void {
+    const { report } = ctx;
+    const nodes = arraySection(root.nodes, "nodes", report) ?? [];
+    const adjacency = arraySection(root.adjacency, "adjacency", report);
+    if (adjacency === null) {
+        report.error(
+            "missing-value",
+            JSON_ISSUE.MISSING_SECTION,
+            "the document has no adjacency array; the graph has no edges",
+            {
+                element: "adjacency",
+            },
+        );
+    }
+    const directed = flagOf(root.directed, "directed", ctx.defaultDirected("adjacency"), report);
+    const multigraph = hasKey(root, "multigraph") ? flagOf(root.multigraph, "multigraph", false, report) : null;
+    ctx.setHeader(directed);
+    // adjacency_data writes the graph dict as a list of [key, value] pairs
+    ctx.writeGraphDict(isPairList(root.graph) ? Object.fromEntries(root.graph) : root.graph, "graph");
+    for (const key of Object.keys(root)) {
+        if (key !== "nodes" && key !== "adjacency" && key !== "directed" && key !== "multigraph" && key !== "graph") {
+            report.warning(
+                "unsupported",
+                JSON_ISSUE.UNREAD_KEY,
+                `top-level key ${key} (${describe(root[key])}) is not read; dropped`,
+                {
+                    element: key,
+                },
+            );
+        }
+    }
+    const lists = adjacency ?? [];
+    ctx.sink.reserve(
+        nodes.length,
+        lists.reduce<number>((sum, list) => sum + (Array.isArray(list) ? list.length : 0), 0),
+    );
+    const idKey = ctx.json.nodeIdKey ?? "id";
+    ctx.reportNodeIdFrom("adjacency", `the ${JSON.stringify(idKey)} key`);
+    const owners: (NodeId | null)[] = [];
+    for (let i = 0; i < nodes.length; i++) {
+        const element = `nodes[${i}]`;
+        const record = nodes[i];
+        let pushed: NodeId | null = null;
+        if (!isJsonObject(record)) {
+            ctx.badElement("node", element);
+        } else {
+            const id = ctx.coerceId(hasKey(record, idKey) ? record[idKey] : undefined, element);
+            if (id === null) {
+                ctx.countSkipped("node");
+            } else {
+                const index = ctx.pushNode(id, element);
+                if (index >= 0) {
+                    pushed = id;
+                    writeFlat(ctx, ctx.nodes, index, record, id, (key) => key !== idKey);
+                }
+            }
+        }
+        owners.push(pushed);
+    }
+    throwIfAborted(ctx.options.signal);
+    const kind = ctx.uniformKind();
+    const { weightFrom } = ctx.options;
+    // undirected: entries read once whose mirror is still to come, by pair and key
+    const pending = new Map<string, number>();
+    for (let i = 0; i < lists.length; i++) {
+        const element = `adjacency[${i}]`;
+        const list = lists[i];
+        if (!Array.isArray(list)) {
+            report.error("validation-error", JSON_ISSUE.BAD_ELEMENT, `${element} is not an array`, { element });
+            continue;
+        }
+        const source = i < owners.length ? owners[i] : null;
+        if (source === null) {
+            const why = i < nodes.length ? `nodes[${i}] was skipped` : `there is no nodes[${i}]`;
+            report.error(
+                "missing-value",
+                JSON_ISSUE.BAD_INDEX,
+                `${element}: ${why}; its ${list.length} edge(s) are skipped`,
+                {
+                    element,
+                },
+            );
+            report.counts.skippedEdges += list.length;
+            continue;
+        }
+        for (let j = 0; j < list.length; j++) {
+            const entry = `${element}[${j}]`;
+            const record = list[j];
+            if (!isJsonObject(record)) {
+                ctx.badElement("edge", entry);
+                continue;
+            }
+            if (!hasKey(record, idKey)) {
+                ctx.missingEndpoint(entry, idKey);
+                continue;
+            }
+            try {
+                const target = ctx.coerceId(record[idKey], `${entry}.${idKey}`);
+                if (target === null) {
+                    ctx.countSkipped("edge");
+                    continue;
+                }
+                if (!directed && isMirroredEntry(pending, source, target, record.key)) {
+                    continue;
+                }
+                const edge = ctx.pushEdge(source, target, kind, ctx.weightOf(record), entry);
+                for (const key of Object.keys(record)) {
+                    if (key !== idKey && key !== weightFrom) {
+                        ctx.edges.write(edge, key, record[key], SUFFIX.data);
+                    }
+                }
+            } catch (err) {
+                ctx.skip(err, "edge", entry);
+            }
+        }
+    }
+    ctx.setMeta({}, { declaredMultigraph: multigraph, ...ctx.weightOriginPatch() });
+}
+
+/**
+ * Whether an undirected adjacency entry is the mirror of one already read (the same unordered
+ * pair and key), consuming it; otherwise the entry is remembered as awaiting its mirror. A
+ * self-loop is listed once and never awaits one.
+ * @param pending - the entries awaiting their mirror, by owner, other end and key
+ * @param source - the owner of the list
+ * @param target - the entry's node
+ * @param key - the entry's multigraph key, or undefined
+ * @returns true when the entry is a mirror and must not be pushed
+ */
+function isMirroredEntry(pending: Map<string, number>, source: NodeId, target: NodeId, key: unknown): boolean {
+    const a = JSON.stringify(source);
+    const b = JSON.stringify(target);
+    if (a === b) {
+        return false;
+    }
+    const k = JSON.stringify(key ?? null);
+    // an entry is the mirror of one listed by the other end, never of a parallel entry of its own list
+    const mirror = `${b} ${a} ${k}`;
+    const waiting = pending.get(mirror) ?? 0;
+    if (waiting > 0) {
+        pending.set(mirror, waiting - 1);
+        return true;
+    }
+    const own = `${a} ${b} ${k}`;
+    pending.set(own, (pending.get(own) ?? 0) + 1);
+    return false;
+}
+
+/**
+ * Whether a value is a list of [string, value] pairs, the shape adjacency_data gives the graph dict.
+ * @param value - the value
+ * @returns true for an array whose items are all two-element arrays with a string first
+ */
+function isPairList(value: unknown): value is [string, unknown][] {
+    return Array.isArray(value) && value.every((p) => Array.isArray(p) && p.length === 2 && typeof p[0] === "string");
+}
+
+/**
+ * Read a NetworkX tree_data document: a nested record with the node id, its attributes and a
+ * `children` array of records of the same shape; every child gets a directed edge from its parent.
+ * Walked depth first in document order with an explicit stack. A record without a usable id is
+ * reported and skipped, and its children are still read (as roots, without an edge).
+ * @param ctx - the context
+ * @param root - the root record
+ */
+function importTree(ctx: ImportContext, root: JsonRecord): void {
+    const idKey = ctx.json.nodeIdKey ?? "id";
+    ctx.setHeader(ctx.defaultDirected("tree"));
+    ctx.reportNodeIdFrom("tree", `the ${JSON.stringify(idKey)} key`);
+    const kind = ctx.uniformKind();
+    const stack: { record: unknown; element: string; parent: NodeId | null }[] = [
+        { record: root, element: "root", parent: null },
+    ];
+    for (let item = stack.pop(); item !== undefined; item = stack.pop()) {
+        const { record, element, parent } = item;
+        if (!isJsonObject(record)) {
+            ctx.badElement("node", element);
+            continue;
+        }
+        let id = ctx.coerceId(hasKey(record, idKey) ? record[idKey] : undefined, element);
+        if (id === null) {
+            ctx.countSkipped("node");
+        } else if (ctx.pushNode(id, element) < 0) {
+            id = null;
+        } else {
+            writeFlat(ctx, ctx.nodes, ctx.sink.indexOf(id), record, id, (key) => key !== idKey && key !== "children");
+            if (parent !== null) {
+                try {
+                    ctx.pushEdge(parent, id, kind, undefined, element);
+                } catch (err) {
+                    ctx.skip(err, "edge", element);
+                }
+            }
+        }
+        const { children } = record;
+        if (Array.isArray(children)) {
+            for (let k = children.length - 1; k >= 0; k--) {
+                stack.push({ record: children[k], element: `${element}.children[${k}]`, parent: id });
+            }
+        } else if (children !== undefined && children !== null) {
+            ctx.report.error(
+                "validation-error",
+                JSON_ISSUE.BAD_VALUE,
+                `${element}: children must be an array, found ${describe(children)}`,
+                { element },
+            );
+        }
+    }
+    ctx.setMeta({});
 }
 
 // ============================================================ graphology
@@ -2308,7 +2692,7 @@ export const jsonImporter: GraphImporter<JsonImportOptions> = Object.freeze({
  */
 function readGraph(
     root: unknown,
-    dialect: JsonDialect,
+    dialect: JsonImportDialect,
     sink: GraphSink,
     report: ImportReportBuilder,
     resolved: ResolvedImportOptions,
@@ -2339,6 +2723,12 @@ function readGraph(
             break;
         case "vis":
             importVis(ctx, doc);
+            break;
+        case "adjacency":
+            importAdjacency(ctx, doc);
+            break;
+        case "tree":
+            importTree(ctx, doc);
             break;
         default: {
             const name: string = dialect;

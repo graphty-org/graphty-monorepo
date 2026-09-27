@@ -63,6 +63,7 @@ interface PerfCounterSnapshot {
  * Draw calls counter data (includes count in addition to timing)
  */
 interface DrawCallsSnapshot extends PerfCounterSnapshot {
+    /** How many frames the counter has seen. The last frame's draw calls are `current`. */
     count: number;
 }
 
@@ -408,7 +409,7 @@ export class StatsManager implements Manager {
         // BabylonJS performance (if available)
         if (this.sceneInstrumentation && this.babylonInstrumentation) {
             statsSection("BabylonJS Performance");
-            appendStat("Draw Calls", this.sceneInstrumentation.drawCallsCounter.count);
+            appendStat("Draw Calls", this.sceneInstrumentation.drawCallsCounter.current);
             appendPerf("GPU Time", this.babylonInstrumentation.gpuFrameTimeCounter, 0.000001);
             appendPerf("Shader Time", this.babylonInstrumentation.shaderCompilationTimeCounter);
             appendPerf("Mesh Evaluation Time", this.sceneInstrumentation.activeMeshesEvaluationTimeCounter);
@@ -452,7 +453,7 @@ export class StatsManager implements Manager {
             frameTime: this.sceneInstrumentation.frameTimeCounter.lastSecAverage,
             renderTime: this.sceneInstrumentation.renderTimeCounter.lastSecAverage,
             gpuTime: this.babylonInstrumentation.gpuFrameTimeCounter.lastSecAverage * 0.000001,
-            drawCalls: this.sceneInstrumentation.drawCallsCounter.count,
+            drawCalls: this.sceneInstrumentation.drawCallsCounter.current,
         };
     }
 

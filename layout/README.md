@@ -579,6 +579,8 @@ sim.dispose();
 - `circularLayout()` - Circular arrangement
 - `shellLayout()` - Concentric circles
 - `spiralLayout()` - Spiral arrangement
+- `gridLayout()` - Rows and columns on an evenly spaced lattice, in node order
+- `radialLayout()` - Concentric rings by hop distance from a root node (the busiest node by default)
 
 ### Specialized Layouts
 

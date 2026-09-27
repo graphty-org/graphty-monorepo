@@ -1,4 +1,3 @@
-import type { Graphty } from "../../../src/graphty-element";
 import {
     assertAlgorithmPainted,
     assertDistinctPicture,
@@ -8,7 +7,7 @@ import {
     drawn,
     holds,
 } from "../../assertions";
-import { algorithmMetaBase, createAlgorithmStory, type Story, storySetup } from "../helpers";
+import { algorithmMetaBase, createAlgorithmStory, type Story, storySetup, waitForGraphSettled } from "../helpers";
 
 const meta = {
     ...algorithmMetaBase,
@@ -133,18 +132,15 @@ export const BipartiteMatching: Story = {
         runAlgorithmsOnLoad: true,
     },
     play: async ({ canvasElement }) => {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        // The load-time run is queued work, so the finished picture includes its result.
+        await waitForGraphSettled(canvasElement);
 
         const element = canvasElement.querySelector("graphty-element");
         if (!element) {
             return;
         }
 
-        const graphtyElement = element as Graphty;
-        const { graph } = graphtyElement;
-
-        // Run the algorithm explicitly (runAlgorithmsOnLoad may not trigger for all data sources)
-        await graph.runAlgorithmsFromTemplate();
+        const { graph } = element;
 
         // Apply suggested styles. The positions used to have to be saved and put back around
         // this call, because applying a style walked every node and re-applied its layout
@@ -198,21 +194,20 @@ export const MaxFlow: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        // The load-time run is queued work, so the finished picture includes its result.
+        await waitForGraphSettled(canvasElement);
 
         const element = canvasElement.querySelector("graphty-element");
         if (!element) {
             return;
         }
 
-        const { graph } = element as Graphty;
+        const { graph } = element;
 
         // Name the endpoints. The algorithm otherwise defaults to the first and last node in
         // insertion order, which is only ever the right pair by accident.
-        await graph.runAlgorithm("graphty", "max-flow", {
-            algorithmOptions: { source: "reservoir", sink: "city" },
-            applySuggestedStyles: true,
-        });
+        await graph.run("max-flow", { source: "reservoir", sink: "city" });
+        graph.applySuggestedStyles("graphty:max-flow");
 
         const scene = await drawn(canvasElement, "Algorithms/Flow MaxFlow");
 

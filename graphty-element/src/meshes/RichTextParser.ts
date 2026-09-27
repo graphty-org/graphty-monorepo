@@ -121,28 +121,63 @@ export class RichTextParser {
         let totalHeight = 0;
 
         for (const lineSegments of parsedContent) {
-            let lineWidth = 0;
-            let maxLineHeight = 0;
-
-            for (const segment of lineSegments) {
-                const { style } = segment;
-
-                ctx.font = `${style.style} ${style.weight} ${style.size}px ${style.font}`;
-                const metrics = ctx.measureText(segment.text);
-
-                lineWidth += metrics.width;
-                maxLineHeight = Math.max(maxLineHeight, style.size);
-            }
-
-            if (options.textOutline) {
-                lineWidth += options.textOutlineWidth * 2;
-                maxLineHeight += options.textOutlineWidth * 2;
-            }
+            const line = measureLine(ctx, lineSegments, options);
+            const lineWidth = line.width + (options.textOutline ? options.textOutlineWidth * 2 : 0);
 
             maxWidth = Math.max(maxWidth, lineWidth);
-            totalHeight += maxLineHeight * options.lineHeight;
+            totalHeight += line.lineBox;
         }
 
         return { maxWidth, totalHeight };
     }
+}
+
+/**
+ * Measures one line of segments from the font's own metrics.
+ *
+ * The line's ink height is the tallest ascent plus the deepest descent over its segments, each
+ * the larger of the font box (`fontBoundingBoxAscent` / `fontBoundingBoxDescent`) and the actual
+ * glyph box, plus the outline on both sides. The line box is that height times `lineHeight`, and
+ * the extra leading is split evenly above and below, as CSS does. The label's panel height and
+ * the renderer's line advance both come from here, so they cannot disagree.
+ * @param ctx - Canvas rendering context for measurement
+ * @param lineSegments - The segments of one line
+ * @param options - Layout options
+ * @param options.lineHeight - Line height multiplier
+ * @param options.textOutline - Whether text outline is enabled
+ * @param options.textOutlineWidth - Width of text outline
+ * @returns The line's advance width, its line box height, and the distance from the top of the
+ * line box to the alphabetic baseline
+ */
+export function measureLine(
+    ctx: CanvasRenderingContext2D,
+    lineSegments: TextSegment[],
+    options: { lineHeight: number; textOutline: boolean; textOutlineWidth: number },
+): { width: number; lineBox: number; baseline: number } {
+    let width = 0;
+    let ascent = 0;
+    let descent = 0;
+    let maxSize = 0;
+
+    for (const { text, style } of lineSegments) {
+        ctx.font = `${style.style} ${style.weight} ${style.size}px ${style.font}`;
+        const metrics = ctx.measureText(text);
+        width += metrics.width;
+        // The font box keeps every label in one font the same height whatever its letters; the
+        // glyph box covers a face (a script font, say) whose ink overflows its own font box.
+        ascent = Math.max(ascent, metrics.fontBoundingBoxAscent || 0, metrics.actualBoundingBoxAscent || 0);
+        descent = Math.max(descent, metrics.fontBoundingBoxDescent || 0, metrics.actualBoundingBoxDescent || 0);
+        maxSize = Math.max(maxSize, style.size);
+    }
+
+    // A context that reports no vertical metrics at all: fall back to the em square.
+    if (ascent + descent === 0) {
+        ascent = maxSize;
+    }
+
+    const outline = options.textOutline ? options.textOutlineWidth : 0;
+    const inkHeight = ascent + descent + outline * 2;
+    const lineBox = inkHeight * options.lineHeight;
+
+    return { width, lineBox, baseline: (lineBox - inkHeight) / 2 + outline + ascent };
 }

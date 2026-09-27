@@ -35,6 +35,8 @@ import {
     topOfRanking,
 } from "./statistics";
 import {
+    compareGroupKeys,
+    groupName,
     type Histogram,
     type HistogramOptions,
     type Normalization,
@@ -433,29 +435,13 @@ function countByKey(table: ElementTable, field: string): Map<string | number, nu
 }
 
 /**
- * Order two group keys so that equal-sized groups come back in the same order every time.
- * @param left - One key.
- * @param right - The other.
- * @returns The usual negative, zero or positive ordering.
- */
-function compareKeys(left: string | number, right: string | number): number {
-    const a = String(left);
-    const b = String(right);
-    if (a === b) {
-        return 0;
-    }
-
-    return a < b ? -1 : 1;
-}
-
-/**
  * Turn key counts into the `sizes` table, largest first.
  * @param counts - The counts by key.
  * @returns The rows.
  */
 function sizeRows(counts: ReadonlyMap<string | number, number>): readonly ResultSizeRow[] {
     const rows: ResultSizeRow[] = [...counts.entries()].map(([group, size]) => ({ group, size }));
-    rows.sort((left, right) => right.size - left.size || compareKeys(left.group, right.group));
+    rows.sort((left, right) => right.size - left.size || compareGroupKeys(left.group, right.group));
 
     return Object.freeze(rows.map((row) => Object.freeze(row)));
 }
@@ -564,7 +550,7 @@ function fillCategories(table: ElementTable, graph: Record<string, unknown>): vo
         category: String(category),
         count,
     }));
-    rows.sort((left, right) => right.count - left.count || compareKeys(left.category, right.category));
+    rows.sort((left, right) => right.count - left.count || compareGroupKeys(left.category, right.category));
 
     fillGraph(graph, "categories", Object.freeze(rows.map((row) => Object.freeze(row))));
 }
@@ -694,9 +680,11 @@ function summaryValueField(shape: ResultShape): string | null {
  * Read the `sizes` or `categories` table a result published as summary groups.
  * @param value - The published table.
  * @param limit - How many rows a summary may carry.
+ * @param named - Whether each group gets its display name, which a partition into groups does
+ *   and a table of levels or of named categories does not.
  * @returns The groups, bounded, or undefined when the value is not a table this can read.
  */
-function toSummaryGroups(value: unknown, limit: number): readonly SummaryGroup[] | undefined {
+function toSummaryGroups(value: unknown, limit: number, named: boolean): readonly SummaryGroup[] | undefined {
     if (!Array.isArray(value)) {
         return undefined;
     }
@@ -712,7 +700,7 @@ function toSummaryGroups(value: unknown, limit: number): readonly SummaryGroup[]
         const group = record.group ?? record.category;
         const size = record.size ?? record.count;
         if (isGroupKey(group) && typeof size === "number") {
-            groups.push(Object.freeze({ group, size }));
+            groups.push(Object.freeze(named ? { group, size, name: groupName(groups.length + 1) } : { group, size }));
         }
 
         if (groups.length === limit) {
@@ -1138,7 +1126,7 @@ class Result implements RunResult {
         };
 
         const table = this.graph.sizes ?? this.graph.categories;
-        const groups = toSummaryGroups(table, SUMMARY_GROUP_LIMIT);
+        const groups = toSummaryGroups(table, SUMMARY_GROUP_LIMIT, this.shape === "community");
 
         return Object.freeze(groups === undefined ? summary : { ...summary, groups });
     }

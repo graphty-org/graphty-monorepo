@@ -3,7 +3,13 @@ import type { Graph, Node, PositionMap } from "../../types";
 import { getNodesFromGraph } from "../../utils/graph";
 import { _processParams } from "../../utils/params";
 import { rescaleLayout } from "../../utils/rescale";
+import { randomLayout } from "../basic/random";
 import { circularLayout } from "../geometric/circular";
+
+/**
+ * networkx starts 3D from an unseeded random_layout; a fixed seed keeps the same graph drawn the same way.
+ */
+const START_SEED = 42;
 
 /**
  * Position nodes using Kamada-Kawai path-length cost-function.
@@ -59,7 +65,9 @@ export function kamadaKawaiLayout(
         const nodeI = nodesArray[i];
         distMatrix[i][i] = 0;
 
-        if (!dist[nodeI]) {continue;}
+        if (!dist[nodeI]) {
+            continue;
+        }
 
         for (let j = 0; j < nNodes; j++) {
             const nodeJ = nodesArray[j];
@@ -71,8 +79,10 @@ export function kamadaKawaiLayout(
 
     // Initialize positions if not provided
     if (!pos) {
-        if (dim >= 2) {
-            // Use circular/spherical layout for 2D and 3D
+        if (dim >= 3) {
+            // As networkx: a random start in the unit cube, not around the centre.
+            pos = randomLayout(graph, null, dim, START_SEED);
+        } else if (dim === 2) {
             pos = circularLayout(G, 1, center, dim);
         } else {
             // For 1D, use a linear layout

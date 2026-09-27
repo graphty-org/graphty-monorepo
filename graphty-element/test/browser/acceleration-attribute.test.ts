@@ -313,6 +313,23 @@ describe("the acceleration attribute: reflection", () => {
         assert.equal(element.getAttribute("acceleration"), "auto");
     });
 
+    test("a policy set through the session reflects to the attribute and fires one event", async () => {
+        registerFake();
+
+        const { element, events } = await mount();
+        await until(() => events.length >= 1 && latest(events).state === "idle", "the accelerator to attach");
+        const seenBefore = events.length;
+
+        element.session.acceleration = "required";
+        await element.updateComplete;
+
+        assert.equal(element.getAttribute("acceleration"), "required");
+        assert.equal(element.acceleration, "required");
+        assert.equal(events.length, seenBefore + 1, "one event for the one policy change");
+        assert.equal(latest(events).policy, "required");
+        assert.equal(latest(events).state, "idle", "the state did not move, and the event still fired");
+    });
+
     test("an attribute the element was given is read back from the property", async () => {
         registerFake();
 
@@ -444,6 +461,21 @@ describe("the acceleration attribute: connection lifecycle", () => {
 
         assert.equal(fake.built, 1, "no second accelerator was built");
         assert.equal(events.length, seenBeforeRemoval, "and nothing was published from a dead controller");
+    });
+
+    test("setting the attribute on a removed element starts no probe", async () => {
+        registerFake();
+
+        const { element } = await mount({ acceleration: "off" });
+        assert.equal(fake.built, 0, "off never looks");
+
+        element.remove();
+        await wait(0);
+
+        element.setAttribute("acceleration", "required");
+        await wait(NEVER_HAPPENS_MS);
+
+        assert.equal(fake.built, 0, "a disposed controller must not request a device it can never use");
     });
 
     test("a disconnected element publishes nothing more", async () => {

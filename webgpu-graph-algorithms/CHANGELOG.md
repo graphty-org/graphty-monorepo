@@ -1,3 +1,59 @@
+## 0.6.9 (2026-09-27)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** bound each kernel's bind-group cache ([#162](https://github.com/graphty-org/graphty-monorepo/issues/162))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.0.7
+- Updated algorithms to 2.0.6
+- Updated layout to 1.10.2
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.6.8 (2026-09-27)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.0.6
+- Updated algorithms to 2.0.5
+- Updated layout to 1.10.1
+
+## 0.6.7 (2026-09-26)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** keep each dawn instance alive for the process ([#30](https://github.com/graphty-org/graphty-monorepo/issues/30))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.6.6 (2026-09-26)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** scale the spring settle floor with node count ([#97](https://github.com/graphty-org/graphty-monorepo/issues/97))
+- **webgpu-graph-algorithms:** measure Beamer's m_f on the frontier about to be expanded ([#391](https://github.com/graphty-org/graphty-monorepo/issues/391))
+- **webgpu-graph-algorithms:** converged at the iteration cap, and edgeless graphs ([#88](https://github.com/graphty-org/graphty-monorepo/issues/88), [#93](https://github.com/graphty-org/graphty-monorepo/issues/93))
+- **webgpu-graph-algorithms:** accurate repulsion on lavapipe and grids, and a settle floor ([#87](https://github.com/graphty-org/graphty-monorepo/issues/87), [#89](https://github.com/graphty-org/graphty-monorepo/issues/89), [#90](https://github.com/graphty-org/graphty-monorepo/issues/90), [#97](https://github.com/graphty-org/graphty-monorepo/issues/97))
+
+### 🔥 Performance
+
+- **webgpu-graph-algorithms:** cap the bfs-next-degree grid ([fa3dc4fe](https://github.com/graphty-org/graphty-monorepo/commit/fa3dc4fe))
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 2.0.4
+- Updated layout to 1.10.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.6.5 (2026-09-26)
 
 ### 🩹 Fixes

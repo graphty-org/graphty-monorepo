@@ -371,7 +371,7 @@ export class Ingest<K extends KnownEdge> {
 
         writer.setGraphValues({ [SOURCE_VALUE]: describeSource(command.source) });
         if (loads) {
-            await this.addDataFromSource(type, config, writer, signal);
+            await this.addDataFromSource(type, config, writer, signal, command.mode !== "merge");
         }
     }
 
@@ -796,9 +796,18 @@ export class Ingest<K extends KnownEdge> {
      * @param type - Data source type identifier
      * @param opts - Options to pass to the data source
      * @param writer - the graph primitives to write through
-     * @param signal - Fires when the load is cancelled; it stops before the next chunk
+     * @param signal - Fires when the load is cancelled; it stops at once, even while the source
+     *     is still waiting for its next chunk
+     * @param replacing - Whether the load replaces the graph, so reading only part of the file
+     *     is a failure
      */
-    async addDataFromSource(type: string, opts: object, writer: GraphWriter, signal?: AbortSignal): Promise<void> {
+    async addDataFromSource(
+        type: string,
+        opts: object,
+        writer: GraphWriter,
+        signal?: AbortSignal,
+        replacing = false,
+    ): Promise<void> {
         this.logger.info("Loading data source", { type, options: opts });
 
         const startTime = Date.now();
@@ -835,7 +844,7 @@ export class Ingest<K extends KnownEdge> {
                 // line happen once per import rather than once per chunk.
                 let directionSettled = false;
 
-                for await (const chunk of source.getData()) {
+                for await (const chunk of untilAborted(source.getData(), signal)) {
                     // Nothing is written once the load has been cancelled: its writes are being
                     // taken back, and a chunk written after that would outlive them.
                     signal?.throwIfAborted();
@@ -867,14 +876,34 @@ export class Ingest<K extends KnownEdge> {
                     this.host.loadErrors(type, errors);
                 }
 
-                // A source that reported errors and produced no record did not load a graph: it
-                // failed, and its draft rolls back rather than recording an empty graph as a load.
-                if (errors.getErrorCount() > 0 && progress.nodeRecords === 0 && progress.edgeRecords === 0) {
+                // A source that produced no record did not load a graph: it failed, and its draft
+                // rolls back rather than recording an empty graph as a load. A file of edges alone
+                // is not empty: its endpoints become nodes.
+                const rowErrors = errors.getErrorCount();
+                if (progress.nodeRecords === 0 && progress.edgeRecords === 0) {
+                    throw new GraphtyError({
+                        code: "E_EMPTY_LOAD",
+                        source: "data",
+                        message:
+                            rowErrors > 0
+                                ? `Every row of the ${type} source was rejected (${rowErrors} errors: ` +
+                                  `${errors.getSummary().message}), so there was nothing to load.`
+                                : `The ${type} source held no nodes and no edges, so there was nothing to load. ` +
+                                  "Check the file, or the format it was read as.",
+                        details: { format: type, rowErrors },
+                    });
+                }
+
+                // The source stops quietly at its error limit, so what was read is only part of the
+                // file; a replacing load that swapped a good graph for it did not finish cleanly.
+                if (replacing && errors.hasReachedLimit()) {
                     throw new GraphtyError({
                         code: "E_PARSE_FAILED",
-                        message: `The ${type} source produced no nodes or edges: ${errors.getErrors()[0]?.message ?? "it reported errors"}`,
                         source: "data",
-                        details: { type, errors: errors.getErrorCount() },
+                        message:
+                            `The ${type} source stopped after ${rowErrors} rejected rows, its error limit, ` +
+                            "so only part of it was read and the current graph was kept.",
+                        details: { format: type, rowErrors },
                     });
                 }
 
@@ -1028,5 +1057,47 @@ export class Ingest<K extends KnownEdge> {
                 `this renderer can draw. Load a subset of the graph.`,
             details: { limit, count: held + adding, of, graph: { nodes, edges } },
         });
+    }
+}
+
+/**
+ * A source's chunks, ending with the signal's reason as soon as it aborts, rather than when the
+ * source next yields: a cancelled load must let go of the queue even when its source is waiting
+ * on a slow network or a stalled reader.
+ * @param chunks - The source's chunks.
+ * @param signal - The load's signal.
+ * @yields Each chunk, until the signal aborts.
+ */
+async function* untilAborted<T>(chunks: AsyncIterable<T>, signal: AbortSignal | undefined): AsyncGenerator<T> {
+    if (signal === undefined) {
+        yield* chunks;
+        return;
+    }
+
+    const iterator = chunks[Symbol.asyncIterator]();
+    let stop: () => void = () => undefined;
+    const aborted = new Promise<never>((_, reject) => {
+        stop = (): void => {
+            const {reason} = signal;
+            reject(reason instanceof Error ? reason : new Error(String(reason)));
+        };
+        signal.addEventListener("abort", stop, { once: true });
+    });
+    // Rejected only when raced; a handler here keeps an abort nobody awaits from being reported.
+    aborted.catch(() => undefined);
+    try {
+        for (;;) {
+            signal.throwIfAborted();
+            const next = await Promise.race([iterator.next(), aborted]);
+            if (next.done === true) {
+                return;
+            }
+
+            yield next.value;
+        }
+    } finally {
+        signal.removeEventListener("abort", stop);
+        // The source is abandoned; let it close what it holds, without waiting on it.
+        void iterator.return?.()?.catch(() => undefined);
     }
 }

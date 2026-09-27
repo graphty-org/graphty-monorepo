@@ -656,10 +656,10 @@ export const Location: Story = {
  * READ AS THE TEXT'S OWN BOX, not the panel's. The panel is opaque from corner to corner whatever
  * the margins are, so the question is how far the black letters are inset inside it.
  *
- * READ IN THE CANVAS'S OWN PIXELS, not the texture's. How far down the texture the letters start
- * depends on the typeface, and the typeface depends on the machine: with these margins the ink
- * starts 22-26px down locally and 19px down on Chromatic. Normalised by the font's own glyph
- * height, the margin reads back as roughly the pixels asked for on every font tried.
+ * READ IN THE CANVAS'S OWN PIXELS, not the texture's. The panel is sized from the font's own box,
+ * but the letters of a particular name reach only part of that box, and how much depends on the
+ * letters and on the typeface the machine falls back to. Normalised by the font's own glyph
+ * height, the margin reads back as roughly the pixels asked for on every font.
  */
 export const Margin: Story = {
     args: {
@@ -695,25 +695,22 @@ export const Margin: Story = {
         // height. Verdana is rarely installed, so what is actually drawn is whatever the browser
         // falls back to -- which `drawnMargins` asks the same browser about.
         //
-        // The mean of the top and bottom margin read back per label, in canvas pixels, across six
-        // fonts (Liberation Serif, Liberation Sans, Liberation Mono, DejaVu Serif, DejaVu Sans
-        // Mono, Z003): 9.2-12.2 with ten-pixel margins, 4.6-6.7 with the element's default of
-        // five, and -0.6-1.7 with none. These forty-pixel margins read 40-45 here. A floor of 20
-        // sits far from both the default and the value asked for.
+        // With the line box taken from the font's own metrics, these forty-pixel margins read back
+        // 40-46 per label in Chromium. A floor of 30 sits far below that and far above the
+        // element's default of five, so it fails only when these margins are not applied.
         const tight = labelGeometry(scene, "#000000")
             .map((label) => {
-                const margin = drawnMargins(label, label.id, DEFAULT_LABEL_FONT, 48 * 1.2);
+                const margin = drawnMargins(label, label.id, DEFAULT_LABEL_FONT, 1.2);
 
                 return { id: label.id, ...margin, mean: (margin.top + margin.bottom) / 2 };
             })
-            .filter((label) => label.mean < 20);
+            .filter((label) => label.mean < 30);
 
         await holds(
             tight.length === 0,
             `Styles/Label Margin: forty pixels of margin are asked for on all four sides, and on ` +
                 `${String(tight.length)} labels the space above and below the words is no wider than ` +
-                `the element's default of five -- ` +
-                `${tight
+                `the element's default of five -- ${tight
                     .map(
                         (label) =>
                             `${label.id} has ${label.top.toFixed(1)}px above and ${label.bottom.toFixed(1)}px below`,
@@ -785,8 +782,9 @@ export const LineHeight: Story = {
         await holds(
             crowded.length === 0,
             `Styles/Label LineHeight: three lines at a line height of 2.5 should leave most of the label blank ` +
-                `between them, and on ${String(crowded.length)} labels the lines are still crowded together -- ` +
-                `${crowded.map((label) => `${label.id} is ${(label.blankRows * 100).toFixed(0)}% blank`).join(", ")}`,
+                `between them, and on ${String(crowded.length)} labels the lines are still crowded together -- ${crowded
+                    .map((label) => `${label.id} is ${(label.blankRows * 100).toFixed(0)}% blank`)
+                    .join(", ")}`,
         );
 
         await assertDistinctPicture(scene, "Styles/Label", labelDigest(scene));
@@ -847,8 +845,7 @@ export const TextOutline: Story = {
         await holds(
             thin.length === 0,
             `Styles/Label TextOutline: the outline is asked for at eight pixels wide and on ` +
-                `${String(thin.length)} labels it covers barely any of the label -- ` +
-                `${thin
+                `${String(thin.length)} labels it covers barely any of the label -- ${thin
                     .map(
                         (label) =>
                             `${label.id} has ${String(label.pixels)} red pixels, ` +
@@ -927,8 +924,7 @@ export const TextShadow: Story = {
         await holds(
             bare.length === 0,
             `Styles/Label TextShadow: a red shadow is asked for under every label, and on ` +
-                `${String(bare.length)} labels there is little or no red beside the black letters -- ` +
-                `${bare
+                `${String(bare.length)} labels there is little or no red beside the black letters -- ${bare
                     .map(
                         (label) =>
                             `${label.id} has ${String(label.pixels)} red pixels to ` +
@@ -976,13 +972,16 @@ export const Border: Story = {
         await holds(
             unframed.length === 0,
             `Styles/Label Border: a two-pixel indigo border is asked for and on ${String(unframed.length)} labels ` +
-                `the indigo is not a thin frame round the edge -- ` +
-                `${unframed
+                `the indigo is not a thin frame round the edge -- ${unframed
                     .map(
                         (label) =>
                             `${label.id} has ${String(label.pixels)} indigo pixels on its ` +
-                            `${String(label.texture.width)}x${String(label.texture.height)} texture, inset ` +
-                            `${[label.inset.top, label.inset.right, label.inset.bottom, label.inset.left]
+                            `${String(label.texture.width)}x${String(label.texture.height)} texture, inset ${[
+                                label.inset.top,
+                                label.inset.right,
+                                label.inset.bottom,
+                                label.inset.left,
+                            ]
                                 .map((inset) => inset.toFixed(3))
                                 .join("/")}`,
                     )
@@ -1041,8 +1040,9 @@ export const BackgroundGradient: Story = {
         await holds(
             flat.length === 0,
             `Styles/Label BackgroundGradient: the panel is asked to run from indigo on the left to green on the ` +
-                `right, and on ${String(flat.length)} labels the two sides are the same colour -- ` +
-                `${flat.map((label) => `${label.id} ${label.sides.left} to ${label.sides.right}`).join("; ")}`,
+                `right, and on ${String(flat.length)} labels the two sides are the same colour -- ${flat
+                    .map((label) => `${label.id} ${label.sides.left} to ${label.sides.right}`)
+                    .join("; ")}`,
         );
 
         await assertDistinctPicture(scene, "Styles/Label", labelDigest(scene));
@@ -1097,8 +1097,7 @@ export const Pointer: Story = {
         await holds(
             square.length === 0,
             `Styles/Label Pointer: a pointer is asked for under every label and on ${String(square.length)} of ` +
-                `them the bottom of the canvas is as wide as the middle, which is a plain rectangle -- ` +
-                `${square
+                `them the bottom of the canvas is as wide as the middle, which is a plain rectangle -- ${square
                     .map(
                         (label) =>
                             `${label.id} runs ${(label.spread.bottom * 100).toFixed(0)}% wide at the bottom and ` +
@@ -1153,7 +1152,7 @@ export const Animation: Story = {
             await holds(
                 moved.scale > 0.01,
                 `Styles/Label Animation: every label is asked to pulse and the largest change in scale over ` +
-                    `four hundred milliseconds was ${moved.scale.toFixed(4)}`,
+                    `twenty frames was ${moved.scale.toFixed(4)}`,
             );
         }
 

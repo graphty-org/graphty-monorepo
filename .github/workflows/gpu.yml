@@ -7,7 +7,7 @@
 # The lane is ONE job, and needs a runner that lives longer than 30 minutes. On the free machine.dev plan a runner
 # is terminated at that mark -- "free plan runners are limited to 30 minutes", the message that killed run
 # 35664428780 with the benchmarks 77 seconds in and run 35666281226 on master -- and by 2026-09-21 the package's own
-# suites no longer fit: 18 minutes for the node and node-limits projects, 11.5 for the no-subgroups twins, a minute
+# suites no longer fit: 18 minutes for the node and node-limits projects (then one step, now two), 11.5 for the no-subgroups twins, a minute
 # for the browser smoke, then the benchmarks, against 18 minutes for all of it a phase earlier. The growth is
 # cumulative across P3, P5 and P4 rather than any one of them, and the million-node limits file alone, which runs
 # nowhere else, is nine of those minutes. Splitting the work across matrix legs was tried and does not work on this
@@ -15,7 +15,7 @@
 # second machine, which suggests a run holds its runner until the whole run ends. The plan is therefore what had to
 # change (owner decision, 2026-09-22); the timeout below is this job's own, inside whatever the plan now allows.
 # A one-off credit bundle does NOT lift the cap: run 35748654167 (2026-09-22, bought credits on the account) ran
-# every test step green on the T4 -- node and node-limits 17 minutes, the no-subgroups twins 11.5, the browser
+# every test step green on the T4 -- node and node-limits 17 minutes together, the no-subgroups twins 11.5, the browser
 # smoke 1 -- and was then shut down 32 minutes in, a minute into the benchmarks, with "The runner has received a
 # shutdown signal". The cap goes with the PLAN, and a subscription lifts it: on the very next run, 35775999450,
 # the same job ran 33m40s and finished every step green, benchmarks and the regression comparison included.
@@ -57,7 +57,7 @@ jobs:
              (github.event.pull_request.head.repo.full_name == github.repository &&
               contains(github.event.pull_request.labels.*.name, 'gpu')))
         runs-on: ${{ inputs.runner || 'machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand' }} # a dispatch may pick the hosted gpu-linux-t4 (see the input); every other event: machine.dev on-demand
-        timeout-minutes: 75 # the lane measured about 45 minutes of work on 2026-09-21 (node and node-limits 18, the twins 11.5, the browser smoke 1, the benchmarks and the setup the rest); this leaves room for a slower machine without waiting on a hung one
+        timeout-minutes: 75 # the lane measured about 45 minutes of work on 2026-09-21 (node and node-limits 18 together, now two steps, the twins 11.5, the browser smoke 1, the benchmarks and the setup the rest); this leaves room for a slower machine without waiting on a hung one
         env:
             GRAPHTY_GPU_REQUIRE: nvidia # a software adapter fails the job
             GRAPHTY_BROWSER_GPU: nvidia # --enable-unsafe-webgpu --enable-features=Vulkan --use-angle=vulkan --disable-vulkan-surface
@@ -82,15 +82,36 @@ jobs:
             - name: graph-format GPU audit on NVIDIA (canary)
               working-directory: graph-format
               run: pnpm exec vitest run test/audit/gpu-upload.test.ts 2>&1 | tee canary.log && grep -q "adapter vendor=nvidia" canary.log # the audit skips on acquisition failure; the grep turns a skip or a lavapipe pick into a red step
-            # both node projects through scripts/run-node-shard.js: it forwards every argument, exits with vitest's
-            # own code, and on a non-zero exit or 90 seconds of silence prints the test files that started but never
-            # reported, the process table and a Node diagnostic report per surviving process (G4-F14)
-            - run: node scripts/run-node-shard.js --project=node --project=node-limits
-            # The files that break a device on purpose, in an invocation of their own so a worker they kill takes
-            # eleven files with it instead of the whole lane. Its own invocation is also what makes it run one file
-            # at a time: vitest reads fileParallelism from the ROOT config, so a run that selects this project
-            # together with another would serialise that one too.
+            # A forked vitest worker that crashes must not spend minutes writing a multi-gigabyte core dump.
+            # scripts/run-node-shard.js runs vitest under `ulimit -c 0`, but the kernel ignores RLIMIT_CORE when
+            # core_pattern pipes to a program (core(5)); a plain file pattern makes the limit bind. core_pattern is
+            # global to the host, so this has to run on the host, never inside a job container. Issue #273.
+            - name: Write core dumps to a file so the shard's ulimit -c 0 holds
+              run: echo "core_pattern was $(cat /proc/sys/kernel/core_pattern)" && sudo sysctl -w kernel.core_pattern=core
+            - name: SCRATCH verify a crash writes no core dump
+              working-directory: ${{ runner.temp }}
+              run: |
+                  crash() { sh -c "ulimit -c $1; exec node -e 'process.kill(process.pid, \"SIGSEGV\")'" && rc=0 || rc=$?; }
+                  crash unlimited; echo "control, ulimit unlimited: exit=$rc"; ls -la core* || true
+                  test -n "$(ls core* 2>/dev/null)" || { echo "::error::control wrote no core file; the pattern did not take"; exit 1; }
+                  rm -f core*
+                  start=$(date +%s); crash 0; end=$(date +%s)
+                  echo "ulimit 0: exit=$rc in $((end - start)) s"; ls -la core* || true
+                  test "$rc" = 139 && test -z "$(ls core* 2>/dev/null)"
+            # Every node project goes through scripts/run-node-shard.js: it forwards every argument, exits with
+            # vitest's own code, and on a non-zero exit or 90 seconds of silence prints the test files that started
+            # but never reported, the process table and a Node diagnostic report per surviving process (G4-F14).
+            # Each project is an invocation of its own. vitest reads fileParallelism from the ROOT config, so the
+            # config serialises a whole run that selects node-device-errors or node-limits; naming either beside
+            # `node` would serialise the main suite too.
+            - run: node scripts/run-node-shard.js --project=node
+            # The files that break a device on purpose: a worker they kill takes eleven files with it instead of
+            # the whole lane.
             - run: node scripts/run-node-shard.js --project=node-device-errors
+            # The multi-gigabyte limit files (test/limits, oom-scope asks for exactly maxBufferSize), one at a
+            # time and after the main suite, so an out-of-memory test never shares the GPU with ordinary tests
+            # and a crash in one never takes the main suite's results with it (issue #274).
+            - run: node scripts/run-node-shard.js --project=node-limits
             # The twin pass, in two invocations because the device-error files are their own project now.
             # `--project=node` is 114 of the 125 node files; the second line is the remaining eleven, which without
             # it would run under the subgroups feature only -- and they are the device-loss and lifecycle paths,
@@ -115,6 +136,21 @@ jobs:
               run: pnpm exec nx run-many -t build --projects=@graphty/remote-logger,algorithms && pnpm exec vitest run --project=browser test/browser/webgpu-layout.test.ts # the job env already carries GRAPHTY_BROWSER_GPU=nvidia; nx resolves the workspace root from here. @graphty/remote-logger is the sibling nothing else in this job builds -- the element's runtime graph reaches it (src/Graph.ts -> src/logging/sinks/RemoteSink.ts) and its exports map has no src fallback; algorithms already builds through the ^build edge of the step above, so that half is a cache hit kept only in case the edge goes away
             - run: pnpm run bench # tsx benchmarks/run.ts -> benchmarks/out/gpu-linux-t4.json
             - run: node scripts/bench-compare.js # > 3x the checked-in baseline for THIS runner class (benchmarks/results/gpu-linux-t4.json) fails; no baseline -> every row "new", exit 0
+            # The paired check (issue #276): the base commit and this pull request alternated on the same card, so
+            # clock and thermal drift cancel and the threshold can be tight (scripts/bench-ab.js). Pull requests
+            # only, and only when they change webgpu-graph-algorithms/src. The checkout is the merge commit at
+            # depth 1; deepening it to 2 brings in its first parent, the base branch tip the merge was made on.
+            - name: Paired benchmark against the base commit (pull requests that change src)
+              if: github.event_name == 'pull_request'
+              timeout-minutes: 40
+              run: |
+                  git fetch --no-tags --depth=2 origin "$GITHUB_SHA"
+                  base=$(git rev-parse HEAD^1)
+                  if git diff --quiet "$base" HEAD -- src; then
+                      echo "no change under webgpu-graph-algorithms/src since $base: paired benchmark skipped"
+                  else
+                      pnpm run bench:ab --base "$base"
+                  fi
             - uses: actions/upload-artifact@v4
               if: ${{ !cancelled() }}
               with:

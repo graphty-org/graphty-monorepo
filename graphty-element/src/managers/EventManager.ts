@@ -13,6 +13,7 @@ import type {
     EventCallbackType,
     EventType,
     GraphDataAddedEvent,
+    GraphDataClearedEvent,
     GraphDataLoadedEvent,
     GraphErrorEvent,
     GraphEvent,
@@ -154,12 +155,14 @@ export class EventManager implements Manager {
      * @param chunksLoaded - Number of data chunks loaded
      * @param dataSourceType - Type of data source used
      * @param report - What the load did, including which endpoint spelling resolved
+     * @param loadId - Which load this is, when it is one
      */
     emitGraphDataLoaded(
         graph: Graph | GraphContext,
         chunksLoaded: number,
         dataSourceType: string,
         report: ImportReport,
+        loadId?: number,
     ): void {
         const event: GraphDataLoadedEvent = {
             type: "data-loaded",
@@ -168,6 +171,7 @@ export class EventManager implements Manager {
                 chunksLoaded,
                 dataSourceType,
                 report,
+                ...(loadId === undefined ? {} : { loadId }),
             },
         };
         this.graphObservable.notifyObservers(event);
@@ -256,6 +260,14 @@ export class EventManager implements Manager {
     }
 
     /**
+     * Emits the public announcement that the graph's data was cleared.
+     */
+    emitDataCleared(): void {
+        const event: GraphDataClearedEvent = { type: "data-cleared" };
+        this.graphObservable.notifyObservers(event);
+    }
+
+    /**
      * Emits a layout initialized event when a layout is ready
      * @param layoutType - Type of layout that was initialized
      * @param shouldZoomToFit - Whether to zoom to fit after initialization
@@ -290,6 +302,7 @@ export class EventManager implements Manager {
      * @param nodeRecordsLoaded - How many node RECORDS the source has handed over so far
      * @param edgeRecordsLoaded - How many edge RECORDS the source has handed over so far
      * @param chunksProcessed - Number of data chunks processed
+     * @param loadId - Which load this is, when it is one
      */
     emitDataLoadingProgress(
         format: string,
@@ -298,6 +311,7 @@ export class EventManager implements Manager {
         nodeRecordsLoaded: number,
         edgeRecordsLoaded: number,
         chunksProcessed: number,
+        loadId?: number,
     ): void {
         const event: DataLoadingProgressEvent = {
             type: "data-loading-progress",
@@ -308,6 +322,7 @@ export class EventManager implements Manager {
             nodeRecordsLoaded,
             edgeRecordsLoaded,
             chunksProcessed,
+            ...(loadId === undefined ? {} : { loadId }),
         };
         this.graphObservable.notifyObservers(event);
     }
@@ -322,6 +337,7 @@ export class EventManager implements Manager {
      * @param details.nodeId - Node ID related to error
      * @param details.edgeId - Edge ID related to error
      * @param details.canContinue - Whether loading can continue after this error
+     * @param details.loadId - Which load this is, when it is one
      */
     emitDataLoadingError(
         error: Error,
@@ -332,6 +348,7 @@ export class EventManager implements Manager {
             nodeId?: unknown;
             edgeId?: string;
             canContinue: boolean;
+            loadId?: number;
         },
     ): void {
         const event: DataLoadingErrorEvent = {
@@ -352,6 +369,7 @@ export class EventManager implements Manager {
      * @param detailedReport - Detailed error report
      * @param primaryCategory - Primary error category
      * @param suggestion - Suggested fix for the errors
+     * @param loadId - Which load this is, when it is one
      */
     emitDataLoadingErrorSummary(
         format: string,
@@ -360,6 +378,7 @@ export class EventManager implements Manager {
         detailedReport: string,
         primaryCategory?: string,
         suggestion?: string,
+        loadId?: number,
     ): void {
         const event: DataLoadingErrorSummaryEvent = {
             type: "data-loading-error-summary",
@@ -369,6 +388,7 @@ export class EventManager implements Manager {
             message,
             suggestion,
             detailedReport,
+            ...(loadId === undefined ? {} : { loadId }),
         };
         this.graphObservable.notifyObservers(event);
     }
@@ -383,6 +403,7 @@ export class EventManager implements Manager {
      * @param warnings - Number of warnings encountered
      * @param success - Whether loading was successful
      * @param report - What the load did, including which endpoint spelling resolved
+     * @param loadId - Which load this is, when it is one
      */
     emitDataLoadingComplete(
         format: string,
@@ -393,6 +414,7 @@ export class EventManager implements Manager {
         warnings: number,
         success: boolean,
         report: ImportReport,
+        loadId?: number,
     ): void {
         const event: DataLoadingCompleteEvent = {
             type: "data-loading-complete",
@@ -404,6 +426,7 @@ export class EventManager implements Manager {
             warnings,
             success,
             report,
+            ...(loadId === undefined ? {} : { loadId }),
         };
         this.graphObservable.notifyObservers(event);
     }
@@ -470,6 +493,7 @@ export class EventManager implements Manager {
             case "error":
             case "data-loaded":
             case "data-added":
+            case "data-cleared":
             case "snapshot-replaced":
             case "layout-initialized":
             case "skybox-loaded":

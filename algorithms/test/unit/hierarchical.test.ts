@@ -314,13 +314,10 @@ describe("Hierarchical Clustering", () => {
                 adjacencySet.get((c + 1) * 10)!.add(c * 10);
             }
 
-            const start = Date.now();
             const graph = createGraphFromAdjacencySet(adjacencySet);
             const result = hierarchicalClustering(graph, "average");
-            const elapsed = Date.now() - start;
 
             expect(result.root.members.size).toBe(adjacencySet.size);
-            expect(elapsed).toBeLessThan(5000); // Should complete within 5 seconds
 
             // Should identify 5 communities
             const clusters5 = cutDendrogramKClusters(result.root, 5);

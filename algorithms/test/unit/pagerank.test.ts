@@ -514,4 +514,72 @@ describe("PageRank Algorithm", () => {
             expect(result.ranks.c).toBeGreaterThan(result.ranks.a);
         });
     });
+
+    describe("iteration count and convergence on both paths", () => {
+        /** A deterministic 200-node directed graph (so pageRank takes the delta path). */
+        function bigGraph(weighted = false): Graph {
+            const graph = new Graph({ directed: true });
+            const add = (u: number, v: number, w: number): void => {
+                if (u !== v && !graph.hasEdge(u, v)) {
+                    graph.addEdge(u, v, w);
+                }
+            };
+            for (let i = 0; i < 200; i++) {
+                add(i, (i + 1) % 200, weighted ? 5 : 1);
+                add(i, (i * 7 + 3) % 200, 1);
+                if (i % 3 === 0) {
+                    add(i, (i * 13 + 11) % 200, weighted ? 5 : 1);
+                }
+            }
+            return graph;
+        }
+
+        function sum(ranks: Record<string, number>): number {
+            return Object.values(ranks).reduce((a, b) => a + b, 0);
+        }
+
+        it("reports not converged and the real iteration count when the delta path hits the cap", () => {
+            const result = pageRank(bigGraph(), { maxIterations: 1, tolerance: 1e-12 });
+            expect(result.converged).toBe(false);
+            expect(result.iterations).toBe(1);
+        });
+
+        it("reports the iterations the delta path actually ran when it converges early", () => {
+            const delta = pageRank(bigGraph(), { maxIterations: 500 });
+            const standard = pageRank(bigGraph(), { maxIterations: 500, useDelta: false });
+            expect(delta.converged).toBe(true);
+            expect(delta.iterations).toBeLessThan(500);
+            expect(delta.iterations).toBe(standard.iterations);
+        });
+
+        it("honours initialRanks on the delta path", () => {
+            const initialRanks = new Map<number, number>([[0, 100]]);
+            const seeded = pageRank(bigGraph(), { maxIterations: 1, initialRanks });
+            const unseeded = pageRank(bigGraph(), { maxIterations: 1 });
+            const standard = pageRank(bigGraph(), { maxIterations: 1, initialRanks, useDelta: false });
+            expect(seeded.ranks["1"]).not.toBeCloseTo(unseeded.ranks["1"] ?? 0, 6);
+            for (const id of Object.keys(standard.ranks)) {
+                expect(seeded.ranks[id]).toBeCloseTo(standard.ranks[id] ?? 0, 12);
+            }
+        });
+
+        it("ignores edge weights on the delta path unless the weight option is set", () => {
+            const delta = pageRank(bigGraph(true));
+            const standard = pageRank(bigGraph(true), { useDelta: false });
+            expect(sum(delta.ranks)).toBeCloseTo(1, 6);
+            for (const id of Object.keys(standard.ranks)) {
+                expect(delta.ranks[id]).toBeCloseTo(standard.ranks[id] ?? 0, 5);
+            }
+        });
+
+        it("reports maxIterations, not one more, when the standard path hits the cap", () => {
+            const graph = new Graph({ directed: true });
+            graph.addEdge("A", "B");
+            graph.addEdge("B", "C");
+            graph.addEdge("A", "C");
+            const result = pageRank(graph, { maxIterations: 2, tolerance: 1e-15 });
+            expect(result.converged).toBe(false);
+            expect(result.iterations).toBe(2);
+        });
+    });
 });

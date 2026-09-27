@@ -65,6 +65,13 @@ export interface RegisteredAlgorithm {
      */
     readonly cost?: (n: number, m: number) => number;
     /**
+     * A cost model in work units of the descriptor's cost class, read from `static costUnits`.
+     *
+     * The estimator divides it by this device's rate for that class, so calibration scales it.
+     * Wins over {@link cost} when both are present.
+     */
+    readonly costUnits?: (n: number, m: number) => number;
+    /**
      * The plugin's own version, read from `static version`.
      *
      * A saved run records the versions of the code that produced its numbers, and until this

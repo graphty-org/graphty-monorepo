@@ -12,23 +12,16 @@
  * test is deliberately ungated and small enough to run in the default suite: a regression test that
  * only runs behind an env flag would not have caught this one either.
  *
- * The two sizes are 16x apart, not 4x, because the two measurements can run on cores of different
- * speed. The development host is a hybrid Intel part (P-cores 0-15, E-cores 16-31) and the kernel
- * moves a vitest worker between them freely. Pinned with taskset, the importer is linear on either
- * core type (25k -> 100k costs 4.0-4.7x) but an E-core runs it 1.6-1.9x slower, so small-on-a-P-core
- * then large-on-an-E-core measured 6.7-7.1x -- and 8.0x in the two pre-push failures, against the
- * old bound of 8. At 4x apart the gap between linear (4) and quadratic (16) is too narrow to absorb
- * a 2x core-speed swing: the quadratic importer measured large-on-P / small-on-E only reached 8.6-10.5x.
- * At 16x apart, the linear importer measures 18-24x on one core and 28-33x with the P-to-E swing,
- * and the quadratic one 113-134x even with the swing working against it; 64 sits between with about
- * a 2x margin each side. The rounds interleave the sizes so both minima usually come from the same
- * kind of core.
+ * It counts work rather than time: the reads of the importer's per-vertex id table, which the
+ * gap-fill loop walks. A time ratio between two sizes also measured the machine (on a hybrid CPU
+ * the two runs can land on cores of different speed); the count is the same on every run.
  */
 
 import { GraphBuilder } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import { pajekImporter } from "../../../src/formats/pajek/importer.js";
+import { arrayReadsOfLength } from "../../helpers/work-meter.js";
 
 /** A vertices-only .net document with ascending, labelled vertex lines. */
 function verticesOnly(count: number): string {
@@ -39,45 +32,28 @@ function verticesOnly(count: number): string {
     return `${lines.join("\n")}\n`;
 }
 
-/** One import of `text`, in ms. */
-async function timed(text: string): Promise<number> {
+/** The reads of the per-vertex id table while importing a vertices-only document of `count` lines. */
+async function idTableReads(count: number): Promise<number> {
+    const text = verticesOnly(count);
     const sink = new GraphBuilder({ directed: true, weightDtype: "f64" });
-    const started = performance.now();
-    await pajekImporter.import(text, sink);
-    return performance.now() - started;
+    const reads = await arrayReadsOfLength(count, () => pajekImporter.import(text, sink).then(() => undefined));
+    expect(sink.nodeCount).toBe(count);
+    return reads;
 }
 
-/** The most multiplying the vertex count by 16 may multiply the time by and still count as linear. */
-const SIXTEENFOLD_BOUND = 64;
+/** The most reads of the id table per vertex (the restarting gap-fill read about count / 2). */
+const READS_PER_VERTEX_BOUND = 10;
 
 describe("Pajek vertex-section scaling", () => {
-    it(
-        "stays linear in the vertex count under the default options",
-        async () => {
-            const small = verticesOnly(6_250);
-            const large = verticesOnly(100_000);
-
-            // warm the JIT on a throwaway document so the first timed import is not the slow one
-            await timed(verticesOnly(2_000));
-
-            // the fastest of three per size (the least disturbed), the sizes interleaved
-            let smallMs = Infinity;
-            let largeMs = Infinity;
-            for (let round = 0; round < 3; round++) {
-                smallMs = Math.min(smallMs, await timed(small));
-                largeMs = Math.min(largeMs, await timed(large));
-            }
-            const ratio = largeMs / Math.max(smallMs, 0.001);
-
+    it("reads the per-vertex id table a bounded number of times per vertex under the default options", async () => {
+        for (const count of [1_000, 10_000]) {
+            const reads = await idTableReads(count);
             expect(
-                ratio,
-                `16x the vertices cost ${ratio.toFixed(1)}x the time ` +
-                    `(${smallMs.toFixed(1)} ms at 6.25k, ${largeMs.toFixed(0)} ms at 100k); ` +
-                    "linear is about 16x, quadratic about 256x",
-            ).toBeLessThan(SIXTEENFOLD_BOUND);
-        },
-        { timeout: 120_000 },
-    );
+                reads,
+                `${count} vertices read the id table ${reads} times; linear is a few per vertex, quadratic about ${count / 2}`,
+            ).toBeLessThan(READS_PER_VERTEX_BOUND * count);
+        }
+    });
 
     it("numbers the nodes in vertex order whatever the line order", async () => {
         // the gap-fill the high-water mark optimises is what makes this true; pin the behaviour it

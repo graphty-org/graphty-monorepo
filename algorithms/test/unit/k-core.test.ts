@@ -373,14 +373,21 @@ describe("K-Core Decomposition", () => {
                 }
             }
 
-            const startTime = Date.now();
             const graph = createGraphFromAdjacencySet(adjacencySet);
             const result = kCoreDecomposition(graph);
-            const endTime = Date.now();
 
-            expect(endTime - startTime).toBeLessThan(100); // Should be fast
+            // No wall-clock budget: it measures the machine rather than the code (issue #363).
+            // Check the decomposition itself: a node of coreness k has at least k neighbours
+            // whose coreness is k or more, which is what membership in the k-core means.
             expect(result.coreness.size).toBe(1000);
             expect(result.maxCore).toBeGreaterThan(0);
+            expect(result.maxCore).toBe(Math.max(...result.coreness.values()));
+            for (const [node, k] of result.coreness) {
+                const inCore = [...(adjacencySet.get(Number(node)) ?? [])].filter(
+                    (neighbor) => (result.coreness.get(String(neighbor)) ?? 0) >= k,
+                );
+                expect(inCore.length).toBeGreaterThanOrEqual(k);
+            }
         });
     });
 });

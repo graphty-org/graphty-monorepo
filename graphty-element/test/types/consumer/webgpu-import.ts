@@ -24,6 +24,7 @@ import type { Capabilities, GraphAccelerator } from "@graphty/graphty-element/se
  * application put the vendor on screen without importing a GPU type.
  */
 export const status: Capabilities["acceleration"] = {
+    policy: "auto",
     state: "idle",
     backend: "webgpu",
     vendor: "acme",

@@ -13,7 +13,12 @@ import { type LayoutEngine, layoutEngineInternals } from "../layout/LayoutEngine
 import { MeshCache } from "../meshes/MeshCache";
 import { adoptNodeRecord, Node, NodeIdType, placeNodeRow } from "../Node";
 import { legacyScopeOf } from "../session/commands/algo";
-import { type DataMutation, replaceEdgesCommand } from "../session/commands/data";
+import {
+    type DataImportCommand,
+    type DataMutation,
+    replaceEdgesCommand,
+    replaceNodesCommand,
+} from "../session/commands/data";
 import type { LaneStore } from "../session/GraphSession";
 import type { Dispatcher, UndoableContext } from "../session/project/Dispatcher";
 import { GraphOps, type GraphWriter } from "../session/project/graphOps";
@@ -109,6 +114,20 @@ export const dataManagerInternals = {} as {
     /** Register an edge under its id, its endpoint pair and, when it has one, its row. */
     adoptEdge(manager: DataManager, edge: Edge): void;
 };
+
+/**
+ * The refusal of a load a newer replacing load, or a clear, overtook.
+ * @param type - The load's format, for the message.
+ * @returns The error.
+ */
+function supersededError(type: string): GraphtyError {
+    return new GraphtyError({
+        code: "E_SUPERSEDED",
+        source: "data",
+        message: `The ${type} load was overtaken by a newer replacing load, so the graph was left to it.`,
+        details: { format: type },
+    });
+}
 
 /**
  * Manages all data operations for nodes and edges
@@ -297,6 +316,22 @@ export class DataManager implements Manager {
     private cause: HistoryCause | undefined = undefined;
 
     /**
+     * Bumped by every REPLACING load as it is asked for, and by `supersedeLoads`. A load that
+     * sees it move has been overtaken, and stops with `E_SUPERSEDED` rather than touching the
+     * graph: see `addDataFromSource`.
+     */
+    private replaceGeneration = 0;
+
+    /** The loads dispatched and not yet settled, so a newer replacing load can withdraw them. */
+    private readonly inFlight = new Set<{ generation: number; controller: AbortController; type: string }>();
+
+    /** The id each load's events carry, by its import command. */
+    private readonly loadIds = new WeakMap<DataImportCommand, number>();
+
+    /** The id of the import running now, for the events it emits. */
+    private loadId: number | undefined = undefined;
+
+    /**
      * Creates an instance of DataManager
      * @param eventManager - Event manager for emitting data events
      * @param styles - Styles instance for applying styles to data
@@ -434,10 +469,13 @@ export class DataManager implements Manager {
                 const { cause } = this;
                 this.cause = "command";
                 hooks.loading(true);
+                // Imports hold the whole graph, so one runs at a time and one field is enough.
+                this.loadId = this.loadIds.get(command);
                 try {
                     await this.ingest.importSource(command, writer, signal);
                 } finally {
                     this.cause = cause;
+                    this.loadId = undefined;
                     hooks.loading(false);
                 }
 
@@ -666,6 +704,10 @@ export class DataManager implements Manager {
         this.pendingEdges = [];
         this.pendingByPair.clear();
         this.meshCache.clear();
+
+        // Announced last, once the graph is empty. The LayoutManager hears it too, and rebuilds
+        // its engine so the next load does not start from the old graph's bodies and settled state.
+        this.eventManager.emitDataCleared();
     }
 
     /**
@@ -739,6 +781,7 @@ export class DataManager implements Manager {
                         progress.nodeRecords,
                         progress.edgeRecords,
                         progress.chunks,
+                        this.loadId,
                     );
                 }
             },
@@ -752,6 +795,7 @@ export class DataManager implements Manager {
                         errors.getDetailedReport(),
                         summary.primaryCategory,
                         summary.suggestion,
+                        this.loadId,
                     );
                 }
             },
@@ -766,18 +810,30 @@ export class DataManager implements Manager {
                         0, // warnings
                         true,
                         report,
+                        this.loadId,
                     );
                     // Keep existing data-loaded event for backward compatibility
-                    this.eventManager.emitGraphDataLoaded(this.graphContext, progress.chunks, format, report);
+                    this.eventManager.emitGraphDataLoaded(
+                        this.graphContext,
+                        progress.chunks,
+                        format,
+                        report,
+                        this.loadId,
+                    );
                 }
             },
             loadFailed: (format, error, progress) => {
                 if (this.graphContext) {
-                    this.eventManager.emitDataLoadingError(error, "parsing", format, { canContinue: false });
+                    const { loadId } = this;
+                    this.eventManager.emitDataLoadingError(error, "parsing", format, {
+                        canContinue: false,
+                        ...(loadId === undefined ? {} : { loadId }),
+                    });
                     // Keep existing error event for backward compatibility
                     this.eventManager.emitGraphError(this.graphContext, error, "data-loading", {
                         chunksLoaded: progress.chunks,
                         dataSourceType: format,
+                        loadId,
                     });
                 }
             },
@@ -1043,6 +1099,27 @@ export class DataManager implements Manager {
      */
     addNode(node: AdHocData, idPath?: string): void {
         this.addNodes([node], idPath);
+    }
+
+    /**
+     * Replace every node with these, as one step: a node the records name again keeps its row and
+     * its edges, and one they no longer name goes, with its edges. A set past the render ceiling
+     * is refused with `E_TOO_LARGE` and the step rolls back, so the graph keeps the nodes it had.
+     * @param nodes - the nodes the graph should hold afterwards
+     * @param idPath - JMESPath expression to extract the id; the configured node id path when unset
+     */
+    setNodes(nodes: Record<string | number, unknown>[], idPath?: string): void {
+        const query = idPath ?? this.styles.config.data.knownFields.nodeIdPath;
+        const command = replaceNodesCommand([...this.nodes.keys()], nodes, query);
+        if (this.dispatcher === null) {
+            for (const step of command.steps) {
+                this.write((step as { mutation: DataMutation }).mutation);
+            }
+
+            return;
+        }
+
+        this.dispatcher.dispatchNow(command);
     }
 
     /**
@@ -1468,22 +1545,123 @@ export class DataManager implements Manager {
     // Data source operations
 
     /**
-     * Loads data from a registered data source
+     * Loads data from a registered data source, as one step: a `data.import` on its turn in the
+     * queue. A REPLACING load empties the graph in the same step, and a load that fails rolls the
+     * whole step back, so a malformed or empty file leaves the graph it would have replaced
+     * exactly as it was.
+     *
+     * A load that reads no node records and no edge records at all fails with `E_EMPTY_LOAD`
+     * rather than completing with zero counts. A file of edges alone is not empty: its endpoints
+     * become nodes.
+     *
+     * The load that STARTED last wins. Once a replacing load has started, every load started
+     * before it -- replacing or additive -- is superseded: it adds nothing more and rejects with
+     * `E_SUPERSEDED`, whichever order the sources finish in. A superseded load emits no
+     * `data-loading-error`, because nothing went wrong with its source.
      * @param type - Data source type identifier
      * @param opts - Options to pass to the data source
+     * @param load - Which load this is, for every event it emits, and whether it replaces the graph
+     * @param load.loadId - The id every event about this load carries
+     * @param load.replace - Swap the graph for what the source holds, once it has all parsed
+     * @param load.generation - The place `beginLoad` reserved for this load when the caller's call
+     *     was made; left unset, the load takes its place now
+     * @param load.coalesce - The key imports coalesce under while the first waits its turn
+     * @param load.setup - Declared at construction: it becomes the baseline
      */
-    async addDataFromSource(type: string, opts: object = {}): Promise<void> {
+    async addDataFromSource(
+        type: string,
+        opts: object = {},
+        load: {
+            loadId?: number;
+            replace?: boolean;
+            generation?: number;
+            coalesce?: string;
+            setup?: boolean;
+        } = {},
+    ): Promise<void> {
+        const replace = load.replace === true;
+        const generation = load.generation ?? this.beginLoad(replace);
+        const command: DataImportCommand = {
+            op: "data.import",
+            source: { type, config: opts as Readonly<Record<string, unknown>> },
+            mode: replace ? "replace" : "merge",
+            ...(load.coalesce === undefined ? {} : { coalesce: load.coalesce }),
+            ...(load.setup === true ? { setup: true } : {}),
+        };
+        await this.runLoad(command, generation, load.loadId);
+    }
+
+    /**
+     * Dispatch an import as one load: it carries its id into every event it emits, and it is
+     * withdrawn with `E_SUPERSEDED` once a replacing load asked for after it, or `clearData`,
+     * moves the generation on.
+     * @param command - The import.
+     * @param generation - What `beginLoad` returned when the load was asked for.
+     * @param loadId - The id its events carry.
+     */
+    async runLoad(command: DataImportCommand, generation: number, loadId?: number): Promise<void> {
+        const type = command.source.type ?? "data";
+        this.throwIfSuperseded(generation, type);
+        if (loadId !== undefined) {
+            this.loadIds.set(command, loadId);
+        }
+
         if (this.dispatcher === null) {
-            await this.ingest.addDataFromSource(type, opts, this.graph.writer(null, this.store));
+            await this.ingest.addDataFromSource(type, command.source.config ?? {}, this.graph.writer(null, this.store));
             return;
         }
 
-        // Added to the graph, as this door always has; one step, on its turn in the queue.
-        await this.dispatcher.dispatch({
-            op: "data.import",
-            source: { type, config: opts as Readonly<Record<string, unknown>> },
-            mode: "merge",
-        });
+        const load = { generation, controller: new AbortController(), type };
+        this.inFlight.add(load);
+        try {
+            await this.dispatcher.dispatch(command, { signal: load.controller.signal });
+        } catch (error) {
+            // Withdrawn because a newer load took the graph: that, not the abort, is the answer.
+            this.throwIfSuperseded(generation, type);
+            throw error;
+        } finally {
+            this.inFlight.delete(load);
+        }
+    }
+
+    /**
+     * Reserve a load's place in line, at the moment the caller asked for it.
+     *
+     * A caller that reads a file or sniffs a URL before it loads calls this FIRST, so a load that
+     * was asked for later still wins however long the earlier one spends reading. A replacing load
+     * supersedes every load reserved before it.
+     * @param replace - Whether the load will replace the graph
+     * @returns The generation to hand to `addDataFromSource` and `throwIfSuperseded`
+     */
+    beginLoad(replace: boolean): number {
+        if (replace) {
+            this.supersedeLoads();
+        }
+
+        return this.replaceGeneration;
+    }
+
+    /**
+     * Abandon every load in flight: each rejects with `E_SUPERSEDED`, its step rolled back, and
+     * adds nothing. The element's `clearData` calls this, so a load finishing after the graph was
+     * closed does not bring its data back.
+     */
+    supersedeLoads(): void {
+        this.replaceGeneration++;
+        for (const load of this.inFlight) {
+            load.controller.abort(supersededError(load.type));
+        }
+    }
+
+    /**
+     * Throw `E_SUPERSEDED` when a load reserved at `generation` has been overtaken.
+     * @param generation - What `beginLoad` returned for the load
+     * @param type - The load's format, for the message
+     */
+    throwIfSuperseded(generation: number, type: string): void {
+        if (this.replaceGeneration !== generation) {
+            throw supersededError(type);
+        }
     }
 
     // Utility methods

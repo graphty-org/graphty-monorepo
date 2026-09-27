@@ -402,11 +402,11 @@ describe("FA2 grid tier behaviour (spec 7.7, 7.8, 11.4)", () => {
                     throw new Error("ctx.debug.inspect was not honoured");
                 }
                 await debugRunStages("G3");
-                const { cells } = gridSpecFor(n, 2, resolveLayoutTuning(GRID));
+                const { histWords } = gridSpecFor(n, 2, resolveLayoutTuning(GRID));
                 const cellStart = await inspect("cellStart");
                 expect(cellStart).toBeInstanceOf(Uint32Array);
-                expect(cellStart).toHaveLength(cells + 2);
-                expect(cellStart[cells + 1], "the scan closes at n").toBe(n);
+                expect(cellStart).toHaveLength(histWords);
+                expect(cellStart[histWords - 1], "the scan closes at n").toBe(n);
                 expect(cellStart[0]).toBe(0);
                 for (const name of ["cellKey", "sortedIdx", "pyramid", "hubList", "hubCounters"]) {
                     const words = await inspect(name);

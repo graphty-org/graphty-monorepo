@@ -140,6 +140,7 @@ Records are read through the session: one at a time by id, or every one at once.
 
 ```typescript
 const session = element.session;
+const { nodes, edges } = await session.scope.resolve("graph");
 
 const record = session.data.edge(id); // { id, source, target, ...the file's own keys }
 const everyNode = session.data.nodes(); // [{ id, ...the file's own keys }, ...]

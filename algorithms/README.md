@@ -17,7 +17,7 @@ A comprehensive TypeScript graph algorithms library with 98 algorithms optimized
 - **Modular**: Import only the algorithms you need
 - **Comprehensive**: 98 graph algorithms including traversal, shortest paths, centrality, clustering, flow, matching, link prediction, and more
 - **Interactive Examples**: [Live demos](https://graphty.app/algorithms/) with visualizations for all algorithms
-- **Performance Analysis**: [Detailed benchmarks](https://graphty.app/algorithms/benchmarks/) comparing algorithm performance
+- **Performance Analysis**: `npm run benchmark` benchmarks every algorithm locally
 - **Well-tested**: Extensive test suite with high coverage
 - **Standards-compliant**: Follows conventional commits and semantic versioning
 
@@ -110,8 +110,8 @@ class Graph {
 ```typescript
 interface GraphConfig {
     directed: boolean; // Default: false
-    allowSelfLoops: boolean; // Default: false
-    allowParallelEdges: boolean; // Default: false
+    allowSelfLoops: boolean; // Default: true
+    allowParallelEdges: boolean; // Default: false. When true, re-adding a pair replaces its edge (one edge per pair)
 }
 ```
 
@@ -1036,6 +1036,7 @@ const result = grsbm(graph, {
 Explore algorithms with interactive Storybook demos: **[View Storybook →](https://graphty.app/storybook/algorithms/)**
 
 Storybook provides:
+
 - **Animated visualizations** showing how each algorithm works step-by-step
 - **Interactive controls** to modify parameters and graph types
 - **Deterministic output** with seeded randomness for reproducibility
@@ -1048,7 +1049,6 @@ Try out all algorithms with interactive visualizations: **[Live Demo →](https:
 The library includes comprehensive examples demonstrating each algorithm. You can:
 
 - **[Browse Interactive HTML Examples](https://graphty.app/algorithms/examples/)** - Visual demonstrations with step-by-step execution
-- **[View Performance Benchmarks](https://graphty.app/algorithms/benchmarks/)** - Comparative analysis of algorithm performance
 - **[Explore Code Examples](https://github.com/graphty-org/graphty-monorepo/tree/master/algorithms/examples)** - Implementation examples for each algorithm
 
 ### Basic Algorithms
@@ -1360,7 +1360,7 @@ interface GRSBMResult {
     - GRSBM: O(m log n) where m is edges
 - **Memory Usage**: O(V + E) for graph storage
 - **Browser Optimization**: Algorithms use iterative approaches where possible to avoid stack overflow
-- **Performance Benchmarks**: View detailed performance comparisons at [https://graphty.app/algorithms/benchmarks/](https://graphty.app/algorithms/benchmarks/)
+- **Performance Benchmarks**: run `npm run benchmark` in algorithms/ to compare algorithm performance locally
 
 ## Development
 
@@ -1372,15 +1372,13 @@ interface GRSBMResult {
 ### Setup
 
 ```bash
-# Clone the repository
-git clone https://github.com/graphty-org/algorithms.git
+# Clone the monorepo (the package lives in algorithms/)
+git clone https://github.com/graphty-org/graphty-monorepo.git
+cd graphty-monorepo
+
+# Install dependencies for every package
+pnpm install
 cd algorithms
-
-# Install dependencies
-npm install
-
-# Set up git hooks
-npm run prepare
 ```
 
 ### Scripts

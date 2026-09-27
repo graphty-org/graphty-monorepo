@@ -5,6 +5,20 @@ import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { assert, describe, it } from "vitest";
 
+// Imported statically, at the top of the file, rather than with `await import()` inside a test.
+// Loading these entry points transforms and evaluates some 280 modules, and a dynamic import in a
+// test body charged all of that to the 30 s per-test timeout. On a machine running a dozen
+// pre-push gates at once that load took long enough to fail the test (#491), so the verdict
+// depended on how busy the machine was. A static import is loaded while the file is collected,
+// which has no timeout, and a module that fails to load still fails this file.
+import * as catalog from "../../catalog";
+import * as commands from "../../commands";
+import * as extend from "../../extend";
+import * as format from "../../format";
+import * as logging from "../../logging";
+import * as schema from "../../schema";
+import * as session from "../../session";
+
 const PACKAGE_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 
 /**
@@ -148,11 +162,28 @@ function importGraph(entry: string): Reached[] {
     );
 }
 
+/**
+ * Every walk the cases below read, done once while the file is collected. Transpiling the whole
+ * package is a second or two of CPU, and inside a test it ran under the 30 s per-test timeout,
+ * which a machine running a dozen pre-push gates at once stretched it towards (#491).
+ */
+const GRAPHS = new Map([...NODE_SAFE_ENTRIES, "index.ts", "webgpu.ts"].map((entry) => [entry, importGraph(entry)]));
+
+/**
+ * The walk of one entry point, from the table above.
+ * @param entry - The entry file, relative to the package root.
+ * @returns What {@link importGraph} found for it.
+ */
+function graphOf(entry: string): Reached[] {
+    const graph = GRAPHS.get(entry);
+    assert.isDefined(graph, `${entry} was not walked`);
+
+    return graph;
+}
+
 describe("the Node-safe entry points", () => {
     it.each(NODE_SAFE_ENTRIES)("%s reaches no renderer, no component framework and no LLM runtime", (entry) => {
-        const offenders = importGraph(entry).filter((found) =>
-            FORBIDDEN.some((pattern) => pattern.test(found.specifier)),
-        );
+        const offenders = graphOf(entry).filter((found) => FORBIDDEN.some((pattern) => pattern.test(found.specifier)));
 
         assert.deepEqual(
             offenders.map((found) => `${found.specifier} via ${found.chain.join(" -> ")}`),
@@ -162,22 +193,14 @@ describe("the Node-safe entry points", () => {
 
     it("sees what is really there: the root entry point does reach Babylon.js and Lit", () => {
         // Without this, a walker that silently resolved nothing would pass every case above.
-        const reached = importGraph("index.ts").map((found) => found.specifier);
+        const reached = graphOf("index.ts").map((found) => found.specifier);
 
         assert.include(reached, "@babylonjs/core");
         assert.include(reached, "lit");
     });
 
-    it("loads in a plain Node import, which is the whole point of the entry points existing", async () => {
-        const loaded = await Promise.all([
-            import("../../session"),
-            import("../../schema"),
-            import("../../catalog"),
-            import("../../commands"),
-            import("../../extend"),
-            import("../../format"),
-            import("../../logging"),
-        ]);
+    it("loads in a plain Node import, which is the whole point of the entry points existing", () => {
+        const loaded = [session, schema, catalog, commands, extend, format, logging];
 
         assert.isTrue(loaded.every((module) => typeof module === "object"));
     });
@@ -190,7 +213,7 @@ describe("the ./webgpu entry point", () => {
     // of one the page already has.
     it("reaches no renderer and no component framework", () => {
         const forbidden = [/^@babylonjs($|\/)/, /^lit($|\/)/, /^@lit($|\/)/];
-        const offenders = importGraph("webgpu.ts").filter((found) =>
+        const offenders = graphOf("webgpu.ts").filter((found) =>
             forbidden.some((pattern) => pattern.test(found.specifier)),
         );
 
@@ -207,7 +230,7 @@ describe("the ./webgpu entry point", () => {
     // entry point's graph is not visible from here -- and `exports-map.test.ts` is what keeps the
     // peer optional in the manifest; this keeps the entry point the only door it comes through.
     it("reaches both entries of the optional peer from webgpu.ts, and from no other file", () => {
-        const peers = importGraph("webgpu.ts").filter((found) =>
+        const peers = graphOf("webgpu.ts").filter((found) =>
             /^@graphty\/webgpu-graph-algorithms($|\/)/.test(found.specifier),
         );
 

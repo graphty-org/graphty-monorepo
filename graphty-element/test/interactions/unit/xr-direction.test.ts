@@ -7,7 +7,7 @@
  *
  * Input mapping (from XRInputHandler.ts):
  * - Left stick X: Yaw (turn left/right) - X+ = rotate RIGHT
- * - Left stick Y: Pitch (tilt up/down) - Y+ (forward) = look DOWN
+ * - Left stick Y: Pitch (tilt up/down) - Y+ (forward) = graph moves UP, as a mouse or touch drag does
  * - Right stick X: Pan left/right - X+ = pan RIGHT
  * - Right stick Y: Zoom in/out - Y+ (forward) = zoom IN
  */
@@ -17,74 +17,10 @@ import { assert } from "chai";
 import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
 import { applyDeadzone } from "../../../src/cameras/InputUtils";
-import { PivotController } from "../../../src/cameras/PivotController";
+import type { PivotController } from "../../../src/cameras/PivotController";
 import type { Graph } from "../../../src/Graph";
 import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup";
-
-/**
- * Mock XRInputHandler for unit testing.
- * This simulates the XR input processing logic without requiring actual WebXR.
- */
-class MockXRInputHandler {
-    private pivotController: PivotController;
-
-    // Thumbstick values
-    public leftStick = { x: 0, y: 0 };
-    public rightStick = { x: 0, y: 0 };
-
-    // Sensitivity settings (matching XRInputHandler)
-    private readonly DEADZONE = 0.15;
-    private readonly YAW_SPEED = 0.04;
-    private readonly PITCH_SPEED = 0.03;
-    private readonly PAN_SPEED = 0.08;
-    private readonly ZOOM_SPEED = 0.02;
-
-    constructor(pivotController: PivotController) {
-        this.pivotController = pivotController;
-    }
-
-    /**
-     * Process thumbstick input.
-     * This mirrors the logic in XRInputHandler.processThumbsticks()
-     */
-    processThumbsticks(): void {
-        // Apply deadzone with curve
-        const leftX = applyDeadzone(this.leftStick.x, this.DEADZONE);
-        const leftY = applyDeadzone(this.leftStick.y, this.DEADZONE);
-        const rightX = applyDeadzone(this.rightStick.x, this.DEADZONE);
-        const rightY = applyDeadzone(this.rightStick.y, this.DEADZONE);
-
-        const hasInput = leftX !== 0 || leftY !== 0 || rightX !== 0 || rightY !== 0;
-        if (!hasInput) {
-            return;
-        }
-
-        // LEFT STICK: Rotation (matching XRInputHandler behavior)
-        // X = yaw (push right = positive yaw = scene rotates right around you)
-        // Y = pitch (push forward = negative pitch = look up... wait, let me check)
-        // Actually from XRInputHandler.ts line 511: pitchDelta = -leftY * this.PITCH_SPEED
-        // So Y+ (forward push) = negative pitchDelta = pitch down (look up at scene)
-        const yawDelta = leftX * this.YAW_SPEED;
-        const pitchDelta = -leftY * this.PITCH_SPEED;
-
-        if (Math.abs(yawDelta) > 0.0001 || Math.abs(pitchDelta) > 0.0001) {
-            this.pivotController.rotate(yawDelta, pitchDelta);
-        }
-
-        // RIGHT STICK: Zoom and Pan
-        // Y = zoom (push forward = zoom in = scale up)
-        if (Math.abs(rightY) > 0.0001) {
-            const zoomFactor = 1.0 + rightY * this.ZOOM_SPEED;
-            this.pivotController.zoom(zoomFactor);
-        }
-
-        // X = pan (push right = move focal point right)
-        if (Math.abs(rightX) > 0.0001) {
-            const panAmount = rightX * this.PAN_SPEED;
-            this.pivotController.panViewRelative(panAmount, 0);
-        }
-    }
-}
+import { createXRInputDriver, type XRInputDriver } from "../helpers/xr-input-driver";
 
 /**
  * Helper to get pivot rotation as Euler angles
@@ -112,20 +48,21 @@ function getPivotPosition(pivot: PivotController): Vector3 {
 describe("XR Input Direction Verification", () => {
     let graph: Graph;
     let pivotController: PivotController;
-    let mockHandler: MockXRInputHandler;
+    let driver: XRInputDriver;
 
     beforeEach(async () => {
         // Create a test graph to get a valid scene
         graph = await createTestGraph();
 
-        // Create pivot controller directly for testing
-        pivotController = new PivotController(graph.scene);
+        // Drive the real XRInputHandler
 
-        // Create mock XR input handler
-        mockHandler = new MockXRInputHandler(pivotController);
+        driver = createXRInputDriver(graph.scene);
+
+        pivotController = driver.pivot;
     });
 
     afterEach(() => {
+        driver.dispose();
         vi.restoreAllMocks();
         cleanupTestGraph(graph);
     });
@@ -135,21 +72,18 @@ describe("XR Input Direction Verification", () => {
         const initialEuler = getPivotEuler(pivotController);
 
         // Set left stick to right (X+)
-        mockHandler.leftStick = { x: 0.8, y: 0 };
+        driver.setStick("left", 0.8, 0);
 
         // Process several frames of input
         for (let i = 0; i < 10; i++) {
-            mockHandler.processThumbsticks();
+            driver.frame();
         }
 
         // Get final rotation
         const finalEuler = getPivotEuler(pivotController);
 
         // X+ should produce positive yaw (rotate RIGHT around Y axis)
-        // Looking at XRInputHandler.ts line 510:
-        // yawDelta = leftX * this.YAW_SPEED;
-        // So leftX > 0 means yawDelta > 0
-        // And in PivotController.rotate(), yawDelta > 0 means pivot.rotate(Axis.Y, yawDelta)
+        // leftX > 0 is a positive yaw, and PivotController.rotate turns a positive yaw about +Y
         // This rotates the scene RIGHT from the user's perspective
         assert.isAbove(finalEuler.y, initialEuler.y, "Left stick X+ should rotate scene RIGHT (positive yaw)");
     });
@@ -159,11 +93,11 @@ describe("XR Input Direction Verification", () => {
         const initialEuler = getPivotEuler(pivotController);
 
         // Set left stick to left (X-)
-        mockHandler.leftStick = { x: -0.8, y: 0 };
+        driver.setStick("left", -0.8, 0);
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
-            mockHandler.processThumbsticks();
+            driver.frame();
         }
 
         // Get final rotation
@@ -173,50 +107,42 @@ describe("XR Input Direction Verification", () => {
         assert.isBelow(finalEuler.y, initialEuler.y, "Left stick X- should rotate scene LEFT (negative yaw)");
     });
 
-    test("left stick Y+ (forward) pitches scene DOWN", () => {
+    test("left stick Y+ (forward) pitches scene UP", () => {
         // Record initial rotation
         const initialEuler = getPivotEuler(pivotController);
 
         // Set left stick forward (Y+)
-        mockHandler.leftStick = { x: 0, y: 0.8 };
+        driver.setStick("left", 0, 0.8);
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
-            mockHandler.processThumbsticks();
+            driver.frame();
         }
 
         // Get final rotation
         const finalEuler = getPivotEuler(pivotController);
 
-        // Y+ should produce negative pitch (pitch DOWN - looking up at the scene)
-        // Looking at XRInputHandler.ts line 511:
-        // pitchDelta = -leftY * this.PITCH_SPEED;
-        // So leftY > 0 means pitchDelta < 0
-        // This pitches the scene DOWN (you're looking up at it)
-        assert.isBelow(
-            finalEuler.x,
-            initialEuler.x,
-            "Left stick Y+ (forward) should pitch scene DOWN (negative pitch)",
-        );
+        // Y+ (forward push) is a positive pitch: the graph moves up
+        assert.isAbove(finalEuler.x, initialEuler.x, "Left stick Y+ (forward) should pitch scene UP (positive pitch)");
     });
 
-    test("left stick Y- (back) pitches scene UP", () => {
+    test("left stick Y- (back) pitches scene DOWN", () => {
         // Record initial rotation
         const initialEuler = getPivotEuler(pivotController);
 
         // Set left stick back (Y-)
-        mockHandler.leftStick = { x: 0, y: -0.8 };
+        driver.setStick("left", 0, -0.8);
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
-            mockHandler.processThumbsticks();
+            driver.frame();
         }
 
         // Get final rotation
         const finalEuler = getPivotEuler(pivotController);
 
-        // Y- should produce positive pitch (pitch UP - looking down at the scene)
-        assert.isAbove(finalEuler.x, initialEuler.x, "Left stick Y- (back) should pitch scene UP (positive pitch)");
+        // Y- (pull back) is a negative pitch: the graph moves down
+        assert.isBelow(finalEuler.x, initialEuler.x, "Left stick Y- (back) should pitch scene DOWN (negative pitch)");
     });
 
     test("right stick X+ pans scene RIGHT", () => {
@@ -224,21 +150,18 @@ describe("XR Input Direction Verification", () => {
         const initialPos = getPivotPosition(pivotController);
 
         // Set right stick to right (X+)
-        mockHandler.rightStick = { x: 0.8, y: 0 };
+        driver.setStick("right", 0.8, 0);
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
-            mockHandler.processThumbsticks();
+            driver.frame();
         }
 
         // Get final position
         const finalPos = getPivotPosition(pivotController);
 
         // X+ should pan RIGHT (positive X)
-        // Looking at XRInputHandler.ts lines 529-535:
-        // panAmount = rightX * this.PAN_SPEED;
-        // this.pivotController.panViewRelative(panAmount, 0);
-        // And in PivotController.panViewRelative with initial yaw=0:
+        // rightX > 0 is a positive pan, and PivotController.panViewRelative with yaw 0 gives
         // worldX = right * cosYaw = right * 1 = positive
         assert.isAbove(finalPos.x, initialPos.x, "Right stick X+ should pan scene RIGHT (positive X)");
     });
@@ -248,11 +171,11 @@ describe("XR Input Direction Verification", () => {
         const initialPos = getPivotPosition(pivotController);
 
         // Set right stick to left (X-)
-        mockHandler.rightStick = { x: -0.8, y: 0 };
+        driver.setStick("right", -0.8, 0);
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
-            mockHandler.processThumbsticks();
+            driver.frame();
         }
 
         // Get final position
@@ -267,21 +190,18 @@ describe("XR Input Direction Verification", () => {
         const initialScale = getPivotScale(pivotController);
 
         // Set right stick forward (Y+)
-        mockHandler.rightStick = { x: 0, y: 0.8 };
+        driver.setStick("right", 0, 0.8);
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
-            mockHandler.processThumbsticks();
+            driver.frame();
         }
 
         // Get final scale
         const finalScale = getPivotScale(pivotController);
 
         // Y+ should zoom IN (larger scale)
-        // Looking at XRInputHandler.ts lines 523-525:
-        // const zoomFactor = 1.0 + rightY * this.ZOOM_SPEED;
-        // So rightY > 0 means zoomFactor > 1
-        // this.pivotController.zoom(zoomFactor) with factor > 1 increases scale
+        // rightY > 0 is a zoom factor above 1, which scales the pivot up
         assert.isAbove(finalScale, initialScale, "Right stick Y+ (forward) should zoom IN (larger scale)");
     });
 
@@ -290,11 +210,11 @@ describe("XR Input Direction Verification", () => {
         const initialScale = getPivotScale(pivotController);
 
         // Set right stick back (Y-)
-        mockHandler.rightStick = { x: 0, y: -0.8 };
+        driver.setStick("right", 0, -0.8);
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
-            mockHandler.processThumbsticks();
+            driver.frame();
         }
 
         // Get final scale
@@ -311,12 +231,12 @@ describe("XR Input Direction Verification", () => {
         const initialScale = getPivotScale(pivotController);
 
         // Set thumbstick values below deadzone
-        mockHandler.leftStick = { x: 0.1, y: 0.1 };
-        mockHandler.rightStick = { x: 0.1, y: 0.1 };
+        driver.setStick("left", 0.1, 0.1);
+        driver.setStick("right", 0.1, 0.1);
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
-            mockHandler.processThumbsticks();
+            driver.frame();
         }
 
         // Get final state
@@ -338,11 +258,11 @@ describe("XR Input Direction Verification", () => {
         const initialEuler = getPivotEuler(pivotController);
 
         // Set thumbstick values above deadzone
-        mockHandler.leftStick = { x: 0.5, y: 0 };
+        driver.setStick("left", 0.5, 0);
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
-            mockHandler.processThumbsticks();
+            driver.frame();
         }
 
         // Get final state
@@ -359,11 +279,11 @@ describe("XR Input Direction Verification", () => {
         const initialEuler = getPivotEuler(pivotController);
 
         // Set left stick to diagonal (both X and Y)
-        mockHandler.leftStick = { x: 0.5, y: 0.5 };
+        driver.setStick("left", 0.5, 0.5);
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
-            mockHandler.processThumbsticks();
+            driver.frame();
         }
 
         // Get final state
@@ -382,12 +302,12 @@ describe("XR Input Direction Verification", () => {
         const initialScale = getPivotScale(pivotController);
 
         // Set both thumbsticks
-        mockHandler.leftStick = { x: 0.5, y: 0 }; // Yaw
-        mockHandler.rightStick = { x: 0, y: 0.5 }; // Zoom
+        driver.setStick("left", 0.5, 0); // Yaw
+        driver.setStick("right", 0, 0.5); // Zoom
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
-            mockHandler.processThumbsticks();
+            driver.frame();
         }
 
         // Get final state

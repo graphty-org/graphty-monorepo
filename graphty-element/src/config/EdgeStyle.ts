@@ -4,7 +4,11 @@ import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { ColorStyle } from "./common";
 import { RichTextStyle } from "./RichTextStyle";
 
-const ArrowType = z.enum([
+/**
+ * Every arrow the edge renderer can draw at the head or tail of an edge, in schema order.
+ * Read `EdgeArrowTypes.options` for the list, e.g. to build a picker.
+ */
+export const EdgeArrowTypes = z.enum([
     // https://graphviz.org/docs/attr-types/arrowType/
     // https://manual.cytoscape.org/en/stable/Styles.html#available-shapes-and-line-styles
     "normal",
@@ -24,7 +28,7 @@ const ArrowType = z.enum([
 ]);
 
 const ArrowStyle = z.strictObject({
-    type: ArrowType.default("normal").optional(),
+    type: EdgeArrowTypes.default("normal").optional(),
     size: z.number().positive().default(1).optional(),
     /**
      * The colour to draw the cap in, or unset to follow the line it caps.
@@ -41,7 +45,11 @@ const ArrowStyle = z.strictObject({
     text: RichTextStyle.optional(),
 });
 
-const LineType = z.enum([
+/**
+ * Every line pattern the edge renderer can draw, in schema order.
+ * Read `EdgeLineTypes.options` for the list, e.g. to build a picker.
+ */
+export const EdgeLineTypes = z.enum([
     // Phase 4: Instanced Mesh Line Patterns
     "solid", // CustomLineRenderer (continuous line)
     "dot", // Circle instances
@@ -55,7 +63,7 @@ const LineType = z.enum([
 ]);
 
 const LineStyle = z.strictObject({
-    type: LineType.optional(),
+    type: EdgeLineTypes.optional(),
     animationSpeed: z.number().min(0).optional(),
     width: z.number().positive().optional(),
     /**

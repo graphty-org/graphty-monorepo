@@ -125,7 +125,6 @@ export function CommandPalette(props: CommandPaletteProps): React.JSX.Element {
             title={COMMAND_PALETTE_LABEL}
             size={PALETTE_WIDTH}
             padding={PANEL_GRID.PAD_RIGHT}
-            data-testid="command-palette"
         >
             <TextInput
                 size="compact"
@@ -158,6 +157,14 @@ export function CommandPalette(props: CommandPaletteProps): React.JSX.Element {
             <Box
                 role="listbox"
                 aria-label={COMMAND_PALETTE_LABEL}
+                /*
+                    The test id marks the rows, not the Modal: Mantine mounts the Modal's root
+                    (in its portal) whether or not the palette is open, and renders the content
+                    only an animation frame after `opened` turns true, when the enter transition
+                    starts. An id on the root was found before any row existed, so a wait on it
+                    waited for nothing.
+                */
+                data-testid="command-palette"
                 style={{
                     marginBlockStart: PANEL_GRID.TRAIL_GAP,
                     maxHeight: PALETTE_LIST_MAX_HEIGHT,

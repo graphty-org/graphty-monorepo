@@ -1,5 +1,5 @@
 {
-    "recordedAt": "2026-09-25T10:41:44.657Z",
+    "recordedAt": "2026-09-27T07:13:15.857Z",
     "adapters": [
         {
             "class": "mesa-software-node",
@@ -703,6 +703,28 @@
             "samples": 17
         },
         {
+            "id": "fa2-layout-oracle.cross",
+            "kernel": "fa2-integrate",
+            "fixture": "random1k-paper-layout5",
+            "comparison": "cross-adapter",
+            "a": "mesa-software-node",
+            "b": "nvidia-lovelace-node",
+            "maxRelError": 0.006823033837801775,
+            "maxAbsError": 0.09148693084716797,
+            "samples": 3000
+        },
+        {
+            "id": "fa2-layout-oracle.oracle-f64",
+            "kernel": "fa2-integrate",
+            "fixture": "random1k-paper-layout5",
+            "comparison": "oracle-f64",
+            "a": "mesa-software-node",
+            "b": "oracle-f64",
+            "maxRelError": 0.0070860040146640945,
+            "maxAbsError": 0.425628662109375,
+            "samples": 3000
+        },
+        {
             "id": "fr-inspect.attraction.cross",
             "kernel": "fa2-attraction",
             "fixture": "fr-random1k-K2",
@@ -1217,7 +1239,7 @@
             "b": "nvidia-lovelace-node",
             "maxRelError": 0,
             "maxAbsError": 0,
-            "samples": 4097
+            "samples": 4034
         },
         {
             "id": "scan-add.oracle-f64",
@@ -1228,7 +1250,7 @@
             "b": "oracle-f64",
             "maxRelError": 0,
             "maxAbsError": 0,
-            "samples": 4097
+            "samples": 4034
         },
         {
             "id": "histogram.cross",
@@ -1250,7 +1272,7 @@
             "b": "oracle-f64",
             "maxRelError": 0,
             "maxAbsError": 0,
-            "samples": 4097
+            "samples": 4034
         },
         {
             "id": "counting-scatter.cross",
@@ -1294,7 +1316,7 @@
             "b": "nvidia-lovelace-node",
             "maxRelError": 0,
             "maxAbsError": 0,
-            "samples": 1250
+            "samples": 1177
         },
         {
             "id": "grid-cell-key.oracle-f64",
@@ -1305,7 +1327,7 @@
             "b": "oracle-f64",
             "maxRelError": 0,
             "maxAbsError": 0,
-            "samples": 1250
+            "samples": 1177
         },
         {
             "id": "segmented-reduce.tiers.cross",
@@ -1380,9 +1402,9 @@
             "comparison": "cross-adapter",
             "a": "mesa-software-node",
             "b": "nvidia-lovelace-node",
-            "maxRelError": 1.435270953203776e-7,
+            "maxRelError": 1.0713200682625239e-7,
             "maxAbsError": 0.000244140625,
-            "samples": 16359
+            "samples": 15522
         },
         {
             "id": "grid-inspect.pyramid.oracle-f64",
@@ -1393,7 +1415,7 @@
             "b": "oracle-f64",
             "maxRelError": 1.3193415647501092e-7,
             "maxAbsError": 0.0012044310569763184,
-            "samples": 16359
+            "samples": 15522
         },
         {
             "id": "grid-inspect.downsample.cross",
@@ -1404,7 +1426,7 @@
             "b": "nvidia-lovelace-node",
             "maxRelError": 0,
             "maxAbsError": 0,
-            "samples": 4096
+            "samples": 4036
         },
         {
             "id": "grid-inspect.downsample.oracle-f64",
@@ -1413,9 +1435,9 @@
             "comparison": "oracle-f64",
             "a": "mesa-software-node",
             "b": "oracle-f64",
-            "maxRelError": 5.8734305092411086e-8,
-            "maxAbsError": 5.960464477539063e-8,
-            "samples": 4096
+            "maxRelError": 1.7831265657411484e-7,
+            "maxAbsError": 1.1920928955078125e-7,
+            "samples": 4036
         },
         {
             "id": "grid-inspect.hubCentroid.cross",
@@ -1457,9 +1479,9 @@
             "comparison": "cross-adapter",
             "a": "mesa-software-node",
             "b": "nvidia-lovelace-node",
-            "maxRelError": 0.0000031778790222817566,
+            "maxRelError": 0.000004144272985591679,
             "maxAbsError": 2,
-            "samples": 15000
+            "samples": 12000
         },
         {
             "id": "grid-inspect.farField.oracle-f64",
@@ -1468,9 +1490,9 @@
             "comparison": "oracle-f64",
             "a": "mesa-software-node",
             "b": "oracle-f64",
-            "maxRelError": 0.0000026279273301320157,
+            "maxRelError": 0.0000045734567468307106,
             "maxAbsError": 4.278357216157019,
-            "samples": 15000
+            "samples": 12000
         },
         {
             "id": "grid-inspect.nearField.cross",
@@ -1479,9 +1501,9 @@
             "comparison": "cross-adapter",
             "a": "mesa-software-node",
             "b": "nvidia-lovelace-node",
-            "maxRelError": 0.0000031778790222817566,
+            "maxRelError": 0.000004144573532270283,
             "maxAbsError": 2,
-            "samples": 15000
+            "samples": 12000
         },
         {
             "id": "grid-twins.force.twin",
@@ -1492,7 +1514,7 @@
             "b": "mesa-software-node/no-subgroups",
             "maxRelError": 0,
             "maxAbsError": 0,
-            "samples": 15000
+            "samples": 12000
         },
         {
             "id": "grid-inspect.nearField.oracle-f64",
@@ -1501,9 +1523,9 @@
             "comparison": "oracle-f64",
             "a": "mesa-software-node",
             "b": "oracle-f64",
-            "maxRelError": 0.0000027551592856305808,
-            "maxAbsError": 4.45007018186152,
-            "samples": 15000
+            "maxRelError": 0.0000045637703917769775,
+            "maxAbsError": 4.4783418122678995,
+            "samples": 12000
         },
         {
             "id": "grid-inspect.k1.cross",
@@ -1512,8 +1534,8 @@
             "comparison": "cross-adapter",
             "a": "mesa-software-node",
             "b": "nvidia-lovelace-node",
-            "maxRelError": 1.8196628583245983e-7,
-            "maxAbsError": 0.000030517578125,
+            "maxRelError": 0.0000012034907765756338,
+            "maxAbsError": 0.000213623046875,
             "samples": 8
         },
         {
@@ -1521,10 +1543,10 @@
             "kernel": "fa2-stats-finalize",
             "fixture": "isolated-K1-grid",
             "comparison": "oracle-f64",
-            "a": "mesa-software-node",
+            "a": "nvidia-lovelace-node",
             "b": "oracle-f64",
-            "maxRelError": 0.000003212134535475989,
-            "maxAbsError": 0.0006256103515625,
+            "maxRelError": 6.877094881300912e-7,
+            "maxAbsError": 0.0001220703125,
             "samples": 8
         },
         {
@@ -1534,64 +1556,64 @@
             "comparison": "cross-adapter",
             "a": "mesa-software-node",
             "b": "nvidia-lovelace-node",
-            "maxRelError": 0.000002271736244018843,
-            "maxAbsError": 0.000335693359375,
-            "samples": 15000
+            "maxRelError": 0.0000029709924831492933,
+            "maxAbsError": 0.0003185272216796875,
+            "samples": 12000
         },
         {
             "id": "grid-inspect.positions.oracle-f64",
             "kernel": "fa2-integrate",
             "fixture": "random20k-K5-grid",
             "comparison": "oracle-f64",
-            "a": "nvidia-lovelace-node",
+            "a": "mesa-software-node",
             "b": "oracle-f64",
-            "maxRelError": 0.000002385619664329323,
-            "maxAbsError": 0.00035391629319292406,
-            "samples": 15000
+            "maxRelError": 0.000003211216602702441,
+            "maxAbsError": 0.00038254073319876625,
+            "samples": 12000
         },
         {
             "id": "grid-exact.rms.cross",
             "kernel": "grid-exact",
-            "fixture": "random20k-rms",
+            "fixture": "se-random20k-rms",
             "comparison": "cross-adapter",
             "a": "mesa-software-node",
             "b": "nvidia-lovelace-node",
-            "maxRelError": 1.8936670870944804e-7,
-            "maxAbsError": 2,
-            "samples": 15000
+            "maxRelError": 0.0000043008455376310335,
+            "maxAbsError": 380.00000762939453,
+            "samples": 12000
         },
         {
             "id": "grid-exact.rms.oracle-f64",
             "kernel": "grid-exact",
-            "fixture": "random20k-rms",
+            "fixture": "se-random20k-rms",
             "comparison": "oracle-f64",
-            "a": "mesa-software-node",
+            "a": "nvidia-lovelace-node",
             "b": "oracle-f64",
-            "maxRelError": 0.009103815863071971,
-            "maxAbsError": 102218.25,
-            "samples": 15000
+            "maxRelError": 0.03541852697296436,
+            "maxAbsError": 1939608.5,
+            "samples": 12000
         },
         {
             "id": "grid-exact.p99.cross",
             "kernel": "grid-exact",
-            "fixture": "random20k-p99",
+            "fixture": "se-random20k-p99",
             "comparison": "cross-adapter",
             "a": "mesa-software-node",
             "b": "nvidia-lovelace-node",
-            "maxRelError": 4.947327437792342e-7,
-            "maxAbsError": 2,
-            "samples": 15000
+            "maxRelError": 0.00001545006929478469,
+            "maxAbsError": 380.00000762939453,
+            "samples": 12000
         },
         {
             "id": "grid-exact.p99.oracle-f64",
             "kernel": "grid-exact",
-            "fixture": "random20k-p99",
+            "fixture": "se-random20k-p99",
             "comparison": "oracle-f64",
             "a": "mesa-software-node",
             "b": "oracle-f64",
-            "maxRelError": 0.031893590371093294,
-            "maxAbsError": 102218.25,
-            "samples": 15000
+            "maxRelError": 0.11359343585228383,
+            "maxAbsError": 1939608.4999970198,
+            "samples": 12000
         },
         {
             "id": "grid-expansion.cross",
@@ -1600,8 +1622,8 @@
             "comparison": "cross-adapter",
             "a": "mesa-software-node",
             "b": "nvidia-lovelace-node",
-            "maxRelError": 0.013703316959440992,
-            "maxAbsError": 44.4620361328125,
+            "maxRelError": 0.01055017362380325,
+            "maxAbsError": 34.6158447265625,
             "samples": 2
         },
         {
@@ -1609,10 +1631,10 @@
             "kernel": "grid-expansion",
             "fixture": "random20k-spread200",
             "comparison": "oracle-f64",
-            "a": "mesa-software-node",
+            "a": "nvidia-lovelace-node",
             "b": "oracle-f64",
-            "maxRelError": 0.007547553097663904,
-            "maxAbsError": 24.3370361328125,
+            "maxRelError": 0.01342038019540488,
+            "maxAbsError": 43.4500732421875,
             "samples": 2
         },
         {
@@ -1622,8 +1644,8 @@
             "comparison": "cross-adapter",
             "a": "mesa-software-node",
             "b": "nvidia-lovelace-node",
-            "maxRelError": 0.006249999999999591,
-            "maxAbsError": 18.254638671875,
+            "maxRelError": 0.01314999999999898,
+            "maxAbsError": 5.7008573987550335,
             "samples": 16
         },
         {
@@ -1631,10 +1653,10 @@
             "kernel": "grid-distributional",
             "fixture": "random20k-metrics200",
             "comparison": "oracle-f64",
-            "a": "mesa-software-node",
+            "a": "nvidia-lovelace-node",
             "b": "oracle-f64",
-            "maxRelError": 0.00884999999999956,
-            "maxAbsError": 123.16488080573617,
+            "maxRelError": 0.04109419368454395,
+            "maxAbsError": 126.85678393151466,
             "samples": 16
         },
         {
@@ -1644,9 +1666,9 @@
             "comparison": "cross-adapter",
             "a": "mesa-software-node",
             "b": "nvidia-lovelace-node",
-            "maxRelError": 2.8422698500111405e-8,
-            "maxAbsError": 2.044680595397949,
-            "samples": 15000
+            "maxRelError": 2.8583291016727473e-8,
+            "maxAbsError": 2.0841405391693115,
+            "samples": 12000
         },
         {
             "id": "grid-unbiased.oracle-f64",
@@ -1655,9 +1677,9 @@
             "comparison": "oracle-f64",
             "a": "mesa-software-node",
             "b": "oracle-f64",
-            "maxRelError": 0.023782891422166212,
-            "maxAbsError": 2026633.942312479,
-            "samples": 15000
+            "maxRelError": 0.024097760779467205,
+            "maxAbsError": 1932308.585510254,
+            "samples": 12000
         },
         {
             "id": "bfs.depth.cross",
@@ -2121,12 +2143,12 @@
             "factor": 10
         },
         "grid-inspect.pyramid.cross": {
-            "value": 0.000001435270953203776,
+            "value": 0.0000010713200682625239,
             "basis": "grid-inspect.pyramid.cross",
             "factor": 10
         },
         "grid-inspect.downsample": {
-            "value": 5.960464477539062e-7,
+            "value": 0.0000017831265657411484,
             "basis": "grid-inspect.downsample.oracle-f64",
             "factor": 10
         },
@@ -2146,42 +2168,42 @@
             "factor": 10
         },
         "grid-inspect.farField": {
-            "value": 0.000026279273301320157,
+            "value": 0.000045734567468307106,
             "basis": "grid-inspect.farField.oracle-f64",
             "factor": 10
         },
         "grid-inspect.farField.cross": {
-            "value": 0.00003177879022281757,
+            "value": 0.000041442729855916786,
             "basis": "grid-inspect.farField.cross",
             "factor": 10
         },
         "grid-inspect.nearField": {
-            "value": 0.000027551592856305807,
+            "value": 0.00004563770391776977,
             "basis": "grid-inspect.nearField.oracle-f64",
             "factor": 10
         },
         "grid-inspect.nearField.cross": {
-            "value": 0.00003177879022281757,
+            "value": 0.000041445735322702834,
             "basis": "grid-inspect.nearField.cross",
             "factor": 10
         },
         "grid-inspect.k1": {
-            "value": 0.00003212134535475989,
+            "value": 0.000006877094881300913,
             "basis": "grid-inspect.k1.oracle-f64",
             "factor": 10
         },
         "grid-inspect.k1.cross": {
-            "value": 0.0000018196628583245983,
+            "value": 0.00001203490776575634,
             "basis": "grid-inspect.k1.cross",
             "factor": 10
         },
         "grid-inspect.positions": {
-            "value": 0.00002385619664329323,
+            "value": 0.00003211216602702441,
             "basis": "grid-inspect.positions.oracle-f64",
             "factor": 10
         },
         "grid-inspect.positions.cross": {
-            "value": 0.00002271736244018843,
+            "value": 0.000029709924831492932,
             "basis": "grid-inspect.positions.cross",
             "factor": 10
         },
@@ -2228,47 +2250,47 @@
         "grid-exact.rms": {
             "value": 0.05,
             "basis": "grid-exact.rms.oracle-f64",
-            "factor": 5.492202473340461
+            "factor": 1.4116905550071566
         },
         "grid-exact.rms.cross": {
-            "value": 0.0000018936670870944805,
+            "value": 0.000043008455376310335,
             "basis": "grid-exact.rms.cross",
             "factor": 10
         },
         "grid-exact.p99": {
             "value": 0.25,
             "basis": "grid-exact.p99.oracle-f64",
-            "factor": 7.8385655892347295
+            "factor": 2.2008313959716683
         },
         "grid-exact.p99.cross": {
-            "value": 0.000004947327437792342,
+            "value": 0.0001,
             "basis": "grid-exact.p99.cross",
-            "factor": 10
+            "factor": 6.472462879746171
         },
         "grid-expansion": {
-            "value": 0.07547553097663905,
+            "value": 0.1342038019540488,
             "basis": "grid-expansion.oracle-f64",
             "factor": 10
         },
         "grid-expansion.cross": {
-            "value": 0.13703316959440992,
+            "value": 0.1055017362380325,
             "basis": "grid-expansion.cross",
             "factor": 10
         },
         "grid-distributional": {
-            "value": 0.0884999999999956,
+            "value": 0.15,
             "basis": "grid-distributional.oracle-f64",
-            "factor": 10
+            "factor": 3.650150703806531
         },
         "grid-distributional.cross": {
-            "value": 0.062499999999995906,
+            "value": 0.1314999999999898,
             "basis": "grid-distributional.cross",
             "factor": 10
         },
         "grid-unbiased": {
             "value": 0.05,
             "basis": "grid-unbiased.oracle-f64",
-            "factor": 2.1023516069790755
+            "factor": 2.0748815816365442
         },
         "grid-unbiased.cross": {
             "value": 5.960464477539062e-7,
@@ -2279,6 +2301,16 @@
             "value": 0.000006422317386040102,
             "basis": "sssp-relax.f32-vs-f64",
             "factor": 10
+        },
+        "fa2-layout-oracle": {
+            "value": 0.05,
+            "basis": "fa2-layout-oracle.oracle-f64",
+            "factor": 7.05616309227708
+        },
+        "fa2-layout-oracle.cross": {
+            "value": 0.06823033837801776,
+            "basis": "fa2-layout-oracle.cross",
+            "factor": 10.000000000000002
         }
     }
 }

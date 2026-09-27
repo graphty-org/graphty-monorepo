@@ -265,7 +265,6 @@
         "edges": 9,
         "directed": true
       },
-      "knownFailure": "the same id in two ID spaces collides: the core has one id space (sources.md 9.4)",
       "origin": "https://neo4j.com/docs/operations-manual/current/import/header-format/",
       "license": "Neo4j documentation example (CC BY-NC-SA 4.0), test only",
       "version": "Operations Manual 2026.09, retrieved 2026-09-23",
@@ -824,8 +823,7 @@
         "nodes": 77,
         "edges": 80,
         "directed": true
-      },
-      "knownFailure": "the same id in two ID spaces collides: the core has one id space (sources.md 9.4)"
+      }
     },
     {
       "file": "northwind/orders-customers-employees.csv",

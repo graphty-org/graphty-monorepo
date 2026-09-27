@@ -9,68 +9,11 @@ import { Quaternion, Vector3 } from "@babylonjs/core";
 import { assert } from "chai";
 import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
-import { applyDeadzone } from "../../../src/cameras/InputUtils";
-import { PivotController } from "../../../src/cameras/PivotController";
+import { applyDeadzone, isPinching, XR_THUMBSTICK_DEADZONE } from "../../../src/cameras/InputUtils";
+import type { PivotController } from "../../../src/cameras/PivotController";
 import type { Graph } from "../../../src/Graph";
 import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup";
-
-/**
- * Mock XRInputHandler for deadzone testing.
- * This simulates the XR input processing logic with configurable deadzone.
- */
-class MockXRInputHandler {
-    private pivotController: PivotController;
-
-    // Thumbstick values
-    public leftStick = { x: 0, y: 0 };
-    public rightStick = { x: 0, y: 0 };
-
-    // Sensitivity settings (matching XRInputHandler constants)
-    public readonly DEADZONE = 0.15;
-    private readonly YAW_SPEED = 0.04;
-    private readonly PITCH_SPEED = 0.03;
-    private readonly PAN_SPEED = 0.08;
-    private readonly ZOOM_SPEED = 0.02;
-
-    constructor(pivotController: PivotController) {
-        this.pivotController = pivotController;
-    }
-
-    /**
-     * Process thumbstick input with deadzone.
-     */
-    processThumbsticks(): void {
-        // Apply deadzone with curve
-        const leftX = applyDeadzone(this.leftStick.x, this.DEADZONE);
-        const leftY = applyDeadzone(this.leftStick.y, this.DEADZONE);
-        const rightX = applyDeadzone(this.rightStick.x, this.DEADZONE);
-        const rightY = applyDeadzone(this.rightStick.y, this.DEADZONE);
-
-        const hasInput = leftX !== 0 || leftY !== 0 || rightX !== 0 || rightY !== 0;
-        if (!hasInput) {
-            return;
-        }
-
-        // LEFT STICK: Rotation
-        const yawDelta = leftX * this.YAW_SPEED;
-        const pitchDelta = -leftY * this.PITCH_SPEED;
-
-        if (Math.abs(yawDelta) > 0.0001 || Math.abs(pitchDelta) > 0.0001) {
-            this.pivotController.rotate(yawDelta, pitchDelta);
-        }
-
-        // RIGHT STICK: Zoom and Pan
-        if (Math.abs(rightY) > 0.0001) {
-            const zoomFactor = 1.0 + rightY * this.ZOOM_SPEED;
-            this.pivotController.zoom(zoomFactor);
-        }
-
-        if (Math.abs(rightX) > 0.0001) {
-            const panAmount = rightX * this.PAN_SPEED;
-            this.pivotController.panViewRelative(panAmount, 0);
-        }
-    }
-}
+import { createXRInputDriver, type XRInputDriver } from "../helpers/xr-input-driver";
 
 /**
  * Helper to get pivot rotation as Euler angles
@@ -99,20 +42,21 @@ describe("Deadzone and Threshold Behavior", () => {
     describe("XR Thumbstick Deadzone", () => {
         let graph: Graph;
         let pivotController: PivotController;
-        let mockHandler: MockXRInputHandler;
+        let driver: XRInputDriver;
 
         beforeEach(async () => {
             // Create a test graph to get a valid scene
             graph = await createTestGraph();
 
-            // Create pivot controller directly for testing
-            pivotController = new PivotController(graph.scene);
+            // Drive the real XRInputHandler
 
-            // Create mock XR input handler
-            mockHandler = new MockXRInputHandler(pivotController);
+            driver = createXRInputDriver(graph.scene);
+
+            pivotController = driver.pivot;
         });
 
         afterEach(() => {
+            driver.dispose();
             vi.restoreAllMocks();
             cleanupTestGraph(graph);
         });
@@ -124,12 +68,12 @@ describe("Deadzone and Threshold Behavior", () => {
             const initialPos = getPivotPosition(pivotController);
 
             // Set thumbstick values below deadzone (0.15)
-            mockHandler.leftStick = { x: 0.1, y: 0.1 };
-            mockHandler.rightStick = { x: 0.1, y: 0.1 };
+            driver.setStick("left", 0.1, 0.1);
+            driver.setStick("right", 0.1, 0.1);
 
             // Process several frames
             for (let i = 0; i < 10; i++) {
-                mockHandler.processThumbsticks();
+                driver.frame();
             }
 
             // Get final state
@@ -169,11 +113,11 @@ describe("Deadzone and Threshold Behavior", () => {
             const initialEuler = getPivotEuler(pivotController);
 
             // Set thumbstick values above deadzone
-            mockHandler.leftStick = { x: 0.5, y: 0 };
+            driver.setStick("left", 0.5, 0);
 
             // Process several frames
             for (let i = 0; i < 10; i++) {
-                mockHandler.processThumbsticks();
+                driver.frame();
             }
 
             // Get final state
@@ -184,9 +128,18 @@ describe("Deadzone and Threshold Behavior", () => {
             assert.isAbove(yawDiff, 0.001, "Inputs above deadzone should be processed (yaw changed)");
         });
 
-        test("XR deadzone is 0.15 (matches DEADZONE constant)", () => {
-            // The mockHandler exposes the DEADZONE constant
-            assert.equal(mockHandler.DEADZONE, 0.15, "XR deadzone should be 0.15");
+        test("XR deadzone is 0.15: 0.149 is ignored, 0.151 moves the scene", () => {
+            assert.strictEqual(XR_THUMBSTICK_DEADZONE, 0.15);
+
+            const initialEuler = getPivotEuler(pivotController);
+
+            driver.setStick("left", 0.149, 0);
+            driver.frame();
+            assert.closeTo(getPivotEuler(pivotController).y, initialEuler.y, 1e-12, "0.149 is inside the deadzone");
+
+            driver.setStick("left", 0.2, 0);
+            driver.frame();
+            assert.notEqual(getPivotEuler(pivotController).y, initialEuler.y, "0.2 is outside the deadzone");
         });
 
         test("deadzone applies per-axis, not radially", () => {
@@ -197,11 +150,11 @@ describe("Deadzone and Threshold Behavior", () => {
             // If deadzone were radial, magnitude would be sqrt(0.5^2 + 0.1^2) ≈ 0.51
             // which is above threshold, so both would pass
             // But with per-axis, only X should pass
-            mockHandler.leftStick = { x: 0.5, y: 0.1 };
+            driver.setStick("left", 0.5, 0.1);
 
             // Process several frames
             for (let i = 0; i < 10; i++) {
-                mockHandler.processThumbsticks();
+                driver.frame();
             }
 
             // Get final state
@@ -335,44 +288,28 @@ describe("Deadzone and Threshold Behavior", () => {
     });
 
     describe("Pinch Threshold Hysteresis", () => {
-        // These values match XRInputHandler constants
-        const PINCH_START = 0.7;
-        const PINCH_END = 0.5;
-
-        test("pinch threshold has hysteresis (start: 0.7, end: 0.5)", () => {
-            // This test verifies the expected values
-            // The actual implementation is in XRInputHandler
-
-            // Start threshold should be higher than end threshold
-            assert.isAbove(PINCH_START, PINCH_END, "Pinch start threshold should be higher than end threshold");
-
-            // The difference provides hysteresis to prevent flickering
-            const hysteresis = PINCH_START - PINCH_END;
-            assert.isAbove(hysteresis, 0.1, "Hysteresis gap should be significant (at least 0.1)");
+        test("an open hand starts pinching under 4cm; a pinching hand lets go over 6cm", () => {
+            assert.isTrue(isPinching(0.039, false));
+            assert.isFalse(isPinching(0.041, false));
+            assert.isTrue(isPinching(0.059, true));
+            assert.isFalse(isPinching(0.061, true));
         });
 
         test("pinch hysteresis prevents rapid state changes", () => {
-            // Simulate pinch strength oscillating near threshold
-            let isPinching = false;
-
-            // Values that would cause flickering without hysteresis
-            const oscillatingValues = [0.6, 0.65, 0.6, 0.65, 0.6, 0.65];
-
+            // Distances oscillating between the start and release distances, after a pinch began.
+            let pinching = isPinching(0.02, false);
             let stateChanges = 0;
 
-            for (const value of oscillatingValues) {
-                const shouldPinch: boolean = isPinching
-                    ? value > PINCH_END // Already pinching, release below 0.5
-                    : value > PINCH_START; // Not pinching, start above 0.7
+            for (const distance of [0.05, 0.045, 0.05, 0.045, 0.05, 0.045]) {
+                const next = isPinching(distance, pinching);
 
-                if (shouldPinch !== isPinching) {
+                if (next !== pinching) {
                     stateChanges++;
-                    isPinching = shouldPinch;
+                    pinching = next;
                 }
             }
 
-            // With hysteresis, oscillating between 0.6 and 0.65 should not change state
-            // Since both are between PINCH_END (0.5) and PINCH_START (0.7)
+            assert.isTrue(pinching);
             assert.equal(stateChanges, 0, "Oscillations within hysteresis band should not change state");
         });
     });

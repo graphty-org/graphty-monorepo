@@ -10,6 +10,7 @@ import {
     StandardMaterial,
 } from "@babylonjs/core";
 
+import { SharedImplementationMap } from "../catalog/pluginRegistry";
 import type { NodeStyleConfig } from "../config";
 import { PolyhedronType, SHAPE_CONSTANTS } from "../constants/meshConstants";
 import { shadeInstanceColors } from "./InstanceColorShading";
@@ -92,7 +93,9 @@ interface GradientColor {
  */
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class -- Static factory class for node mesh creation
 export class NodeMesh {
-    private static shapeCreators = new Map<string, ShapeCreator>();
+    // Shared with every other copy of graphty-element on the page, so a shape registered through
+    // one reaches them all; each copy still builds its own built-ins with its own Babylon.js.
+    private static shapeCreators = new SharedImplementationMap<ShapeCreator>("shape");
 
     static {
         NodeMesh.registerShapeCreator("box", (size) => NodeMesh.createBox(size));
@@ -422,8 +425,8 @@ export class NodeMesh {
      *      provenance is invisible here, but unbounded allocation is not.
      *
      * The cache is a WeakMap keyed by scene, so the entries die with the scene and never leak
-     * across scenes or across tests. `MeshCache.clear()` disposes meshes only -- not materials and
-     * not textures -- so a cached texture stays valid across a 2D/3D switch.
+     * across scenes or across tests. `MeshCache` disposes a source mesh's material but never its
+     * textures, so a cached texture stays valid across a 2D/3D switch.
      * @param gradient - The normalised gradient to paint
      * @param scene - Babylon.js scene that will own the texture
      * @returns The shared texture, or undefined if one cannot or should not be allocated

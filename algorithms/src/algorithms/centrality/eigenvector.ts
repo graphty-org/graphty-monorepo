@@ -28,9 +28,12 @@ export interface EigenvectorCentralityOptions extends CentralityOptions {
  * unshifted power iteration oscillate forever. The run stops when the L1 change summed over all
  * nodes falls below `n * tolerance`, networkx's test.
  *
- * A node is fed by `graph.neighbors`, i.e. by its out-neighbours on a directed graph. When the
- * graph has no cycle along that relation (no edges, or a directed acyclic graph) the adjacency
- * matrix is nilpotent, its only eigenvalue is 0, and every score is exactly 0.
+ * On a directed graph `mode` picks the edges that feed a node: `"in"` (the default, as networkx)
+ * scores a node by the nodes pointing AT it, `"out"` by the nodes it points at (networkx on
+ * `G.reverse()`), and `"total"` by both (networkx on `G.to_undirected()`). An undirected graph
+ * ignores `mode`. When the graph has no cycle along that relation (no edges, or a directed
+ * acyclic graph) the adjacency matrix is nilpotent, its only eigenvalue is 0, and every score is
+ * exactly 0.
  * @param graph - The graph to compute eigenvector centrality on
  * @param options - Configuration options for the computation
  * @returns Object mapping node IDs to their eigenvector centrality scores
@@ -38,7 +41,7 @@ export interface EigenvectorCentralityOptions extends CentralityOptions {
  *   raises `PowerIterationFailedConvergence`. Raise `maxIterations` or `tolerance` and call again.
  */
 export function eigenvectorCentrality(graph: Graph, options: EigenvectorCentralityOptions = {}): CentralityResult {
-    const { maxIterations = 100, tolerance = 1e-6, normalized = true, startVector } = options;
+    const { maxIterations = 100, tolerance = 1e-6, normalized = true, startVector, mode = "in" } = options;
 
     const nodeIds = Array.from(graph.nodes(), (node) => node.id);
     const keys = nodeIds.map((id) => id.toString());
@@ -50,7 +53,13 @@ export function eigenvectorCentrality(graph: Graph, options: EigenvectorCentrali
     }
 
     const index = new Map(keys.map((key, i) => [key, i]));
-    const adjacency = nodeIds.map((id) => Array.from(graph.neighbors(id), (m) => index.get(m.toString()) ?? 0));
+    const feeders = (id: (typeof nodeIds)[number]): Iterable<(typeof nodeIds)[number]> => {
+        if (!graph.isDirected || mode === "out") {
+            return graph.neighbors(id);
+        }
+        return mode === "in" ? graph.inNeighbors(id) : new Set([...graph.inNeighbors(id), ...graph.neighbors(id)]);
+    };
+    const adjacency = nodeIds.map((id) => Array.from(feeders(id), (m) => index.get(m.toString()) ?? 0));
 
     if (isNilpotent(adjacency)) {
         for (const key of keys) {

@@ -11,7 +11,9 @@
  * mixed-direction policy; the third column of a line is the weight unless `weightFrom` says
  * otherwise; `*Arcslist` / `*Edgeslist` adjacency lists and `*Matrix` rows are read too; time
  * interval tokens `[1-5,7-*]` become the spells role. A second network in one file is refused
- * with an issue; project-file sections (`*Partition`, `*Vector`, ...) are reported as unsupported.
+ * with an issue. A project file's `*Partition` and `*Vector` objects become the node columns
+ * `partition` (i32) and `vector` (f64), wherever they stand in the file; other project-file
+ * sections (`*Events`, `*Permutation`, ...) are skipped with a warning.
  */
 
 import {
@@ -25,7 +27,7 @@ import {
     type U32,
 } from "@graphty/graph-format";
 
-import { declareResolved, RENAMED_CODE, ROLE_TAKEN_CODE } from "../../common/attributes.js";
+import { declareResolved, RENAMED_CODE, ROLE_TAKEN_CODE, uniqueColumnName } from "../../common/attributes.js";
 import {
     DUPLICATE_NODE_CODE,
     ENCODING_FALLBACK_CODE,
@@ -52,23 +54,26 @@ import { isNumericText, TextCellWriter, WIDENING_UNSUPPORTED_CODE } from "../../
 import { isWeightField, parseWeightText } from "../../common/weights.js";
 import { type CommonImportOptions, type GraphImporter, type ImportInput, type ImportReport } from "../../types.js";
 import {
+    decodeCharacterReferences,
     isCommentOrBlank,
     isIntervalToken,
     isSectionLine,
+    isShapeKeyword,
     isVertexNumber,
     LABEL_COLUMN,
     ORIGINAL_ID_KEY,
     parseIntervals,
     parseSectionHeader,
+    PARTITION_COLUMN,
     POSITION_COLUMN,
     RELATION_COLUMN,
     type SectionHeader,
     SHAPE_COLUMN,
-    SHAPES,
     SPELLS_COLUMN,
     tokenize,
     VALUE_COLUMN,
     VALUE_FIELD,
+    VECTOR_COLUMN,
 } from "./syntax.js";
 
 /** The format-specific options of the Pajek importer. */
@@ -92,7 +97,7 @@ export const PAJEK_ISSUE = Object.freeze({
     UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
     /** Fatal: no `*Vertices` section (an empty file, or not a Pajek network). */
     NO_VERTICES: "E_PAJEK_NO_VERTICES",
-    /** Fatal: `*Vertices` without a vertex count, or one the sink cannot hold. */
+    /** Fatal: `*Vertices` without a vertex count, one the sink cannot hold, or a first-mode count outside 0..N. */
     VERTICES_COUNT: "E_PAJEK_VERTICES_COUNT",
     /** A project file holds several networks; import() reads the first, importAll() reads every one. */
     MULTIPLE_GRAPHS: MULTIPLE_GRAPHS_CODE,
@@ -106,20 +111,24 @@ export const PAJEK_ISSUE = Object.freeze({
     VERTEX_LINE: "E_PAJEK_VERTEX_LINE",
     /** A vertex number outside the declared range. */
     VERTEX_RANGE: "E_PAJEK_VERTEX_RANGE",
-    /** Fewer vertex lines than `*Vertices` declares (vertices without a line have no label). */
-    VERTEX_COUNT: "E_PAJEK_VERTEX_COUNT",
+    /** Fewer vertex lines than `*Vertices` declares, which the Pajek manual allows (vertices without a line have no label). */
+    VERTEX_COUNT: "W_PAJEK_VERTEX_COUNT",
     /** A second line for the same vertex; the later values overwrite. */
     DUPLICATE_NODE: DUPLICATE_NODE_CODE,
-    /** A line (arc, edge, list or matrix row) the grammar does not accept. */
+    /** A line (arc, edge, list, matrix row, partition or vector value) the grammar does not accept. */
     LINE: "E_PAJEK_LINE",
     /** A line endpoint outside the declared vertex range (the core's code, forwarded). */
     UNKNOWN_NODE: "E_UNKNOWN_NODE",
     /** A malformed time interval token. */
     INTERVAL: "E_PAJEK_INTERVAL",
-    /** A `*Matrix` section with the wrong number of rows. */
+    /** A `*Matrix` section with the wrong number of rows (N, or N1 in a two-mode network). */
     MATRIX_ROWS: "E_PAJEK_MATRIX_ROWS",
-    /** A project-file section (`*Partition`, `*Vector`, ...) the importer does not read. */
-    UNSUPPORTED_SECTION: "E_PAJEK_UNSUPPORTED_SECTION",
+    /** `*Matrix` rows longer than the column count; the extra values are ignored. */
+    MATRIX_EXTRA: "W_PAJEK_MATRIX_EXTRA",
+    /** A `*Partition` or `*Vector` whose value count differs from the network's vertex count; values beyond it are dropped, vertices without one are unset. */
+    OBJECT_COUNT: "E_PAJEK_OBJECT_COUNT",
+    /** A project-file section (`*Events`, `*Permutation`, ...) the importer does not read; its lines are skipped. */
+    UNSUPPORTED_SECTION: "W_PAJEK_UNSUPPORTED_SECTION",
     /** Tokens after a section header the grammar does not account for. */
     HEADER_EXTRA: "W_PAJEK_HEADER_EXTRA",
     /** The file declares vertices but no line section. */
@@ -258,7 +267,38 @@ interface RowExtras {
 }
 
 /** The section the parser is in. */
-type Section = "none" | "vertices" | "lines" | "list" | "matrix" | "skip";
+type Section = "none" | "vertices" | "lines" | "list" | "matrix" | "object" | "skip";
+
+/**
+ * A `*Partition` or `*Vector` object of a project file, buffered until the end of the network:
+ * one may come before the network whose vertices it describes.
+ */
+interface ProjectObject {
+    readonly kind: "partition" | "vector";
+    /** The object's name from its header. */
+    readonly name: string;
+    /** The header's line number. */
+    readonly line: number;
+    /** The object's own `*Vertices N`, or null without one. */
+    count: number | null;
+    /** The value per vertex position; null for a line that could not be read. */
+    readonly values: (number | null)[];
+}
+
+/**
+ * Whether a number is an integer the i32 partition column can hold.
+ * @param value - the number
+ * @returns true for an i32 integer
+ */
+function isI32(value: number): boolean {
+    return Number.isInteger(value) && value >= -2147483648 && value <= 2147483647;
+}
+
+/** A vertex number of an adjacency list: Pajek reads a negative one as its absolute value. */
+const LIST_VERTEX = /^-?[0-9]+$/;
+
+/** The relation prefix `k:` of a line in a line section. */
+const RELATION_PREFIX = /^([0-9]+):$/;
 
 /**
  * One import call's state machine: the sections, the vertex range, the columns declared so far
@@ -302,6 +342,21 @@ class PajekParser {
     private verticesDone = false;
 
     private sawLineSection = false;
+
+    /** The direction of the first line section, for a network whose line sections are all empty. */
+    private firstKind: EdgeKind = "directed";
+
+    /** Set once the first line has fixed the sink's direction. */
+    private directionSet = false;
+
+    /** The names of the numbered relations (`*Arcs :k "name"`), for the `k:` line prefix. */
+    private readonly relationNames = new Map<number, string>();
+
+    /** The `*Partition` / `*Vector` objects read so far, written by finish(). */
+    private readonly objects: ProjectObject[] = [];
+
+    /** Set when the previous line was a project-object header, whose `*Vertices N` line comes next. */
+    private objectHeader = false;
 
     /** Node index per vertex position (vertex number minus base). */
     private indexOfPos: U32 = new Uint32Array(0);
@@ -380,9 +435,11 @@ class PajekParser {
         if (isCommentOrBlank(text)) {
             return false;
         }
+        const afterObjectHeader = this.objectHeader;
+        this.objectHeader = false;
         try {
             if (isSectionLine(text)) {
-                this.header(text, line);
+                this.header(text, line, afterObjectHeader);
                 return this.ended;
             }
             switch (this.section) {
@@ -403,6 +460,9 @@ class PajekParser {
                     return false;
                 case "matrix":
                     this.matrixLine(text, line);
+                    return false;
+                case "object":
+                    this.objectLine(text);
                     return false;
                 case "skip":
                     return false;
@@ -438,7 +498,11 @@ class PajekParser {
                 "the file declares vertices but no *Arcs, *Edges, *Arcslist, *Edgeslist or *Matrix section",
             );
             this.resolver.setHeader(this.options.defaultDirected);
+        } else if (!this.directionSet) {
+            // every line section was empty: the first header still says which way the network goes
+            this.resolver.setHeader(this.firstKind === "directed");
         }
+        const objects = this.writeObjects();
         if (this.coercer.mergeCount > 0) {
             this.report.warning(
                 "coercion",
@@ -446,12 +510,63 @@ class PajekParser {
                 `${this.coercer.mergeCount} label(s) merged into an id another label already produced under ids "number"`,
             );
         }
+        const pajek = {
+            ...(this.firstMode === null ? {} : { firstMode: this.firstMode }),
+            ...(objects.length === 0 ? {} : { objects }),
+        };
         const meta: GraphMetaPatch = {
             sourceFormat: "pajek",
             ...(this.networkName === null ? {} : { name: this.networkName }),
-            ...(this.firstMode === null ? {} : { extra: { pajek: { firstMode: this.firstMode } } }),
+            ...(Object.keys(pajek).length === 0 ? {} : { extra: { pajek } }),
         };
         this.sink.setMeta(meta);
+    }
+
+    /**
+     * Write every `*Partition` / `*Vector` object into its node column: `partition` (i32) or
+     * `vector` (f64), a later object of the same kind in `partition#2`, `vector#2`, ... The value
+     * of vertex k is the object's k-th value.
+     * @returns the objects' Pajek names and the columns they went to, for meta.extra.pajek.objects
+     */
+    private writeObjects(): { kind: string; name: string; column: string }[] {
+        const used = new Set<string>();
+        const written: { kind: string; name: string; column: string }[] = [];
+        for (const object of this.objects) {
+            const where = { line: object.line };
+            const partition = object.kind === "partition";
+            const name = uniqueColumnName(partition ? PARTITION_COLUMN : VECTOR_COLUMN, null, (n) => used.has(n));
+            used.add(name);
+            const { handle, decl } = declareResolved(
+                this.sink,
+                "node",
+                {
+                    name,
+                    dtype: partition ? "i32" : "f64",
+                    nullable: true,
+                    origin: { format: "pajek", id: object.kind },
+                },
+                this.report,
+                where,
+            );
+            const n = Math.min(object.values.length, this.vertexCount);
+            for (let pos = 0; pos < n; pos++) {
+                const value = object.values[pos];
+                if (value !== null) {
+                    this.sink.setNodeValue(handle, this.indexOfPos[pos], value);
+                }
+            }
+            const declared = object.count ?? object.values.length;
+            if (declared !== this.vertexCount || object.values.length !== declared) {
+                this.report.error(
+                    "validation-error",
+                    PAJEK_ISSUE.OBJECT_COUNT,
+                    `*${partition ? "Partition" : "Vector"} "${object.name}" declares ${declared} vertices and holds ${object.values.length} value(s); the network has ${this.vertexCount}`,
+                    where,
+                );
+            }
+            written.push({ kind: object.kind, name: object.name, column: decl.name });
+        }
+        return written;
     }
 
     // ============================================================ headers
@@ -460,9 +575,10 @@ class PajekParser {
      * A section header line.
      * @param text - the line
      * @param line - the line number
+     * @param afterObjectHeader - the previous line was a `*Partition`, `*Vector` or skipped section header
      */
-    private header(text: string, line: number): void {
-        const skipping = this.section === "skip";
+    private header(text: string, line: number, afterObjectHeader: boolean): void {
+        const previous = this.section;
         this.endSection();
         const h = parseSectionHeader(text);
         if (h === null) {
@@ -487,9 +603,13 @@ class PajekParser {
                 this.section = "none";
                 return;
             case "vertices":
-                if (skipping && this.vertexCount >= 0) {
-                    // the `*Vertices N` line of a skipped project-file section (*Partition, *Vector)
-                    this.section = "skip";
+                if (afterObjectHeader) {
+                    // the `*Vertices N` line of a project object (*Partition, *Vector, a skipped
+                    // section), wherever it stands: never the network's own
+                    this.section = previous;
+                    if (previous === "object") {
+                        this.objects[this.objects.length - 1].count = h.count;
+                    }
                     return;
                 }
                 if (this.vertexCount >= 0) {
@@ -511,9 +631,16 @@ class PajekParser {
                 this.lineSection(h, line, "matrix", "directed");
                 this.matrixRows = 0;
                 return;
+            case "partition":
+            case "vector":
+                this.objects.push({ kind: h.kind, name: h.name ?? "", line, count: null, values: [] });
+                this.section = "object";
+                this.objectHeader = true;
+                return;
             case "unsupported":
                 this.section = "skip";
-                this.report.error(
+                this.objectHeader = true;
+                this.report.warning(
                     "unsupported",
                     PAJEK_ISSUE.UNSUPPORTED_SECTION,
                     `the *${h.keyword} section is not supported; its lines are skipped`,
@@ -538,6 +665,13 @@ class PajekParser {
         }
         if (!Number.isSafeInteger(h.count)) {
             this.report.fail(PAJEK_ISSUE.VERTICES_COUNT, `*Vertices ${h.count}: not a count`, { line });
+        }
+        if (h.secondCount !== null && (h.secondCount < 0 || h.secondCount > h.count)) {
+            this.report.fail(
+                PAJEK_ISSUE.VERTICES_COUNT,
+                `*Vertices ${h.count} ${h.secondCount}: the first-mode count is not within 0..${h.count}`,
+                { line },
+            );
         }
         try {
             // the declared count must be reservable (the sink is the authority on what it can hold,
@@ -570,8 +704,9 @@ class PajekParser {
     }
 
     /**
-     * A line section header: the vertex set is completed, the first one sets the sink's direction
-     * (rule 1 of design section 8.4), later ones only switch the kind.
+     * A line section header: the vertex set is completed and the kind switched. The sink's
+     * direction (rule 1 of design section 8.4) is set by the first LINE, not the first header, so
+     * an empty `*Arcs` before the `*Edges` of an undirected network does not make it directed.
      * @param h - the header
      * @param line - the line number
      * @param section - the parser state for the section
@@ -588,22 +723,26 @@ class PajekParser {
         this.finishVertices();
         if (!this.sawLineSection) {
             this.sawLineSection = true;
-            this.resolver.setHeader(kind === "directed", { line });
+            this.firstKind = kind;
         }
         this.section = section;
         this.kind = kind;
         this.relation = h.relation === null ? null : (h.name ?? String(h.relation));
+        if (h.relation !== null) {
+            this.relationNames.set(h.relation, this.relation ?? String(h.relation));
+        }
     }
 
     /**
      * Checks that run when a section ends.
      */
     private endSection(): void {
-        if (this.section === "matrix" && this.matrixRows !== this.vertexCount) {
+        const rows = this.firstMode ?? this.vertexCount;
+        if (this.section === "matrix" && this.matrixRows !== rows) {
             this.report.error(
                 "validation-error",
                 PAJEK_ISSUE.MATRIX_ROWS,
-                `*Matrix has ${this.matrixRows} row(s); *Vertices declares ${this.vertexCount}`,
+                `*Matrix has ${this.matrixRows} row(s); *Vertices declares ${rows}`,
             );
         }
         this.section = "none";
@@ -707,7 +846,7 @@ class PajekParser {
         // a partial list: fewer lines than declared, counting the lines skipped after an error
         const lines = this.seenCount + this.report.counts.skippedNodes;
         if (this.seenCount > 0 && lines < n) {
-            this.report.error(
+            this.report.warning(
                 "validation-error",
                 PAJEK_ISSUE.VERTEX_COUNT,
                 `*Vertices declares ${n} vertices but ${lines} vertex line(s) were read; the others have no label`,
@@ -745,8 +884,9 @@ class PajekParser {
         }
         // parse everything before writing anything
         let i = 1;
-        const label = tokens.length > 1 ? tokens[1] : null;
-        if (label !== null) {
+        let label: string | null = null;
+        if (tokens.length > 1 && !startsWithCoordinates(text, tokens)) {
+            label = decodeCharacterReferences(tokens[1]);
             i = 2;
         }
         let x = 0;
@@ -772,8 +912,8 @@ class PajekParser {
             );
         }
         let shape: string | null = null;
-        if (i < tokens.length && SHAPES.has(tokens[i])) {
-            shape = tokens[i];
+        if (i < tokens.length && isShapeKeyword(tokens[i])) {
+            shape = tokens[i].toLowerCase();
             i++;
         }
         const extras = this.extras(tokens, i, "node");
@@ -954,7 +1094,15 @@ class PajekParser {
      * @param line - the line number
      */
     private edgeLine(text: string, line: number): void {
-        const tokens = this.tokens(text, "edge");
+        let tokens = this.tokens(text, "edge");
+        // a `k:` prefix puts this one line in relation k
+        let { relation } = this;
+        const prefix = RELATION_PREFIX.exec(tokens[0]);
+        if (prefix !== null) {
+            const k = Number(prefix[1]);
+            relation = this.relationNames.get(k) ?? String(k);
+            tokens = tokens.slice(1);
+        }
         if (tokens.length < 2 || !isVertexNumber(tokens[0]) || !isVertexNumber(tokens[1])) {
             this.report.counts.skippedEdges++;
             throw new LineError(
@@ -993,18 +1141,19 @@ class PajekParser {
             // inferred like every parameter, so a re-import of the exporter's `value` parameter agrees
             this.writeParameter("edge", VALUE_COLUMN, e, valueText);
         }
-        this.writeEdgeExtras(e, extras);
+        this.writeEdgeExtras(e, extras, relation);
     }
 
     /**
-     * An adjacency list line of `*Arcslist` / `*Edgeslist`: `v n1 n2 ...`.
+     * An adjacency list line of `*Arcslist` / `*Edgeslist`: `v n1 n2 ...`; a negative vertex
+     * number is read as its absolute value, as Pajek does.
      * @param text - the line
      * @param line - the line number
      */
     private listLine(text: string, line: number): void {
         const tokens = this.tokens(text, "edge");
         for (const token of tokens) {
-            if (!isVertexNumber(token)) {
+            if (!LIST_VERTEX.test(token)) {
                 this.report.counts.skippedEdges++;
                 throw new LineError(
                     "parse-error",
@@ -1013,16 +1162,18 @@ class PajekParser {
                 );
             }
         }
-        const u = this.endpoint(Number(tokens[0]));
+        const u = this.endpoint(Math.abs(Number(tokens[0])));
         for (let i = 1; i < tokens.length; i++) {
-            const v = this.endpoint(Number(tokens[i]));
+            const v = this.endpoint(Math.abs(Number(tokens[i])));
             const e = this.pushEdge(u, v, undefined, line);
             this.writeRelation(e);
         }
     }
 
     /**
-     * A `*Matrix` row: N values, every non-zero entry an arc from the row's vertex with that value.
+     * A `*Matrix` row, every non-zero entry an arc from the row's vertex with that value: N values
+     * in a one-mode network; in a two-mode network (`*Vertices N N1`) the matrix is N1 rows of
+     * N - N1 values, entry j of row i an arc from vertex i to vertex N1 + j.
      * @param text - the line
      * @param line - the line number
      */
@@ -1030,36 +1181,71 @@ class PajekParser {
         const tokens = this.tokens(text, "edge");
         const row = this.matrixRows;
         this.matrixRows++;
-        if (row >= this.vertexCount) {
+        const offset = this.firstMode ?? 0;
+        const rows = this.firstMode ?? this.vertexCount;
+        const columns = this.vertexCount - offset;
+        if (row >= rows) {
             throw new LineError(
                 "validation-error",
                 PAJEK_ISSUE.MATRIX_ROWS,
-                `*Matrix row ${row + 1} is beyond the ${this.vertexCount} declared vertices`,
+                `*Matrix row ${row + 1} is beyond the ${rows} declared row(s)`,
             );
         }
-        if (tokens.length !== this.vertexCount) {
+        if (tokens.length < columns) {
             throw new LineError(
                 "parse-error",
                 PAJEK_ISSUE.LINE,
-                `*Matrix row ${row + 1} has ${tokens.length} value(s); *Vertices declares ${this.vertexCount}`,
+                `*Matrix row ${row + 1} has ${tokens.length} value(s); the matrix has ${columns} column(s)`,
             );
         }
-        for (const token of tokens) {
-            if (!isNumericText(token)) {
+        for (let j = 0; j < columns; j++) {
+            if (!isNumericText(tokens[j])) {
                 throw new LineError(
                     "parse-error",
                     PAJEK_ISSUE.LINE,
-                    `*Matrix row ${row + 1}: "${token}" is not a number`,
+                    `*Matrix row ${row + 1}: "${tokens[j]}" is not a number`,
                 );
             }
         }
-        for (let j = 0; j < tokens.length; j++) {
+        if (tokens.length > columns) {
+            this.report.warnOnce(
+                "validation-error",
+                PAJEK_ISSUE.MATRIX_EXTRA,
+                `*Matrix row ${row + 1} has ${tokens.length} value(s) for ${columns} column(s); the extra values are ignored`,
+                { line },
+            );
+        }
+        for (let j = 0; j < columns; j++) {
             const value = Number(tokens[j]);
             if (value === 0) {
                 continue;
             }
-            const e = this.pushEdge(row, j, value, line);
+            const e = this.pushEdge(row, offset + j, value, line);
             this.writeRelation(e);
+        }
+    }
+
+    /**
+     * A value line of a `*Partition` (integers) or `*Vector` (numbers): the values of the next
+     * vertices, usually one per line.
+     * @param text - the line
+     */
+    private objectLine(text: string): void {
+        const object = this.objects[this.objects.length - 1];
+        const tokens = this.tokens(text, "node");
+        for (const token of tokens) {
+            if (!isNumericText(token) || (object.kind === "partition" && !isI32(Number(token)))) {
+                // keep the later values on their vertices
+                object.values.push(null);
+                throw new LineError(
+                    "parse-error",
+                    PAJEK_ISSUE.LINE,
+                    `*${object.kind === "partition" ? "Partition" : "Vector"} "${object.name}": "${token}" is not ${object.kind === "partition" ? "an integer" : "a number"}`,
+                );
+            }
+        }
+        for (const token of tokens) {
+            object.values.push(Number(token));
         }
     }
 
@@ -1073,6 +1259,10 @@ class PajekParser {
      */
     private pushEdge(u: number, v: number, weight: number | undefined, line: number): number {
         const { sink } = this;
+        if (!this.directionSet) {
+            this.directionSet = true;
+            this.resolver.setHeader(this.kind === "directed", { line });
+        }
         const before = sink.edgeCount;
         const e = this.resolver.addEdge(this.idAt(u), this.idAt(v), this.kind, weight, { line });
         this.report.counts.edges += sink.edgeCount - before;
@@ -1083,10 +1273,11 @@ class PajekParser {
      * Write the relation, parameters and spells of a line on its primary half.
      * @param e - the edge index
      * @param extras - the parsed extras
+     * @param relation - the line's relation name, or null
      */
-    private writeEdgeExtras(e: number, extras: RowExtras): void {
+    private writeEdgeExtras(e: number, extras: RowExtras, relation: string | null): void {
         const { sink } = this;
-        this.writeRelation(e);
+        this.writeRelation(e, relation);
         for (let p = 0; p < extras.keys.length; p++) {
             this.writeParameter("edge", extras.keys[p], e, extras.values[p]);
         }
@@ -1099,17 +1290,18 @@ class PajekParser {
     }
 
     /**
-     * Write the current section's relation name on an edge, when the section has one.
+     * Write a relation name on an edge: the current section's, unless a line prefix named another.
      * @param e - the edge index
+     * @param relation - the relation name, or null for none
      */
-    private writeRelation(e: number): void {
-        if (this.relation === null) {
+    private writeRelation(e: number, relation: string | null = this.relation): void {
+        if (relation === null) {
             return;
         }
         if (this.relationHandle === INVALID_INDEX) {
             this.relationHandle = declareResolved(this.sink, "edge", RELATION_DECL, this.report).handle;
         }
-        this.sink.setEdgeValue(this.relationHandle, e, this.relation);
+        this.sink.setEdgeValue(this.relationHandle, e, relation);
     }
 
     /**
@@ -1181,7 +1373,9 @@ class PajekParser {
             const token = tokens[i];
             if (isIntervalToken(token)) {
                 try {
-                    extras.spells = parseIntervals(token);
+                    const spells = parseIntervals(token);
+                    // an empty `[]` is no spell at all
+                    extras.spells = spells.length === 0 ? null : spells;
                 } catch (err) {
                     this.skip(domain);
                     throw new LineError(
@@ -1243,6 +1437,26 @@ class PajekParser {
         }
         writer.write(row, text);
     }
+}
+
+/**
+ * Whether a vertex line has coordinates but no label: the token after the vertex number is bare
+ * (not quoted) and starts a run of exactly two numbers, which cannot be a label and one
+ * coordinate. A run of three stays a numeric label and x y (the NetworkX writer's `1 0 0.5 0.5`),
+ * the one reading of it that keeps real files' labels.
+ * @param text - the line
+ * @param tokens - its tokens
+ * @returns true when tokens[1] is the first coordinate
+ */
+function startsWithCoordinates(text: string, tokens: readonly string[]): boolean {
+    if (text.trimStart().slice(tokens[0].length).trimStart().startsWith('"')) {
+        return false;
+    }
+    let run = 0;
+    while (1 + run < tokens.length && isNumericText(tokens[1 + run])) {
+        run++;
+    }
+    return run === 2;
 }
 
 /**
@@ -1340,7 +1554,8 @@ export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
 
     /**
      * Read every network of a Pajek project file (`.paj`), each into its own sink. A network starts
-     * at `*Network` or at a `*Vertices` that does not belong to a `*Partition` / `*Vector` section.
+     * at `*Network` or at a `*Vertices` that does not belong to a `*Partition` / `*Vector` section
+     * (the `*Vertices N` line right after an object's header).
      * @param input - the text, bytes or stream
      * @param sinkFor - the sink of the network with this index, called before its first push
      * @param options - common and Pajek options
@@ -1386,7 +1601,8 @@ export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
 /**
  * Counts the networks of the rest of a project file by their headers alone, with the parser's
  * rule: a network starts at `*Network` after a named or populated one, or at a `*Vertices` after a
- * populated one unless it belongs to a skipped section (`*Partition`, `*Vector`, ...).
+ * populated one unless it is the line right after a project object's header (`*Partition`,
+ * `*Vector`, a skipped section).
  */
 class NetworkCounter {
     /** Networks started so far (the first header fed opens the first). */
@@ -1396,27 +1612,35 @@ class NetworkCounter {
 
     private populated = false;
 
-    private skipping = false;
+    private afterObjectHeader = false;
 
     /**
      * Feed one line.
      * @param text - the line
      */
     line(text: string): void {
+        if (isCommentOrBlank(text)) {
+            return;
+        }
+        const { afterObjectHeader } = this;
+        this.afterObjectHeader = false;
         if (!isSectionLine(text)) {
             return;
         }
         const h = parseSectionHeader(text);
-        const kind = h === null ? "unsupported" : h.kind;
-        const { skipping } = this;
-        this.skipping = kind === "unsupported" || (kind === "vertices" && skipping && this.populated);
-        if (kind === "network") {
+        if (h === null) {
+            return;
+        }
+        const { kind } = h;
+        if (kind === "partition" || kind === "vector" || kind === "unsupported") {
+            this.afterObjectHeader = true;
+        } else if (kind === "network") {
             if (this.count === 0 || this.named || this.populated) {
                 this.count++;
                 this.populated = false;
             }
             this.named = true;
-        } else if (kind === "vertices" && !this.skipping) {
+        } else if (kind === "vertices" && !afterObjectHeader) {
             if (this.count === 0 || this.populated) {
                 this.count++;
                 this.named = false;

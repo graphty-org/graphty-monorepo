@@ -58,7 +58,7 @@
 
 import type { Channel, EdgeLinePattern, LabelStyle, Rgba } from "../../catalog/types";
 import { colorToHex } from "../../config/common";
-import { EdgeStyle, type EdgeStyleConfig } from "../../config/EdgeStyle";
+import { EdgeArrowTypes, EdgeLineTypes, type EdgeStyleConfig } from "../../config/EdgeStyle";
 import { NodeShapes, type NodeStyleConfig } from "../../config/NodeStyle";
 
 // ---------------------------------------------------------------------------------------------
@@ -230,10 +230,10 @@ export type ArrowValue = NonNullable<NonNullable<EdgeStyleConfig["arrowHead"]>["
 const NODE_SHAPE_VALUES: readonly NodeShapeValue[] = NodeShapes.options;
 
 /** Every line pattern, in schema order. */
-const EDGE_LINE_VALUES: readonly EdgeLineValue[] = EdgeStyle.shape.line.unwrap().shape.type.unwrap().options;
+const EDGE_LINE_VALUES: readonly EdgeLineValue[] = EdgeLineTypes.options;
 
 /** Every arrow, in schema order. */
-const ARROW_VALUES: readonly ArrowValue[] = EdgeStyle.shape.arrowHead.unwrap().shape.type.unwrap().unwrap().options;
+const ARROW_VALUES: readonly ArrowValue[] = EdgeArrowTypes.options;
 
 // ---------------------------------------------------------------------------------------------
 // What each channel carries

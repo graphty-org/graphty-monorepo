@@ -1,4 +1,4 @@
-import { detectFormats } from "@graphty/graphty-element/catalog";
+import { detectFormat, FORMAT_DESCRIPTORS, formatDescriptor } from "@graphty/graphty-element/catalog";
 import {
     Box,
     Button,
@@ -17,8 +17,10 @@ import { useCallback, useState } from "react";
 
 import { standardModalStyles } from "../utils/modal-styles";
 
-type InputMethod = "file" | "url" | "paste";
-type FormatType = "auto" | "json" | "graphml" | "gexf" | "csv" | "gml" | "dot" | "pajek";
+/** Which of the dialog's three inputs is showing: a file, a URL or pasted text. */
+export type InputMethod = "file" | "url" | "paste";
+/** "auto" lets graphty-element decide; anything else is a format id from its catalog. */
+type FormatType = "auto" | (string & {});
 
 export interface LoadDataRequest {
     inputMethod: InputMethod;
@@ -70,42 +72,50 @@ export interface LoadDataModalProps {
      * failure on its own surfaces if one arrives afterwards.
      */
     readonly onLoad: (request: LoadDataRequest) => Promise<void>;
+    /**
+     * The input the dialog shows each time it opens, so the button the reader pressed
+     * ("Open from URL", "Paste data") is the tab they land on. Defaults to "file".
+     */
+    readonly initialMethod?: InputMethod;
 }
 
-interface DetectionResult {
-    format: FormatType | null;
-    confidence: "high" | "low";
-}
+/* The formats and their detection are graphty-element's, read from its Babylon-free
+   catalog entry, so a format the element learns is in this menu without a change here. */
+const IMPORTABLE_FORMATS = FORMAT_DESCRIPTORS.filter((descriptor) => descriptor.canImport);
 
 const FORMAT_OPTIONS = [
     { value: "auto", label: "Auto-detect" },
-    { value: "json", label: "JSON" },
-    { value: "graphml", label: "GraphML" },
-    { value: "gexf", label: "GEXF" },
-    { value: "csv", label: "CSV" },
-    { value: "gml", label: "GML" },
-    { value: "dot", label: "DOT (Graphviz)" },
-    { value: "pajek", label: "Pajek NET" },
+    ...IMPORTABLE_FORMATS.map((descriptor) => ({ value: descriptor.id, label: descriptor.plainName })),
 ];
+
+const ACCEPTED_EXTENSIONS = [...new Set(IMPORTABLE_FORMATS.flatMap((descriptor) => descriptor.extensions))].join(",");
+
+const SUPPORTED_FORMATS_LINE = `Supported formats: ${IMPORTABLE_FORMATS.map((descriptor) => descriptor.plainName).join(", ")}`;
+
+/**
+ * A format id in words, as the element's catalog names it.
+ * @param id - the format id.
+ * @returns the plain name, or the id itself for a format the catalog does not describe.
+ */
+function formatName(id: string): string {
+    return formatDescriptor(id)?.plainName ?? id;
+}
+
+/**
+ * The URL's path, which is where its file name and extension are.
+ * @param url - what the reader typed.
+ * @returns the path, or the text as typed when it is not a URL yet.
+ */
+function urlPath(url: string): string {
+    try {
+        return new URL(url).pathname;
+    } catch {
+        return url;
+    }
+}
 
 /** What the error line says when the refusal carried no message of its own. */
 const UNREADABLE_LOAD_ERROR = "The data could not be loaded, and the loader gave no reason.";
-
-/**
- * Which format graphty-element would read this as: from a file name or a URL, from the first
- * bytes, or both. The element ranks every format that claims the data; one claimant is a firm
- * answer, and several (an `.xml` file GraphML and GEXF both read) is a guess the reader should
- * check.
- * @param input - the file name or URL, the first bytes, or both.
- * @param input.filename - the file name or URL.
- * @param input.sample - the first bytes, as text.
- * @returns the best format, or null when nothing recognises the data.
- */
-function detect(input: { filename?: string; sample?: string }): DetectionResult {
-    const found = detectFormats(input);
-
-    return { format: (found[0] ?? null) as FormatType | null, confidence: found.length === 1 ? "high" : "low" };
-}
 
 /**
  * What the dialog's error line says about a load that was refused.
@@ -138,12 +148,27 @@ function loadFailureMessage(error: unknown): string {
  * @param root0.onClose - Close the modal
  * @param root0.onLoad - Called with the load request; awaited, so a rejection keeps the
  * dialog open with the reader's file, URL or pasted text still in it
+ * @param root0.initialMethod - The input shown each time the dialog opens
  * @returns The load data modal component
  */
-export function LoadDataModal({ opened, onClose, onLoad }: LoadDataModalProps): React.JSX.Element {
-    const [inputMethod, setInputMethod] = useState<InputMethod>("file");
+export function LoadDataModal({
+    opened,
+    onClose,
+    onLoad,
+    initialMethod = "file",
+}: LoadDataModalProps): React.JSX.Element {
+    const [inputMethod, setInputMethod] = useState<InputMethod>(initialMethod);
+    /* Reset to the caller's tab during the render that opens the dialog, not in an effect
+       after it, so the modal's focus trap lands on that tab's input rather than the last one's. */
+    const [wasOpened, setWasOpened] = useState(opened);
+    if (opened !== wasOpened) {
+        setWasOpened(opened);
+        if (opened) {
+            setInputMethod(initialMethod);
+        }
+    }
     const [selectedFormat, setSelectedFormat] = useState<FormatType>("auto");
-    const [detectedFormat, setDetectedFormat] = useState<DetectionResult | null>(null);
+    const [detectedFormat, setDetectedFormat] = useState<string | null>(null);
     const [url, setUrl] = useState("");
     const [pastedContent, setPastedContent] = useState("");
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -175,18 +200,14 @@ export function LoadDataModal({ opened, onClose, onLoad }: LoadDataModalProps): 
         setSelectedFile(file);
         setError(null);
 
-        // The name first; the first bytes only when the name says nothing.
-        const byName = detect({ filename: file.name });
-        if (byName.format !== null) {
-            setDetectedFormat(byName);
-        } else {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const content = e.target?.result as string;
-                setDetectedFormat(detect({ filename: file.name, sample: content }));
-            };
-            reader.readAsText(file.slice(0, 2048));
-        }
+        // The name and the first 1 KB, so the element can tell apart formats that share an extension.
+        setDetectedFormat(detectFormat({ filename: file.name }));
+        void file
+            .slice(0, 1024)
+            .text()
+            .then((sample) => {
+                setDetectedFormat(detectFormat({ filename: file.name, sample }));
+            });
     }, []);
 
     const handleDrop = useCallback(
@@ -226,24 +247,14 @@ export function LoadDataModal({ opened, onClose, onLoad }: LoadDataModalProps): 
         setUrl(value);
         setError(null);
 
-        // Detect format from URL extension
-        if (value) {
-            const byName = detect({ filename: value.split(/[?#]/)[0] });
-            setDetectedFormat(byName.format === null ? null : byName);
-        } else {
-            setDetectedFormat(null);
-        }
+        setDetectedFormat(value ? detectFormat({ filename: urlPath(value) }) : null);
     }, []);
 
     const handlePasteChange = useCallback((value: string) => {
         setPastedContent(value);
         setError(null);
 
-        if (value.trim()) {
-            setDetectedFormat(detect({ sample: value }));
-        } else {
-            setDetectedFormat(null);
-        }
+        setDetectedFormat(value.trim() ? detectFormat({ sample: value }) : null);
     }, []);
 
     const getEffectiveFormat = useCallback((): FormatType | null => {
@@ -251,7 +262,7 @@ export function LoadDataModal({ opened, onClose, onLoad }: LoadDataModalProps): 
             return selectedFormat;
         }
 
-        return detectedFormat?.format ?? null;
+        return detectedFormat;
     }, [selectedFormat, detectedFormat]);
 
     const handleLoad = useCallback(async (): Promise<void> => {
@@ -338,22 +349,18 @@ export function LoadDataModal({ opened, onClose, onLoad }: LoadDataModalProps): 
         // For URL and file, we can use auto-detection even without a detected format
         // For paste, we need either explicit format or detected format
         const hasFormat =
-            selectedFormat !== "auto" ||
-            detectedFormat?.format !== null ||
-            inputMethod === "url" ||
-            inputMethod === "file";
+            selectedFormat !== "auto" || detectedFormat !== null || inputMethod === "url" || inputMethod === "file";
 
         return hasData && hasFormat;
     }, [inputMethod, selectedFile, url, pastedContent, selectedFormat, detectedFormat]);
 
     const getFormatDisplay = (): string => {
         if (selectedFormat !== "auto") {
-            return FORMAT_OPTIONS.find((o) => o.value === selectedFormat)?.label ?? selectedFormat;
+            return formatName(selectedFormat);
         }
 
-        if (detectedFormat?.format) {
-            const label = FORMAT_OPTIONS.find((o) => o.value === detectedFormat.format)?.label ?? detectedFormat.format;
-            return `${label} (detected)`;
+        if (detectedFormat) {
+            return `${formatName(detectedFormat)} (detected)`;
         }
 
         // For URL and file, show that auto-detect will be used
@@ -365,9 +372,8 @@ export function LoadDataModal({ opened, onClose, onLoad }: LoadDataModalProps): 
     };
 
     const getFormatDescription = (): string => {
-        if (detectedFormat?.format && selectedFormat === "auto") {
-            const label = FORMAT_OPTIONS.find((o) => o.value === detectedFormat.format)?.label ?? detectedFormat.format;
-            return `Detected: ${label} (${detectedFormat.confidence} confidence)`;
+        if (detectedFormat && selectedFormat === "auto") {
+            return `Detected: ${formatName(detectedFormat)}`;
         }
 
         if ((inputMethod === "url" || inputMethod === "file") && selectedFormat === "auto") {
@@ -445,7 +451,7 @@ export function LoadDataModal({ opened, onClose, onLoad }: LoadDataModalProps): 
                         <input
                             id="file-input"
                             type="file"
-                            accept=".json,.graphml,.xml,.gexf,.csv,.edges,.edgelist,.gml,.dot,.gv,.net,.paj"
+                            accept={ACCEPTED_EXTENSIONS}
                             onChange={handleFileInputChange}
                             style={{ display: "none" }}
                         />
@@ -483,6 +489,7 @@ export function LoadDataModal({ opened, onClose, onLoad }: LoadDataModalProps): 
                     <TextInput
                         label="Data URL"
                         placeholder="https://example.com/data/graph.json"
+                        data-autofocus
                         value={url}
                         onChange={(e) => {
                             handleUrlChange(e.currentTarget.value);
@@ -498,6 +505,7 @@ export function LoadDataModal({ opened, onClose, onLoad }: LoadDataModalProps): 
                 {inputMethod === "paste" && (
                     <Textarea
                         label="Paste graph data"
+                        data-autofocus
                         placeholder={`{
   "nodes": [
     {"id": "a", "label": "Node A"},
@@ -536,16 +544,14 @@ export function LoadDataModal({ opened, onClose, onLoad }: LoadDataModalProps): 
                     styles={{
                         label: { color: "var(--mantine-color-dimmed)" },
                         description: {
-                            color: detectedFormat?.format
-                                ? "var(--mantine-color-green-5)"
-                                : "var(--mantine-color-dimmed)",
+                            color: detectedFormat ? "var(--mantine-color-green-5)" : "var(--mantine-color-dimmed)",
                         },
                     }}
                 />
 
                 {/* Supported Formats Help */}
                 <Text size="xs" c="dimmed">
-                    Supported formats: JSON, GraphML, GEXF, CSV, GML, DOT, Pajek NET
+                    {SUPPORTED_FORMATS_LINE}
                 </Text>
 
                 {/* Replace Existing Data Checkbox */}

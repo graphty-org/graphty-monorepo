@@ -61,7 +61,7 @@ fn stats_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
             S.radius = sqrt(max(tHi.w, 0.0));                          // max |p - centroid| about the same previous centroid as rmsRadius (K5 puts |q|^2 in max.w)
             let meanDisp = select(tDisp / f32(tFree), 0.0, tFree == 0u);  // all-fixed: 0, never NaN (7.4)
             S.meanDisplacement = meanDisp;
-            S.settledCount = select(0u, S.settledCount + 1u, meanDisp <= P.settleThreshold * S.rmsRadius);
+            S.settledCount = select(0u, S.settledCount + 1u, meanDisp <= min(P.settleThreshold * S.rmsRadius, P.settleFloor));   // relative AND absolute (issue #97)
         }
         S.iteration = S.iteration + 1u;
         T[P.iterationIndex].meanDisplacement = S.meanDisplacement;
@@ -79,7 +79,9 @@ fn stats_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
                 S.invCellSize = 1.0 / cellSize;
                 S.eps = 0.25 * cellSize;
             }
-            S.outsideGrid = cellHist[cells];                         // the previous iteration's pseudo-cell count (0 after load)
+            var outside = 0u;                                        // the previous iteration's pseudo-cell counts, one per orthant (issue #90; 0 after load)
+            for (var o = 0u; o < select(4u, 8u, P.dim == 3u); o = o + 1u) { outside = outside + cellHist[cells + o]; }
+            S.outsideGrid = outside;
             S.maxCellOccupancy = atomicLoad(&hubCounters[1]);
             atomicStore(&hubCounters[0], 0u);
             atomicStore(&hubCounters[1], 0u);

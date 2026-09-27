@@ -2,13 +2,13 @@
  * Tests for the logs_search MCP tool.
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { beforeEach,describe, expect, it } from "vitest";
 
-import { LogStorage } from "../../../src/server/log-storage.js";
 import {
     logsSearchHandler,
     logsSearchTool,
 } from "../../../src/mcp/tools/logs-search.js";
+import { LogStorage } from "../../../src/server/log-storage.js";
 
 describe("logs_search tool", () => {
     let storage: LogStorage;

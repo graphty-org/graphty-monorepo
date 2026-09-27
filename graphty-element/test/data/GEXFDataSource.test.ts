@@ -260,4 +260,87 @@ describe("GEXFDataSource", () => {
 
         assert.equal(chunks[0].edges[0].weight, 2.5);
     });
+
+    describe("dynamic graphs", () => {
+        const dynamicXml = `<?xml version="1.0" encoding="UTF-8"?>
+<gexf xmlns="http://gexf.net/1.3" version="1.3">
+  <graph mode="dynamic" defaultedgetype="undirected" timeformat="integer">
+    <attributes class="node" mode="dynamic">
+      <attribute id="0" title="score" type="integer"/>
+      <attribute id="1" title="name" type="string"/>
+    </attributes>
+    <nodes>
+      <node id="a" start="2001" end="2005">
+        <attvalues>
+          <attvalue for="0" value="1" start="2001" end="2003"/>
+          <attvalue for="0" value="2" start="2003" end="2005"/>
+          <attvalue for="1" value="alpha"/>
+        </attvalues>
+      </node>
+      <node id="b" startopen="2000" end="2010"/>
+      <node id="c" timestamp="2004"/>
+    </nodes>
+    <edges>
+      <edge id="e0" source="a" target="b">
+        <spells>
+          <spell start="2001" end="2002"/>
+          <spell start="2004" endopen="2005"/>
+        </spells>
+      </edge>
+    </edges>
+  </graph>
+</gexf>`;
+
+        async function load(xml: string): Promise<{ nodes: Record<string, unknown>[]; edges: Record<string, unknown>[] }> {
+            const source = new GEXFDataSource({ data: xml });
+            const nodes: Record<string, unknown>[] = [];
+            const edges: Record<string, unknown>[] = [];
+            for await (const chunk of source.getData()) {
+                nodes.push(...(chunk.nodes as Record<string, unknown>[]));
+                edges.push(...(chunk.edges as Record<string, unknown>[]));
+            }
+            return { nodes, edges };
+        }
+
+        test("keeps node start/end, open bounds and timestamps", async () => {
+            const { nodes } = await load(dynamicXml);
+            assert.equal(nodes[0].start, "2001");
+            assert.equal(nodes[0].end, "2005");
+            assert.equal(nodes[1].start, "2000");
+            assert.equal(nodes[1].startOpen, true);
+            assert.equal(nodes[1].end, "2010");
+            assert.isUndefined(nodes[1].endOpen);
+            assert.equal(nodes[2].timestamp, "2004");
+        });
+
+        test("keeps every slice of a time-sliced attribute", async () => {
+            const { nodes } = await load(dynamicXml);
+            assert.deepEqual(nodes[0].score, [
+                { value: 1, start: "2001", end: "2003" },
+                { value: 2, start: "2003", end: "2005" },
+            ]);
+            // An untimed attvalue keeps its plain scalar form.
+            assert.equal(nodes[0].name, "alpha");
+        });
+
+        test("keeps edge spells", async () => {
+            const { edges } = await load(dynamicXml);
+            assert.deepEqual(edges[0].spells, [
+                { start: "2001", end: "2002" },
+                { start: "2004", end: "2005", endOpen: true },
+            ]);
+        });
+
+        test("a static file gains no time keys", async () => {
+            const { nodes, edges } = await load(
+                dynamicXml.replace(/<spells>[\s\S]*?<\/spells>/, "").replace(/ (start|end|startopen|endopen|timestamp)="[^"]*"/g, ""),
+            );
+            for (const record of [...nodes, ...edges]) {
+                for (const key of ["start", "end", "startOpen", "endOpen", "timestamp", "spells"]) {
+                    assert.notProperty(record, key);
+                }
+            }
+            assert.equal(nodes[0].score, 2);
+        });
+    });
 });

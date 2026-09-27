@@ -1,3 +1,32 @@
+## 1.10.2 (2026-09-27)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.4
+- Updated graph-format to 1.0.7
+
+## 1.10.1 (2026-09-27)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.3
+- Updated graph-format to 1.0.6
+
+## 1.10.0 (2026-09-26)
+
+### 🚀 Features
+
+- **layout:** grid and radial layouts, available in graphty-element ([#58](https://github.com/graphty-org/graphty-monorepo/issues/58))
+
+### 🩹 Fixes
+
+- **graphty-element:** seeded ngraph and random layouts are reproducible ([#114](https://github.com/graphty-org/graphty-monorepo/issues/114), [#115](https://github.com/graphty-org/graphty-monorepo/issues/115))
+- **layout:** 3d kamada-kawai starts at random and uses the full pairwise cost ([#99](https://github.com/graphty-org/graphty-monorepo/issues/99))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 1.9.1 (2026-09-26)
 
 ### 🧱 Updated Dependencies

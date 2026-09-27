@@ -23,7 +23,7 @@ import {
 } from "@babylonjs/core";
 import type { GraphSnapshot } from "@graphty/graph-format";
 
-import { ACCELERATION_MIN_NODES_DEFAULT, ACCELERATION_POLICY_DEFAULT, AccelerationController } from "./acceleration";
+import { ACCELERATION_POLICY_DEFAULT, AccelerationController } from "./acceleration";
 import { VoiceInputAdapter } from "./ai/input/VoiceInputAdapter";
 import type { ApiKeyManager } from "./ai/keys";
 import { GraphtyLogger, type Logger } from "./logging";
@@ -77,7 +77,7 @@ import { type AlgorithmOnLoad, DataConfig } from "./config/DataConfig";
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
 import { Edge } from "./Edge";
 import { GraphtyError } from "./errors";
-import { EventCallbackType, EventType } from "./events";
+import { EventCallbackType, EventOfType, EventType } from "./events";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
 import {
     type AddEdgesOptions,
@@ -205,6 +205,36 @@ const BATCH_VERBS: Readonly<Record<string, string>> = {
 /** Each graph's operation queue; see {@link operationQueueOf}. */
 const QUEUES = new WeakMap<Graph, OperationQueueManager>();
 
+/** What the element's data-source pair adds to the import its load dispatches; see {@link loadSourcePair}. */
+const pairImports = new WeakMap<Graph, { readonly coalesce: string; readonly setup: boolean }>();
+
+/**
+ * Load the element's data-source pair through `addDataFromSource`, as every load goes, with what
+ * only the pair has: a coalesce key, so the two halves assigned in one tick are one load, and
+ * whether the page declared it at construction, which makes it the baseline. No entry point
+ * exports it.
+ * @param graph - The graph.
+ * @param type - The data source type.
+ * @param config - Its configuration.
+ * @param how - The coalesce key, and whether it is setup.
+ * @param how.coalesce - The key two pair loads coalesce under while the first waits.
+ * @param how.setup - Declared at construction.
+ * @returns The load, as `addDataFromSource` returns it.
+ */
+export function loadSourcePair(
+    graph: Graph,
+    type: string,
+    config: object,
+    how: { readonly coalesce: string; readonly setup: boolean },
+): Promise<{ loadId: number }> {
+    pairImports.set(graph, how);
+    try {
+        return graph.addDataFromSource(type, config, { replace: true });
+    } finally {
+        pairImports.delete(graph);
+    }
+}
+
 /**
  * A graph's operation queue: what the element's own parts (the element's data doors, the
  * screenshot capture) and its tests queue work on and wait for. Not published: code queued there
@@ -264,6 +294,8 @@ export class Graph implements GraphContext {
         | { readonly writes: number; readonly layout: number; readonly view: number; readonly value: StyleSchemaV1 }
         | undefined;
     private wasSettled = false; // Track previous settlement state
+    /** How many loads `addDataFromSource` has started; the last one's id. */
+    private loadCount = 0;
     private resizeHandler = (): void => {
         this.engine.resize();
         // If we've already zoomed to fit, re-zoom after resize to ensure content still fits
@@ -297,6 +329,21 @@ export class Graph implements GraphContext {
      * trigger brings.
      */
     #queuedAdds = 0;
+
+    /** Aborted by `shutdown()`, so no whole-graph repaint runs against a torn-down graph. */
+    readonly #teardown = new AbortController();
+
+    /** Aborted and replaced each time the data is cleared, so a repaint in flight stops. */
+    #dataGeneration = new AbortController();
+
+    /** Bumped by every finished `data-add`; the post-load repaint compares it to the next. */
+    #dataAdds = 0;
+
+    /** The value of `#dataAdds` the last post-load repaint painted. */
+    #dataAddsPainted = 0;
+
+    /** Settles once every `applySuggestedStyles` call has stacked its layers in order. */
+    #suggestionsStacked: Promise<void> = Promise.resolve();
 
     // Managers
     /** Event manager for adding/removing event listeners */
@@ -414,10 +461,11 @@ export class Graph implements GraphContext {
         this.dataManager = new DataManager(this.eventManager, this.styles);
 
         // ONE controller for the element, this graph and its session. Nothing is probed until
-        // `start()` is called, which the element does from `connectedCallback`.
+        // `start()` is called, which the element does from `connectedCallback`. No `minNodes`
+        // on purpose: passing the default would count as the consumer's own number and switch
+        // off the per-capability floors, which only apply while nobody has set the threshold.
         this.acceleration = new AccelerationController({
             policy: ACCELERATION_POLICY_DEFAULT,
-            minNodes: ACCELERATION_MIN_NODES_DEFAULT,
             // No frame is drawn while a call-shaped run is on the device: a draw of this scene
             // is what the run's readback would otherwise wait behind (issue #390).
             whileRunning: () => this.renderManager.holdFrames(),
@@ -666,6 +714,9 @@ export class Graph implements GraphContext {
             if (event.type === "snapshot-dropped") {
                 this.releaseSnapshot(this.#resident);
                 this.#resident = null;
+                // A repaint in flight is painting rows that no longer exist; stop it.
+                this.#dataGeneration.abort(new DOMException("The graph's data was cleared.", "AbortError"));
+                this.#dataGeneration = new AbortController();
             }
         });
 
@@ -673,13 +724,32 @@ export class Graph implements GraphContext {
         // is over a dense index space, so it cannot paint a node the store has not taken yet; this
         // is the first moment it can, and it is the "everything changed, because the graph did"
         // boundary that no layer edit describes.
-        this.operationQueue.registerTrigger("data-add", () => ({
-            category: "style-apply",
-            execute: async () => {
-                await this.repaintFromSession();
-            },
-            description: "Repaint from the session style stack after data add",
-        }));
+        //
+        // ONE REPAINT PER RUN OF LOADS, NOT ONE PER LOAD. Every finished add queues this, but only
+        // the first to run after an add paints: it covers every add before it, and the rest find
+        // nothing new and return. Otherwise `addEdge` in a loop -- or a load of N records queued
+        // one at a time -- ran N whole-graph passes, which is quadratic. The check is made when
+        // the repaint RUNS, and recorded only once it has painted, so a repaint that something
+        // obsoletes or cancels cannot leave the next load unpainted.
+        this.operationQueue.registerTrigger("data-add", () => {
+            this.#dataAdds++;
+
+            return {
+                category: "style-apply",
+                execute: async (context) => {
+                    const adds = this.#dataAdds;
+
+                    if (this.#dataAddsPainted === adds) {
+                        return;
+                    }
+
+                    if (await this.repaintFromSession(context.signal)) {
+                        this.#dataAddsPainted = adds;
+                    }
+                },
+                description: "Repaint from the session style stack after data add",
+            };
+        });
 
         // The same boundary from the other side. Removing a node freezes a snapshot with a new
         // dense index space, and both the record of what each layer painted and each element's
@@ -892,6 +962,10 @@ export class Graph implements GraphContext {
      * Shuts down the graph, stopping animations and disposing all resources.
      */
     shutdown(): void {
+        // First, so a repaint queued behind a load or a run -- or one already painting -- stops
+        // rather than running against the store and session this is about to dispose.
+        this.#teardown.abort(new DOMException("The graph was disposed.", "AbortError"));
+
         // Stop any running camera animations
         try {
             const controller = this.camera.getActiveController();
@@ -1135,7 +1209,7 @@ export class Graph implements GraphContext {
 
             // For layouts that settle immediately, start animations after a short delay
             setTimeout(() => {
-                if (this.layoutManager.isSettled && !this.layoutManager.running) {
+                if (!this.layoutManager.running) {
                     for (const node of this.dataManager.nodes.values()) {
                         node.label?.startAnimation();
                     }
@@ -1474,16 +1548,61 @@ export class Graph implements GraphContext {
      * Adds graph data from a registered data source, as one undoable step.
      *
      * The load takes its turn on the operation queue behind the loads and layouts asked for
-     * before it, and is added to what the graph holds. It paints what it loaded before the promise
-     * settles: the pass that follows its last chunk repaints the graph from the style stack, so a
-     * graph loaded this way is painted exactly as one built from records is. A load that fails
-     * part way records nothing and takes back the rows that did arrive.
+     * before it, and is added to what the graph holds unless it replaces it. It paints what it
+     * loaded before the promise settles: the pass that follows its last chunk repaints the graph
+     * from the style stack, so a graph loaded this way is painted exactly as one built from
+     * records is. A load that fails part way records nothing and takes back the rows that did
+     * arrive, so a replacing load that fails leaves the graph it would have replaced.
+     *
+     * EVERY LOAD HAS AN ID. The promise resolves to it, and every event about this load --
+     * `data-loading-progress`, `data-loading-complete`, `data-loading-error`, `data-loaded` and
+     * the `error` beside a failure -- carries it as `loadId`, so a consumer that started two loads
+     * can tell whose report is whose.
      * @param type - Type/name of the registered data source
      * @param opts - Options to pass to the data source
-     * @returns Promise that resolves when data is loaded
+     * @param options - How to load
+     * @param options.replace - Replace the graph with what the source holds, but only once all of
+     *     it has parsed: a malformed or empty source rejects and leaves the graph as it was
+     * @returns Promise that resolves to the load's id when data is loaded
      */
-    async addDataFromSource(type: string, opts: object = {}): Promise<void> {
-        await this.dataManager.addDataFromSource(type, opts);
+    async addDataFromSource(
+        type: string,
+        opts: object = {},
+        options?: { replace?: boolean },
+    ): Promise<{ loadId: number }> {
+        return this.loadReserved(type, opts, this.reserveLoad(options?.replace));
+    }
+
+    /**
+     * Give a load its id and its place in line, synchronously, at the moment it was asked for.
+     *
+     * `loadFromFile` and `loadFromUrl` read before they load, so taking the place when the read
+     * finished would let an earlier, slower read overtake a later load. Ids rise in call order.
+     * @param replace - Whether the load replaces the graph
+     * @returns The reservation to hand to `loadReserved`
+     */
+    private reserveLoad(replace = false): { loadId: number; generation: number; replace: boolean } {
+        return { loadId: ++this.loadCount, generation: this.dataManager.beginLoad(replace), replace };
+    }
+
+    /**
+     * Run a load whose place `reserveLoad` already took.
+     * @param type - Type/name of the registered data source
+     * @param opts - Options to pass to the data source
+     * @param load - The reservation
+     * @param load.loadId - The load's id
+     * @param load.generation - The load's place in line
+     * @param load.replace - Whether the load replaces the graph
+     * @returns The load's id
+     */
+    private async loadReserved(
+        type: string,
+        opts: object,
+        load: { loadId: number; generation: number; replace: boolean },
+    ): Promise<{ loadId: number }> {
+        // Read before the first await: a pair load's extras are set only for the call that made it.
+        await this.dataManager.addDataFromSource(type, opts, { ...load, ...pairImports.get(this) });
+        return { loadId: load.loadId };
     }
 
     /**
@@ -1495,6 +1614,8 @@ export class Graph implements GraphContext {
      * @param options.edgeSource - Where the node an edge starts at is named in the record. Left
      *     unset, the element reads `source`, then `src`, then `from`
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
+     * @param options.replace - Replace the graph, once the file has parsed; see `addDataFromSource`
+     * @returns Promise that resolves to the load's id when data is loaded
      */
     async loadFromFile(
         file: File,
@@ -1503,8 +1624,10 @@ export class Graph implements GraphContext {
             nodeIdPath?: string;
             edgeSource?: string;
             edgeTarget?: string;
+            replace?: boolean;
         },
-    ): Promise<void> {
+    ): Promise<{ loadId: number }> {
+        const load = this.reserveLoad(options?.replace);
         const { detectFormat } = await import("./data/format-detection.js");
 
         // Detect format if not explicitly provided
@@ -1513,6 +1636,7 @@ export class Graph implements GraphContext {
         if (!format) {
             // Read first 2KB for format detection
             const sample = await file.slice(0, 2048).text();
+            this.dataManager.throwIfSuperseded(load.generation, file.name);
             const detected = detectFormat(file.name, sample);
 
             if (!detected) {
@@ -1526,12 +1650,17 @@ export class Graph implements GraphContext {
         const content = await file.text();
 
         // Load using appropriate DataSource
-        await this.addDataFromSource(format, {
-            data: content,
-            filename: file.name,
-            size: file.size,
-            ...options,
-        });
+        const { replace: _replace, ...sourceOptions } = options ?? {};
+        return this.loadReserved(
+            format,
+            {
+                data: content,
+                filename: file.name,
+                size: file.size,
+                ...sourceOptions,
+            },
+            load,
+        );
     }
 
     /**
@@ -1548,6 +1677,8 @@ export class Graph implements GraphContext {
      * @param options.edgeSource - Where the node an edge starts at is named in the record. Left
      *     unset, the element reads `source`, then `src`, then `from`
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
+     * @param options.replace - Replace the graph, once the data has parsed; see `addDataFromSource`
+     * @returns Promise that resolves to the load's id when data is loaded
      * @example
      * ```typescript
      * // Auto-detect format from extension
@@ -1567,8 +1698,10 @@ export class Graph implements GraphContext {
             nodeIdPath?: string;
             edgeSource?: string;
             edgeTarget?: string;
+            replace?: boolean;
         },
-    ): Promise<void> {
+    ): Promise<{ loadId: number }> {
+        const load = this.reserveLoad(options?.replace);
         const { detectFormat } = await import("./data/format-detection.js");
 
         let format = options?.format;
@@ -1588,6 +1721,7 @@ export class Graph implements GraphContext {
                 }
 
                 fetchedContent = await response.text();
+                this.dataManager.throwIfSuperseded(load.generation, url);
 
                 const sample = fetchedContent.slice(0, 2048);
                 const detectedFromContent = detectFormat(url, sample);
@@ -1616,16 +1750,10 @@ export class Graph implements GraphContext {
         // If we already fetched content for detection, pass it as data to avoid double-fetch
         // Otherwise pass URL and let DataSource handle the fetch
         if (fetchedContent !== undefined) {
-            await this.addDataFromSource(format, {
-                data: fetchedContent,
-                ...mergedOptions,
-            });
-        } else {
-            await this.addDataFromSource(format, {
-                url,
-                ...mergedOptions,
-            });
+            return this.loadReserved(format, { data: fetchedContent, ...mergedOptions }, load);
         }
+
+        return this.loadReserved(format, { url, ...mergedOptions }, load);
     }
 
     /**
@@ -1787,6 +1915,50 @@ export class Graph implements GraphContext {
             },
             {
                 description: `Replacing the graph's edges with ${edges.length}`,
+                ...options,
+            },
+        );
+    }
+
+    /**
+     * Replace every node in the graph with a new set, as one undoable step.
+     *
+     * What the `node-data` property does, and the node half of {@link setEdges}. A node whose id is
+     * not in the new set is removed the way {@link removeNodes} removes one, so the edges attached
+     * to it go too. A node whose id IS in the new set keeps its object and its position; its data
+     * is not rewritten. A set past the render ceiling is refused with `E_TOO_LARGE` before a node
+     * is removed, so the graph keeps the nodes it had.
+     * @param nodes - the nodes the graph should hold afterwards
+     * @param idPath - Key to use for node IDs (default: the configured node id path)
+     * @param options - Queue options for operation ordering
+     * @returns Promise that resolves once the graph holds exactly these nodes
+     * @since 2.3.0
+     */
+    async setNodes(
+        nodes: Record<string | number, unknown>[],
+        idPath?: string,
+        options?: QueueableOptions,
+    ): Promise<void> {
+        const replace = (): void => {
+            this.dataManager.setNodes(nodes, idPath);
+        };
+
+        if (options?.skipQueue) {
+            replace();
+            return;
+        }
+
+        await this.operationQueue.queueOperationAsync(
+            "data-add",
+            (context) => {
+                if (context.signal.aborted) {
+                    throw new Error("Operation cancelled");
+                }
+
+                replace();
+            },
+            {
+                description: `Replacing the graph's nodes with ${nodes.length}`,
                 ...options,
             },
         );
@@ -2076,6 +2248,10 @@ export class Graph implements GraphContext {
      * already-applied layer kept that layer's place, and the place it had was the order the RUNS
      * FINISHED in -- so `applySuggestedStyles(["pagerank", "louvain"])` painted a PageRank
      * picture whenever PageRank happened to finish last, and a Louvain one whenever it did not.
+     *
+     * It starts the style edits and returns at once. To wait for the picture, await
+     * {@link Graph.waitForStableFrame} after the call: it settles only once every suggested layer
+     * is added, stacked in the order named and painted.
      * @param algorithmKey - A catalogue key such as "degree", a 1.10 address such as
      *     "graphty:degree", or an array of either.
      * @returns True when at least one suggestion was applied, false when no finished run of that
@@ -2092,7 +2268,7 @@ export class Graph implements GraphContext {
         // One step: every layer this call applies, and every move putting them in order. The
         // transaction's body is synchronous and each style command writes as it is dispatched,
         // so what it applied is known before this returns.
-        dispatcherOf(this.session)
+        const applied = dispatcherOf(this.session)
             .transaction("Applied suggested styles", (tx) => {
                 for (const key of keys) {
                     for (const suggestion of this.getSuggestedStyles(key)) {
@@ -2117,6 +2293,9 @@ export class Graph implements GraphContext {
                 }
             })
             .then(undefined, report);
+        // Kept, so `waitForStableFrame()` and `waitForSettled()` wait for the layers to land.
+        // Chained, so a second call does not replace the first one's promise.
+        this.#suggestionsStacked = Promise.all([this.#suggestionsStacked, applied]).then(() => undefined);
 
         return painted.length > 0;
     }
@@ -2525,7 +2704,7 @@ export class Graph implements GraphContext {
      * stop();
      * ```
      */
-    on(type: EventType, cb: EventCallbackType): () => void {
+    on<K extends EventType>(type: K, cb: (evt: EventOfType<K>) => void): () => void {
         const id = this.addListener(type, cb);
 
         return () => {
@@ -2540,9 +2719,10 @@ export class Graph implements GraphContext {
      * @returns The listener's id, which `removeListener` takes. It used to be dropped here, so
      *     nothing a consumer could reach was able to undo an `addListener`.
      */
-    addListener(type: EventType, cb: EventCallbackType): symbol {
-        // Delegate to EventManager
-        return this.eventManager.addListener(type, cb);
+    addListener<K extends EventType>(type: K, cb: (evt: EventOfType<K>) => void): symbol {
+        // The manager only ever calls a callback with an event whose `type` is `type`, which is
+        // exactly the narrowing the signature promises.
+        return this.eventManager.addListener(type, cb as EventCallbackType);
     }
 
     /**
@@ -2569,6 +2749,8 @@ export class Graph implements GraphContext {
      * ```
      */
     clearData(): void {
+        // A load still in flight would otherwise put its data back after the graph was closed.
+        this.dataManager.supersedeLoads();
         this.dataManager.clear();
     }
 
@@ -2640,20 +2822,42 @@ export class Graph implements GraphContext {
      *
      * It does nothing while no style pass is bound: a pass whose answer nothing draws is a pass
      * over the graph for no picture.
-     * @returns A promise that settles when the pass has finished.
+     *
+     * NOTHING AFTER TEARDOWN, AND NOTHING ACROSS A CLEAR. It is queued behind loads and runs, so
+     * it can come due after `dispose()` or while the data it started on is being cleared. Either
+     * one stops it, quietly: the graph it was painting is gone, and that is not an error.
+     * @param signal - The queue operation's own signal, when it runs as one.
+     * @returns True when the whole graph was painted, false when there was nothing to paint with
+     *     or the pass was stopped.
      */
-    private async repaintFromSession(): Promise<void> {
-        if (!this.stylePainter.owns) {
-            return;
+    private async repaintFromSession(signal?: AbortSignal): Promise<boolean> {
+        const stop = AbortSignal.any([
+            this.#teardown.signal,
+            this.#dataGeneration.signal,
+            ...(signal === undefined ? [] : [signal]),
+        ]);
+
+        if (stop.aborted || !this.stylePainter.owns) {
+            return false;
         }
 
-        // The elements this pass paints reach the renderer through the pass's own announcement,
-        // which `StylePainter.bind` subscribes to. Taking them here, after the await, is what
-        // handed the renderer somebody else's dirty set.
-        await this.session.paint.repaintAll(this.session.styles.compiled(), {
-            signal: new AbortController().signal,
-            report: () => undefined,
-        });
+        try {
+            // The elements this pass paints reach the renderer through the pass's own
+            // announcement, which `StylePainter.bind` subscribes to. Taking them here, after the
+            // await, is what handed the renderer somebody else's dirty set.
+            await this.session.paint.repaintAll(this.session.styles.compiled(), {
+                signal: stop,
+                report: () => undefined,
+            });
+        } catch (error: unknown) {
+            if (stop.aborted) {
+                return false;
+            }
+
+            throw error;
+        }
+
+        return true;
     }
 
     /**
@@ -3315,11 +3519,13 @@ export class Graph implements GraphContext {
      * Set whether the layout engine should run.
      *
      * Resuming a simulation layout that had settled restarts it, so "play" moves nodes again;
-     * pausing stops the per-frame stepping and nothing else.
+     * pausing stops the per-frame stepping and nothing else. A pause holds until
+     * `setRunning(true)`: loading data, setting a layout, an accelerator attaching or a drag
+     * never resume it.
      * @param running - True to start the layout, false to stop it
      */
     setRunning(running: boolean): void {
-        this.layoutManager.running = running;
+        this.layoutManager.setPaused(!running);
     }
 
     /**
@@ -3531,6 +3737,8 @@ export class Graph implements GraphContext {
      * ```
      */
     async waitForSettled(): Promise<void> {
+        // Suggested styles first: their reordering moves reach the queue only once they are due.
+        await this.#suggestionsStacked;
         // Wait for operation queue to complete all operations
         await this.operationQueue.waitForCompletion();
         // Style edits are not queued: they are written at once and repainted on the session's
@@ -3628,7 +3836,9 @@ export class Graph implements GraphContext {
      */
     private async untilFrameIsStable(track: (id: symbol) => void): Promise<void> {
         // The queue first: a layout change or a data load that has not run yet is going to move
-        // the picture, so a frame that is final right now is final about the wrong graph.
+        // the picture, so a frame that is final right now is final about the wrong graph. Suggested
+        // styles before the queue, because they queue their reordering only once they are due.
+        await this.#suggestionsStacked;
         await this.operationQueue.waitForCompletion();
 
         if (this.updateManager.frameIsStable) {
@@ -5189,7 +5399,8 @@ export class Graph implements GraphContext {
      * Set graph data (delegates to data manager)
      * @param data - Graph data object
      * @param data.nodes - Array of node data objects
-     * @param data.edges - Array of edge data objects
+     * @param data.edges - Array of edge data objects. They load as one batch, so the endpoint
+     * spelling (source/target, src/dst or from/to) is decided once for all of them.
      */
     setData(data: { nodes: Record<string, unknown>[]; edges: Record<string, unknown>[] }): void {
         // One step: the nodes and the edges are added, and undone, together.

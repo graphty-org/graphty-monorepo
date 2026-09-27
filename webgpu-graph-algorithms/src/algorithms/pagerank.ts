@@ -34,8 +34,8 @@ import { algorithmScope } from "./scope.js";
 
 /** Iterations per submit (spec 8.2: k = 8). */
 const PR_BATCH = 8;
-/** Params slots of one batch: per iteration one PrParams (shared by pr-scale and pr-finalize) and one SpmvParams, plus the normaliser's RangeParams; a smaller ring wraps onto a slot the same batch still reads. */
-const RING_SLOTS = 2 * PR_BATCH + 1;
+/** Params slots of one batch: per iteration one PrParams (shared by pr-scale and pr-finalize) and one SpmvParams, plus the normaliser's RangeParams and the last batch's convergence check; a smaller ring wraps onto a slot the same batch still reads. */
+const RING_SLOTS = 2 * PR_BATCH + 2;
 
 /**
  * Validates `options.dest` for a score result of `n` elements.
@@ -175,6 +175,8 @@ async function run(
         const groups = groupsOf(scalePlan);
         const partialsBytes = PR_PARTIAL.byteLength * (1 + groups);
         const partials = scope.scratch(partialsBytes, "partials");
+        // the header as the last pull left it, before the convergence check of the last batch overwrites danglingMass
+        const lastHeader = scope.scratch(PR_PARTIAL.byteLength, "lastHeader");
         if (personalization !== null) {
             uploaded = ctx.residency.array(personalization, `${algorithm}/personalization`);
         }
@@ -203,17 +205,21 @@ async function run(
         const xNormBinding = bindingOf(xNorm, bytes);
         const outWeightSumBinding = bindingOf(outWeightSum, bytes);
         const partialsBinding = bindingOf(partials, partialsBytes);
+        const lastHeaderBinding = bindingOf(lastHeader, PR_PARTIAL.byteLength);
         const coefficients = { alpha, beta: 1 - alpha, uniformP: 1 / n };
         let cur = 0;
         let iterationsRun = 0;
         for (;;) {
             const k = Math.min(PR_BATCH, maxIterations - iterationsRun);
             const batch = new CommandBatch(ctx, algorithm);
-            const pass = batch.pass("iterations");
+            let pass = batch.pass("iterations");
             if (iterationsRun === 0) {
                 normaliser.record(pass, weightedCore, outWeightSumBinding);
             }
-            for (let i = 0; i < k; i++) {
+            const last = iterationsRun + k === maxIterations;
+            // the scale + finalize of iteration i measures the error of iteration i - 1 (PD-9), so the last batch
+            // runs them once more, with no pull, to measure the error of iteration maxIterations itself
+            for (let i = 0; i < k + (last ? 1 : 0); i++) {
                 const params = scope.params(PR_PARAMS, {
                     n,
                     groups,
@@ -222,6 +228,10 @@ async function run(
                     convergeThreshold: tolerance * n,
                 });
                 const other = 1 - cur;
+                if (i === k) {
+                    batch.copy(partialsBinding, lastHeaderBinding, PR_PARTIAL.byteLength);
+                    pass = batch.pass("convergence");
+                }
                 const scaleBound = scale.bind({
                     rankIn: rank[cur],
                     rankPrev: rank[other],
@@ -233,6 +243,9 @@ async function run(
                 scale.dispatch(pass, scaleBound, scalePlan, [params.offset]);
                 const finalizeBound = finalize.bind({ partials: partialsBinding, P: params.binding });
                 finalize.dispatch(pass, finalizeBound, finalizePlan, [params.offset]);
+                if (i === k) {
+                    break;
+                }
                 pull.record(
                     pass,
                     weightedRev,
@@ -248,6 +261,7 @@ async function run(
             }
             batch.endPass();
             const headerRequest = batch.readback(partials, 0, PR_PARTIAL.byteLength);
+            const lastHeaderRequest = last ? batch.readback(lastHeader, 0, PR_PARTIAL.byteLength) : headerRequest;
             const scoresRequest = batch.readback(rank[cur].buffer, 0, bytes);
             scope.flush();
             const submitted = batch.submit();
@@ -271,7 +285,7 @@ async function run(
                     scores,
                     iterations: converged ? firstConverged : iterationsRun,
                     converged,
-                    danglingMass: folded.danglingMass as number,
+                    danglingMass: PR_PARTIAL.read(new DataView(back), lastHeaderRequest.offset).danglingMass as number,
                     precision: "f32",
                 };
             }

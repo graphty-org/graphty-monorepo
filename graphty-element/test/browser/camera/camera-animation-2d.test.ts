@@ -2,6 +2,7 @@ import { afterEach, assert, test } from "vitest";
 
 import { TwoDCameraController } from "../../../src/cameras/TwoDCameraController.js";
 import { Graph } from "../../../src/Graph.js";
+import { animationFramesOf } from "../../helpers/animation-clock.js";
 import { cleanupTestGraph, createTestGraph, setBehavior } from "../../helpers/testSetup.js";
 
 let graph: Graph;
@@ -36,12 +37,10 @@ test("animates 2D zoom smoothly", async () => {
     const initialOrthoWidth = (cameraController.camera.orthoRight ?? 1) - (cameraController.camera.orthoLeft ?? -1);
     const targetZoom = 2.0;
 
-    const startTime = Date.now();
-    await graph.setCameraZoom(targetZoom, { animate: true, duration: 500 });
-    const elapsed = Date.now() - startTime;
+    const { ms } = await animationFramesOf(graph, () => graph.setCameraZoom(targetZoom, { animate: true, duration: 500 }));
 
-    // Animation should take approximately the requested duration
-    assert.ok(elapsed >= 450 && elapsed <= 650, `Animation took ${elapsed}ms, expected ~500ms`);
+    // Animation should take approximately the requested duration, in animation time
+    assert.ok(ms >= 450 && ms <= 600, `Animation took ${ms}ms of animation time, expected ~500ms`);
 
     // Ortho size should have changed (zoom in makes it smaller)
     const finalOrthoWidth = (cameraController.camera.orthoRight ?? 1) - (cameraController.camera.orthoLeft ?? -1);

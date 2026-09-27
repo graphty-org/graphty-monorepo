@@ -6,6 +6,7 @@ import {
     Engine,
     GreasedLineBaseMesh,
     GreasedLineMeshColorMode,
+    type InstancedMesh,
     Mesh,
     MeshBuilder,
     RawTexture,
@@ -340,6 +341,11 @@ void main() {
      *
      * In 2D mode, uses StandardMaterial with XY rotation.
      * In 3D mode, uses shader-based billboard rendering.
+     *
+     * The head is an InstancedMesh of a batch its scene shares with every head of the same
+     * shape (and, where the material holds them, the same colour and opacity), so a graph's
+     * arrowheads cost a draw call per batch rather than per edge. See
+     * `FilledArrowRenderer.instanceOf`.
      * @param _cache - MeshCache instance (currently unused, kept for API compatibility)
      * @param _styleId - Style ID (currently unused, kept for API compatibility)
      * @param options - Arrow head options including type, width, color, size, and opacity
@@ -351,14 +357,13 @@ void main() {
         _styleId: string,
         options: ArrowHeadOptions,
         scene: Scene,
-    ): AbstractMesh | null {
+    ): InstancedMesh | null {
         if (!options.type || options.type === "none") {
             return null;
         }
 
         const size = options.size ?? 1.0;
         const opacity = options.opacity ?? 1.0;
-        const width = this.calculateArrowWidth() * size;
         const length = this.calculateArrowLength() * size;
 
         // Detect 2D mode
@@ -382,135 +387,112 @@ void main() {
             "sphere-dot",
         ];
 
-        // PERFORMANCE FIX: Create individual meshes for all arrow types
-        // Thin instances were causing 1,147ms bottleneck (35x slower than direct position updates)
-        // Individual meshes use direct position/rotation which is much faster for frequent updates
-
-        let mesh: Mesh;
-        const arrowType = options.type ?? "";
-
-        if (FILLED_ARROWS.includes(arrowType)) {
-            // Filled arrows: Same geometry, different materials (StandardMaterial for 2D, ShaderMaterial for 3D)
-            if (is2D) {
-                // PHASE 4: Use 2D arrow creation (StandardMaterial, no shader, XY rotation)
-                mesh = FilledArrowRenderer.create2DArrow(arrowType, length, width, options.color, opacity, scene);
-            } else {
-                // 3D mode: Use shader-based arrows (ShaderMaterial, billboard)
-                mesh = this.createFilledArrow(arrowType, length, width, options.color, opacity, scene);
-            }
-        } else {
+        const arrowType = options.type;
+        if (!FILLED_ARROWS.includes(arrowType)) {
             throw new Error(`Unsupported arrow type: ${options.type}`);
         }
 
-        mesh.visibility = opacity;
-        return mesh;
-    }
-
-    /**
-     * Create a filled arrow base mesh using FilledArrowRenderer
-     * Returns a cached mesh template with thin instance support.
-     * lineDirection is set per-instance when creating thin instances.
-     * @param type - Arrow type (normal, inverted, diamond, etc.)
-     * @param length - Arrow length in world units
-     * @param _width - Arrow width in world units (reserved for future use)
-     * @param color - Arrow color as hex string
-     * @param opacity - Arrow opacity (0-1)
-     * @param scene - Babylon.js scene
-     * @returns Created arrow mesh
-     */
-    private static createFilledArrow(
-        type: string,
-        length: number,
-        _width: number,
-        color: string,
-        opacity: number,
-        scene: Scene,
-    ): Mesh {
-        let mesh: Mesh;
-
-        // Create appropriate mesh geometry (all use normalized dimensions)
-        switch (type) {
-            case "normal":
-                mesh = FilledArrowRenderer.createTriangle(false, scene);
-                break;
-            case "inverted":
-                mesh = FilledArrowRenderer.createTriangle(true, scene);
-                break;
-            case "diamond":
-                mesh = FilledArrowRenderer.createDiamond(scene);
-                break;
-            case "box":
-                mesh = FilledArrowRenderer.createBox(scene);
-                break;
-            case "dot":
-                mesh = FilledArrowRenderer.createCircle(scene);
-                break;
-            case "sphere-dot": {
-                // sphere-dot needs different handling for 2D vs 3D:
-                // - 2D: shader-based filled circle (handled in createArrowHead)
-                // - 3D: 3D sphere mesh (handled here)
-                // Since createFilledArrow is only called in 3D mode, create 3D sphere
-
-                // CRITICAL: The sphere size must match what positioning code expects
-                // calculateArrowPosition() uses actualSize = length * scaleFactor
-                // So we must create the sphere with diameter = length * scaleFactor
-                const sphereDotGeometry = EdgeMesh.getArrowGeometry("sphere-dot");
-                const sphereDotScaleFactor = sphereDotGeometry.scaleFactor ?? 1.0;
-                const sphereDiameter = length * sphereDotScaleFactor; // e.g., 0.5 * 0.25 = 0.125
-
-                const sphereMesh = MeshBuilder.CreateSphere(
-                    "sphere-dot-arrow-3d",
-                    {
-                        diameter: sphereDiameter,
-                        segments: 16,
-                    },
-                    scene,
-                );
-                const sphereMaterial = new StandardMaterial("sphere-dot-material-3d", scene);
-                sphereMaterial.diffuseColor = Color3.FromHexString(color);
-                sphereMaterial.emissiveColor = Color3.FromHexString(color);
-                sphereMaterial.disableLighting = true;
-                sphereMesh.material = sphereMaterial;
-                sphereMesh.visibility = opacity;
-                // Return directly - don't apply shader since this is a standard material mesh
-                return sphereMesh;
-            }
-            case "vee":
-                mesh = FilledArrowRenderer.createVee(scene);
-                break;
-            case "tee":
-                mesh = FilledArrowRenderer.createTee(scene);
-                break;
-            case "half-open":
-                mesh = FilledArrowRenderer.createHalfOpen(scene);
-                break;
-            case "crow":
-                mesh = FilledArrowRenderer.createCrow(scene);
-                break;
-            case "open-normal":
-                mesh = FilledArrowRenderer.createOpenNormal(scene);
-                break;
-            case "open-diamond":
-                mesh = FilledArrowRenderer.createOpenDiamond(scene);
-                break;
-            case "open-dot":
-                mesh = FilledArrowRenderer.createOpenCircle(scene);
-                break;
-            default:
-                throw new Error(`Unsupported filled arrow type: ${type}`);
+        if (is2D) {
+            // StandardMaterial (no shader, XY rotation). Colour and opacity live on the material,
+            // so they are part of the batch; size and direction are the instance's transform.
+            const instance = FilledArrowRenderer.instanceOf(
+                scene,
+                `2d|${arrowType}|${options.color}|${String(opacity)}`,
+                () => {
+                    const source = FilledArrowRenderer.create2DArrow(arrowType, 1, 1, options.color, opacity, scene);
+                    source.visibility = opacity;
+                    return source;
+                },
+            );
+            instance.scaling.setAll(length);
+            instance.rotation.x = Math.PI / 2;
+            instance.metadata = { is2D: true };
+            return instance;
         }
 
-        // Apply the shader with world-space sizing
-        // Size parameter is in world units (arrow length)
-        return FilledArrowRenderer.applyShader(
-            mesh,
+        if (arrowType === "sphere-dot") {
+            return this.createSphereDot(length, options.color, opacity, scene);
+        }
+
+        // 3D mode: shader-based billboard arrows; size and colour are per instance.
+        return FilledArrowRenderer.createArrowInstance(
+            arrowType,
+            () => this.createArrowShape(arrowType, scene),
             {
                 size: length, // World-space length (e.g., 0.5 units)
-                color,
+                color: options.color,
                 opacity,
             },
             scene,
         );
+    }
+
+    /**
+     * A 3D sphere-dot arrowhead: an unlit sphere, batched by colour and opacity, sized by the
+     * instance's scale.
+     * @param length - Arrow length in world units
+     * @param color - Arrow color as hex string
+     * @param opacity - Arrow opacity (0-1)
+     * @param scene - Babylon.js scene
+     * @returns The sphere instance
+     */
+    private static createSphereDot(length: number, color: string, opacity: number, scene: Scene): InstancedMesh {
+        // CRITICAL: The sphere size must match what positioning code expects
+        // calculateArrowPosition() uses actualSize = length * scaleFactor
+        // So the sphere's diameter must be length * scaleFactor
+        const sphereDotScaleFactor = EdgeMesh.getArrowGeometry("sphere-dot").scaleFactor ?? 1.0;
+        const sphereDiameter = length * sphereDotScaleFactor; // e.g., 0.5 * 0.25 = 0.125
+
+        const instance = FilledArrowRenderer.instanceOf(scene, `sphere-dot|${color}|${String(opacity)}`, () => {
+            const sphereMesh = MeshBuilder.CreateSphere("sphere-dot-arrow-3d", { diameter: 1, segments: 16 }, scene);
+            const sphereMaterial = new StandardMaterial("sphere-dot-material-3d", scene);
+            sphereMaterial.diffuseColor = Color3.FromHexString(color);
+            sphereMaterial.emissiveColor = Color3.FromHexString(color);
+            sphereMaterial.disableLighting = true;
+            sphereMesh.material = sphereMaterial;
+            sphereMesh.visibility = opacity;
+            return sphereMesh;
+        });
+        instance.scaling.setAll(sphereDiameter);
+
+        return instance;
+    }
+
+    /**
+     * Build the normalized geometry of a billboarded arrow type (every filled type but sphere-dot).
+     * @param type - Arrow type (normal, inverted, diamond, etc.)
+     * @param scene - Babylon.js scene
+     * @returns The arrow's geometry, with no material
+     */
+    private static createArrowShape(type: string, scene: Scene): Mesh {
+        switch (type) {
+            case "normal":
+                return FilledArrowRenderer.createTriangle(false, scene);
+            case "inverted":
+                return FilledArrowRenderer.createTriangle(true, scene);
+            case "diamond":
+                return FilledArrowRenderer.createDiamond(scene);
+            case "box":
+                return FilledArrowRenderer.createBox(scene);
+            case "dot":
+                return FilledArrowRenderer.createCircle(scene);
+            case "vee":
+                return FilledArrowRenderer.createVee(scene);
+            case "tee":
+                return FilledArrowRenderer.createTee(scene);
+            case "half-open":
+                return FilledArrowRenderer.createHalfOpen(scene);
+            case "crow":
+                return FilledArrowRenderer.createCrow(scene);
+            case "open-normal":
+                return FilledArrowRenderer.createOpenNormal(scene);
+            case "open-diamond":
+                return FilledArrowRenderer.createOpenDiamond(scene);
+            case "open-dot":
+                return FilledArrowRenderer.createOpenCircle(scene);
+            default:
+                throw new Error(`Unsupported filled arrow type: ${type}`);
+        }
     }
 
     private static createStaticLine(
@@ -637,8 +619,15 @@ void main() {
         material.disableLighting = true;
         texture.uScale = EDGE_CONSTANTS.MOVING_TEXTURE_U_SCALE;
 
-        scene.onBeforeRenderObservable.add(() => {
+        const observer = scene.onBeforeRenderObservable.add(() => {
             texture.uOffset -= EDGE_CONSTANTS.MOVING_TEXTURE_ANIMATION_SPEED * scene.getAnimationRatio();
+        });
+
+        // The texture and the per-frame callback belong to this mesh alone; without this every
+        // rebuilt animated line would leave both behind.
+        mesh.onDisposeObservable.addOnce(() => {
+            scene.onBeforeRenderObservable.remove(observer);
+            texture.dispose();
         });
     }
 

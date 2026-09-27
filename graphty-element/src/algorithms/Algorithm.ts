@@ -3,6 +3,7 @@ import { type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-form
 
 import { narrowAlgorithms } from "../acceleration/narrow";
 import { type AccelerationPrecision, CPU_PRECISION } from "../acceleration/types";
+import { SharedImplementationMap } from "../catalog/pluginRegistry";
 import { publishAlgorithmDescriptor } from "../catalog/registry";
 import type { AlgorithmDescriptor, FieldDescriptor, NodeId } from "../catalog/types";
 import { type OptionsSchema as ZodOptionsSchema } from "../config";
@@ -57,8 +58,21 @@ export interface AlgorithmStatics {
      *
      * Absent, the element estimates from the `costClass` the descriptor declares, which is what
      * every algorithm this package ships does.
+     *
+     * Prefer {@link costUnits}: seconds written on one machine are wrong on every other, and no
+     * calibration can scale them, so an estimate from this hook always reports "modelled".
      */
     cost?: (n: number, m: number) => number;
+    /**
+     * A cost model in WORK UNITS over a graph of n nodes and m edges, for the whole run.
+     *
+     * The units are those of the descriptor's `costClass`: elements for `instant` and
+     * `iterative` (count every iteration), source-edge pairs for `heavy`, operations for
+     * `cubic`. The element divides them by the rate it measured for that class on this device,
+     * so the estimate follows the machine and reports "calibrated" once the device is probed,
+     * exactly as a built-in's does. Wins over {@link cost} when both are declared.
+     */
+    costUnits?: (n: number, m: number) => number;
     /**
      * The plugin's own version, recorded on every run this algorithm produces.
      *
@@ -80,7 +94,9 @@ export interface AlgorithmStatics {
     hasZodOptions(): boolean;
 }
 
-const algorithmRegistry = new Map<string, AlgorithmClass>();
+// Shared with every other copy of graphty-element on the page, so a plugin registered through one
+// reaches them all.
+const algorithmRegistry = new SharedImplementationMap<AlgorithmClass>("algorithm");
 
 /**
  * One piece of accelerable work, with the decision "accelerator or CPU" already taken.
@@ -481,7 +497,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
            describes cannot be registered separately: a catalogue entry whose class nothing
            registered is an algorithm a consumer can see, start, and then be told does not
            exist. */
-        const { descriptor, cost, version } = statics;
+        const { descriptor, cost, costUnits, version } = statics;
 
         if (descriptor !== undefined) {
             publishAlgorithmDescriptor({
@@ -489,6 +505,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
                 namespace: ns,
                 type: t,
                 ...(cost === undefined ? {} : { cost }),
+                ...(costUnits === undefined ? {} : { costUnits }),
                 ...(version === undefined ? {} : { version }),
             });
         }

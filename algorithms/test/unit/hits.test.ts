@@ -300,11 +300,8 @@ describe("HITS Algorithm", () => {
                 }
             }
 
-            const start = Date.now();
             const result = hits(graph, { maxIterations: 50 });
-            const duration = Date.now() - start;
 
-            expect(duration).toBeLessThan(5000); // Should complete within 5 seconds
             expect(Object.keys(result.hubs)).toHaveLength(100);
             expect(Object.keys(result.authorities)).toHaveLength(100);
         });

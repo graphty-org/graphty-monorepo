@@ -1,13 +1,13 @@
 #!/usr/bin/env tsx
 
 // Node.js Betweenness Centrality Performance Benchmark using Benchmark.js
-import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
-import { generateTestGraphs } from "../utils/test-data-generator";
-import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { betweennessCentrality } from "../../src/algorithms/centrality/betweenness";
+import { getGraphSizes } from "../algorithm-complexity";
 import { saveBenchmarkSession } from "../utils/benchmark-result";
+import { CrossPlatformBenchmark } from "../utils/benchmark-runner";
+import { convertToLibraryGraph } from "../utils/graph-adapter";
 import { formatSystemInfo, getSystemInfo } from "../utils/system-info";
-import { getGraphSizes, getAlgorithmConfig } from "../algorithm-complexity";
+import { generateTestGraphs } from "../utils/test-data-generator";
 
 // Configuration for Node.js benchmarks
 // Betweenness centrality is O(V*E) for unweighted graphs, O(V*E + V^2 log V) for weighted
@@ -28,14 +28,13 @@ const configs = {
 
 async function runBetweennessCentralityBenchmark(configType: "quick" | "comprehensive") {
     console.log(`🚀 Running ${configType} Betweenness Centrality benchmarks in Node.js`);
-    console.log("=" + "=".repeat(50));
+    console.log(`=${  "=".repeat(50)}`);
     console.log(formatSystemInfo(getSystemInfo()));
     console.log("");
 
     const config = configs[configType];
     const benchmark = new CrossPlatformBenchmark(config, `Betweenness Centrality ${configType} Performance`);
 
-    const algConfig = getAlgorithmConfig("Betweenness Centrality", configType === "quick");
     console.log(`⚠️  Note: Betweenness Centrality has O(V*E) complexity`);
     console.log(`   Using adaptive sizing: ${config.sizes.join(", ")} vertices`);
     console.log("");
@@ -144,7 +143,7 @@ async function runBetweennessCentralityBenchmark(configType: "quick" | "comprehe
         const session = await benchmark.run();
 
         // Display summary
-        console.log("\n" + "=".repeat(70));
+        console.log(`\n${  "=".repeat(70)}`);
         console.log("BENCHMARK RESULTS SUMMARY");
         console.log("=".repeat(70));
         console.log("Size\tType\t\tTime(ms)\tOps/sec\tComplexity\t\tMargin");

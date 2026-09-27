@@ -84,7 +84,7 @@ source file of the same name at the package root:
 | Subpath | Source | What it carries | Node-safe |
 |---------|--------|-----------------|-----------|
 | `.` | `index.ts` | The custom element; defines the tag; pulls in Babylon.js and Lit | No |
-| `./schema` | `schema.ts` | Palettes, `NodeShapes`, `defaultNodeStyle`, `defaultEdgeStyle`, `defaultRichTextLabelStyle`, style config types, the colour helpers | Yes |
+| `./schema` | `schema.ts` | Palettes, `NodeShapes`, `EdgeLineTypes`, `EdgeArrowTypes`, `defaultNodeStyle`, `defaultEdgeStyle`, `defaultRichTextLabelStyle`, style config types, the colour helpers | Yes |
 | `./catalog` | `catalog.ts` | Plain-JSON descriptors: `BUILT_IN_ALGORITHMS`, `LAYOUT_DESCRIPTORS`, formats, palettes, scales, `optionsFromZod`, descriptor types | Yes |
 | `./extend` | `extend.ts` | The registration surface: `Algorithm`, `LayoutEngine`, `DataSource`, `registerAccelerator`, `GraphtyError` | Yes |
 | `./format` | `format.ts` | The graph-format decode vocabulary (read-only half; no brand, no version) | Yes |

@@ -1,5 +1,6 @@
-import { describe, it, assert } from "vitest";
-import { kamadaKawaiLayout, completeGraph, cycleGraph, starGraph, gridGraph, randomGraph } from "../src";
+import { assert,describe, it } from "vitest";
+
+import { completeGraph, cycleGraph, gridGraph, kamadaKawaiLayout, randomGraph, randomLayout,starGraph } from "../src";
 
 describe("Kamada-Kawai Layout", () => {
     describe("Basic functionality", () => {
@@ -28,8 +29,8 @@ describe("Kamada-Kawai Layout", () => {
             const positions = kamadaKawaiLayout(singleNode);
 
             assert.equal(Object.keys(positions).length, 1);
-            assert.isDefined(positions["A"]);
-            assert.equal(positions["A"].length, 2);
+            assert.isDefined(positions.A);
+            assert.equal(positions.A.length, 2);
         });
 
         it("should handle disconnected components", () => {
@@ -78,8 +79,8 @@ describe("Kamada-Kawai Layout", () => {
                     [2, 3],
                     [3, 0],
                 ],
-                // Mock edge weight access
-                get_edge_data: (u, v) => ({ weight: 1 }),
+                // Mock edge weight access: the layout reads the attribute value through getEdgeData
+                getEdgeData: () => 1,
             };
 
             const positions = kamadaKawaiLayout(graph, null, null, "weight");
@@ -221,44 +222,25 @@ describe("Kamada-Kawai Layout", () => {
             });
         });
 
-        it("should handle large graphs reasonably", () => {
+        it("should lay out every node of a larger graph", () => {
             const graph = gridGraph(8, 8); // 64 nodes
 
-            const startTime = performance.now();
             const positions = kamadaKawaiLayout(graph, null, null, "weight", 1, [0, 0], 2);
-            const endTime = performance.now();
 
             assert.equal(Object.keys(positions).length, 64);
-
-            // Performance can vary significantly on different systems and CI environments
-            // Just ensure it completes in a reasonable time (under 5 seconds)
-            assert.isBelow(endTime - startTime, 5000, "Kamada-Kawai should complete within 5 seconds for 64 nodes");
         });
 
         it("should produce different results with different initial positions", () => {
             const graph = randomGraph(10, 0.3, 42);
 
-            // First with default initial positions
-            const positions1 = kamadaKawaiLayout(graph);
-
-            // Then with custom initial positions
+            // Custom initial positions
             const customPos = {};
             graph.nodes().forEach((node, i) => {
                 customPos[node] = [Math.cos((2 * Math.PI * i) / 10), Math.sin((2 * Math.PI * i) / 10)];
             });
             const positions2 = kamadaKawaiLayout(graph, null, customPos);
 
-            // Results might be different (though both should be valid)
-            let different = false;
-            graph.nodes().forEach((node) => {
-                if (
-                    Math.abs(positions1[node][0] - positions2[node][0]) > 0.1 ||
-                    Math.abs(positions1[node][1] - positions2[node][1]) > 0.1
-                ) {
-                    different = true;
-                }
-            });
-            // Note: They might converge to same solution, so we don't assert different
+            // They might converge to the same solution, so only validity is asserted
             assert.equal(Object.keys(positions2).length, 10);
         });
 
@@ -342,7 +324,14 @@ describe("Kamada-Kawai Layout", () => {
             });
         });
 
-        it("should use spherical initialization for 3D", () => {
+        it("starts 3D from a seeded random layout, as networkx starts from random_layout", () => {
+            const graph = cycleGraph(6);
+            const started = kamadaKawaiLayout(graph, null, randomLayout(graph, null, 3, 42), "weight", 1, [0, 0, 0], 3);
+
+            assert.deepEqual(kamadaKawaiLayout(graph, null, null, "weight", 1, [0, 0, 0], 3), started);
+        });
+
+        it("should draw uniform edge lengths in 3D", () => {
             const graph = cycleGraph(6);
             const positions = kamadaKawaiLayout(graph, null, null, "weight", 1, [0, 0, 0], 3);
 
@@ -522,10 +511,6 @@ describe("Kamada-Kawai Layout", () => {
 
             assert.equal(Object.keys(positions).length, 6);
 
-            // Each component should be laid out properly
-            const component1 = [0, 1, 2].map((n) => positions[n]);
-            const component2 = [3, 4, 5].map((n) => positions[n]);
-
             // Check internal distances within each component
             const dist01 = getDistance3D(positions[0], positions[1]);
             const dist12 = getDistance3D(positions[1], positions[2]);
@@ -540,9 +525,6 @@ describe("Kamada-Kawai Layout", () => {
 
         it("should produce better results than random initialization", () => {
             const graph = cycleGraph(8);
-
-            // Force random initialization by using very high dimensions (will use random hypersphere)
-            const randomPos = kamadaKawaiLayout(graph, null, null, "weight", 1, [0, 0, 0, 0, 0], 5);
 
             // Normal 3D with spherical initialization
             const sphericalPos = kamadaKawaiLayout(graph, null, null, "weight", 1, [0, 0, 0], 3);

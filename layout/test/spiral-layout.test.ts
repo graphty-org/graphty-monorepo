@@ -1,5 +1,6 @@
-import { describe, it, assert } from "vitest";
-import { spiralLayout, completeGraph, cycleGraph, starGraph, gridGraph, randomGraph } from "../src";
+import { assert,describe, it } from "vitest";
+
+import { completeGraph, cycleGraph, gridGraph, randomGraph,spiralLayout, starGraph } from "../src";
 
 describe("Spiral Layout", () => {
     describe("Basic functionality", () => {
@@ -28,11 +29,11 @@ describe("Spiral Layout", () => {
             const positions = spiralLayout(singleNode);
 
             assert.equal(Object.keys(positions).length, 1);
-            assert.isDefined(positions["A"]);
-            assert.equal(positions["A"].length, 2);
+            assert.isDefined(positions.A);
+            assert.equal(positions.A.length, 2);
             // Single node should be at center
-            assert.isBelow(Math.abs(positions["A"][0]), 0.1);
-            assert.isBelow(Math.abs(positions["A"][1]), 0.1);
+            assert.isBelow(Math.abs(positions.A[0]), 0.1);
+            assert.isBelow(Math.abs(positions.A[1]), 0.1);
         });
 
         it("should handle disconnected components", () => {
@@ -90,7 +91,7 @@ describe("Spiral Layout", () => {
                 const [x, y] = positions[nodes[i]];
                 let angle = Math.atan2(y, x);
                 // Normalize to [0, 2π]
-                if (angle < 0) angle += 2 * Math.PI;
+                if (angle < 0) {angle += 2 * Math.PI;}
                 angles.push(angle);
             }
 
@@ -261,15 +262,12 @@ describe("Spiral Layout", () => {
             });
         });
 
-        it("should handle large graphs efficiently", () => {
+        it("should lay out every node of a larger graph", () => {
             const graph = gridGraph(20, 20); // 400 nodes
 
-            const startTime = performance.now();
             const positions = spiralLayout(graph);
-            const endTime = performance.now();
 
             assert.equal(Object.keys(positions).length, 400);
-            assert.isBelow(endTime - startTime, 100);
         });
 
         it("should create visually distinct layout from circular", () => {

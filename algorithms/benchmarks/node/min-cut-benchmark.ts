@@ -2,14 +2,15 @@
 
 // Min-Cut Algorithms Benchmark
 import Benchmark from "benchmark";
-import { minSTCut, stoerWagner, kargerMinCut } from "../../src/flow/min-cut.js";
-import { saveBenchmarkResult, initBenchmarkSession } from "../utils/benchmark-result.js";
+
+import { kargerMinCut,minSTCut, stoerWagner } from "../../src/flow/min-cut.js";
 import { BenchmarkResult } from "../benchmark-result.js";
+import { initBenchmarkSession,saveBenchmarkResult } from "../utils/benchmark-result.js";
 
 // Make functions available globally for Benchmark.js
-(globalThis as any).minSTCut = minSTCut;
-(globalThis as any).stoerWagner = stoerWagner;
-(globalThis as any).kargerMinCut = kargerMinCut;
+Object.assign(globalThis, { minSTCut });
+Object.assign(globalThis, { stoerWagner });
+Object.assign(globalThis, { kargerMinCut });
 
 // Store test data globally for Benchmark.js
 const globalTestData = new Map();
@@ -120,7 +121,7 @@ function runBenchmarks(config: ReturnType<typeof createTestGraphs>) {
 
     config.sizes.forEach((size) => {
         const testData = globalTestData.get(`mincut-${size}`);
-        if (!testData) return;
+        if (!testData) {return;}
 
         // Test S-T Min Cut (using Ford-Fulkerson)
         const testName1 = `Min S-T Cut - ${testData.graphType} (${size} nodes, ${testData.edges} edges)`;
@@ -135,7 +136,7 @@ function runBenchmarks(config: ReturnType<typeof createTestGraphs>) {
             },
             {
                 onComplete: (event: Benchmark.Event) => {
-                    const benchmark = event.target as Benchmark;
+                    const benchmark = event.target;
                     const hz = benchmark.hz || 0;
                     const stats = benchmark.stats || {
                         mean: 0,
@@ -171,8 +172,6 @@ function runBenchmarks(config: ReturnType<typeof createTestGraphs>) {
                             marginOfError: stats.rme,
                             standardDeviation: stats.deviation,
                             variance: stats.variance,
-                            platform: config.platform,
-                            testType: config.testType,
                             teps: hz * testData.edges, // Traversed Edges Per Second
                         },
                     };
@@ -193,7 +192,7 @@ function runBenchmarks(config: ReturnType<typeof createTestGraphs>) {
             },
             {
                 onComplete: (event: Benchmark.Event) => {
-                    const benchmark = event.target as Benchmark;
+                    const benchmark = event.target;
                     const hz = benchmark.hz || 0;
                     const stats = benchmark.stats || {
                         mean: 0,
@@ -227,8 +226,6 @@ function runBenchmarks(config: ReturnType<typeof createTestGraphs>) {
                             marginOfError: stats.rme,
                             standardDeviation: stats.deviation,
                             variance: stats.variance,
-                            platform: config.platform,
-                            testType: config.testType,
                             teps: hz * testData.edges, // Traversed Edges Per Second
                         },
                     };
@@ -251,7 +248,7 @@ function runBenchmarks(config: ReturnType<typeof createTestGraphs>) {
                 },
                 {
                     onComplete: (event: Benchmark.Event) => {
-                        const benchmark = event.target as Benchmark;
+                        const benchmark = event.target;
                         const hz = benchmark.hz || 0;
                         const stats = benchmark.stats || {
                             mean: 0,
@@ -285,8 +282,6 @@ function runBenchmarks(config: ReturnType<typeof createTestGraphs>) {
                                 marginOfError: stats.rme,
                                 standardDeviation: stats.deviation,
                                 variance: stats.variance,
-                                platform: config.platform,
-                                testType: config.testType,
                                 teps: hz * testData.edges, // Traversed Edges Per Second
                             },
                         };

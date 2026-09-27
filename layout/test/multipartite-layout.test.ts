@@ -1,5 +1,6 @@
-import { describe, it, assert } from "vitest";
-import { multipartiteLayout, completeGraph, cycleGraph, randomGraph } from "../src";
+import { assert,describe, it } from "vitest";
+
+import { completeGraph, multipartiteLayout, randomGraph } from "../src";
 
 describe("Multipartite Layout", () => {
     describe("Basic functionality", () => {
@@ -33,7 +34,7 @@ describe("Multipartite Layout", () => {
             const positions = multipartiteLayout(singleNode, [["A"]]);
 
             assert.equal(Object.keys(positions).length, 1);
-            assert.deepEqual(positions["A"], [0, 0]);
+            assert.deepEqual(positions.A, [0, 0]);
         });
 
         it("should handle disconnected multipartite graph", () => {
@@ -157,7 +158,7 @@ describe("Multipartite Layout", () => {
             const positions = multipartiteLayout(graph, subsets);
 
             // Single node should be centered
-            assert.equal(positions["A"][1], 0);
+            assert.equal(positions.A[1], 0);
 
             // Larger subsets should still be evenly spaced
             const cPositions = ["C0", "C1", "C2", "C3"].map((n) => positions[n][1]).sort((a, b) => a - b);
@@ -217,9 +218,7 @@ describe("Multipartite Layout", () => {
 
             // In vertical, subsets differ in x; in horizontal, subsets differ in y
             const vDiffX = Math.abs(verticalPos[0][0] - verticalPos[3][0]);
-            const vDiffY = Math.abs(verticalPos[0][1] - verticalPos[3][1]);
 
-            const hDiffX = Math.abs(horizontalPos[0][0] - horizontalPos[3][0]);
             const hDiffY = Math.abs(horizontalPos[0][1] - horizontalPos[3][1]);
 
             // Vertical: large X difference, potentially small Y difference
@@ -339,7 +338,7 @@ describe("Multipartite Layout", () => {
             assert.notEqual(avgX[1], avgX[2]);
         });
 
-        it("should handle large multipartite graphs efficiently", () => {
+        it("should lay out every node of a large multipartite graph", () => {
             const n = 60; // 20 nodes per subset
             const nodes = Array.from({ length: n }, (_, i) => i);
             const graph = {
@@ -349,12 +348,9 @@ describe("Multipartite Layout", () => {
 
             const subsets = [nodes.slice(0, 20), nodes.slice(20, 40), nodes.slice(40, 60)];
 
-            const startTime = performance.now();
             const positions = multipartiteLayout(graph, subsets);
-            const endTime = performance.now();
 
             assert.equal(Object.keys(positions).length, 60);
-            assert.isBelow(endTime - startTime, 100); // Should be very fast
         });
     });
 

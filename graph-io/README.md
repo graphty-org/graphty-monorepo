@@ -7,7 +7,8 @@
 
 Importers and exporters for the [@graphty/graph-format](https://www.npmjs.com/package/@graphty/graph-format)
 snapshot: GEXF, GraphML, GML, DOT (Graphviz), Pajek NET, CSV / TSV, JSON (NetworkX node-link, d3,
-JSON Graph Format, Cytoscape, graphology, vis.js) and Neo4j (`neo4j-admin import` CSV).
+JSON Graph Format, Cytoscape, graphology, vis.js; NetworkX adjacency_data and tree_data are read
+only) and Neo4j (`neo4j-admin import` CSV).
 
 Every importer streams its input into a `GraphSink` (a `GraphBuilder` or your own sink) one scalar at
 a time and reports what it could not represent instead of dropping it; every exporter says what it
@@ -195,7 +196,10 @@ losses and format rules, in addition to the table:
   a count the sink cannot reserve is fatal); `*Arcs` / `*Edges` sections give per-section
   direction; time intervals map to the spells role; vertex / line parameters are plain columns read
   through the 5.1 text grammar (`2.0` stays f64, lexical forms of a string column are kept); a
-  `.paj` project file's `*Partition` / `*Vector` sections are skipped with an issue. Nodes are
+  `.paj` project file's `*Partition` / `*Vector` objects become the node columns `partition` (i32)
+  and `vector` (f64) (a second one `partition#2`, ...; their Pajek names in
+  `meta.extra.pajek.objects`), and other project sections (`*Events`, ...) are skipped with a
+  warning; a two-mode `*Vertices N N1` reads its `*Matrix` as N1 rows of N - N1 columns. Nodes are
   always written 1..N (`W_ID_RENUMBERED`: the id text is kept as the label of a node without a
   label value, a node with one loses its id; `W_PAJEK_LABEL_GAINED` when a line's parameters force
   a label); `sanitizeIds: "mangle"` also writes every renumbered vertex's original id as a
@@ -220,10 +224,19 @@ losses and format rules, in addition to the table:
   dialect has no slot for. Edge ids exist in JGF, Cytoscape, graphology and vis only; positions in
   Cytoscape only. A repeated node id is merged with `W_DUPLICATE_NODE`, a repeated edge id skipped
   with `E_DUPLICATE_EDGE_ID`; an out-of-range d3 index link is `E_BAD_INDEX`. Non-finite numbers
-  are written as `null` and reported.
+  are written as `null` and reported. NetworkX `adjacency_data` (`nodes` plus an `adjacency` list
+  per node; an undirected file lists each edge from both ends and it is read once) and `tree_data`
+  (nested `id` / `children`, read as a directed tree) are read but not written: a re-export writes
+  node-link. The bare `NaN`, `Infinity` and `-Infinity` that Python's json module writes are read as
+  numbers (`W_JSON_NONSTANDARD_NUMBER`), and an integer literal beyond 2^53 keeps its exact digits as
+  a string (`W_JSON_BIG_INTEGER`), so two large ids never round to one; the exporter writes an
+  integral number that large in exponent form (`1e+20`) so it re-imports as a number.
 - **Neo4j**: `neo4j-admin import` headers (`:ID`, `:LABEL`, `:START_ID`, `:END_ID`, `:TYPE`, typed
   properties, id spaces, arrays); one file may hold several sections; a `weight` property becomes
-  THE weight; a quoted empty `:ID` is the id `""`. Everything is directed (an undirected snapshot,
+  THE weight; a quoted empty `:ID` is the id `""`. A node of an id space (`:ID(Product)`) is stored
+  under the string id `Product:1`, with its id text in the `originalId` column and its space in
+  `idSpace`, so the same id in two spaces stays two nodes; `:START_ID(Space)` / `:END_ID(Space)`
+  resolve inside their space, and the exporter writes the id text back. Everything is directed (an undirected snapshot,
   or the folded pairs of a mixed one under `onMixedDirection: "directed"` / `"undirected"`, is
   written with a `W_NEO4J_UNDIRECTED_AS_DIRECTED` note); `.text` companions keep the source text of
   temporal values whose canonical form differs; a dict column reads back as string and a position

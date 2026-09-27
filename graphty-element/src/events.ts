@@ -8,10 +8,26 @@ import type { ImportReport } from "./data/report";
 import type { Edge } from "./Edge";
 import type { Graph } from "./Graph";
 import type { Node } from "./Node";
+import type { StyleChange } from "./session/styles/StylesApi";
 import type { HistoryCause } from "./session/types";
 
 export type EventType = GraphEventType | NodeEventType | EdgeEventType | AiEventType;
 export type EventCallbackType = (evt: GraphEvent | NodeEvent | EdgeEvent | AiEvent) => void;
+
+type AnyEvent = GraphEvent | NodeEvent | EdgeEvent | AiEvent;
+
+/**
+ * The event a listener for `K` receives: every member of the event unions whose `type` admits `K`.
+ * Not `Extract<AnyEvent, { type: K }>`, which drops a member whose `type` is itself a union --
+ * the generic events -- and would hand their listeners `never`.
+ */
+export type EventOfType<K extends EventType> = AnyEvent extends infer E
+    ? E extends AnyEvent
+        ? K extends E["type"]
+            ? E
+            : never
+        : never
+    : never;
 
 export type GraphEventType = GraphEvent["type"];
 export type NodeEventType = NodeEvent["type"];
@@ -26,6 +42,7 @@ export type GraphEvent =
     | GraphDataAddedEvent
     | GraphSnapshotReplacedEvent
     | GraphSnapshotDroppedEvent
+    | GraphDataClearedEvent
     | GraphLayoutInitializedEvent
     | CameraStateChangedEvent
     | GraphGenericEvent
@@ -34,6 +51,7 @@ export type GraphEvent =
     | DataLoadingErrorSummaryEvent
     | DataLoadingCompleteEvent
     | ElementsRemovedEvent
+    | StyleChangedEvent
     | SelectionChangedEvent;
 
 /**
@@ -87,6 +105,12 @@ export interface GraphDataLoadedEvent {
         dataSourceType: string;
         /** What the load did: the endpoint spelling it resolved, and the counts it produced. */
         report: ImportReport;
+        /**
+         * Which load this is about: the id `addDataFromSource`, `loadFromFile` and `loadFromUrl`
+         * resolve to, and that every event about one load carries. Absent on a report about records
+         * handed to a setter, which is not a load.
+         */
+        loadId?: number;
     };
     /** What loaded it; absent for a load that does not yet come through the session's history. */
     cause?: HistoryCause;
@@ -141,6 +165,15 @@ export interface GraphSnapshotDroppedEvent {
     type: "snapshot-dropped";
 }
 
+/**
+ * Emitted once every time the graph's data is cleared -- by `clearData()`, and by a load that
+ * replaces the dataset -- after every node and edge is gone. It carries nothing, so it survives
+ * structured cloning; a consumer that wants the new counts reads them.
+ */
+export interface GraphDataClearedEvent {
+    type: "data-cleared";
+}
+
 export interface GraphLayoutInitializedEvent {
     type: "layout-initialized";
     layoutType: string;
@@ -177,7 +210,6 @@ export interface GraphGenericEvent {
         | "animation-cancelled"
         | "screenshot-enhancing"
         | "screenshot-ready"
-        | "style-changed"
         // Emitted when auto-framing has finished moving the camera around the whole graph. It
         // was emitted and not declared, so `addListener` could not name it and no consumer could
         // subscribe to an event the element was already sending.
@@ -188,6 +220,24 @@ export interface GraphGenericEvent {
         // for -- so anything that photographs, records or measures the view wants this one.
         | "graph-frame-stable";
     [key: string]: unknown;
+}
+
+/**
+ * Emitted after the style stack changed and the graph was repainted for it.
+ *
+ * The detail is counts and words, never layers, so it survives structured cloning; a consumer
+ * that wants the stack itself reads `session.styles.list()`.
+ */
+export interface StyleChangedEvent {
+    type: "style-changed";
+    /** Which style verb produced the change. */
+    reason: StyleChange["reason"];
+    /** How many layers the change touched. */
+    layers: number;
+    /** How much was repainted, or null when no renderer is bound. */
+    painted: StyleChange["painted"];
+    /** The paths the changed layers read that nothing in the session answers yet. */
+    unresolvedPaths: string[];
 }
 
 // Data loading events
@@ -219,6 +269,12 @@ export interface DataLoadingProgressEvent {
      */
     edgeRecordsLoaded: number;
     chunksProcessed: number;
+    /**
+     * Which load this is about: the id `addDataFromSource`, `loadFromFile` and `loadFromUrl`
+     * resolve to, and that every event about one load carries. Absent on a report about records
+     * handed to a setter, which is not a load.
+     */
+    loadId?: number;
 }
 
 export interface DataLoadingErrorEvent {
@@ -230,6 +286,12 @@ export interface DataLoadingErrorEvent {
     nodeId?: unknown;
     edgeId?: string;
     canContinue: boolean;
+    /**
+     * Which load this is about: the id `addDataFromSource`, `loadFromFile` and `loadFromUrl`
+     * resolve to, and that every event about one load carries. Absent on a report about records
+     * handed to a setter, which is not a load.
+     */
+    loadId?: number;
 }
 
 export interface DataLoadingErrorSummaryEvent {
@@ -240,6 +302,12 @@ export interface DataLoadingErrorSummaryEvent {
     message: string;
     suggestion?: string;
     detailedReport: string;
+    /**
+     * Which load this is about: the id `addDataFromSource`, `loadFromFile` and `loadFromUrl`
+     * resolve to, and that every event about one load carries. Absent on a report about records
+     * handed to a setter, which is not a load.
+     */
+    loadId?: number;
 }
 
 export interface DataLoadingCompleteEvent {
@@ -270,6 +338,12 @@ export interface DataLoadingCompleteEvent {
     success: boolean;
     /** What the load did: the endpoint spelling, the repeat policy, and every count. */
     report: ImportReport;
+    /**
+     * Which load this is about: the id `addDataFromSource`, `loadFromFile` and `loadFromUrl`
+     * resolve to, and that every event about one load carries. Absent on a report about records
+     * handed to a setter, which is not a load.
+     */
+    loadId?: number;
 }
 
 /**

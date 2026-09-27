@@ -265,7 +265,8 @@ export interface StylesApi {
      * @param patch - What to change about it.
      * @param options - A signal to cancel with, and a progress handler.
      * @returns A run that resolves with the layer as it now stands, and rejects with
-     *     `E_PROTECTED` for an element-owned layer.
+     *     `E_PROTECTED` for an element-owned layer and `E_UNKNOWN_LAYER` for an id the stack
+     *     does not hold.
      */
     update(id: LayerId, patch: Partial<LayerSpec>, options?: RunOptions): Run<Layer>;
     /**
@@ -273,7 +274,7 @@ export interface StylesApi {
      * @param id - The layer to remove.
      * @param options - A signal to cancel with, and a progress handler.
      * @returns A run that resolves when the layer is gone, and rejects with `E_PROTECTED` for an
-     *     element-owned layer.
+     *     element-owned layer and `E_UNKNOWN_LAYER` for an id the stack does not hold.
      */
     remove(id: LayerId, options?: RunOptions): Run<void>;
     /**
@@ -286,7 +287,7 @@ export interface StylesApi {
      * @param before - The layer to sit below, or null for the top of the stack.
      * @param options - A signal to cancel with, and a progress handler.
      * @returns A run that resolves when the layer has moved, and rejects with `E_PROTECTED` for
-     *     an element-owned layer.
+     *     an element-owned layer and `E_UNKNOWN_LAYER` when either id is not in the stack.
      */
     move(id: LayerId, before: LayerId | null, options?: RunOptions): Run<void>;
     /**
@@ -399,8 +400,8 @@ export interface StylesApi {
      *     value out of this picture rather than an invented one.
      * @param options - A signal to cancel with, and a progress handler.
      * @returns A run that resolves with the layer as it now stands, and rejects with `E_PROTECTED`
-     *     for an element-owned layer and `E_BAD_COMMAND` when that layer works the channel out
-     *     from nothing.
+     *     for an element-owned layer, `E_UNKNOWN_LAYER` for an id the stack does not hold, and
+     *     `E_BAD_COMMAND` when that layer works the channel out from nothing.
      */
     resolveToStatic(id: LayerId, channel: Channel, at?: ExplainTarget, options?: RunOptions): Run<Layer>;
     /**
@@ -598,6 +599,12 @@ export interface StylesSources {
      * @param change - What changed, and how much was painted.
      */
     readonly onChange?: (change: StyleChange) => void;
+    /**
+     * Aborted when the session holding the stack is disposed. Every edit still pending is
+     * cancelled with it, so a caller awaiting one gets an `AbortError` rather than waiting for
+     * ever, and an edit issued afterwards is cancelled before it starts.
+     */
+    readonly disposed?: AbortSignal;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -756,7 +763,7 @@ function emptyScope(): ResolvedScope {
  */
 function unknownLayer(id: LayerId, known: readonly LayerId[]): GraphtyError {
     return new GraphtyError({
-        code: "E_BAD_COMMAND",
+        code: "E_UNKNOWN_LAYER",
         message: `There is no style layer with the id "${id}".`,
         source: "style",
         target: { kind: "layer", id },
@@ -1191,7 +1198,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * The layer at an id, or the refusal for naming one that is not there.
      * @param id - The id.
      * @returns The compiled layer.
-     * @throws A `GraphtyError` with code `E_BAD_COMMAND` when the stack holds none with that id.
+     * @throws A `GraphtyError` with code `E_UNKNOWN_LAYER` when the stack holds none with that id.
      */
     const require = (id: LayerId): CompiledLayer => {
         const found = byId().get(id);
@@ -1257,6 +1264,12 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     ): Run<T> => {
         edits++;
         const params: Readonly<Record<string, unknown>> = Object.freeze({ edit: edits, verb });
+        // Only a signal that is already aborted is handed over: it refuses the edit before anything
+        // is written. One aborted later has nothing left to stop. Disposal cancels what is pending.
+        const stops = [options.signal?.aborted === true ? options.signal : undefined, sources.disposed].filter(
+            (entry) => entry !== undefined,
+        );
+        const signal = stops.length > 1 ? AbortSignal.any(stops) : stops[0];
         const definition: RunDefinition<T> = {
             algorithm: `styles.${verb}`,
             caveats: EDIT_CAVEATS,
@@ -1292,9 +1305,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
                 return { result: outcome.result };
             },
-            // Only a signal that is already aborted is handed over: it refuses the edit before
-            // anything is written. One aborted later has nothing left to stop.
-            ...(options.signal?.aborted === true ? { signal: options.signal } : {}),
+            ...(signal === undefined ? {} : { signal }),
             ...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),
         };
 
@@ -1308,8 +1319,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * Where a new layer goes, read from the neighbour it was told to sit next to.
      * @param at - The position, or undefined for the top of the stack.
      * @returns The index it would be inserted at, bottom first.
-     * @throws A `GraphtyError` with code `E_BAD_COMMAND` when both neighbours were named, or when
-     *     the named one is not in the stack.
+     * @throws A `GraphtyError` with code `E_BAD_COMMAND` when both neighbours were named, and
+     *     `E_UNKNOWN_LAYER` when the named one is not in the stack.
      */
     const insertionIndex = (at: LayerPosition | undefined): number => {
         const { length } = current();

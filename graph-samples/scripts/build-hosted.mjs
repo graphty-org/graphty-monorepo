@@ -268,7 +268,7 @@ const DATASETS = [
 /** JSON with every non-ASCII character escaped, so the TS source stays plain ASCII. */
 function asciiJson(value, indent) {
     return JSON.stringify(value, null, indent).replace(
-        /[^\x00-\x7f]/g,
+        /[\u0080-\uffff]/g,
         (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`,
     );
 }

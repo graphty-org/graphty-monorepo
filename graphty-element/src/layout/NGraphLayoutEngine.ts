@@ -102,6 +102,8 @@ export class NGraphEngine extends LayoutEngine {
     _settled = true;
     _stepCount = 0;
     _lastMoves: number[] = [];
+    /** Places each new node when `seed` is set; null leaves placement to ngraph. */
+    private seededPlacement: { rng: ReturnType<typeof random>; dim: number } | null = null;
 
     /**
      * Create an NGraph layout engine
@@ -144,9 +146,11 @@ export class NGraphEngine extends LayoutEngine {
             ngraphConfig.timeStep = typedConfig.timeStep;
         }
 
-        // Add random number generator with seed if provided
-        if (typedConfig.seed !== undefined && typeof typedConfig.seed === "number") {
-            ngraphConfig.random = random(typedConfig.seed);
+        // ngraph.forcelayout never reads a generator from its settings: it seeds its own with a
+        // hard-coded 42, so every seed used to give the same picture. A seeded layout therefore
+        // places each node itself, from this generator, before the simulation moves it.
+        if (typeof typedConfig.seed === "number") {
+            this.seededPlacement = { rng: random(typedConfig.seed), dim: ngraphConfig.dimensions as number };
         }
 
         this.ngraphLayout = ngraphCreateLayout(this.ngraph, ngraphConfig);
@@ -227,6 +231,19 @@ export class NGraphEngine extends LayoutEngine {
     addNode(n: Node): void {
         const ngraphNode: NGraphNode = this.ngraph.addNode(n.id, { parentNode: n });
         this.nodeMapping.set(n, ngraphNode);
+        if (this.seededPlacement) {
+            // THE RULE NGRAPH ITSELF USES for a node with no placed neighbour -- within half a
+            // spring length of the origin -- only drawn from the seed. A wider start is a graph
+            // that flies in from far away: a box of ten spring lengths took a 20-node graph four
+            // times as long to settle, and was drawn a few pixels wide while it did.
+            const { rng, dim } = this.seededPlacement;
+            const { springLength } = this.ngraphLayout.simulator.settings;
+            const coord = (): number => (rng.nextDouble() - 0.5) * springLength;
+            const x = coord();
+            const y = coord();
+            this.ngraphLayout.setNodePosition(n.id, x, y, dim === 3 ? coord() : 0);
+        }
+
         this._settled = false;
         this._stepCount = 0;
         this._lastMoves = [];

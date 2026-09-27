@@ -13,7 +13,7 @@ import { type CommandContext, type CommandResult, type GraphCommand, writerOf } 
 /**
  * Common layout types that can be used.
  * Available layouts: circular, ngraph, random, d3, spiral, shell, spring, planar,
- * kamada-kawai, forceatlas2, arf, spectral, bfs, bipartite, multipartite, fixed
+ * kamada-kawai, forceatlas2, arf, spectral, bfs, bipartite, multipartite, fixed, grid, radial
  */
 const LayoutTypeSchema = z
     .string()

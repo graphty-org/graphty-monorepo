@@ -46,10 +46,10 @@ See the [styling guide](../guide/styling).
 
 ### Acceleration Properties
 
-| Property               | Attribute                | Type                            | Description                                                                    |
-| ---------------------- | ------------------------ | ------------------------------- | ------------------------------------------------------------------------------ |
-| `acceleration`         | `acceleration`           | `'auto' \| 'off' \| 'required'` | Whether to use a hardware accelerator; `required` refuses the CPU path          |
-| `accelerationMinNodes` | `acceleration-min-nodes` | `number`                        | Node count at or above which accelerated work uses the accelerator (default 0) |
+| Property               | Attribute                | Type                            | Description                                                                                                                           |
+| ---------------------- | ------------------------ | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `acceleration`         | `acceleration`           | `'auto' \| 'off' \| 'required'` | Whether to use a hardware accelerator; `required` refuses the CPU path                                                                |
+| `accelerationMinNodes` | `acceleration-min-nodes` | `number`                        | Node count at or above which accelerated work uses the accelerator; unset, layouts use it from 0 and traversals from a measured floor |
 
 Where the work actually ran is `element.session.capabilities.acceleration`, and every transition
 of it is mirrored as a `graphty-capabilities-change` DOM event. See the

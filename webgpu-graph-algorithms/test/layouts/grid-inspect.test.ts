@@ -4,15 +4,17 @@
  * the oracle's (seeded with the GPU's own frame, PD-10), the pyramid's mass lane bitwise (exact integer sums), and
  * every f32 stage (the pyramid's xyz lanes, the force after G6, the force after G7, the K5 positions, the K1 grid
  * block of iteration 2) within the tolerance traced to benchmarks/results/noise-floor.json; the pinned case; and the
- * writer case of the five random20k stage fixtures and the isolated K1 widening fixture (GRAPHTY_NOISE_FLOOR_WRITE=1
+ * writer case of the five random20k stage fixtures, the isolated K1 widening fixture and the clumpy100 K5 widening fixture (GRAPHTY_NOISE_FLOOR_WRITE=1
  * only). `hubcell` and `onecell1025`
  * run at `nearMax: 8` so the sampling draws of G7 are exercised (the anchor node of gridFixture puts the box in one
  * or two finest cells). The first block pins the helper's tables.
  */
 
+import { LAYOUT_TUNING_DEFAULTS } from "../../src/constants.js";
 import { type GpuContext } from "../../src/context.js";
+import { gridSpecFor } from "../../src/primitives/grid.js";
 import { type GpuLayoutTuning } from "../../src/types/layout.js";
-import { ORACLE_F64_CLASS, pinIndex, pinMask } from "../helpers/fa2-parity.js";
+import { ORACLE_F64_CLASS, pinIndex, pinMask, stageError } from "../helpers/fa2-parity.js";
 import {
     captureGridStages,
     GRID_BASE_OPTIONS,
@@ -25,13 +27,14 @@ import {
     type GridStageCapture,
     type GridStageKey,
     gridStageReport,
+    gridTolerance,
     P4_TOLERANCE_CAPS,
     sampleNodes,
     samplePyramid,
 } from "../helpers/grid-parity.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
-import { adapterClass, writeNoiseFixture } from "../helpers/noise-floor.js";
-import { assertCheckPasses } from "../helpers/sabotage.js";
+import { adapterClass, LANE_RESIDUES, sampleStrided, writeNoiseFixture } from "../helpers/noise-floor.js";
+import { assertCheckPasses, ratioOf } from "../helpers/sabotage.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
 const CASE_TIMEOUT = 300_000;
@@ -114,27 +117,83 @@ describe("grid-parity helper (pure)", () => {
     });
 
     it("samplePyramid keeps every level: one value triple per sampled cell, the coarse levels whole", () => {
-        // a G = 8, 2D spec: level 0 has 65 cells (the pseudo-cell), level 1 has 16
+        // a G = 8, 2D spec: level 0 has 68 cells (the four orthant pseudo-cells), level 1 has 16
         const spec = {
             dim: 2 as const,
             g: 8,
             levels: 2,
             cells: 64,
-            histWords: 66,
-            levelOffsets: [0, 65],
-            pyramidCells: 81,
+            outsideCells: 4,
+            histWords: 69,
+            levelOffsets: [0, 68],
+            pyramidCells: 84,
             deterministic: true,
         };
-        const xyz = Float64Array.from({ length: 3 * 81 }, (_, i) => i);
+        const xyz = Float64Array.from({ length: 3 * 84 }, (_, i) => i);
         const sampled = samplePyramid(xyz, spec);
-        expect(sampled.length).toBe(3 * 81);
-        expect(sampled[3 * 65]).toBe(3 * 65);
+        expect(sampled.length).toBe(3 * 84);
+        expect(sampled[3 * 68]).toBe(3 * 68);
     });
 
-    it("sampleNodes takes every 4th node's three lanes", () => {
-        const values = Float64Array.from({ length: 3 * 9 }, (_, i) => i);
-        const sampled = sampleNodes(values, 9);
-        expect(Array.from(sampled)).toEqual([0, 1, 2, 12, 13, 14, 24, 25, 26]);
+    it("sampleNodes takes every 5th node's three values", () => {
+        const values = Float64Array.from({ length: 3 * 20_000 }, (_, i) => i);
+        const sampled = sampleNodes(values, 20_000);
+        expect(sampled.length).toBe(3 * 4000);
+        expect(Array.from(sampled.subarray(0, 6))).toEqual([0, 1, 2, 15, 16, 17]);
+    });
+
+    it("every strided noise sample reaches every lane residue modulo 32 and 64 (issue #267)", () => {
+        const residues = (indices: readonly number[], m: number): number => new Set(indices.map((i) => i % m)).size;
+        // the node samples on random20k, the pyramid samples of every level of its 2D grid, and the word strides of
+        // the primitives' writers (17 and 65 over the random20k build, 65 over a level, 1025 over 2^20 words)
+        const n = 20_000;
+        const nodes = Array.from(sampleNodes(Float64Array.from({ length: 3 * n }, (_, i) => Math.floor(i / 3)), n));
+        const spec = gridSpecFor(n, 2, {
+            gridMax2D: LAYOUT_TUNING_DEFAULTS.gridMax2D,
+            gridMax3D: LAYOUT_TUNING_DEFAULTS.gridMax3D,
+            deterministic: true,
+        });
+        const cells = Array.from(
+            samplePyramid(Float64Array.from({ length: 3 * spec.pyramidCells }, (_, i) => Math.floor(i / 3)), spec),
+        );
+        const samples: Readonly<Record<string, readonly number[]>> = {
+            nodes: nodes.filter((_, k) => k % 3 === 0),
+            pyramid: cells.filter((_, k) => k % 3 === 0),
+            ...Object.fromEntries(
+                [
+                    [17, n],
+                    [65, 16_384],
+                    [1025, 2 ** 20],
+                ].map(([stride, count]) => [
+                    `stride ${stride} over ${count}`,
+                    sampleStrided(Uint32Array.from({ length: count }, (_, i) => i), stride),
+                ]),
+            ),
+        };
+        for (const [name, indices] of Object.entries(samples)) {
+            for (const m of [32, LANE_RESIDUES]) {
+                expect(residues(indices, m), `${name}: residues modulo ${m}`).toBe(m);
+            }
+        }
+        expect(() => sampleStrided(new Uint32Array(1 << 12), 4)).toThrow(/misses lane residues/);
+        expect(() => sampleStrided(new Uint32Array(1 << 11), 65)).toThrow(/misses lane residues/);
+    });
+
+    it("sabotage: a defect on the odd lanes alone fails the per-node fixture comparison (issue #267)", () => {
+        const n = 20_000;
+        const clean = Float64Array.from({ length: 3 * n }, (_, i) => 1 + (i % 7));
+        const broken = Float64Array.from(clean);
+        for (let i = 1; i < n; i += 2) {
+            broken[3 * i] *= 1.01;
+        }
+        const tolerance = gridTolerance("grid-inspect.nearField.cross").value;
+        const report = {
+            worst: ratioOf(stageError(true, sampleNodes(broken, n), sampleNodes(clean, n)).rel, tolerance),
+            worstLabel: "odd lanes scaled by 1.01",
+            samples: n,
+        };
+        expect(report.worst).toBeGreaterThanOrEqual(10);
+        expect(() => assertCheckPasses(report)).toThrow();
     });
 });
 
@@ -216,7 +275,7 @@ describe("grid tier inspect(): every stage against the oracle's (spec 11.9 item 
     );
 
     it(
-        "writes this adapter's grid stage outputs of the UNSCALED random20k and the f64 reference as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
+        "writes this adapter's grid stage outputs of the UNSCALED random20k, isolated and clumpy100 and the f64 reference as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
         async (t) => {
             requireGpu(t);
             const cls = adapterClass(ctx.caps);
@@ -265,6 +324,20 @@ describe("grid tier inspect(): every stage against the oracle's (spec 11.9 item 
                 assertCapture(capture, "noise/isolated/2d");
             } finally {
                 ctx.release(isolated.snapshot);
+            }
+            // the widening member of the K5 row: the positions on the UNSCALED clumpy100 fixture (the module comment
+            // of grid-parity.ts)
+            const clumpy = gridFixture("clumpy100", 1, GRID_BASE_OPTIONS);
+            try {
+                const n = clumpy.snapshot.nodeCount;
+                const capture = await captureGridStages(ctx, clumpy.snapshot, clumpy.start, GRID_BASE_OPTIONS, null);
+                const { kernel, fixture } = GRID_NOISE_FIXTURES.positionsClumpy;
+                const { positions } = capture.stages;
+                writeNoiseFixture(kernel, fixture, cls, sampleNodes(positions.values, n), "f32");
+                writeNoiseFixture(kernel, fixture, ORACLE_F64_CLASS, sampleNodes(positions.expected, n), "f32");
+                assertCapture(capture, "noise/clumpy100/2d");
+            } finally {
+                ctx.release(clumpy.snapshot);
             }
         },
         WRITER_TIMEOUT,

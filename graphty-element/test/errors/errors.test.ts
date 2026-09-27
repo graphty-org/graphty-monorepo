@@ -37,6 +37,7 @@ const CODES_FROM_THE_DESIGN = [
     "E_UNKNOWN_CAMERA",
     "E_UNKNOWN_SINK",
     "E_UNKNOWN_RUN",
+    "E_UNKNOWN_LAYER",
     "E_UNSTABLE_RUN_ID",
     "E_DUPLICATE_ID",
     "E_DUPLICATE_EDGE",
@@ -46,6 +47,8 @@ const CODES_FROM_THE_DESIGN = [
     "E_PARSE_FAILED",
     "E_EDGE_ENDPOINTS_UNRESOLVED",
     "E_ID_MISSING",
+    "E_EMPTY_LOAD",
+    "E_SUPERSEDED",
     "E_TOO_LARGE",
     "E_OUT_OF_MEMORY",
     "E_CAP_EXCEEDED",
@@ -92,6 +95,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_UNKNOWN_CAMERA":
         case "E_UNKNOWN_SINK":
         case "E_UNKNOWN_RUN":
+        case "E_UNKNOWN_LAYER":
             return "unknown-name";
         case "E_UNSTABLE_RUN_ID":
         case "E_DUPLICATE_ID":
@@ -107,6 +111,8 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_PARSE_FAILED":
         case "E_EDGE_ENDPOINTS_UNRESOLVED":
         case "E_ID_MISSING":
+        case "E_EMPTY_LOAD":
+        case "E_SUPERSEDED":
             return "import";
         case "E_TOO_LARGE":
         case "E_OUT_OF_MEMORY":

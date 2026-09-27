@@ -60,7 +60,12 @@ element.acceleration = "required";
 `auto` turns down a software rasteriser (SwiftShader, llvmpipe), because it is slower than the
 element's own CPU path and using it would make your graph worse while reporting success. Under
 `required` a software device is accepted: you have said there is to be no CPU path, and a software
-device is a device.
+device is a device. Switch back from `required` to `auto` and the element lets go of a software
+device again, reporting `unavailable` with `E_SOFTWARE_ONLY`; hardware stays attached.
+
+The attribute, the property and `element.session.acceleration` are one setting. Whichever you
+write, the attribute reflects it and `graphty-capabilities-change` fires once, carrying the new
+policy as `capabilities.acceleration.policy`.
 
 The element never remembers the policy for you. Storing a reader's choice and re-applying it on
 their next visit is your application's storage, not the element's.
@@ -78,8 +83,10 @@ masks the device string for an ordinary origin -- so absent is the ordinary answ
 Write them as `device ?? backend` and let the fallback do its job: the element omits a fact it was
 not given rather than publishing an empty string in its place.
 
-Or listen for it. `graphty-capabilities-change` fires on every transition and carries the same
-document the property returns:
+`policy` is always there: it is the policy in force, however it was set.
+
+Or listen for it. `graphty-capabilities-change` fires on every transition -- a change of state, of
+device, of reason, or of policy -- and carries the same document the property returns:
 
 ```javascript
 element.addEventListener("graphty-capabilities-change", (event) => {
@@ -123,11 +130,22 @@ That is the label to show beside a value a reader might compare against a saved 
 | `spring-electrical` layout             | Yes                     | Nothing -- `setLayout` throws `E_NO_ACCELERATOR` |
 | `pagerank`                             | Yes, with one exception | The CPU implementation                           |
 | `connected-components`                 | Yes                     | The CPU implementation                           |
-| `dijkstra`, `bfs`, `kruskal`           | Not yet                 | The CPU implementation                           |
+| `dijkstra`, `bfs`                      | Yes, above a floor      | The CPU implementation                           |
+| `kruskal`                              | Not yet                 | The CPU implementation                           |
 
-The last row is routed but not accelerated: those three ask the accelerator for a member it does
-not implement yet, and take the CPU path with `caveats.precision` reading `"f64"`. They gain the
+The last row is routed but not accelerated: it asks the accelerator for a member it does not
+implement yet, and takes the CPU path with `caveats.precision` reading `"f64"`. It gains the
 hardware the day the member exists, with no change to your page.
+
+An algorithm is accelerated only above a measured node count: `pagerank` from 5,000 nodes,
+`connected-components` from 50,000, and `bfs` and `dijkstra` from 300,000. An algorithm is one
+call, and on the device that call costs several round trips whatever the size, so below those
+counts the CPU has finished before the device has started -- and a traversal, which is one
+round trip per level, stays behind for longest. Under the floor the run takes the CPU path,
+`caveats.precision` reads `"f64"`, and the state stays `idle`. The numbers were measured on one
+card (see `acceleration-min-nodes` below for how to replace them with your own), and
+`acceleration="required"` ignores them, so a benchmark can put a small graph on the device on
+purpose.
 
 PageRank is the exception in the table. A run that sets `personalization` or `initialRanks`, and
 any run over an undirected graph, takes the CPU implementation whatever hardware is attached:
@@ -147,9 +165,12 @@ Three knobs, none of which you need to touch to get a working graph.
 
 **`acceleration-min-nodes`** -- the node count at or above which accelerated work actually uses
 the accelerator. Below it the element takes the CPU path even with hardware attached, and the
-state reads `idle`. The default is 0: use the hardware whenever there is any. Raise it when your
-graphs are small enough that uploading them costs more than computing them. The right number is a
-property of the machine the graph is drawn on, which is why the element does not guess it for you.
+state reads `idle`. Unset, the layouts use the hardware whenever there is any (a threshold of 0,
+measured for the accelerated layout, which was never slower than the CPU at any size) and each
+algorithm keeps the built-in floor listed above. Set to any number, including 0, it is
+your number for every layout and every algorithm, and the built-in floors no longer apply. Set
+it when you have measured the machine your graphs are drawn on: the crossover is a property of
+that machine's CPU and device, and the built-in floors come from one card.
 
 ```html
 <graphty-element acceleration-min-nodes="5000"></graphty-element>
@@ -173,14 +194,14 @@ element.layoutBehavior = { layout: { iterationsPerStep: 16, maxInFlight: 2 } };
 These arrive as `capabilities.acceleration.code`, beside a `reason` written for a person. None of
 them stops your graph from being drawn; they say why it is being drawn by the CPU.
 
-| Code              | What happened                                                                                                 |
-| ----------------- | ------------------------------------------------------------------------------------------------------------- |
-| `E_NO_WEBGPU`     | The runtime exposes no WebGPU at all -- usually an insecure context, or a browser that does not implement it. |
-| `E_NO_ADAPTER`    | WebGPU is there but no adapter could be acquired.                                                             |
-| `E_SOFTWARE_ONLY` | The only adapter is a software rasteriser, which `auto` turns down as slower than the CPU path.               |
-| `E_DEVICE_INCORRECT` | The adapter answers, and its answers are wrong. See below.                                                 |
-| `E_DEVICE_LOST`   | The device was lost mid-session -- a driver reset, a suspended tab.                                           |
-| `E_TOO_LARGE`     | The accelerator cannot compute exactly over as many nodes as it was asked for.                                |
+| Code                 | What happened                                                                                                 |
+| -------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `E_NO_WEBGPU`        | The runtime exposes no WebGPU at all -- usually an insecure context, or a browser that does not implement it. |
+| `E_NO_ADAPTER`       | WebGPU is there but no adapter could be acquired.                                                             |
+| `E_SOFTWARE_ONLY`    | The only adapter is a software rasteriser, which `auto` turns down as slower than the CPU path.               |
+| `E_DEVICE_INCORRECT` | The adapter answers, and its answers are wrong. See below.                                                    |
+| `E_DEVICE_LOST`      | The device was lost mid-session -- a driver reset, a suspended tab.                                           |
+| `E_TOO_LARGE`        | The accelerator cannot compute exactly over as many nodes as it was asked for.                                |
 
 A lost device is not the end of it. The element drops to the CPU path and then tries up to
 three times to attach a fresh accelerator, so a state that goes `error` and comes back to `idle`

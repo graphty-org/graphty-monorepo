@@ -9,7 +9,7 @@
 
 import type * as http from "http";
 import type * as https from "https";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from "vitest";
 
 import { createRemoteLogClient, RemoteLogClient } from "../../src/client/RemoteLogClient.js";
 import { clearLogs, startLogServer } from "../../src/server/log-server.js";

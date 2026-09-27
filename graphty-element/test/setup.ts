@@ -1,5 +1,6 @@
 import { Vector2, Vector3 } from "@babylonjs/core/Maths/math.vector";
-import { afterEach, beforeAll, expect, vi } from "vitest";
+import { Logger } from "@babylonjs/core/Misc/logger";
+import { afterEach, expect, vi } from "vitest";
 
 import type { Graph } from "../src/Graph";
 import { MockDeviceInputSystem } from "../src/input/mock-device-input-system";
@@ -33,11 +34,12 @@ declare global {
     }
 }
 
-// Suppress Babylon.js logs during tests - must use dynamic import since we mock @babylonjs/core
-beforeAll(async () => {
-    const { Logger } = await import("@babylonjs/core");
-    Logger.LogLevels = Logger.ErrorLogLevel;
-});
+// Suppress Babylon.js logs during tests. The Logger is imported from its own module, not from the
+// "@babylonjs/core" barrel: the barrel's Logger is this same class, and loading the barrel here
+// used to load all of Babylon.js -- some 2,000 modules -- for every test file in the project,
+// including the many that never touch Babylon. Done in a beforeAll hook, that load ran under a
+// 10 s hook timeout, which a machine busy with a dozen pre-push gates at once exceeded (#491).
+Logger.LogLevels = Logger.ErrorLogLevel;
 
 // Suppress Lit dev mode warnings by setting production mode
 if (typeof window !== "undefined") {

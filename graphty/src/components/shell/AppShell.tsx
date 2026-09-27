@@ -75,14 +75,6 @@
  * - **The legend's channels.** With nothing encoded the legend renders nothing by
  *   design (spec 01 section 9), so an empty channel list is the correct state, not a
  *   missing one.
- * - **A reproducible scatter on a large graph.** `recommendLayout` picks the Scattered
- *   arrangement above the large-graph threshold and says of it that the result is "the same
- *   every time", but the recommendation is a descriptor with no configuration and the random
- *   engine's own seed defaults to null, so each load scatters differently. The shell applies
- *   the arrangement the element named and adds no seed of its own: a layout option written
- *   down here would be the copy of the element's catalogue this file has just finished
- *   deleting. The promise holds the day the recommendation carries the configuration it
- *   describes.
  */
 
 import {
@@ -101,6 +93,7 @@ import {
     type DataSourceInput,
     type GraphSession,
     type GraphStatistics,
+    isGraphtyError,
     type Layer,
     type LayerSpec,
     type RunId,
@@ -142,8 +135,9 @@ import {
     runCommunityDetection,
     startDegreePass,
 } from "./analysis/runs";
+import { useCanvasBottomStack } from "./canvas/canvasBottomStack";
 import { readPersistedCanvasLayout, resolveCanvasLayout, writePersistedCanvasLayout } from "./canvas/canvasMemory";
-import { CanvasRegion, type CanvasRegionOwnProps, useCanvasBottomStack } from "./canvas/CanvasRegion";
+import { CanvasRegion, type CanvasRegionOwnProps } from "./canvas/CanvasRegion";
 import type { DataDrawerTab } from "./canvas/DataTableDrawer";
 import type { InsightCard } from "./canvas/InsightsStrip";
 import type { LegendChannel } from "./canvas/Legend";
@@ -154,7 +148,6 @@ import { CommandPalette, type CommandPaletteItem } from "./CommandPalette";
 import {
     ACTIVITIES_REQUIRING_DATA,
     ACTIVITY_RAIL_WIDTH,
-    CANVAS_MENU_Z_INDEX,
     canvasToolbarProfile,
     SCREEN_TOO_SMALL_DETAIL_FONT_SIZE,
     SCREEN_TOO_SMALL_GAP,
@@ -218,13 +211,13 @@ import { PresentPanel } from "./panel/PresentPanel";
 import { SettingsOverlay } from "./panel/SettingsOverlay";
 import { StylePanel } from "./panel/StylePanel";
 import { ActivityRail } from "./rail/ActivityRail";
-import { HelpMenu, type HelpMenuRowId } from "./rail/HelpMenu";
+import type { HelpMenuRowId } from "./rail/HelpMenu";
 import { communityHeadline, communityReading, communityResultBody } from "./readings/communityReading";
 import { DEFAULT_EDGE_NOUN, GRAPH_SUMMARY_EMPTY_READING, graphSummaryReading } from "./readings/graphSummaryReading";
 import { nodeMetricHeadline, nodeMetricReading, nodeMetricResultBody } from "./readings/nodeMetricReading";
 import { formatCount } from "./readings/readingFormat";
 import { caveatsLine, runRecordLine } from "./readings/runRecord";
-import { ShellProvider, useShell } from "./ShellContext";
+import { ShellProvider } from "./ShellContext";
 import { formatAcceleration } from "./statusbar/formatAcceleration";
 import { formatCountPair, formatCountsTitle } from "./statusbar/formatCounts";
 import { StatusBar } from "./statusbar/StatusBar";
@@ -234,6 +227,7 @@ import { historyRows, undoVerb } from "./topbar/historyRows";
 import { TopBar } from "./topbar/TopBar";
 import { useSessionHistory } from "./topbar/useSessionHistory";
 import type { ActivityId, CanvasViewMode, PrimaryActivityId, SelectionKind, ShellStateAxis } from "./types";
+import { useShell } from "./useShell";
 import { useShellKeyBindings } from "./useShellKeyBindings";
 
 /**
@@ -333,6 +327,12 @@ const CAPABILITIES_CHANGE_EVENT = "graphty-capabilities-change";
 
 /** The device-lost toast's link: it says where it goes, because there is no mapping line to scroll to. */
 const OPEN_SETTINGS_ACTION = "Open Settings";
+
+/** The link on a toast that reports a refused edit: there is nowhere further to go. */
+const DISMISS_ACTION = "Dismiss";
+
+/** The colour a new style layer paints until the reader changes it; any valid colour would do. */
+const NEW_LAYER_COLOR = "#F59E0B";
 
 /** The Style panel's own overflow row (spec 03 section 2.4). */
 const RESET_STYLES_ROW = "Reset styles to defaults";
@@ -678,8 +678,8 @@ interface PendingLoad {
      * What the Loaded data section said about that dataset before this load began.
      *
      * Carried for the same reason the name is, and it was the half that was missed:
-     * `finishLoad` writes the SUMMARY unconditionally, so a surviving additive failure
-     * that put the name back left the section describing the file that never arrived --
+     * `finishLoad` writes the SUMMARY unconditionally, so a surviving failure that put the
+     * name back left the section describing the file that never arrived --
      * "GraphML, 12 KB" under a top bar naming a JSON sample -- or, on the drop route
      * whose format is "auto" and whose summary is therefore undefined, rendered the whole
      * section in its empty form for a dataset that is still drawn.
@@ -761,10 +761,16 @@ const DEVELOPER_LOAD_FAILURES: Readonly<Record<string, string>> = {
     [GRAPH_NOT_INITIALISED]: "The graph view is not ready yet. Try again in a moment.",
     "Graph element not initialized": "The graph view is not ready yet. Try again in a moment.",
     [NO_SOURCE_NAMED]: "No file, URL or pasted text reached the load, so there was nothing to read.",
-    [ADDITIVE_LOAD_UNSUPPORTED]:
-        "Adding a file to a dataset that is already loaded is not built yet. " +
-        "Open file with Replace existing data ticked to make this file the dataset.",
 };
+
+/**
+ * What the shell says when the element could not tell what format a file is in.
+ *
+ * The element's own message for this ends in the call a DEVELOPER would type to name the
+ * format, which is no route for a reader; the Load data dialog's format menu is.
+ */
+const UNRECOGNISED_FORMAT_REASON =
+    "Its format was not recognised. Open it with Open file and pick the format from the list.";
 
 /** What the shell says when the failure carried no message of its own. */
 const UNREADABLE_LOAD_REASON = "The data could not be read, and the loader gave no reason.";
@@ -811,6 +817,10 @@ function thrownMessage(error: unknown): string {
  * @returns one plain-language sentence, ending in a full stop.
  */
 function loadFailureReason(error: unknown): string {
+    if (isGraphtyError(error) && error.code === "E_UNKNOWN_FORMAT") {
+        return UNRECOGNISED_FORMAT_REASON;
+    }
+
     const message = thrownMessage(error).trim();
     const developer = DEVELOPER_LOAD_FAILURES[message];
 
@@ -1057,6 +1067,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      */
     const [pinnedNodes, setPinnedNodes] = useState<ReadonlySet<string | number>>(EMPTY_PINNED_NODES);
     const layerCounter = useRef(1);
+    /* Why graphty-element refused the last new style layer, in its own words, or null. */
+    const [styleRefusal, setStyleRefusal] = useState<string | null>(null);
     const firstLoadDone = useRef(false);
     /** graphty-element's sentence for why this load got fewer degree labels than its budget. */
     const [labelShortfall, setLabelShortfall] = useState<string | null>(null);
@@ -1644,11 +1656,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * The counts are refreshed in the same callback, so the completion and the records
      * it completed reach React in one batch: no reader can see the flag move ahead of
      * the data it stands for, whatever order the element's own listeners run in.
-     *
-     * This is also the event that lets the Load data dialog close. It is the LAST thing
-     * `DataManager.addDataFromSource` emits on the success path (DataManager.ts:543,
-     * after `data-loading-complete`), so a dialog that closes on it closes over a load
-     * that really did arrive rather than over a property assignment.
      */
     useEffect(() => {
         const frame = frameRef.current;
@@ -2216,8 +2223,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * ("Unexpected end of JSON input"), while 6.10 floor item 7 makes the reader's own
      * filenames a floor item -- so the rejection carries the same one sentence
      * {@link loadFailureSentence} draws on the Welcome zone and in the status bar toast,
-     * built by the same formatter from the same two facts. One spelling of one fact, in
-     * the one place that knows the name the reader chose.
+     * built by the same formatter from the same two facts.
      * @param request - what to load, as the dialog or a drop built it.
      * @returns a promise that resolves once the data is in and recorded as one step, and
      * rejects when the load was refused or did not arrive.
@@ -2230,8 +2236,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             setLoadFailure(null);
 
             const drawn = drawnDatasetRef.current;
-            /* Held in a local as well as on the ref, because the rejection is now built
-               seconds later and the ref belongs to whatever load is most recent by then. */
+            /* Held in a local as well as on the ref, because the rejection is built seconds
+               later and the ref belongs to whatever load is most recent by then. */
             const fileName = loadRequestName(request) ?? UNNAMED_LOAD_SOURCE;
 
             /* Recorded BEFORE the load starts: see {@link PendingLoad}. A failed load rolls
@@ -2248,9 +2254,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             const load = async (): Promise<void> => {
                 const handle = graphtyRef.current;
 
-                /* Inside the chain rather than in front of it, so a host that is not up
-                   yet reaches the reader as a sentence instead of returning quietly --
-                   which is the same silence, one branch earlier. */
+                /* Checked before anything is claimed, so a host that is not up yet reaches
+                   the reader as a sentence instead of returning quietly. */
                 if (handle === null) {
                     throw new Error(GRAPH_NOT_INITIALISED);
                 }
@@ -2496,12 +2501,17 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
         layerCounter.current += 1;
 
-        void session.styles.add({ name, target: "node", selector: { match: "everything" } }).then(
-            () => undefined,
-            (error: unknown) => {
-                console.error("[shell] the element refused the new layer:", error);
-            },
-        );
+        /* One channel set, because the element refuses a layer that paints nothing. The
+           reader edits the colour, the selector and the rest in the inspector afterwards. */
+        void session.styles
+            .add({ name, target: "node", selector: { match: "everything" }, set: { "node.color": NEW_LAYER_COLOR } })
+            .then(
+                () => undefined,
+                (error: unknown) => {
+                    console.error("[shell] the element refused the new layer:", error);
+                    setStyleRefusal(error instanceof Error ? error.message : String(error));
+                },
+            );
     }, []);
 
     /* One undoable step each, including a re-run of the layout already chosen. The mirrors are
@@ -2579,8 +2589,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 // rail is not covered by Settings -- it starts at the rail's right
                 // edge -- so this row stays clickable while Settings is open, and
                 // without this the menu opened underneath it and read as a dead button.
+                // The Help item is the menu's Mantine target, so the menu toggles itself
+                // through its onOpenChange; toggling here as well would cancel it out.
                 setSettingsOpen(false);
-                setHelpOpen((open) => !open);
 
                 return;
             }
@@ -3044,7 +3055,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 setRunningMetric(null);
             }
         },
-        [degreeResults, layers, openPanelAt],
+        [layers, openPanelAt],
     );
 
     /* ---------------------------------------------------------------------- */
@@ -3753,7 +3764,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 rows.push({
                     id: other,
                     label: other,
-                    edgeType: typeof edge.label === "string" ? edge.label : "edge",
+                    edgeType: typeof edge.label === "string" ? edge.label : undefined,
                     direction: source === nodeId ? "out" : "in",
                     value: "",
                 });
@@ -4083,9 +4094,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 onShowAllAttributes: () => {
                     openDrawerOn("nodes");
                 },
-                onAddNote: () => {
-                    openPanelAt("explore");
-                },
                 onToggleNoteDone: () => undefined,
                 onDeleteNote: () => undefined,
                 onSelectNeighbor: (nodeId: string) => {
@@ -4120,12 +4128,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         degreeResults,
         edgeCount,
         graphReading,
-        graphStatistics.components.count,
-        graphStatistics.density,
-        graphStatistics.directedness,
-        graphStatistics.repeatedEdgeCount,
-        graphStatistics.selfLoopCount,
-        handleLayersChange,
+        graphStatistics,
         layers,
         mostConnected,
         neighborsOf,
@@ -4135,9 +4138,11 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         pinnedNodes,
         removeResult,
         removeResultLayers,
+        resolveLayerChannel,
         selectedLayerId,
         selectedNode,
         togglePin,
+        updateLayer,
         zoomToSelection,
     ]);
 
@@ -4219,12 +4224,11 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             acceleration: {
                 ...text,
                 onClick: () => {
-                    setSettingsSection("performance");
-                    setSettingsOpen(true);
+                    openFullPanelOverlay("settings", "performance");
                 },
             },
         };
-    }, [acceleration]);
+    }, [acceleration, openFullPanelOverlay]);
 
     const slots = useMemo<StatusBarSlotsModel>(() => {
         if (!dataLoaded) {
@@ -4309,6 +4313,20 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             };
         }
 
+        if (styleRefusal !== null) {
+            const dismiss = (): void => {
+                setStyleRefusal(null);
+            };
+
+            return {
+                message: styleRefusal,
+                severity: "error",
+                actionLabel: DISMISS_ACTION,
+                onDetails: dismiss,
+                onDismiss: dismiss,
+            };
+        }
+
         if (acceleration === null || acceleration.state !== "error") {
             return undefined;
         }
@@ -4318,11 +4336,10 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             severity: "error",
             actionLabel: OPEN_SETTINGS_ACTION,
             onDetails: () => {
-                setSettingsSection("performance");
-                setSettingsOpen(true);
+                openFullPanelOverlay("settings", "performance");
             },
         };
-    }, [acceleration, loadFailure, openPanelAt]);
+    }, [acceleration, loadFailure, openFullPanelOverlay, openPanelAt, styleRefusal]);
 
     /* ---------------------------------------------------------------------- */
     /* The command palette's rows: the full-text twin of every icon control    */
@@ -4884,6 +4901,13 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                         activeActivity={panelActivity}
                         disabledActivities={stateAxis === "empty" ? ACTIVITIES_REQUIRING_DATA : undefined}
                         onActivityClick={handleActivityClick}
+                        helpMenu={{
+                            opened: helpOpen,
+                            onOpenChange: setHelpOpen,
+                            onSelect: handleHelpSelect,
+                            moreSuggestionsCount: 0,
+                            alreadyRunCount: 0,
+                        }}
                     />
                 </Box>
 
@@ -5005,21 +5029,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                             setShortcutsOpen(false);
                         }}
                     />
-                </Box>
-
-                {/* The Help menu is a sibling of the rail, not a child of it: the rail
-                    clips its own overflow. It lands at left 56, bottom 4 with the menu
-                    z-index (spec 02 section 1.3). */}
-                <Box style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: CANVAS_MENU_Z_INDEX }}>
-                    <Box style={{ position: "absolute", inset: 0, pointerEvents: "auto", display: "contents" }}>
-                        <HelpMenu
-                            opened={helpOpen}
-                            onOpenChange={setHelpOpen}
-                            onSelect={handleHelpSelect}
-                            moreSuggestionsCount={0}
-                            alreadyRunCount={0}
-                        />
-                    </Box>
                 </Box>
             </Box>
 

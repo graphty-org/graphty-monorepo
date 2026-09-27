@@ -9,7 +9,7 @@ import type { GraphBackgroundConfig, GraphBehaviorConfig, GraphSelectionStyleInp
 import { type AlgorithmOnLoad, parseAlgorithmsOnLoad, REPEATED_EDGE_POLICIES } from "./config/DataConfig";
 import type { PartialXRConfig } from "./config/xr-config-schema";
 import { isDomForwardableEvent, NODE_EVENT_DOM_NAMES, nodeEventDetail } from "./events";
-import { Graph, operationQueueOf } from "./Graph";
+import { Graph, loadSourcePair, operationQueueOf } from "./Graph";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
 import {
@@ -374,6 +374,10 @@ export class Graphty extends LitElement {
             this.#mirrorVisibilityChange(change);
         });
         this.#unwatchHistory ??= session.on("history:changed", ({ reason }) => {
+            if (reason === "undo" || reason === "redo" || reason === "restore") {
+                this.#loadedPair = undefined;
+            }
+
             this.#mirrorHistoryChange(reason);
         });
     }
@@ -552,8 +556,9 @@ export class Graphty extends LitElement {
     /**
      * Array of node data objects to visualize.
      * @remarks
-     * Setting this property replaces all existing nodes. For incremental
-     * updates, use the `graph.addNodes()` method instead.
+     * Setting this property REPLACES all existing nodes: a node whose id is
+     * not in the new array is removed, with the edges attached to it. For
+     * incremental updates, use the `addNodes()` method instead.
      *
      * Each node object should have an ID field (default: "id"). Additional
      * properties can be used in style selectors and accessed via `node.data`.
@@ -773,13 +778,15 @@ export class Graphty extends LitElement {
 
     /**
      * Removes every node and edge, as one undoable step. The data source goes with them, so the
-     * next `dataSource` / `dataSourceConfig` assignment loads afresh.
+     * next `dataSource` / `dataSourceConfig` assignment loads afresh. A load still in flight is
+     * abandoned: it rejects with `E_SUPERSEDED` and adds nothing.
      */
     clearData(): void {
         const oldDataSource = this.dataSource;
         const oldDataSourceConfig = this.dataSourceConfig;
 
-        this.#graph.getDataManager().clear();
+        this.#graph.clearData();
+        this.#loadedPair = undefined;
 
         this.requestUpdate("dataSource", oldDataSource);
         this.requestUpdate("dataSourceConfig", oldDataSourceConfig);
@@ -787,6 +794,12 @@ export class Graphty extends LitElement {
 
     /** Until the first update: what is assigned now was declared by the page, and is baseline. */
     #settingUp = true;
+
+    /**
+     * The pair the last pair load started with. The same type and the same config object (`===`)
+     * again start no load. Forgotten by `clearData` and by a history call, which move the source.
+     */
+    #loadedPair: { type: string; config: Record<string, unknown> } | undefined;
 
     /** The records `nodeData` and `edgeData` last read, for the graph they were read from. */
     #rowRecords: { token: number; node?: readonly unknown[]; edge?: readonly unknown[] } | null = null;
@@ -824,6 +837,29 @@ export class Graphty extends LitElement {
      * @param source - The pair.
      */
     #importSource(source: ImportSource): void {
+        const { type, config } = source;
+        if (type !== undefined && config !== undefined) {
+            // The pair already loaded, assigned again by a host that re-renders: no load.
+            const last = this.#loadedPair;
+            if (last?.type === type && last.config === config) {
+                return;
+            }
+
+            const pair = { type, config };
+            this.#loadedPair = pair;
+            loadSourcePair(this.#graph, type, config, {
+                coalesce: ELEMENT_SOURCE,
+                setup: this.#settingUp,
+            }).catch(() => {
+                // A failed pair was not loaded, so assigning it again retries it. The load
+                // reported the failure on the data-loading channel before it rejected.
+                if (this.#loadedPair === pair) {
+                    this.#loadedPair = undefined;
+                }
+            });
+            return;
+        }
+
         void dispatcherOf(this.#graph.getSession())
             .dispatch({
                 op: "data.import",
@@ -2320,17 +2356,24 @@ export class Graphty extends LitElement {
 
     /**
      * Add data from a data source.
+     *
+     * Every load has an id: the promise resolves to it, and every load event about this load
+     * (`data-loading-progress`, `data-loading-complete`, `data-loading-error`, `data-loaded`)
+     * carries it as `loadId`. A source with no nodes and no edges rejects with `E_EMPTY_LOAD`.
      * @param type - Data source type (e.g., "json", "csv", "graphml")
      * @param opts - Data source configuration options
-     * @returns Promise that resolves when data is loaded
+     * @param options - How to load
+     * @param options.replace - Replace the graph with this data, but only once it has all parsed:
+     *     a malformed or empty source rejects and leaves the current graph untouched
+     * @returns Promise that resolves to `{ loadId }` when data is loaded
      * @since 1.5.0
      * @example
      * ```typescript
-     * await element.addDataFromSource('json', { url: 'https://example.com/data.json' });
+     * const { loadId } = await element.addDataFromSource('json', { url: 'https://example.com/data.json' });
      * ```
      */
-    async addDataFromSource(type: string, opts?: object): Promise<void> {
-        return this.#graph.addDataFromSource(type, opts ?? {});
+    async addDataFromSource(type: string, opts?: object, options?: { replace?: boolean }): Promise<{ loadId: number }> {
+        return this.#graph.addDataFromSource(type, opts ?? {}, options);
     }
 
     /**
@@ -2342,7 +2385,9 @@ export class Graphty extends LitElement {
      * @param options.edgeSource - Where the node an edge starts at is named in the record. Left
      *     unset, the element reads `source`, then `src`, then `from`
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
-     * @returns Promise that resolves when data is loaded
+     * @param options.replace - Replace the graph with this data, but only once it has all parsed:
+     *     a malformed or empty file rejects and leaves the current graph untouched
+     * @returns Promise that resolves to `{ loadId }`, the id every event about this load carries
      * @since 1.5.0
      * @example
      * ```typescript
@@ -2356,8 +2401,9 @@ export class Graphty extends LitElement {
             nodeIdPath?: string;
             edgeSource?: string;
             edgeTarget?: string;
+            replace?: boolean;
         },
-    ): Promise<void> {
+    ): Promise<{ loadId: number }> {
         return this.#graph.loadFromUrl(url, options);
     }
 
@@ -2370,7 +2416,9 @@ export class Graphty extends LitElement {
      * @param options.edgeSource - Where the node an edge starts at is named in the record. Left
      *     unset, the element reads `source`, then `src`, then `from`
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
-     * @returns Promise that resolves when data is loaded
+     * @param options.replace - Replace the graph with this data, but only once it has all parsed:
+     *     a malformed or empty file rejects and leaves the current graph untouched
+     * @returns Promise that resolves to `{ loadId }`, the id every event about this load carries
      * @since 1.5.0
      * @example
      * ```typescript
@@ -2386,8 +2434,9 @@ export class Graphty extends LitElement {
             nodeIdPath?: string;
             edgeSource?: string;
             edgeTarget?: string;
+            replace?: boolean;
         },
-    ): Promise<void> {
+    ): Promise<{ loadId: number }> {
         return this.#graph.loadFromFile(file, options);
     }
 
@@ -2644,6 +2693,10 @@ export class Graphty extends LitElement {
      * result shape derives. This is the verb for a run started with `{ style: false }`, or for
      * putting a picture back after a reader cleared it. Applying twice replaces the layer bound
      * to that run and channel rather than stacking a second one on it.
+     *
+     * It starts the style edits and returns at once. To wait for the picture -- for a
+     * screenshot, an export or a test -- await `waitForStableFrame()` after the call: it
+     * settles only once every suggested layer is added, stacked in the order named and painted.
      * @param algorithmKey - A catalogue key such as "degree", a 1.10 address such as
      *     "graphty:degree", or an array of either.
      * @returns True if anything was applied, false when no finished run of that algorithm has
@@ -2653,6 +2706,7 @@ export class Graphty extends LitElement {
      * ```typescript
      * await element.run('degree', undefined, { style: false });
      * element.applySuggestedStyles('degree');
+     * await element.waitForStableFrame();
      * ```
      */
     applySuggestedStyles(algorithmKey: string | string[]): boolean {
@@ -2682,7 +2736,10 @@ export class Graphty extends LitElement {
 
     /**
      * Set the layout algorithm.
-     * @param type - Layout algorithm name
+     *
+     * Takes a layout id from `catalog.layouts()` (such as `"force"`), which runs that layout's
+     * default engine, or a registered engine name (such as `"ngraph"`).
+     * @param type - Layout id or engine name
      * @param opts - Layout-specific options
      * @param options - Queue options
      * @returns Promise that resolves when layout is initialized
@@ -2690,6 +2747,7 @@ export class Graphty extends LitElement {
      * @example
      * ```typescript
      * await element.setLayout('circular', { radius: 5 });
+     * await element.setLayout('force'); // the catalogue id; runs the "ngraph" engine
      * await element.setLayout('ngraph', { springLength: 100 });
      * ```
      */
@@ -3014,9 +3072,11 @@ export class Graphty extends LitElement {
      * camera, picking and styling stay live. There is no event for this: `isRunning()` reports
      * the state and `graph-settled` reports the arrangement coming to rest.
      *
-     * A pause is not a mode the element remembers: anything that (re)starts a layout -- loading
-     * more nodes, an accelerator attaching, setting another layout, dropping a dragged node --
-     * runs it again, so pause it after those, not before.
+     * A pause holds until `setRunning(true)`. Loading more nodes, a freeze, an accelerator
+     * attaching, setting another layout and dragging a node all still happen -- new nodes are
+     * placed and a dragged node moves -- but none of them resumes the layout. To tell a paused,
+     * half-finished arrangement from a converged one, read `getLayoutManager().isPaused` and
+     * `isSettled`.
      * @param running - True to run the layout, false to pause it.
      * @since 2.0.0
      * @example
@@ -3506,9 +3566,10 @@ export class Graphty extends LitElement {
      * The node count at or above which accelerated work uses the accelerator.
      *
      * Below it the element takes the CPU path even with an accelerator attached, and
-     * `capabilities.acceleration.state` reads `"idle"`. Default 0: use the accelerator whenever
-     * there is one. Raise it when the graphs you show are small enough that uploading costs more
-     * than computing; the number is machine-specific, which is why the element does not guess.
+     * `capabilities.acceleration.state` reads `"idle"`. Unset, layouts use the accelerator
+     * whenever there is one and each algorithm keeps a built-in floor measured on one card (see
+     * the acceleration guide). Any value you set, including 0, replaces those floors for every
+     * layout and algorithm; set it when you have measured the machine your graphs are drawn on.
      * @since 2.0.0
      * @example
      * ```html
@@ -3570,6 +3631,9 @@ export class Graphty extends LitElement {
 
         if (!this.#capabilitiesMirrored) {
             controller.onChange(() => {
+                // The status carries the policy, so a policy written through
+                // `element.session.acceleration` lands here too, and the attribute reflects it.
+                this.requestUpdate("acceleration");
                 this.dispatchEvent(
                     new CustomEvent("graphty-capabilities-change", {
                         detail: { capabilities: controller.capabilities },

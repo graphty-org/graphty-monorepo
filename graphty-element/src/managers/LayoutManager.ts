@@ -16,7 +16,9 @@ import { GraphtyError, isGraphtyError } from "../errors";
 import type { GraphSnapshotReplacedEvent } from "../events";
 import { ForceAtlas2Layout } from "../layout/ForceAtlas2LayoutEngine";
 import { LayoutEngine } from "../layout/LayoutEngine";
+import { NGraphEngine } from "../layout/NGraphLayoutEngine";
 import {
+    SIMULATION_CAPABILITY,
     type SimulationEngineInit,
     type SimulationEngineOptions,
     SimulationLayoutEngine,
@@ -65,6 +67,53 @@ const SIMULATION_OPTION_SCHEMAS: Readonly<Record<SimulationType, OptionsSchema>>
  * layouts, which publish a unit ball times their own `scalingFactor` of 100.
  */
 const DEFAULT_SCALING_FACTOR = 100;
+
+/**
+ * The engine that draws the default force arrangement on the processor: `ngraph.forcelayout`.
+ *
+ * It is the element's default layout, so it is the arrangement a reader who chooses nothing sees.
+ */
+const FORCE_CPU_ENGINE = NGraphEngine.type;
+
+/**
+ * The engine that draws the same arrangement on an accelerator.
+ *
+ * ONE ARRANGEMENT, TWO DRIVERS. `spring-electrical` IS ngraph's force model -- ngraph's option
+ * names and defaults, Coulomb repulsion, Hooke springs, ngraph's drag and its semi-implicit Euler
+ * step -- computed on hardware, and its oracle is cross-checked against `ngraph.forcelayout`
+ * itself. Until this routing existed the two did not know about each other: the default layout was
+ * ngraph and therefore never reached an accelerator, and `spring-electrical` could only be had by
+ * a consumer who knew to ask for it by name, which is the consumer writing hardware detection the
+ * element is supposed to own.
+ */
+const FORCE_ACCELERATED_ENGINE = SpringElectricalLayout.type;
+
+/** The accelerator member the accelerated driver needs, which is what the controller plans over. */
+const FORCE_ACCELERATED_CAPABILITY = SIMULATION_CAPABILITY[SpringElectricalLayout.simulationType];
+
+/**
+ * The graph size from which the default force arrangement is worth handing to an accelerator.
+ *
+ * MEASURED, on this repository's `ngraph.forcelayout` at the element's own settings, as the
+ * minimum over 15-40 steps of one `step()` (the full table is in
+ * `design/decisions/2026-09-27-the-default-force-layout-has-two-drivers.md`): 0.13 ms at 100
+ * nodes, 0.5-0.7 ms at 300, 2.6-3.8 ms at 1,000, 7.2-9.1 ms at 2,000, 16-29 ms at 5,000, 47-75 ms
+ * at 10,000 and 1.8-2.4 s at 100,000. An accelerated layout iteration of the same size costs
+ * 0.72 ms at 10,000 nodes and 5.4 ms at a million, so the accelerator is ahead from about a
+ * thousand nodes and further ahead at every size above it.
+ *
+ * Two thousand rather than a thousand, because a rebuild and a graph upload are not free and
+ * because below this the CPU driver still fits a frame: at 2,000 nodes ngraph's median step is
+ * 12-13 ms, which no longer does. It also keeps the DEFAULT PICTURE unchanged for every graph
+ * small enough to look at closely -- the two drivers agree to within a quarter on the edge-length
+ * distribution of a 150-node graph, which is close but not identical, and a reader who never
+ * asked for hardware should not have their small graph redrawn by it.
+ *
+ * The `required` policy ignores it, for the reason `AccelerationController.plan` ignores its own
+ * per-capability floors under that policy: the consumer has said hardware or nothing, and a
+ * benchmark of the small end of the curve has to be able to reach the device.
+ */
+const FORCE_ACCELERATED_MIN_NODES = 2000;
 
 /**
  * Every option any of the three simulation layouts publishes, once Zod has applied its defaults.
@@ -320,6 +369,22 @@ export class LayoutManager implements Manager {
      */
     private engineDimension?: 2 | 3;
 
+    /**
+     * The engine the running layout is actually drawn by, which is not always the one that was
+     * asked for: see {@link LayoutManager.forceDriver}. Compared against the current decision on
+     * every transition that can change it, by {@link LayoutManager.rerouteDriver}.
+     */
+    private runningDriver?: string;
+
+    /**
+     * Set while a driver rebuild is in flight, which is asynchronous.
+     *
+     * Without it a second transition arriving during the rebuild -- the probe settling a microtask
+     * after an accelerator is injected, say -- reads the driver that is still running, decides the
+     * same rebuild a second time, and builds two simulations for one decision.
+     */
+    private rerouting = false;
+
     private logger: Logger = GraphtyLogger.getLogger(["graphty", "layout"]);
 
     /**
@@ -447,6 +512,13 @@ export class LayoutManager implements Manager {
      * next transition that attaches an accelerator brings it back.
      */
     private onAccelerationChange(): void {
+        // FIRST, because an accelerator arriving or leaving can change WHICH ENGINE draws the
+        // default force arrangement, and that is a rebuild rather than a new simulation inside the
+        // engine that is running. Below it, the engine stays and only its simulation moves.
+        if (this.rerouteDriver(this.dataManager.nodes.size)) {
+            return;
+        }
+
         const controller = this.acceleration;
         const engine = this.layoutEngine;
         if (
@@ -467,10 +539,112 @@ export class LayoutManager implements Manager {
     }
 
     /**
+     * Which engine draws the layout a consumer asked for, over a graph this size, right now.
+     *
+     * The element has one arrangement with two drivers -- see {@link FORCE_ACCELERATED_ENGINE} --
+     * and this is where it chooses between them, so that a consumer who installs the element and
+     * the optional accelerator package and does nothing else gets the accelerated force layout,
+     * and one with no hardware gets ngraph. Nobody outside the element writes a probe, reads a
+     * capability or picks an engine by name to make that happen.
+     *
+     * Every other layout answers itself: a consumer who names an engine gets that engine, and
+     * `spring-electrical` asked for by name still refuses to run without hardware rather than
+     * quietly arranging the graph some other way
+     * (`design/decisions/2026-09-21-spring-electrical-fails-loudly-on-set.md`).
+     *
+     * NOTHING HERE IS A FALLBACK AFTER A FAILURE. The accelerator is feature-tested and the
+     * controller is asked to plan the work BEFORE any of it starts, which is capability detection.
+     * A batch that fails once a simulation is running is reported and stops the layout; it does not
+     * arrive here.
+     * @param requested - The engine name the consumer asked for, after a catalogue id is resolved.
+     * @param nodeCount - The graph the layout will be run over.
+     * @returns The engine to build.
+     */
+    private forceDriver(requested: string, nodeCount: number): string {
+        const controller = this.acceleration;
+        if (requested !== FORCE_CPU_ENGINE || controller === null) {
+            return requested;
+        }
+
+        // FEATURE-TESTED BEFORE THE PLAN IS ASKED FOR, because under the `required` policy `plan()`
+        // throws for an accelerator that cannot do the work -- and this is the DEFAULT layout,
+        // which must keep laying the graph out on the processor whatever the hardware is. An
+        // accelerator that does not implement this layout is not a failure here; it is an answer.
+        const { accelerator } = controller;
+        if (accelerator === null || typeof accelerator[FORCE_ACCELERATED_CAPABILITY] !== "function") {
+            return requested;
+        }
+
+        if (nodeCount < FORCE_ACCELERATED_MIN_NODES && controller.policy !== "required") {
+            return requested;
+        }
+
+        // The consumer's own `acceleration.minNodes`, the policy and the device's health are all
+        // this call's to weigh, and it is the same call the bridge makes at every load.
+        return controller.plan({ capability: FORCE_ACCELERATED_CAPABILITY, nodeCount }).accelerated
+            ? FORCE_ACCELERATED_ENGINE
+            : requested;
+    }
+
+    /**
+     * Rebuild the running layout on its other driver when the decision has changed.
+     *
+     * Called from the two places an input to {@link LayoutManager.forceDriver} can change: a
+     * controller transition and a freeze. A swap onto the accelerated driver keeps the arrangement
+     * -- the bridge adopts the coordinates already in the element's position array -- and a swap
+     * back to ngraph does not, because ngraph places the bodies it is given itself.
+     *
+     * The layout is stopped before the rebuild, which is asynchronous, so no frame steps a
+     * simulation over the snapshot the freeze that triggered this is about to release.
+     * `_setLayoutInternal` starts it again once the new driver is in, and reports its own failures.
+     * @param nodeCount - The graph the layout will be run over.
+     * @returns True when a rebuild was started, so the caller leaves the engine alone.
+     */
+    private rerouteDriver(nodeCount: number): boolean {
+        const engine = this.layoutEngine;
+        const running = this.runningDriver;
+        if (engine === undefined || running === undefined || this.forceDriver(engine.type, nodeCount) === running) {
+            return false;
+        }
+
+        if (this.rerouting) {
+            // One is already on its way, and it asks this question again when it lands -- so the
+            // last word belongs to the state of the world after the rebuild rather than to whichever
+            // transition happened to arrive while it was in flight.
+            return true;
+        }
+
+        this.rerouting = true;
+        this.running = false;
+        void this._setLayoutInternal(engine.type, this.currentLayoutOptions ?? {}).then(
+            () => {
+                this.rerouting = false;
+                this.rerouteDriver(this.dataManager.nodes.size);
+            },
+            () => {
+                // A FAILED REBUILD IS NOT RETRIED HERE, and that is what keeps this from spinning:
+                // the failure has been reported and the layout that was running has been restored,
+                // so asking the same question again would decide the same rebuild, fail it again
+                // and report it again, for ever. The next real transition may try again.
+                this.rerouting = false;
+            },
+        );
+        return true;
+    }
+
+    /**
      * Hand a running simulation the snapshot that has just replaced the one it was laying out.
      * @param event - The freeze, carrying the snapshot every consumer must switch to.
      */
     private onSnapshotReplaced(event: GraphSnapshotReplacedEvent): void {
+        // A FREEZE IS WHERE THE GRAPH GETS ITS SIZE. The element's default layout is set before any
+        // data arrives, over an empty graph, so this -- not `setLayout` -- is where a graph crosses
+        // the size at which the default force arrangement is worth accelerating, in either
+        // direction. See `rerouteDriver`.
+        if (this.rerouteDriver(event.next.nodeCount)) {
+            return;
+        }
+
         const engine = this.layoutEngine;
         if (!(engine instanceof SimulationLayoutEngine)) {
             return;
@@ -547,6 +721,7 @@ export class LayoutManager implements Manager {
         this.layoutEngine?.dispose();
 
         this.layoutEngine = undefined;
+        this.runningDriver = undefined;
         this.running = false;
     }
 
@@ -568,6 +743,18 @@ export class LayoutManager implements Manager {
             throw unknownLayout(type);
         }
 
+        // WHICH ENGINE DRAWS IT, which is the one the consumer named for every layout but the
+        // default force arrangement: see `forceDriver`. Everything below builds, configures and
+        // steps the DRIVER, while everything the consumer sees -- the layout type the element
+        // reports, the `layout-changed` event, a failure message -- names what they asked for, so a
+        // swap between the two drivers of one arrangement is not a layout change to anybody
+        // outside.
+        const driver = this.forceDriver(type, this.dataManager.nodes.size);
+        const driverClass = driver === type ? engineClass : LayoutEngine.getClass(driver);
+        if (!driverClass) {
+            throw unknownLayout(driver);
+        }
+
         // The CONSUMER'S options are checked on their own, before the element adds anything: the
         // dimension options below are the element's to add and are not the layout's to declare,
         // so validating after the merge would refuse the element's own key.
@@ -579,7 +766,7 @@ export class LayoutManager implements Manager {
         // eslint-disable-next-line @typescript-eslint/no-deprecated
         const is2D = this.styles.config.graph.viewMode === "2d" || this.styles.config.graph.twoD;
         const dimension = is2D ? 2 : 3;
-        const dimensionOpts = LayoutEngine.getOptionsForDimensionByType(type, dimension);
+        const dimensionOpts = LayoutEngine.getOptionsForDimensionByType(driver, dimension);
 
         if (dimensionOpts) {
             // Merge dimension options, but don't override user-provided options
@@ -593,18 +780,18 @@ export class LayoutManager implements Manager {
         // A layout the element drives through `@graphty/layout`'s simulation seam declares which
         // simulation it is, and is the one kind of engine `LayoutEngine.get` cannot build: it
         // needs the graph's acceleration controller, which a registered class is never handed.
-        const { simulationType } = engineClass as { simulationType?: SimulationType };
+        const { simulationType } = driverClass as { simulationType?: SimulationType };
 
         let engine: LayoutEngine | null;
         try {
             if (simulationType === undefined) {
-                engine = LayoutEngine.get(type, layoutOpts);
+                engine = LayoutEngine.get(driver, layoutOpts);
             } else {
                 if (this.acceleration === null) {
                     throw new GraphtyError({
                         code: "E_INTERNAL",
                         message:
-                            `the layout "${type}" runs on the graph's acceleration controller, and this layout ` +
+                            `the layout "${driver}" runs on the graph's acceleration controller, and this layout ` +
                             "manager has no graph context to read one from",
                         source: "layout",
                         details: { layoutType: type },
@@ -651,6 +838,7 @@ export class LayoutManager implements Manager {
         const previousEngine = this.layoutEngine;
         const previousOptions = this.currentLayoutOptions;
         const previousDimension = this.engineDimension;
+        const previousDriver = this.runningDriver;
 
         // THE CONSUMER'S OPTIONS, not the merged ones: a 2D/3D switch rebuilds the engine from
         // these, and the element re-derives the dimension options for the new mode itself.
@@ -665,6 +853,11 @@ export class LayoutManager implements Manager {
 
             this.layoutEngine = engine;
             this.engineDimension = dimension;
+
+            // BEFORE `init()`, which freezes a snapshot and therefore re-enters
+            // `onSnapshotReplaced` -- where an unrecorded driver would look like a decision that
+            // had changed and start this rebuild over again.
+            this.runningDriver = driver;
             await engine.init();
 
             // WHAT ARRIVED WHILE `init()` WAS AWAITED went to the previous engine, which the
@@ -727,6 +920,7 @@ export class LayoutManager implements Manager {
             this.layoutEngine = previousEngine;
             this.currentLayoutOptions = previousOptions;
             this.engineDimension = previousDimension;
+            this.runningDriver = previousDriver;
             this.dataManager.setLayoutEngine(previousEngine);
 
             throw this.reportLayoutFailure(type, error, "initialised");

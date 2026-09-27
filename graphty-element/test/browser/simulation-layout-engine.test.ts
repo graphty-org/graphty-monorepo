@@ -23,6 +23,7 @@ import { afterEach, assert, describe, it } from "vitest";
 import { type GraphtyError, isGraphtyError } from "../../src/errors";
 import type { GraphErrorEvent } from "../../src/events";
 import { Graph } from "../../src/Graph";
+import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
 import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
 import { createFakeAccelerator, type FakeAccelerator, type FakeSimulation } from "../../src/testing/fakeAccelerator";
 import { cleanupE2EGraph, createE2EGraph } from "../helpers/e2e-graph-setup";
@@ -1091,5 +1092,124 @@ describe("the simulation layout bridge", () => {
             assert.closeTo(after.y, before[index].y, 1e-2);
             assert.closeTo(after.z, before[index].z, 1e-2);
         }
+    });
+});
+
+
+describe("the default force arrangement, which has two drivers", () => {
+    it("is ngraph with nothing attached, and a freeze does not disturb it", async () => {
+        const graph = await pathGraph(5);
+        const engine = graph.getLayoutManager().layoutEngine;
+
+        assert.instanceOf(engine, NGraphEngine, "the element's own default, on a machine with no accelerator");
+
+        await graph.addNodes([{ id: "late" }]);
+        graph.getDataManager().getSnapshot();
+
+        // IDENTITY, not just the class: the routing decision is re-taken at every freeze, and a
+        // decision that has not changed must leave the running layout and its arrangement alone.
+        assert.strictEqual(graph.getLayoutManager().layoutEngine, engine, "the same engine, still running");
+    });
+
+    it("moves onto an accelerator that arrives mid-run, and back to ngraph when it leaves", async () => {
+        const graph = await pathGraph(5);
+        const errors = watchErrors(graph);
+
+        // `required` lifts the measured size floor, the same way it lifts the controller's own
+        // per-capability floors: five nodes is a test graph, not a graph worth a device. So this
+        // case is about the ROUTING, and the case below is about the floor.
+        graph.acceleration.setPolicy("required");
+        const fake = createFakeAccelerator();
+        graph.acceleration.setAccelerator(fake);
+
+        await until(() => graph.getLayoutManager().layoutEngine instanceof SimulationLayoutEngine);
+        const accelerated = graph.getLayoutManager().layoutEngine as SimulationLayoutEngine;
+
+        assert.strictEqual(accelerated.simulationType, "spring-electrical", "ngraph's force model, on the device");
+        assert.isTrue(accelerated.isAccelerated);
+        assert.strictEqual(accelerated.type, "ngraph", "and the element still reports the layout that was asked for");
+        assert.strictEqual(fake.calls.springElectrical, 1, "one simulation, built on the accelerator");
+
+        graph.acceleration.setAccelerator(null);
+
+        // CAPABILITY DETECTION, not a fallback after a failure: nothing failed, the accelerator
+        // left, and the arrangement carries on being computed by the driver that is still there.
+        await until(() => graph.getLayoutManager().layoutEngine instanceof NGraphEngine);
+        assert.lengthOf(errors.filter((event) => event.context === "layout"), 0, "and nothing was reported");
+    });
+
+    it("is built on the accelerator by a setLayout that asks for it, with hardware already attached", async () => {
+        const graph = await pathGraph(5);
+
+        // Away from the force arrangement first, so that attaching the accelerator moves nothing
+        // and this case is only about what a `setLayout` builds.
+        await graph.setLayout("circular");
+        graph.acceleration.setPolicy("required");
+        const fake = createFakeAccelerator();
+        graph.acceleration.setAccelerator(fake);
+
+        // THE CATALOGUE ID, which is what a picker offers and what a consumer who chose nothing
+        // else would type. Neither spelling names an engine, a capability or a device.
+        await graph.setLayout("force");
+
+        const engine = graph.getLayoutManager().layoutEngine;
+        assert.instanceOf(engine, SimulationLayoutEngine, "the arrangement was built on the accelerated driver");
+        assert.strictEqual(engine.simulationType, "spring-electrical");
+        assert.isTrue(engine.isAccelerated);
+        assert.strictEqual(fake.calls.springElectrical, 1, "on the accelerator's own spring-electrical simulation");
+    });
+
+    it("reports a driver rebuild that fails once, and does not try it again and again", async () => {
+        const graph = await pathGraph(5);
+        const errors = watchErrors(graph);
+
+        // AN ACCELERATOR THAT HAS THE MEMBER AND CANNOT BUILD IT. The element feature-tests before
+        // it plans, so this one is chosen -- and then throws where a real device throws, while the
+        // simulation is being created. The routing decision does not change when that happens, so
+        // a rebuild that asked the question again would fail again, for ever, reporting each one.
+        graph.acceleration.setPolicy("required");
+        graph.acceleration.setAccelerator(
+            createFakeAccelerator({
+                members: {
+                    springElectrical: (): never => {
+                        throw new Error("this device cannot build a spring-electrical simulation");
+                    },
+                },
+            }),
+        );
+
+        await until(() => errors.some((event) => event.context === "layout"));
+        const reported = errors.filter((event) => event.context === "layout").length;
+
+        // A retry loop is asynchronous, so it needs turns of the event loop to show itself rather
+        // than a condition to wait for: a spin would have filled this with failures.
+        for (let tick = 0; tick < 40; tick += 1) {
+            await new Promise((resolve) => setTimeout(resolve, 5));
+        }
+
+        assert.strictEqual(
+            errors.filter((event) => event.context === "layout").length,
+            reported,
+            "no second rebuild was attempted",
+        );
+        assert.instanceOf(
+            graph.getLayoutManager().layoutEngine,
+            NGraphEngine,
+            "and the layout that was running is still the one running",
+        );
+    });
+
+    it("keeps a small graph on ngraph when the consumer did not insist on hardware", async () => {
+        const graph = await pathGraph(5);
+        const fake = createFakeAccelerator();
+        graph.acceleration.setAccelerator(fake);
+
+        // THE MEASURED FLOOR. ngraph's step costs 0.13 ms at a hundred nodes and 2.6 ms at a
+        // thousand, so a graph this size is not waiting on the processor -- and the default picture
+        // of a small graph, which is the one a reader looks at closely, is left exactly as it was.
+        await graph.setLayout("force");
+
+        assert.instanceOf(graph.getLayoutManager().layoutEngine, NGraphEngine, "still the processor driver");
+        assert.strictEqual(fake.calls.springElectrical, 0, "and nothing was built on the accelerator");
     });
 });

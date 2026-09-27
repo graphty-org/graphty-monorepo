@@ -422,6 +422,23 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device", () => {
         assert.isTrue((gpu.graph.getLayoutManager().layoutEngine as SimulationLayoutEngine).isAccelerated);
     });
 
+    it("settles the DEFAULT arrangement on the device, asked for nothing else", { timeout: SETTLE_MS * 2 }, async () => {
+        // `force` is the element's own default arrangement and ngraph is the engine behind it. On a
+        // machine with no accelerator ngraph draws it; here, under a policy that asked for hardware,
+        // the element draws the same arrangement on the device -- with no consumer probing anything
+        // and no second layout name for anyone to know about. The deterministic half of this is
+        // `test/browser/simulation-layout-engine.test.ts`; what needs a device is that the real
+        // kernels are what the default reaches.
+        await settle(gpu, "force");
+
+        const engine = gpu.graph.getLayoutManager().layoutEngine;
+
+        assert.instanceOf(engine, SimulationLayoutEngine, "the default arrangement reached the accelerated driver");
+        assert.equal(engine.simulationType, "spring-electrical", "which is ngraph's force model on hardware");
+        assert.isTrue(engine.isAccelerated, "and it ran there");
+        assert.equal(engine.type, "ngraph", "while the element still reports the layout that was asked for");
+    });
+
     it("labels a PageRank run computed on the device as single precision", { timeout: SETTLE_MS }, async () => {
         const run = gpu.session.runs.start("pagerank");
         await run;

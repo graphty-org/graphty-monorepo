@@ -246,8 +246,13 @@ function resolveCentre(centre: ArrayLike<number> | null | undefined): [number, n
  * The accelerator member each simulation type needs, which is what the controller feature-tests.
  *
  * `"spring"` is the element's name for Fruchterman-Reingold, so the two share one capability.
+ *
+ * Exported because `LayoutManager` asks the controller the same question before it has a bridge to
+ * ask it of: choosing which engine draws the default force arrangement is a plan over this
+ * capability, and one spelling of the member name is what keeps the two decisions the same
+ * decision.
  */
-const CAPABILITY: Readonly<Record<SimulationType, string>> = {
+export const SIMULATION_CAPABILITY: Readonly<Record<SimulationType, string>> = {
     forceatlas2: "forceAtlas2",
     fruchtermanReingold: "fruchtermanReingold",
     spring: "fruchtermanReingold",
@@ -456,7 +461,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
 
         this.simulationType = built.type;
         this.#layoutType = built.layoutType ?? built.type;
-        this.capability = CAPABILITY[built.type];
+        this.capability = SIMULATION_CAPABILITY[built.type];
         this.#options = built.options as SimulationEngineOptions;
         this.#controller = built.controller;
         this.#report = built.report as (error: GraphtyError) => void;

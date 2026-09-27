@@ -167,8 +167,10 @@ const ngraph: LayoutImplementationSpec = {
     kind: "live",
     maxDimensions: 3,
     reason:
-        "The default: a Barnes-Hut simulation that runs live, accepts nodes and edges added " +
-        "while it is running, and stays interactive on graphs of a hundred thousand nodes.",
+        "The default, and the processor half of it: a Barnes-Hut simulation that runs live and " +
+        "accepts nodes and edges added while it is running. One step costs 2.6 ms at a thousand " +
+        "nodes and 1.8 seconds at a hundred thousand, so from two thousand nodes the element " +
+        "draws this same arrangement on an accelerator instead, whenever one is attached.",
     options: engineOptions(NGraphEngine.zodOptionsSchema, SEED_OVERRIDE),
     honoursWeights: NGraphEngine.honoursWeights,
 };
@@ -219,8 +221,9 @@ const springElectrical: LayoutImplementationSpec = {
     kind: "live",
     maxDimensions: 3,
     reason:
-        "Choose it for ngraph's look at a size ngraph cannot reach; it needs a hardware " +
-        "accelerator and says so when there is none.",
+        "ngraph's own force model computed on hardware, which is what the default arrangement " +
+        "routes to on a graph big enough to need it. Ask for it by name to have it at any size: " +
+        "it then needs an accelerator and says so when there is none.",
     options: engineOptions(SpringElectricalLayout.zodOptionsSchema, SEED_OVERRIDE),
     honoursWeights: SpringElectricalLayout.honoursWeights,
     requires: { accelerator: true },

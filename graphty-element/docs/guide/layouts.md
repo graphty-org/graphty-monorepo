@@ -37,6 +37,16 @@ implementation at all, so `setLayout("spring-electrical")` without an accelerato
 it throws `E_NO_ACCELERATOR` rather than quietly arranging the graph some other way. See the
 [acceleration guide](./acceleration).
 
+The default layout runs on an accelerator too, without being asked to and without being named
+differently. `ngraph` and `spring-electrical` are one force model with two implementations, so on a
+graph of two thousand nodes or more, with an accelerator attached that computes it, the element
+draws `ngraph`'s arrangement on the accelerator; below that size, and on any machine with no
+accelerator, ngraph itself draws it. `getLayoutManager().layoutType` says `ngraph` either way --
+it is the same arrangement -- and nothing you write chooses between them. Two thousand is where
+ngraph's own step stops fitting inside a frame, measured: 2.6 ms at a thousand nodes, 12 ms at two
+thousand and 1.8 seconds at a hundred thousand. `acceleration="required"` uses the accelerator at
+any size, and `acceleration="off"` never does.
+
 ## Setting a Layout
 
 ### Via HTML Attribute
@@ -69,6 +79,8 @@ The default layout. Uses physics simulation where:
 - Edges act like springs pulling connected nodes together
 - Nodes repel each other to prevent overlap
 - Works well for most general graphs
+- Runs on a hardware accelerator, as `spring-electrical`, from two thousand nodes upwards when one
+  is attached; see the note at the top of this page
 
 ```typescript
 graph.setLayout("ngraph", {
@@ -209,7 +221,8 @@ Runs on a hardware accelerator when one is attached.
 
 ### spring-electrical (Force-Directed, live, accelerator only)
 
-ngraph's spring-electrical model at a size ngraph itself cannot reach. It has no CPU
+ngraph's spring-electrical model at a size ngraph itself cannot reach, and what the default layout
+is drawn by on a big enough graph when an accelerator is attached. Asked for by name it has no CPU
 implementation: without an accelerator that implements it, `setLayout("spring-electrical")`
 throws `E_NO_ACCELERATOR` rather than quietly arranging the graph some other way.
 

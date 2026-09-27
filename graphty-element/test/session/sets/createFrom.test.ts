@@ -68,6 +68,27 @@ describe("sets.createFrom: the design 15.2 defaults", () => {
         assert.strictEqual(set?.name, "Picked");
     });
 
+    it("does not let one stray selected edge pull its ends into a set read induced", async () => {
+        const h = harnessOf();
+        await h.session.selection.apply({ nodes: ["a", "b"], edges: [edgeBetween(h, "c", "d")] });
+
+        const id = await h.session.sets.createFrom("selection");
+        const promoted = h.session.selection.promote("Promoted");
+
+        for (const set of [id, promoted]) {
+            const resolved = await h.session.scope.resolve({ set });
+            assert.deepStrictEqual([...resolved.nodes].sort(), ["a", "b"], "the two selected nodes, not four");
+            const count = await h.session.scope.count({ set });
+            assert.deepStrictEqual([count.nodes, count.edges, count.missingNodes, count.missingEdges], [2, 1, 0, 0]);
+        }
+
+        // Switching the reading to listed brings the stored edge back.
+        const stored = h.session.sets.get(id)?.definition;
+        assert.strictEqual(stored?.kind, "fixed");
+        h.session.sets.redefine(id, { ...(stored as Extract<SetDefinition, { kind: "fixed" }>), reading: "listed" });
+        assert.deepStrictEqual((await h.session.scope.count({ set: id })).nodes, 4);
+    });
+
     it("reads a selection of edges alone as listed", async () => {
         const h = harnessOf();
         await h.session.selection.apply({ edges: [edgeBetween(h, "a", "b")] });
@@ -261,7 +282,7 @@ describe("sets.createFrom: the synchronous commit", () => {
         };
     }
 
-    it("resolves nothing and interns O(k) members, the same at two graph sizes", async () => {
+    it("resolves, hashes and interns nothing, at two graph sizes", async () => {
         const small = await commitWork(400, 50);
         const large = await commitWork(4000, 50);
 
@@ -270,11 +291,8 @@ describe("sets.createFrom: the synchronous commit", () => {
         assert.strictEqual(small.resolution, 0, "the commit resolves nothing");
         assert.strictEqual(large.resolution, 0);
         assert.strictEqual(small.hashes, 0, "the commit hashes nothing; the revision is read lazily");
-        assert.isAbove(small.interns, 0);
-        assert.isAtMost(small.interns, 3 * 50);
-        assert.strictEqual(large.interns, small.interns, "the commit's work does not grow with the graph");
+        assert.strictEqual(small.interns, 0, "the asynchronous step built the compact members");
+        assert.strictEqual(large.interns, 0);
 
-        const doubled = await commitWork(400, 100);
-        assert.strictEqual(doubled.interns, 2 * small.interns, "and grows with k");
     });
 });

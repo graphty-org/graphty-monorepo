@@ -10,7 +10,7 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import { algorithmByKey } from "../../../src/catalog/algorithms";
 import { clearRegisteredAlgorithmsForTesting, publishAlgorithmDescriptor } from "../../../src/catalog/registry";
-import type { NodeId, Scope, SetCreatedFrom, SetDefinitionInput, SetId } from "../../../src/catalog/types";
+import type { NodeId, Scope, SetCreatedFrom, SetDefinition, SetDefinitionInput, SetId } from "../../../src/catalog/types";
 import { GraphtyError } from "../../../src/errors";
 import { resultExecutionOf } from "../../../src/session/results/ResultsApi";
 import { cacheCounters, outcomeOf, resolveSet, SetsCache } from "../../../src/session/sets/cache";
@@ -233,6 +233,34 @@ describe("status, row by row of the design's table", () => {
 
         assert.deepStrictEqual(statusOfSet(f, id), status("out-of-date", [{ kind: "run-out-of-date", run: "pr" }]));
         assert.deepStrictEqual(await nodesOf(f, id), ["b", "c", "d"], "the run's current values");
+    });
+
+    it("a run over a kept set reads out of date when a data edit moves its members, as the same members inline do", async () => {
+        for (const kind of ["fixed", "rule"] as const) {
+            const f = fixture();
+            f.table.set("kept", SCORES_1);
+            f.table.set("inline", SCORES_1);
+            const { sets } = f.harness.session;
+            // Fixed: a, b and c, and removing b removes a member. Rule: degree two or more (a, b, c
+            // and d), and removing b leaves a with one edge, so a and b leave. No revision moves.
+            const definition: SetDefinition =
+                kind === "fixed"
+                    ? { kind: "fixed", nodes: ["a", "b", "c"], reading: "induced" }
+                    : { kind: "rule", where: { kind: "degree", min: 2 }, reading: "induced" };
+            const kept = sets.create(definition);
+            await run(f, "kept", { set: kept });
+            await run(f, "inline", { define: definition });
+            const overKept = sets.create({ kind: "rule", where: "results.kept.value > `0`", reading: "induced" }, { name: "Over kept" });
+            const overInline = sets.create({ kind: "rule", where: "results.inline.value > `0`", reading: "induced" }, { name: "Over inline" });
+            assert.strictEqual(statusOfSet(f, overKept).freshness, "current", kind);
+
+            f.harness.store.builder.removeNode("b");
+            f.harness.store.touch();
+            f.harness.session.data.snapshot();
+
+            assert.deepStrictEqual(statusOfSet(f, overInline), status("out-of-date", [{ kind: "run-out-of-date", run: "inline" }]), kind);
+            assert.deepStrictEqual(statusOfSet(f, overKept), status("out-of-date", [{ kind: "run-out-of-date", run: "kept" }]), kind);
+        }
     });
 
     it("a rule reading a run whose algorithm is no longer registered: current, missing-capability, the run's values", async () => {

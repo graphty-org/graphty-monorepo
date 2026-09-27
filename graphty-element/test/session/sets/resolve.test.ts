@@ -200,17 +200,17 @@ describe("resolving a fixed set", () => {
         harness.session.dispose();
     });
 
-    it("puts an edge member's endpoints in the node half of an induced set", () => {
+    it("leaves an induced set's edge members inert: one stray edge adds no node", () => {
         const harness = harnessOf(ABC, PATH);
         const snapshot = harness.store.getSnapshot();
 
         const resolution = resolveFixed(
-            { kind: "fixed", nodes: ["a"], edges: [{ source: "c", target: "d", ordinal: 0, among: 1 }], reading: "induced" },
+            { kind: "fixed", nodes: ["a", "b"], edges: [{ source: "c", target: "d", ordinal: 0, among: 1 }], reading: "induced" },
             { snapshot },
         );
 
-        assert.deepStrictEqual(nodeIds(resolution, snapshot), ["a", "c", "d"]);
-        assert.deepStrictEqual(edgeIds(resolution, snapshot), [edgeBetween(harness, "c", "d")]);
+        assert.deepStrictEqual(nodeIds(resolution, snapshot), ["a", "b"]);
+        assert.deepStrictEqual(edgeIds(resolution, snapshot), [edgeBetween(harness, "a", "b")]);
         assertEndpoints(resolution, snapshot);
         harness.session.dispose();
     });

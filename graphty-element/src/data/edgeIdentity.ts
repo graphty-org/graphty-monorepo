@@ -191,6 +191,13 @@ export interface IdentityGraph {
      * @returns the id
      */
     idOf(node: number): NodeId;
+    /**
+     * The hash of a live node's id, when the caller already has it (the hash of `idOf(node)`).
+     * Absent: hashed from `idOf`.
+     * @param node - the node row
+     * @returns the hash
+     */
+    hashOf?(node: number): LanePair;
 }
 
 /** Receives one completed edge row. */
@@ -236,6 +243,7 @@ export function completeLoad(
     identityCounters.lastTransientBytes = rows.byteLength + lo.byteLength + hi.byteLength + bytes;
     identityCounters.lastLoadEdges = count;
 
+    const nodeHash = graph.hashOf === undefined ? (node: number): LanePair => hashNodeId(graph.idOf(node)) : graph.hashOf.bind(graph);
     let start = 0;
     let loNode = -1;
     let loHash: LanePair = { a: 0, b: 0 };
@@ -250,10 +258,10 @@ export function completeLoad(
         // hash is symmetric in its ends. Runs share their lower end, so it is hashed once a run.
         if (lo[first] !== loNode) {
             loNode = lo[first];
-            loHash = hashNodeId(graph.idOf(loNode));
+            loHash = nodeHash(loNode);
         }
 
-        const hiHash = hashNodeId(graph.idOf(hi[first]));
+        const hiHash = nodeHash(hi[first]);
         const among = end - start;
         for (let k = start; k < end; k++) {
             const position = perm[k];

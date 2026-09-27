@@ -138,6 +138,26 @@ function sortUnique<T>(items: readonly T[], compare: (a: T, b: T) => number): T[
 }
 
 /**
+ * Members the element built itself from a snapshot (known fields only, integers, no `-0`) in the
+ * canonical order, de-duplicated, without the per-member key sort a caller's members need.
+ * Internal: for the materialising doors.
+ * @param members - Element-built members.
+ * @returns A fresh sorted array.
+ */
+export function sortElementEdgeMembers(members: readonly EdgeMember[]): EdgeMember[] {
+    return sortUnique(members, (a, b) => compareEdgeMembers(a as unknown as Loose, b as unknown as Loose));
+}
+
+/**
+ * Node ids in the canonical order, de-duplicated. Internal: for the materialising doors.
+ * @param ids - Element-built ids.
+ * @returns A fresh sorted array.
+ */
+export function sortElementNodeIds(ids: readonly NodeId[]): NodeId[] {
+    return sortUnique(ids.map(unsigned), compareIds);
+}
+
+/**
  * One edge member, canonical: keys sorted, `-0` folded.
  * @param member - The member.
  * @returns The canonical member.

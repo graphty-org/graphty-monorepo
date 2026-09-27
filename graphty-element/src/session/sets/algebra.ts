@@ -42,7 +42,8 @@ import { edgeCounterOf, edgeIdOf } from "../../data/edgeIdentity";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { ElementMask } from "../scope/ElementMask";
 import type { Offering } from "./offers";
-import { deriveEdges, type Resolution } from "./resolve";
+import { prebuiltListed } from "./prepare";
+import { deriveEdges, edgeMemberKey, type Resolution } from "./resolve";
 import type { SetOffer } from "./types";
 
 /** The four combinations, in the order the doors check them. */
@@ -123,6 +124,11 @@ export interface Concrete {
     readonly definition: SetDefinition;
     /** Each edge member with the session edge it came from, so the door can seed it (design 4.2). */
     readonly refs: readonly (readonly [EdgeId, EdgeMember])[];
+    /**
+     * The seeds of a prebuilt definition, member key to counter, built in the asynchronous step so
+     * the commit adopts them instead of computing one key per member.
+     */
+    readonly seeds?: ReadonlyMap<string, number>;
     readonly createdFrom: SetCreatedFrom;
 }
 
@@ -323,11 +329,20 @@ export function createMaterialiser(sources: MaterialiseSources): Materialiser {
             return { definition: { kind: "fixed", nodes: nodeIds, reading: "induced" }, refs: [], createdFrom };
         }
 
+        // Built here, in the asynchronous step: the canonical, compact definition and its seeds, so
+        // the synchronous commit neither sorts nor keys one object per member.
         const refs: [EdgeId, EdgeMember][] = [];
         const column = edgeIdsOf(graph);
         const members = Array.from(maskToIndices(edges, graph.edgeCount), (row) => stable(column(row), refs));
+        const seeds = new Map<string, number>();
+        for (const [id, member] of refs) {
+            const key = edgeMemberKey(member);
+            if (!seeds.has(key)) {
+                seeds.set(key, edgeCounterOf(id));
+            }
+        }
 
-        return { definition: { kind: "fixed", nodes: nodeIds, edges: members, reading: "listed" }, refs, createdFrom };
+        return { definition: prebuiltListed(nodeIds, members), refs: [], seeds, createdFrom };
     };
 
     /**

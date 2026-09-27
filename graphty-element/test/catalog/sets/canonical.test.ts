@@ -55,13 +55,13 @@ describe("the canonical form of a set definition", () => {
     it("sorts node members numbers first, then strings by code unit, keeping 1 and \"1\" and dropping duplicates", () => {
         const out = canonicalSetDefinition({
             kind: "fixed",
-            nodes: ["b", 10, "a", 2, "1", 2, "b", "Z", "￿", "😀", -0],
+            nodes: ["b", 10, "a", 2, "1", 2, "b", "Z", "\uFFFF", "\u{1F600}", -0],
             reading: "induced",
         });
 
         assert.ok(out.kind === "fixed");
-        // "😀" sorts before "￿": code units, not code points.
-        expect(out.nodes).toEqual([0, 2, 10, "1", "Z", "a", "b", "😀", "￿"]);
+        // "\u{1F600}" sorts before "\uFFFF": code units, not code points.
+        expect(out.nodes).toEqual([0, 2, 10, "1", "Z", "a", "b", "\u{1F600}", "\uFFFF"]);
         assert.ok(Object.is(out.nodes[0], 0), "-0 is stored as +0");
     });
 

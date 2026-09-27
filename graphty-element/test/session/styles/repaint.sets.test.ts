@@ -2,7 +2,7 @@
  * @file A style layer that names a set repaints only what moved (design/sets/sets-design.md
  * sections 6.2 and 11). On the same snapshot a redefinition repaints exactly the old members XOR
  * the new ones; across a freeze the layer keeps its paint until its new resolution is ready on the
- * scheduler's frame, then takes a full pass; a rename repaints nothing; a rule over a run's values
+ * scheduler's frame, then repaints only the rows whose membership moved; a rename repaints nothing; a rule over a run's values
  * repaints when the run re-runs. The layer's resolution is pinned in the cache, the set lists the
  * layer among its users, and an item the layer holds is captured when its run re-runs.
  *
@@ -149,7 +149,7 @@ describe("a layer naming a set repaints only what moved", () => {
         }
     });
 
-    it("across a freeze the layer keeps its paint until its resolution is ready, then takes a full pass", async () => {
+    it("across a freeze the layer keeps its paint until its resolution is ready, then repaints nothing when no member moved", async () => {
         const h = path();
         let frame: (() => void) | null = null;
         setsNotifierOfSession(h.session).useFrames((callback) => {
@@ -175,16 +175,48 @@ describe("a layer naming a set repaints only what moved", () => {
         assert.deepStrictEqual(red(h), ["b", "d"]);
 
         const seen = passes(h);
+        assert.isNotNull(frame);
+        (frame as unknown as () => void)();
+        for (let i = 0; i < 5; i++) {
+            await drain();
+        }
+
+        assert.deepStrictEqual(seen.log, [], "the members did not move, so nothing is repainted");
+        assert.deepStrictEqual(red(h), ["b", "d"]);
+    });
+
+    it("across a freeze, a rule set whose members moved repaints exactly those rows", async () => {
+        const h = path();
+        let frame: (() => void) | null = null;
+        setsNotifierOfSession(h.session).useFrames((callback) => {
+            frame = callback;
+            return () => {
+                frame = null;
+            };
+        });
+        // Degree two or more: b, c and d on the path a-b-c-d-e.
+        const id = h.session.sets.create({ kind: "rule", where: { kind: "degree", min: 2 }, reading: "induced" });
+        await h.session.styles.add(redLayer({ set: id }));
+        await paintAll(h);
+        assert.deepStrictEqual(red(h), ["b", "c", "d"]);
+
+        // Removing a leaves b with one edge: b leaves the set, and every row after a renumbers.
+        h.store.builder.removeNode("a");
+        h.store.touch();
+        h.session.data.snapshot();
+        await paintAll(h);
+
+        const seen = passes(h);
         const pass = seen.next();
         assert.isNotNull(frame);
         (frame as unknown as () => void)();
         await pass;
 
-        assert.deepStrictEqual(seen.log, [{ nodes: 4, edges: 3 }], "both halves whole");
-        assert.deepStrictEqual(red(h), ["b", "d"]);
+        assert.deepStrictEqual(seen.log, [{ nodes: 1, edges: 1 }], "b and its edge to c, not the whole graph");
+        assert.deepStrictEqual(red(h), ["c", "d"]);
     });
 
-    it("across a freeze, the full passes ten live sets ask for are coalesced while one runs", async () => {
+    it("across a freeze, ten live sets whose members did not move repaint nothing", async () => {
         const h = path();
         let frame: (() => void) | null = null;
         setsNotifierOfSession(h.session).useFrames((callback) => {
@@ -202,9 +234,11 @@ describe("a layer naming a set repaints only what moved", () => {
         h.store.builder.removeNode("a");
         h.store.touch();
         h.session.data.snapshot();
+        // The element repaints the whole graph after a removal, as it renumbers every later row.
+        await paintAll(h);
 
         const seen = passes(h);
-        // Every set's resolution arrives before the first full pass has finished painting.
+        // Every set's resolution arrives on the frame.
         for (let guard = 0; frame !== null && guard < 100; guard++) {
             (frame as unknown as () => void)();
         }
@@ -213,9 +247,7 @@ describe("a layer naming a set repaints only what moved", () => {
             await drain();
         }
 
-        const whole = seen.log.filter((pass) => pass.nodes === 4 && pass.edges === 3);
-        assert.isAtLeast(whole.length, 1, "the layers are repainted");
-        assert.isAtMost(whole.length, 2, "one pass, and at most one more for the requests that arrived while it ran");
+        assert.deepStrictEqual(seen.log, [], "no whole-graph pass");
         assert.deepStrictEqual(red(h), ["b", "d"]);
     });
 

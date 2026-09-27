@@ -27,7 +27,7 @@
  */
 
 import { GraphtyError } from "../../errors/GraphtyError";
-import type { EdgeReading, Scope, SetDefinition } from "../types";
+import type { EdgeMember, EdgeReading, Scope, SetDefinition } from "../types";
 import { canonicalSetDefinition, DEFINITION_FIELDS, EDGE_MEMBER_FIELDS, runIdOfRef } from "./canonical";
 
 type Loose = Readonly<Record<string, unknown>>;
@@ -631,29 +631,48 @@ function checkDefinition(value: unknown, walker: Walker): void {
                     });
                 }
 
-                for (const step of value.edges) {
+                (value.edges as readonly unknown[]).forEach((step, i) => {
                     if (step === null) {
-                        continue;
+                        return;
                     }
 
-                    if (Array.isArray(step)) {
-                        if (step.length === 0) {
-                            throw bad("A path step's edge group names at least one edge; null means every edge of the pair.");
-                        }
-
-                        for (const member of step) {
-                            checkEdgeMember(member, walker);
-                        }
-                    } else {
-                        checkEdgeMember(step, walker);
+                    if (Array.isArray(step) && step.length === 0) {
+                        throw bad("A path step's edge group names at least one edge; null means every edge of the pair.");
                     }
-                }
+
+                    for (const member of Array.isArray(step) ? step : [step]) {
+                        checkEdgeMember(member, walker);
+                        checkStepEnds(member as EdgeMember, nodes[i], nodes[i + 1], i, walker);
+                    }
+                });
             }
 
             break;
         }
         default:
             walker.unknown(value.kind, "The set definition kind");
+    }
+}
+
+/**
+ * Refuse a path step edge that does not join the step's two nodes, in either order (a `directed`
+ * path walks only the forward one, and the resolver reads a backward one as missing). Door mode
+ * only: a stored path keeps what it holds.
+ * @param member - A checked edge member.
+ * @param from - The step's first node.
+ * @param to - The step's second node.
+ * @param step - The step's index.
+ * @param walker - The walk, for its mode.
+ * @throws `E_BAD_COMMAND` for an edge joining another pair.
+ */
+function checkStepEnds(member: EdgeMember, from: unknown, to: unknown, step: number, walker: Walker): void {
+    const joins = (member.source === from && member.target === to) || (member.source === to && member.target === from);
+    if (walker.mode === "door" && !joins) {
+        throw bad(`A path's step ${step} names an edge from "${String(member.source)}" to "${String(member.target)}", which does not join its nodes.`, {
+            step,
+            edge: member,
+            nodes: [from, to],
+        });
     }
 }
 

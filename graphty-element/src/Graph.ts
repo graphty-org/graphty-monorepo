@@ -643,7 +643,8 @@ export class Graph implements GraphContext {
             members: (scope) => resolver.nodeIdsOf(scope),
             detached: (scope) => {
                 try {
-                    return this.session.sets.status(scope).freshness === "detached";
+                    const { freshness } = this.session.sets.status(scope);
+                    return freshness === "detached" || freshness === "unresolvable";
                 } catch {
                     // A reference to a set never issued cannot mean anything either.
                     return true;

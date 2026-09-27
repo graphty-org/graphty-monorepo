@@ -192,7 +192,8 @@ function model(scope: Scope | SetDefinition, c: Case, snapshot: GraphSnapshot, l
     } else if ("kind" in scope) {
         const definition = scope as Extract<SetDefinition, { kind: "fixed" }>;
         ({ found: nodes, missing } = lookup(definition.nodes));
-        for (const member of definition.edges ?? []) {
+        // Read induced, edge members are inert.
+        for (const member of definition.reading === "induced" ? [] : (definition.edges ?? [])) {
             for (const end of lookup([member.source, member.target]).found) {
                 nodes.add(end);
             }
@@ -647,7 +648,14 @@ describe("the resolver against a naive model, for edge members and paths", () =>
                         return null;
                     }
 
-                    return step.kind === "one" ? [picks[0]] : picks;
+                    // A door refuses a step edge that does not join the step's two nodes.
+                    const [from, to] = [walk[i], walk[i + 1]];
+                    const joining = picks.filter(({ member }) => (member.source === from && member.target === to) || (member.source === to && member.target === from));
+                    if (joining.length === 0) {
+                        return null;
+                    }
+
+                    return step.kind === "one" ? [joining[0]] : joining;
                 });
                 const path = parseSetDefinition({
                     kind: "path",

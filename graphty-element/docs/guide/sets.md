@@ -81,6 +81,12 @@ door that takes edges: `create`, `redefine`, `addMembers`, `removeMembers` and a
 In an undirected graph the two spellings of one edge, `a` to `b` and `b` to `a`, are the same
 member.
 
+When your edges carry their own ids, set `edgeIdPath` in the data config so a set stores those.
+Without them, an edge is known only by its position among the edges joining the same two nodes.
+If a re-import reorders the parallel edges of one pair without changing how many there are, such
+a member binds the edge now at its position, which may be a different record, and nothing warns
+you.
+
 A rule can also be a filter tree -- the same tree the visibility filter takes -- which reaches
 things a query cannot, such as the top ten by a run's value or one community of a result:
 

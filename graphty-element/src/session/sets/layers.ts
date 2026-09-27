@@ -8,10 +8,11 @@
  * cache so budget pressure never evicts what is on screen.
  *
  * When the scope moves on the same snapshot, the elements to repaint are exactly the old bitmap
- * XOR the new one. Across a freeze the two bitmaps index different rows, so the entry asks for a
- * full pass of both halves instead, on the scheduler's frame. Until then it keeps its paint: its
- * old members are carried to the new rows by id, once per snapshot, so a whole-graph pass that
- * runs before the frame paints what was painted before.
+ * XOR the new one. Across a freeze the two bitmaps index different rows, so the old members are
+ * carried to the new rows by id, once per snapshot, and the repaint is the carried bitmap XOR the
+ * new resolution, on the scheduler's frame: a freeze that leaves the members alone repaints
+ * nothing. Until the frame the entry keeps its paint through the same carry, so a whole-graph pass
+ * that runs before it paints what was painted before.
  *
  * A scope that cannot be resolved -- a removed set, a cycle -- paints nothing, and the pass goes
  * on. Nothing here throws into a pass.
@@ -221,18 +222,28 @@ class Entry implements LiveScope {
      */
     #ready(next: Held): void {
         const previous = this.#held;
-        this.#take(next);
-        const {graph} = next;
-        // Fire and forget: a repaint's refusal is reported where it runs.
-        if (previous?.graph !== graph) {
+        const { graph } = next;
+        if (previous === null) {
+            this.#take(next);
+            // Fire and forget: a repaint's refusal is reported where it runs.
             void this.sources.repaint({ node: every(graph.nodeCount), edge: every(graph.edgeCount) });
             return;
         }
 
-        void this.sources.repaint({
-            node: moved(previous.resolution?.nodes ?? null, next.resolution?.nodes ?? null, graph.nodeCount),
-            edge: moved(previous.resolution?.edges ?? null, next.resolution?.edges ?? null, graph.edgeCount),
-        });
+        // What is on screen is the previous members, carried by id to the new rows across a
+        // freeze; only the rows where that differs from the new resolution are repainted, so a
+        // freeze that leaves a set's members alone repaints nothing for its layers.
+        let before: { readonly node: U32; readonly edge: U32 } | null = null;
+        if (previous.resolution !== null) {
+            before = previous.graph === graph ? { node: previous.resolution.nodes, edge: previous.resolution.edges } : this.#carry(previous, graph);
+        }
+
+        this.#take(next);
+        const node = moved(before?.node ?? null, next.resolution?.nodes ?? null, graph.nodeCount);
+        const edge = moved(before?.edge ?? null, next.resolution?.edges ?? null, graph.edgeCount);
+        if (node.length > 0 || edge.length > 0) {
+            void this.sources.repaint({ node, edge });
+        }
     }
 
     /**

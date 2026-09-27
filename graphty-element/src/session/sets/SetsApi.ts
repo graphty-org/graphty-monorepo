@@ -12,7 +12,7 @@
 
 import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
-import { EDGE_READINGS, inducedEdgeLeaf, parseScope, speaksEdges, stabiliseEdgeRefs } from "../../catalog/sets/parse";
+import { EDGE_READINGS, inducedEdgeLeaf, parseScope, parseSetDefinition, speaksEdges, stabiliseEdgeRefs } from "../../catalog/sets/parse";
 import type {
     EdgeId,
     EdgeMember,
@@ -50,6 +50,8 @@ import { pathKind } from "./path";
 import {
     defaultName,
     holdsEdgeMember,
+    isPrebuilt,
+    listedEdgesOf,
     MAX_EDGE_MEMBER_EDIT,
     prepareCreate,
     prepareMembers,
@@ -149,6 +151,7 @@ type CreateAs = (
     name: string | undefined,
     createdFrom: SetCreatedFrom,
     prebuilt?: readonly (readonly [EdgeId, EdgeMember])[],
+    seeds?: ReadonlyMap<string, number>,
 ) => SetId;
 
 const creatorsOf = new WeakMap<SetsApi, CreateAs>();
@@ -275,10 +278,38 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
      */
     const stabilise = (definition: SetDefinitionInput): unknown => stabiliseEdgeRefs<unknown>(definition, stable);
 
-    const stableDelta = (delta: SetMemberDelta): { nodes?: SetMemberDelta["nodes"]; edges?: readonly EdgeMember[] } => ({
+    const stableDelta = (
+        delta: SetMemberDelta,
+        convert: (ref: EdgeRef) => EdgeMember = stable,
+    ): { nodes?: SetMemberDelta["nodes"]; edges?: readonly EdgeMember[] } => ({
         ...(delta.nodes === undefined ? {} : { nodes: delta.nodes }),
-        ...(delta.edges === undefined ? {} : { edges: delta.edges.map(stable) }),
+        ...(delta.edges === undefined ? {} : { edges: delta.edges.map(convert) }),
     });
+
+    /**
+     * An edge reference to remove from a set, in stable form: a session edge id that has left the
+     * graph is found through the seed it bound when it was added.
+     * @param id - The set.
+     * @returns The conversion.
+     */
+    const removable = (id: SetId) => (ref: EdgeRef): EdgeMember => {
+        if (typeof ref === "string" && dependencies.edgeMember(ref) === undefined) {
+            const counter = edgeCounterOf(ref);
+            const counters = store.seedsOf(id)?.counters;
+            const definition = store.get(id)?.definition;
+            if (counters !== undefined && definition?.kind === "fixed") {
+                const members = listedEdgesOf(definition);
+                for (let row = 0; row < members.length; row++) {
+                    const member = members.at(row) as EdgeMember;
+                    if (counters.get(edgeMemberKey(member)) === counter) {
+                        return member;
+                    }
+                }
+            }
+        }
+
+        return stable(ref);
+    };
 
     const references: DependencySources = dependencies.dependencies ?? { referent: (id) => store.get(id)?.definition };
 
@@ -350,8 +381,9 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
         }
     };
 
-    const createAs: CreateAs = (definition, given, createdFrom, prebuilt = []) => {
-        const [concrete, refs] = collect(() => stabilise(definition));
+    const createAs: CreateAs = (definition, given, createdFrom, prebuilt, seeds) => {
+        // A definition the element built from a snapshot is already stable and canonical.
+        const [concrete, refs] = isPrebuilt(definition) ? [definition, []] : collect(() => stabilise(definition));
         const id = store.transact(() => {
             const name = given ?? defaultName(store);
             const minted = store.mint(typeof name === "string" ? name.trim() : "");
@@ -359,7 +391,11 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
 
             return minted;
         });
-        seed(id, undefined, [...prebuilt, ...refs]);
+        if (seeds !== undefined) {
+            store.seed(id, seeds);
+        }
+
+        seed(id, undefined, [...(prebuilt ?? []), ...refs]);
 
         return id;
     };
@@ -408,7 +444,7 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
      * @returns The minted id.
      */
     const commit = (concrete: Concrete, name: string | undefined): SetId =>
-        createAs(concrete.definition, name, concrete.createdFrom, concrete.refs);
+        createAs(concrete.definition, name, concrete.createdFrom, concrete.refs, concrete.seeds);
 
     /**
      * The offering, or the refusal of a session built without one.
@@ -431,9 +467,10 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
      * Refuse an offer whose execution is no longer its run's current one: keeping it would freeze
      * the current execution's members under a `createdFrom` that names the old one.
      * @param offer - The offer.
+     * @returns The offer, its definition rebuilt from its item.
      * @throws `E_BAD_COMMAND` with `details.reason: "stale-offer"`.
      */
-    const requireCurrent = (offer: SetOffer): void => {
+    const requireCurrent = (offer: SetOffer): SetOffer => {
         const { run, execution } = offer.item;
         const current = dependencies.executionOf === undefined ? dependencies.runs?.get(run)?.execution : dependencies.executionOf(run);
         if (execution === undefined || execution !== current) {
@@ -444,6 +481,13 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
                 details: { reason: "stale-offer", run },
             });
         }
+
+        // The members come from the item, never from the caller's copy of the definition, so a
+        // spread or edited offer cannot store one item's members under another's createdFrom.
+        return {
+            ...offer,
+            definition: parseSetDefinition({ kind: "rule", where: { kind: "item", item: offer.item }, reading: offer.reading }),
+        };
     };
 
     /**
@@ -557,13 +601,13 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
         ): Promise<SetId> {
             const reading = readingOption(options.reading);
             if (isOffer(source)) {
-                requireCurrent(source);
+                const offer = requireCurrent(source);
                 if (options.follow === true) {
-                    return follow(source, options.name, reading);
+                    return follow(offer, options.name, reading);
                 }
 
-                const concrete = await materialiser().from(source, reading);
-                requireCurrent(source);
+                const concrete = await materialiser().from(offer, reading);
+                requireCurrent(offer);
 
                 return commit(concrete, options.name);
             }
@@ -600,9 +644,9 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
 
         async createPath(source: SetOffer | "selection", options: { readonly name?: string } = {}): Promise<SetId> {
             if (isOffer(source)) {
-                requireCurrent(source);
-                const concrete = await materialiser().path(source);
-                requireCurrent(source);
+                const offer = requireCurrent(source);
+                const concrete = await materialiser().path(offer);
+                requireCurrent(offer);
 
                 return commit(concrete, options.name);
             }
@@ -623,7 +667,12 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
 
         rename(id: SetId, name: string): void {
             store.transact(() => {
-                write(prepareRename(store, { id, name }));
+                // A rename never touches the definition, so it does not re-check what the definition
+                // reads: a loaded or restored set in a cycle, or naming a missing set, stays renamable.
+                const record = prepareRename(store, { id, name });
+                if (record !== null) {
+                    store.put(record);
+                }
             });
         },
 
@@ -646,7 +695,7 @@ export function createSetsApi(dependencies: SetsDependencies, store: SetsStore =
         },
 
         removeMembers(id: SetId, members: SetMemberDelta): void {
-            const remove = stableDelta(members);
+            const remove = stableDelta(members, removable(id));
             store.transact(() => {
                 write(prepareMembers(store, { id, remove }, limit));
             });

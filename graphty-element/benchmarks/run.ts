@@ -15,7 +15,11 @@
  *   GRAPHTY_BENCH_SCALE=large GRAPHTY_BENCH_M=10 npx tsx benchmarks/run.ts resolve doors   # 1M / 10M
  *   node --expose-gc --import tsx benchmarks/run.ts    # GC before every run for exact memory deltas
  *   npx tsx benchmarks/run.ts --no-save                # do not append to benchmarks/results
+ *
+ * Several groups run one per child process, so a group never pays for an earlier group's heap.
  */
+
+import { spawnSync } from "node:child_process";
 
 import { fromEdgeArrays, type GraphSnapshot, makeMask } from "@graphty/graph-format";
 import { barabasiAlbertGraph } from "@graphty/graph-samples/generators";
@@ -416,6 +420,20 @@ const args = process.argv.slice(2);
 const save = !args.includes("--no-save");
 const selected = args.filter((a) => !a.startsWith("--"));
 const names = selected.length === 0 ? Object.keys(GROUPS) : selected;
+
+// More than one group: each runs in a fresh process, so one group's multi-GB heaps never put
+// garbage collection inside a later group's timed region.
+if (names.length > 1 && names.every((name) => name in GROUPS)) {
+    for (const name of names) {
+        const child = spawnSync(process.execPath, [...process.execArgv, process.argv[1], name, ...args.filter((a) => a.startsWith("--"))], {
+            stdio: "inherit",
+        });
+        if (child.status !== 0) {
+            process.exitCode = child.status ?? 1;
+        }
+    }
+    process.exit();
+}
 
 const all: BenchResult[] = [];
 for (const name of names) {

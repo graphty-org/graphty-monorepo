@@ -22,7 +22,8 @@
  *
  * WHEN A RUN IS OUT OF DATE, for sets: only when a declared input changed. A run over a kept set is
  * out of date when the set's revision moved since the run recorded it (unknown, never "changed",
- * when the two revisions are of different scheme versions); a run over a frozen scope (`{ nodes }`,
+ * when the two revisions are of different scheme versions) or when its membership moved, as for an
+ * inline scope; a run over a frozen scope (`{ nodes }`,
  * `{ where }`, `{ define }`, `"graph"`, `"largest-component"`) when that scope's membership moved.
  * A change of `"visible"` or `"selection"` never counts: the run froze its scope when it started.
  *
@@ -56,7 +57,8 @@ export interface StatusRun {
     /** What the run recorded about its scope when it ran. */
     readonly scope: { readonly spec: Scope; readonly set?: { readonly id: SetId; readonly revision: string } };
     /**
-     * Whether the membership of the run's scope moved since it ran. Read only for a frozen scope.
+     * Whether the membership of the run's scope moved since it ran. Read for a frozen scope and a
+     * kept set, never for `"visible"` or `"selection"`.
      * @returns True when it moved.
      */
     scopeMoved(): boolean;
@@ -123,11 +125,14 @@ function runInputs(run: StatusRun, sets: StatusSources["sets"]): "changed" | "un
             return "unknown";
         }
 
-        return live.revision === recorded.revision ? "same" : "changed";
+        // The revision OR the membership: a data edit that moves a rule set's members, or removes
+        // a fixed set's member, leaves its revision alone, and a run over the set must read out
+        // of date exactly as a run over the same members spelled inline does.
+        return live.revision !== recorded.revision || run.scopeMoved() ? "changed" : "same";
     }
 
     const { spec } = run.scope;
-    if (spec === "visible" || spec === "selection" || (typeof spec === "object" && "set" in spec)) {
+    if (spec === "visible" || spec === "selection") {
         return "same";
     }
 

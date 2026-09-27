@@ -878,7 +878,8 @@ export class LayoutManager implements Manager {
      * @param type - Layout type identifier
      * @param opts - Layout-specific options
      * @param scope - What the layout runs over. Absent keeps the carried scope, `"graph"` clears
-     * it, and anything else becomes the carried scope for this and later layouts.
+     * it, and anything else becomes the carried scope for this and later layouts. Internal: a
+     * consumer scopes a layout through `Graph.setLayout`'s `options.scope`.
      * @returns Promise that resolves when layout is set
      * @throws A `GraphtyError` with `E_UNSUPPORTED` for a scope on an engine that is not scoped,
      * or `E_BAD_COMMAND` for a scope that is malformed or names a removed set.
@@ -902,6 +903,7 @@ export class LayoutManager implements Manager {
     /**
      * Hand the manager the session it resolves scopes through.
      * @param source - The session's canonicaliser and resolver.
+     * @internal
      */
     setScopeSource(source: LayoutScopeSource): void {
         this.scopeSource = source;
@@ -910,6 +912,7 @@ export class LayoutManager implements Manager {
     /**
      * The scope layouts run over, as the consumer last set it; undefined for the whole graph.
      * @returns The canonical scope.
+     * @internal
      */
     get scope(): Scope | undefined {
         return this.carriedScope;
@@ -921,6 +924,7 @@ export class LayoutManager implements Manager {
      * a carried scope that means nothing is inactive.
      * @param scope - The scope; undefined or `"graph"` for the whole graph.
      * @throws A `GraphtyError` with `E_BAD_COMMAND` when it is not a scope.
+     * @internal
      */
     carryScope(scope: ScopeInput | undefined): void {
         this.carriedScope = scope === undefined || scope === "graph" ? undefined : this.requireScopeSource().canonical(scope);
@@ -929,6 +933,7 @@ export class LayoutManager implements Manager {
     /**
      * Restart the running layout, with its options, over the carried scope.
      * @returns A promise that resolves once the layout has restarted; at once when none is set.
+     * @internal
      */
     async rescope(): Promise<void> {
         const engine = this.layoutEngine;
@@ -958,6 +963,7 @@ export class LayoutManager implements Manager {
     /**
      * Let go of every held node when the scope the running layout captured names something that was
      * removed, so the layout runs over the whole graph instead. Nothing throws.
+     * @internal
      */
     releaseDetachedScope(): void {
         const scope = this.carriedScope;
@@ -1006,13 +1012,26 @@ export class LayoutManager implements Manager {
             if (source.detached(scope)) {
                 throw new GraphtyError({
                     code: "E_BAD_COMMAND",
-                    message: "the scope names a set that was removed, so there is nothing to lay out",
+                    message: "the scope names a set that was removed or cannot be resolved, so there is nothing to lay out",
                     source: "layout",
                     details: { field: "scope", reason: "detached" },
                 });
             }
 
-            return new Set(source.members(scope));
+            const members = new Set(source.members(scope));
+            if (members.size === 0 && explicit) {
+                // Holding every node would make the layout silently do nothing; a run over the
+                // same scope is refused the same way. A carried scope keeps its hold: the members
+                // it names may not be loaded yet.
+                throw new GraphtyError({
+                    code: "E_SCOPE_EMPTY",
+                    message: "the scope holds no nodes, so there is nothing to lay out",
+                    source: "layout",
+                    details: { field: "scope" },
+                });
+            }
+
+            return members;
         } catch (error) {
             // A CARRIED SCOPE NEVER THROWS: a property setter or the assistant's layout command
             // restarts a layout with it, and a refusal there would reach nobody.

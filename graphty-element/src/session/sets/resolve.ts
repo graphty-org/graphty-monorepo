@@ -1012,8 +1012,8 @@ export function addEdgeRow(row: number, snapshot: GraphSnapshot, nodes: U32, edg
 }
 
 /**
- * What a fixed definition covers. Its node half is its nodes plus the endpoints of its edges;
- * `induced` derives the edges between them, `listed` binds its edge members.
+ * What a fixed definition covers. `induced`: its nodes and the edges between them, its edge
+ * members inert. `listed`: its nodes plus its bound edge members and their ends.
  * @param definition - A canonical fixed definition.
  * @param context - What the resolution reads.
  * @param seeds - The set's seeds, for a kept set.
@@ -1022,28 +1022,13 @@ export function addEdgeRow(row: number, snapshot: GraphSnapshot, nodes: U32, edg
 export function resolveFixed(definition: Extract<SetDefinition, { kind: "fixed" }>, context: ResolveContext, seeds?: EdgeSeeds): Resolution {
     const { snapshot } = context;
     const nodes = makeMask(snapshot.nodeCount);
-    let missingNodes = addIds(definition.nodes, nodes, context);
+    const missingNodes = addIds(definition.nodes, nodes, context);
     const listed = listedEdgesOf(definition);
 
     if (definition.reading === "induced") {
-        // Read induced, an edge member names its two ends, whether or not the edge itself is still
-        // there: the set is those nodes and every edge among them. An end the graph lacks is a
-        // missing node, counted once however many members name it.
-        const absent = new Set<NodeId>();
-        const named = new Set<NodeId>(definition.nodes);
-        for (let i = 0; i < listed.length; i++) {
-            const member = listed.at(i) as EdgeMember;
-            for (const end of [member.source, member.target]) {
-                const index = (context.ids ?? snapshot.ids).indexOf(end);
-                if (index !== INVALID_INDEX) {
-                    nodes[index >>> 5] |= 1 << (index & 31);
-                } else if (!named.has(end)) {
-                    absent.add(end);
-                }
-            }
-        }
-
-        missingNodes += absent.size;
+        // Read induced, the set is its nodes and every edge among them. Its edge members are inert
+        // until the reading is switched to listed, so one stray selected edge cannot pull its two
+        // ends into every density and scoped run over the set.
         const half: NodeHalf = { nodes, constraint: null, all: false, missingNodes };
 
         return resolutionOf(half, deriveEdges(half, snapshot), context, 0);

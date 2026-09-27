@@ -173,12 +173,23 @@ export class SetsStore implements RecordView {
      * Record the counters edge members entered a set through, replacing earlier ones for the same
      * members. Moves the seeds' version, so a binding plan built before is rebuilt.
      * @param id - The set.
-     * @param entries - Member key and counter pairs.
+     * @param entries - Member key and counter pairs. A Map given for a set with no seeds yet is
+     * adopted, not copied, so the caller must not touch it afterwards.
      */
     seed(id: SetId, entries: Iterable<readonly [key: string, counter: number]>): void {
         // ponytail: one string-keyed Map entry per seeded member; a typed-array form keyed like the
         // edge columns when million-edge sets from createFrom make its memory matter.
         let seeds = this.seeds.get(id);
+        if (seeds === undefined && entries instanceof Map) {
+            // A fresh set adopts the map its materialising door built (and hands over), instead of
+            // one set() per member.
+            if (entries.size > 0) {
+                this.seeds.set(id, { counters: entries as Map<string, number>, version: 1 });
+            }
+
+            return;
+        }
+
         for (const [key, counter] of entries) {
             if (seeds === undefined) {
                 seeds = { counters: new Map(), version: 0 };

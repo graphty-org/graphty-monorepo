@@ -9,8 +9,10 @@ import { assert, describe, it } from "vitest";
 
 import type { EdgeMember, Filter, Scope, ScopeInput, SetId } from "../../../src/catalog/types";
 import { isGraphtyError } from "../../../src/errors";
+import { setsStoreOf } from "../../../src/session/sets/SetsApi";
 import { edgeBetween, type Harness, makeSession } from "../helpers";
 import { builtInRuns } from "./algorithms";
+import { TestGraph } from "./graphs";
 
 /** A session over a path a-b-c-d, running built-in algorithms. */
 function fixture(): Harness {
@@ -232,5 +234,84 @@ describe("an undirected edge member spelt with its ends reversed", () => {
         const id = h.session.sets.create({ kind: "path", nodes: ["b", "a"], edges: [ba] });
 
         assert.deepStrictEqual(h.session.sets.get(id)?.definition, { kind: "path", nodes: ["b", "a"], edges: [ab] });
+    });
+});
+
+describe("a path step's edge", () => {
+    it("is refused when it joins a pair other than the step's two nodes", async () => {
+        const h = fixture();
+
+        const code = await codeOf(() => h.session.sets.create({ kind: "path", nodes: ["a", "b"], edges: [edgeBetween(h, "c", "d")] }));
+
+        assert.strictEqual(code, "E_BAD_COMMAND");
+        const id = h.session.sets.create({ kind: "path", nodes: ["b", "a"], edges: [edgeBetween(h, "a", "b")] });
+        assert.strictEqual(h.session.sets.pathKind(id), "simple", "either spelling of the step's own edge is accepted");
+    });
+});
+
+describe("rename", () => {
+    /**
+     * Load stored sets straight into the slice, as a file or an undo step would.
+     * @param h - The harness.
+     * @param records - The records.
+     */
+    function load(h: Harness, records: readonly { id: string; name: string; definition: unknown }[]): void {
+        setsStoreOf(h.session.sets).loadLogicalRecords({
+            records: records.map((record, order) => ({ ...record, order, createdFrom: { kind: "user" } })),
+            register: records.map((record) => record.id),
+            tombstones: [],
+        });
+    }
+
+    const over = (scope: Scope): unknown => ({ kind: "rule", where: { kind: "scope", scope }, reading: "induced" });
+
+    it("renames a loaded set in a cycle, one naming a set never issued, and one reading the selection", () => {
+        const h = fixture();
+        load(h, [
+            { id: "set_a", name: "A", definition: over({ set: "set_b" }) },
+            { id: "set_b", name: "B", definition: over({ set: "set_a" }) },
+            { id: "set_dangling", name: "Dangling", definition: over({ set: "set_ghost" }) },
+            { id: "set_live", name: "Live", definition: over("selection") },
+        ]);
+
+        for (const [id, name] of [
+            ["set_a", "A2"],
+            ["set_dangling", "Dangling 2"],
+            ["set_live", "Live 2"],
+        ] as const) {
+            h.session.sets.rename(id, name);
+            assert.strictEqual(h.session.sets.get(id)?.name, name);
+        }
+    });
+
+    it("to a set's own name is a no-op, even when a loaded slice holds that name twice", () => {
+        const h = fixture();
+        load(h, [
+            { id: "set_y", name: "Dup", definition: { kind: "fixed", nodes: ["a"], reading: "induced" } },
+            { id: "set_z", name: "Dup", definition: { kind: "fixed", nodes: ["b"], reading: "induced" } },
+        ]);
+        const before = h.session.sets.get("set_z");
+
+        h.session.sets.rename("set_z", " Dup ");
+
+        assert.strictEqual(h.session.sets.get("set_z"), before);
+    });
+});
+
+describe("removeMembers", () => {
+    it("takes the session edge id a member was added with after its edge has left the graph", () => {
+        const graph = new TestGraph();
+        const [first] = graph.load([
+            { s: "a", t: "b" },
+            { s: "b", t: "c" },
+        ]);
+        const edge = graph.edgeId(first);
+        const id = graph.sets.create({ kind: "fixed", nodes: [], edges: [edge], reading: "listed" });
+        graph.removeEdge(first);
+
+        graph.sets.removeMembers(id, { edges: [edge] });
+
+        const definition = graph.sets.get(id)?.definition;
+        assert.strictEqual(definition?.kind === "fixed" ? (definition.edges?.length ?? 0) : -1, 0);
     });
 });

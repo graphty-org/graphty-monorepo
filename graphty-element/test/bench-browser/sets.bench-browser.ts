@@ -4,9 +4,9 @@
  * to `benchmarks/results/browser-<host>.jsonl`.
  *
  * - The freeze row: one node added while five layers over fixed sets and five over expression
- *   rules are live. Timed from the add to the first layer repainted with its new resolution (a
- *   fixed-set layer, which the added node does not affect: the fixed layers are first in the
- *   stack, so their watches are first in the scheduler's queue), to every layer repainted, the
+ *   rules are live. Timed from the add to the first repaint after it (the fixed-set layers, which
+ *   the added node does not affect, repaint nothing; the rule layers, which it joins, repaint that
+ *   one node), to every layer repainted, the
  *   time spent resolving inside the scheduler's frames, and then a 200-row `scope.count` panel
  *   over the ten sets.
  * - One 50% scoped run's input in both orientations: the declared and the undirected derived
@@ -168,7 +168,7 @@ for (const size of SIZES) {
         const counted = performance.now();
 
         record(`freeze with live sets, add one node, the freeze itself, ${size.label}`, frozen - start, "none stated");
-        record(`freeze with live sets, to the first layer repainted (a fixed set's), ${size.label}`, first - start, "under 200 ms");
+        record(`freeze with live sets, to the first repaint after it, ${size.label}`, first - start, "under 200 ms");
         record(`freeze with live sets, to every layer repainted, ${size.label}`, all - start, "within the re-resolution time");
         record(`freeze with live sets, the re-resolution alone (inside the scheduler's frames), ${size.label}`, resolving, "none stated");
         record(`freeze with live sets, then a 200-row scope.count panel, ${size.label}`, counted - panel, "none stated");

@@ -1077,9 +1077,10 @@ with an injectable frame source (production uses the render loop's frame callbac
   importing a style document whose layer names an unknown `{ set }` keeps the layer and reports it
   detached, never drops it.
 - `test/session/styles/repaint.sets.test.ts`: a redefine on the same snapshot repaints exactly the
-  XOR of old and new bitmaps (dirty-set spy; a 3-node delta on 50,000 nodes dirties 3); a freeze
-  takes the `renumbered()` full pass (`repaint.ts:310-320`) through the scheduler, each layer
-  keeping its paint until its resolution is ready; a rename repaints nothing; a layer over a rule on
+  XOR of old and new bitmaps (dirty-set spy; a 3-node delta on 50,000 nodes dirties 3); across a
+  freeze each layer keeps its paint until its resolution is ready, then repaints only the rows
+  where its carried old members and the new resolution differ (none when no member moved); a
+  rename repaints nothing; a layer over a rule on
   `results.pr` repaints after a re-run of `pr` with no data change.
 - Pins: a live layer's resolution is pinned and survives budget pressure.
 - `usedBy` lists the layer; held items named by a layer are captured on re-run.
@@ -1112,9 +1113,10 @@ Chromatic snapshots are left for the owner to accept.
   subscribes), pins its cache key (the kept set's definition, else the canonical scope, re-pinned
   on each resolution), and is dropped on the next style change that leaves no layer naming it.
   On the same snapshot `ready` repaints the XOR through the new `RepaintEngine.repaintElements`
-  (outside the op queue; the engine's own pass chain serialises it). Across a freeze it asks for
-  both halves whole; until its frame, it carries its old members to the new rows by id, once per
-  snapshot, so the element's whole-graph pass after a removal keeps the paint.
+  (outside the op queue; the engine's own pass chain serialises it). Across a freeze it carries
+  its old members to the new rows by id, once per snapshot, and repaints the carried bitmap XOR
+  the new resolution; until its frame, the same carry answers every pass, so the element's
+  whole-graph pass after a removal keeps the paint.
 - `SetsDependencies.users` feeds `usedBy` (layers today); the run capture holders include every
   layer scope.
 - Defect found and fixed: the input tick advanced when a token was minted, at the start of the

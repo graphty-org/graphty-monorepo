@@ -578,6 +578,9 @@ export class GraphStore {
      */
     private completeIdentity(): void {
         const { builder } = this;
+        // Every node row at once (the first freeze of a store): one typed array and one bulk
+        // column write instead of a checked cell write per node.
+        const bulkNodes = this.nodeMark === 0 && builder.nodeBound > 0 ? new Uint32Array(2 * builder.nodeBound) : null;
         for (let i = this.nodeMark; i < builder.nodeBound; i++) {
             let id;
             try {
@@ -589,7 +592,16 @@ export class GraphStore {
             }
 
             const { a, b } = hashNodeId(id);
-            builder.setNodeValue(this.nodeHashColumn, i, [a, b]);
+            if (bulkNodes === null) {
+                builder.setNodeValue(this.nodeHashColumn, i, [a, b]);
+            } else {
+                bulkNodes[2 * i] = a;
+                bulkNodes[2 * i + 1] = b;
+            }
+        }
+
+        if (bulkNodes !== null) {
+            builder.setNodeColumn(IDENTITY_COLUMNS.nodeHash, bulkNodes, { dtype: "u32", components: 2 });
         }
 
         const completingLoad = this.loadDepth === 0 && this.loadLength > 0;
@@ -597,8 +609,13 @@ export class GraphStore {
             return;
         }
 
-        const graph: IdentityGraph = { endpoints: (edge) => builder.edgeEndpoints(edge), idOf: (node) => builder.idOf(node) };
+        const graph: IdentityGraph = {
+            endpoints: (edge) => builder.edgeEndpoints(edge),
+            idOf: (node) => builder.idOf(node),
+            ...(bulkNodes === null ? {} : { hashOf: (node: number) => ({ a: bulkNodes[2 * node], b: bulkNodes[2 * node + 1] }) }),
+        };
         const ordered = this.latchPairsOrdered();
+        const noSessionEdges = this.sessionEdges.length === 0;
         for (const { row, counter, fileId } of this.sessionEdges) {
             if (builder.hasEdge(row)) {
                 builder.setEdgeValue(this.edgeOrdinalColumn, row, -1);
@@ -624,11 +641,30 @@ export class GraphStore {
 
         const fileIds = this.loadFileIds;
         const rows = this.loadRows.subarray(0, kept);
-        completeLoad(rows, graph, ordered, (position) => fileIds[position], (row, ordinal, among, hash) => {
-            builder.setEdgeValue(this.edgeOrdinalColumn, row, ordinal);
-            builder.setEdgeValue(this.edgeAmongColumn, row, among);
-            builder.setEdgeValue(this.edgeHashColumn, row, [hash.a, hash.b]);
-        });
+        if (noSessionEdges && kept === builder.edgeCount) {
+            // The load covers every edge in the store (a first load, or one that replaced it): the
+            // three columns are written whole, as typed arrays, instead of three checked cell
+            // writes per edge. Rows no live edge holds keep ordinal and among -1.
+            const bound = builder.edgeBound;
+            const hashes = new Uint32Array(2 * bound);
+            const ordinals = new Int32Array(bound).fill(-1);
+            const amongs = new Int32Array(bound).fill(-1);
+            completeLoad(rows, graph, ordered, (position) => fileIds[position], (row, ordinal, among, hash) => {
+                ordinals[row] = ordinal;
+                amongs[row] = among;
+                hashes[2 * row] = hash.a;
+                hashes[2 * row + 1] = hash.b;
+            });
+            builder.setEdgeColumn(IDENTITY_COLUMNS.edgeHash, hashes, { dtype: "u32", components: 2 });
+            builder.setEdgeColumn(IDENTITY_COLUMNS.edgeOrdinal, ordinals, { dtype: "i32", default: -1 });
+            builder.setEdgeColumn(IDENTITY_COLUMNS.edgeAmong, amongs, { dtype: "i32", default: -1 });
+        } else {
+            completeLoad(rows, graph, ordered, (position) => fileIds[position], (row, ordinal, among, hash) => {
+                builder.setEdgeValue(this.edgeOrdinalColumn, row, ordinal);
+                builder.setEdgeValue(this.edgeAmongColumn, row, among);
+                builder.setEdgeValue(this.edgeHashColumn, row, [hash.a, hash.b]);
+            });
+        }
         this.loadLength = 0;
         this.loadFileIds = [];
         this.loadRows = new Uint32Array(64);

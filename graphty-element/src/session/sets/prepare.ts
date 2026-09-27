@@ -15,7 +15,7 @@
  * Pure and Node-safe.
  */
 
-import { compareIds } from "../../catalog/sets/canonical";
+import { compareIds, sortElementEdgeMembers, sortElementNodeIds } from "../../catalog/sets/canonical";
 import {
     addToSum,
     EMPTY_SUM,
@@ -111,7 +111,7 @@ function requireRecord(records: RecordView, id: SetId): ElementSet {
  * @param name - The candidate.
  * @param self - The set being renamed, which may keep its own name.
  * @returns The trimmed name.
- * @throws `E_BAD_COMMAND` for an empty name or one longer than {@link MAX_NAME_LENGTH},
+ * @throws `E_BAD_COMMAND` for an empty name or one longer than MAX_NAME_LENGTH,
  * `E_DUPLICATE_ID` for one another set holds.
  */
 function checkName(records: RecordView, name: unknown, self?: SetId): string {
@@ -136,7 +136,7 @@ function checkName(records: RecordView, name: unknown, self?: SetId): string {
 }
 
 /** The longest set name a door accepts. */
-export const MAX_NAME_LENGTH = 256;
+const MAX_NAME_LENGTH = 256;
 
 /**
  * The name the element picks when none is given: "Set N" for the smallest free N.
@@ -470,6 +470,8 @@ function hasId(ids: readonly NodeId[], id: NodeId): boolean {
 // ---------------------------------------------------------------------------------------------
 
 const columnsOf = new WeakMap<SetDefinition, EdgeColumns>();
+/** Definitions the element built from a snapshot, already canonical and frozen. */
+const prebuilt = new WeakSet<SetDefinition>();
 const opacityOf = new WeakMap<SetDefinition, string | null>();
 const summariesOf = new WeakMap<SetDefinition, { readonly nodes: MemberSummary; readonly edges: MemberSummary }>();
 const revisionsOf = new WeakMap<SetDefinition, string>();
@@ -606,6 +608,10 @@ function fixedDefinition(
  * @throws `E_BAD_COMMAND` for anything malformed, unknown or reserved.
  */
 function freezeDefinition(definition: unknown): SetDefinition {
+    if (isPrebuilt(definition)) {
+        return definition;
+    }
+
     const canonical = parseSetDefinition(definition);
     if (canonical.kind === "fixed") {
         // The canonical node array is already a fresh copy, so it is frozen in place.
@@ -616,6 +622,31 @@ function freezeDefinition(definition: unknown): SetDefinition {
     opacityOf.set(frozen, null);
 
     return frozen;
+}
+
+/**
+ * A listed fixed definition built from members the element read off a snapshot, canonical and
+ * frozen in the compact column form. The work a caller's definition needs at the synchronous
+ * commit (validating, canonicalising, sorting, interning) happens here instead, so a materialising
+ * door does it in its asynchronous step. Internal.
+ * @param nodes - Node ids, any order.
+ * @param members - Stable edge members with their ends already canonical, any order.
+ * @returns The frozen definition, which `set.create` stores as it is.
+ */
+export function prebuiltListed(nodes: readonly NodeId[], members: readonly EdgeMember[]): SetDefinition {
+    const definition = fixedDefinition("listed", Object.freeze(sortElementNodeIds(nodes)), EdgeColumns.of(sortElementEdgeMembers(members)));
+    prebuilt.add(definition);
+
+    return definition;
+}
+
+/**
+ * Whether a value is a definition {@link prebuiltListed} built. Internal.
+ * @param definition - The value.
+ * @returns True when it is.
+ */
+export function isPrebuilt(definition: unknown): definition is SetDefinition {
+    return typeof definition === "object" && definition !== null && prebuilt.has(definition as SetDefinition);
 }
 
 /**
@@ -720,9 +751,15 @@ export function prepareCreate(records: RecordView, command: CreateCommand): Elem
  */
 export function prepareRename(records: RecordView, command: { readonly id: SetId; readonly name: string }): ElementSet | null {
     const prior = requireRecord(records, command.id);
+    // An unchanged name is a no-op before uniqueness, so a loaded slice with duplicate names can
+    // still "rename" a set to its own name.
+    if (typeof command.name === "string" && command.name.trim() === prior.name) {
+        return null;
+    }
+
     const name = checkName(records, command.name, command.id);
 
-    return name === prior.name ? null : makeRecord({ ...prior, name });
+    return makeRecord({ ...prior, name });
 }
 
 /**

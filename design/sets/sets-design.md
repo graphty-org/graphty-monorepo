@@ -321,14 +321,14 @@ export type SetDefinition =
 ### 4.2 Fixed
 
 - A fixed set stores ids, never row indices, and is **never out of date**.
-- Its node half is its `nodes` plus the endpoints of its `edges`. Its edge half is its `edges`.
-  The reading is applied as in section 4.1.
-- **What an edge member that does not bind contributes depends on the reading.** Read `listed`,
-  nothing: its ends join the node half only through the bound edge, so a set made from selected
-  edges does not keep two nodes nobody chose after the edge is deleted, and the member counts as
-  one missing edge. Read `induced`, an edge member names its two ends whether or not the edge is
-  still there, because an induced set is a set of nodes and every edge among them; an end the
-  graph lacks counts as one missing node, once however many members name it.
+- **What its edge members contribute depends on the reading.** Read `induced`, nothing: the set
+  is its `nodes` and every edge among them, and the stored edge members are inert until the
+  reading is switched to `listed`. So one stray selected edge cannot pull its two ends into the
+  set, and every density and scoped run over the set sees only the nodes the reader chose. Read
+  `listed`, the node half is the `nodes` plus the ends of every edge member that binds, and the
+  edge half is the bound members; an edge member that does not bind contributes nothing, so a set
+  made from selected edges does not keep two nodes nobody chose after the edge is deleted, and the
+  member counts as one missing edge.
 - **In an undirected graph an edge member's ends are stored in canonical order** (section 12.1),
   at every door that takes members: `a` to `b` and `b` to `a` are one member, with one revision,
   and adding the other spelling is a no-op. In a graph whose pairs are ordered the order is part
@@ -661,11 +661,13 @@ capture. When no capture exists (the file was written without it), the reference
 nothing with reason `values-not-kept`.
 
 **When a run is out of date, for sets.** Only when a declared input changed: the set it recorded
-(`RunScopeRecord.set.revision`) was redefined, or the membership of its frozen scope definition
-moved. A change of `"visible"` or `"selection"` membership does not count, because the run froze
-its scope at start. Today's `Run.stale` is scope drift ("why a run's numbers no longer describe
-what is on screen", `session/runs/types.ts:142-156`) and sets never read it: a different scope is
-not out of date.
+was redefined (`RunScopeRecord.set.revision` moved), or the membership of its scope moved (the
+digest of the scope's current members differs from `RunScopeRecord.digest`). Both apply to a run
+over a kept set, and the second to a run over an inline scope, so a reference composes like the
+members it replaces: a data edit that removes a member of a kept fixed set, or moves a kept rule
+set's members, makes a run over `{ set }` out of date exactly as it does a run over the same
+members given inline. A change of `"visible"` or `"selection"` membership does not count, because
+the run froze its scope at start; a different scope is not out of date.
 
 ### 5.3 Status, derived on read
 
@@ -813,7 +815,11 @@ and path set, not only the ones whose fields changed. Fixed and path sets re-res
 new id map: about 38 ms for 500,000 node ids plus one edge pass for the induced reading (section
 6.5). An expression rule costs its full evaluation again. That re-resolution is **time-sliced
 like the repaint**: it runs in chunks off the input path, and a layer or filter keeps its current
-paint until its new resolution is ready, then takes the full-pass repaint. Carrying bitmaps across
+paint until its new resolution is ready. Its old members are carried to the new rows by id (one
+id lookup per member and one pass over the edge-id column), and only the rows where that carried
+bitmap differs from the new resolution are repainted, so a freeze that leaves a set's members
+alone repaints nothing for its layers. The element's own whole-graph repaint after a removal,
+which renumbers rows, paints through the same carry. Carrying resolutions (not paint) across
 a freeze with the freeze report is deferred until the freeze row of section 6.5 is measured worse
 than its projection and the owner asks for it: the report's remaps are relative to the previous freeze of the same builder
 (`graph-format/src/types/builder.ts:90-100`), so a carry is only sound when the store instance is
@@ -824,8 +830,11 @@ and a second resolution path should not exist before a measurement asks for it.
 **A `set.members` delta carries.** On the same snapshot, the new record's resolution is the old
 one with the delta's bits set or cleared; for the induced reading only the incident edges of the
 added or removed nodes are updated (O(sum of their degrees)). The revision and the digest are
-updated by adding and subtracting the delta's hashes. A click that adds three nodes costs
-O(delta), not a rebuild.
+updated by adding and subtracting the delta's hashes. A click that adds three nodes is not a
+rebuild, but it is not O(delta) either: the record keeps its node members as one frozen sorted
+array, so every edit copies it, O(members) with a small constant (about 6 ms at 500,000 members).
+The first edit of a set also pays one full pass to compute its member summary. An op-log sub-key
+(section 20) would make the copy O(delta).
 
 **Budget.** The bitmap cache is bounded in bytes (64 MB, internal), not entries. Entries named by
 a live style layer or the visibility filter are pinned; pins are counted
@@ -973,9 +982,11 @@ the plan's benchmark task re-measures it at the stated target.
   edge of the load being completed and 4 per node; no `EdgeIdIndex` in the sets code; the summary cache tens of
   bytes per set.
 
-**Recorded timings, 2026-09-27** (re-recorded after the load completion pass was made cheaper
-and the full repaints after a freeze were coalesced, then every row below rerun on the finished
-branch; the 1M / 10M door rows with a 24 GB heap). Intel i9-14900, Node 22.22.1 (Node runner,
+**Recorded timings, 2026-09-27.** The listed door, the Node load, member-edit and listed-resolution
+rows and the browser freeze rows were re-measured after the three changes described below the
+table (the moved-rows repaint, the asynchronous door build and the bulk completion columns); the
+other rows are from the earlier run on this branch, and a 1M / 10M door row with a 24 GB heap.
+Each Node group runs in its own process. Intel i9-14900, Node 22.22.1 (Node runner,
 `benchmarks/run.ts`) and headless Chromium 143 (browser runner,
 `test/bench-browser/*.bench-browser.ts`). Medians of five runs (Node) or three (browser input
 row); the freeze rows are single measurements. Graphs are Barabasi-Albert, m = 5 (m = 10 for the
@@ -984,42 +995,56 @@ row); the freeze rows are single measurements. Graphs are Barabasi-Albert, m = 5
 | Row | Runner | Projection | 100k / 500k | 1M / 5M | 1M / 10M |
 |---|---|---|---|---|---|
 | Digest of `"visible"`, nothing hidden | Node | under 150 ms at 10M | 2.2 ms | 9.5 ms | 17.0 ms |
-| First resolution of a listed fixed set, by identity (half the edges at 100k, 1M members at 1M / 5M) | Node | about 85 ms at 1M / 5M | 73 ms | 974 ms, WORSE | -- |
-| The same, seeded (one merge of the edge-id column) | Node | about 85 ms at 1M / 5M | 115 ms | 548 ms, WORSE | -- |
-| Three-node `addMembers` on a set of half the nodes (50,000; 500,000) | Node | O(delta) | 2.7 ms | 29.6 ms, WORSE: grows with the set | -- |
+| First resolution of a listed fixed set, by identity (half the edges at 100k, 1M members at 1M / 5M) | Node | none for edge members (the 85 ms projection was for node id lists) | 73 ms | 726 ms, worse than the node-list figure | -- |
+| The same, seeded (one merge of the edge-id column) | Node | as above | 115 ms | 408 ms | -- |
+| Three-node `addMembers` on a set of half the nodes (50,000; 500,000), the set's first edit | Node | O(members) array copy plus the first edit's summary pass | 2.7 ms | 29.6 ms | -- |
+| The same, a later edit (the summary already known) | Node | O(members) array copy | -- | about 6 ms | -- |
 | `revisionOf`, fixed set of every node | Node | none stated | 5.7 ms | 64 ms | -- |
 | `revisionOf`, fixed set of as many listed edges | Node | none stated | 65 ms | 706 ms | -- |
-| `createFrom("visible")`, no filter | Node | under 200 ms | 16 ms | 173 ms | 390 ms, WORSE |
-| `createFrom` of a scope listing every other edge, total (250k; 2.5M; 5M edges) | Node | under 2 s at 5M edges | 1,471 ms | 22.6 s | 46.4 s, WORSE; runs out of Node's default 4 GB heap, measured with 24 GB |
-| The same, its synchronous commit | Node | under 50 ms at 5M edges | 476 ms, WORSE | 7.3 s | 14.9 s, WORSE |
+| `createFrom("visible")`, no filter | Node | under 200 ms | 16 ms | 177 ms | 390 ms, WORSE |
+| `createFrom` of a scope listing every other edge, total (250k; 2.5M; 5M edges) | Node | under 2 s at 5M edges | 1,145 ms | 15.7 s, WORSE | 46.4 s before the change below, WORSE; runs out of Node's default 4 GB heap, measured with 24 GB |
+| The same, its synchronous commit | Node | under 50 ms at 5M edges | 0.1 ms | 0.6 ms | not re-measured |
 | `combineMasks` union / intersection / difference / symmetric difference, 50% induced with 33% listed | Node | none stated | 4.5 / 1.4 / 2.2 / 4.0 ms | 46 / 15 / 23 / 47 ms | 88 / 31 / 45 / 85 ms |
 | Load completion (`closeLoad`) and first freeze, timed together | browser | completion at most about the freeze | 183 ms | 3,343 ms | 8,265 ms |
 | The same, browser: completion pass alone | browser | at most about the freeze | 141 ms | 2,382 ms | 4,392 ms, WORSE |
-| The same, Node: completion pass / first freeze | Node | completion at most about the freeze | 156 / 45 ms, WORSE | 2,596 / 1,271 ms, WORSE | -- |
-| Freeze with live sets: the freeze itself (add one node) | browser | none stated | 58 ms | 1,151 ms | 2,518 ms |
-| Freeze with live sets: to the first layer repainted (a fixed set's, which the new node does not affect) | browser | under 200 ms | 607 ms, WORSE | 4,926 ms, WORSE | 9,968 ms, WORSE |
-| Freeze with live sets: to every layer repainted | browser | within the re-resolution time | 987 ms, WORSE | 7.9 s, WORSE | 19.5 s, WORSE |
-| Freeze with live sets: the re-resolution alone, all ten sets | browser | none stated | 68 ms | 739 ms | 1,067 ms |
-| Freeze with live sets: a 200-row `scope.count` panel after it | browser | none stated | 0.7 ms | 0.4 ms | 0.5 ms |
+| The same, Node: completion pass / first freeze (one group per process) | Node | completion at most about the freeze | 64 / 47 ms | 1,239 / 961 ms | -- |
+| Freeze with live sets: the freeze itself (add one node) | browser | none stated | 50 ms | 851 ms | 2,032 ms |
+| Freeze with live sets: to the first repaint after it (the fixed-set layers repaint nothing; the rule layers repaint the one node that joined them) | browser | under 200 ms | 212 ms, WORSE | 2,593 ms, WORSE | 6,149 ms, WORSE |
+| Freeze with live sets: to every layer repainted | browser | within the re-resolution time | 220 ms | 2,681 ms | 6,268 ms |
+| Freeze with live sets: the re-resolution alone, all ten sets | browser | none stated | 108 ms | 1,187 ms | 2,335 ms |
+| Freeze with live sets: a 200-row `scope.count` panel after it | browser | none stated | 0.4 ms | 0.3 ms | 0.4 ms |
 | One 50% scoped run's input, declared and undirected | browser | must complete | 42 ms | 365 ms | 869 ms |
 
-What the freeze rows say. Re-resolving all ten live sets after the freeze costs about 1 s at
-1M / 10M, and the 200-row panel afterwards is served entirely from what the frames resolved. The
-time is in the paint: each layer whose resolution is ready asks for a full pass of both halves
-(section 6.2). Those full passes are coalesced: while one runs, every further request becomes one
-more pass after it, over the graph as it then stands, so ten live sets cost two whole-graph passes
-instead of ten (every layer repainted: 3.8 s to about 1 s at 100k, 34.6 s to about 8 s at
-1M / 5M, 60.7 s to 16 to 20 s at 1M / 10M). The first layer still waits for one whole-graph pass,
-5 to 10 s at 1M, 3 to 50 times its 200 ms budget. The carry of section 6.2 would remove at most the re-resolution; a repaint that paints only
-the carried rows of the layers whose sets moved would remove the rest. Which, if either, to build
-is the owner's decision.
+What the freeze rows say. A layer repaints only the rows where its old members, carried to the
+new rows by id, differ from its new resolution (section 6.2), so a freeze that leaves a set's
+members alone repaints nothing for its layers; before this, each layer asked for a whole-graph
+pass (to every layer repainted: 1,104 ms at 100k, 9.9 s at 1M / 5M). What is left is the freeze
+itself and the re-resolution of every live set in the scheduler's frames, which the carry of
+resolutions (section 6.2) would remove; the first repaint still misses its 200 ms budget, by a
+little at 100k and about 13 times at 1M / 5M. Whether to build that carry is the owner's decision
+(section 15.3). The 200-row panel afterwards is served entirely from what the frames resolved.
 
-What the door rows say. The listed `createFrom` commit, projected under 50 ms at 5M edges, takes
-18 s, and the whole door needs more than Node's default heap at 5M edges. This is the case the
-write-door projection above leaves to the owner: an internal typed encoding in the asynchronous
-step, so the synchronous part stops building and sorting one object per member. A member edit is
-not O(delta): the record keeps its node members as one frozen array (section 13.2), so each edit
-copies it.
+What the door rows say. The materialising doors now build the compact, canonical definition and
+its seeds in their asynchronous step (`prebuiltListed` in `session/sets/prepare.ts`), so the
+synchronous commit of a listed `createFrom` adopts them and meets its budget at every size (0.6 ms
+at 2.5M edges, from 8 s). The whole door is still over its 2 s budget at 1M nodes: most of the rest
+is parsing and canonicalising a caller's inline definition of millions of session edge ids, and
+sorting the members, both off the main thread's critical commit. A member edit is O(members), not
+O(delta): the record keeps its node members as one frozen array (section 13.2), so each edit
+copies it, about 6 ms at 500,000 members once the set's summary is known; the recorded row (18 to
+30 ms) also pays the set's first summary pass, because the runner times a fresh set's first edit.
+
+What the load rows say. The completion pass writes the three identity columns and the node hash
+column whole, as typed arrays, when one load covers every edge in the store, and hashes each node
+id once for both. At 100k it costs about 1.4 times the first freeze, and at 1M about 1.3 times,
+inside the "never more than twice" budget. The Node runner now runs each group in its own
+process: in one process, the load group ran after the door group's multi-GB heaps and its rows
+were inflated two to three times by garbage collection.
+
+Not measured by any runner here: a whole-graph scope resolution as a visibility-filter pass pays
+it, and an end-to-end scoped run (such as PageRank over a 50% set) beside a measurement on the
+base branch. The run path's regression status is known only for the resolution and input rows
+above.
 
 ---
 
@@ -1561,7 +1586,7 @@ narrowing. The rules, in the order a member takes them:
 
 1. **`id`, the file's edge id**, read at the element's configured `edgeIdPath`
    (`config/DataConfig.ts:57`). Only a configured path counts; when it is unset, edges have no file
-   id, and the import report says so (section 19).
+   id. Nothing tells the reader so yet (section 21).
 2. **`id`, minted, for an edge added in the session** without a file id: `graphty:e<n>`, where `n`
    is the edge's `DataManager` counter value, which is never rewound (section 4.2). The `graphty:`
    prefix is a reserved namespace. The minted id is the edge's id for every purpose a file id
@@ -1620,8 +1645,10 @@ source and the tie is broken (an absent `dataSource` matches any source, as toda
 2. **The graph is re-imported from its source**, and the same for Replace data. The new load's
    columns are computed as above, and each member is rebound in one O(E) scan against a hash of
    the members' identities. A parallel group whose size changed reads missing with
-   `ambiguous-parallel-edge`. Minted ids do not come back unless the file carried them. The
-   import report says when ordinals were matched by position.
+   `ambiguous-parallel-edge`. Minted ids do not come back unless the file carried them. When a
+   re-import reorders the id-less parallel edges of one pair without changing how many there are,
+   an ordinal member binds the edge now at its position, which may be a different record, and
+   nothing warns the reader (section 21).
 
 Neither case rewrites a set, a stored revision or a derived run id, so a clean reload never reads
 out of date. Tests:
@@ -1772,8 +1799,8 @@ are separate from the recorded patch**: a consumer cannot supply an id, an order
   `DataManager`), execution tokens (nonce plus counter, restored with the result). Undo rewinds
   none of the counters.
 - **Nothing throws inside a pass** (section 4.3).
-- **`membersOf(record)`** is a synchronous internal resolver, for undo's "select what the step
-  touched".
+- **`resolveSet(record, context)`** (`session/sets/cache.ts`) is the synchronous internal
+  resolver, for undo's "select what the step touched".
 
 ### 13.4 Port items for the undo branch
 
@@ -2087,7 +2114,9 @@ Every item becomes published API or a persisted format once released. The owner 
 
 **Status, 2026-09-27: no item has a recorded answer yet.** The branch builds every
 recommendation below, so each answer is due before the branch merges, and a "no" is a code change
-on the branch, not a follow-up.
+on the branch, not a follow-up. This list, with the performance rows at its end, is the one
+decision list the owner answers; the branch does not merge until each item has an answer
+recorded here.
 
 1. **`session.sets` and its method names**: `list`, `get`, `status`, `pathKind`, `containing`,
    `usedBy`, `create`, `createFrom`, `createPath`, `combine`, `rename`, `redefine`, `addMembers`,
@@ -2224,6 +2253,32 @@ on the branch, not a follow-up.
 28. **Door limits**: a set name is at most 256 characters, because the id is minted from it;
     `sets.offers` refuses a `limit` that is not a whole number of at least 0. The deprecated
     `scope.save` shares the name check, so a longer name it accepted in 2.x is now refused.
+29. **A fixed set read `induced` ignores its edge members** (section 4.2): it is its nodes and the
+    edges among them, and its stored edges count only once the reading is `listed`. This is the
+    meaning a persisted `reading: "induced"` carries. Recommendation: ship as described; the
+    alternative, edge members naming their ends, lets one stray selected edge add two nodes to
+    every density and scoped run over the set.
+30. **A path step's edge must join the step's two nodes**, in either order: every door refuses
+    one that joins another pair with `E_BAD_COMMAND`. A stored path that holds one still loads,
+    and the resolver reads it as it always has. Recommendation: ship as described.
+31. **`LayoutManager.setLayout` gains a third `scope` parameter.** `LayoutManager` is exported
+    from the package entry, so the parameter is visible to a consumer even though the documented
+    door is `Graph.setLayout`'s `options.scope`. The other members the branch adds to the class
+    (`setScopeSource`, `scope`, `carryScope`, `rescope`, `releaseDetachedScope`) are marked
+    `@internal` and left out of the API documentation. Recommendation: keep the parameter, and
+    mark `LayoutManager` itself internal in 3.0.0.
+32. **An explicit layout scope with no members is refused** with `E_SCOPE_EMPTY`, as a run over
+    the same scope is, instead of holding every node so the layout silently does nothing. A
+    carried scope with no members keeps its hold, because the members it names may not be loaded
+    yet, and a carried scope whose set cannot be resolved is inactive, as a removed one is.
+    Recommendation: ship as described.
+
+**Performance rows still over their projection** (section 6.5), for the owner to accept or
+send back with the items above: the first repaint after a freeze with live sets (212 ms at
+100k / 500k and 2.6 s at 1M / 5M, against 200 ms; what is left is the re-resolution, which the
+carry of resolutions in section 6.2 would remove); a listed `createFrom` of millions of edges, whose synchronous commit
+now meets its budget but whose whole door does not at 1M nodes; the first resolution of a listed
+fixed edge set at 1M / 5M; and a member edit, which is O(members), not O(delta).
 
 ---
 
@@ -2331,7 +2386,7 @@ The studio drafts (`design/ui/framework/`) are still under review. Points to car
 | Detached | A stored field; a detached dependent keeps its last values | Derived from the absent referent; resolves to nothing | Keeping last values would last only until the next freeze, so behaviour would depend on timing; storing detached needs a write from every removal |
 | Restore set | From the kept record, forever | Tombstone records in a bounded store, oldest dropped first; `sets.restore` reserved | Bounded file size |
 | Delete verb | `session.sets.delete()` | `remove` | Matches the published `scope.remove` and every other removal verb on the session |
-| Edge identity | File id when it has one, else (source, target, key), key being the file's key field or else the ordinal; the source column joins after Add data | `EdgeMember` with `id`, `key` (reserved) or `ordinal` plus `among`, counted over every edge of the pair per load; `dataSource` reserved | Agreed in substance. Only a configured `edgeIdPath` counts as a file id, and the import report says when edges have none; probing files for ids would change existing loads' merge behaviour. Because the ordinal counts every edge, a later probe or path never moves it. Until `dataSource`, two loads that give one pair the same ordinal read ambiguous |
+| Edge identity | File id when it has one, else (source, target, key), key being the file's key field or else the ordinal; the source column joins after Add data | `EdgeMember` with `id`, `key` (reserved) or `ordinal` plus `among`, counted over every edge of the pair per load; `dataSource` reserved | Agreed in substance. Only a configured `edgeIdPath` counts as a file id, and nothing yet says when edges have none (section 21); probing files for ids would change existing loads' merge behaviour. Because the ordinal counts every edge, a later probe or path never moves it. Until `dataSource`, two loads that give one pair the same ordinal read ambiguous |
 | Data forks | "Earlier data" after Replace data, a published data version | Reads as "Earlier run" until the element has data versions. The element's per-field attribute counter is called the attribute revision, not the data version | Nothing in the element records which data a run saw; a data version is its own design |
 | Create set on a selection | Stores what was selected, reads induced when it holds nodes, listed for edges alone | Agreed | An earlier draft read listed whenever one edge was selected; one stray edge would then change every density and scoped run. The type row's toggle recovers a traced tree |
 | Layouts | Settings on the graph, a set or a partition; a layout run over a frozen scope, the filtered graph by default; any layout writes only its scope's positions | A scope frozen when each layout starts, like a run; the whole graph by default; only simulation engines (`scoped`) accept one; one element-wide scope | Frozen matches the studio. The whole-graph default is 2.x behaviour and changing it breaks consumers. Where a static layout places a subset needs a placement design. Per-set settings are deferred (section 20) |
@@ -2431,6 +2486,12 @@ The studio drafts (`design/ui/framework/`) are still under review. Points to car
 - **Static layouts over a set.** Where the subset lands is an unanswered design question.
 - **Moving visibility and selection to packed bits.** Converting at the boundary is one pass.
 - **Offers from `pair-list`, metric and temporal shapes.** Section 8.2 gives the reasons.
+- **An edge-identity field on the import report.** A field such as `edgeIdentity: { fileIds,
+  ordinalMatched }` would tell the reader when edges have no file id and when ordinal members were
+  matched by position, so a re-import that reorders id-less parallel edges could warn instead of
+  silently binding a member to a different record. It is a new public field on `ImportReport`, a
+  one-way door, so it waits for the owner; until then the sets guide states the limitation and
+  recommends configuring `edgeIdPath`.
 
 ---
 

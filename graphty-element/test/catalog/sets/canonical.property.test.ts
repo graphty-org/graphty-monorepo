@@ -10,7 +10,7 @@ import { fcParams } from "../../helpers/fc-params";
 const nodeId: fc.Arbitrary<NodeId> = fc.oneof(
     fc.integer({ min: -3, max: 3 }),
     fc.constantFrom(0.5, 1e21, -2.25),
-    fc.constantFrom("a", "b", "1", "Z", "￿", "😀", ""),
+    fc.constantFrom("a", "b", "1", "Z", "\uFFFF", "\u{1F600}", ""),
 );
 
 const edgeMember: fc.Arbitrary<EdgeMember> = fc.oneof(

@@ -136,6 +136,22 @@ describe("a layout over a set", () => {
         assert.isTrue(isGraphtyError(error) && error.code === "E_BAD_COMMAND", String(error));
     });
 
+    it("refuses an explicit scope with no members with E_SCOPE_EMPTY, as a run does", async () => {
+        const empty = session.sets.create({ kind: "fixed", nodes: ["not-a-node"], reading: "induced" }, { name: "Empty" });
+        const codeOf = async (scope: unknown): Promise<unknown> => {
+            try {
+                await graph.setLayout("ngraph", {}, { scope: scope as never });
+            } catch (caught) {
+                return isGraphtyError(caught) ? caught.code : caught;
+            }
+
+            return null;
+        };
+
+        assert.strictEqual(await codeOf({ set: empty }), "E_SCOPE_EMPTY");
+        assert.isNull(graph.getLayoutManager().layoutEngine?.holdMask ?? null, "nothing was held for the refused scope");
+    });
+
     it("refuses an explicit scope on a layout that cannot hold nodes still, with E_UNSUPPORTED", async () => {
         let error: unknown;
         try {

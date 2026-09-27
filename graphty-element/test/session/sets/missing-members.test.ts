@@ -40,9 +40,9 @@ describe("an edge member that does not bind", () => {
         assert.deepStrictEqual(result, { nodes: ["a"], missingNodes: 0, missingEdges: 1 });
     });
 
-    it("read induced, names its ends, and an end the graph lacks is a missing node", () => {
+    it("read induced, is inert: it names no end and counts nothing missing", () => {
         const result = resolve({ kind: "fixed", nodes: [], edges: [{ source: "a", target: "zz", ordinal: 0, among: 1 }], reading: "induced" });
-        assert.deepStrictEqual(result, { nodes: ["a"], missingNodes: 1, missingEdges: 0 });
+        assert.deepStrictEqual(result, { nodes: [], missingNodes: 0, missingEdges: 0 });
     });
 
     it("read listed, a bound edge brings both its ends", () => {

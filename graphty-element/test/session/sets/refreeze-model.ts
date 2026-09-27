@@ -354,20 +354,9 @@ function expect(model: Model, real: Driver, set: ModelSet): Expected {
     }
 
     if (set.kind === "fixed") {
-        // Read induced, an edge member names its ends, and an end the graph lacks is one missing
-        // node however many members name it; read listed, the ends join only with a bound edge.
-        const absentEnds = new Set<unknown>();
+        // Read induced, the edge members are inert; read listed, the ends join only with a bound
+        // edge.
         for (const [key, member] of set.members) {
-            if (set.reading === "induced") {
-                for (const end of [member.source, member.target]) {
-                    if (model.nodes.has(end)) {
-                        nodes.add(end);
-                    } else if (!set.nodes.includes(end)) {
-                        absentEnds.add(end);
-                    }
-                }
-            }
-
             if (set.reading === "listed") {
                 const counter = bind(model, member, set.seeds.get(key));
                 if (counter >= 0) {
@@ -379,7 +368,6 @@ function expect(model: Model, real: Driver, set: ModelSet): Expected {
             }
         }
 
-        missingNodes += absentEnds.size;
         if (set.reading === "induced") {
             for (const [counter, edge] of model.edges) {
                 if (nodes.has(edge.s) && nodes.has(edge.t)) {

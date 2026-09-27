@@ -256,6 +256,18 @@ describe("sets.offers: limit, the edge-count pass and refusals", () => {
         assert.deepStrictEqual(h.session.sets.offers(id, { limit: 0 }), { offers: [], more: 3 });
     });
 
+    it("keeps an offer's item's members, whatever definition a copy of the offer carries", async () => {
+        const h = fixture();
+        const id = await run(h, "components", "pieces");
+        const { offers } = h.session.sets.offers(id);
+
+        const kept = await h.session.sets.createFrom({ ...offers[0], definition: offers[1].definition });
+        const honest = await h.session.sets.createFrom(offers[0]);
+
+        assert.deepStrictEqual(h.session.sets.get(kept)?.definition, h.session.sets.get(honest)?.definition);
+        assert.deepStrictEqual(h.session.sets.get(kept)?.createdFrom, { kind: "result", item: offers[0].item });
+    });
+
     it("fills `edges` only once the pass is cached, and `offers` never runs it", async () => {
         const h = fixture();
         const id = await run(h, "components", "pieces");

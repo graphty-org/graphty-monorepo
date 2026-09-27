@@ -16,10 +16,11 @@ import { Quaternion, Vector3 } from "@babylonjs/core";
 import { assert } from "chai";
 import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
-import { applyDeadzone } from "../../../src/cameras/InputUtils";
-import { PivotController } from "../../../src/cameras/PivotController";
+import { applyDeadzone, thumbstickDeltas, XR_THUMBSTICK_DEADZONE } from "../../../src/cameras/InputUtils";
+import type { PivotController } from "../../../src/cameras/PivotController";
 import type { Graph } from "../../../src/Graph";
 import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup";
+import { createXRInputDriver, type XRInputDriver } from "../helpers/xr-input-driver";
 
 /**
  * Helper to get pivot rotation as Euler angles for verification
@@ -44,94 +45,24 @@ function getPivotPosition(pivot: PivotController): Vector3 {
     return pivot.pivot.position.clone();
 }
 
-/**
- * Mock XR Input Processor
- *
- * This simulates the XR thumbstick processing logic from XRInputHandler
- * without requiring actual WebXR or IWER. This allows testing the
- * direction mapping logic in isolation.
- */
-class MockXRInputProcessor {
-    private pivotController: PivotController;
-
-    // Thumbstick values (mimics what IWER would provide)
-    public leftStick = { x: 0, y: 0 };
-    public rightStick = { x: 0, y: 0 };
-
-    // Sensitivity settings (matching XRInputHandler constants)
-    private readonly DEADZONE = 0.15;
-    private readonly YAW_SPEED = 0.04;
-    private readonly PITCH_SPEED = 0.03;
-    private readonly PAN_SPEED = 0.08;
-    private readonly ZOOM_SPEED = 0.02;
-
-    constructor(pivotController: PivotController) {
-        this.pivotController = pivotController;
-    }
-
-    /**
-     * Process thumbstick input - mirrors XRInputHandler.processThumbsticks()
-     *
-     * Input mapping:
-     * - Left stick X: Yaw (turn left/right) - X+ = rotate RIGHT
-     * - Left stick Y: Pitch (tilt up/down) - Y+ (forward) = pitch DOWN (look up at scene)
-     * - Right stick X: Pan left/right - X+ = pan RIGHT
-     * - Right stick Y: Zoom in/out - Y+ (forward) = zoom IN
-     */
-    processThumbsticks(): void {
-        // Apply deadzone with curve
-        const leftX = applyDeadzone(this.leftStick.x, this.DEADZONE);
-        const leftY = applyDeadzone(this.leftStick.y, this.DEADZONE);
-        const rightX = applyDeadzone(this.rightStick.x, this.DEADZONE);
-        const rightY = applyDeadzone(this.rightStick.y, this.DEADZONE);
-
-        const hasInput = leftX !== 0 || leftY !== 0 || rightX !== 0 || rightY !== 0;
-        if (!hasInput) {
-            return;
-        }
-
-        // LEFT STICK: Rotation
-        // X = yaw (push right = positive yaw = scene rotates right around you)
-        // Y = pitch (push forward = negative pitch = look up at scene / scene tilts down)
-        const yawDelta = leftX * this.YAW_SPEED;
-        const pitchDelta = -leftY * this.PITCH_SPEED;
-
-        if (Math.abs(yawDelta) > 0.0001 || Math.abs(pitchDelta) > 0.0001) {
-            this.pivotController.rotate(yawDelta, pitchDelta);
-        }
-
-        // RIGHT STICK: Zoom and Pan
-        // Y = zoom (push forward = zoom in = scale up)
-        if (Math.abs(rightY) > 0.0001) {
-            const zoomFactor = 1.0 + rightY * this.ZOOM_SPEED;
-            this.pivotController.zoom(zoomFactor);
-        }
-
-        // X = pan (push right = move focal point right)
-        if (Math.abs(rightX) > 0.0001) {
-            const panAmount = rightX * this.PAN_SPEED;
-            this.pivotController.panViewRelative(panAmount, 0);
-        }
-    }
-}
-
 describe("XR Thumbstick Controls", () => {
     let graph: Graph;
     let pivotController: PivotController;
-    let processor: MockXRInputProcessor;
+    let driver: XRInputDriver;
 
     beforeEach(async () => {
         // Create a test graph to get a valid scene
         graph = await createTestGraph();
 
-        // Create pivot controller directly for testing
-        pivotController = new PivotController(graph.scene);
+        // Drive the real XRInputHandler
 
-        // Create mock XR input processor
-        processor = new MockXRInputProcessor(pivotController);
+        driver = createXRInputDriver(graph.scene);
+
+        pivotController = driver.pivot;
     });
 
     afterEach(() => {
+        driver.dispose();
         vi.restoreAllMocks();
         cleanupTestGraph(graph);
     });
@@ -141,11 +72,11 @@ describe("XR Thumbstick Controls", () => {
         const initialEuler = getPivotEuler(pivotController);
 
         // Set left stick to right (X+)
-        processor.leftStick = { x: 0.8, y: 0 };
+        driver.setStick("left", 0.8, 0);
 
         // Process several frames of input
         for (let i = 0; i < 10; i++) {
-            processor.processThumbsticks();
+            driver.frame();
         }
 
         // Get final rotation
@@ -162,24 +93,18 @@ describe("XR Thumbstick Controls", () => {
         // Set left stick forward (Y+)
         // Note: In XR controller space, Y+ is typically "forward" which
         // corresponds to the user pushing the stick away from themselves
-        processor.leftStick = { x: 0, y: 0.8 };
+        driver.setStick("left", 0, 0.8);
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
-            processor.processThumbsticks();
+            driver.frame();
         }
 
         // Get final rotation
         const finalEuler = getPivotEuler(pivotController);
 
-        // Y+ (forward push) = negative pitchDelta in XRInputHandler
-        // This pitches the scene DOWN (user looks up at it)
-        // From XRInputHandler.ts: pitchDelta = -leftY * this.PITCH_SPEED
-        assert.isBelow(
-            finalEuler.x,
-            initialEuler.x,
-            "Left stick Y+ (forward) should pitch scene DOWN (negative pitch)",
-        );
+        // Y+ (forward push) is a positive pitch: the graph moves up, as a mouse or touch drag does
+        assert.isAbove(finalEuler.x, initialEuler.x, "Left stick Y+ (forward) should pitch scene UP (positive pitch)");
     });
 
     test("right stick X+ pans scene RIGHT", () => {
@@ -187,11 +112,11 @@ describe("XR Thumbstick Controls", () => {
         const initialPos = getPivotPosition(pivotController);
 
         // Set right stick to right (X+)
-        processor.rightStick = { x: 0.8, y: 0 };
+        driver.setStick("right", 0.8, 0);
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
-            processor.processThumbsticks();
+            driver.frame();
         }
 
         // Get final position
@@ -206,11 +131,11 @@ describe("XR Thumbstick Controls", () => {
         const initialScale = getPivotScale(pivotController);
 
         // Set right stick forward (Y+)
-        processor.rightStick = { x: 0, y: 0.8 };
+        driver.setStick("right", 0, 0.8);
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
-            processor.processThumbsticks();
+            driver.frame();
         }
 
         // Get final scale
@@ -228,12 +153,12 @@ describe("XR Thumbstick Controls", () => {
         const initialPos = getPivotPosition(pivotController);
 
         // Set thumbstick values below deadzone (0.15)
-        processor.leftStick = { x: 0.1, y: 0.1 };
-        processor.rightStick = { x: 0.1, y: 0.1 };
+        driver.setStick("left", 0.1, 0.1);
+        driver.setStick("right", 0.1, 0.1);
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
-            processor.processThumbsticks();
+            driver.frame();
         }
 
         // Get final state
@@ -252,10 +177,10 @@ describe("XR Thumbstick Controls", () => {
     test("left stick X- rotates scene LEFT", () => {
         const initialEuler = getPivotEuler(pivotController);
 
-        processor.leftStick = { x: -0.8, y: 0 };
+        driver.setStick("left", -0.8, 0);
 
         for (let i = 0; i < 10; i++) {
-            processor.processThumbsticks();
+            driver.frame();
         }
 
         const finalEuler = getPivotEuler(pivotController);
@@ -263,29 +188,29 @@ describe("XR Thumbstick Controls", () => {
         assert.isBelow(finalEuler.y, initialEuler.y, "Left stick X- should rotate scene LEFT (negative yaw)");
     });
 
-    test("left stick Y- pitches scene DOWN (from user's perspective)", () => {
+    test("left stick Y- pitches scene DOWN", () => {
         const initialEuler = getPivotEuler(pivotController);
 
         // Y- = pulling stick toward yourself
-        processor.leftStick = { x: 0, y: -0.8 };
+        driver.setStick("left", 0, -0.8);
 
         for (let i = 0; i < 10; i++) {
-            processor.processThumbsticks();
+            driver.frame();
         }
 
         const finalEuler = getPivotEuler(pivotController);
 
-        // Y- produces positive pitch (scene tilts up, user looks down at it)
-        assert.isAbove(finalEuler.x, initialEuler.x, "Left stick Y- should pitch scene UP (positive pitch)");
+        // Y- (pull back) is a negative pitch: the graph moves down
+        assert.isBelow(finalEuler.x, initialEuler.x, "Left stick Y- should pitch scene DOWN (negative pitch)");
     });
 
     test("right stick X- pans scene LEFT", () => {
         const initialPos = getPivotPosition(pivotController);
 
-        processor.rightStick = { x: -0.8, y: 0 };
+        driver.setStick("right", -0.8, 0);
 
         for (let i = 0; i < 10; i++) {
-            processor.processThumbsticks();
+            driver.frame();
         }
 
         const finalPos = getPivotPosition(pivotController);
@@ -296,10 +221,10 @@ describe("XR Thumbstick Controls", () => {
     test("right stick Y- zooms OUT", () => {
         const initialScale = getPivotScale(pivotController);
 
-        processor.rightStick = { x: 0, y: -0.8 };
+        driver.setStick("right", 0, -0.8);
 
         for (let i = 0; i < 10; i++) {
-            processor.processThumbsticks();
+            driver.frame();
         }
 
         const finalScale = getPivotScale(pivotController);
@@ -312,11 +237,11 @@ describe("XR Thumbstick Controls", () => {
         const initialScale = getPivotScale(pivotController);
 
         // Set both thumbsticks
-        processor.leftStick = { x: 0.5, y: 0 }; // Yaw
-        processor.rightStick = { x: 0, y: 0.5 }; // Zoom
+        driver.setStick("left", 0.5, 0); // Yaw
+        driver.setStick("right", 0, 0.5); // Zoom
 
         for (let i = 0; i < 10; i++) {
-            processor.processThumbsticks();
+            driver.frame();
         }
 
         const finalEuler = getPivotEuler(pivotController);
@@ -333,10 +258,10 @@ describe("XR Thumbstick Controls", () => {
     test("diagonal left stick input produces combined yaw and pitch", () => {
         const initialEuler = getPivotEuler(pivotController);
 
-        processor.leftStick = { x: 0.5, y: 0.5 };
+        driver.setStick("left", 0.5, 0.5);
 
         for (let i = 0; i < 10; i++) {
-            processor.processThumbsticks();
+            driver.frame();
         }
 
         const finalEuler = getPivotEuler(pivotController);
@@ -352,10 +277,10 @@ describe("XR Thumbstick Controls", () => {
         const initialPos = getPivotPosition(pivotController);
         const initialScale = getPivotScale(pivotController);
 
-        processor.rightStick = { x: 0.5, y: 0.5 };
+        driver.setStick("right", 0.5, 0.5);
 
         for (let i = 0; i < 10; i++) {
-            processor.processThumbsticks();
+            driver.frame();
         }
 
         const finalPos = getPivotPosition(pivotController);
@@ -374,7 +299,7 @@ describe("XR Thumbstick Controls", () => {
  */
 describe("XR Thumbstick Deadzone Behavior", () => {
     test("applyDeadzone returns 0 for inputs below threshold", () => {
-        const DEADZONE = 0.15;
+        const DEADZONE = XR_THUMBSTICK_DEADZONE;
         assert.equal(applyDeadzone(0.1, DEADZONE), 0, "0.1 should be filtered");
         assert.equal(applyDeadzone(-0.1, DEADZONE), 0, "-0.1 should be filtered");
         assert.equal(applyDeadzone(0.14, DEADZONE), 0, "0.14 should be filtered");
@@ -382,21 +307,41 @@ describe("XR Thumbstick Deadzone Behavior", () => {
     });
 
     test("applyDeadzone returns non-zero for inputs above threshold", () => {
-        const DEADZONE = 0.15;
+        const DEADZONE = XR_THUMBSTICK_DEADZONE;
         assert.notEqual(applyDeadzone(0.5, DEADZONE), 0, "0.5 should pass");
         assert.notEqual(applyDeadzone(-0.5, DEADZONE), 0, "-0.5 should pass");
         assert.notEqual(applyDeadzone(0.2, DEADZONE), 0, "0.2 should pass");
     });
 
     test("applyDeadzone preserves sign of input", () => {
-        const DEADZONE = 0.15;
+        const DEADZONE = XR_THUMBSTICK_DEADZONE;
         assert.isAbove(applyDeadzone(0.5, DEADZONE), 0, "Positive should stay positive");
         assert.isBelow(applyDeadzone(-0.5, DEADZONE), 0, "Negative should stay negative");
     });
 
     test("applyDeadzone max input produces output close to 1", () => {
-        const DEADZONE = 0.15;
+        const DEADZONE = XR_THUMBSTICK_DEADZONE;
         const maxOutput = applyDeadzone(1.0, DEADZONE);
         assert.closeTo(maxOutput, 1.0, 0.01, "Max input should produce ~1");
+    });
+});
+
+describe("XR thumbstick speeds", () => {
+    test("full deflection yaws 0.04, pitches 0.03, zooms by 1.02 and pans 0.08 per frame", () => {
+        const full = thumbstickDeltas({ x: 1, y: 1 }, { x: 1, y: 1 });
+
+        assert.closeTo(full.yaw, 0.04, 1e-12);
+        assert.closeTo(full.pitch, 0.03, 1e-12);
+        assert.closeTo(full.zoom, 1.02, 1e-12);
+        assert.closeTo(full.pan, 0.08, 1e-12);
+    });
+
+    test("sticks at rest leave the pivot alone", () => {
+        assert.deepEqual(thumbstickDeltas({ x: 0.1, y: -0.1 }, { x: -0.1, y: 0.1 }), {
+            yaw: 0,
+            pitch: 0,
+            zoom: 1,
+            pan: 0,
+        });
     });
 });

@@ -133,8 +133,9 @@ import {
     runCommunityDetection,
     runDegreePass,
 } from "./analysis/runs";
+import { useCanvasBottomStack } from "./canvas/canvasBottomStack";
 import { readPersistedCanvasLayout, resolveCanvasLayout, writePersistedCanvasLayout } from "./canvas/canvasMemory";
-import { CanvasRegion, type CanvasRegionOwnProps, useCanvasBottomStack } from "./canvas/CanvasRegion";
+import { CanvasRegion, type CanvasRegionOwnProps } from "./canvas/CanvasRegion";
 import type { DataDrawerTab } from "./canvas/DataTableDrawer";
 import type { InsightCard } from "./canvas/InsightsStrip";
 import type { LegendChannel } from "./canvas/Legend";
@@ -214,7 +215,7 @@ import { DEFAULT_EDGE_NOUN, GRAPH_SUMMARY_EMPTY_READING, graphSummaryReading } f
 import { nodeMetricHeadline, nodeMetricReading, nodeMetricResultBody } from "./readings/nodeMetricReading";
 import { formatCount } from "./readings/readingFormat";
 import { caveatsLine, runRecordLine } from "./readings/runRecord";
-import { ShellProvider, useShell } from "./ShellContext";
+import { ShellProvider } from "./ShellContext";
 import { formatAcceleration } from "./statusbar/formatAcceleration";
 import { formatCountPair, formatCountsTitle } from "./statusbar/formatCounts";
 import { StatusBar } from "./statusbar/StatusBar";
@@ -223,6 +224,7 @@ import { CanvasToolbar, type CanvasToolbarComponentProps } from "./toolbar/Canva
 import { TopBar } from "./topbar/TopBar";
 import { historyRows, useUndoStore } from "./topbar/undoStore";
 import type { ActivityId, CanvasViewMode, PrimaryActivityId, SelectionKind, ShellStateAxis } from "./types";
+import { useShell } from "./useShell";
 import { useShellKeyBindings } from "./useShellKeyBindings";
 
 /**
@@ -322,6 +324,12 @@ const CAPABILITIES_CHANGE_EVENT = "graphty-capabilities-change";
 
 /** The device-lost toast's link: it says where it goes, because there is no mapping line to scroll to. */
 const OPEN_SETTINGS_ACTION = "Open Settings";
+
+/** The link on a toast that reports a refused edit: there is nowhere further to go. */
+const DISMISS_ACTION = "Dismiss";
+
+/** The colour a new style layer paints until the reader changes it; any valid colour would do. */
+const NEW_LAYER_COLOR = "#F59E0B";
 
 /** The Style panel's own overflow row (spec 03 section 2.4). */
 const RESET_STYLES_ROW = "Reset styles to defaults";
@@ -996,6 +1004,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      */
     const [pinnedNodes, setPinnedNodes] = useState<ReadonlySet<string | number>>(EMPTY_PINNED_NODES);
     const layerCounter = useRef(1);
+    /* Why graphty-element refused the last new style layer, in its own words, or null. */
+    const [styleRefusal, setStyleRefusal] = useState<string | null>(null);
     const firstLoadDone = useRef(false);
     /* Whether the 7.2 defaults have been applied to the dataset now loaded. They are a
        per-dataset one-shot: re-applying them would fight a layout or a label budget the
@@ -2281,12 +2291,17 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
         layerCounter.current += 1;
 
-        void session.styles.add({ name, target: "node", selector: { match: "everything" } }).then(
-            () => undefined,
-            (error: unknown) => {
-                console.error("[shell] the element refused the new layer:", error);
-            },
-        );
+        /* One channel set, because the element refuses a layer that paints nothing. The
+           reader edits the colour, the selector and the rest in the inspector afterwards. */
+        void session.styles
+            .add({ name, target: "node", selector: { match: "everything" }, set: { "node.color": NEW_LAYER_COLOR } })
+            .then(
+                () => undefined,
+                (error: unknown) => {
+                    console.error("[shell] the element refused the new layer:", error);
+                    setStyleRefusal(error instanceof Error ? error.message : String(error));
+                },
+            );
     }, []);
 
     const handleApplyLayout = useCallback((type: string, config: Record<string, unknown>) => {
@@ -2836,7 +2851,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 setRunningMetric(null);
             }
         },
-        [degreeResults, layers, openPanelAt, undoStore],
+        [layers, openPanelAt, undoStore],
     );
 
     /* ---------------------------------------------------------------------- */
@@ -2970,14 +2985,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         apply().catch((error: unknown) => {
             console.error("[shell] could not apply the load defaults:", error);
         });
-    }, [
-        dataLoaded,
-        graphData.nodes.length,
-        graphStatistics.edgeCount,
-        graphStatistics.nodeCount,
-        loadCompletions,
-        runFindGroups,
-    ]);
+    }, [dataLoaded, graphData.nodes.length, graphStatistics, loadCompletions, runFindGroups]);
 
     /* ---------------------------------------------------------------------- */
     /* The canvas's docks and overlays                                        */
@@ -3663,7 +3671,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 rows.push({
                     id: other,
                     label: other,
-                    edgeType: typeof edge.label === "string" ? edge.label : "edge",
+                    edgeType: typeof edge.label === "string" ? edge.label : undefined,
                     direction: source === nodeId ? "out" : "in",
                     value: "",
                 });
@@ -3972,9 +3980,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 onShowAllAttributes: () => {
                     openDrawerOn("nodes");
                 },
-                onAddNote: () => {
-                    openPanelAt("explore");
-                },
                 onToggleNoteDone: () => undefined,
                 onDeleteNote: () => undefined,
                 onSelectNeighbor: (nodeId: string) => {
@@ -4009,12 +4014,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         degreeResults,
         edgeCount,
         graphReading,
-        graphStatistics.components.count,
-        graphStatistics.density,
-        graphStatistics.directedness,
-        graphStatistics.repeatedEdgeCount,
-        graphStatistics.selfLoopCount,
-        handleLayersChange,
+        graphStatistics,
         layers,
         mostConnected,
         neighborsOf,
@@ -4023,9 +4023,11 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         openPanelAt,
         pinnedNodes,
         removeResultLayers,
+        resolveLayerChannel,
         selectedLayerId,
         selectedNode,
         togglePin,
+        updateLayer,
         zoomToSelection,
     ]);
 
@@ -4107,12 +4109,11 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             acceleration: {
                 ...text,
                 onClick: () => {
-                    setSettingsSection("performance");
-                    setSettingsOpen(true);
+                    openFullPanelOverlay("settings", "performance");
                 },
             },
         };
-    }, [acceleration]);
+    }, [acceleration, openFullPanelOverlay]);
 
     const slots = useMemo<StatusBarSlotsModel>(() => {
         if (!dataLoaded) {
@@ -4197,6 +4198,20 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             };
         }
 
+        if (styleRefusal !== null) {
+            const dismiss = (): void => {
+                setStyleRefusal(null);
+            };
+
+            return {
+                message: styleRefusal,
+                severity: "error",
+                actionLabel: DISMISS_ACTION,
+                onDetails: dismiss,
+                onDismiss: dismiss,
+            };
+        }
+
         if (acceleration === null || acceleration.state !== "error") {
             return undefined;
         }
@@ -4206,11 +4221,10 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             severity: "error",
             actionLabel: OPEN_SETTINGS_ACTION,
             onDetails: () => {
-                setSettingsSection("performance");
-                setSettingsOpen(true);
+                openFullPanelOverlay("settings", "performance");
             },
         };
-    }, [acceleration, loadFailure, openPanelAt]);
+    }, [acceleration, loadFailure, openFullPanelOverlay, openPanelAt, styleRefusal]);
 
     /* ---------------------------------------------------------------------- */
     /* The command palette's rows: the full-text twin of every icon control    */

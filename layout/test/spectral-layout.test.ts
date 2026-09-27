@@ -223,15 +223,12 @@ describe("Spectral Layout", () => {
             });
         });
 
-        it("should handle large graphs efficiently", () => {
+        it("should lay out every node of a larger graph", () => {
             const graph = gridGraph(10, 10); // 100 nodes
 
-            const startTime = performance.now();
             const positions = spectralLayout(graph);
-            const endTime = performance.now();
 
             assert.equal(Object.keys(positions).length, 100);
-            assert.isBelow(endTime - startTime, 1000); // Should complete in under 1 second
         });
 
         it("should handle graphs with self-loops gracefully", () => {

@@ -114,6 +114,16 @@ describe("PresentPanel", () => {
             expect(screen.getByRole("textbox", { name: "Data format" })).toBeDisabled();
             expect(screen.getByRole("textbox", { name: "Scope" })).toBeDisabled();
         });
+
+        /* The format list comes from the element's catalogue, which can write nothing yet, so
+           the field names no format rather than one the element cannot export. */
+        it("names no data format while the element can write none", async () => {
+            renderPanel();
+
+            fireEvent.click(screen.getByRole("button", { name: "Expand Export data" }));
+
+            expect(await screen.findByRole("textbox", { name: "Data format" })).toHaveValue("");
+        });
     });
 
     describe("the unshipped rows", () => {

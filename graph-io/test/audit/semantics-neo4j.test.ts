@@ -252,7 +252,16 @@ describe("Neo4j corpus facts: movies-nodes.csv + movies-rels.csv (id spaces, sto
         expect(text.split("\n")[4]).toBe("personId:ID(Person),name,born:int,:LABEL");
         const { snapshot, report } = await load("movies-nodes.csv");
         expect(report.errorCount).toBe(0);
-        expect(snapshot.ids.toArray()).toEqual(["m1", "m2", "m3", "p1", "p2", "p3", "p4"]);
+        expect(snapshot.ids.toArray()).toEqual([
+            "Movie:m1",
+            "Movie:m2",
+            "Movie:m3",
+            "Person:p1",
+            "Person:p2",
+            "Person:p3",
+            "Person:p4",
+        ]);
+        expect(column(snapshot, "nodes", "originalId")).toEqual(["m1", "m2", "m3", "p1", "p2", "p3", "p4"]);
         expect(column(snapshot, "nodes", "idSpace")).toEqual([
             "Movie",
             "Movie",
@@ -312,7 +321,14 @@ describe("Neo4j corpus facts: movies-nodes.csv + movies-rels.csv (id spaces, sto
             relationships: [readCorpusBytes("neo4j", "movies-rels.csv")],
         });
         expect(snapshot.nodeCount).toBe(7);
-        expect(edgeStrings(snapshot)).toEqual(["p1->m1", "p1->m2", "p2->m1", "p4->m3", "p3->p1", "p2->p1"]);
+        expect(edgeStrings(snapshot)).toEqual([
+            "Person:p1->Movie:m1",
+            "Person:p1->Movie:m2",
+            "Person:p2->Movie:m1",
+            "Person:p4->Movie:m3",
+            "Person:p3->Person:p1",
+            "Person:p2->Person:p1",
+        ]);
         expect(column(snapshot, "edges", "type")).toEqual([
             "ACTED_IN",
             "ACTED_IN",
@@ -332,7 +348,15 @@ describe("Neo4j corpus facts: movies-nodes.csv + movies-rels.csv (id spaces, sto
         expect(snapshot.directed).toBe(true);
         const alone = await load("movies-rels.csv");
         expect(alone.snapshot.nodeCount).toBe(7);
-        expect(alone.snapshot.ids.toArray()).toEqual(["p1", "m1", "m2", "p2", "p4", "m3", "p3"]);
+        expect(alone.snapshot.ids.toArray()).toEqual([
+            "Person:p1",
+            "Movie:m1",
+            "Movie:m2",
+            "Person:p2",
+            "Person:p4",
+            "Movie:m3",
+            "Person:p3",
+        ]);
         expect(alone.report.counts.nodes).toBe(0);
     });
 });
@@ -415,13 +439,17 @@ describe("Neo4j quirks from the CSVDataSource neo4j branch and research note 07"
         expect(big.snapshot.ids.idOf(0)).toBe("9223372036854775807");
     });
 
-    it("refuses the same id in two id spaces with an explicit error rather than merging silently", async () => {
+    it("keeps the same id in two id spaces apart as two nodes, stored as Space:id", async () => {
         const { snapshot, report } = await parse(
             "id:ID(A),name\n1,a1\nid:ID(B),name\n1,b1\n:START_ID(A),:END_ID(B),:TYPE\n1,1,R\n",
         );
-        expect(snapshot.nodeCount).toBe(1);
-        expect(report.issues.map((i) => i.code)).toContain("E_NEO4J_ID_SPACE_COLLISION");
-        expect(snapshot.nodes.value("name", 0)).toBe("a1");
+        expect(report.issues).toEqual([]);
+        expect(snapshot.ids.toArray()).toEqual(["A:1", "B:1"]);
+        expect(column(snapshot, "nodes", "name")).toEqual(["a1", "b1"]);
+        expect(column(snapshot, "nodes", "id")).toEqual(["1", "1"]);
+        expect(column(snapshot, "nodes", "originalId")).toEqual(["1", "1"]);
+        expect(column(snapshot, "nodes", "idSpace")).toEqual(["A", "B"]);
+        expect(edgeStrings(snapshot)).toEqual(["A:1->B:1"]);
     });
 
     it('splits :LABEL and array cells on ; (or the arrayDelimiter option), quoted delimiters included, and "" as an empty list', async () => {

@@ -331,8 +331,7 @@
             "weight": 1.0
           }
         ]
-      },
-      "knownFailure": "two-mode rectangular *Matrix not read (sources.md 6.4)"
+      }
     },
     {
       "file": "igraph/pajek_bip2.net",
@@ -368,8 +367,7 @@
             "weight": 1.0
           }
         ]
-      },
-      "knownFailure": "two-mode rectangular *Matrix not read (sources.md 6.4)"
+      }
     },
     {
       "file": "igraph/bipartite.net",
@@ -547,8 +545,7 @@
       "oracle": "spec",
       "expected": {
         "outcome": "fail"
-      },
-      "knownFailure": "two-mode header whose first-mode count exceeds the vertex count is accepted (sources.md 6.4)"
+      }
     },
     {
       "file": "igraph/invalid_pajek3.net",
@@ -559,8 +556,7 @@
       "oracle": "spec",
       "expected": {
         "outcome": "fail"
-      },
-      "knownFailure": "two-mode header whose first-mode count exceeds the vertex count is accepted (sources.md 6.4)"
+      }
     },
     {
       "file": "multinet/sampson.net",
@@ -745,8 +741,7 @@
             "weight": 1.0
           }
         ]
-      },
-      "knownFailure": "an empty *Arcs section makes the graph mixed (directed) (sources.md 6.4)"
+      }
     },
     {
       "file": "multinet/multi.tim",
@@ -758,11 +753,10 @@
       "expected": {
         "outcome": "pass",
         "nodes": 3,
-        "forbidCodes": [
-          "E_PAJEK_UNSUPPORTED_SECTION"
+        "warnings": [
+          "W_PAJEK_UNSUPPORTED_SECTION"
         ]
-      },
-      "knownFailure": "*Partition / *Vector / *Events sections recorded as errors, not warnings or vertex attributes (sources.md 6.4)"
+      }
     },
     {
       "file": "batagelj/USAir97.net",
@@ -799,8 +793,7 @@
             "weight": 0.0332
           }
         ]
-      },
-      "knownFailure": "an empty *Arcs section makes the graph mixed (directed) (sources.md 6.4)"
+      }
     },
     {
       "file": "batagelj/divorce.net",
@@ -836,8 +829,7 @@
             "weight": 1.0
           }
         ]
-      },
-      "knownFailure": "two-mode rectangular *Matrix not read (sources.md 6.4)"
+      }
     },
     {
       "file": "batagelj/Tina.paj",
@@ -890,7 +882,7 @@
       "expected": {
         "outcome": "pass",
         "forbidCodes": [
-          "E_PAJEK_UNSUPPORTED_SECTION",
+          "W_PAJEK_UNSUPPORTED_SECTION",
           "W_ENCODING_FALLBACK"
         ],
         "nodes": 53,
@@ -921,8 +913,7 @@
             "weight": 1.0
           }
         ]
-      },
-      "knownFailure": "*Partition / *Vector / *Events sections recorded as errors, not warnings or vertex attributes (sources.md 6.4)"
+      }
     },
     {
       "file": "bavla/companionPlants.paj",
@@ -934,7 +925,7 @@
       "expected": {
         "outcome": "pass",
         "forbidCodes": [
-          "E_PAJEK_UNSUPPORTED_SECTION"
+          "W_PAJEK_UNSUPPORTED_SECTION"
         ],
         "nodes": 216,
         "edges": 999,
@@ -962,8 +953,7 @@
             "weight": 1.0
           }
         ]
-      },
-      "knownFailure": "*Partition / *Vector / *Events sections recorded as errors, not warnings or vertex attributes (sources.md 6.4)"
+      }
     },
     {
       "file": "bavla/TableA11.net",
@@ -1015,7 +1005,7 @@
       "expected": {
         "outcome": "pass",
         "forbidCodes": [
-          "E_PAJEK_UNSUPPORTED_SECTION"
+          "W_PAJEK_UNSUPPORTED_SECTION"
         ],
         "nodes": 105,
         "edges": 441,
@@ -1043,8 +1033,7 @@
             "weight": 1.0
           }
         ]
-      },
-      "knownFailure": "*Partition / *Vector / *Events sections recorded as errors, not warnings or vertex attributes (sources.md 6.4)"
+      }
     },
     {
       "file": "bavla/dolphins.net",
@@ -1093,7 +1082,7 @@
       "expected": {
         "outcome": "pass",
         "forbidCodes": [
-          "E_PAJEK_UNSUPPORTED_SECTION"
+          "W_PAJEK_UNSUPPORTED_SECTION"
         ],
         "nodes": 39,
         "edges": 177,
@@ -1121,8 +1110,7 @@
             "weight": 103188.0
           }
         ]
-      },
-      "knownFailure": "a *Partition before the first *Network is read as the network itself, so the real network is skipped (sources.md 6.4)"
+      }
     },
     {
       "file": "bavla/glossTG.paj",
@@ -1236,8 +1224,7 @@
           }
         ],
         "graphs": 3
-      },
-      "knownFailure": "two-mode rectangular *Matrix not read (sources.md 6.4)"
+      }
     },
     {
       "file": "bavla/kansas.net",
@@ -1348,8 +1335,7 @@
             "weight": -1.0
           }
         ]
-      },
-      "knownFailure": "an empty *Arcs section makes the graph mixed (directed) (sources.md 6.4)"
+      }
     },
     {
       "file": "bavla/A03.net",
@@ -1544,7 +1530,7 @@
       "expected": {
         "outcome": "pass",
         "forbidCodes": [
-          "E_PAJEK_UNSUPPORTED_SECTION"
+          "W_PAJEK_UNSUPPORTED_SECTION"
         ],
         "nodes": 13,
         "edges": 78,
@@ -1572,8 +1558,7 @@
             "weight": 0.65
           }
         ]
-      },
-      "knownFailure": "*Partition / *Vector / *Events sections recorded as errors, not warnings or vertex attributes (sources.md 6.4)"
+      }
     },
     {
       "file": "bavla/LondonTube.net",
@@ -1610,8 +1595,7 @@
             "weight": 1.0
           }
         ]
-      },
-      "knownFailure": "per-line relation prefix \"k:\" in a line section rejected (sources.md 6.1, multiple relations)"
+      }
     },
     {
       "file": "bavla/caviar.paj",
@@ -1623,7 +1607,7 @@
       "expected": {
         "outcome": "pass",
         "forbidCodes": [
-          "E_PAJEK_UNSUPPORTED_SECTION",
+          "W_PAJEK_UNSUPPORTED_SECTION",
           "W_ENCODING_FALLBACK"
         ],
         "warnings": [
@@ -1656,8 +1640,7 @@
           }
         ],
         "graphs": 2
-      },
-      "knownFailure": "time sets with blanks inside the brackets or an empty [] rejected (sources.md 6.4)"
+      }
     },
     {
       "file": "bavla/Davis.paj",
@@ -1669,7 +1652,7 @@
       "expected": {
         "outcome": "pass",
         "forbidCodes": [
-          "E_PAJEK_UNSUPPORTED_SECTION"
+          "W_PAJEK_UNSUPPORTED_SECTION"
         ],
         "nodes": 32,
         "edges": 89,
@@ -1697,8 +1680,7 @@
             "weight": 1.0
           }
         ]
-      },
-      "knownFailure": "an empty *Arcs section makes the graph mixed (directed) (sources.md 6.4)"
+      }
     },
     {
       "file": "bavla/GraphList.net",
@@ -1820,13 +1802,12 @@
       "oracle": "pajek-manual-counter",
       "expected": {
         "outcome": "pass",
-        "forbidCodes": [
-          "E_PAJEK_UNSUPPORTED_SECTION"
-        ],
         "nodes": 8,
-        "edges": 0
-      },
-      "knownFailure": "*Partition / *Vector / *Events sections recorded as errors, not warnings or vertex attributes (sources.md 6.4)"
+        "edges": 0,
+        "warnings": [
+          "W_PAJEK_UNSUPPORTED_SECTION"
+        ]
+      }
     },
     {
       "file": "bavla/Padgett.paj",
@@ -1838,7 +1819,7 @@
       "expected": {
         "outcome": "pass",
         "forbidCodes": [
-          "E_PAJEK_UNSUPPORTED_SECTION"
+          "W_PAJEK_UNSUPPORTED_SECTION"
         ],
         "warnings": [
           "W_MULTIPLE_GRAPHS"
@@ -1882,7 +1863,7 @@
       "expected": {
         "outcome": "pass",
         "forbidCodes": [
-          "E_PAJEK_UNSUPPORTED_SECTION"
+          "W_PAJEK_UNSUPPORTED_SECTION"
         ],
         "nodes": 24,
         "edges": 1428,
@@ -1910,8 +1891,7 @@
             "weight": 1.0
           }
         ]
-      },
-      "knownFailure": "*Partition / *Vector / *Events sections recorded as errors, not warnings or vertex attributes (sources.md 6.4)"
+      }
     },
     {
       "file": "bavla/CEOs.net",
@@ -1947,8 +1927,7 @@
             "weight": 1.0
           }
         ]
-      },
-      "knownFailure": "two-mode rectangular *Matrix not read (sources.md 6.4)"
+      }
     },
     {
       "file": "bavla/BiCoTest1.net",
@@ -2068,8 +2047,7 @@
             "weight": 5.0
           }
         ]
-      },
-      "knownFailure": "an empty *Arcs section makes the graph mixed (directed) (sources.md 6.4)"
+      }
     },
     {
       "file": "bavla/vape.paj",
@@ -2081,7 +2059,7 @@
       "expected": {
         "outcome": "pass",
         "forbidCodes": [
-          "E_PAJEK_UNSUPPORTED_SECTION",
+          "W_PAJEK_UNSUPPORTED_SECTION",
           "W_ENCODING_FALLBACK"
         ],
         "nodes": 160,
@@ -2110,8 +2088,7 @@
             "weight": 3.0
           }
         ]
-      },
-      "knownFailure": "*Partition / *Vector / *Events sections recorded as errors, not warnings or vertex attributes (sources.md 6.4)"
+      }
     },
     {
       "file": "bavla/frag16.paj",
@@ -2156,7 +2133,7 @@
       "expected": {
         "outcome": "pass",
         "forbidCodes": [
-          "E_PAJEK_UNSUPPORTED_SECTION"
+          "W_PAJEK_UNSUPPORTED_SECTION"
         ],
         "warnings": [
           "W_MULTIPLE_GRAPHS"
@@ -2348,7 +2325,7 @@
       "expected": {
         "outcome": "pass",
         "forbidCodes": [
-          "E_PAJEK_UNSUPPORTED_SECTION"
+          "W_PAJEK_UNSUPPORTED_SECTION"
         ],
         "nodes": 16,
         "edges": 70,
@@ -2376,8 +2353,7 @@
             "weight": 1.0
           }
         ]
-      },
-      "knownFailure": "*Partition / *Vector / *Events sections recorded as errors, not warnings or vertex attributes (sources.md 6.4)"
+      }
     },
     {
       "file": "bavla/AW.net",
@@ -2742,8 +2718,7 @@
             "weight": 1.0
           }
         ]
-      },
-      "knownFailure": "&#dddd; character references in labels not decoded (sources.md 6.4)"
+      }
     },
     {
       "file": "authored/shapes.net",
@@ -2821,8 +2796,7 @@
             "weight": 1.0
           }
         ]
-      },
-      "knownFailure": "shape keywords are case-sensitive and house / man / woman are unknown (sources.md 6.4)"
+      }
     },
     {
       "file": "authored/coords-no-label.net",
@@ -2839,7 +2813,8 @@
             "role": "position",
             "value": [
               0.1,
-              0.2
+              0.2,
+              0
             ]
           },
           {
@@ -2847,7 +2822,8 @@
             "role": "position",
             "value": [
               0.5,
-              0.6
+              0.6,
+              0
             ]
           }
         ],
@@ -2866,8 +2842,7 @@
             "weight": 1.0
           }
         ]
-      },
-      "knownFailure": "a vertex line with coordinates but no label is misread (second token taken as the label) (sources.md 6.4)"
+      }
     },
     {
       "file": "authored/arcs-with-count.net",
@@ -2941,8 +2916,7 @@
             "weight": 1.0
           }
         ]
-      },
-      "knownFailure": "negative vertex numbers in *Arcslist rejected instead of read as absolute values (sources.md 6.4)"
+      }
     },
     {
       "file": "authored/vertices-fewer-lines.net",
@@ -2953,9 +2927,6 @@
       "oracle": "pajek-manual-counter",
       "expected": {
         "outcome": "pass",
-        "forbidCodes": [
-          "E_PAJEK_VERTEX_COUNT"
-        ],
         "nodes": 5,
         "edges": 2,
         "directed": false,
@@ -2974,9 +2945,11 @@
             "target": 4,
             "weight": 1.0
           }
+        ],
+        "warnings": [
+          "W_PAJEK_VERTEX_COUNT"
         ]
-      },
-      "knownFailure": "fewer vertex lines than *Vertices n declares is recorded as an error (sources.md 6.4)"
+      }
     },
     {
       "file": "authored/partition-vector.paj",
@@ -2988,7 +2961,7 @@
       "expected": {
         "outcome": "pass",
         "forbidCodes": [
-          "E_PAJEK_UNSUPPORTED_SECTION"
+          "W_PAJEK_UNSUPPORTED_SECTION"
         ],
         "nodes": 3,
         "edges": 2,
@@ -3010,8 +2983,7 @@
             "weight": 1.0
           }
         ]
-      },
-      "knownFailure": "*Partition / *Vector / *Events sections recorded as errors, not warnings or vertex attributes (sources.md 6.4)"
+      }
     },
     {
       "file": "authored/two-networks.paj",
@@ -3077,8 +3049,7 @@
             "weight": 1.0
           }
         ]
-      },
-      "knownFailure": "an empty *Arcs section makes the graph mixed (directed) (sources.md 6.4)"
+      }
     },
     {
       "file": "authored/time-intervals.net",

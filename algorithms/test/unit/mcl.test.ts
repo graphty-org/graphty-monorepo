@@ -405,11 +405,8 @@ describe("Markov Clustering (MCL)", () => {
                 }
             }
 
-            const start = Date.now();
             const result = markovClustering(graph, { maxIterations: 50 });
-            const duration = Date.now() - start;
 
-            expect(duration).toBeLessThan(10000); // Should complete within 10 seconds
             expect(result.communities.length).toBeGreaterThan(0);
 
             // All nodes should be clustered

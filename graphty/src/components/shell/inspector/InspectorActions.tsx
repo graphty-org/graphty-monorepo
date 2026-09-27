@@ -27,7 +27,7 @@ import {
     INSPECTOR_KIND_FONT_SIZE,
     UNSHIPPED_GROUP_THRESHOLD,
 } from "./inspectorConstants";
-import { useInspectorFooterNode } from "./inspectorContext";
+import { useInspectorFooterNode } from "./inspectorState";
 
 /**
  * One verb in the actions block.

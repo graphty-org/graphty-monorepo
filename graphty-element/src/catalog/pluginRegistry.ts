@@ -33,6 +33,12 @@
  * {@link PluginRegistry.clearForTesting} exists so a suite can leave the registry as it found
  * it, and is named so nobody can mistake it for part of the contract.
  *
+ * ONE STORE PER PAGE, NOT PER COPY. A page can evaluate graphty-element twice -- the self-contained
+ * bundle beside an `./extend` import, two installs of the package, a dev server loading one module
+ * under two URLs -- and the element deliberately survives that. Every registry therefore keeps its
+ * state on `globalThis` under a `Symbol.for` key ({@link sharedStore}), so a registration made
+ * through any copy reaches the element any other copy defined.
+ *
  * NOTHING HERE IMPORTS A CLASS, a reader, an engine or a renderer. A registry holds whatever it
  * was handed at run time, which is what keeps `./catalog` and `./extend` resolvable in Node.
  */
@@ -118,6 +124,88 @@ export interface PluginRegistrySpec<TEntry, TDescriptor> {
 }
 
 /**
+ * The one instance of a piece of registry state on this page, whichever copy of graphty-element
+ * asks for it.
+ *
+ * Keyed on `Symbol.for`, which is shared by every realm-local module graph, so two copies of this
+ * module find the same value. The `v1` names the shape of what is stored, and that includes the
+ * shape of every entry and descriptor inside it, not only the container: any change to an entry
+ * or a descriptor that an older copy on the same page cannot read must bump the version, so the
+ * two copies keep separate stores rather than misreading each other's.
+ * @param kind - Which piece of state.
+ * @param create - Builds it the first time any copy asks.
+ * @returns The page's instance.
+ */
+export function sharedStore<T>(kind: string, create: () => T): T {
+    const page = globalThis as Record<symbol, unknown>;
+    const key = Symbol.for(`graphty.registry.v1.${kind}`);
+
+    page[key] ??= create();
+
+    return page[key] as T;
+}
+
+/**
+ * A map from name to implementation (a class, a factory) that this copy of graphty-element reads
+ * first and every other copy on the page reads after its own.
+ *
+ * THIS COPY'S OWN ENTRIES WIN, because they include its built-ins: a second copy's box shape is
+ * built with the second copy's Babylon.js, and its degree algorithm extends the second copy's base
+ * class, so handing those to this copy's element would mix two renderers in one scene. What a copy
+ * does not have itself -- a plugin registered through another copy -- comes from the page's
+ * shared map.
+ */
+export class SharedImplementationMap<V> {
+    readonly #own = new Map<string, V>();
+    readonly #page: Map<string, V>;
+
+    /**
+     * Join the page's shared map for this extension point, creating it if this copy is first.
+     * @param kind - Which extension point, which names the page's shared map.
+     */
+    constructor(kind: string) {
+        this.#page = sharedStore(`${kind}-implementations`, () => new Map<string, V>());
+    }
+
+    /**
+     * File an implementation for this copy and for every other copy on the page.
+     * @param name - The name it is filed under.
+     * @param value - The implementation.
+     */
+    set(name: string, value: V): void {
+        this.#own.set(name, value);
+        this.#page.set(name, value);
+    }
+
+    /**
+     * This copy's implementation, or else the one another copy filed.
+     * @param name - The name.
+     * @returns The implementation, or undefined when no copy filed one.
+     */
+    get(name: string): V | undefined {
+        return this.#own.get(name) ?? this.#page.get(name);
+    }
+
+    /**
+     * Whether THIS copy filed the name, which is what a built-in duplicate check asks: another
+     * copy registering its own built-ins is not a collision.
+     * @param name - The name.
+     * @returns True when this copy filed it.
+     */
+    hasOwn(name: string): boolean {
+        return this.#own.has(name);
+    }
+
+    /**
+     * Every name any copy filed.
+     * @returns The names, this copy's first.
+     */
+    keys(): IterableIterator<string> {
+        return new Set([...this.#own.keys(), ...this.#page.keys()]).values();
+    }
+}
+
+/**
  * Build a registry for one extension point.
  * @param spec - How this kind of extension is read.
  * @returns The registry.
@@ -125,9 +213,14 @@ export interface PluginRegistrySpec<TEntry, TDescriptor> {
 export function createPluginRegistry<TEntry, TDescriptor>(
     spec: PluginRegistrySpec<TEntry, TDescriptor>,
 ): PluginRegistry<TEntry, TDescriptor> {
-    const entries = new Map<string, TEntry>();
-    const warned = new Set<string>();
-    let cached: readonly TDescriptor[] | null = null;
+    // Shared by every copy on the page, the descriptor cache included, so the identity promise
+    // holds across copies and a registration through one copy invalidates every copy's cache.
+    const store = sharedStore(spec.kind, () => ({
+        entries: new Map<string, TEntry>(),
+        warned: new Set<string>(),
+        cached: null as readonly TDescriptor[] | null,
+    }));
+    const { entries, warned } = store;
 
     return {
         register(entry: TEntry, options?: RegisterOptions): void {
@@ -178,7 +271,7 @@ export function createPluginRegistry<TEntry, TDescriptor>(
             }
 
             entries.set(id, entry);
-            cached = null;
+            store.cached = null;
         },
 
         entries(): readonly TEntry[] {
@@ -186,9 +279,9 @@ export function createPluginRegistry<TEntry, TDescriptor>(
         },
 
         descriptors(): readonly TDescriptor[] {
-            cached ??= Object.freeze([...entries.values()].map((entry) => spec.descriptorOf(entry)));
+            store.cached ??= Object.freeze([...entries.values()].map((entry) => spec.descriptorOf(entry)));
 
-            return cached;
+            return store.cached;
         },
 
         byId(id: string): TEntry | undefined {
@@ -198,7 +291,7 @@ export function createPluginRegistry<TEntry, TDescriptor>(
         clearForTesting(): void {
             entries.clear();
             warned.clear();
-            cached = null;
+            store.cached = null;
         },
     };
 }

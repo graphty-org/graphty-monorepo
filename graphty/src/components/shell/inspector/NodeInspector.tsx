@@ -31,6 +31,7 @@ import React, { useMemo, useState } from "react";
 import { DataAccordion } from "../../data-view/DataAccordion";
 import { keyChipFor } from "../bindings";
 import { TOOLTIP_DELAY_MS } from "../constants";
+import { ComingTag } from "./ComingTag";
 import { type InspectorAction, InspectorActions } from "./InspectorActions";
 import {
     ATTRIBUTE_FILTER_THRESHOLD,
@@ -82,7 +83,7 @@ export type NodeActionId =
  * {@link NodeInspectorProps.comingActions} starts from this list.
  * @public
  */
-export const DEFAULT_NODE_COMING_ACTIONS: readonly NodeActionId[] = [
+const DEFAULT_NODE_COMING_ACTIONS: readonly NodeActionId[] = [
     "egoNetwork",
     "radialLayout",
     "distanceFromHere",
@@ -160,8 +161,8 @@ export interface NeighborRow {
     readonly id: string;
     /** The neighbour's own label. */
     readonly label: string;
-    /** The type of the edge that reaches it. */
-    readonly edgeType: string;
+    /** The type of the edge that reaches it, when the edge has one. */
+    readonly edgeType?: string;
     /** Which way the edge runs, on a directed graph. Left out on an undirected one. */
     readonly direction?: "in" | "out";
     /** The trailing figure -- edge weight, then neighbour degree. */
@@ -214,8 +215,6 @@ export interface NodeInspectorProps {
     readonly onUnpinFromCanvas?: () => void;
     /** Opens the whole attribute list. */
     readonly onShowAllAttributes: () => void;
-    /** Saves a new note. */
-    readonly onAddNote: (text: string) => void;
     /** Marks a note done, or not. */
     readonly onToggleNoteDone: (noteId: string, done: boolean) => void;
     /** Deletes a note. */
@@ -342,7 +341,6 @@ export function NodeInspector(props: NodeInspectorProps): React.JSX.Element {
         onLocate,
         onUnpinFromCanvas,
         onShowAllAttributes,
-        onAddNote,
         onToggleNoteDone,
         onDeleteNote,
         onSelectNeighbor,
@@ -360,7 +358,6 @@ export function NodeInspector(props: NodeInspectorProps): React.JSX.Element {
     const neighborsSection = useInspectorSection(INSPECTOR_SECTION_IDS.nodeNeighbors, true);
 
     const [attributeFilter, setAttributeFilter] = useState<string>("");
-    const [draftNote, setDraftNote] = useState<string>("");
     const [neighborTab, setNeighborTab] = useState<string>("all");
     const [showDone, setShowDone] = useState<boolean>(false);
 
@@ -397,17 +394,6 @@ export function NodeInspector(props: NodeInspectorProps): React.JSX.Element {
     const shownNeighbors = directionalNeighbors.slice(0, NEIGHBOR_ROW_CAP);
     const { resident, more } = buildNodeActions(props, formatted);
     const addNoteChip = keyChipFor("addNote");
-
-    const saveNote = (): void => {
-        const text = draftNote.trim();
-
-        if (text === "") {
-            return;
-        }
-
-        onAddNote(text);
-        setDraftNote("");
-    };
 
     return (
         <>
@@ -572,7 +558,14 @@ export function NodeInspector(props: NodeInspectorProps): React.JSX.Element {
             )}
 
             {/* BLOCK 4 -- Notes. */}
-            <ControlSection label="Notes" opened={notesSection.opened} onOpenChange={notesSection.onOpenChange}>
+            {/* Not shipped: the note store belongs to graphty-element's session (issue #145),
+                and until it exists the input is drawn disabled rather than discarding text. */}
+            <ControlSection
+                label="Notes"
+                opened={notesSection.opened}
+                onOpenChange={notesSection.onOpenChange}
+                actions={<ComingTag subject="Notes" />}
+            >
                 {/* ControlSection already draws the panel's own 16 / 8 around its
                     content, so nothing inside a section draws it again. */}
                 <Box>
@@ -582,21 +575,7 @@ export function NodeInspector(props: NodeInspectorProps): React.JSX.Element {
                         aria-label={addNoteChip === null ? "Add a note" : `Add a note (${addNoteChip})`}
                         placeholder="Add a note..."
                         data-testid="node-note-input"
-                        value={draftNote}
-                        onChange={(event) => {
-                            setDraftNote(event.currentTarget.value);
-                        }}
-                        onKeyDown={(event) => {
-                            if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-                                event.preventDefault();
-                                saveNote();
-                            }
-
-                            if (event.key === "Escape") {
-                                event.preventDefault();
-                                setDraftNote("");
-                            }
-                        }}
+                        disabled
                     />
                 </Box>
 
@@ -694,7 +673,7 @@ export function NodeInspector(props: NodeInspectorProps): React.JSX.Element {
                 {shownNeighbors.map((row) => (
                     <ActionRow
                         key={row.id}
-                        state={`${row.label} - ${row.edgeType} - ${row.value}`}
+                        state={[row.label, row.edgeType, row.value].filter(Boolean).join(" - ")}
                         onClick={() => {
                             onSelectNeighbor(row.id);
                         }}

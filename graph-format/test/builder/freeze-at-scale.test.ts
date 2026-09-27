@@ -1,7 +1,7 @@
 /**
- * A benchmark-style sanity test (design section 15.4; not a performance gate): 100k nodes and 1M
- * directed edges pushed from typed arrays and frozen must complete under a generous ceiling and yield
- * a valid snapshot. The measured times are printed for the integrator's notes.
+ * A correctness test at scale (design section 15.4): 100k nodes and 1M directed edges pushed from
+ * typed arrays and frozen yield a valid snapshot. How long that takes is measured by the freeze
+ * benchmark (`npm run benchmark`, benchmarks/freeze.bench.ts), not asserted here.
  */
 
 import { describe, expect, it } from "vitest";
@@ -21,7 +21,7 @@ function makeRandom(seed: number): () => number {
     };
 }
 
-describe("freeze at scale (sanity, not a gate)", () => {
+describe("freeze at scale", () => {
     it("freezes 100k nodes / 1M directed edges pushed from typed arrays", () => {
         const nodeCount = 100_000;
         const edgeCount = 1_000_000;
@@ -34,13 +34,10 @@ describe("freeze at scale (sanity, not a gate)", () => {
             dst[e] = Math.floor(random() * nodeCount);
             weights[e] = 1 + Math.floor(random() * 10);
         }
-        const start = performance.now();
         const builder = new GraphBuilder({ directed: true, expectedNodes: nodeCount, expectedEdges: edgeCount });
         builder.addAnonymousNodes(nodeCount);
         builder.addEdges(src, dst, weights);
-        const pushed = performance.now();
-        const { snapshot, report } = builder.freezeWithReport({ profile: true });
-        const frozen = performance.now();
+        const snapshot = builder.freeze();
         expect(snapshot.nodeCount).toBe(nodeCount);
         expect(snapshot.edgeCount).toBe(edgeCount);
         expect(snapshot.arcCount).toBe(edgeCount);
@@ -49,24 +46,11 @@ describe("freeze at scale (sanity, not a gate)", () => {
         expect(snapshot.arena?.byteLength).toBe(400_128 + 4 * 4_000_000);
         expect(snapshot.ids.kind).toBe("identity");
         snapshot.validate({ level: "full" });
-        const validated = performance.now();
         // a second, undirected freeze of the same edges through the builder path
         const undirected = new GraphBuilder({ directed: false, expectedNodes: nodeCount, expectedEdges: edgeCount });
         undirected.addAnonymousNodes(nodeCount);
         undirected.addEdges(src, dst, weights);
-        const undirectedStart = performance.now();
         const u = undirected.freeze();
-        const undirectedEnd = performance.now();
         expect(u.arcCount).toBe(2 * edgeCount - u.selfLoopCount);
-        const pushMs = (pushed - start).toFixed(1);
-        const freezeMs = (frozen - pushed).toFixed(1);
-        const validateMs = (validated - frozen).toFixed(1);
-        const undirectedMs = (undirectedEnd - undirectedStart).toFixed(1);
-        console.log(
-            `[benchmark] 100k nodes / 1M directed edges: push ${pushMs} ms, freeze ${freezeMs} ms ` +
-                `(sort ${report.timings.sort.toFixed(1)} ms), validate(full) ${validateMs} ms; ` +
-                `undirected freeze ${undirectedMs} ms`,
-        );
-        expect(frozen - pushed).toBeLessThan(10_000);
     }, 120_000);
 });

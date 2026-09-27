@@ -17,6 +17,8 @@
  * Node-safe entry points.
  */
 
+import type { AlgorithmAccelerator } from "@graphty/algorithms";
+
 import type { AccelerationErrorCode } from "../errors";
 
 /**
@@ -234,6 +236,13 @@ export type AcceleratorFactory = (options?: AcceleratorFactoryOptions) => Promis
  * renders. It is plain, frozen, serialisable data: no GPU objects, no promises, no classes.
  */
 export interface AccelerationStatus {
+    /**
+     * The policy in force: what the consumer asked for, however they asked -- the `acceleration`
+     * attribute, the property, or `session.acceleration`. A change of policy publishes a new
+     * status even when the state does not move.
+     * @since 2.3.0
+     */
+    readonly policy: AccelerationPolicy;
     /** The one-word state. */
     readonly state: AccelerationState;
     /** The attached accelerator's backend, when one is attached. */
@@ -385,3 +394,88 @@ export const ACCELERATION_MIN_NODES_KEY = "acceleration.minNodes";
  * which is not part of the published documentation site.
  */
 export const ACCELERATION_MIN_NODES_DEFAULT = 0;
+
+/**
+ * Where and when the per-capability floors below were measured, as the plan's reason quotes it.
+ */
+export const ACCELERATION_MIN_NODES_MEASUREMENT = "RTX 4070 SUPER, headless Chromium, 2026-09-25";
+
+/**
+ * The node count below which the element declines the accelerator for one capability, when the
+ * consumer has not set {@link ACCELERATION_MIN_NODES_KEY} themselves.
+ *
+ * {@link ACCELERATION_MIN_NODES_DEFAULT} is 0 because it was measured for the forceatlas2
+ * LAYOUT, whose accelerated frame was never slower than the CPU's at any size. A traversal is a
+ * different shape of work: the whole walk is one call, and on the device that call has a floor
+ * of several submit round trips whatever the size, so below some node count the CPU walk is done
+ * before the device has started. One number cannot serve both, which is why the layout default
+ * stays 0 and each algorithm capability the adapters route carries its own floor here.
+ *
+ * MEASURED, not guessed. `tmp/traversal-threshold/kernel-cpu-vs-gpu.ts` (the harness, kept
+ * out of the tree) mounted `<graphty-element acceleration="required">` in headless Chromium on
+ * the dev box (RTX 4070 SUPER through ANGLE's Vulkan backend, 2026-09-25, load average
+ * 18 to 23), took the accelerator the element built, built seeded undirected graphs with ten
+ * edges per node and integer weights 1..10 in the page, and timed the two dispatchers
+ * `Algorithm.accelerated()` uses -- `accelerated(null)` for the CPU port and
+ * `accelerated(narrowAlgorithms(accelerator))` for the device -- directly on the snapshot, so no
+ * renderer frame is in the loop. Medians of nine warm calls after one cold call, in ms:
+ *
+ * | nodes / edges | BFS cpu | BFS gpu | sssp cpu | sssp gpu | pageRank cpu | pageRank gpu | components cpu | components gpu |
+ * | ------------- | ------: | ------: | -------: | -------: | -----------: | -----------: | -------------: | -------------: |
+ * | 1k / 10k      |     0.1 |     7.8 |      0.3 |      7.3 |          0.7 |          3.0 |            0.2 |            3.9 |
+ * | 5k / 50k      |     0.6 |     8.8 |      1.6 |      7.9 |          5.3 |          2.9 |            1.2 |            5.3 |
+ * | 10k / 100k    |     1.0 |     7.5 |      2.8 |      7.2 |          4.6 |          2.9 |            2.3 |            7.4 |
+ * | 20k / 200k    |     1.7 |     9.1 |      3.8 |     13.5 |         16.2 |          3.0 |            4.8 |            7.5 |
+ * | 50k / 500k    |     5.7 |    13.0 |     25.8 |     27.6 |         50.3 |          4.3 |           11.6 |            7.8 |
+ * | 100k / 1M     |     9.8 |    17.3 |     30.4 |     49.2 |         67.4 |          5.6 |           16.2 |            8.6 |
+ * | 200k / 2M     |    17.6 |    23.2 |     73.0 |     79.6 |        148.3 |         10.5 |           29.9 |           11.5 |
+ * | 500k / 5M     |    88.3 |    33.6 |    343.8 |    150.3 |        523.0 |         36.1 |           99.7 |           20.9 |
+ * | 1M / 10M      |   250.9 |    24.2 |   1031.1 |    274.9 |       1762.4 |         17.5 |          215.7 |           43.2 |
+ *
+ * The two traversals were then measured twice more around their crossover, because the device's
+ * time at one size moves with what else the box is doing (the first sweep's 200k row was taken
+ * at a load average of 22.6, the repeats at about 18):
+ *
+ * | nodes / edges | BFS cpu | BFS gpu | sssp cpu | sssp gpu |
+ * | ------------- | ------: | ------: | -------: | -------: |
+ * | 100k / 1M     |     7.4 |     9.5 |     26.9 |     20.9 |
+ * | 200k / 2M     |    15.6 |    10.1 |     66.3 |     37.8 |
+ * | 200k / 2M     |    17.8 |    11.0 |     70.6 |     42.5 |
+ * | 300k / 3M     |    35.2 |    13.3 |    129.2 |     77.1 |
+ * | 300k / 3M     |    34.4 |    18.9 |    129.8 |     65.2 |
+ * | 400k / 4M     |    63.3 |    30.7 |    226.6 |    128.2 |
+ * | 500k / 5M     |    93.1 |    32.5 |    361.9 |    200.0 |
+ *
+ * So: BFS loses at 100k in both runs and splits at 200k (one loss, two wins); Dijkstra splits at
+ * both 100k and 200k; from 300k up the device wins every run of both by two to ten times.
+ * PageRank wins from 5k and connected components from 50k, in the one run each was measured.
+ *
+ * A floor is the smallest measured size at which the device's median was at or below the CPU
+ * port's IN EVERY RUN, so a size that won under one load and lost under another is below it. A
+ * capability that is not listed has no floor and follows {@link ACCELERATION_MIN_NODES_DEFAULT}.
+ *
+ * Two things the table does not cover. It is one card and one browser: a slower CPU or a
+ * slower device moves the crossover, and a consumer who has measured their own machine sets
+ * `acceleration.minNodes`, which replaces every floor here with their number. And it is the
+ * kernel's time, not the run's: through the element a run also publishes its result rows,
+ * which costs the same on either path and is why the element-level numbers in the issue read
+ * higher on both sides.
+ *
+ * Under `acceleration="required"` the floors do not apply: `"required"` is what a benchmark
+ * runs under, and a benchmark of the small end of the curve has to reach the device.
+ */
+/**
+ * The capabilities a floor can name: the seam's algorithm members, by their exact names.
+ *
+ * Typed against the seam rather than as a string so that a member renamed on one side and not
+ * the other is a compile error here, not a floor that silently stops applying and sends that
+ * capability back to the GPU at every size.
+ */
+export type FlooredCapability = Exclude<keyof AlgorithmAccelerator, "kind" | "release">;
+
+export const ACCELERATION_MIN_NODES_BY_CAPABILITY: Readonly<Partial<Record<FlooredCapability, number>>> = Object.freeze({
+    breadthFirstSearch: 300_000,
+    sssp: 300_000,
+    pageRank: 5_000,
+    connectedComponents: 50_000,
+});

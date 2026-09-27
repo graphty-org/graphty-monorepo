@@ -2,6 +2,7 @@ import { afterEach, assert, test } from "vitest";
 
 import type { CameraStateChangedEvent } from "../../../src/events.js";
 import { Graph } from "../../../src/Graph.js";
+import { animationFramesOf } from "../../helpers/animation-clock.js";
 import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup.js";
 
 let graph: Graph;
@@ -15,12 +16,12 @@ test("animates camera position smoothly", async () => {
 
     const targetPos = { x: 50, y: 50, z: 50 };
 
-    const startTime = Date.now();
-    await graph.setCameraState({ position: targetPos, target: { x: 0, y: 0, z: 0 } }, { animate: true, duration: 500 });
-    const elapsed = Date.now() - startTime;
+    const { ms } = await animationFramesOf(graph, () =>
+        graph.setCameraState({ position: targetPos, target: { x: 0, y: 0, z: 0 } }, { animate: true, duration: 500 }),
+    );
 
-    // Animation should take approximately the requested duration
-    assert.ok(elapsed >= 450 && elapsed <= 600, `Animation took ${elapsed}ms, expected ~500ms`);
+    // Animation should take approximately the requested duration, in animation time
+    assert.ok(ms >= 450 && ms <= 600, `Animation took ${ms}ms of animation time, expected ~500ms`);
 
     const endState = graph.getCameraState();
 

@@ -293,7 +293,8 @@ describe("pajekImporter: vertex lines", () => {
         expect(label(snapshot, 2)).toBe("C");
         expect(label(snapshot, 3)).toBeUndefined();
         expect(codes(report)).toEqual([PAJEK_ISSUE.VERTEX_COUNT]);
-        expect(report.issues[0].severity).toBe("error");
+        // the Pajek manual allows fewer vertex lines than declared
+        expect(report.issues[0].severity).toBe("warning");
         expect(report.issues[0].message).toContain("10");
     });
 
@@ -517,8 +518,11 @@ describe("pajekImporter: lines", () => {
         const long = await load("*Vertices 1\n*Matrix\n0\n1\n");
         expect(codes(long.report)).toEqual([PAJEK_ISSUE.MATRIX_ROWS, PAJEK_ISSUE.MATRIX_ROWS]);
         const bad = await load("*Vertices 2\n*Matrix\n0 1 1\nx 0\n");
-        expect(codes(bad.report)).toEqual([PAJEK_ISSUE.LINE, PAJEK_ISSUE.LINE]);
-        expect(bad.snapshot.edgeCount).toBe(0);
+        expect(codes(bad.report)).toEqual([PAJEK_ISSUE.MATRIX_EXTRA, PAJEK_ISSUE.LINE]);
+        // the row with one value too many is read, its extra value ignored
+        expect(bad.snapshot.edgeCount).toBe(1);
+        const shortRow = await load("*Vertices 2\n*Matrix\n1\n0 0\n");
+        expect(codes(shortRow.report)).toEqual([PAJEK_ISSUE.LINE]);
     });
 
     it("skips a malformed line and an endpoint outside the vertex range", async () => {
@@ -572,7 +576,8 @@ describe("pajekImporter: direction", () => {
         expect(undirected.snapshot.directed).toBe(false);
         expect(undirected.snapshot.edgeCount).toBe(5);
         expect(codes(undirected.report)).toEqual([DIRECTION_FORCED_CODE, DIRECTION_FORCED_CODE]);
-        expect(undirected.report.issues[0].line).toBe(7);
+        // the direction is fixed by the first line, not the *Arcs header above it
+        expect(undirected.report.issues[0].line).toBe(8);
     });
 
     it("onMixedDirection error refuses the first edge of the other kind", async () => {
@@ -664,12 +669,12 @@ describe("pajekImporter: structure errors and the error limit", () => {
         expect(second.meta.name).toBe("b");
     });
 
-    it("reports an unsupported section once and skips its lines", async () => {
-        const text = "*Vertices 2\n1 a\n2 b\n*Partition\n1\n2\n*Edges\n1 2\n";
+    it("warns once about an unsupported section and skips its lines", async () => {
+        const text = "*Vertices 2\n1 a\n2 b\n*Events\nTI 1\nAV 2\n*Edges\n1 2\n";
         const { snapshot, report } = await load(text);
         expect(codes(report)).toEqual([PAJEK_ISSUE.UNSUPPORTED_SECTION]);
-        expect(report.issues[0]).toMatchObject({ category: "unsupported", severity: "error", line: 4 });
-        expect(report.issues[0].message).toContain("*Partition");
+        expect(report.issues[0]).toMatchObject({ category: "unsupported", severity: "warning", line: 4 });
+        expect(report.issues[0].message).toContain("*Events");
         expect(snapshot.edgeCount).toBe(1);
     });
 
@@ -721,16 +726,24 @@ describe("pajekImporter: structure errors and the error limit", () => {
 });
 
 describe("pajekImporter: the malformed corpus", () => {
-    /** missing-edges-section.net is a legal vertices-only network; every other case is an error. */
-    const recoverable = new Set(["missing-edges-section.net"]);
+    /**
+     * missing-edges-section.net is a legal vertices-only network and wrong-vertex-count.net a legal
+     * partial vertex list (the manual allows fewer lines than declared), each imported with one
+     * warning (the node count per file); every other case is an error.
+     */
+    const recoverable = new Map([
+        ["missing-edges-section.net", 3],
+        ["wrong-vertex-count.net", 10],
+    ]);
 
     for (const name of malformedFiles("pajek")) {
-        if (recoverable.has(name)) {
+        const nodes = recoverable.get(name);
+        if (nodes !== undefined) {
             it(`${name}: imports with a warning`, async () => {
                 const { report, snapshot } = await load(readMalformedText("pajek", name), { errorLimit: 0 });
                 expect(report.errorCount).toBe(0);
                 expect(report.warningCount).toBe(1);
-                expect(snapshot.nodeCount).toBe(3);
+                expect(snapshot.nodeCount).toBe(nodes);
             });
             continue;
         }
@@ -756,5 +769,180 @@ describe("pajekImporter: the malformed corpus", () => {
                 expect(report.issues.length, name).toBe(1);
             }
         }
+    });
+});
+
+describe("pajekImporter: project objects (*Partition, *Vector, *Events)", () => {
+    const NETWORK = '*Network tiny\n*Vertices 3\n1 "a"\n2 "b"\n3 "c"\n*Arcs\n1 2\n2 3\n';
+
+    it("reads a *Partition into an i32 column and a *Vector into an f64 column", async () => {
+        const text = `${NETWORK}*Partition groups\n*Vertices 3\n1\n2\n1\n*Vector sizes\n*Vertices 3\n0.5\n1.5\n2.25\n`;
+        const { snapshot, report } = await load(text);
+        expect(report.issues).toEqual([]);
+        expect(snapshot.nodeCount).toBe(3);
+        expect(snapshot.edgeCount).toBe(2);
+        const partition = snapshot.nodes.requireTyped("partition", "i32");
+        expect([0, 1, 2].map((i) => partition.value(i))).toEqual([1, 2, 1]);
+        const vector = snapshot.nodes.requireTyped("vector", "f64");
+        expect([0, 1, 2].map((i) => vector.value(i))).toEqual([0.5, 1.5, 2.25]);
+        expect(snapshot.meta.extra).toEqual({
+            pajek: {
+                objects: [
+                    { kind: "partition", name: "groups", column: "partition" },
+                    { kind: "vector", name: "sizes", column: "vector" },
+                ],
+            },
+        });
+    });
+
+    it("a *Partition before the first *Network describes the network, whose own vertices are read", async () => {
+        const text = `*Partition types\n*Vertices 3\n2\n2\n1\n${NETWORK}`;
+        const { snapshot, report } = await load(text);
+        expect(report.issues).toEqual([]);
+        expect(snapshot.meta.name).toBe("tiny");
+        expect(label(snapshot, 0)).toBe("a");
+        expect(snapshot.edgeCount).toBe(2);
+        const partition = snapshot.nodes.requireTyped("partition", "i32");
+        expect([0, 1, 2].map((i) => partition.value(i))).toEqual([2, 2, 1]);
+    });
+
+    it("a second object of the same kind gets its own column", async () => {
+        const text = `${NETWORK}*Vector v\n*Vertices 3\n1\n2\n3\n*Vector v\n*Vertices 3\n4\n5\n6\n`;
+        const { snapshot, report } = await load(text);
+        expect(report.issues).toEqual([]);
+        expect(snapshot.nodes.requireTyped("vector", "f64").value(0)).toBe(1);
+        expect(snapshot.nodes.requireTyped("vector#2", "f64").value(0)).toBe(4);
+    });
+
+    it("reports an object whose count differs from the network's, and a value that is not a number", async () => {
+        const short = await load(`${NETWORK}*Partition p\n*Vertices 2\n1\n2\n`);
+        expect(codes(short.report)).toEqual([PAJEK_ISSUE.OBJECT_COUNT]);
+        expect(short.snapshot.nodes.requireTyped("partition", "i32").isSet(2)).toBe(false);
+        const bad = await load(`${NETWORK}*Partition p\n*Vertices 3\n1\n1.5\n3\n`);
+        expect(codes(bad.report)).toEqual([PAJEK_ISSUE.LINE]);
+        const partition = bad.snapshot.nodes.requireTyped("partition", "i32");
+        expect(partition.isSet(1)).toBe(false);
+        expect(partition.value(2)).toBe(3);
+    });
+
+    it("skips *Events with a warning, not an error", async () => {
+        const { snapshot, report } = await load("*Vertices 3\n*Events\nTI 1\nAV 2 \"b\"\nTE 3\n");
+        expect(codes(report)).toEqual([PAJEK_ISSUE.UNSUPPORTED_SECTION, PAJEK_ISSUE.NO_LINES]);
+        expect(report.errorCount).toBe(0);
+        expect(snapshot.nodeCount).toBe(3);
+    });
+});
+
+describe("pajekImporter: empty line sections and the direction", () => {
+    it("an empty *Arcs before *Edges leaves the network undirected", async () => {
+        const { snapshot, report } = await load('*Vertices 2\n1 "a"\n2 "b"\n*Arcs\n*Edges\n1 2\n');
+        expect(report.issues).toEqual([]);
+        expect(snapshot.directed).toBe(false);
+        expect(snapshot.edgeCount).toBe(1);
+    });
+
+    it("an empty *Edges before *Arcs leaves the network directed", async () => {
+        const { snapshot } = await load(
+            '*Vertices 2\n1 "a"\n2 "b"\n*Edges\n*Arcs\n1 2\n',
+            undefined,
+            new GraphBuilder({ directed: false }),
+        );
+        expect(snapshot.directed).toBe(true);
+        expect(snapshot.edgeCount).toBe(1);
+    });
+
+    it("a network whose only line sections are empty takes the first header's direction", async () => {
+        const arcs = await load("*Vertices 2\n*Arcs\n*Edges\n", undefined, new GraphBuilder({ directed: false }));
+        expect(arcs.snapshot.directed).toBe(true);
+        const edges = await load("*Vertices 2\n*Edges\n*Arcs\n");
+        expect(edges.snapshot.directed).toBe(false);
+        expect(edges.report.issues).toEqual([]);
+    });
+});
+
+describe("pajekImporter: two-mode networks", () => {
+    it("reads the *Matrix of *Vertices N N1 as N1 rows of N - N1 columns", async () => {
+        const { snapshot, report } = await load("*Vertices 5 2\n*Matrix\n1 0 2\n0 1 1\n");
+        expect(report.issues).toEqual([]);
+        const { src, dst, weights } = snapshot.edgeList();
+        expect(Array.from(src)).toEqual([0, 0, 1, 1]);
+        expect(Array.from(dst)).toEqual([2, 4, 3, 4]);
+        expect(Array.from(weights ?? [])).toEqual([1, 2, 1, 1]);
+        const rows = await load("*Vertices 5 2\n*Matrix\n1 0 2\n");
+        expect(codes(rows.report)).toEqual([PAJEK_ISSUE.MATRIX_ROWS]);
+    });
+
+    it("refuses a first-mode count larger than the vertex count", async () => {
+        for (const text of ["*Vertices 1 3\n1 a\n", "*Vertices 1 2 1\n1 a\n"]) {
+            const err = await fails(text);
+            expect(codes(err.report)).toContain(PAJEK_ISSUE.VERTICES_COUNT);
+        }
+    });
+});
+
+describe("pajekImporter: the manual's line forms", () => {
+    it("a k: prefix puts one line in relation k", async () => {
+        const text = '*Vertices 3\n*Arcs :10 "Piccadilly"\n1 2\n*Arcs\n10: 2 3\n4: 3 1\n';
+        const { snapshot, report } = await load(text);
+        expect(report.issues).toEqual([]);
+        const relation = snapshot.edges.require("relation");
+        expect([0, 1, 2].map((e) => relation.value(e))).toEqual(["Piccadilly", "Piccadilly", "4"]);
+    });
+
+    it("reads time sets with blanks inside the brackets, and an empty [] as no spell", async () => {
+        const text = "*Vertices 2\n1 a [ 1 - 3 , 5 ]\n2 b []\n*Arcs\n1 2 [ 2 ]\n";
+        const { snapshot, report } = await load(text);
+        expect(report.issues).toEqual([]);
+        const spells = snapshot.nodes.require("spells");
+        expect((spells.value(0) as readonly ArrayLike<number>[]).map((s) => Array.from(s))).toEqual([
+            [1, 3],
+            [5, 5],
+        ]);
+        expect(spells.isSet(1)).toBe(false);
+        expect(snapshot.edges.require("spells").isSet(0)).toBe(true);
+    });
+
+    it("decodes &#dddd; and &#xhh; character references in labels", async () => {
+        const { snapshot } = await load('*Vertices 3\n1 "Caf&#233;"\n2 "&#x20AC;uro"\n3 "a&#99999999;"\n');
+        expect(label(snapshot, 0)).toBe(`Caf${String.fromCharCode(0xe9)}`);
+        expect(label(snapshot, 1)).toBe(`${String.fromCharCode(0x20ac)}uro`);
+        expect(label(snapshot, 2)).toBe("a&#99999999;");
+    });
+
+    it("reads shape keywords in any case, including house, man and woman", async () => {
+        const text = "*Vertices 4\n1 a 0 0 Ellipse ic Red\n2 b house\n3 c MAN\n4 d woman\n*Edges\n1 2\n";
+        const { snapshot, report } = await load(text);
+        expect(report.issues).toEqual([]);
+        const shape = snapshot.nodes.require("shape");
+        expect([0, 1, 2, 3].map((i) => shape.value(i))).toEqual(["ellipse", "house", "man", "woman"]);
+        expect(snapshot.nodes.require("ic").value(0)).toBe("Red");
+    });
+
+    it("reads a vertex line with coordinates and no label", async () => {
+        const { snapshot, report } = await load('*Vertices 3\n1 0.5 0.25\n2 "7" 1 2\n3 7 1 2\n*Edges\n1 2\n');
+        expect(report.issues).toEqual([]);
+        const position = snapshot.nodes.require("position");
+        expect(Array.from(position.value(0) as ArrayLike<number>)).toEqual([0.5, 0.25, 0]);
+        expect(snapshot.nodes.require("label").isSet(0)).toBe(false);
+        // a quoted number, or a bare one before two coordinates, is a label
+        expect(label(snapshot, 1)).toBe("7");
+        expect(label(snapshot, 2)).toBe("7");
+        expect(Array.from(position.value(2) as ArrayLike<number>)).toEqual([1, 2, 0]);
+    });
+
+    it("reads negative vertex numbers of *Arcslist as their absolute values", async () => {
+        const { snapshot, report } = await load("*Vertices 4\n*Arcslist\n1 -2 3\n-3 4\n");
+        expect(report.issues).toEqual([]);
+        const { src, dst } = snapshot.edgeList();
+        expect(Array.from(src)).toEqual([0, 0, 2]);
+        expect(Array.from(dst)).toEqual([1, 2, 3]);
+    });
+
+    it("reads fewer vertex lines than declared with a warning; the others have no label", async () => {
+        const { snapshot, report } = await load('*Vertices 5\n1 "a"\n3 "c"\n*Edges\n1 5\n2 4\n');
+        expect(codes(report)).toEqual([PAJEK_ISSUE.VERTEX_COUNT]);
+        expect(report.errorCount).toBe(0);
+        expect(snapshot.nodeCount).toBe(5);
+        expect(snapshot.edgeCount).toBe(2);
     });
 });

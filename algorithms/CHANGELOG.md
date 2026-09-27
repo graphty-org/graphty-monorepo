@@ -1,3 +1,17 @@
+## 2.0.4 (2026-09-26)
+
+### 🚀 Features
+
+- **graphty-element:** k-core and link prediction, and deprecate unimplemented catalog entries ([#54](https://github.com/graphty-org/graphty-monorepo/issues/54), [#56](https://github.com/graphty-org/graphty-monorepo/issues/56), [#59](https://github.com/graphty-org/graphty-monorepo/issues/59))
+
+### 🩹 Fixes
+
+- **algorithms:** pagerank convergence, eigenvector direction, parallel edges, path walks ([#48](https://github.com/graphty-org/graphty-monorepo/issues/48), [#60](https://github.com/graphty-org/graphty-monorepo/issues/60), [#69](https://github.com/graphty-org/graphty-monorepo/issues/69), [#70](https://github.com/graphty-org/graphty-monorepo/issues/70))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.0.3 (2026-09-26)
 
 ### 🧱 Updated Dependencies

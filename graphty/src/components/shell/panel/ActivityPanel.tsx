@@ -4,12 +4,12 @@ import React, { useCallback, useMemo, useRef, useState } from "react";
 
 import { CANVAS_POPOUT_Z_INDEX } from "../constants";
 import { RAIL_GLYPHS } from "../rail/railGlyphs";
-import { useShell } from "../ShellContext";
 import type { ActivityId, ActivityPanelProps, PanelOverflowItem } from "../types";
+import { useShell } from "../useShell";
 import { PanelHeader } from "./PanelHeader";
 import { PanelHeaderSlotProvider } from "./panelHeaderSlot";
 import { PanelResizeHandle } from "./PanelResizeHandle";
-import { type PanelSectionScope, PanelSectionScopeContext } from "./PanelSection";
+import { type PanelSectionScope, PanelSectionScopeContext } from "./panelSectionScope";
 
 /**
  * The first row of every panel's overflow menu (spec 03 section 1.3).

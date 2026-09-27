@@ -101,6 +101,12 @@ describe("an accelerated run and the render loop", () => {
             pageRank: onDevice,
         };
         graph.acceleration.setAccelerator(accelerator);
+        // A three-node graph is far below the floor a traversal or a rank now has to clear before
+        // the element will spend a device call on it, and this test is about the frame hold rather
+        // than about the floor. `required` is the policy under which the floors do not apply -- it
+        // is what a benchmark of the small end runs under -- so it is what puts the fake
+        // accelerator on the device here.
+        graph.acceleration.setPolicy("required");
 
         const snapshot = graph.getDataManager().getSnapshot();
         const outcome = await graph.acceleration.run({ capability: "pageRank", nodeCount: snapshot.nodeCount }, () =>

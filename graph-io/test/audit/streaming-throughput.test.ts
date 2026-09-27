@@ -7,8 +7,10 @@
  * weightDtype "f64" on this host, and 21 ms for the builder push; the freeze measured here runs
  * on a cold builder that also carries the columns the file declared.
  *
- * Gated on IO_BENCH=1. The ceilings are ten times the observed values: they catch a regression
- * to a different complexity class, not host noise.
+ * Gated on IO_BENCH=1. The times are printed, not asserted: they measure the host as much as the
+ * code. A regression to a different complexity class is caught by work counts instead, in
+ * fuzz-chunk-quadratic.test.ts and streaming-quadratic.test.ts. The edge counts and the export
+ * chunk and heap bounds are still checked.
  */
 
 import { open } from "node:fs/promises";
@@ -133,10 +135,9 @@ describe.skipIf(!BENCH)("streaming audit: throughput at 1M edges (IO_BENCH=1)", 
         async () => {
             // observed: 952 ms (0.95 us/edge, 22 MiB/s); freeze 57 ms; about 37x the STATUS freeze
             const path = csvEdgeList(1_000_000, 100_000);
-            const row = await measure("csv", 1_000_000, fixtureBytes(path), async (sink) => {
+            await measure("csv", 1_000_000, fixtureBytes(path), async (sink) => {
                 await csvImporter.import(fileStream(path, CHUNK), sink);
             });
-            expect(row.parseMs).toBeLessThan(10_000);
         },
         LONG,
     );
@@ -146,10 +147,9 @@ describe.skipIf(!BENCH)("streaming audit: throughput at 1M edges (IO_BENCH=1)", 
         async () => {
             // observed: 1170-1215 ms (1.2 us/edge, 19 MiB/s); about 45x the STATUS freeze
             const path = pajekNetwork(1_000_000, 100_000);
-            const row = await measure("pajek", 1_000_000, fixtureBytes(path), async (sink) => {
+            await measure("pajek", 1_000_000, fixtureBytes(path), async (sink) => {
                 await pajekImporter.import(fileStream(path, CHUNK), sink);
             });
-            expect(row.parseMs).toBeLessThan(12_000);
         },
         LONG,
     );
@@ -163,11 +163,10 @@ describe.skipIf(!BENCH)("streaming audit: throughput at 1M edges (IO_BENCH=1)", 
             // row 6%, parseDecimalText 5%, canonicalId 4%, a `${start}->${end}` element string per row
             const nodes = neo4jNodes(100_000);
             const rels = neo4jRelationships(1_000_000, 100_000);
-            const row = await measure("neo4j", 1_000_000, fixtureBytes(nodes) + fixtureBytes(rels), async (sink) => {
+            await measure("neo4j", 1_000_000, fixtureBytes(nodes) + fixtureBytes(rels), async (sink) => {
                 await neo4jImporter.import(fileStream(nodes, CHUNK), sink);
                 await neo4jImporter.import(fileStream(rels, CHUNK), sink);
             });
-            expect(row.parseMs).toBeLessThan(16_000);
         },
         LONG,
     );
@@ -179,10 +178,9 @@ describe.skipIf(!BENCH)("streaming audit: throughput at 1M edges (IO_BENCH=1)", 
             // edges. Profile: readName (codePointAt + isNameStart / isNameChar per character) 21%,
             // the builder's id lookup 11%, finishEdge (a Set of every edge id) 9%, parseStartTag 8.5%
             const path = graphmlDocument(200_000, 20_000);
-            const row = await measure("graphml", 200_000, fixtureBytes(path), async (sink) => {
+            await measure("graphml", 200_000, fixtureBytes(path), async (sink) => {
                 await graphmlImporter.import(fileStream(path, CHUNK), sink);
             });
-            expect(row.parseMs).toBeLessThan(8_000);
         },
         LONG,
     );
@@ -194,10 +192,9 @@ describe.skipIf(!BENCH)("streaming audit: throughput at 1M edges (IO_BENCH=1)", 
             // edges. Profile: fast-xml-parser's tree build (OrderedObjParser, xmlNode, the
             // path-expression matcher) 52%, garbage collection 10%, the well-formedness pre-scan 4%
             const path = gexfDocument(200_000, 20_000);
-            const row = await measure("gexf", 200_000, fixtureBytes(path), async (sink) => {
+            await measure("gexf", 200_000, fixtureBytes(path), async (sink) => {
                 await gexfImporter.import(fileStream(path, CHUNK), sink);
             });
-            expect(row.parseMs).toBeLessThan(10_000);
         },
         LONG,
     );

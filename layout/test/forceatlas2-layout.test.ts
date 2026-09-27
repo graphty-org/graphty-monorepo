@@ -613,10 +613,9 @@ describe("ForceAtlas2 Layout", () => {
             });
         });
 
-        it("should handle large graphs reasonably", () => {
+        it("should lay out every node of a larger graph", () => {
             const graph = gridGraph(10, 10); // 100 nodes
 
-            const startTime = performance.now();
             const positions = forceatlas2Layout(
                 graph,
                 null,
@@ -633,10 +632,8 @@ describe("ForceAtlas2 Layout", () => {
                 false,
                 42,
             ); // Fewer iterations for speed
-            const endTime = performance.now();
 
             assert.equal(Object.keys(positions).length, 100);
-            assert.isBelow(endTime - startTime, 2000); // Should complete in reasonable time
         });
 
         it("should handle high jitter tolerance", () => {

@@ -1224,23 +1224,33 @@ describe("GraphBuilder composition", () => {
         ]);
     });
 
-    it("declaring and resolving many columns by name costs linear time (a Map beside the column array)", () => {
-        const time = (count: number): number => {
-            const b = new GraphBuilder({ directed: true });
-            b.addNode("a");
-            const t0 = performance.now();
-            for (let i = 0; i < count; i++) {
-                b.declareNodeColumn({ name: `c${i}`, dtype: "f64" });
-            }
-            for (let i = 0; i < count; i++) {
-                b.nodeColumn(`c${i}`);
-                b.setNodeValue(`c${i}`, 0, i);
-            }
-            return performance.now() - t0;
-        };
-        const small = Math.min(time(4000), time(4000), time(4000));
-        const large = Math.min(time(16_000), time(16_000), time(16_000));
-        // 4x the columns may cost at most 12x (linear plus noise); the former scan cost 16x and more
-        expect(large / Math.max(small, 5)).toBeLessThan(12);
+    it("declaring and resolving many columns by name costs linear work (a Map beside the column array)", () => {
+        // Count reads of the node column array by index. A name lookup through the Map reads one
+        // slot; a scan by name reads every earlier column, which is quadratic over the loop below.
+        const count = 4000;
+        const b = new GraphBuilder({ directed: true });
+        b.addNode("a");
+        const { staging } = b as unknown as { staging: { nodeColumns: unknown[] } };
+        let reads = 0;
+        staging.nodeColumns = new Proxy(staging.nodeColumns, {
+            get(target, key, receiver): unknown {
+                if (typeof key === "string" && /^\d+$/.test(key)) {
+                    reads++;
+                }
+                return Reflect.get(target, key, receiver);
+            },
+        });
+        for (let i = 0; i < count; i++) {
+            b.declareNodeColumn({ name: `c${i}`, dtype: "f64" });
+        }
+        for (let i = 0; i < count; i++) {
+            expect(b.nodeColumn(`c${i}`)).toBe(i);
+            b.setNodeValue(`c${i}`, 0, i);
+        }
+        // a scan by name reads tens of millions of slots here (24,006,000 when last measured)
+        expect(reads).toBeLessThan(10 * count);
+        const snapshot = b.freeze();
+        expect(snapshot.nodes.value("c0", 0)).toBe(0);
+        expect(snapshot.nodes.value(`c${count - 1}`, 0)).toBe(count - 1);
     });
 });

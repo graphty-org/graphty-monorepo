@@ -41,6 +41,32 @@ Then use the component directly:
 <graphty-element node-data='[{"id": "a"}, {"id": "b"}]' edge-data='[{"source": "a", "target": "b"}]'> </graphty-element>
 ```
 
+### Registering a plugin without a bundler
+
+The self-contained bundle (`@graphty/graphty-element/bundle`, the file `dist/graphty.bundle.js`)
+exports the registration functions too, so a page with no build step can add its own palette,
+camera view, log destination, layout, format or algorithm from the same import:
+
+```html
+<script type="module">
+    import { registerPalette } from "https://cdn.jsdelivr.net/npm/@graphty/graphty-element/dist/graphty.bundle.js";
+
+    registerPalette({
+        id: "brand",
+        plainName: "Brand",
+        kind: "sequential",
+        colors: ["#0A2E4F", "#F5C242"],
+        capacity: null,
+        colorblindSafe: [],
+    });
+</script>
+```
+
+`registerCameraView`, `registerLogSink`, `Algorithm`, `LayoutEngine` and `DataSource` are exported
+the same way. Registrations are kept once per page, so a plugin that imports
+`@graphty/graphty-element/extend` from its own copy of the package still reaches the element the
+bundle defined.
+
 ## Framework Integration
 
 ### React

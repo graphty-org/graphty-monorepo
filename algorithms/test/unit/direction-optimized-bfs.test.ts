@@ -1,7 +1,28 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { CSRGraph } from "../../src/optimized/csr-graph.js";
 import { DirectionOptimizedBFS, directionOptimizedBFS } from "../../src/optimized/direction-optimized-bfs.js";
+
+/**
+ * Counts the edges a search reads, by wrapping the graph's two neighbour iterators. Edge reads
+ * are the work a BFS does, so they stand in for a wall-clock budget, which measures the machine
+ * rather than the code (issue #363).
+ * @param graph - The graph the search will run on
+ * @returns A function returning the number of edges read so far
+ */
+function countEdgeReads(graph: CSRGraph<number>): () => number {
+    let reads = 0;
+    for (const method of ["iterateNeighborIndices", "iterateIncomingNeighborIndices"] as const) {
+        const original = graph[method].bind(graph);
+        vi.spyOn(graph, method).mockImplementation(function* (nodeIndex: number) {
+            for (const neighbor of original(nodeIndex)) {
+                reads++;
+                yield neighbor;
+            }
+        });
+    }
+    return () => reads;
+}
 
 describe("DirectionOptimizedBFS", () => {
     describe("basic functionality", () => {
@@ -190,18 +211,14 @@ describe("DirectionOptimizedBFS", () => {
             }
 
             const csrGraph = new CSRGraph(adjacencyList);
-            // One untimed search first: the first call is almost all JIT compilation (36-67 ms
-            // measured, against about 5 ms for every later one), which varies with machine load
-            // and core type and says nothing about the algorithm.
-            new DirectionOptimizedBFS(csrGraph).search(0);
-            const bfs = new DirectionOptimizedBFS(csrGraph);
-
-            const startTime = performance.now();
-            const result = bfs.search(0);
-            const duration = performance.now() - startTime;
+            const edgeReads = countEdgeReads(csrGraph);
+            const result = new DirectionOptimizedBFS(csrGraph).search(0);
 
             expect(result.visitedCount).toBe(nodeCount);
-            expect(duration).toBeLessThan(100); // Should complete in < 100ms
+            // Each BFS level reads every edge at most once, whether it runs top-down (outgoing
+            // edges of the frontier) or bottom-up (incoming edges of the unvisited nodes).
+            const levels = Math.max(...result.distances.values()) + 1;
+            expect(edgeReads()).toBeLessThanOrEqual(levels * csrGraph.edgeCount());
 
             // Check some distances
             expect(result.distances.get(0)).toBe(0);
@@ -245,14 +262,14 @@ describe("DirectionOptimizedBFS", () => {
             }
 
             const csrGraph = new CSRGraph(adjacencyList);
-            const bfs = new DirectionOptimizedBFS(csrGraph);
-
-            const startTime = performance.now();
-            const result = bfs.search(0);
-            const duration = performance.now() - startTime;
+            const edgeReads = countEdgeReads(csrGraph);
+            const result = new DirectionOptimizedBFS(csrGraph).search(0);
 
             expect(result.visitedCount).toBeGreaterThan(nodeCount * 0.8); // Most nodes reachable
-            expect(duration).toBeLessThan(20); // Should be very fast due to small diameter
+            // Each BFS level reads every edge at most once, whether it runs top-down (outgoing
+            // edges of the frontier) or bottom-up (incoming edges of the unvisited nodes).
+            const levels = Math.max(...result.distances.values()) + 1;
+            expect(edgeReads()).toBeLessThanOrEqual(levels * csrGraph.edgeCount());
         });
     });
 

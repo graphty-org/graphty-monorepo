@@ -273,9 +273,10 @@ function checkResult(expected: Expected, result: ImportGraphResult, problems: st
             continue;
         }
         if (check.weight !== undefined) {
-            const weight = weightOf(snapshot, arc);
-            if (!agrees(check.weight, weight)) {
-                problems.push(`${name} weight: expected ${check.weight}, got ${weight}`);
+            // parallel edges: any arc between the two nodes may carry the weight
+            const weights = arcsBetween(snapshot, check.source, check.target).map((a) => weightOf(snapshot, a));
+            if (!weights.some((w) => agrees(check.weight, w))) {
+                problems.push(`${name} weight: expected ${check.weight}, got ${weights.join(", ")}`);
             }
         }
     }
@@ -319,6 +320,34 @@ function arcOf(snapshot: GraphSnapshot, source: NodeId, target: NodeId): number 
     const arc = snapshot.findArc(u, v);
     // an undirected edge of an expanded mixed graph may be stored the other way round
     return arc === INVALID_INDEX ? snapshot.findArc(v, u) : arc;
+}
+
+/**
+ * Every arc between two node ids, both ways round (an undirected edge of an expanded mixed graph
+ * may be stored the other way round), in arc order.
+ * @param snapshot - the snapshot
+ * @param source - the source id
+ * @param target - the target id
+ * @returns the arc indices
+ */
+function arcsBetween(snapshot: GraphSnapshot, source: NodeId, target: NodeId): number[] {
+    const u = nodeIndex(snapshot, source);
+    const v = nodeIndex(snapshot, target);
+    const arcs: number[] = [];
+    if (u < 0 || v < 0) {
+        return arcs;
+    }
+    for (const [from, to] of [
+        [u, v],
+        [v, u],
+    ]) {
+        for (let a = snapshot.rowPtr[from]; a < snapshot.rowPtr[from + 1]; a++) {
+            if (snapshot.colIdx[a] === to) {
+                arcs.push(a);
+            }
+        }
+    }
+    return arcs;
 }
 
 /**

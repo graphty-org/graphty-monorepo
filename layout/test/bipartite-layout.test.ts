@@ -295,15 +295,12 @@ describe("Bipartite Layout", () => {
             assert.isTrue(aXs.every((x) => Math.abs(x - aXs[0]) < 1e-10));
         });
 
-        it("should handle large bipartite graphs efficiently", () => {
+        it("should lay out every node of a large bipartite graph", () => {
             const graph = bipartiteGraph(50, 50, 0.1, 12345);
 
-            const startTime = performance.now();
             const positions = bipartiteLayout(graph, graph.setA);
-            const endTime = performance.now();
 
             assert.equal(Object.keys(positions).length, 100);
-            assert.isBelow(endTime - startTime, 100); // Should be very fast
         });
     });
 

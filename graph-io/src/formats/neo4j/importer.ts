@@ -19,6 +19,14 @@
  *   `idSpace`), and a stored id `name:ID(Space)` also a string node column `name` whose
  *   `origin.namespace` is the space. A property whose name collides with one of those is renamed
  *   `<name>#<name>` (design section 5.6).
+ * - Id spaces: neo4j-admin keeps one id space per `:ID(Space)` name, so `1` in `:ID(Product)` and
+ *   `1` in `:ID(Category)` are two nodes. The core has one id space, so a node of a spaced section
+ *   is stored under the string id `Space:id` (every row of the section, collision or not, so an id
+ *   never depends on file order), its id text goes into the node string column `originalId` and
+ *   its space into `idSpace`. The column has no role: the `originalId` role means an id rewritten by
+ *   `sanitizeIds: "mangle"`, which other importers restore as the node id. `:START_ID(Space)` /
+ *   `:END_ID(Space)` endpoints are qualified the same way before the lookup; an endpoint without a
+ *   space is looked up as written.
  * - Ids are text cells coerced by the `ids` option ("canonical" by default, so `1` is the number 1
  *   and `007` stays a string; integers beyond 2^53 stay strings). Relationships are always directed
  *   ("In Neo4j, all relationships have a direction"), so the sink is set directed before the first
@@ -104,6 +112,9 @@ export const TYPE_COLUMN = "type";
 /** The name of the node dict column holding the id space of `:ID(Space)`. */
 export const ID_SPACE_COLUMN = "idSpace";
 
+/** The name of the node string column holding the id text of a node of an id space (its id is `Space:id`). */
+export const ORIGINAL_ID_COLUMN = "originalId";
+
 /** Issue code: a header row (or a whole section) is malformed; the import aborts. */
 export const HEADER_CODE = "E_NEO4J_HEADER";
 
@@ -119,12 +130,15 @@ export const MISSING_ENDPOINT_CODE = SHARED_MISSING_ENDPOINT_CODE;
 /** Issue code: a node id was declared twice (same id space); the later row's properties win. */
 export const DUPLICATE_NODE_CODE = SHARED_DUPLICATE_NODE_CODE;
 
-/** Issue code: a node id was declared in two id spaces; the core has one id space and the later row is skipped. */
+/**
+ * Issue code: a node id was declared in two id spaces -- a spaced id `Space:id` equals the text of an
+ * id declared without a space; the later row is skipped.
+ */
 export const ID_SPACE_COLLISION_CODE = "E_NEO4J_ID_SPACE_COLLISION";
 
 /**
- * Issue code: a `:START_ID(Space)` / `:END_ID(Space)` id names a node a node row declared in another
- * id space; the core has one id space, so the endpoint does not exist in its space and the row is skipped.
+ * Issue code: a `:START_ID(Space)` / `:END_ID(Space)` endpoint's qualified id `Space:id` names a node a
+ * node row declared in another id space (without a space); the row is skipped.
  */
 export const ENDPOINT_SPACE_CODE = "E_NEO4J_ENDPOINT_SPACE";
 
@@ -185,6 +199,14 @@ const ID_SPACE_DECL: ColumnDecl = {
     origin: { format: NEO4J, id: ":ID", title: null, type: "ID", namespace: null },
 };
 
+const ORIGINAL_ID_DECL: ColumnDecl = {
+    name: ORIGINAL_ID_COLUMN,
+    dtype: "string",
+    nullable: true,
+    // origin.type stays null so the column is never mistaken for a stored id (`name:ID`)
+    origin: { format: NEO4J, id: ":ID", title: null, type: null, namespace: null },
+};
+
 const ARRAY_DELIMITERS: Readonly<Record<string, ListSyntax>> = { ";": "semicolon", ",": "comma", "|": "pipe" };
 
 /** The resolved format-specific options. */
@@ -231,6 +253,9 @@ interface RelationshipSection {
     readonly width: number;
     readonly startCell: number;
     readonly endCell: number;
+    /** The id space of `:START_ID` / `:END_ID`, or null when the header declares none. */
+    readonly startSpace: string | null;
+    readonly endSpace: string | null;
     /** The id space of `:START_ID` / `:END_ID` as a registry code, or 0 when the header declares none. */
     readonly startSpaceCode: number;
     readonly endSpaceCode: number;
@@ -442,6 +467,8 @@ class Neo4jImportSession {
     private typeHandle: ColumnHandle = INVALID_INDEX as ColumnHandle;
 
     private idSpaceHandle: ColumnHandle = INVALID_INDEX as ColumnHandle;
+
+    private originalIdHandle: ColumnHandle = INVALID_INDEX as ColumnHandle;
 
     private ignoredColumns = 0;
 
@@ -700,6 +727,8 @@ class Neo4jImportSession {
             width: fields.length,
             startCell,
             endCell,
+            startSpace,
+            endSpace,
             startSpaceCode: startSpace === null ? 0 : this.registry.codeOf(startSpace),
             endSpaceCode: endSpace === null ? 0 : this.registry.codeOf(endSpace),
             typeCell,
@@ -809,6 +838,7 @@ class Neo4jImportSession {
     private ensureIdSpace(): void {
         if (this.idSpaceHandle === INVALID_INDEX) {
             this.idSpaceHandle = this.declareReserved("node", ID_SPACE_DECL);
+            this.originalIdHandle = this.declareReserved("node", ORIGINAL_ID_DECL);
         }
     }
 
@@ -881,11 +911,12 @@ class Neo4jImportSession {
             report.counts.skippedNodes++;
             return;
         }
-        const id = this.coerceId(idText, line);
-        if (id === null || !this.parseProperties(section.properties, cells, quoted, line, idText)) {
+        const coerced = this.coerceId(idText, line);
+        if (coerced === null || !this.parseProperties(section.properties, cells, quoted, line, idText)) {
             report.counts.skippedNodes++;
             return;
         }
+        const id = qualify(coerced, section.space);
         let labels: string[] | undefined;
         if (section.labelCells.length > 0 || section.extraLabels.length > 0) {
             labels = this.labelsOf(section, cells, quoted);
@@ -918,6 +949,7 @@ class Neo4jImportSession {
         }
         if (section.space !== null) {
             sink.setNodeValue(this.idSpaceHandle, index, section.space);
+            sink.setNodeValue(this.originalIdHandle, index, idText);
         }
         if (labels !== undefined) {
             sink.setNodeValue(this.labelsHandle, index, labels);
@@ -968,12 +1000,14 @@ class Neo4jImportSession {
             return;
         }
         const element = `${startText}->${endText}`;
-        const source = this.coerceId(startText, line);
-        const target = source === null ? null : this.coerceId(endText, line);
-        if (source === null || target === null) {
+        const start = this.coerceId(startText, line);
+        const end = start === null ? null : this.coerceId(endText, line);
+        if (start === null || end === null) {
             report.counts.skippedEdges++;
             return;
         }
+        const source = qualify(start, section.startSpace);
+        const target = qualify(end, section.endSpace);
         let wrongSpace: string | null = null;
         if (this.wrongSpace(source, section.startSpaceCode)) {
             wrongSpace = startText;
@@ -1024,9 +1058,9 @@ class Neo4jImportSession {
     }
 
     /**
-     * Whether an endpoint id belongs to a node a node row declared in another id space than the
-     * endpoint's header declares. An endpoint without a declared space, or a node no row declared
-     * yet, is looked up by id alone.
+     * Whether a qualified endpoint id belongs to a node a node row declared in another id space than
+     * the endpoint's header declares (an unspaced node whose id text is `Space:id`). An endpoint
+     * without a declared space, or a node no row declared yet, is looked up by id alone.
      * @param id - the endpoint id
      * @param spaceCode - the endpoint's space code, 0 for none
      * @returns true when the endpoint resolves to a node of another space
@@ -1195,6 +1229,17 @@ class Neo4jImportSession {
         }
         return labels;
     }
+}
+
+/**
+ * The id a node of an id space is stored under: `Space:id`, so the same id in two spaces stays two
+ * nodes (the core has one id space).
+ * @param id - the coerced id cell
+ * @param space - the id space, or null
+ * @returns the id unchanged without a space, else the string `Space:id`
+ */
+function qualify(id: NodeId, space: string | null): NodeId {
+    return space === null ? id : `${space}:${String(id)}`;
 }
 
 /**

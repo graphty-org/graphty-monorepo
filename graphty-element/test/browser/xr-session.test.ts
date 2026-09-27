@@ -7,12 +7,14 @@
  * emulates a Meta Quest 3 as the page's `navigator.xr`, which is enough for headless Chromium to
  * run both kinds of session and render XR frames.
  *
- * Nothing may touch the network in CI, so hand tracking is turned off (with it on the element
- * downloads hand meshes from assets.babylonjs.com) and the emulated controllers are disconnected
- * (Babylon would download their models from controllers.babylonjs.com).
+ * Nothing may touch the network: every test fails on a request to another host. The hand tracking
+ * test enters VR with emulated hands and checks that both are tracked and drawn. The emulated
+ * controllers stay disconnected, because Babylon draws a controller with a model it downloads from
+ * controllers.babylonjs.com.
  */
 import "../../src/graphty-element";
 
+import { type AbstractMesh, UtilityLayerRenderer, WebXRHandJoint } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import type { Graph } from "../../src/Graph";
@@ -37,7 +39,50 @@ const EDGES = [
 let iwer: IWERHandle;
 let element: HTMLElementTagNameMap["graphty-element"];
 
+/** Every URL the page asked for on a host other than its own, since the test started. */
+let foreignRequests: string[] = [];
+let restoreNetwork: () => void = () => undefined;
+
+/**
+ * Refuse, and record, every XHR or fetch to a host other than the page's. Babylon loads models,
+ * shaders and controller profiles through XMLHttpRequest; fetch is covered for completeness.
+ * @returns a function that puts XMLHttpRequest and fetch back
+ */
+function blockForeignRequests(): () => void {
+    const { open } = XMLHttpRequest.prototype;
+    const originalFetch = window.fetch;
+    const check = (url: string | URL): void => {
+        const resolved = new URL(String(url), location.href);
+
+        if (resolved.protocol.startsWith("http") && resolved.origin !== location.origin) {
+            foreignRequests.push(resolved.href);
+            throw new Error(`network request to another host: ${resolved.href}`);
+        }
+    };
+
+    XMLHttpRequest.prototype.open = function (
+        this: XMLHttpRequest,
+        method: string,
+        url: string | URL,
+        ...rest: unknown[]
+    ): void {
+        check(url);
+        Reflect.apply(open, this, [method, url, ...rest]);
+    };
+    window.fetch = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+        check(input instanceof Request ? input.url : input);
+        return originalFetch(input, init);
+    };
+
+    return () => {
+        XMLHttpRequest.prototype.open = open;
+        window.fetch = originalFetch;
+    };
+}
+
 beforeEach(() => {
+    foreignRequests = [];
+    restoreNetwork = blockForeignRequests();
     iwer = installIWER();
     // A connected controller makes Babylon fetch its model from controllers.babylonjs.com, and CI
     // must not need the network. Sessions start and render without input sources.
@@ -49,6 +94,8 @@ beforeEach(() => {
 afterEach(() => {
     element.remove();
     iwer.uninstall();
+    restoreNetwork();
+    assert.deepEqual(foreignRequests, [], "the element touched the network");
 });
 
 /**
@@ -61,11 +108,12 @@ function xrControl(selector: string): Element | null {
 }
 
 /**
- * Attach an element with XR on and hand tracking off, and wait for its XR buttons to appear,
- * which happens at the end of `Graph.init()`.
+ * Attach an element with XR on, and wait for its XR buttons to appear, which happens at the end
+ * of `Graph.init()`.
+ * @param handTracking - whether the element's hand tracking is on
  * @returns the element's graph
  */
-async function mountXRGraph(): Promise<Graph> {
+async function mountXRGraph(handTracking = false): Promise<Graph> {
     element = document.createElement("graphty-element");
     element.style.width = "400px";
     element.style.height = "300px";
@@ -73,7 +121,7 @@ async function mountXRGraph(): Promise<Graph> {
     element.xr = {
         enabled: true,
         ui: { enabled: true, showAvailabilityWarning: true },
-        input: { handTracking: false },
+        input: { handTracking },
     };
     element.layout = "circular";
     document.body.append(element);
@@ -125,7 +173,7 @@ describe.each([
             assert.strictEqual(graph.scene.activeCamera, xrCamera, "the scene is not drawing through the XR camera");
             assert.strictEqual(xrCamera?.getClassName(), "WebXRCamera");
 
-            // Configured off, so the feature that downloads hand meshes must not be running.
+            // Configured off, so the hand tracking feature must not be running.
             const features = graph.getXRSessionManager()?.getXRHelper()?.baseExperience.featuresManager;
 
             assert.notInclude(
@@ -156,6 +204,49 @@ describe.each([
             assert.exists(orbit);
             assert.strictEqual(graph.scene.activeCamera, orbit, "the orbit camera did not come back");
             assert.notStrictEqual(graph.scene.activeCamera, xrCamera);
+        },
+        TEST_TIMEOUT,
+    );
+});
+
+describe("VR with hand tracking on and emulated hands", () => {
+    test(
+        "tracks and draws both hands without touching the network",
+        async () => {
+            iwer.device.primaryInputMode = "hand";
+            const graph = await mountXRGraph(true);
+
+            await element.setViewMode("vr");
+            assert.strictEqual(graph.getXRSessionManager()?.getActiveMode(), "immersive-vr");
+
+            const features = graph.getXRSessionManager()?.getXRHelper()?.baseExperience.featuresManager;
+            const handTracking = features?.getEnabledFeature("xr-hand-tracking");
+
+            assert.exists(handTracking, "hand tracking is on in config, but the feature is not running");
+            await vi.waitFor(() => {
+                for (const handedness of ["left", "right"] as const) {
+                    const wrist: AbstractMesh | undefined = handTracking
+                        ?.getHandByHandedness(handedness)
+                        ?.getJointMesh(WebXRHandJoint.WRIST);
+
+                    assert.exists(wrist, `the ${handedness} hand is not tracked`);
+                    assert.isTrue(wrist?.isVisible, `the ${handedness} hand is not drawn`);
+                }
+            }, WAIT);
+
+            // Near interaction gives each hand a touch orb whose material the element ships.
+            await vi.waitFor(() => {
+                const orbs = UtilityLayerRenderer.DefaultUtilityLayer.utilityLayerScene.meshes.filter(
+                    (mesh) => mesh.name === "PickSphere",
+                );
+
+                assert.isNotEmpty(orbs, "near interaction made no touch orbs");
+                for (const orb of orbs) {
+                    assert.strictEqual(orb.material?.name, "motionControllerTouchMaterial", "orb material not loaded");
+                }
+            }, WAIT);
+
+            await element.setViewMode("3d");
         },
         TEST_TIMEOUT,
     );

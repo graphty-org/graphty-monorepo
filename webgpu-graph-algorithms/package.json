@@ -1,6 +1,6 @@
 {
     "name": "@graphty/webgpu-graph-algorithms",
-    "version": "0.6.5",
+    "version": "0.6.7",
     "description": "WebGPU-accelerated graph algorithms and layouts over the @graphty/graph-format snapshot, for Node (Dawn) and browsers",
     "author": "Adam Powers <apowers@ato.ms>",
     "type": "module",
@@ -57,6 +57,7 @@
         "coverage": "vitest run --project=node --project=node-device-errors --coverage",
         "coverage:preview": "npx serve coverage -p ${PORT:?start it through servherd, which sets PORT}",
         "bench": "tsx benchmarks/run.ts",
+        "bench:ab": "node scripts/bench-ab.js",
         "bench:compare": "node scripts/bench-compare.js",
         "bench:append": "node scripts/bench-append-session.js",
         "benchmark": "tsx benchmarks/run.ts",

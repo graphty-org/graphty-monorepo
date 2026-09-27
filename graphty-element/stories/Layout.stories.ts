@@ -3,7 +3,6 @@ import "../src/layout/index.ts"; // Ensure all layouts are registered
 import "../src/data/index.ts"; // Ensure all data sources are registered
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
-import isChromatic from "chromatic/isChromatic";
 
 import { Graphty } from "../src/graphty-element";
 import {
@@ -273,7 +272,7 @@ export const D3: Story = {
         setup: storySetup({
             viewMode: "3d",
             // D3 physics-based layout needs preSteps for Chromatic
-            preSteps: isChromatic() ? 15000 : 200,
+            preSteps: 15000,
         }),
         layout: "d3",
         layoutConfig: {
@@ -357,13 +356,11 @@ export const Random: Story = {
 export const Spring: Story = {
     args: {
         /*
-         * `preSteps` MATCHES `springIterations` BELOW, because Spring is a live simulation and
-         * this story asks it for 50 iterations. A simulation computes one iteration per RENDERED
-         * frame by default, so without this the iterations below are frames, and how long the
-         * arrangement takes to arrive is a question about the browser's frame rate rather than
-         * about the graph. `preSteps` runs them before the first frame is drawn, off the frame
-         * clock entirely, and the picture is the same either way: Fruchterman-Reingold is
-         * deterministic under `seed` and stops at `iterations` whichever clock ran it.
+         * `preSteps` MATCHES `springIterations` BELOW, so under Chromatic the 50 iterations run
+         * before the first frame is drawn, off the frame clock. Everywhere else the layout
+         * animates, one iteration per rendered frame. The picture is the same either way:
+         * Fruchterman-Reingold is deterministic under `seed` and stops at `iterations` whichever
+         * clock ran it.
          */
         setup: storySetup({ viewMode: "3d", preSteps: 50 }),
         layout: "spring",
@@ -428,19 +425,15 @@ export const ForceAtlas2: Story = {
             data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/data3.json",
         },
         /*
-         * `preSteps` MATCHES `maxIter` BELOW, because ForceAtlas2 is a live simulation and this
-         * story asks it for 500 iterations. A simulation computes `behavior.layout.stepMultiplier`
-         * iterations per RENDERED frame -- one, by default -- so without this the 500 iterations
-         * below are 500 frames, and how long that takes is a question about the display rather
-         * than about the graph: measured at 33 frames a second in the Storybook test browser, the
-         * arrangement needs 15.1 seconds, and the wait for a final frame gives up at 15. `preSteps`
-         * is the element's own answer, and it runs those iterations before the first frame is
-         * drawn, off the frame clock entirely. The picture is the same either way -- ForceAtlas2 is
-         * deterministic under `seed` and the simulation stops at `maxIter` whichever clock ran it --
-         * so this is the arrangement the story always asserted, reached the way Chromatic already
-         * reached it. ForceAtlas2Weighted spreads these args and inherits it.
+         * `preSteps` MATCHES `maxIter` BELOW, so under Chromatic the 500 iterations run before the
+         * first frame. Everywhere else the layout animates, and a simulation computes
+         * `stepMultiplier` iterations per RENDERED frame -- one, by default -- so 500 iterations
+         * would be 500 frames: measured at 33 frames a second in the Storybook test browser, 15.1
+         * seconds, past the 15 the wait for a final frame allows. Ten a frame is 50 frames. The
+         * picture is the same either way -- ForceAtlas2 is deterministic under `seed` and stops at
+         * `maxIter` whichever clock ran it. ForceAtlas2Weighted spreads these args and inherits it.
          */
-        setup: storySetup({ viewMode: "3d", preSteps: 500 }),
+        setup: storySetup({ viewMode: "3d", preSteps: 500, stepMultiplier: 10 }),
         layout: "forceatlas2",
         layoutConfig: {
             dim: 3,

@@ -63,6 +63,7 @@ const VALUE_EXPORTS = [
     "NEO4J_CAPABILITIES",
     "NEO4J_ISSUE",
     "NEO4J_LOSS",
+    "ORIGINAL_ID_COLUMN",
     "TYPE_COLUMN",
     "neo4jExporter",
     "neo4jImporter",

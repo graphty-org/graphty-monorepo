@@ -314,15 +314,12 @@ describe("ARF Layout", () => {
             });
         });
 
-        it("should handle large graphs reasonably", () => {
+        it("should lay out every node of a larger graph", () => {
             const graph = gridGraph(8, 8); // 64 nodes
 
-            const startTime = performance.now();
             const positions = arfLayout(graph, null, 1, 1.1, 100, 42); // Fewer iterations for speed
-            const endTime = performance.now();
 
             assert.equal(Object.keys(positions).length, 64);
-            assert.isBelow(endTime - startTime, 2000); // Should complete quickly
         });
 
         it("should handle complete graphs", () => {

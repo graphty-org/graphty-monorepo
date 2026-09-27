@@ -2,6 +2,7 @@ import { afterEach, assert, test } from "vitest";
 
 import type { CameraStateChangedEvent } from "../../../src/events.js";
 import { Graph } from "../../../src/Graph.js";
+import { animationFramesOf } from "../../helpers/animation-clock.js";
 import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup.js";
 
 let graph: Graph;
@@ -103,15 +104,13 @@ test("skipQueue option bypasses operation queue", async () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Use skipQueue to set camera immediately (should not wait for queue)
-    const startTime = Date.now();
-    await graph.setCameraState(
-        { position: { x: 25, y: 25, z: 25 }, target: { x: 0, y: 0, z: 0 } },
-        { skipQueue: true },
+    const { ms } = await animationFramesOf(graph, () =>
+        graph.setCameraState({ position: { x: 25, y: 25, z: 25 }, target: { x: 0, y: 0, z: 0 } }, { skipQueue: true }),
     );
-    const elapsed = Date.now() - startTime;
 
-    // Should complete almost immediately (< 50ms), not wait for animation
-    assert.ok(elapsed < 50, `skipQueue took ${elapsed}ms, expected <50ms`);
+    // Should complete within a few frames of animation time, not wait out the ~900ms left of the
+    // queued animation
+    assert.ok(ms < 100, `skipQueue took ${ms}ms of animation time, expected <100ms`);
 
     const state = graph.getCameraState();
     if (!state.position) {

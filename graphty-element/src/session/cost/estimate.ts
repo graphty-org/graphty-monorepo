@@ -573,7 +573,7 @@ interface ModelledSeconds {
  * work in either direction. Outside either condition it is still the best information available,
  * but it is no longer a measurement of the thing being estimated, and the confidence says so.
  * @param measurement - The recorded run.
- * @param costClass - The class the catalogue declares.
+ * @param unitsOf - The work units of a run at a given size, in the same units as `units`.
  * @param units - The work being asked about.
  * @param iterations - The iteration bound this run would use.
  * @param machine - The fingerprint of the machine now, when one is known.
@@ -582,7 +582,7 @@ interface ModelledSeconds {
  */
 function fromMeasurement(
     measurement: CostMeasurement,
-    costClass: CostClass,
+    unitsOf: (nodes: number, edges: number, iterations: number) => number,
     units: number,
     iterations: number,
     machine: string | undefined,
@@ -591,12 +591,7 @@ function fromMeasurement(
         return undefined;
     }
 
-    const measuredUnits = workUnits(
-        costClass,
-        measurement.nodes,
-        measurement.edges,
-        measurement.iterations ?? iterations,
-    );
+    const measuredUnits = unitsOf(measurement.nodes, measurement.edges, measurement.iterations ?? iterations);
     if (!Number.isFinite(measuredUnits) || measuredUnits <= 0) {
         return undefined;
     }
@@ -681,24 +676,50 @@ export function estimateCost(input: CostInput): CostEstimate {
 
     const declared = declaredIterationBound(descriptor, input.params);
     const iterations = declared ?? ASSUMED_ITERATION_BOUND;
-    const iterationsAreGuessed = costClass === "iterative" && declared === undefined;
 
     const sampleFactor = input.sample === undefined || nodes === 0 ? 1 : Math.min(1, Math.max(0, input.sample / nodes));
-    const units = workUnits(costClass, nodes, edges, iterations) * sampleFactor;
+    // A plugin's own work units replace the class term, so the rate, a timing taken here and the
+    // calibration all scale them exactly as they scale a built-in's.
+    // costUnits counts every iteration itself, so no iteration bound is guessed when it is declared.
+    const costUnits = registeredAlgorithmByKey(descriptor.key)?.costUnits;
+    const declaredUnits = costUnits?.(nodes, edges);
+    const ownUnits = declaredUnits !== undefined && isUsableCount(declaredUnits) ? declaredUnits : undefined;
+    const iterationsAreGuessed = costClass === "iterative" && declared === undefined && ownUnits === undefined;
+    const units = (ownUnits ?? workUnits(costClass, nodes, edges, iterations)) * sampleFactor;
+    const unitsOf =
+        ownUnits !== undefined && costUnits !== undefined
+            ? (n: number, m: number): number => costUnits(n, m)
+            : (n: number, m: number, i: number): number => workUnits(costClass, n, m, i);
 
     const measurement = measurements?.get(input.algorithm);
     const scaled =
         measurement === undefined
             ? undefined
-            : fromMeasurement(measurement, costClass, units, iterations, calibration?.machine);
+            : fromMeasurement(measurement, unitsOf, units, iterations, calibration?.machine);
 
     const modelled =
-        scaled ?? modelFromRates(descriptor, costClass, nodes, edges, units, iterations, sampleFactor, calibration);
+        scaled ??
+        modelFromRates(
+            descriptor,
+            costClass,
+            nodes,
+            edges,
+            units,
+            iterations,
+            sampleFactor,
+            calibration,
+            ownUnits !== undefined,
+        );
     const confidence = iterationsAreGuessed && modelled.confidence !== "modelled" ? "modelled" : modelled.confidence;
     const seconds =
         Number.isFinite(modelled.seconds) && modelled.seconds >= 0 ? modelled.seconds : Number.POSITIVE_INFINITY;
 
-    const notes = [sizes, OWN_COST_MODELS[descriptor.key]?.term(iterations) ?? termFor(costClass, iterations)];
+    const notes = [
+        sizes,
+        ownUnits === undefined
+            ? (OWN_COST_MODELS[descriptor.key]?.term(iterations) ?? termFor(costClass, iterations))
+            : "the algorithm's own work units",
+    ];
     if (input.sample !== undefined) {
         notes.push(`sampled at ${group(input.sample)} of ${group(nodes)} nodes`);
     }
@@ -739,6 +760,8 @@ export function estimateCost(input: CostInput): CostEstimate {
  * @param iterations - The iteration bound the run would use.
  * @param sampleFactor - The share of the graph a sampled run would cover, or 1 for an exact run.
  * @param calibration - This machine's calibration, when it has one.
+ * @param ownUnits - Whether `units` came from the plugin's `static costUnits`, which supersedes a
+ *   seconds model.
  * @returns The seconds and how much they are worth.
  */
 function modelFromRates(
@@ -750,13 +773,14 @@ function modelFromRates(
     iterations: number,
     sampleFactor: number,
     calibration: MachineCalibration | undefined,
+    ownUnits: boolean,
 ): ModelledSeconds {
     /* THE REGISTRATION IS ASKED FIRST, AND IT IS THE ONLY PLACE A PLUGIN CAN PUT ONE. A cost
        model is a function, and a function stops a descriptor surviving `JSON.stringify` and a
        `postMessage` -- so the model lives beside the class reference in the registry, read from
        `static cost`, and `descriptor.cost` is only still consulted for the element's own older
        shape. */
-    const model = registeredAlgorithmByKey(descriptor.key)?.cost ?? descriptor.cost;
+    const model = ownUnits ? undefined : (registeredAlgorithmByKey(descriptor.key)?.cost ?? descriptor.cost);
 
     if (model !== undefined) {
         // A declared cost model is written over the whole graph, so a sampled run is scaled by
@@ -785,7 +809,7 @@ function modelFromRates(
     }
 
     const own = OWN_COST_MODELS[descriptor.key];
-    const seconds = own === undefined ? units / rate : own.seconds(nodes, edges, rates, iterations) * sampleFactor;
+    const seconds = own === undefined || ownUnits ? units / rate : own.seconds(nodes, edges, rates, iterations) * sampleFactor;
 
     if (probed) {
         return {

@@ -360,6 +360,21 @@ describe("neo4jExporter (design 8.5)", () => {
             ]);
         });
 
+        it("writes the nodes of an id space under their id text, so the same id in two spaces round-trips", async () => {
+            const source =
+                ":ID(Product),name\n1,chai\n2,chang\n:ID(Category),name\n1,beverages\n" +
+                ":START_ID(Product),:END_ID(Category),:TYPE\n1,1,PART_OF\n2,1,PART_OF\n";
+            const s = await imported(source);
+            expect(s.ids.toArray()).toEqual(["Product:1", "Product:2", "Category:1"]);
+            expect(neo4jExporter.check(s)).toEqual([]);
+            const text = await neo4jExporter.exportToString(s);
+            expect(text).toBe(source);
+            const again = await imported(text);
+            expect(again.ids.toArray()).toEqual(s.ids.toArray());
+            expect(again.nodes.names()).toEqual(s.nodes.names());
+            expect(again.edgeCount).toBe(2);
+        });
+
         it("writes a kind column and a labels column of any dtype", async () => {
             const s = build((b) => {
                 b.addEdge("a", "b");

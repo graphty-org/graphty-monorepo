@@ -382,7 +382,7 @@ package has no guide pages, so its documentation link is the generated API refer
 
 ### CI Test Shards
 
-The CI runs 21 parallel test jobs:
+The CI runs 21 parallel test jobs on a push to master or a manual dispatch:
 - `graph-format`
 - `graph-io`
 - `webgpu-graph-algorithms-node`, `webgpu-graph-algorithms-browser`
@@ -395,6 +395,11 @@ The CI runs 21 parallel test jobs:
 - `graphty-element-default`
 - `graphty-element-browser-1` through `graphty-element-browser-5`
 - `graphty-element-storybook-1` through `graphty-element-storybook-4`
+
+A pull request runs only the shards (and Chromatic jobs) of the packages nx calls affected; the
+shard list and the filter live in `tools/ci-test-matrix.mjs`. A change to a file in nx.json's
+`sharedGlobals` (root configs, `.github/workflows/`) affects every package, so it still runs
+everything.
 
 ## Architecture & Key Patterns
 

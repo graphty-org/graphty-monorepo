@@ -188,3 +188,46 @@ describe("a run over a kept set", () => {
         h.session.dispose();
     });
 });
+
+describe("scope.save freezes the live keywords", () => {
+    it("keeps the nodes selected when it was saved, not the selection that follows", async () => {
+        const h = harnessOf();
+        await h.session.selection.apply({ nodes: ["a", "b"] });
+        const id = h.session.scope.save("Picked", "selection");
+        await h.session.selection.apply({ nodes: ["e"] });
+
+        assert.deepStrictEqual([...(await h.session.scope.resolve({ set: id })).nodes].sort(), ["a", "b"]);
+        assert.deepStrictEqual(h.session.scope.list()[0]?.spec, { nodes: ["a", "b"] });
+        h.session.dispose();
+    });
+
+    it("keeps what was visible, with the edges a filter hid left out", async () => {
+        const h = makeSession();
+        h.add(
+            [{ id: "a" }, { id: "b" }, { id: "c" }],
+            [
+                { src: "a", dst: "b", weight: 1 },
+                { src: "b", dst: "c", weight: 0.1 },
+            ],
+        );
+        await h.session.visibility.set({ kind: "edges", where: "data.weight > `0.5`" });
+        const id = h.session.scope.save("Shown", "visible");
+        await h.session.visibility.set(null);
+
+        const kept = await h.session.scope.resolve({ set: id });
+        assert.deepStrictEqual([...kept.nodes].sort(), ["a", "b", "c"]);
+        assert.deepStrictEqual([...kept.edges], [edgeBetween(h, "a", "b")], "the hidden edge stays out after the filter is cleared");
+        const { spec } = h.session.scope.list()[0] ?? {};
+        assert.isTrue(typeof spec === "object" && "define" in spec && spec.define.kind === "fixed" && spec.define.reading === "listed");
+        h.session.dispose();
+    });
+
+    it("stores what was visible as its nodes when no edge was hidden", async () => {
+        const h = harnessOf();
+        const id = h.session.scope.save("All", "visible");
+
+        assert.deepStrictEqual(h.session.scope.list()[0]?.spec, { nodes: ["a", "b", "c", "d", "e"] });
+        assert.strictEqual((await h.session.scope.count({ set: id })).edges, 4);
+        h.session.dispose();
+    });
+});

@@ -598,7 +598,7 @@ export function resolveDefinitionIn(definition: SetDefinition, context: ResolveC
  * @param snapshot - The context snapshot.
  * @returns The edge bitmap.
  */
-function deriveEdges(half: NodeHalf, snapshot: GraphSnapshot): U32 {
+export function deriveEdges(half: NodeHalf, snapshot: GraphSnapshot): U32 {
     const count = snapshot.edgeCount;
     if (half.all) {
         return makeMask(count, true);

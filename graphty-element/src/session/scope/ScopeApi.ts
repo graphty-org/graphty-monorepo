@@ -27,7 +27,7 @@
 import { type GraphSnapshot, INVALID_INDEX, makeMask, maskCount, maskTest, maskToIndices, type U32 } from "@graphty/graph-format";
 
 import { parseScope } from "../../catalog/sets/parse";
-import type { EdgeId, EdgeMember, EdgeRef, NodeId, Path, Query, RunId, Scope, ScopeId, ScopeInput } from "../../catalog/types";
+import type { EdgeId, EdgeMember, EdgeRef, NodeId, Path, Query, RunId, Scope, ScopeId, ScopeInput, SetDefinitionInput } from "../../catalog/types";
 import { edgeCounterOf, edgeIdOf } from "../../data/edgeIdentity";
 import { GraphtyError, isGraphtyError } from "../../errors";
 import type { AttributeRevisions, InputTick } from "../attributes";
@@ -35,6 +35,7 @@ import type { ResolvedScope } from "../runs/types";
 import { SetsCache } from "../sets/cache";
 import {
     type ComponentLabels,
+    deriveEdges,
     digestOf,
     type NodeHalf,
     type Resolution,
@@ -45,7 +46,7 @@ import {
     resolveScope,
     scopeLeafIn,
 } from "../sets/resolve";
-import { setsStoreOf } from "../sets/SetsApi";
+import { sessionEdgeMember, setsStoreOf } from "../sets/SetsApi";
 import type { SetsApi } from "../sets/types";
 import type { FilterValueSource, ScopeLeaf } from "../visibility/filter";
 import type { ElementMask, MaskIdSpace } from "./ElementMask";
@@ -421,6 +422,27 @@ function resolvedScopeOf(resolution: Resolution, graph: GraphSnapshot, spec: Sco
 }
 
 /**
+ * A resolution's current members as a fixed definition: its nodes read `induced` when its edges
+ * are exactly the ones its nodes induce, else its nodes and its edges read `listed`, which holds
+ * the same members (design/sets 4.1). Edges are named by session id; the door that keeps the
+ * definition turns them into stable members.
+ * @param resolution - The resolution.
+ * @param graph - The snapshot it was resolved against.
+ * @returns The definition.
+ */
+function frozenDefinition(resolution: Resolution, graph: GraphSnapshot): Extract<SetDefinitionInput, { kind: "fixed" }> {
+    const nodes = Array.from(maskToIndices(resolution.nodes, graph.nodeCount), (index) => graph.ids.idOf(index));
+    const induced = deriveEdges({ nodes: resolution.nodes, constraint: null, all: false, missingNodes: 0 }, graph);
+    if (maskCount(induced, graph.edgeCount) === resolution.edgeCount) {
+        return { kind: "fixed", nodes, reading: "induced" };
+    }
+
+    const space = edgeSpaceOf(graph);
+
+    return { kind: "fixed", nodes, edges: Array.from(maskToIndices(resolution.edges, graph.edgeCount), (edge) => space.idOf(edge)), reading: "listed" };
+}
+
+/**
  * An exact count of a resolution, with the missing members of a fixed or path set.
  * @param resolution - The resolution.
  * @param kind - The kind of set it resolved, when it resolved one.
@@ -483,7 +505,8 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
             return ref;
         }
 
-        const member = sources.edgeMember?.(ref);
+        // A resolver built without the session's reader reads the snapshot alone: no file ids.
+        const member = sources.edgeMember === undefined ? sessionEdgeMember(sources.snapshot(), ref, () => undefined, null) : sources.edgeMember(ref);
         if (member === undefined) {
             throw new GraphtyError({
                 code: "E_BAD_COMMAND",
@@ -764,6 +787,14 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
                     target: { kind: "scope", id: spec.set },
                     details: { scope: spec, available: [...saved.keys()] },
                 });
+            }
+
+            // The live keywords are frozen into their current members: a kept set that followed
+            // the selection would change on every click.
+            if (spec === "selection" || spec === "visible") {
+                const { resolution, graph } = membershipOf(spec);
+                const frozen = frozenDefinition(resolution, graph);
+                spec = frozen.reading === "induced" ? { nodes: frozen.nodes } : scopeOf({ define: frozen });
             }
 
             const base = `set_${slugOf(trimmed)}`;

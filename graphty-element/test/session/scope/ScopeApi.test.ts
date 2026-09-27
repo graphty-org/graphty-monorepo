@@ -494,7 +494,8 @@ describe("saving a scope under a name", () => {
         const harness = harnessOf([{ id: "a" }]);
         const scope = createScopeApi({ snapshot: () => harness.store.getSnapshot() });
         scope.save("all", "graph");
-        scope.save("chosen", "selection");
+        // Saving the selection keeps its current members, so it needs the selection now.
+        assert.strictEqual(codeOf(() => scope.save("chosen", "selection")), "E_UNSUPPORTED");
         scope.save("biggest", "largest-component");
         scope.save("matched", { where: "a == `1`" });
         scope.save("departed", { nodes: ["gone"] });
@@ -504,7 +505,6 @@ describe("saving a scope under a name", () => {
             scope.list().map((entry) => ({ name: entry.name, bound: entry.bound })),
             [
                 { name: "all", bound: true },
-                { name: "chosen", bound: false },
                 { name: "biggest", bound: false },
                 { name: "matched", bound: false },
                 { name: "departed", bound: false },

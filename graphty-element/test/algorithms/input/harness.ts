@@ -1,13 +1,21 @@
 /**
  * @file A store-backed stand-in for the graph an algorithm runs on, whose data can change between
  * runs: the two data-manager members the input accessor reads, the acceleration controller a real
- * `Graph` builds, and scopes resolved as bitmaps over the current snapshot.
+ * `Graph` builds, and scopes resolved as bitmaps over the current snapshot. Also the built-ins that
+ * compute over their scope with the declaration taken off, to test the whole-graph route a plugin
+ * that declares nothing takes.
  */
 
 import { type GraphSnapshot, makeMask, maskCount, maskSet, type U32 } from "@graphty/graph-format";
 
 import { AccelerationController, AcceleratorRegistry } from "../../../src/acceleration";
+import { BFSAlgorithm } from "../../../src/algorithms/BFSAlgorithm";
+import { ConnectedComponentsAlgorithm } from "../../../src/algorithms/ConnectedComponentsAlgorithm";
+import { DegreeAlgorithm } from "../../../src/algorithms/DegreeAlgorithm";
+import { DijkstraAlgorithm } from "../../../src/algorithms/DijkstraAlgorithm";
 import type { ResolvedInputScope } from "../../../src/algorithms/input/ScopedInput";
+import { KruskalAlgorithm } from "../../../src/algorithms/KruskalAlgorithm";
+import { PageRankAlgorithm } from "../../../src/algorithms/PageRankAlgorithm";
 import { GraphStore } from "../../../src/data/GraphStore";
 import { ingestEdge, ingestNode } from "../../../src/data/ingest";
 import type { Graph } from "../../../src/Graph";
@@ -171,4 +179,35 @@ export function edgesOf(snapshot: GraphSnapshot): string[] {
         { length: snapshot.edgeCount },
         (_, edge) => `${String(snapshot.ids.idOf(src[edge]))}>${String(snapshot.ids.idOf(dst[edge]))}:${String(weights === null ? 1 : Math.round(weights[edge] * 1000) / 1000)}`,
     );
+}
+
+// Each built-in with its declaration taken off, as a plugin that declares nothing runs.
+/** PageRankAlgorithm, computing on the whole graph. */
+export class WholePageRank extends PageRankAlgorithm {
+    static scopeInput = "none" as const;
+}
+
+/** DegreeAlgorithm, computing on the whole graph. */
+export class WholeDegree extends DegreeAlgorithm {
+    static scopeInput = "none" as const;
+}
+
+/** ConnectedComponentsAlgorithm, computing on the whole graph. */
+export class WholeComponents extends ConnectedComponentsAlgorithm {
+    static scopeInput = "none" as const;
+}
+
+/** DijkstraAlgorithm, computing on the whole graph. */
+export class WholeDijkstra extends DijkstraAlgorithm {
+    static scopeInput = "none" as const;
+}
+
+/** BFSAlgorithm, computing on the whole graph. */
+export class WholeBFS extends BFSAlgorithm {
+    static scopeInput = "none" as const;
+}
+
+/** KruskalAlgorithm, computing on the whole graph. */
+export class WholeKruskal extends KruskalAlgorithm {
+    static scopeInput = "none" as const;
 }

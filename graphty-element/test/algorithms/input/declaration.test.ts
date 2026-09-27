@@ -1,25 +1,20 @@
 /**
  * @file Who gets a scoped input (design/sets/sets-design.md section 10.1): only a class that
  * declares `static scopeInput = "subgraph"`, through both seams, and only while it runs as a run.
- * Every other class reads the whole graph and is masked back to its scope: each built-in is run
- * bound to a scope and unbound, and the bound run publishes the unbound values for the scope only.
+ * Every other class reads the whole graph and is masked back to its scope: each built-in, with its
+ * declaration taken off, is run bound to a scope and unbound, and the bound run publishes the
+ * unbound values for the scope only.
  */
 
 import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
-import { BFSAlgorithm } from "../../../src/algorithms/BFSAlgorithm";
-import { ConnectedComponentsAlgorithm } from "../../../src/algorithms/ConnectedComponentsAlgorithm";
-import { DegreeAlgorithm } from "../../../src/algorithms/DegreeAlgorithm";
-import { DijkstraAlgorithm } from "../../../src/algorithms/DijkstraAlgorithm";
 import { withRunInput } from "../../../src/algorithms/input/ScopedInput";
-import { KruskalAlgorithm } from "../../../src/algorithms/KruskalAlgorithm";
-import { PageRankAlgorithm } from "../../../src/algorithms/PageRankAlgorithm";
 import { detachedRunContext } from "../../../src/algorithms/results";
 import type { Graph } from "../../../src/Graph";
 import type { RunResult } from "../../../src/session/results";
 import { createFakeAccelerator } from "../../../src/testing/fakeAccelerator";
-import { idsOf, InputGraph } from "./harness";
+import { idsOf, InputGraph, WholeBFS, WholeComponents, WholeDegree, WholeDijkstra, WholeKruskal, WholePageRank } from "./harness";
 
 /** What the two seams handed one algorithm. */
 interface Seen {
@@ -140,17 +135,17 @@ function ownFields(published: Published): Published {
     return { nodes: strip(published.nodes), edges: strip(published.edges) };
 }
 
-/** Every built-in with an accelerated seam, and Degree, with the options each needs. */
+/** Every built-in with an accelerated seam, and Degree, each undeclared, with the options each needs. */
 const BUILT_INS: readonly (readonly [string, (g: Graph) => Algorithm])[] = [
-    ["pagerank", (g) => new PageRankAlgorithm(g)],
-    ["degree", (g) => new DegreeAlgorithm(g)],
-    ["connected components", (g) => new ConnectedComponentsAlgorithm(g)],
-    ["dijkstra", (g) => new DijkstraAlgorithm(g, { source: "a", target: "d" })],
-    ["bfs", (g) => new BFSAlgorithm(g, { source: "a" })],
-    ["kruskal", (g) => new KruskalAlgorithm(g)],
+    ["pagerank", (g) => new WholePageRank(g)],
+    ["degree", (g) => new WholeDegree(g)],
+    ["connected components", (g) => new WholeComponents(g)],
+    ["dijkstra", (g) => new WholeDijkstra(g, { source: "a", target: "d" })],
+    ["bfs", (g) => new WholeBFS(g, { source: "a" })],
+    ["kruskal", (g) => new WholeKruskal(g)],
 ];
 
-describe("no built-in declares a scoped input yet: each computes on the whole graph and is masked back", () => {
+describe("an algorithm that declares no scoped input computes on the whole graph and is masked back", () => {
     for (const [name, build] of BUILT_INS) {
         it(`${name} bound to a three-node scope publishes its whole-graph values for the scope only`, async () => {
             const graph = ring();
@@ -185,7 +180,7 @@ describe("no built-in declares a scoped input yet: each computes on the whole gr
         const graph = ring();
         const fake = createFakeAccelerator();
         graph.acceleration.setAccelerator(fake);
-        const pagerank = new PageRankAlgorithm(graph.asGraph());
+        const pagerank = new WholePageRank(graph.asGraph());
         const scope = graph.scope(["a", "b", "c"]);
         await withRunInput(pagerank, graph, () => scope, undefined, () => pagerank.publishResult(detachedRunContext(), "r"));
 

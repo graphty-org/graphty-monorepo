@@ -28,11 +28,13 @@ import {
     type GraphSnapshot,
     INVALID_INDEX,
     makeMask,
+    maskTest,
     type NodeMask,
     type U32,
 } from "@graphty/graph-format";
 
-import type { EdgeReading } from "../../catalog/types";
+import type { EdgeId, EdgeReading, NodeId } from "../../catalog/types";
+import { EDGE_ID_COLUMN, edgeIdOf } from "../../data/edgeIdentity";
 import type { Resolution } from "../../session/sets/resolve";
 import {
     type DerivedInput,
@@ -364,6 +366,54 @@ export function createScopedInput(
     });
 
     return input as ElementScopedInput;
+}
+
+/**
+ * The nodes an input covers, in declared row order: the order of the compact snapshot's rows, and
+ * the order an adapter lists what it publishes in.
+ * @param input - The input.
+ * @returns The node ids.
+ */
+export function scopeNodeIds(input: ScopedInput): NodeId[] {
+    const { graph, nodes, whole } = input;
+    const ids: NodeId[] = [];
+    for (let row = 0; row < graph.nodeCount; row++) {
+        if (whole || maskTest(nodes, row)) {
+            ids.push(graph.ids.idOf(row));
+        }
+    }
+
+    return ids;
+}
+
+/** One declared edge an input covers: its session id, and its row in the declared graph. */
+export interface ScopeEdge {
+    readonly id: EdgeId;
+    /** The row in `ScopedInput.graph`, which is what an edge remap is indexed by. */
+    readonly row: number;
+}
+
+/**
+ * The declared edges an input covers, in row order.
+ * @param input - The input.
+ * @returns The edges.
+ * @throws An Error when the graph carries no edge id column, which every store declares.
+ */
+export function scopeEdges(input: ScopedInput): ScopeEdge[] {
+    const { graph, edges, whole } = input;
+    const counters = graph.edges.typed(EDGE_ID_COLUMN, "u32");
+    if (counters === null) {
+        throw new Error(`The graph carries no "${EDGE_ID_COLUMN}" column to name its edges by.`);
+    }
+
+    const list: ScopeEdge[] = [];
+    for (let row = 0; row < graph.edgeCount; row++) {
+        if (whole || maskTest(edges, row)) {
+            list.push({ id: edgeIdOf(counters.data[row]), row });
+        }
+    }
+
+    return list;
 }
 
 // ---------------------------------------------------------------------------------------------

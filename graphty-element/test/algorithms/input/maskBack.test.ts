@@ -6,19 +6,15 @@
 import { assert, describe, it } from "vitest";
 
 import type { Algorithm } from "../../../src/algorithms/Algorithm";
-import { ConnectedComponentsAlgorithm } from "../../../src/algorithms/ConnectedComponentsAlgorithm";
-import { DegreeAlgorithm } from "../../../src/algorithms/DegreeAlgorithm";
-import { DijkstraAlgorithm } from "../../../src/algorithms/DijkstraAlgorithm";
 import { checkNodeOptions, maskBack, WHOLE_GRAPH_CAVEAT } from "../../../src/algorithms/input/maskBack";
 import { type ResolvedInputScope, withRunInput } from "../../../src/algorithms/input/ScopedInput";
-import { PageRankAlgorithm } from "../../../src/algorithms/PageRankAlgorithm";
 import { detachedRunContext } from "../../../src/algorithms/results";
 import { DeclaredAlgorithm } from "../../../src/algorithms/results/DeclaredAlgorithm";
 import type { AlgorithmOutput } from "../../../src/algorithms/results/types";
 import type { OptionDescriptor } from "../../../src/catalog/types";
 import { isGraphtyError } from "../../../src/errors";
 import type { RunResult } from "../../../src/session/results";
-import { InputGraph } from "./harness";
+import { InputGraph, WholeComponents, WholeDegree, WholeDijkstra, WholePageRank } from "./harness";
 
 /** Six nodes in a ring, so a scope of three cuts it. */
 function ring(): InputGraph {
@@ -66,8 +62,8 @@ class ScopedCounter extends DeclaredAlgorithm {
 describe("every value outside the scope reads missing", () => {
     it("a metric that computed on the whole graph keeps only its scope's values, and they are the whole-graph values", async () => {
         const graph = ring();
-        const whole = await new PageRankAlgorithm(graph.asGraph()).publishResult(detachedRunContext(), "r");
-        const result = await publishOver(new PageRankAlgorithm(graph.asGraph()), graph, graph.scope(["a", "b", "c"]));
+        const whole = await new WholePageRank(graph.asGraph()).publishResult(detachedRunContext(), "r");
+        const result = await publishOver(new WholePageRank(graph.asGraph()), graph, graph.scope(["a", "b", "c"]));
 
         for (const id of ["a", "b", "c"]) {
             assert.strictEqual(result.node(id)?.value, whole?.node(id)?.value);
@@ -80,7 +76,7 @@ describe("every value outside the scope reads missing", () => {
 
     it("the rankings, histograms and summaries count only the scope", async () => {
         const graph = ring();
-        const result = await publishOver(new DegreeAlgorithm(graph.asGraph()), graph, graph.scope(["a", "b", "c"]));
+        const result = await publishOver(new WholeDegree(graph.asGraph()), graph, graph.scope(["a", "b", "c"]));
 
         assert.deepStrictEqual(result.ranking("value").map((entry) => entry.id).sort(), ["a", "b", "c"]);
         assert.strictEqual(result.histogram("value").bins.reduce((sum, bin) => sum + bin.count, 0), 3);
@@ -90,7 +86,7 @@ describe("every value outside the scope reads missing", () => {
 
     it("the fields filled from the population count only the scope: a group's size is its members in scope", async () => {
         const graph = ring();
-        const result = await publishOver(new ConnectedComponentsAlgorithm(graph.asGraph()), graph, graph.scope(["a", "b", "c"]));
+        const result = await publishOver(new WholeComponents(graph.asGraph()), graph, graph.scope(["a", "b", "c"]));
 
         assert.strictEqual(result.node("a")?.groupSize, 3);
     });
@@ -98,11 +94,11 @@ describe("every value outside the scope reads missing", () => {
     it("Dijkstra's Infinity and onPath: false defaults outside the scope are dropped", async () => {
         // "z" is isolated: the whole-graph search reports it at Infinity, off the route.
         const graph = new InputGraph(["a", "b", "c", "d", "z"], [["a", "b"], ["b", "c"], ["c", "d"]]);
-        const whole = await new DijkstraAlgorithm(graph.asGraph(), { source: "a", target: "b" }).publishResult(detachedRunContext(), "r");
+        const whole = await new WholeDijkstra(graph.asGraph(), { source: "a", target: "b" }).publishResult(detachedRunContext(), "r");
         assert.deepInclude(whole?.node("z"), { distance: Infinity, onPath: false });
         assert.deepInclude(whole?.edge("2"), { onPath: false });
 
-        const result = await publishOver(new DijkstraAlgorithm(graph.asGraph(), { source: "a", target: "b" }), graph, graph.scope(["a", "b"]));
+        const result = await publishOver(new WholeDijkstra(graph.asGraph(), { source: "a", target: "b" }), graph, graph.scope(["a", "b"]));
 
         assert.isUndefined(result.node("z"));
         assert.isUndefined(result.node("d"));
@@ -114,13 +110,13 @@ describe("every value outside the scope reads missing", () => {
     it("the many-to-one edge remap is masked: a merged reciprocal half outside a listed scope reads missing", async () => {
         // The undirected view merges a>b and b>a, so both declared halves are on the route.
         const graph = new InputGraph(["a", "b", "c"], [["a", "b"], ["b", "a"], ["b", "c"]], true);
-        const whole = await new DijkstraAlgorithm(graph.asGraph(), { source: "a", target: "b" }).publishResult(detachedRunContext(), "r");
+        const whole = await new WholeDijkstra(graph.asGraph(), { source: "a", target: "b" }).publishResult(detachedRunContext(), "r");
         assert.deepInclude(whole?.edge("0"), { onPath: true });
         assert.deepInclude(whole?.edge("1"), { onPath: true });
 
         // Both endpoints of b>a are members; only a>b is listed.
         const listed = graph.scope(["a", "b"], (source) => source === "a");
-        const result = await publishOver(new DijkstraAlgorithm(graph.asGraph(), { source: "a", target: "b" }), graph, listed);
+        const result = await publishOver(new WholeDijkstra(graph.asGraph(), { source: "a", target: "b" }), graph, listed);
 
         assert.deepInclude(result.edge("0"), { onPath: true });
         assert.isUndefined(result.edge("1"), "outside the listed edges though both endpoints are members");
@@ -129,8 +125,8 @@ describe("every value outside the scope reads missing", () => {
 
     it("a run over the whole graph, and a run outside any scope, are unchanged and carry no scope caveat", async () => {
         const graph = ring();
-        const bound = await publishOver(new DegreeAlgorithm(graph.asGraph()), graph, graph.everything());
-        const unbound = await new DegreeAlgorithm(graph.asGraph()).publishResult(detachedRunContext(), "r");
+        const bound = await publishOver(new WholeDegree(graph.asGraph()), graph, graph.everything());
+        const unbound = await new WholeDegree(graph.asGraph()).publishResult(detachedRunContext(), "r");
 
         assert.strictEqual(bound.column("value").length, 6);
         assert.deepStrictEqual(bound.summary().caveats.notes, unbound?.summary().caveats.notes);
@@ -155,7 +151,7 @@ describe("every value outside the scope reads missing", () => {
 describe("the run says what it computed on", () => {
     it("an algorithm without the declaration computed on the whole graph, and says so, decided at run time", async () => {
         const graph = ring();
-        for (const algorithm of [new PageRankAlgorithm(graph.asGraph()), new DegreeAlgorithm(graph.asGraph())]) {
+        for (const algorithm of [new WholePageRank(graph.asGraph()), new WholeDegree(graph.asGraph())]) {
             const result = await publishOver(algorithm, graph, graph.scope(["a", "b", "c"]));
 
             assert.include(result.summary().caveats.notes, WHOLE_GRAPH_CAVEAT);

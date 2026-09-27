@@ -187,7 +187,9 @@ export abstract class DeclaredAlgorithm<
             return undefined;
         }
 
-        const dataManager = this.graph.getDataManager();
+        // What the run computed over: its scope when the class declares a scoped input, else the
+        // whole graph.
+        const input = this.input("declared");
         /* WHAT TO CALL A NODE, as distinct from how to address it. A summary row and the
            sentence the element writes from it are read by a person, and an id is only sometimes
            a name -- a GML file keys its nodes by integer and carries the name beside it. Read
@@ -199,7 +201,7 @@ export abstract class DeclaredAlgorithm<
             runId,
             shape: output.shape,
             fields: output.fields.map((spec) => toFieldDescriptor(spec, runId, declared)),
-            measured: { nodes: dataManager.nodes.size, edges: dataManager.edges.size },
+            measured: { nodes: input.nodeCount, edges: input.edgeCount },
             graph: output.graph,
             nodes: output.nodes,
             edges: output.edges,

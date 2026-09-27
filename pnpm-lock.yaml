@@ -710,9 +710,6 @@ importers:
       ngraph.random:
         specifier: ^1.2.0
         version: 1.2.0
-      pngjs:
-        specifier: ^7.0.0
-        version: 7.0.0
       storybook:
         specifier: ^9.1.20
         version: 9.1.20(@testing-library/dom@10.4.1)(prettier@3.7.4)(vite@8.3.0(@types/node@20.19.27)(esbuild@0.27.2)(jiti@2.6.1)(terser@5.44.1)(tsx@4.21.0)(yaml@2.9.0))

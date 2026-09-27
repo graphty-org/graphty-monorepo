@@ -178,7 +178,7 @@ function fixture(options: { execute?: (context: RunExecutionContext) => Promise<
     harness.store.touch();
 
     const parts: SelectorSourceParts = {
-        snapshot: () => harness.session.snapshot(),
+        snapshot: () => harness.store.getSnapshot(),
         results: (runId) => harness.session.runs.get(runId)?.result,
         records: {
             nodeAttributes: (index) => harness.nodeAttributes.get(index),
@@ -265,7 +265,7 @@ describe("a selector source over the session's own attributes", () => {
 
     it("resolves one column once, however many elements read it", () => {
         const { harness, source } = fixture();
-        const snapshot = harness.session.snapshot();
+        const snapshot = harness.store.getSnapshot();
         const lookups = vi.spyOn(snapshot.nodes, "get");
 
         for (let index = 0; index < 4; index++) {
@@ -446,7 +446,7 @@ describe("a selector source reading past what it holds", () => {
 
         const asked: NodeId[] = [];
         const source = createSelectorSource({
-            snapshot: () => harness.session.snapshot(),
+            snapshot: () => harness.store.getSnapshot(),
             records: {
                 nodeAttributes: (_index, id) => {
                     asked.push(id);

@@ -487,7 +487,7 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
     );
 
     await within(
-        graph.operationQueue.waitForCompletion(),
+        graph.waitForSettled(),
         deadline,
         `${story}: the element's operation queue never drained`,
     );

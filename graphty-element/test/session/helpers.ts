@@ -6,7 +6,6 @@ import { DataConfig } from "../../src/config/DataConfig";
 import { GEXFDataSource } from "../../src/data/GEXFDataSource";
 import { GraphStore } from "../../src/data/GraphStore";
 import {
-    createGraphSession,
     type GraphSession,
     type SessionAttributes,
     type SessionDataConfig,
@@ -140,10 +139,9 @@ export function makeSession(
         config: { data: config },
         ...(options.runs === undefined ? {} : { runs: options.runs }),
     };
-    const session =
-        options.internals === undefined
-            ? createGraphSession(sessionOptions)
-            : createElementSession(sessionOptions, options.internals);
+    // The element's own form: a harness hands in its store and record source, which the published
+    // options do not take.
+    const session = createElementSession(sessionOptions, options.internals ?? {});
 
     const touch = (): void => {
         store.touch();

@@ -1,6 +1,7 @@
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph } from "../../src/Graph";
+import { layoutManagerInternals } from "../../src/managers/LayoutManager";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
 describe("LifecycleManager", () => {
@@ -90,7 +91,7 @@ describe("LifecycleManager", () => {
             ] as Record<string, unknown>[]);
 
             // Should be able to set layout
-            await layoutManager.setLayout("ngraph", {});
+            await layoutManagerInternals.setLayout(layoutManager, "ngraph", {});
 
             // Verify data was added
             assert.equal(dataManager.nodes.size, 2);

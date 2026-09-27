@@ -14,7 +14,7 @@ import type { Edge } from "../Edge";
 import { GraphtyError, isGraphtyError } from "../errors";
 import type { GraphSnapshotReplacedEvent } from "../events";
 import { ForceAtlas2Layout } from "../layout/ForceAtlas2LayoutEngine";
-import { LayoutEngine } from "../layout/LayoutEngine";
+import { LayoutEngine, layoutEngineInternals } from "../layout/LayoutEngine";
 import {
     type SimulationEngineInit,
     type SimulationEngineOptions,
@@ -294,11 +294,46 @@ function cancelledBuild(): Error {
 }
 
 /**
+ * The element's own reach into a layout manager, past its public surface: `Graph` registers the
+ * `layout` hook, and a standalone manager test builds or installs an engine outside the `layout`
+ * slice. No entry point exports it; a consumer chooses a layout with `session.layout.set`.
+ */
+export const layoutManagerInternals = {} as {
+    /** The `layout` hook; see `LayoutManager.apply`. */
+    apply(
+        manager: LayoutManager,
+        choice: LayoutChoice,
+        options: { readonly restoring: boolean; readonly signal?: AbortSignal },
+    ): Promise<void>;
+    /** Build an engine outside the `layout` slice; see `LayoutManager.setLayout`. */
+    setLayout(manager: LayoutManager, type: string, opts?: object): Promise<void>;
+    /** Install an engine, or none, as a standalone test's stand-in for a build. */
+    setEngine(manager: LayoutManager, engine: LayoutEngine | undefined): void;
+};
+
+/**
  * Manages layout engines and their lifecycle
  * Coordinates layout updates and transitions
  */
 export class LayoutManager implements Manager {
-    layoutEngine?: LayoutEngine;
+    /** The engine drawing the graph, built by the `layout` hook. */
+    private engine?: LayoutEngine;
+
+    static {
+        layoutManagerInternals.apply = (manager, choice, options) => manager.apply(choice, options);
+        layoutManagerInternals.setLayout = (manager, type, opts) => manager.setLayout(type, opts);
+        layoutManagerInternals.setEngine = (manager, engine) => {
+            manager.engine = engine;
+        };
+    }
+
+    /**
+     * The engine drawing the graph, read-only: choose a layout with `session.layout.set`.
+     * @returns The engine, or undefined before the first build.
+     */
+    get layoutEngine(): LayoutEngine | undefined {
+        return this.engine;
+    }
     private _running = false;
 
     /** The `layout` slice value the current engine was built for; null until one is. */
@@ -528,7 +563,7 @@ export class LayoutManager implements Manager {
         // one and the element no longer has to duck-type for it.
         this.layoutEngine?.dispose();
 
-        this.layoutEngine = undefined;
+        this.engine = undefined;
         this.onRest = null;
         this.running = false;
     }
@@ -638,7 +673,7 @@ export class LayoutManager implements Manager {
             engine.addNodes(nodeArray);
             engine.addEdges(edgeArray);
 
-            this.layoutEngine = engine;
+            this.engine = engine;
             this.engineDimension = dimension;
             await engine.init();
             if (!how.live()) {
@@ -700,7 +735,7 @@ export class LayoutManager implements Manager {
             engine.dispose();
 
             // Restore previous layout engine if initialization failed
-            this.layoutEngine = previousEngine;
+            this.engine = previousEngine;
             this.engineDimension = previousDimension;
             this.dataManager.setLayoutEngine(previousEngine);
 
@@ -743,10 +778,10 @@ export class LayoutManager implements Manager {
 
             if (positions.isPlaced(node.index)) {
                 positions.read(node.index, placed);
-                engine.setNodePosition(node, { x: placed.x, y: placed.y, z: placed.z });
+                layoutEngineInternals.setNodePosition(engine, node, { x: placed.x, y: placed.y, z: placed.z });
             }
 
-            engine.pin(node);
+            layoutEngineInternals.pin(engine, node);
         }
     }
 
@@ -803,7 +838,7 @@ export class LayoutManager implements Manager {
      * @param opts - Layout-specific options
      * @returns Promise that resolves when layout is set
      */
-    async setLayout(type: string, opts: object = {}): Promise<void> {
+    private async setLayout(type: string, opts: object = {}): Promise<void> {
         // eslint-disable-next-line @typescript-eslint/no-deprecated -- the old spelling still means 2D
         const twoD = this.styles.config.graph.viewMode === "2d" || this.styles.config.graph.twoD;
         // Built outside the `layout` slice, so no slice value describes it any more.
@@ -839,7 +874,10 @@ export class LayoutManager implements Manager {
      * @param options.signal - The asking command's signal.
      * @returns Settles once the engine is built and its pre-steps have landed.
      */
-    apply(choice: LayoutChoice, options: { readonly restoring: boolean; readonly signal?: AbortSignal }): Promise<void> {
+    private apply(
+        choice: LayoutChoice,
+        options: { readonly restoring: boolean; readonly signal?: AbortSignal },
+    ): Promise<void> {
         this.#wanted = choice;
         const generation = this.#generation;
         const build = this.#applying.then(async () => {

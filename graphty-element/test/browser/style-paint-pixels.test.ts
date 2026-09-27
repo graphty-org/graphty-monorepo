@@ -29,7 +29,7 @@
 import { Matrix, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import type { GraphSession } from "../../src/session";
 
 /**
@@ -105,7 +105,7 @@ describe("what the style system says, and what the canvas shows", () => {
 
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
     });
 
     afterEach(() => {
@@ -270,7 +270,7 @@ describe("what the style system says, and what the canvas shows", () => {
         const run = session.runs.start("degree", {}, { as: "degree" });
         await run;
         await session.styles.encode({ run: run.id, channel: "node.color" });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const pixels = await readFrame();
         const checked: string[] = [];

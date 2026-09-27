@@ -6,9 +6,9 @@
  * It reads declared types with the TypeScript compiler rather than walking objects at run time:
  * at run time a TypeScript `private` method cannot be told from a public one, and a public
  * instance field (`Graph.styles`) is not on the prototype at all. `getPropertiesOfType` yields
- * methods, accessors and fields, inherited ones included. Members that are `private`,
- * `protected` or `#`-named are dropped, and so are members declared only outside `src/` (the
- * `HTMLElement` and `LitElement` surface).
+ * methods, accessors and fields, inherited ones included. Members that are `private` or
+ * `protected` in every declaration, or `#`-named, are dropped, and so are members declared only
+ * outside `src/` (the `HTMLElement` and `LitElement` surface).
  */
 
 import { readdirSync } from "node:fs";
@@ -65,8 +65,11 @@ function publicMembers(declaration: ts.ClassDeclaration | ts.InterfaceDeclaratio
             return false;
         }
 
+        // Hidden only when every declaration is: a public getter with a private setter is still
+        // read from outside.
         if (
-            declarations.some(
+            declarations.length > 0 &&
+            declarations.every(
                 (each) =>
                     (ts.getCombinedModifierFlags(each) & (ts.ModifierFlags.Private | ts.ModifierFlags.Protected)) !== 0,
             )

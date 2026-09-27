@@ -15,6 +15,7 @@ import {
 
 import { readEndpoint, resolveEndpoints } from "./data/endpoints";
 import type { Graph } from "./Graph";
+import { layoutEngineInternals } from "./layout/LayoutEngine";
 import { SimulationLayoutEngine } from "./layout/SimulationLayoutEngine";
 import type { GraphContext } from "./managers/GraphContext";
 import type { Node as GraphNode, NodeIdType } from "./Node";
@@ -181,11 +182,14 @@ export class NodeDragHandler {
 
         // Update layout engine
         const context = this.getContext();
-        context.getLayoutManager().layoutEngine?.setNodePosition(this.node, {
-            x: newPosition.x,
-            y: newPosition.y,
-            z: newPosition.z,
-        });
+        const engine = context.getLayoutManager().layoutEngine;
+        if (engine !== undefined) {
+            layoutEngineInternals.setNodePosition(engine, this.node, {
+                x: newPosition.x,
+                y: newPosition.y,
+                z: newPosition.z,
+            });
+        }
     }
 
     /**
@@ -265,11 +269,14 @@ export class NodeDragHandler {
 
         // Update layout engine
         const context = this.getContext();
-        context.getLayoutManager().layoutEngine?.setNodePosition(this.node, {
-            x: newPosition.x,
-            y: newPosition.y,
-            z: newPosition.z,
-        });
+        const engine = context.getLayoutManager().layoutEngine;
+        if (engine !== undefined) {
+            layoutEngineInternals.setNodePosition(engine, this.node, {
+                x: newPosition.x,
+                y: newPosition.y,
+                z: newPosition.z,
+            });
+        }
     }
 
     /**

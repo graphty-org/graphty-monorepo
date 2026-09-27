@@ -71,7 +71,7 @@ export const PHASES = [
 type PlanPhase = (typeof PHASES)[number];
 
 /** The phase this branch has reached. Each phase's commit raises it. */
-export const PLAN_PHASE: PlanPhase = "18a";
+export const PLAN_PHASE: PlanPhase = "18c";
 
 /** How the doors tests call a door. */
 export type DoorCall =
@@ -335,6 +335,11 @@ const MASK = exempt(
 );
 const LLM = exempt("Talks to a language model; changes nothing in the graph.");
 const BUDGET = exempt("The history's own budget, not project state.");
+const LANE = exempt(
+    "The layout lane: coordinates a layout, a drag or a GPU readback writes while it works, recorded into the " +
+        "step on top when the layout comes to rest. The renderer's engines write it here; a consumer places " +
+        "nodes through session.positions.set, and reads a snapshot whose coordinate columns are copies.",
+);
 
 /**
  * The command a door running `degree` dispatches. The layers the run paints are planned into its
@@ -375,7 +380,8 @@ const SESSION: Readonly<Record<string, Door>> = {
     capabilities: READ,
     acceleration: MACHINE,
     setAccelerator: MACHINE,
-    snapshot: escape("18b"),
+    // Its coordinate and pin columns are copies, so a write there moves nothing.
+    snapshot: READ,
     fingerprint: READ,
     run: calls([{ op: "algo.run", algorithm: "degree" }], [RUN_DEGREE]),
     execute: EXECUTE,
@@ -672,7 +678,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         file: "src/Graph.ts",
         half: "renderer",
         doors: {
-            styles: escape("18c"),
+            styles: READ,
             element: RENDER,
             canvas: RENDER,
             engine: RENDER,
@@ -689,7 +695,6 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             enableDetailedProfiling: PROFILING,
             acceleration: READ,
             eventManager: READ,
-            operationQueue: escape("18c"),
             shutdown: LIFECYCLE,
             runAlgorithmsFromTemplate: {
                 kind: "dispatches",
@@ -851,8 +856,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             parentGraph: RENDER,
             opts: RENDER,
-            id: escape("18c"),
-            index: escape("18c"),
+            id: READ,
+            index: READ,
             data: READ,
             adoptRecord: RENDER,
             mesh: RENDER,
@@ -889,10 +894,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             parentGraph: RENDER,
             opts: RENDER,
-            srcId: escape("18c"),
-            dstId: escape("18c"),
+            srcId: READ,
+            dstId: READ,
             id: READ,
-            index: escape("18c"),
+            index: READ,
             dstNode: RENDER,
             srcNode: RENDER,
             data: READ,
@@ -974,18 +979,19 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         file: "src/managers/DataManager.ts",
         half: "renderer",
         doors: {
-            nodes: escape("18c"),
-            edges: escape("18c"),
+            nodes: READ,
+            edges: READ,
             edgeVersion: RENDER,
             nodeCache: RENDER,
-            edgeCache: escape("18c"),
-            edgesByIndex: escape("18c"),
+            edgeCache: READ,
+            edgesByIndex: READ,
             // Written only by a plugin while `algo.legacy` runs it, and then into that step.
             graphResults: READ,
             meshCache: RENDER,
-            getSnapshot: escape("18b"),
+            // The store's own snapshot, whose coordinate columns are the lane.
+            getSnapshot: LANE,
             undirected: READ,
-            positions: READ,
+            positions: LANE,
             seededNodeCount: READ,
             directionSettledBy: READ,
             lastImport: READ,
@@ -1022,19 +1028,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         file: "src/managers/LayoutManager.ts",
         half: "renderer",
         doors: {
-            // Writable, and assigned by standalone manager tests; made read-only with the other
-            // manager escapes.
-            layoutEngine: escape("18c"),
+            layoutEngine: READ,
             running: IN_FLIGHT,
             setGraphContext: LIFECYCLE,
             updateStyles: RENDER,
             init: LIFECYCLE,
             dispose: LIFECYCLE,
-            // Builds an engine outside the `layout` slice; the element's own doors dispatch
-            // `layout.set`. Standalone manager tests still build through it.
-            setLayout: escape("18c"),
-            // The `layout` hook itself, which the slice drives; public so `Graph` can register it.
-            apply: escape("18c"),
             isCurrent: READ,
             loadArrangement: DERIVED,
             dimension: READ,
@@ -1214,11 +1213,13 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         file: "src/session/types.ts",
         half: "session",
         doors: {
-            store: escape("18c"),
-            snapshot: escape("18b"),
+            // Read-only: its snapshot's coordinate columns are copies and its coordinates have no writer.
+            store: READ,
+            snapshot: READ,
             undirected: READ,
-            node: escape("18b"),
-            edge: escape("18b"),
+            // Deep-frozen.
+            node: READ,
+            edge: READ,
             lastImport: READ,
             attributes: READ,
             statistics: READ,
@@ -1305,6 +1306,14 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         file: "src/session/types.ts",
         half: "session",
         doors: {
+            capacity: READ,
+            count: READ,
+            placedCount: READ,
+            pinnedCount: READ,
+            generation: READ,
+            isPlaced: READ,
+            isPinned: READ,
+            read: READ,
             pinned: READ,
             set: calls(
                 [[{ id: "n1", x: 1, y: 2, z: 3 }]],
@@ -1353,28 +1362,37 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: STYLES_API,
     },
     {
+        // The lane itself, which only the renderer reaches (`DataManager.positions`,
+        // `LayoutEngine.nodePositions`); a consumer holds `SessionPositions`.
         name: "ElementPositions",
         file: "src/data/positions.ts",
-        half: "session",
+        half: "renderer",
         doors: {
             components: READ,
             capacity: READ,
             count: READ,
             placedCount: READ,
-            view: escape("18c"),
-            grow: escape("18c"),
-            remap: escape("18c"),
+            view: LANE,
+            grow: LANE,
+            remap: LANE,
             isPinned: READ,
-            setPinned: escape("18c"),
+            // The pin bytes follow the `pins` slice; strict state fails a commit where they differ.
+            setPinned: DERIVED,
             pinnedCount: READ,
-            pinnedView: escape("18c"),
+            pinnedView: DERIVED,
             isPlaced: READ,
             read: READ,
             generation: READ,
-            moved: escape("18c"),
-            write: escape("18c"),
-            fillUnplaced: escape("18c"),
+            moved: LANE,
+            write: LANE,
+            fillUnplaced: LANE,
         },
+    },
+    {
+        name: "ReadonlyElementPositions",
+        file: "src/session/types.ts",
+        half: "session",
+        whole: READ,
     },
     {
         name: "SelectionOwner",
@@ -1420,35 +1438,22 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         whole: READ,
     },
     {
-        name: "EdgeMap",
+        name: "ReadonlyEdgeMap",
         file: "src/Edge.ts",
         half: "renderer",
-        doors: {
-            map: escape("18c"),
-            has: READ,
-            set: escape("18c"),
-            get: READ,
-            first: READ,
-            size: READ,
-            delete: escape("18c"),
-            clear: escape("18c"),
-        },
+        whole: READ,
     },
     {
         name: "LayoutEngine",
         file: "src/layout/LayoutEngine.ts",
         half: "renderer",
         doors: {
-            config: escape("18c"),
             init: LIFECYCLE,
             addNode: DERIVED,
             addEdge: DERIVED,
             getNodePosition: READ,
-            setNodePosition: escape("18c"),
             getEdgePosition: READ,
             step: TRANSPORT,
-            pin: escape("18c"),
-            unpin: escape("18c"),
             nodes: READ,
             edges: READ,
             isSettled: READ,
@@ -1519,7 +1524,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         file: "src/session/types.ts",
         half: "session",
         doors: {
-            getSnapshot: escape("18b"),
+            getSnapshot: READ,
             undirected: READ,
             positions: READ,
             seededNodeCount: READ,

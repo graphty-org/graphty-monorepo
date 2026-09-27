@@ -46,7 +46,6 @@ const INHERITED = new Set([
     "styles",
     "session",
     "eventManager",
-    "operationQueue",
     "element",
 ]);
 

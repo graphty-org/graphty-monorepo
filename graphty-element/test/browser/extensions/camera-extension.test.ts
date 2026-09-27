@@ -48,6 +48,7 @@ import {
     registerCameraView,
 } from "../../../extend";
 import { Graph } from "../../../index.js";
+import { operationQueueOf } from "../../../src/Graph";
 
 /** Three nodes at known coordinates, so every box in this file can be checked by eye. */
 const NODES = [
@@ -605,7 +606,7 @@ describe("a third party's camera view", () => {
                 duration: 1200,
                 easing: "easeInOut",
             });
-            await waitFor(() => graph.operationQueue.getActiveOperations().length > 0, "the camera animation to start");
+            await waitFor(() => operationQueueOf(graph).getActiveOperations().length > 0, "the camera animation to start");
             await delay(FRAME_MS * 4);
 
             const midFlight = graph.getCameraState();
@@ -634,11 +635,11 @@ describe("a third party's camera view", () => {
             await graph.setCameraPosition({ x: 1, y: 1, z: 1 });
 
             const travelling = graph.applyCameraView("acme-corner", { animate: true, duration: 4000 });
-            await waitFor(() => graph.operationQueue.getActiveOperations().length > 0, "the camera animation to start");
+            await waitFor(() => operationQueueOf(graph).getActiveOperations().length > 0, "the camera animation to start");
             await delay(FRAME_MS * 4);
 
-            for (const id of graph.operationQueue.getActiveOperations()) {
-                graph.operationQueue.cancelOperation(id);
+            for (const id of operationQueueOf(graph).getActiveOperations()) {
+                operationQueueOf(graph).cancelOperation(id);
             }
 
             // Cancelling a camera move is not a failure: the element stops the animation where it

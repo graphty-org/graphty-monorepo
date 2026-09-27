@@ -48,7 +48,7 @@ import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
 import type { LabelStyle, LayerSpec, StaticStyle } from "../../src/catalog/types";
 import { UNPAINTED_CHANNELS } from "../../src/catalog/unreachable";
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import type { GraphSession } from "../../src/session";
 import { CHANNEL_DESCRIPTORS, type ChannelDescriptor } from "../../src/session/styles/channels";
 
@@ -223,7 +223,7 @@ describe("every channel the table says is renderable", () => {
                 // are still drifting differs from one frame to the next for reasons that have
                 // nothing to do with a channel.
                 await graph.setLayout("circular", { scale: 0.2 });
-                await graph.operationQueue.waitForCompletion();
+                await operationQueueOf(graph).waitForCompletion();
 
                 // THE PREREQUISITES. Some channels describe a thing that is only drawn once
                 // something else asked for it: a label style needs words, an arrow's size needs a
@@ -257,7 +257,7 @@ describe("every channel the table says is renderable", () => {
                         "edge.arrowTailText": "TAIL",
                     },
                 });
-                await graph.operationQueue.waitForCompletion();
+                await operationQueueOf(graph).waitForCompletion();
             }, 60000);
 
             afterAll(() => {

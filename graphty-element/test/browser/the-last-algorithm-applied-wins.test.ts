@@ -29,7 +29,7 @@ import "../../src/algorithms";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { Channel } from "../../src/catalog/types";
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import type { ElementSession } from "../../src/session";
 
 /** How many communities the graph is built out of. */
@@ -77,7 +77,7 @@ describe("the last algorithm named in applySuggestedStyles", () => {
 
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         session = graph.getSession() as ElementSession;
 
         // FINISHED IN A FIXED ORDER, AND THAT IS THE POINT. Each is awaited, so PageRank
@@ -86,7 +86,7 @@ describe("the last algorithm named in applySuggestedStyles", () => {
         // them is the order of the two names passed to applySuggestedStyles.
         await graph.run("pagerank");
         await graph.run("louvain");
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         await session.styles.settled();
     });
 
@@ -119,7 +119,7 @@ describe("the last algorithm named in applySuggestedStyles", () => {
             graph.applySuggestedStyles(["graphty:louvain", "graphty:pagerank"]),
             "neither finished run had anything to paint",
         );
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         await session.styles.settled();
 
         assert.strictEqual(
@@ -136,7 +136,7 @@ describe("the last algorithm named in applySuggestedStyles", () => {
             graph.applySuggestedStyles(["graphty:pagerank", "graphty:louvain"]),
             "neither finished run had anything to paint",
         );
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         await session.styles.settled();
 
         assert.strictEqual(
@@ -150,7 +150,7 @@ describe("the last algorithm named in applySuggestedStyles", () => {
     it("leaves one layer per run behind, however many times it is called", async () => {
         graph.applySuggestedStyles(["graphty:pagerank", "graphty:louvain"]);
         graph.applySuggestedStyles(["graphty:louvain", "graphty:pagerank"]);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         await session.styles.settled();
 
         const fromRuns = session.styles.list().filter((layer) => layer.source.by === "run");

@@ -19,7 +19,7 @@ import "../../src/algorithms";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { BUILT_IN_ALGORITHMS } from "../../src/catalog/algorithms";
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import { resultShapeContract } from "../../src/session/results/types";
 import { paintOf } from "../helpers/paint-assertions";
 
@@ -72,7 +72,7 @@ describe("an algorithm that measures elements has a picture to suggest", () => {
 
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
     });
 
     afterEach(() => {
@@ -106,7 +106,7 @@ describe("an algorithm that measures elements has a picture to suggest", () => {
                 `${descriptor.key} refused to paint what it had just measured`,
             );
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // THE LAYER THE ELEMENT WROTE ITSELF MUST SURVIVE THE PASS. `applySuggestedStyles`
             // answering true only says the layer was accepted; a binding that cannot be prepared
@@ -142,7 +142,7 @@ describe("an algorithm that measures elements has a picture to suggest", () => {
                         algorithmOptions: { ...PARAMS[legacy.key] },
                         applySuggestedStyles: false,
                     });
-                    await graph.operationQueue.waitForCompletion();
+                    await operationQueueOf(graph).waitForCompletion();
 
                     assert.isTrue(
                         graph.applySuggestedStyles(`graphty:${legacy.key}`),

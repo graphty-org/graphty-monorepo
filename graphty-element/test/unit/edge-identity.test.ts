@@ -26,7 +26,7 @@ import { SimpleLayoutEngine } from "../../src/layout/LayoutEngine";
 import { DataManager } from "../../src/managers/DataManager";
 import { EventManager } from "../../src/managers/EventManager";
 import { DefaultGraphContext, type GraphContext } from "../../src/managers/GraphContext";
-import { LayoutManager } from "../../src/managers/LayoutManager";
+import { LayoutManager, layoutManagerInternals } from "../../src/managers/LayoutManager";
 import { StatsManager } from "../../src/managers/StatsManager";
 import type { EdgePaint } from "../../src/managers/StylePainter";
 import { MeshCache } from "../../src/meshes/MeshCache";
@@ -77,7 +77,7 @@ function createHarness(): Harness {
     const statsManager = new StatsManager(eventManager);
     const dataManager = new DataManager(eventManager, styles);
     const layoutManager = new LayoutManager(eventManager, dataManager, styles);
-    layoutManager.layoutEngine = new StillLayout();
+    layoutManagerInternals.setEngine(layoutManager, new StillLayout());
 
     const context = new DefaultGraphContext(() => styles, dataManager, layoutManager, meshCache, scene, statsManager, {});
     dataManager.setGraphContext(context);

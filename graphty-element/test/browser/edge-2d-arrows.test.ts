@@ -1,7 +1,7 @@
 import { StandardMaterial } from "@babylonjs/core";
 import { assert, beforeEach, describe, test } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import { asData, edgeBetween, styleEveryEdge } from "../helpers/testSetup";
 
 describe("Edge 2D Arrows Integration", () => {
@@ -24,7 +24,7 @@ describe("Edge 2D Arrows Integration", () => {
             "edge.width": 0.05,
             "edge.arrowHead": "diamond",
         });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // Add nodes
         await graph.addNode(asData({ id: "node1", x: 0, y: 0, z: 0 }));
@@ -34,7 +34,7 @@ describe("Edge 2D Arrows Integration", () => {
         await graph.addEdge(asData({ id: "edge1", source: "node1", target: "node2" }), { source: "source", target: "target" });
 
         // Wait for all operations to complete
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // Wait for graph to settle
         await new Promise((resolve) => {
@@ -69,13 +69,13 @@ describe("Edge 2D Arrows Integration", () => {
 
         await graph.setViewMode("2d");
         await styleEveryEdge(graph, { "edge.arrowHead": "normal" });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         await graph.addNode(asData({ id: "node1", x: 0, y: 0, z: 0 }));
         await graph.addNode(asData({ id: "node2", x: 1, y: 0, z: 0 }));
         await graph.addEdge(asData({ id: "edge1", source: "node1", target: "node2" }), { source: "source", target: "target" });
 
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         await new Promise((resolve) => {
             setTimeout(resolve, 100);
@@ -98,13 +98,13 @@ describe("Edge 2D Arrows Integration", () => {
 
         await graph.setViewMode("2d");
         await styleEveryEdge(graph, { "edge.arrowHead": "box" });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         await graph.addNode(asData({ id: "node1", x: 0, y: 0, z: 0 }));
         await graph.addNode(asData({ id: "node2", x: 1, y: 0, z: 0 }));
         await graph.addEdge(asData({ id: "edge1", source: "node1", target: "node2" }), { source: "source", target: "target" });
 
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         await new Promise((resolve) => {
             setTimeout(resolve, 100);
@@ -124,13 +124,13 @@ describe("Edge 2D Arrows Integration", () => {
 
         await graph.setViewMode("2d");
         await styleEveryEdge(graph, { "edge.arrowHead": "dot" });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         await graph.addNode(asData({ id: "node1", x: 0, y: 0, z: 0 }));
         await graph.addNode(asData({ id: "node2", x: 1, y: 0, z: 0 }));
         await graph.addEdge(asData({ id: "edge1", source: "node1", target: "node2" }), { source: "source", target: "target" });
 
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         await new Promise((resolve) => {
             setTimeout(resolve, 100);
@@ -150,13 +150,13 @@ describe("Edge 2D Arrows Integration", () => {
 
         await graph.setViewMode("2d");
         await styleEveryEdge(graph, { "edge.arrowHead": "vee" });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         await graph.addNode(asData({ id: "node1", x: 0, y: 0, z: 0 }));
         await graph.addNode(asData({ id: "node2", x: 1, y: 0, z: 0 }));
         await graph.addEdge(asData({ id: "edge1", source: "node1", target: "node2" }), { source: "source", target: "target" });
 
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         await new Promise((resolve) => {
             setTimeout(resolve, 100);
@@ -176,13 +176,13 @@ describe("Edge 2D Arrows Integration", () => {
 
         await graph.setViewMode("2d");
         await styleEveryEdge(graph, { "edge.arrowHead": "tee" });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         await graph.addNode(asData({ id: "node1", x: 0, y: 0, z: 0 }));
         await graph.addNode(asData({ id: "node2", x: 1, y: 0, z: 0 }));
         await graph.addEdge(asData({ id: "edge1", source: "node1", target: "node2" }), { source: "source", target: "target" });
 
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         await new Promise((resolve) => {
             setTimeout(resolve, 100);
@@ -202,13 +202,13 @@ describe("Edge 2D Arrows Integration", () => {
 
         await graph.setViewMode("3d");
         await styleEveryEdge(graph, { "edge.arrowHead": "diamond" });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         await graph.addNode(asData({ id: "node1", x: 0, y: 0, z: 0 }));
         await graph.addNode(asData({ id: "node2", x: 1, y: 0, z: 0 }));
         await graph.addEdge(asData({ id: "edge1", source: "node1", target: "node2" }), { source: "source", target: "target" });
 
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         await new Promise((resolve) => {
             setTimeout(resolve, 100);

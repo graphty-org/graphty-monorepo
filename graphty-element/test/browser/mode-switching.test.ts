@@ -6,7 +6,7 @@
  */
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 
 describe("2D/3D Mode Switching", () => {
     let graph: Graph;
@@ -60,14 +60,14 @@ describe("2D/3D Mode Switching", () => {
             await graph.addEdges(TEST_EDGES);
             await graph.setLayout("circular");
             await graph.setViewMode("3d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify we're in 3D mode with potential non-zero Z positions
             assert.isFalse(graph.getViewMode() === "2d", "Should start in 3D mode");
 
             // Switch to 2D mode
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify Z positions are flattened
             assert.isTrue(graph.getViewMode() === "2d", "Should be in 2D mode after switch");
@@ -87,7 +87,7 @@ describe("2D/3D Mode Switching", () => {
             await graph.addEdges(TEST_EDGES);
             await graph.setLayout("ngraph");
             await graph.setViewMode("3d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Wait for layout to settle
             await delay(500);
@@ -107,7 +107,7 @@ describe("2D/3D Mode Switching", () => {
 
             // Switch to 2D mode
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify Z positions are flattened regardless of original values
             for (const node of graph.getNodes()) {
@@ -123,7 +123,7 @@ describe("2D/3D Mode Switching", () => {
             await graph.addEdges(TEST_EDGES);
             await graph.setLayout("circular");
             await graph.setViewMode("3d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Store original 3D Z positions
             // The mesh positions are synced from the layout engine on the frame loop, so they
@@ -140,7 +140,7 @@ describe("2D/3D Mode Switching", () => {
 
             // Switch to 2D mode
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify flattened
             for (const node of graph.getNodes()) {
@@ -149,7 +149,7 @@ describe("2D/3D Mode Switching", () => {
 
             // Switch back to 3D mode
             await graph.setViewMode("3d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify Z positions are restored
             assert.isFalse(graph.getViewMode() === "2d", "Should be in 3D mode after restoration");
@@ -172,7 +172,7 @@ describe("2D/3D Mode Switching", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await graph.setLayout("circular");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             assert.isTrue(graph.getViewMode() === "2d", "Should start in 2D mode");
             for (const node of graph.getNodes()) {
@@ -180,7 +180,7 @@ describe("2D/3D Mode Switching", () => {
             }
 
             await graph.setViewMode("3d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             assert.isFalse(graph.getViewMode() === "2d", "Should be in 3D mode");
             assert.isTrue(
                 [...zOf().values()].some((z) => Math.abs(z) > 0.01),
@@ -201,14 +201,14 @@ describe("2D/3D Mode Switching", () => {
             await graph.addEdges(TEST_EDGES);
             await graph.setLayout("ngraph");
             await graph.setViewMode("3d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             await delay(500); // Let layout settle
             graph.setRunning(false);
 
             const original = zOf();
 
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             for (const [id, z] of zOf()) {
                 assert.closeTo(z, 0, 0.01, `Node ${id} is flat in 2D`);
             }
@@ -229,7 +229,7 @@ describe("2D/3D Mode Switching", () => {
             await graph.addEdges(TEST_EDGES);
             await graph.setLayout("circular");
             await graph.setViewMode("3d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Store original 3D Z positions
             // The mesh positions are synced from the layout engine on the frame loop, so they
@@ -248,7 +248,7 @@ describe("2D/3D Mode Switching", () => {
             for (let i = 0; i < 3; i++) {
                 // To 2D
                 await graph.setViewMode("2d");
-                await graph.operationQueue.waitForCompletion();
+                await operationQueueOf(graph).waitForCompletion();
 
                 // Verify flattened
                 for (const node of graph.getNodes()) {
@@ -262,7 +262,7 @@ describe("2D/3D Mode Switching", () => {
 
                 // Back to 3D
                 await graph.setViewMode("3d");
-                await graph.operationQueue.waitForCompletion();
+                await operationQueueOf(graph).waitForCompletion();
 
                 // Verify restored
                 for (const node of graph.getNodes()) {
@@ -287,7 +287,7 @@ describe("2D/3D Mode Switching", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await graph.setLayout("circular");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify all nodes have Z=0
             assert.isTrue(graph.getViewMode() === "2d", "Should start in 2D mode");
@@ -297,12 +297,12 @@ describe("2D/3D Mode Switching", () => {
 
             // Switch to 3D
             await graph.setViewMode("3d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             assert.isFalse(graph.getViewMode() === "2d", "Should be in 3D mode");
 
             // Switch back to 2D
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Z should remain 0
             assert.isTrue(graph.getViewMode() === "2d", "Should be back in 2D mode");
@@ -319,7 +319,7 @@ describe("2D/3D Mode Switching", () => {
             await graph.addEdges(TEST_EDGES);
             await graph.setLayout("circular");
             await graph.setViewMode("3d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Store original Z positions
             // The mesh positions are synced from the layout engine on the frame loop, so they
@@ -344,7 +344,7 @@ describe("2D/3D Mode Switching", () => {
             void graph.setViewMode("3d");
 
             // Wait for all to complete
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Final state should be 3D with restored Z positions
             assert.isFalse(graph.getViewMode() === "2d", "Should be in 3D mode after rapid switches");
@@ -366,11 +366,11 @@ describe("2D/3D Mode Switching", () => {
         it("should handle empty graph mode switches", async () => {
             // Setup empty graph in 3D mode
             await graph.setViewMode("3d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Switch to 2D (no nodes to flatten)
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             assert.isTrue(graph.getViewMode() === "2d", "Should be in 2D mode");
             assert.equal(graph.getNodeCount(), 0, "Should have no nodes");
@@ -378,7 +378,7 @@ describe("2D/3D Mode Switching", () => {
             // Add nodes in 2D mode
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Nodes added in 2D should have Z=0
             for (const node of graph.getNodes()) {
@@ -387,7 +387,7 @@ describe("2D/3D Mode Switching", () => {
 
             // Switch back to 3D, and undo it
             await graph.setViewMode("3d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             assert.isFalse(graph.getViewMode() === "2d", "Should be in 3D mode");
 
             await graph.getSession().undo();
@@ -402,21 +402,21 @@ describe("2D/3D Mode Switching", () => {
             await graph.addNodes([{ id: 1, name: "Initial" }]);
             await graph.setLayout("circular");
             await graph.setViewMode("3d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Store original Z for initial node
             const initialNodeZ = zOf().get(1) ?? Number.NaN;
 
             // Switch to 2D
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify initial node is flattened
             assert.closeTo(graph.getNodes()[0].mesh.position.z, 0, 0.01);
 
             // Add more nodes in 2D mode
             await graph.addNodes([{ id: 2, name: "Added in 2D" }]);
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // New node should have Z=0
             const newNode = graph.getNodes().find((n) => n.id === 2);

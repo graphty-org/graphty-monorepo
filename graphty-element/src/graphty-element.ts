@@ -9,7 +9,7 @@ import type { GraphBackgroundConfig, GraphBehaviorConfig, GraphSelectionStyleInp
 import { type AlgorithmOnLoad, parseAlgorithmsOnLoad, REPEATED_EDGE_POLICIES } from "./config/DataConfig";
 import type { PartialXRConfig } from "./config/xr-config-schema";
 import { isDomForwardableEvent, NODE_EVENT_DOM_NAMES, nodeEventDetail } from "./events";
-import { Graph } from "./Graph";
+import { Graph, operationQueueOf } from "./Graph";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
 import {
@@ -806,7 +806,7 @@ export class Graphty extends LitElement {
         const dispatch = (): Promise<unknown> => dispatcher.dispatch(build(dispatcher.state.graph, setup));
         const done = this.#graph.initialized
             ? dispatch()
-            : this.#graph.operationQueue.queueOperationAsync("data-add", async (context) => {
+            : operationQueueOf(this.#graph).queueOperationAsync("data-add", async (context) => {
                   if (context.signal.aborted) {
                       throw new Error("Operation cancelled");
                   }

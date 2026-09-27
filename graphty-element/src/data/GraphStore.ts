@@ -61,7 +61,7 @@ const EDGE_ID_COLUMN = "graphty.edgeId";
  * the snapshot, exactly as the position column is, so anything that reads or serialises a snapshot
  * carries the pins with the coordinates they pin rather than losing them at the freeze.
  */
-const PINNED_COLUMN = "graphty.pinned";
+export const PINNED_COLUMN = "graphty.pinned";
 
 /**
  * A freeze already committed to the store whose consumer callbacks have not all returned yet.

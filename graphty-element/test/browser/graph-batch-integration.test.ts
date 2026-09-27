@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 
 describe("Graph Batch Integration - Deferred Promises", () => {
     let container: HTMLElement;
@@ -33,11 +33,11 @@ describe("Graph Batch Integration - Deferred Promises", () => {
     describe("Basic Batching with Await", () => {
         it("should enter and exit batch mode correctly", async () => {
             // Test the batch mode mechanism itself
-            expect(graph.operationQueue.isInBatchMode()).toBe(false);
+            expect(operationQueueOf(graph).isInBatchMode()).toBe(false);
 
             let insideBatch = false;
             await graph.batchOperations(async () => {
-                insideBatch = graph.operationQueue.isInBatchMode();
+                insideBatch = operationQueueOf(graph).isInBatchMode();
                 // Queue some operations (they may or may not execute properly)
                 await graph.addNodes([{ id: "1", label: "Node 1" }], "id");
             });
@@ -45,7 +45,7 @@ describe("Graph Batch Integration - Deferred Promises", () => {
             // Should have been in batch mode inside the callback
             expect(insideBatch).toBe(true);
             // Should have exited batch mode after
-            expect(graph.operationQueue.isInBatchMode()).toBe(false);
+            expect(operationQueueOf(graph).isInBatchMode()).toBe(false);
         });
 
         it("should execute operations in dependency order despite call order", async () => {
@@ -66,7 +66,7 @@ describe("Graph Batch Integration - Deferred Promises", () => {
                 });
             });
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Check execution order. A style edit is a queued run rather than the `style-init`
             // operation `setStyleTemplate` used to put here, and what the batch has to get right

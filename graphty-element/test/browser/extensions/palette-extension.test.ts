@@ -53,6 +53,7 @@ import { type Binding, type LayerId, PALETTE_DESCRIPTORS, paletteDescriptor, pal
 import { clearRegisteredPalettesForTesting, isGraphtyError, type PaletteDescriptor, registerPalette } from "../../../extend";
 import { Graph } from "../../../index.js";
 import type { GraphSession, LayerSpec, StyleDocument } from "../../../session";
+import { operationQueueOf } from "../../../src/Graph";
 
 // -------------------------------------------------------------------------------------------
 // The extension: two palettes the element has never heard of
@@ -235,7 +236,7 @@ async function openGraph(): Promise<void> {
 
     await graph.addNodes(NODES);
     await graph.addEdges(EDGES);
-    await graph.operationQueue.waitForCompletion();
+    await operationQueueOf(graph).waitForCompletion();
 }
 
 /**
@@ -246,7 +247,7 @@ async function openGraph(): Promise<void> {
  * against a store the dispose has already emptied.
  */
 async function closeGraph(): Promise<void> {
-    await graph.operationQueue.waitForCompletion();
+    await operationQueueOf(graph).waitForCompletion();
     graph.dispose();
     container.remove();
 }
@@ -282,7 +283,7 @@ function paintersOf(id: string): readonly LayerId[] {
  */
 async function addLayer(spec: LayerSpec): Promise<LayerId> {
     const layer = await session.styles.add(spec);
-    await graph.operationQueue.waitForCompletion();
+    await operationQueueOf(graph).waitForCompletion();
 
     return layer.id;
 }
@@ -463,7 +464,7 @@ describe("a third party's palette, painting a real graph", () => {
         await run;
 
         const layer = await session.styles.encode({ run: run.id, channel: "node.color", palette: "acme-heat" });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const bound = layer.encode?.["node.color"];
 
@@ -570,7 +571,7 @@ describe("a third party's palette, painting a real graph", () => {
         // consumer already switches on for an unknown algorithm, layout or format.
         assert.strictEqual(refusal, "E_UNKNOWN_PALETTE");
 
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         assert.strictEqual(paintedColor("a1"), painted, "no colour was invented for a palette that does not exist");
         assert.strictEqual(paintersOf("a1").length, 1, "only the element's own base layer painted");
@@ -631,12 +632,12 @@ describe("a third party's palette, in a document somebody saved", () => {
         const document = session.styles.toDocument();
 
         await session.styles.remove(layerId);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         assert.notStrictEqual(paintedColor("b1"), before, "the layer really was taken away");
 
         const report = await session.styles.applyTemplate(document);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         assert.strictEqual(report.applied.length, 1);
         assert.strictEqual(paintedColor("b1"), before, "and the reopened document paints exactly what it saved");
@@ -654,7 +655,7 @@ describe("a third party's palette, in a document somebody saved", () => {
         };
 
         const report = await session.styles.applyTemplate(document);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         assert.strictEqual(report.applied.length, 1, "a document describing a palette this element has is readable");
         assert.strictEqual(paintedColor("b1"), HEAT_HEXES.at(-1));

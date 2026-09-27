@@ -8,7 +8,7 @@
 
 import { afterEach, assert, describe, it } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 
 const cleanups: (() => void)[] = [];
 
@@ -36,7 +36,7 @@ async function loadedGraph(): Promise<Graph> {
         { id: "s1", type: "service" },
         { id: "s2", type: "service" },
     ]);
-    await graph.operationQueue.waitForCompletion();
+    await operationQueueOf(graph).waitForCompletion();
     cleanups.push(() => {
         graph.dispose();
         container.remove();

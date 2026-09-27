@@ -85,7 +85,7 @@ describe("a { where } predicate on a session", () => {
         const harness = harnessOf();
         const where = "data.type == 'host' && data.label != 'Beta'";
         const source = createSelectorSource({
-            snapshot: () => harness.session.snapshot(),
+            snapshot: () => harness.store.getSnapshot(),
             records: {
                 nodeAttributes: (index) => harness.nodeAttributes.get(index),
                 edgeAttributes: (index) => harness.edgeAttributes.get(index),

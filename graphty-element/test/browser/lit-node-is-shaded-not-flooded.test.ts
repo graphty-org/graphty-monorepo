@@ -52,7 +52,7 @@
 
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import { type Frame, readFrame } from "../helpers/paint-assertions";
 
 /** How wide the canvas is. */
@@ -189,7 +189,7 @@ async function mountOneNode(viewMode: "2d" | "3d"): Promise<{ container: HTMLEle
         selector: { match: "everything" },
         set: { "node.color": COLOR },
     });
-    await graph.operationQueue.waitForCompletion();
+    await operationQueueOf(graph).waitForCompletion();
 
     return { container, graph };
 }

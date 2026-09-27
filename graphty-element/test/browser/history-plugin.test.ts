@@ -7,7 +7,7 @@
 
 import { afterEach, assert, describe, it } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import { LEGACY_NAMESPACE } from "../helpers/legacyPlugins";
 
 /** Per-test budget: each builds a real Babylon scene. */
@@ -38,7 +38,7 @@ async function loadedGraph(): Promise<Graph> {
         { src: "n1", dst: "n2" },
         { src: "n2", dst: "n3" },
     ]);
-    await graph.operationQueue.waitForCompletion();
+    await operationQueueOf(graph).waitForCompletion();
     graph.getSession().history.clear();
     cleanups.push(() => {
         graph.dispose();
@@ -129,7 +129,7 @@ describe("a plugin algorithm without a descriptor is one step", () => {
             const layers = session.styles.list().length;
 
             await graph.runAlgorithm(LEGACY_NAMESPACE, "calls-doors");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             await session.styles.settled();
 
             assert.lengthOf(session.history.steps, 1);
@@ -193,7 +193,7 @@ describe("a plugin algorithm without a descriptor is one step", () => {
             const running = graph.runAlgorithm(LEGACY_NAMESPACE, "calls-doors");
             await session.data.updateNodes([{ id: "n1", values: { weight: 5 } }]);
             await running;
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             assert.lengthOf(session.history.steps, 2);
             await session.undo();

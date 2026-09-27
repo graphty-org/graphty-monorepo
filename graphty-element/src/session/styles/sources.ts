@@ -403,7 +403,7 @@ function isPresent(value: unknown): boolean {
  * @example
  * ```ts
  * const elements = createSelectorSource({
- *     snapshot: () => session.snapshot(),
+ *     snapshot: () => store.getSnapshot(),
  *     results: (id) => session.runs.get(id)?.result,
  *     records,
  * });

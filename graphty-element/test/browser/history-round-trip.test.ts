@@ -20,7 +20,7 @@ import { PhotoDome } from "@babylonjs/core";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import { afterEach, assert, describe, it } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import { FIXTURES } from "../session/history/fixtures";
 import { roundTrip } from "../session/history/round-trip-harness";
 
@@ -69,7 +69,7 @@ async function loadedGraph(): Promise<Graph> {
         { src: "n1", dst: "n2" },
         { src: "n2", dst: "n3" },
     ]);
-    await graph.operationQueue.waitForCompletion();
+    await operationQueueOf(graph).waitForCompletion();
     cleanups.push(() => {
         graph.dispose();
         container.remove();

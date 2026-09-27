@@ -9,7 +9,7 @@ import { PointerEventTypes, type PointerInfo, type PointerInfoPre } from "@babyl
 import { assert } from "chai";
 import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
-import { Graph } from "../../../src/Graph";
+import { Graph, operationQueueOf } from "../../../src/Graph";
 import { configureGraph } from "../../helpers/testSetup";
 
 const TEST_NODES = [{ id: 1 }, { id: 2 }, { id: 3 }];
@@ -37,7 +37,7 @@ describe("Touch Controls Integration", () => {
             await configureGraph(graph, { viewMode: "2d", layout: "circular", layoutOptions: { dim: 2 } });
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Wait for rendering to stabilize
             await new Promise((resolve) => setTimeout(resolve, 100));
@@ -184,7 +184,7 @@ describe("Touch Controls Integration", () => {
             await configureGraph(graph, { viewMode: "3d", layout: "circular", layoutOptions: { dim: 3 } });
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Wait for rendering to stabilize
             await new Promise((resolve) => setTimeout(resolve, 100));

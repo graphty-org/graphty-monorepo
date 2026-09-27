@@ -3,6 +3,7 @@ import { assert, describe, it } from "vitest";
 import { AccelerationController, type GraphAccelerator } from "../../src/acceleration";
 import { DataConfig } from "../../src/config/DataConfig";
 import { createGraphSession } from "../../src/session";
+import { createElementSession } from "../../src/session/GraphSession";
 import { makeSession } from "./helpers";
 
 describe("createGraphSession", () => {
@@ -32,7 +33,7 @@ describe("createGraphSession", () => {
         // a session that captured the old one would go on reporting a graph as undirected after it
         // had been told otherwise.
         let live = DataConfig.parse({ directed: false });
-        const session = createGraphSession({ config: { data: () => live } });
+        const session = createElementSession({ config: { data: () => live } });
 
         assert.strictEqual(session.config.data.directed, false);
 
@@ -49,20 +50,24 @@ describe("createGraphSession", () => {
 
         assert.strictEqual(harness.session.status.counts.nodes, 2);
         assert.strictEqual(harness.session.status.counts.edges, 1);
-        assert.strictEqual(harness.session.snapshot(), harness.store.getSnapshot(), "one store, one snapshot");
+        const resident = harness.store.getSnapshot();
+        const handed = harness.session.snapshot();
+        assert.strictEqual(handed.serial, resident.serial, "one store, one snapshot");
+        assert.strictEqual(handed.rowPtr, resident.rowPtr, "sharing its structure");
         harness.session.dispose();
     });
 
-    it("hands back the live position array, not a copy of one", () => {
+    it("reads the live position array through a surface that cannot write it", () => {
         const harness = makeSession();
         harness.add([{ id: "a" }]);
         harness.session.snapshot();
 
-        harness.session.positions.write(0, 1, 2, 3);
+        harness.store.positions.write(0, 1, 2, 3);
         const read = { x: 0, y: 0, z: 0 };
-        harness.store.positions.read(0, read);
+        harness.session.positions.read(0, read);
 
         assert.deepEqual(read, { x: 1, y: 2, z: 3 }, "the session and the store share one array");
+        assert.notProperty(harness.session.positions, "write", "and the session has no writer");
         harness.session.dispose();
     });
 

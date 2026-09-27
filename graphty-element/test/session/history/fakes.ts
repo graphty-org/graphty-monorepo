@@ -17,7 +17,7 @@
 import type fc from "fast-check";
 
 import type { NodeId } from "../../../src/catalog/types";
-import { dispatcherOf } from "../../../src/session/GraphSession";
+import { dispatcherOf, laneOf } from "../../../src/session/GraphSession";
 import type { ArrangementEngine } from "../../../src/session/project/arrangement";
 import type { Scheduler } from "../../../src/session/project/Dispatcher";
 import type { GraphSession } from "../../../src/session/types";
@@ -109,7 +109,7 @@ export interface FakeLayout extends ArrangementEngine {
  */
 export function fakeLayout(session: GraphSession): FakeLayout {
     const { arrangement } = dispatcherOf(session);
-    const lane = session.data.store.positions;
+    const lane = laneOf(session);
     let generation = 0;
     let loads = 0;
     const pins: [NodeId, boolean][] = [];

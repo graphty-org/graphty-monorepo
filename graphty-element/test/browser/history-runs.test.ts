@@ -7,7 +7,7 @@
 
 import { afterEach, assert, describe, it, vi } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 
 /** Per-test budget: each builds a real Babylon scene. */
 const TEST_TIMEOUT_MS = 30_000;
@@ -37,7 +37,7 @@ async function loadedGraph(): Promise<Graph> {
         { src: "n1", dst: "n2" },
         { src: "n2", dst: "n3" },
     ]);
-    await graph.operationQueue.waitForCompletion();
+    await operationQueueOf(graph).waitForCompletion();
     graph.getSession().history.clear();
     cleanups.push(() => {
         graph.dispose();
@@ -51,7 +51,7 @@ async function loadedGraph(): Promise<Graph> {
  * @param graph - The graph.
  */
 async function settled(graph: Graph): Promise<void> {
-    await graph.operationQueue.waitForCompletion();
+    await operationQueueOf(graph).waitForCompletion();
     await graph.getSession().styles.settled();
 }
 

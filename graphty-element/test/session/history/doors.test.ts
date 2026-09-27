@@ -14,11 +14,9 @@
 import { assert, describe, it } from "vitest";
 
 import { COMMANDS } from "../../../commands";
-import type { GraphStore } from "../../../src/data/GraphStore";
 import { type Door, DOOR_ROOTS, GESTURE_DOORS, PHASES, PLAN_PHASE } from "../../../src/session/commands/doors";
 import { createElementSession, dispatcherOf } from "../../../src/session/GraphSession";
 import type { ElementSession } from "../../../src/session/types";
-import { ingestNode } from "../../helpers/rawIngest";
 import { callOf, checkDispatches, dispatchesOf } from "./door-harness";
 
 /** Every row, labelled `Root.member`; a whole-type root is one row labelled `Root.*`. */
@@ -33,17 +31,16 @@ function rows(): [string, Door][] {
 /**
  * The selection of a session holding one node, "d1", selected.
  * @param session - The session.
- * @returns Its selection.
+ * @returns Its selection, once the node is in and selected.
  */
-function selectOne(session: ElementSession): object {
-    ingestNode(session.data.store as GraphStore, "d1", { id: "d1" });
-    // Applied at once; the promise only reports the delta.
-    void session.selection.apply({ nodes: ["d1"] });
+async function selectOne(session: ElementSession): Promise<object> {
+    await session.data.addNodes([{ id: "d1" }]);
+    await session.selection.apply({ nodes: ["d1"] });
     return session.selection;
 }
 
 /** How the session half reaches an instance of each session root. */
-const SESSION_ROOTS: Readonly<Record<string, (session: ElementSession) => object>> = {
+const SESSION_ROOTS: Readonly<Record<string, (session: ElementSession) => object | Promise<object>>> = {
     GraphSession: (session) => session,
     ElementSession: (session) => session,
     SessionHistory: (session) => session.history,
@@ -70,7 +67,6 @@ const SESSION_ROOTS: Readonly<Record<string, (session: ElementSession) => object
     SessionVisibilityApi: (session) => session.visibility,
     StylesApi: (session) => session.styles,
     SessionStylesApi: (session) => session.styles,
-    ElementPositions: (session) => session.positions,
     SessionPositions: (session) => session.positions,
 };
 
@@ -166,13 +162,17 @@ describe("the session's doors", () => {
         }
 
         it(`${root.name}: every called row dispatches what its row says`, async () => {
-            const reach = SESSION_ROOTS[root.name] as ((session: ElementSession) => object) | undefined;
+            const reach = SESSION_ROOTS[root.name] as ((session: ElementSession) => object | Promise<object>) | undefined;
             assert.isDefined(reach, `the session half has no way to reach a ${root.name}`);
             for (const [member, door] of called) {
                 const session = createElementSession();
                 const call = callOf(door);
                 assert.isDefined(call);
-                const seen = await dispatchesOf(dispatcherOf(session), reach(session), member, call);
+                // Awaited only when it is a promise: a `Run` is a thenable, and awaiting it would
+                // adopt its outcome instead of handing back the handle.
+                const reached = reach(session);
+                const target = reached instanceof Promise ? await reached : reached;
+                const seen = await dispatchesOf(dispatcherOf(session), target, member, call);
                 checkDispatches(`${root.name}.${member}`, door, seen);
                 session.dispose();
             }

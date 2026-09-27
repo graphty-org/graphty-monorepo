@@ -11,7 +11,7 @@
 import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { ElementsRemovedEvent, GraphDataAddedEvent } from "../../src/events";
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 
 /** Per-test budget: each builds a real Babylon scene. */
 const TEST_TIMEOUT_MS = 30_000;
@@ -48,7 +48,7 @@ async function loadedGraph(): Promise<Graph> {
         { src: "n1", dst: "n2" },
         { src: "n2", dst: "n3" },
     ]);
-    await graph.operationQueue.waitForCompletion();
+    await operationQueueOf(graph).waitForCompletion();
     graph.getSession().history.clear();
     cleanups.push(() => {
         graph.dispose();
@@ -120,7 +120,7 @@ describe("graph additions on a renderer", () => {
             await graph.addEdges([{ src: "n3", dst: "n4" }]);
             // The on-load runs are deferred members of each add: finished, they are part of its
             // step, where still going, the first undo would cancel them instead.
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             const spies = watch(graph);
             const seen = events(graph);
             const data = graph.getDataManager();

@@ -7,7 +7,7 @@
 import { assert } from "chai";
 import { afterEach, beforeEach, describe, test } from "vitest";
 
-import { Graph } from "../../../src/Graph.js";
+import { Graph, operationQueueOf } from "../../../src/Graph.js";
 import { dispatcherOf } from "../../../src/session/GraphSession.js";
 import { stateDigest } from "../../../src/session/project/digest.js";
 
@@ -31,7 +31,7 @@ describe("saved camera views under undo", () => {
         await graph.setLayout("circular");
         await graph.addNodes([{ id: "a" }, { id: "b" }]);
         await graph.addEdges([{ src: "a", dst: "b" }]);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
     });
 
     afterEach(() => {

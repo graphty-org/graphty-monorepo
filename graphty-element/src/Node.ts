@@ -72,6 +72,19 @@ interface NodeOpts {
     pinOnDrag?: boolean;
 }
 
+/** Writes a node's row; see {@link placeNodeRow}. */
+let writeNodeRow: (node: Node, row: number) => void;
+
+/**
+ * Move a node to a row of the current snapshot. Only the data manager calls it, as a node reaches
+ * the builder, leaves it, or is renumbered by a freeze.
+ * @param node - The node.
+ * @param row - Its row, or INVALID_INDEX.
+ */
+export function placeNodeRow(node: Node, row: number): void {
+    writeNodeRow(node, row);
+}
+
 /**
  * Represents a node in the graph visualization with its mesh, label, and associated data.
  * Manages node rendering, styling, drag behavior, and interactions with the layout engine.
@@ -79,14 +92,29 @@ interface NodeOpts {
 export class Node {
     parentGraph: Graph | GraphContext;
     opts: NodeOpts;
-    id: NodeIdType;
+    readonly id: NodeIdType;
+
+    private row: number = INVALID_INDEX;
+
+    static {
+        writeNodeRow = (node, row) => {
+            node.index = row;
+        };
+    }
 
     /**
      * This node's index in the element's current GraphSnapshot, assigned at add time as
      * `builder.addNode(id)` and walked through `report.nodeRemap` on a renumbering freeze
      * (graph-format design 14.4 rule 5). INVALID_INDEX until the node reaches the builder.
+     * @returns The row.
      */
-    index: number = INVALID_INDEX;
+    get index(): number {
+        return this.row;
+    }
+
+    private set index(row: number) {
+        this.row = row;
+    }
 
     /**
      * The record this node carries, as the graph holds it: deep-frozen, so a write to it throws. A

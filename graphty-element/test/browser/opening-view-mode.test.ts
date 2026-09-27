@@ -26,7 +26,7 @@ import "../../src/graphty-element";
 import { Camera } from "@babylonjs/core";
 import { afterEach, assert, describe, test } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 
 /** How long the element needs to connect, run its first update and finish `Graph.init()`. */
 const ELEMENT_READY_MS = 400;
@@ -71,9 +71,9 @@ function makeHost(): HTMLDivElement {
  * @param graph - The graph to drain.
  */
 async function settle(graph: Graph): Promise<void> {
-    await graph.operationQueue.waitForCompletion();
+    await operationQueueOf(graph).waitForCompletion();
     await new Promise((resolve) => setTimeout(resolve, 300));
-    await graph.operationQueue.waitForCompletion();
+    await operationQueueOf(graph).waitForCompletion();
 }
 
 /**

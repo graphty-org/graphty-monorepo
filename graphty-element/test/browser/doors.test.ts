@@ -11,11 +11,15 @@
  */
 
 import "../../src/graphty-element";
+// Loaded up front: `loadFromFile` imports it dynamically before it dispatches, and on a cold
+// dev server serving that import can outlast the harness's settle bound, so the door would be
+// read as dispatching nothing.
+import "../../src/data/format-detection";
 
 import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import { type Door, DOOR_ROOTS } from "../../src/session/commands/doors";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import type { GraphSession } from "../../src/session/types";
@@ -59,7 +63,7 @@ async function loadedGraph(): Promise<Graph> {
     await graph.setLayout("circular");
     await graph.addNodes(NODES);
     await graph.addEdges(EDGES);
-    await graph.operationQueue.waitForCompletion();
+    await operationQueueOf(graph).waitForCompletion();
     cleanups.push(() => {
         graph.dispose();
         container.remove();
@@ -78,7 +82,7 @@ async function mountedElement(): Promise<Graphty> {
     element.style.height = "300px";
     document.body.appendChild(element);
     await element.updateComplete;
-    await element.graph.operationQueue.waitForCompletion();
+    await operationQueueOf(element.graph).waitForCompletion();
     await element.graph.addNodes(NODES);
     await element.graph.addEdges(EDGES);
     cleanups.push(() => {

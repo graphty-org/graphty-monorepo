@@ -2,8 +2,9 @@ import { afterEach, assert, test } from "vitest";
 
 import type { AuthoredLayoutDescriptor } from "../../../src/catalog/types";
 import type { Edge } from "../../../src/Edge";
-import type { Graph } from "../../../src/Graph";
+import { type Graph, operationQueueOf } from "../../../src/Graph";
 import { type EdgePosition, LayoutEngine, type Position } from "../../../src/layout/LayoutEngine";
+import { layoutManagerInternals } from "../../../src/managers/LayoutManager";
 import type { Node } from "../../../src/Node";
 import { cleanupTestGraphWithData, createTestGraphWithData } from "./test-setup.js";
 
@@ -103,7 +104,7 @@ test("waitForSettle waits for layout to settle", async () => {
 
     // Set up mock layout engine
     const layoutManager = graph.getLayoutManager();
-    await layoutManager.setLayout("mock");
+    await layoutManagerInternals.setLayout(layoutManager, "mock");
 
     const layoutEngine = layoutManager.layoutEngine as MockLayoutEngine;
     assert.ok(layoutEngine, "Layout engine should be set");
@@ -139,7 +140,7 @@ test("waitForSettle times out if layout never settles", { timeout: 35000 }, asyn
 
     // Set up mock layout engine
     const layoutManager = graph.getLayoutManager();
-    await layoutManager.setLayout("mock");
+    await layoutManagerInternals.setLayout(layoutManager, "mock");
 
     const layoutEngine = layoutManager.layoutEngine as MockLayoutEngine;
     assert.ok(layoutEngine, "Layout engine should be set");
@@ -162,7 +163,7 @@ test("waitForOperations waits for pending operations", async () => {
 
     // Queue a long operation (use style-apply to avoid triggering layout-update)
     let operationComplete = false;
-    const longOperation = graph.operationQueue.queueOperationAsync("style-apply", async () => {
+    const longOperation = operationQueueOf(graph).queueOperationAsync("style-apply", async () => {
         await new Promise((resolve) => setTimeout(resolve, 200));
         operationComplete = true;
     });
@@ -194,7 +195,7 @@ test("can skip waiting with timing.waitForSettle: false", async () => {
 
     // Set up mock layout engine
     const layoutManager = graph.getLayoutManager();
-    await layoutManager.setLayout("mock");
+    await layoutManagerInternals.setLayout(layoutManager, "mock");
 
     const layoutEngine = layoutManager.layoutEngine as MockLayoutEngine;
     assert.ok(layoutEngine, "Layout engine should be set");
@@ -215,7 +216,7 @@ test("can skip waiting for operations with timing.waitForOperations: false", asy
     graph = await createTestGraphWithData();
 
     // Queue a long operation (use style-apply to avoid triggering layout-update)
-    void graph.operationQueue.queueOperationAsync("style-apply", async () => {
+    void operationQueueOf(graph).queueOperationAsync("style-apply", async () => {
         await new Promise((resolve) => setTimeout(resolve, 1000));
     });
 

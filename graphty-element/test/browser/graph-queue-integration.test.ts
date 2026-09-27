@@ -1,6 +1,6 @@
 import { afterEach, assert, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 
 describe("Graph Queue Integration", () => {
     let container: HTMLElement;
@@ -26,7 +26,7 @@ describe("Graph Queue Integration", () => {
         ];
 
         // Spy on queue operation
-        const queueSpy = vi.spyOn(graph.operationQueue, "queueOperation");
+        const queueSpy = vi.spyOn(operationQueueOf(graph), "queueOperation");
 
         await graph.addNodes(nodes);
 
@@ -42,7 +42,7 @@ describe("Graph Queue Integration", () => {
     });
 
     it("should queue setLayout operations", async () => {
-        const queueSpy = vi.spyOn(graph.operationQueue, "queueOperation");
+        const queueSpy = vi.spyOn(operationQueueOf(graph), "queueOperation");
 
         await graph.setLayout("ngraph");
 
@@ -59,9 +59,9 @@ describe("Graph Queue Integration", () => {
 
     it("writes a style edit at once, and paints the rows a later load adds after that load", async () => {
         const operations: string[] = [];
-        const originalQueue = graph.operationQueue.queueOperation.bind(graph.operationQueue);
+        const originalQueue = operationQueueOf(graph).queueOperation.bind(operationQueueOf(graph));
 
-        vi.spyOn(graph.operationQueue, "queueOperation").mockImplementation((category, execute, metadata) => {
+        vi.spyOn(operationQueueOf(graph), "queueOperation").mockImplementation((category, execute, metadata) => {
             operations.push(category);
             return originalQueue(category, execute, metadata);
         });
@@ -102,9 +102,9 @@ describe("Graph Queue Integration", () => {
 
     it("should handle batchOperations method", async () => {
         const operations: string[] = [];
-        const originalQueue = graph.operationQueue.queueOperation.bind(graph.operationQueue);
+        const originalQueue = operationQueueOf(graph).queueOperation.bind(operationQueueOf(graph));
 
-        vi.spyOn(graph.operationQueue, "queueOperation").mockImplementation((category, execute, metadata) => {
+        vi.spyOn(operationQueueOf(graph), "queueOperation").mockImplementation((category, execute, metadata) => {
             operations.push(category);
             return originalQueue(category, execute, metadata);
         });
@@ -141,7 +141,7 @@ describe("Graph Queue Integration", () => {
         await graph.setLayout("random");
 
         // Wait for operations to complete
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // Verify data was added
         const nodeCount = graph.getNodeCount();
@@ -190,7 +190,7 @@ describe("Graph Queue Integration", () => {
     });
 
     it("should support skipQueue option for backwards compatibility", async () => {
-        const queueSpy = vi.spyOn(graph.operationQueue, "queueOperation");
+        const queueSpy = vi.spyOn(operationQueueOf(graph), "queueOperation");
 
         // When skipQueue is true, operation should not be queued
         await graph.addNodes([{ id: "1", label: "Node 1" }], undefined, { skipQueue: true });
@@ -205,7 +205,7 @@ describe("Graph Queue Integration", () => {
     });
 
     it("should queue addEdges operations", async () => {
-        const queueSpy = vi.spyOn(graph.operationQueue, "queueOperation");
+        const queueSpy = vi.spyOn(operationQueueOf(graph), "queueOperation");
 
         // First add nodes (needed for edges)
         await graph.addNodes([
@@ -233,7 +233,7 @@ describe("Graph Queue Integration", () => {
     });
 
     it("should queue removeNodes operations", async () => {
-        const queueSpy = vi.spyOn(graph.operationQueue, "queueOperation");
+        const queueSpy = vi.spyOn(operationQueueOf(graph), "queueOperation");
 
         // Add nodes first
         await graph.addNodes([
@@ -257,7 +257,7 @@ describe("Graph Queue Integration", () => {
     });
 
     it("should queue updateNodes operations", async () => {
-        const queueSpy = vi.spyOn(graph.operationQueue, "queueOperation");
+        const queueSpy = vi.spyOn(operationQueueOf(graph), "queueOperation");
 
         // Add node first
         await graph.addNodes([{ id: "1", label: "Node 1" }]);
@@ -284,7 +284,7 @@ describe("Graph Queue Integration", () => {
             // this test is for is that algorithm work takes its turn in the element's queue --
             // where it is ordered against loads, layouts and style passes -- and that is still
             // exactly what happens, on the same queue object, under the same category.
-            const queueSpy = vi.spyOn(graph.operationQueue, "queueOperation");
+            const queueSpy = vi.spyOn(operationQueueOf(graph), "queueOperation");
 
             // Add nodes first
             await graph.addNodes([
@@ -306,7 +306,7 @@ describe("Graph Queue Integration", () => {
             await graph.runAlgorithm("graphty", "degree", {});
 
             // Wait for operations
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify algorithm-run was queued
             expect(queueSpy).toHaveBeenCalledWith(
@@ -355,7 +355,7 @@ describe("Graph Queue Integration", () => {
             await graph.setLayout("circular");
 
             // Wait for all operations
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify execution order respects dependencies
             const dataIndex = executionOrder.indexOf("data-add");

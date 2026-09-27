@@ -12,7 +12,7 @@ import { assert, describe, it } from "vitest";
 import type { FormatDescriptor } from "../../../src/catalog/types";
 import type { AdHocData } from "../../../src/config";
 import { type BaseDataSourceConfig, DataSource, type DataSourceChunk } from "../../../src/data/DataSource";
-import { dispatcherOf } from "../../../src/session/GraphSession";
+import { dispatcherOf, laneOf } from "../../../src/session/GraphSession";
 import type { GraphSession } from "../../../src/session/types";
 import { makeSession } from "../helpers";
 import { fakeLayout } from "./fakes";
@@ -183,7 +183,7 @@ describe("the arrangement under undo and redo", () => {
         assert.notStrictEqual(sealed, before, "the rest point took a capture");
         assert.deepEqual(
             [...(sealed?.coords ?? [])],
-            [...session.positions.view(3)],
+            [...laneOf(session).view(3)],
             "of the lane as the readback left it",
         );
         const landed = lane(session);

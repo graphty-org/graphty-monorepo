@@ -47,7 +47,7 @@
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { LayerSpec } from "../../src/catalog/types";
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import type { GraphSession } from "../../src/session";
 
 /** How long a write verb's run is given to settle before it counts as stranded. */
@@ -181,7 +181,7 @@ afterEach(async () => {
     // Drained before the graph is thrown away: a style edit is queued work and the element
     // repaints behind every finished run, so disposing with one in flight runs that repaint
     // against a store the dispose has already emptied.
-    await graph.operationQueue.waitForCompletion();
+    await operationQueueOf(graph).waitForCompletion();
     graph.dispose();
     container.remove();
 });
@@ -195,7 +195,7 @@ describe("a layer issued before the data arrives, and not awaited", () => {
             void graph.addNodes(NODES);
             void graph.addEdges(EDGES);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             await outcomeOf(run);
 
             assert.include(layerNames(), "The left half", "the layer a render function asked for is not in the stack");
@@ -211,7 +211,7 @@ describe("a layer issued before the data arrives, and not awaited", () => {
             void graph.addNodes(NODES);
             void graph.addEdges(EDGES);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             await outcomeOf(run);
             await session.styles.settled();
 
@@ -250,7 +250,7 @@ describe("a layer issued before the data arrives, and not awaited", () => {
             void graph.addNodes(NODES);
             void graph.addEdges(EDGES);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             await outcomeOf(left);
             await outcomeOf(right);
             await session.styles.settled();
@@ -326,7 +326,7 @@ describe("a graph read by a data source", () => {
         "is painted from the style stack even with no layer added at all",
         async () => {
             await graph.addDataFromSource("json", { data: NODES_AS_JSON });
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             await session.styles.settled();
 
             assert.isNotEmpty(
@@ -344,7 +344,7 @@ describe("a graph read by a data source", () => {
             const run = session.styles.add(halfLayer("left", LEFT_COLOR));
 
             await graph.addDataFromSource("json", { data: NODES_AS_JSON });
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             await outcomeOf(run);
             await session.styles.settled();
 
@@ -359,7 +359,7 @@ describe("a graph read by a data source", () => {
         "paints every node it loaded, not only the first",
         async () => {
             await graph.addDataFromSource("json", { data: NODES_AS_JSON });
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             await session.styles.settled();
 
             for (const { id } of NODES) {

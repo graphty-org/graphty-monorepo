@@ -14,6 +14,7 @@ import "../../src/graphty-element";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
+import { operationQueueOf } from "../../src/Graph";
 
 /** Per-test budget: each builds a real Babylon scene. */
 const TEST_TIMEOUT_MS = 30_000;
@@ -66,7 +67,7 @@ async function declared(declare: (element: Graphty) => void): Promise<Graphty> {
 async function settled(element: Graphty): Promise<void> {
     await vi.waitFor(
         async () => {
-            await element.graph.operationQueue.waitForCompletion();
+            await operationQueueOf(element.graph).waitForCompletion();
             assert.lengthOf(element.session.history.pending, 0);
         },
         { timeout: 10_000 },

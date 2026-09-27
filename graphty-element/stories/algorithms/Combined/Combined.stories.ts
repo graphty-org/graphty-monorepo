@@ -68,7 +68,7 @@ export const DegreeAndPageRank: Story = {
         const graphtyElement = element as Graphty;
         const { graph } = graphtyElement;
 
-        await graph.operationQueue.waitForCompletion();
+        await graph.waitForSettled();
 
         const applied = graph.applySuggestedStyles(["graphty:pagerank", "graphty:degree"]);
 
@@ -147,7 +147,7 @@ export const CentralityVsCommunity: Story = {
         const graphtyElement = element as Graphty;
         const { graph } = graphtyElement;
 
-        await graph.operationQueue.waitForCompletion();
+        await graph.waitForSettled();
 
         const applied = graph.applySuggestedStyles(["graphty:pagerank", "graphty:louvain"]);
 
@@ -203,7 +203,7 @@ export const CommunityStructureWithPath: Story = {
         const graphtyElement = element as Graphty;
         const { graph } = graphtyElement;
 
-        await graph.operationQueue.waitForCompletion();
+        await graph.waitForSettled();
 
         // Order matters: the last algorithm named wins every channel it writes.
         const applied = graph.applySuggestedStyles([

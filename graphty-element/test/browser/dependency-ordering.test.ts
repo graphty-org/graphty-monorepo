@@ -11,7 +11,7 @@
 import { Color3, InstancedMesh } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import { isDisposed, styleEveryNode, type TestGraph } from "../helpers/testSetup";
 
 // Test data constants (matching the stories)
@@ -329,7 +329,7 @@ describe("Dependency Ordering", () => {
             await graph.addEdges(TEST_EDGES);
             await styleEveryNode(graph, NODE_STYLE); // Style set LAST
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify nodes should be positioned in circle
             assert.equal(graph.getNodeCount(), 4, "Should have 4 nodes");
@@ -350,7 +350,7 @@ describe("Dependency Ordering", () => {
             // Style set LAST - this tests that style-init doesn't require data to exist first
             await styleEveryNode(graph, NODE_STYLE);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify the graph rendered correctly
             assert.equal(graph.getNodeCount(), 4, "Should have 4 nodes");
@@ -379,7 +379,7 @@ describe("Dependency Ordering", () => {
             await graph.addNodes([...TEST_NODES.slice(0, 2), ...TEST_NODES.slice(2)]);
             await graph.addEdges(TEST_EDGES); // Add edges after all nodes are present
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Only final layout-update should execute (self-obsolescence)
             assert.equal(graph.getNodeCount(), 4, "Should have 4 nodes");
@@ -412,7 +412,7 @@ describe("Dependency Ordering", () => {
             await graph.addNodes([TEST_NODES[3]]);
             await graph.addEdges(TEST_EDGES);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify final state
             assert.equal(graph.getNodeCount(), 4, "Should have 4 nodes");
@@ -442,7 +442,7 @@ describe("Dependency Ordering", () => {
             await graph.addEdges(TEST_EDGES);
             await styleEveryNode(graph, NODE_STYLE); // Style set LAST in timeout
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Nodes should use circular layout, not random
             assert.equal(graph.getNodeCount(), 4, "Should have 4 nodes");
@@ -471,7 +471,7 @@ describe("Dependency Ordering", () => {
             await graph.setLayout("random");
             await graph.setLayout("circular");
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Only the final layout-set should execute due to self-obsolescence
             // Previous layout-set operations should be obsoleted
@@ -499,7 +499,7 @@ describe("Dependency Ordering", () => {
             await graph.addNodes(TEST_NODES); // Final
             await graph.addEdges(TEST_EDGES);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Visual: Circular layout with all nodes
             assert.equal(graph.getNodeCount(), 4, "Should have 4 nodes");
@@ -525,7 +525,7 @@ describe("Dependency Ordering", () => {
             await graph.addNodes([TEST_NODES[3]]);
             await graph.addEdges(TEST_EDGES);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Final state should be correct
             assert.equal(graph.getNodeCount(), 4, "Should have 4 nodes");
@@ -559,7 +559,7 @@ describe("Dependency Ordering", () => {
             await styleEveryNode(graph, NODE_STYLE);
             await graph.setLayout("circular");
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify both operations executed successfully
             assert.isTrue(executionOrder.includes("data-add"), "data-add should execute");
@@ -586,7 +586,7 @@ describe("Dependency Ordering", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Should work correctly
             assert.equal(graph.getNodeCount(), 4, "Should have 4 nodes");
@@ -610,7 +610,7 @@ describe("Dependency Ordering", () => {
             await delay(10);
             await graph.addNodes(TEST_NODES);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Edges should be connected once nodes exist
             assert.equal(graph.getNodeCount(), 4, "Should have 4 nodes");
@@ -636,7 +636,7 @@ describe("Dependency Ordering", () => {
             await graph.addNodes([TEST_NODES[2]]);
             await graph.addNodes([TEST_NODES[3]]);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Should maintain FIFO order
             assert.deepEqual(nodeAddOrder, ["add-0", "add-1", "add-2", "add-3"]);
@@ -653,7 +653,7 @@ describe("Dependency Ordering", () => {
             await styleEveryNode(graph, NODE_STYLE);
             await graph.setLayout("circular");
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Should not throw and should have no nodes/edges
             assert.equal(graph.getNodeCount(), 0, "Should have no nodes");
@@ -669,7 +669,7 @@ describe("Dependency Ordering", () => {
             await graph.addNodes([{ id: "1", label: "Second" }]); // Same ID
             await graph.addNodes([{ id: "2", label: "Node 2" }]);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Should have only unique nodes
             assert.equal(graph.getNodeCount(), 2, "Should have 2 unique nodes");
@@ -684,7 +684,7 @@ describe("Dependency Ordering", () => {
                 await graph.addNodes([{ id: `node-${i}`, label: `Node ${i}` }]);
             }
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Should have all 5 nodes
             assert.equal(graph.getNodeCount(), 5, "Should have 5 nodes");

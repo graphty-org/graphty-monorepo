@@ -79,6 +79,19 @@ interface EdgeOpts {
     metadata?: object;
 }
 
+/** Writes an edge's row; see {@link placeEdgeRow}. */
+let writeEdgeRow: (edge: Edge, row: number) => void;
+
+/**
+ * Move an edge to a row of the current snapshot. Only the data manager calls it, as an edge is
+ * added, removed or renumbered by a compacting freeze.
+ * @param edge - The edge.
+ * @param row - Its logical edge index, or INVALID_INDEX.
+ */
+export function placeEdgeRow(edge: Edge, row: number): void {
+    writeEdgeRow(edge, row);
+}
+
 /**
  * Represents a directed edge between two nodes in the graph visualization.
  * Handles rendering of edge lines, arrow heads/tails, and labels with support for various styles.
@@ -86,8 +99,8 @@ interface EdgeOpts {
 export class Edge {
     parentGraph: Graph | GraphContext;
     opts: EdgeOpts;
-    srcId: NodeIdType;
-    dstId: NodeIdType;
+    readonly srcId: NodeIdType;
+    readonly dstId: NodeIdType;
 
     /**
      * This edge's identity: the element-assigned counter the store stamped into its
@@ -107,8 +120,23 @@ export class Edge {
      * Every Edge has one. An edge whose endpoint ids graph-format will not store is REJECTED
      * before a render object is built for it, so there is no such thing as an Edge with no row --
      * which is what makes `index` safe to read without a guard everywhere downstream.
+     * @returns The row.
      */
-    index: number = INVALID_INDEX;
+    get index(): number {
+        return this.row;
+    }
+
+    private set index(row: number) {
+        this.row = row;
+    }
+
+    private row: number = INVALID_INDEX;
+
+    static {
+        writeEdgeRow = (edge, row) => {
+            edge.index = row;
+        };
+    }
     dstNode: Node;
     srcNode: Node;
     /**
@@ -1636,6 +1664,33 @@ export class Edge {
 /** The one empty array every miss answers with, so a lookup for an absent pair allocates nothing. */
 const EMPTY_EDGES: readonly Edge[] = Object.freeze([]);
 
+/** The edges between each ordered pair of nodes, read-only; see {@link EdgeMap}. */
+export interface ReadonlyEdgeMap {
+    /**
+     * Whether any edge runs between the specified source and destination nodes.
+     * @param srcId - The source node ID
+     * @param dstId - The destination node ID
+     * @returns True when at least one edge exists
+     */
+    has(srcId: NodeIdType, dstId: NodeIdType): boolean;
+    /**
+     * Every edge running from one node to another, in the order they were added.
+     * @param srcId - The source node ID
+     * @param dstId - The destination node ID
+     * @returns The edges, an empty array when there are none
+     */
+    get(srcId: NodeIdType, dstId: NodeIdType): readonly Edge[];
+    /**
+     * The first edge running from one node to another.
+     * @param srcId - The source node ID
+     * @param dstId - The destination node ID
+     * @returns The oldest edge between the pair, or undefined
+     */
+    first(srcId: NodeIdType, dstId: NodeIdType): Edge | undefined;
+    /** How many edges the map holds. */
+    readonly size: number;
+}
+
 /**
  * Every edge the graph holds, indexed by its ordered endpoint pair.
  *
@@ -1648,8 +1703,8 @@ const EMPTY_EDGES: readonly Edge[] = Object.freeze([]);
  * Ask {@link EdgeMap.first} when the question genuinely has one answer, and {@link EdgeMap.get}
  * otherwise. Neither ever returns undefined for the pair itself: an absent pair is an empty array.
  */
-export class EdgeMap {
-    map = new Map<NodeIdType, Map<NodeIdType, Edge[]>>();
+export class EdgeMap implements ReadonlyEdgeMap {
+    private readonly map = new Map<NodeIdType, Map<NodeIdType, Edge[]>>();
 
     /**
      * Whether any edge runs between the specified source and destination nodes.

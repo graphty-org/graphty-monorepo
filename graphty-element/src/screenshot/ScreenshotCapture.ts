@@ -8,7 +8,7 @@ import {
     type WebGPUEngine,
 } from "@babylonjs/core";
 
-import type { Graph } from "../Graph.js";
+import { type Graph, operationQueueOf } from "../Graph.js";
 import { copyToClipboard } from "./clipboard.js";
 import { SCREENSHOT_CONSTANTS } from "./constants.js";
 import { calculateDimensions } from "./dimensions.js";
@@ -79,7 +79,7 @@ export class ScreenshotCapture {
             // Store the result in a variable and return it after the queue completes
             let result: ScreenshotResult | null = null;
 
-            await this.graph.operationQueue.queueOperationAsync(
+            await operationQueueOf(this.graph).queueOperationAsync(
                 "render-update",
                 async () => {
                     result = await this.doScreenshotCapture(options);

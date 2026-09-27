@@ -10,7 +10,7 @@
 import { Color4, PhotoDome } from "@babylonjs/core";
 import { afterEach, assert, describe, it } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { stateDigest } from "../../src/session/project/digest";
 import { SKYBOX_PNG } from "../session/history/fixtures";
@@ -39,7 +39,7 @@ async function loadedGraph(): Promise<Graph> {
     await graph.init();
     await graph.setLayout("circular");
     await graph.addNodes([{ id: "a" }, { id: "b" }]);
-    await graph.operationQueue.waitForCompletion();
+    await operationQueueOf(graph).waitForCompletion();
     // Adding the nodes is a step; the tests here start from the loaded graph as their baseline.
     graph.getSession().history.clear();
     cleanups.push(() => {

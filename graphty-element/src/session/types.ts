@@ -40,7 +40,6 @@ import type {
 } from "../catalog/types";
 import type { DataConfig } from "../config/DataConfig";
 import type { GraphBackgroundConfig, GraphSelectionStyleConfig, GraphSelectionStyleInput } from "../config/GraphStyle";
-import type { ElementPositions } from "../data/positions";
 import type { ImportReport } from "../data/report";
 import type { GraphtyError } from "../errors/GraphtyError";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
@@ -254,13 +253,13 @@ export interface SessionGraphStore {
      * @returns the derived graph
      */
     undirected(snapshot: GraphSnapshot): DerivedGraph;
-    /** The element-owned node coordinates, indexed by dense node index. */
-    readonly positions: ElementPositions;
+    /** The element-owned node coordinates, indexed by dense node index, read-only. */
+    readonly positions: ReadonlyElementPositions;
     /**
      * How many nodes the DATA arrived carrying a coordinate for.
      *
      * THE HONEST ANSWER to "did the file that loaded this graph place its nodes", which
-     * {@link ElementPositions.placedCount} cannot give: the position array is written by the
+     * {@link ReadonlyElementPositions.placedCount} cannot give: the position array is written by the
      * importer AND by every running layout, so a moment after a file with no coordinates loads,
      * every node carries a position because the layout put it there. This counts the importer's
      * own seed column, which nothing but the importer writes.
@@ -323,11 +322,14 @@ export interface SessionRecordSource {
  * construction and are not part of this surface yet.
  */
 export interface SessionDataApi {
-    /** The store this session reads, whether it built it or was handed one. */
+    /** The store this session reads, read-only: its snapshot is the one {@link snapshot} returns. */
     readonly store: SessionGraphStore;
     /**
-     * The current snapshot.
-     * @returns the immutable graph-format snapshot
+     * The current snapshot. Its structure, id map and attribute columns are the graph's own,
+     * shared rather than copied; its `position` and `graphty.pinned` columns are copies taken
+     * now, because the graph's own are written by the layout every frame and a write into them
+     * would place nodes without a step. Place and pin through `session.positions`.
+     * @returns the sealed graph-format snapshot
      */
     snapshot(): GraphSnapshot;
     /**
@@ -806,13 +808,54 @@ export interface PositionEntry {
 }
 
 /**
- * Placing and pinning nodes, as undoable steps.
+ * The node coordinates, read by dense node index: a row no layout has placed reads as unplaced
+ * rather than as the origin.
+ *
+ * Read-only. A consumer places and pins nodes through `session.positions.set`, `pin` and `unpin`,
+ * which are undoable steps; the array a layout writes every frame is the element's own.
+ */
+export interface ReadonlyElementPositions {
+    /** Rows the coordinates can hold without growing. */
+    readonly capacity: number;
+    /** Rows in use: the node count of the current snapshot. */
+    readonly count: number;
+    /** Rows in use that hold a coordinate. */
+    readonly placedCount: number;
+    /** Rows in use that are pinned. */
+    readonly pinnedCount: number;
+    /** Moves whenever coordinates are written on purpose, so a reader can tell they changed. */
+    readonly generation: number;
+    /**
+     * Whether a row holds a coordinate.
+     * @param index - The dense node index.
+     * @returns False for an unplaced row or one past the rows in use.
+     */
+    isPlaced(index: number): boolean;
+    /**
+     * Whether a row is pinned.
+     * @param index - The dense node index.
+     * @returns False for an unpinned row or one past the rows in use.
+     */
+    isPinned(index: number): boolean;
+    /**
+     * Read a row's coordinates into an object the caller owns.
+     * @param index - The dense node index.
+     * @param out - Receives x, y and z in scene units; NaN for an unplaced row.
+     * @param out.x - Receives x.
+     * @param out.y - Receives y.
+     * @param out.z - Receives z.
+     */
+    read(index: number, out: { x: number; y: number; z: number }): void;
+}
+
+/**
+ * Placing and pinning nodes, as undoable steps, beside the read-only coordinates.
  *
  * Coordinates a running layout writes are not steps: where the layout comes to rest is recorded
  * into the step before it, so undo and redo restore where the nodes were without running the
  * layout again.
  */
-export interface SessionPositions {
+export interface SessionPositions extends ReadonlyElementPositions {
     /** The pinned node ids: the nodes no layout moves. */
     readonly pinned: ReadonlySet<NodeId>;
     /**
@@ -976,14 +1019,15 @@ export interface GraphSession {
     /** Which layout draws the graph, and in how many dimensions; choosing either is a step. */
     readonly layout: SessionLayout;
     /**
-     * The element-owned node coordinates: a stride-3 Float32Array indexed by dense node index,
-     * where a row no layout has placed reads NaN rather than the origin, with the verbs that place
-     * and pin nodes as undoable steps.
+     * The element-owned node coordinates, read by dense node index, where a row no layout has
+     * placed reads as unplaced rather than at the origin, with the verbs that place and pin nodes
+     * as undoable steps.
      *
-     * Place and pin through `set`, `pin` and `unpin`. The array's own writers are what a layout, a
-     * drag and a GPU readback write through, and a write made through them is not a step.
+     * Place and pin through `set`, `pin` and `unpin`; the coordinates themselves are read-only
+     * here, because a layout, a drag and a GPU readback write them and a write made there is not a
+     * step.
      */
-    readonly positions: ElementPositions & SessionPositions;
+    readonly positions: SessionPositions;
     /**
      * How many nodes the DATA arrived carrying a coordinate for.
      *
@@ -1018,8 +1062,11 @@ export interface GraphSession {
      */
     setAccelerator(accelerator: GraphAccelerator | null): void;
     /**
-     * The current snapshot, by reference: nothing is copied.
-     * @returns the immutable graph-format snapshot
+     * The current snapshot. Its structure, id map and attribute columns are the graph's own,
+     * shared rather than copied; its `position` and `graphty.pinned` columns are copies taken
+     * now, because the graph's own are written by the layout every frame and a write into them
+     * would place nodes without a step. Place and pin through `session.positions`.
+     * @returns the sealed graph-format snapshot
      */
     snapshot(): GraphSnapshot;
     /**
@@ -1142,26 +1189,18 @@ export interface ElementSession extends GraphSession {
     readonly paint: ElementPaint;
 }
 
-/** What {@link createGraphSession} accepts. */
+/**
+ * What {@link createGraphSession} accepts.
+ *
+ * The session is the only writer of its graph and its settings, which is what makes every change
+ * undoable: hand data in through `session.data.import`, `addNodes` and `addEdges`, and settings
+ * through `session.config.set`.
+ */
 export interface CreateGraphSessionOptions {
-    /**
-     * The store to read. When absent the session builds one of its own and disposes it with
-     * itself.
-     */
-    readonly store?: SessionGraphStore;
-    /** Where to read the attributes a record arrived with. Absent means the graph has none. */
-    readonly records?: SessionRecordSource;
     /** The configuration. Every part not given takes the element's own default. */
     readonly config?: {
-        /**
-         * The data configuration, or a function that reads it.
-         *
-         * Hand in a FUNCTION when the host REPLACES its configuration object rather than mutating
-         * it -- applying a new style template to the element does exactly that -- or the session
-         * would go on answering from the configuration that was in force when it was built, and
-         * would report a graph as undirected after it had been told otherwise.
-         */
-        readonly data?: SessionDataConfig | (() => SessionDataConfig);
+        /** The data configuration the session starts from; change it later with `config.set`. */
+        readonly data?: SessionDataConfig;
         /** The acceleration policy and threshold. */
         readonly acceleration?: {
             /** Use an accelerator when available, never look, or refuse to run without one. */

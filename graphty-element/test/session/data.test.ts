@@ -1,6 +1,7 @@
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession } from "../../src/session";
+import { laneOf } from "../../src/session/GraphSession";
 import { makeSession } from "./helpers";
 
 describe("reading one node or one edge", () => {
@@ -197,7 +198,8 @@ describe("the topology fingerprint", () => {
         harness.add([{ id: "a" }, { id: "b" }], [{ src: "a", dst: "b" }]);
         const before = harness.session.fingerprint();
 
-        harness.session.positions.write(0, 10, 20, 30);
+        // As a layout moves it: straight into the lane.
+        laneOf(harness.session).write(0, 10, 20, 30);
 
         assert.strictEqual(harness.session.fingerprint(), before);
         harness.session.dispose();

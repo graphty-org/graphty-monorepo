@@ -13,6 +13,7 @@ import "../../src/algorithms";
 import type { InstancedMesh } from "@babylonjs/core";
 import { afterEach, assert, describe, it } from "vitest";
 
+import { operationQueueOf } from "../../src/Graph";
 import { Graphty } from "../../src/graphty-element";
 
 /** A star with a tail, so the nodes differ in importance. */
@@ -63,7 +64,7 @@ async function mountWith(configure: (element: Graphty) => void): Promise<Graphty
         await new Promise((resolve) => setTimeout(resolve, 20));
     }
 
-    await element.graph.operationQueue.waitForCompletion();
+    await operationQueueOf(element.graph).waitForCompletion();
     await element.session.styles.settled();
 
     for (let frame = 0; frame < 10; frame++) {

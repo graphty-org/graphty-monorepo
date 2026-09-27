@@ -11,11 +11,17 @@
 // The built-in readers, so `import` reads every format the element does with no renderer loaded.
 import "../data/index";
 
-import { type DerivedGraph, type GraphSnapshot, INVALID_INDEX, type NodeId } from "@graphty/graph-format";
+import {
+    type ColumnInput,
+    type DerivedGraph,
+    type GraphSnapshot,
+    INVALID_INDEX,
+    type NodeId,
+} from "@graphty/graph-format";
 
 import type { AttributeDescriptor, EdgeId } from "../catalog/types";
 import { edgeCounterOf, edgeIdOf } from "../data/edgeIdentity";
-import type { GraphStore } from "../data/GraphStore";
+import { type GraphStore, PINNED_COLUMN } from "../data/GraphStore";
 import type { ImportReport } from "../data/report";
 import { GraphtyError } from "../errors";
 import { describeAttributes } from "./attributes";
@@ -33,6 +39,7 @@ import type {
     ImportOptions,
     NodeRecord,
     NodeRecordInput,
+    ReadonlyElementPositions,
     RowUpdate,
     SessionAttributes,
     SessionDataApi,
@@ -72,8 +79,11 @@ interface Derived {
  * no longer exists.
  */
 export class SessionData implements SessionDataApi {
+    /** The store, read-only: its snapshot is a consumer's, and its coordinates cannot be written. */
     readonly store: SessionGraphStore;
 
+    /** The store itself, which the session's own readers read. */
+    private readonly source: SessionGraphStore;
     private readonly records: SessionRecordSource | null;
     private readonly readConfig: () => SessionDataConfig;
     private readonly writes: DataWrites;
@@ -95,7 +105,8 @@ export class SessionData implements SessionDataApi {
         readConfig: () => SessionDataConfig,
         writes: DataWrites,
     ) {
-        this.store = store;
+        this.source = store;
+        this.store = readonlyStore(store);
         this.records = records;
         this.readConfig = readConfig;
         this.writes = writes;
@@ -187,13 +198,14 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
-     * The current snapshot, freezing first when records have arrived since the last freeze.
-     * @returns the immutable snapshot
+     * The current snapshot, freezing first when records have arrived since the last freeze, with
+     * copies of its coordinate and pin columns.
+     * @returns the sealed snapshot
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
     snapshot(): GraphSnapshot {
         this.requireLive("snapshot");
-        return this.store.getSnapshot();
+        return consumerSnapshot(this.source.getSnapshot());
     }
 
     /**
@@ -204,7 +216,18 @@ export class SessionData implements SessionDataApi {
      */
     undirected(snapshot?: GraphSnapshot): DerivedGraph {
         this.requireLive("undirected");
-        return this.store.undirected(snapshot ?? this.store.getSnapshot());
+        // Derived from the consumer's snapshot, because a derived graph shares the node table of
+        // the one it came from, and the store's own holds the live coordinates.
+        return this.source.undirected(snapshot ?? this.snapshot());
+    }
+
+    /**
+     * The store's own snapshot, for the readers here that never hand it out.
+     * @returns the resident snapshot
+     */
+    private current(): GraphSnapshot {
+        this.requireLive("snapshot");
+        return this.source.getSnapshot();
     }
 
     /**
@@ -214,7 +237,7 @@ export class SessionData implements SessionDataApi {
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
     node(id: NodeId): NodeRecord | undefined {
-        const snapshot = this.snapshot();
+        const snapshot = this.current();
         const index = snapshot.ids.indexOf(id);
         if (index === INVALID_INDEX) {
             return undefined;
@@ -235,7 +258,7 @@ export class SessionData implements SessionDataApi {
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
     edge(id: EdgeId): EdgeRecord | undefined {
-        const snapshot = this.snapshot();
+        const snapshot = this.current();
         const counter = edgeCounterOf(id);
         // The id column holds the counter as a NUMBER, and `edgeIndexOf` keys its index on
         // SameValueZero, so handing it the string form would miss every edge with no error.
@@ -260,7 +283,7 @@ export class SessionData implements SessionDataApi {
     lastImport(): ImportReport | null {
         this.requireLive("lastImport");
         const recorded = this.writes.slice().values.get("importReport") as ImportReport | undefined;
-        return recorded ?? this.store.lastImport ?? null;
+        return recorded ?? this.source.lastImport ?? null;
     }
 
     /**
@@ -269,7 +292,7 @@ export class SessionData implements SessionDataApi {
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
     attributes(): readonly AttributeDescriptor[] {
-        const derived = this.derivedFor(this.snapshot());
+        const derived = this.derivedFor(this.current());
         derived.attributes ??= describeAttributes(derived.snapshot, this.records);
         return derived.attributes;
     }
@@ -280,8 +303,8 @@ export class SessionData implements SessionDataApi {
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
     statistics(): GraphStatistics {
-        const derived = this.derivedFor(this.snapshot());
-        derived.statistics ??= computeStatistics(derived.snapshot, this.readConfig().directed, this.store.directionSettledBy);
+        const derived = this.derivedFor(this.current());
+        derived.statistics ??= computeStatistics(derived.snapshot, this.readConfig().directed, this.source.directionSettledBy);
         return derived.statistics;
     }
 
@@ -291,7 +314,7 @@ export class SessionData implements SessionDataApi {
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
     fingerprint(): string {
-        const derived = this.derivedFor(this.snapshot());
+        const derived = this.derivedFor(this.current());
         derived.fingerprint ??= computeFingerprint(derived.snapshot);
         return derived.fingerprint;
     }
@@ -486,4 +509,96 @@ export function headlessDataService(
         },
         import: (command, draft, signal) => ingest.importSource(command, dispatcher.graph.writer(draft, store), signal),
     };
+}
+
+/**
+ * The read half of a coordinate lane, as a plain object: a caller holding it can read every row
+ * and reach no writer, not even through a cast.
+ * @param lane - Reads the lane now; a store may replace its lane object.
+ * @returns The read-only coordinates.
+ */
+export function readonlyPositions(lane: () => ReadonlyElementPositions): ReadonlyElementPositions {
+    return {
+        get capacity() {
+            return lane().capacity;
+        },
+        get count() {
+            return lane().count;
+        },
+        get placedCount() {
+            return lane().placedCount;
+        },
+        get pinnedCount() {
+            return lane().pinnedCount;
+        },
+        get generation() {
+            return lane().generation;
+        },
+        isPlaced: (index) => lane().isPlaced(index),
+        isPinned: (index) => lane().isPinned(index),
+        read: (index, out) => {
+            lane().read(index, out);
+        },
+    };
+}
+
+/**
+ * A store as a consumer reads it: its snapshot is {@link consumerSnapshot}'s, and its coordinates
+ * are read-only.
+ * @param store - The store.
+ * @returns The read-only store.
+ */
+function readonlyStore(store: SessionGraphStore): SessionGraphStore {
+    const positions = readonlyPositions(() => store.positions);
+    return {
+        getSnapshot: () => consumerSnapshot(store.getSnapshot()),
+        undirected: (snapshot) => store.undirected(snapshot),
+        positions,
+        get seededNodeCount() {
+            return store.seededNodeCount;
+        },
+        get directionSettledBy() {
+            return store.directionSettledBy;
+        },
+        get lastImport() {
+            return store.lastImport;
+        },
+    };
+}
+
+/**
+ * The snapshot a consumer is handed: the store's own, sharing its structure, ids and columns, but
+ * with copies of the `position` and `graphty.pinned` columns, sealed.
+ *
+ * The store's two columns are its coordinate lane, which a layout writes every frame; a write
+ * into them would place or pin nodes with no step, and be sealed into whatever step is on top at
+ * the next rest point. A copy keeps the published type, so an exporter reading
+ * `byRole("position").data` works unchanged.
+ * @param resident - The store's snapshot.
+ * @returns The consumer's snapshot.
+ */
+function consumerSnapshot(resident: GraphSnapshot): GraphSnapshot {
+    // ponytail: copies the lane per call (O(nodes)); cache per lane generation if a consumer
+    // calls this every frame.
+    const columns: Record<string, ColumnInput> = {};
+    const position = resident.nodes.typed("position", "f32");
+    if (position !== null) {
+        columns.position = {
+            data: position.data.slice(),
+            decl: { dtype: "f32", components: position.meta.components, role: "position" },
+        };
+    }
+
+    const pinned = resident.nodes.typed(PINNED_COLUMN, "u8");
+    if (pinned !== null) {
+        columns[PINNED_COLUMN] = { data: pinned.data.slice(), decl: { dtype: "u8" } };
+    }
+
+    if (Object.keys(columns).length === 0) {
+        return resident;
+    }
+
+    const view = resident.withColumns(columns);
+    view.seal();
+    return view;
 }

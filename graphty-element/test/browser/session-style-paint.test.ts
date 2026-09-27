@@ -20,7 +20,7 @@ import { InstancedMesh } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Algorithm } from "../../src/algorithms/Algorithm";
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 
 /** Four nodes and three edges: enough for a layer to have something to paint. */
 const NODES = [{ id: "1" }, { id: "2" }, { id: "3" }, { id: "4" }];
@@ -87,7 +87,7 @@ describe("session style paint", () => {
     async function load(): Promise<void> {
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         graph.getUpdateManager().stepFrames(2);
     }
 
@@ -200,11 +200,11 @@ describe("session style paint", () => {
             assert.isTrue(graph.getStylePainter().owns, "after a reader's own layer");
 
             await graph.runAlgorithm("graphty", "degree", { applySuggestedStyles: true });
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             assert.isTrue(graph.getStylePainter().owns, "after an algorithm published a layer of its own");
 
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             assert.isTrue(graph.getStylePainter().owns, "and after the meshes were all rebuilt for 2D");
 
             assert.isDefined(
@@ -223,7 +223,7 @@ describe("session style paint", () => {
             });
 
             await graph.runAlgorithm("graphty", "degree", { applySuggestedStyles: true });
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             graph.getUpdateManager().stepFrames(2);
 
             // The degree layer writes node colours and says nothing about edge width, so the
@@ -266,7 +266,7 @@ describe("session style paint", () => {
                 selector: { match: "has", path: "results.later.value" },
                 set: { "node.color": "#00FF00" },
             });
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             graph.getUpdateManager().stepFrames(2);
 
             for (const node of graph.getNodes()) {
@@ -280,7 +280,7 @@ describe("session style paint", () => {
             // Named in advance, so the layer added above is already bound to this run's column.
             const run = session.runs.start("degree", {}, { as: "later" });
             await run;
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             graph.getUpdateManager().stepFrames(2);
 
             for (const node of graph.getNodes()) {
@@ -307,7 +307,7 @@ describe("session style paint", () => {
                 selector: { match: "has", path: "data.marked" },
                 set: { "node.color": "#00FF00" },
             });
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             graph.getUpdateManager().stepFrames(2);
 
             for (const node of graph.getNodes()) {
@@ -315,7 +315,7 @@ describe("session style paint", () => {
             }
 
             await graph.runAlgorithm("test-plugin", "mark-every-node");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             graph.getUpdateManager().stepFrames(2);
 
             for (const node of graph.getNodes()) {

@@ -27,7 +27,7 @@ import { Algorithm } from "../../src/algorithms/Algorithm";
 import { DeclaredAlgorithm } from "../../src/algorithms/results/DeclaredAlgorithm";
 import type { AlgorithmOutput, AlgorithmRunContext } from "../../src/algorithms/results/types";
 import type { AlgorithmDescriptor } from "../../src/catalog/types";
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 
 /** Four nodes and three edges, so a per-node count has more than one answer. */
 const NODES = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }];
@@ -148,7 +148,7 @@ describe("a third party's algorithm", () => {
         await graph.init();
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
     });
 
     afterEach(() => {
@@ -223,7 +223,7 @@ describe("a third party's algorithm", () => {
 
         it("still runs through the 1.10 address, which is the trade its author made", async () => {
             await graph.runAlgorithm("test-plugin", "silent-marker");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             for (const node of graph.getNodes()) {
                 assert.isTrue((node.data as Record<string, unknown>).marked === true);

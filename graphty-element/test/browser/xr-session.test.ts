@@ -15,7 +15,7 @@ import "../../src/graphty-element";
 
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
-import type { Graph } from "../../src/Graph";
+import { type Graph, operationQueueOf } from "../../src/Graph";
 import { installIWER, type IWERHandle } from "../interactions/helpers/iwer-setup";
 
 /** Generous for a swiftshader CI runner; every wait below returns as soon as its condition holds. */
@@ -83,7 +83,7 @@ async function mountXRGraph(): Promise<Graph> {
     await vi.waitFor(() => {
         assert.isNotNull(xrControl('[data-xr-mode="immersive-ar"]'), "AR button never appeared");
     }, WAIT);
-    await element.graph.operationQueue.waitForCompletion();
+    await operationQueueOf(element.graph).waitForCompletion();
     await vi.waitFor(() => {
         assert.isAbove([...element.graph.getNodes()].length, 0, "the graph never loaded its nodes");
     }, WAIT);

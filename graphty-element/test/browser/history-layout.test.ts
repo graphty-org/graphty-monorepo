@@ -15,8 +15,9 @@ import "../../src/graphty-element";
 
 import { afterEach, assert, describe, it, vi } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
+import { laneOf } from "../../src/session/GraphSession";
 import type { GraphSession } from "../../src/session/types";
 
 /** Per-test budget: each builds a real Babylon scene. */
@@ -50,7 +51,7 @@ async function loadedGraph(): Promise<Graph> {
         { src: "n2", dst: "n3" },
         { src: "n3", dst: "n4" },
     ]);
-    await graph.operationQueue.waitForCompletion();
+    await operationQueueOf(graph).waitForCompletion();
     await atRest(graph);
     cleanups.push(() => {
         graph.dispose();
@@ -80,7 +81,7 @@ async function atRest(graph: Graph): Promise<void> {
  * @returns The coordinates, stride 3.
  */
 function lane(session: GraphSession): number[] {
-    return [...session.positions.view(session.snapshot().nodeCount)];
+    return [...laneOf(session).view(session.snapshot().nodeCount)];
 }
 
 /**
@@ -314,7 +315,7 @@ describe("the element's layout properties", () => {
                 element.remove();
             });
             await element.updateComplete;
-            await element.graph.operationQueue.waitForCompletion();
+            await operationQueueOf(element.graph).waitForCompletion();
             await element.graph.addNodes([{ id: "n1" }, { id: "n2" }]);
             const { session } = element;
             const steps = session.history.steps.length;

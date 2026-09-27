@@ -172,6 +172,20 @@ function duplicateBuiltInEngine(type: string): GraphtyError {
 }
 
 /**
+ * The element's own reach into an engine's protected placement members: the hooks that apply the
+ * `positions` and `pins` slices, and the drag. No entry point exports it; a consumer places and
+ * pins nodes through `session.positions`.
+ */
+export const layoutEngineInternals = {} as {
+    /** See `LayoutEngine.setNodePosition`. */
+    setNodePosition(engine: LayoutEngine, n: Node, p: Position): void;
+    /** See `LayoutEngine.pin`. */
+    pin(engine: LayoutEngine, n: Node): void;
+    /** See `LayoutEngine.unpin`. */
+    unpin(engine: LayoutEngine, n: Node): void;
+};
+
+/**
  * Base class for all layout engines
  *
  * WHERE A COORDINATE LIVES. Node coordinates belong to ONE stride-3 float array owned by the
@@ -193,6 +207,18 @@ function duplicateBuiltInEngine(type: string): GraphtyError {
  * a view reads them by index and allocates nothing, and a GPU layout can write into the same rows.
  */
 export abstract class LayoutEngine {
+    static {
+        layoutEngineInternals.setNodePosition = (engine, n, p) => {
+            engine.setNodePosition(n, p);
+        };
+        layoutEngineInternals.pin = (engine, n) => {
+            engine.pin(n);
+        };
+        layoutEngineInternals.unpin = (engine, n) => {
+            engine.unpin(n);
+        };
+    }
+
     static type: string;
     static maxDimensions: number;
 
@@ -222,7 +248,7 @@ export abstract class LayoutEngine {
      * -- which is what happened to the element's own two force engines. The manager rebuilds from
      * the options it was given instead, and this is now the engine's own business.
      */
-    config?: Record<string, unknown>;
+    protected config?: Record<string, unknown>;
 
     /**
      * NEW: Zod-based options schema for unified validation and UI metadata
@@ -253,12 +279,19 @@ export abstract class LayoutEngine {
     abstract addNode(n: Node): void;
     abstract addEdge(e: Edge): void;
     abstract getNodePosition(n: Node): Position;
-    abstract setNodePosition(n: Node, p: Position): void;
+    /**
+     * Place one node, as a drag or a restore does. Protected: the element reaches it through
+     * {@link layoutEngineInternals}, from the hooks that apply the `positions` and `pins` slices,
+     * so a caller cannot place a node without a step.
+     */
+    protected abstract setNodePosition(n: Node, p: Position): void;
     abstract getEdgePosition(e: Edge): EdgePosition;
     // for animated layouts
     abstract step(): void;
-    abstract pin(n: Node): void;
-    abstract unpin(n: Node): void;
+    /** Hold a node where it is; protected for the reason {@link LayoutEngine.setNodePosition} is. */
+    protected abstract pin(n: Node): void;
+    /** Release a held node; protected for the reason {@link LayoutEngine.setNodePosition} is. */
+    protected abstract unpin(n: Node): void;
     // properties
     abstract get nodes(): Iterable<Node>;
     abstract get edges(): Iterable<Edge>;

@@ -34,7 +34,7 @@ import { DEFINITIONS } from "./commands";
 import { readProjectConfig } from "./commands/config";
 import { DEFAULT_LAYOUT } from "./commands/layout";
 import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
-import { headlessDataService, SessionData, sliceRecords } from "./data";
+import { headlessDataService, readonlyPositions, SessionData, sliceRecords } from "./data";
 import { recommendLayout } from "./layout";
 import {
     type AlgorithmRunCommand,
@@ -97,6 +97,7 @@ import type {
     ElementSession,
     GraphSession,
     HistoryOutcome,
+    PositionEntry,
     ProjectConfig,
     ProjectConfigPatch,
     ProjectSlice,
@@ -117,6 +118,33 @@ import type {
     TransactionScope,
 } from "./types";
 import { createVisibilityApi, type FilterValueSource, type SessionVisibilityApi } from "./visibility";
+
+/**
+ * A store with its coordinate lane writable: what the arrangement hook restores coordinates and
+ * pins into. The element's data manager is one; a consumer only ever sees the read-only form.
+ * @internal
+ */
+export interface LaneStore extends Omit<SessionGraphStore, "positions"> {
+    /** The lane itself. */
+    readonly positions: ElementPositions;
+}
+
+/**
+ * What the element's own session takes beyond {@link CreateGraphSessionOptions}: the data
+ * manager's store, whose only writer is the dispatcher, a record source, and a data configuration
+ * read live. No entry point exports it.
+ * @internal
+ */
+export interface ElementSessionOptions extends Omit<CreateGraphSessionOptions, "config"> {
+    /** The store to read. When absent the session builds one of its own and disposes it. */
+    readonly store?: LaneStore;
+    /** Where to read the attributes a record arrived with, for rows the graph slice lacks. */
+    readonly records?: SessionRecordSource;
+    /** The configuration; `data` may be a function, read on every use. */
+    readonly config?: Omit<NonNullable<CreateGraphSessionOptions["config"]>, "data"> & {
+        readonly data?: SessionDataConfig | (() => SessionDataConfig);
+    };
+}
 
 /**
  * What a session with no configuration of its own runs on.
@@ -172,7 +200,7 @@ const ATTRIBUTE_PREFIX = "data.";
  */
 interface SessionParts {
     /** The store to read, whoever built it. */
-    readonly store: SessionGraphStore;
+    readonly store: LaneStore;
     /** The catalogue: the shared tables, plus the metric listing for this session's own graph. */
     readonly catalog: SessionCatalogApi;
     /** The store when this session built it, so that disposal releases it. */
@@ -278,7 +306,7 @@ class Session implements ElementSession {
     /** The settings; identity-stable, every member read live. */
     readonly config: SessionConfig;
     private readonly sessionData: SessionData;
-    private readonly store: SessionGraphStore;
+    private readonly store: LaneStore;
     private readonly controller: AccelerationControllerLike;
     /** The store, when this session built it and therefore has to dispose it. */
     private readonly ownedStore: GraphStore | null;
@@ -290,7 +318,7 @@ class Session implements ElementSession {
     private readonly dispatcher: Dispatcher;
     private disposed = false;
     /** The lane with the positions verbs beside it; built once, on first read. */
-    private positionsView: (ElementPositions & SessionPositions) | undefined;
+    private positionsView: SessionPositions | undefined;
 
     /**
      * Assemble the session from parts the factory has already decided the ownership of.
@@ -334,6 +362,7 @@ class Session implements ElementSession {
             publish(this.watchers, "history:changed", { reason });
         };
         DISPATCHERS.set(this, this.dispatcher);
+        LANES.set(this, this.store);
         SESSION_RUNS.set(this, this.sessionRuns);
         this.history = historyOf(this.dispatcher, () => version);
         this.views = viewsOf(this.dispatcher);
@@ -466,11 +495,10 @@ class Session implements ElementSession {
     }
 
     /**
-     * The element-owned node coordinates: a stride-3 Float32Array indexed by dense node index,
-     * where a row no layout has placed reads NaN rather than the origin.
-     * @returns the live position array
+     * The element-owned node coordinates, read-only, with the verbs that place and pin nodes.
+     * @returns the coordinates and the verbs
      */
-    get positions(): ElementPositions & SessionPositions {
+    get positions(): SessionPositions {
         this.positionsView ??= positionsOf(this.store, this.dispatcher);
         return this.positionsView;
     }
@@ -567,8 +595,8 @@ class Session implements ElementSession {
     }
 
     /**
-     * The current snapshot, by reference: nothing is copied.
-     * @returns the immutable graph-format snapshot
+     * The current snapshot, with copies of its coordinate and pin columns.
+     * @returns the sealed graph-format snapshot
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
     snapshot(): GraphSnapshot {
@@ -691,6 +719,25 @@ export function sessionRunsOf(session: GraphSession): SessionRunsApi {
 /** Each session's dispatcher, for the element's own tests; see {@link dispatcherOf}. */
 const DISPATCHERS = new WeakMap<GraphSession, Dispatcher>();
 
+/** Each session's store, with its lane writable; see {@link laneOf}. */
+const LANES = new WeakMap<GraphSession, LaneStore>();
+
+/**
+ * The coordinate lane behind a session, writable: what a layout engine writes every frame, and
+ * what a test standing in for one writes. Not published; a consumer places nodes through
+ * `session.positions.set`.
+ * @param session - A session this module built.
+ * @returns Its lane.
+ */
+export function laneOf(session: GraphSession): ElementPositions {
+    const store = LANES.get(session);
+    if (store === undefined) {
+        throw new GraphtyError({ code: "E_INTERNAL", message: "That session was not built here.", source: "history" });
+    }
+
+    return store.positions;
+}
+
 /**
  * The dispatcher behind a session. Not published: the element's own tests spy on it and read the
  * project state it holds.
@@ -707,49 +754,33 @@ export function dispatcherOf(session: GraphSession): Dispatcher {
 }
 
 /**
- * The positions lane, with the verbs that place and pin nodes as steps beside its own members.
- *
- * A proxy, because the lane is a class whose private fields a plain object cannot carry: every
- * member but the four verbs is the lane's own, bound to it.
- * @param store - The store whose lane it is.
+ * The coordinates, read-only, with the verbs that place and pin nodes as steps beside them.
+ * @param store - The store whose lane it reads.
  * @param dispatcher - The dispatcher the verbs dispatch through.
- * @returns The lane with the verbs.
+ * @returns The coordinates and the verbs.
  */
-function positionsOf(store: SessionGraphStore, dispatcher: Dispatcher): ElementPositions & SessionPositions {
-    const verbs: SessionPositions = {
-        get pinned() {
-            return dispatcher.state.pins;
+function positionsOf(store: SessionGraphStore, dispatcher: Dispatcher): SessionPositions {
+    return Object.defineProperties(readonlyPositions(() => store.positions), {
+        pinned: { get: () => dispatcher.state.pins, enumerable: true },
+        set: {
+            value: async (entries: readonly PositionEntry[]) => {
+                await dispatcher.dispatch({ op: "positions.set", entries });
+            },
+            enumerable: true,
         },
-        set: async (entries) => {
-            await dispatcher.dispatch({ op: "positions.set", entries });
+        pin: {
+            value: async (ids: readonly NodeId[]) => {
+                await dispatcher.dispatch({ op: "positions.pin", ids, pinned: true });
+            },
+            enumerable: true,
         },
-        pin: async (ids) => {
-            await dispatcher.dispatch({ op: "positions.pin", ids, pinned: true });
+        unpin: {
+            value: async (ids: readonly NodeId[]) => {
+                await dispatcher.dispatch({ op: "positions.pin", ids, pinned: false });
+            },
+            enumerable: true,
         },
-        unpin: async (ids) => {
-            await dispatcher.dispatch({ op: "positions.pin", ids, pinned: false });
-        },
-    };
-    const bound = new Map<PropertyKey, unknown>();
-
-    return new Proxy(store.positions, {
-        get(lane, key) {
-            if (Object.hasOwn(verbs, key)) {
-                return verbs[key as keyof SessionPositions];
-            }
-
-            const value: unknown = Reflect.get(lane, key, lane);
-            if (typeof value !== "function") {
-                return value;
-            }
-
-            if (!bound.has(key)) {
-                bound.set(key, (value as (...args: unknown[]) => unknown).bind(lane));
-            }
-
-            return bound.get(key);
-        },
-    }) as ElementPositions & SessionPositions;
+    }) as SessionPositions;
 }
 
 /**
@@ -989,10 +1020,10 @@ interface FreezeFollower {
  * @returns the store, and the same object again when this call allocated it
  */
 function resolveStore(
-    given: SessionGraphStore | undefined,
+    given: LaneStore | undefined,
     readData: () => SessionDataConfig,
     follow: FreezeFollower,
-): { store: SessionGraphStore; owned: GraphStore | null } {
+): { store: LaneStore; owned: GraphStore | null } {
     if (given !== undefined) {
         return { store: given, owned: null };
     }
@@ -1447,10 +1478,10 @@ function repaintAgainstCurrentData(
  * accelerator, disposed with it. That is the headless case -- a CI job, a Node test, a check on
  * a server -- and it needs no canvas, no GPU and no DOM.
  *
- * Handed a store, it reads that one instead and disposes nothing that arrived from outside. That
- * is how a rendered graph gets a session: the element's data manager already owns one store for
- * the life of the graph, and a second one would be a second, disagreeing copy.
- * @param options - the store, the record source, the configuration and the accelerator, each
+ * The session is the only writer of its graph and settings, which is what makes every change an
+ * undoable step: data arrives through `session.data.import`, `addNodes` and `addEdges`, and
+ * settings through `session.config.set`.
+ * @param options - the starting configuration, the accelerator and how runs execute, each
  *     optional
  * @returns the session
  * @example
@@ -1463,7 +1494,14 @@ function repaintAgainstCurrentData(
  * ```
  */
 export function createGraphSession(options: CreateGraphSessionOptions = {}): GraphSession {
-    return buildSession(options);
+    // Only the published options, even from a caller the types did not check: a store or a record
+    // source handed in would make that caller a second writer of the graph.
+    const { config, acceleration, runs } = options;
+    return buildSession({
+        ...(config === undefined ? {} : { config }),
+        ...(acceleration === undefined ? {} : { acceleration }),
+        ...(runs === undefined ? {} : { runs }),
+    });
 }
 
 /**
@@ -1478,7 +1516,7 @@ export function createGraphSession(options: CreateGraphSessionOptions = {}): Gra
  * @returns The session.
  */
 export function createElementSession(
-    options: CreateGraphSessionOptions = {},
+    options: ElementSessionOptions = {},
     internals: SessionInternals = {},
 ): ElementSession {
     return buildSession(options, internals);
@@ -1496,7 +1534,7 @@ export function createElementSession(
  * @param internals - The history clock and queue, when a test replaces them.
  * @returns The session.
  */
-function buildSession(options: CreateGraphSessionOptions, internals: SessionInternals = {}): Session {
+function buildSession(options: ElementSessionOptions, internals: SessionInternals = {}): Session {
     const runsOptions = options.runs ?? {};
     // ONE queue for both, whether the host handed one in or not: a filter pass and an algorithm
     // run both read the whole graph, and two queues would let one start while the other is

@@ -8,7 +8,14 @@
 import { GraphFormatError } from "@graphty/graph-format";
 import { assert, describe, it } from "vitest";
 
+import type { Edge } from "../../../src/Edge";
 import { isGraphtyError } from "../../../src/errors";
+import type { Graph } from "../../../src/Graph";
+import type { LayoutEngine } from "../../../src/layout/LayoutEngine";
+import type { DataManager } from "../../../src/managers/DataManager";
+import type { LayoutManager } from "../../../src/managers/LayoutManager";
+import type { Node } from "../../../src/Node";
+import { createGraphSession, type GraphSession } from "../../../src/session";
 import { LegacyWrites, openLegacyScope } from "../../../src/session/commands/algo";
 import { dispatcherOf } from "../../../src/session/GraphSession";
 import { retainArray, verifyRetainedArrays } from "../../../src/session/project/strict";
@@ -219,3 +226,108 @@ describe("strict state: typed arrays state keeps", () => {
         }
     });
 });
+
+describe("strict state: the narrowed public surface", () => {
+    it("gives session.positions and the store's coordinates no writer, even through a cast", async () => {
+        const { session } = makeSession();
+        await session.data.addNodes([{ id: "n1" }]);
+
+        for (const member of ["write", "view", "setPinned", "fillUnplaced", "grow", "remap", "pinnedView", "moved"]) {
+            assert.notProperty(session.positions, member, `session.positions.${member}`);
+            assert.notProperty(session.data.store.positions, member, `session.data.store.positions.${member}`);
+        }
+
+        await session.positions.set([{ id: "n1", x: 1, y: 2, z: 3 }]);
+        const at = { x: 0, y: 0, z: 0 };
+        session.positions.read(0, at);
+        assert.deepEqual(at, { x: 1, y: 2, z: 3 }, "the verbs still place, and the reads still see it");
+    });
+
+    it("hands a consumer copies of the coordinate and pin columns, so a write there moves nothing", async () => {
+        const harness = makeSession();
+        const { session } = harness;
+        await session.data.addNodes([{ id: "n1" }]);
+        await session.positions.set([{ id: "n1", x: 1, y: 2, z: 3 }]);
+
+        for (const snapshot of [session.snapshot(), session.data.snapshot(), session.data.store.getSnapshot()]) {
+            const position = snapshot.nodes.typed("position", "f32");
+            const pinned = snapshot.nodes.typed("graphty.pinned", "u8");
+            assert.isNotNull(position);
+            assert.isNotNull(pinned);
+            position.data[0] = 99;
+            pinned.data[0] = 1;
+            throwsFrozen(() => snapshot.nodes.set("extra", new Float32Array(snapshot.nodeCount)));
+        }
+
+        const at = { x: 0, y: 0, z: 0 };
+        harness.store.positions.read(0, at);
+        assert.strictEqual(at.x, 1, "the lane is untouched");
+        assert.isFalse(harness.store.positions.isPinned(0), "and so are the pins");
+        await session.data.addNodes([{ id: "n2" }]);
+    });
+
+    it("ignores a store or record source handed to the published factory by a caller the types did not check", () => {
+        const harness = makeSession();
+        harness.add([{ id: "a" }]);
+        const session = createGraphSession({ store: harness.store } as never);
+
+        assert.strictEqual(session.status.counts.nodes, 0, "it built a store of its own");
+        session.dispose();
+    });
+});
+
+/**
+ * Compile-only: each line must not compile, so a member that becomes writable again fails
+ * `tsc` (the package's lint). Never called.
+ * @param parts - The renderer's objects.
+ * @param parts.graph - A graph.
+ * @param parts.dataManager - Its data manager.
+ * @param parts.layoutManager - Its layout manager.
+ * @param parts.engine - A layout engine.
+ * @param parts.node - A node.
+ * @param parts.edge - An edge.
+ * @param parts.session - A session.
+ */
+export function narrowedAtCompileTime(parts: {
+    graph: Graph;
+    dataManager: DataManager;
+    layoutManager: LayoutManager;
+    engine: LayoutEngine;
+    node: Node;
+    edge: Edge;
+    session: GraphSession;
+}): void {
+    const { graph, dataManager, layoutManager, engine, node, edge, session } = parts;
+    // @ts-expect-error `Graph.styles` is readonly
+    graph.styles = null as unknown as typeof graph.styles;
+    // @ts-expect-error `Graph.operationQueue` is private
+    void graph.operationQueue;
+    // @ts-expect-error the node map is read-only
+    dataManager.nodes.set(node.id, node);
+    // @ts-expect-error the edge map is read-only
+    dataManager.edges.delete(edge.id);
+    // @ts-expect-error the pair map is read-only
+    dataManager.edgeCache.set(edge.srcId, edge.dstId, edge);
+    // @ts-expect-error the row index is read-only
+    dataManager.edgesByIndex[0] = edge;
+    // @ts-expect-error a node's id is read-only
+    node.id = "other";
+    // @ts-expect-error and so is its row
+    node.index = 0;
+    // @ts-expect-error an edge's endpoints are read-only
+    edge.srcId = "other";
+    // @ts-expect-error and so is its row
+    edge.index = 0;
+    // @ts-expect-error the engine is chosen through the `layout` slice
+    layoutManager.layoutEngine = engine;
+    // @ts-expect-error building an engine outside the slice is private
+    void layoutManager.setLayout("circular");
+    // @ts-expect-error placing a node on the engine is protected
+    engine.setNodePosition(node, { x: 0, y: 0, z: 0 });
+    // @ts-expect-error pinning on the engine is protected
+    engine.pin(node);
+    // @ts-expect-error the store's coordinates are read-only
+    session.data.store.positions.write(0, 1, 2, 3);
+    // @ts-expect-error and so are the session's
+    session.positions.setPinned(0, true);
+}

@@ -1,7 +1,7 @@
 import { Camera, StandardMaterial } from "@babylonjs/core";
 import { assert, beforeEach, describe, test } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import { asData, edgeBetween } from "../helpers/testSetup";
 
 describe("Edge 2D Solid Integration", () => {
@@ -16,7 +16,7 @@ describe("Edge 2D Solid Integration", () => {
         const graph = new Graph(container);
 
         await graph.setViewMode("2d");
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // Add nodes
         await graph.addNode(asData({ id: "node1", x: 0, y: 0, z: 0 }));
@@ -26,7 +26,7 @@ describe("Edge 2D Solid Integration", () => {
         await graph.addEdge(asData({ id: "edge1", source: "node1", target: "node2" }), { source: "source", target: "target" });
 
         // Wait for all operations to complete
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // Wait for graph to settle
         await new Promise((resolve) => {
@@ -52,7 +52,7 @@ describe("Edge 2D Solid Integration", () => {
 
         // Ensure 3D mode (this is default, but making it explicit)
         await graph.setViewMode("3d");
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // Add nodes
         await graph.addNode(asData({ id: "node1", x: 0, y: 0, z: 0 }));
@@ -62,7 +62,7 @@ describe("Edge 2D Solid Integration", () => {
         await graph.addEdge(asData({ id: "edge1", source: "node1", target: "node2" }), { source: "source", target: "target" });
 
         // Wait for all operations to complete
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // Wait for graph to settle
         await new Promise((resolve) => {
@@ -85,7 +85,7 @@ describe("Edge 2D Solid Integration", () => {
 
         // Set 2D mode initially
         await graph.setViewMode("2d");
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // Add nodes and edge with source and target path parameters
         await graph.addNode(asData({ id: "node1", x: 0, y: 0, z: 0 }));

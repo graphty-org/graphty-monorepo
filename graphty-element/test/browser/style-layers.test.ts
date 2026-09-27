@@ -29,7 +29,7 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { LayerSpec } from "../../src/catalog/types";
 import { isGraphtyError } from "../../src/errors";
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import type { GraphSession } from "../../src/session";
 import type { StyleChange } from "../../src/session/styles";
 
@@ -164,7 +164,7 @@ async function reload(): Promise<void> {
     graph.getDataManager().clear();
     await graph.addNodes(RELOADED_NODES);
     await graph.addEdges(RELOADED_EDGES);
-    await graph.operationQueue.waitForCompletion();
+    await operationQueueOf(graph).waitForCompletion();
 }
 
 beforeEach(async () => {
@@ -183,7 +183,7 @@ beforeEach(async () => {
 
     await graph.addNodes(NODES);
     await graph.addEdges(EDGES);
-    await graph.operationQueue.waitForCompletion();
+    await operationQueueOf(graph).waitForCompletion();
 });
 
 afterEach(async () => {
@@ -193,7 +193,7 @@ afterEach(async () => {
     // Drained before the graph is thrown away. A style edit is a queued run, and the element
     // schedules a repaint behind every finished run -- so disposing while the queue still holds
     // one runs that repaint against a store the dispose has already emptied.
-    await graph.operationQueue.waitForCompletion();
+    await operationQueueOf(graph).waitForCompletion();
     graph.dispose();
     container.remove();
 });
@@ -663,7 +663,7 @@ describe("a stack over a graph a node was removed from", () => {
 
         await graph.removeNodes(["f"]);
         session.runs.remove(run.id);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         for (const id of ["a", "b", "c", "d", "e"]) {
             assert.strictEqual(colorOf(id), base, `node ${id} is back to the colour beneath the layer`);
@@ -680,7 +680,7 @@ describe("a stack over a graph a node was removed from", () => {
         // b sits at index 1, so every node after it moves down one index. The run's measurements
         // are kept by node, so each survivor still carries the degree it was painted from.
         await graph.removeNodes(["b"]);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         for (const id of survivors) {
             assert.strictEqual(colorOf(id), before.get(id), `node ${id} shows its own paint, not its neighbour's`);

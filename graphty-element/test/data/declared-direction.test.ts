@@ -32,7 +32,8 @@ import { GraphMLDataSource } from "../../src/data/GraphMLDataSource";
 import { GraphStore } from "../../src/data/GraphStore";
 import { JsonDataSource } from "../../src/data/JsonDataSource";
 import { PajekDataSource } from "../../src/data/PajekDataSource";
-import { createGraphSession, type GraphSession } from "../../src/session";
+import { type GraphSession } from "../../src/session";
+import { createElementSession } from "../../src/session/GraphSession";
 import { GraphOps } from "../../src/session/project/graphOps";
 import { ingestDeclaredDirection, ingestEdge, ingestNode } from "../helpers/rawIngest";
 
@@ -127,7 +128,7 @@ function emptySession(directed: boolean | "auto"): Loaded {
         onEdgeRemap: () => undefined,
     });
 
-    return { session: createGraphSession({ store, config: { data: config } }), store };
+    return { session: createElementSession({ store, config: { data: config } }), store };
 }
 
 /**

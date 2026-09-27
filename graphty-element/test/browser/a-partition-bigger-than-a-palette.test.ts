@@ -25,7 +25,7 @@ import "../../src/algorithms";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { OTHER_GROUP_COLOR } from "../../src/config/palettes/categorical";
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import type { ElementSession } from "../../src/session";
 import { paintOf } from "../helpers/paint-assertions";
 
@@ -64,7 +64,7 @@ describe("a run with more groups than the default palette has colours", () => {
 
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         session = graph.getSession() as ElementSession;
     });
 
@@ -141,7 +141,7 @@ describe("a run with more groups than the default palette has colours", () => {
         await run;
 
         assert.isTrue(graph.applySuggestedStyles("components"));
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const problems = paintOf(graph)
             .problems()

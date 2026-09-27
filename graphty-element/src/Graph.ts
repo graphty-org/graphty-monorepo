@@ -72,6 +72,7 @@ import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema"
 import { Edge } from "./Edge";
 import { GraphtyError } from "./errors";
 import { EventCallbackType, EventType } from "./events";
+import { layoutEngineInternals } from "./layout/LayoutEngine";
 import {
     type AddEdgesOptions,
     AlgorithmManager,
@@ -95,6 +96,7 @@ import {
     UpdateManager,
     type ViewMasks,
 } from "./managers";
+import { layoutManagerInternals } from "./managers/LayoutManager";
 import { MeshCache } from "./meshes/MeshCache";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { Node } from "./Node";
@@ -168,12 +170,35 @@ interface ViewSettings {
     behavior: GraphBehaviorConfig;
 }
 
+/** Each graph's operation queue; see {@link operationQueueOf}. */
+const QUEUES = new WeakMap<Graph, OperationQueueManager>();
+
+/**
+ * A graph's operation queue: what the element's own parts (the element's data doors, the
+ * screenshot capture) and its tests queue work on and wait for. Not published: code queued there
+ * could run between the steps of a command, so a consumer waits with `graph.waitForSettled()`.
+ * @param graph - The graph.
+ * @returns Its queue.
+ */
+export function operationQueueOf(graph: Graph): OperationQueueManager {
+    const queue = QUEUES.get(graph);
+    if (queue === undefined) {
+        throw new Error("That graph has no operation queue yet.");
+    }
+
+    return queue;
+}
+
 /**
  * Main orchestrator class for graph visualization and interaction.
  * Integrates Babylon.js scene management, coordinates nodes, edges, layouts, and styling.
  */
 export class Graph implements GraphContext {
-    styles: Styles;
+    /**
+     * The element's configuration document, read-only: its `config` is the frozen merged view.
+     * Change a setting through `getSession().config.set`, which is an undoable step.
+     */
+    readonly styles: Styles;
     // babylon
     element: Element;
     canvas: HTMLCanvasElement;
@@ -266,7 +291,8 @@ export class Graph implements GraphContext {
      * it is why every data question this class answers is forwarded rather than computed.
      */
     private readonly session: ElementSession;
-    operationQueue: OperationQueueManager;
+    /** The queue loads, layouts, runs and style passes take their turn in; see {@link operationQueueOf}. */
+    private readonly operationQueue: OperationQueueManager;
 
     // XR managers
     private xrSessionManager: XRSessionManager | null = null;
@@ -292,6 +318,7 @@ export class Graph implements GraphContext {
             concurrency: 1, // Sequential execution
             autoStart: true,
         });
+        QUEUES.set(this, this.operationQueue);
 
         // The element's configuration document: id paths, view mode, background, layout and its
         // options, the run-on-load algorithms and the behaviour settings. It carries no style
@@ -453,9 +480,9 @@ export class Graph implements GraphContext {
 
                 try {
                     if (pinned) {
-                        engine.pin(node);
+                        layoutEngineInternals.pin(engine, node);
                     } else {
-                        engine.unpin(node);
+                        layoutEngineInternals.unpin(engine, node);
                     }
                 } catch {
                     // An engine may refuse a node it was never told about; the pin is recorded.
@@ -770,7 +797,7 @@ export class Graph implements GraphContext {
         }
 
         try {
-            await this.layoutManager.apply(opening, { restoring: false, ...(signal === undefined ? {} : { signal }) });
+            await layoutManagerInternals.apply(this.layoutManager, opening, { restoring: false, ...(signal === undefined ? {} : { signal }) });
         } catch (e) {
             if (isAbort(e)) {
                 return;
@@ -3062,7 +3089,7 @@ export class Graph implements GraphContext {
             this.enterDimension(twoD);
         }
 
-        await this.layoutManager.apply(choice, how);
+        await layoutManagerInternals.apply(this.layoutManager, choice, how);
 
         if (switching) {
             this.settleDimension(twoD, !how.restoring);

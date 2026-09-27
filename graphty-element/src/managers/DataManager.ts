@@ -6,11 +6,11 @@ import { edgeCounterOf } from "../data/edgeIdentity";
 import { GraphStore } from "../data/GraphStore";
 import type { ElementPositions } from "../data/positions";
 import type { ImportReport } from "../data/report";
-import { Edge, EdgeMap } from "../Edge";
+import { Edge, EdgeMap, placeEdgeRow, type ReadonlyEdgeMap } from "../Edge";
 import { GraphtyError } from "../errors/GraphtyError";
 import type { LayoutEngine } from "../layout/LayoutEngine";
 import { MeshCache } from "../meshes/MeshCache";
-import { Node, NodeIdType } from "../Node";
+import { Node, NodeIdType, placeNodeRow } from "../Node";
 import { legacyScopeOf } from "../session/commands/algo";
 import { type DataMutation, replaceEdgesCommand } from "../session/commands/data";
 import type { Dispatcher, UndoableContext } from "../session/project/Dispatcher";
@@ -70,6 +70,18 @@ interface ExistingEdge {
 }
 
 /**
+ * A standalone renderer test's reach into a data manager's collections: registering a render
+ * object it built by hand, as ingest would have. No entry point exports it; the collections are
+ * read-only to everything else, and nodes and edges arrive through the data doors.
+ */
+export const dataManagerInternals = {} as {
+    /** Register a node under its id. */
+    adoptNode(manager: DataManager, node: Node): void;
+    /** Register an edge under its id, its endpoint pair and, when it has one, its row. */
+    adoptEdge(manager: DataManager, edge: Edge): void;
+};
+
+/**
  * Manages all data operations for nodes and edges
  * Handles CRUD operations, caching, and data source loading
  *
@@ -97,27 +109,67 @@ interface ExistingEdge {
  * was permanently on screen with nothing able to hide it.
  */
 export class DataManager implements Manager {
-    // Node and edge collections
-    nodes = new Map<string | number, Node>();
+    // Node and edge collections: written only here, as commands add, remove and renumber rows.
+    private readonly nodeMap = new Map<string | number, Node>();
+    private readonly edgeMap = new Map<string, Edge>();
+    private readonly edgePairs = new EdgeMap();
+    private readonly edgeRows: (Edge | undefined)[] = [];
+
+    static {
+        dataManagerInternals.adoptNode = (manager, node) => {
+            manager.nodeMap.set(node.id, node);
+        };
+        dataManagerInternals.adoptEdge = (manager, edge) => {
+            manager.edgeMap.set(edge.id, edge);
+            manager.edgePairs.set(edge.srcId, edge.dstId, edge);
+            if (edge.index !== INVALID_INDEX) {
+                manager.edgeRows[edge.index] = edge;
+            }
+        };
+    }
+
+    /**
+     * Every node the graph holds, keyed by id. Read-only: nodes arrive and leave through the data
+     * doors, which are undoable steps.
+     * @returns The nodes.
+     */
+    get nodes(): ReadonlyMap<string | number, Node> {
+        return this.nodeMap;
+    }
+
     /**
      * Every edge the graph holds, keyed by `Edge.id`.
      *
      * The key type is `string` and not `string | number`, because `Edge.id` is the element's own
      * edge counter printed as a string and nothing else. While the key was widened, `getEdge(0)`
      * compiled, answered `undefined` for the edge whose id is `"0"`, and said nothing about it.
+     * @returns The edges.
      */
-    edges = new Map<string, Edge>();
+    get edges(): ReadonlyMap<string, Edge> {
+        return this.edgeMap;
+    }
+
     /** Goes up on every edge added or removed, so a cache over the edge set knows it is stale. */
     edgeVersion = 0;
     nodeCache = new Map<NodeIdType, Node>();
-    edgeCache = new EdgeMap();
+
+    /**
+     * The edges between each ordered pair of nodes, read-only.
+     * @returns The edges by endpoint pair.
+     */
+    get edgeCache(): ReadonlyEdgeMap {
+        return this.edgePairs;
+    }
 
     /**
      * Render objects by their store edge index, so a freeze report's `edgeRemap` -- and a removal,
      * which hands back the incident edge indices and nothing else -- can find them in O(1). Sparse:
      * an index with no render object yet, or whose edge was removed, reads `undefined`.
+     * @returns The edges by row, read-only.
      */
-    readonly edgesByIndex: (Edge | undefined)[] = [];
+    get edgesByIndex(): readonly (Edge | undefined)[] {
+        return this.edgeRows;
+    }
 
     /** The one graph-format builder and its cached snapshot; replaced only by `clear()`/`dispose()`. */
     private store: GraphStore;
@@ -509,7 +561,7 @@ export class DataManager implements Manager {
         }
 
         for (const node of this.nodes.values()) {
-            node.index = INVALID_INDEX;
+            placeNodeRow(node, INVALID_INDEX);
             this.layoutEngine?.removeNode(node);
         }
 
@@ -517,12 +569,12 @@ export class DataManager implements Manager {
         // them. See disposeNodesAndEdges: meshCache.clear() below only reaches CACHED meshes,
         // and arrowheads, patterned lines and labels are not cached.
         this.disposeNodesAndEdges();
-        this.nodes.clear();
-        this.edges.clear();
+        this.nodeMap.clear();
+        this.edgeMap.clear();
         this.edgeVersion++;
         this.nodeCache.clear();
-        this.edgeCache.clear();
-        this.edgesByIndex.length = 0;
+        this.edgePairs.clear();
+        this.edgeRows.length = 0;
         this.pendingEdges = [];
         this.pendingByPair.clear();
         this.meshCache.clear();
@@ -534,9 +586,9 @@ export class DataManager implements Manager {
      * @param node - The node.
      */
     private disposeRenderNode(node: Node): void {
-        this.nodes.delete(node.id);
+        this.nodeMap.delete(node.id);
         this.nodeCache.delete(node.id);
-        node.index = INVALID_INDEX;
+        placeNodeRow(node, INVALID_INDEX);
         this.layoutEngine?.removeNode(node);
         node.dispose();
     }
@@ -689,7 +741,7 @@ export class DataManager implements Manager {
         for (const node of this.nodes.values()) {
             // A node that never reached the store carries INVALID_INDEX, which is 0xFFFFFFFF and
             // therefore past the end of the remap: the read is `undefined` and it stays invalid.
-            node.index = remap[node.index] ?? INVALID_INDEX;
+            placeNodeRow(node, remap[node.index] ?? INVALID_INDEX);
         }
     }
 
@@ -699,12 +751,12 @@ export class DataManager implements Manager {
      * @param remap - the freeze report's edgeRemap: old index -> new index, or INVALID_INDEX
      */
     private walkEdgeRemap(remap: U32): void {
-        this.edgesByIndex.length = 0;
+        this.edgeRows.length = 0;
         for (const edge of this.edges.values()) {
             const moved = remap[edge.index] ?? INVALID_INDEX;
-            edge.index = moved;
+            placeEdgeRow(edge, moved);
             if (moved !== INVALID_INDEX) {
-                this.edgesByIndex[moved] = edge;
+                this.edgeRows[moved] = edge;
             }
         }
 
@@ -795,7 +847,7 @@ export class DataManager implements Manager {
      * dataset has no coordinates to keep.
      */
     private resetStore(): void {
-        this.edgesByIndex.length = 0;
+        this.edgeRows.length = 0;
         this.pendingEdges = [];
         this.pendingByPair.clear();
         this.ingest.reset();
@@ -879,11 +931,11 @@ export class DataManager implements Manager {
         this.disposeNodesAndEdges();
 
         // Clear all collections
-        this.nodes.clear();
-        this.edges.clear();
+        this.nodeMap.clear();
+        this.edgeMap.clear();
         this.edgeVersion++;
         this.nodeCache.clear();
-        this.edgeCache.clear();
+        this.edgePairs.clear();
 
         // Drop the graph data itself, not only the render objects built from it.
         this.resetStore();
@@ -937,9 +989,9 @@ export class DataManager implements Manager {
         const n = new Node(this.graphContext, nodeId, bootstrapNodePaint(), node as AdHocData, {
             pinOnDrag: this.graphContext.getConfig().pinOnDrag,
         });
-        n.index = index;
+        placeNodeRow(n, index);
         this.nodeCache.set(nodeId, n);
-        this.nodes.set(nodeId, n);
+        this.nodeMap.set(nodeId, n);
 
         // Add to layout engine if it exists
         if (this.layoutEngine) {
@@ -1029,10 +1081,10 @@ export class DataManager implements Manager {
      *     endpoint ids graph-format will not store is rejected before it reaches here
      */
     private registerEdge(edge: Edge, edgeIndex: number): void {
-        edge.index = edgeIndex;
-        this.edgesByIndex[edgeIndex] = edge;
-        this.edgeCache.set(edge.srcId, edge.dstId, edge);
-        this.edges.set(edge.id, edge);
+        placeEdgeRow(edge, edgeIndex);
+        this.edgeRows[edgeIndex] = edge;
+        this.edgePairs.set(edge.srcId, edge.dstId, edge);
+        this.edgeMap.set(edge.id, edge);
         this.edgeVersion++;
     }
 
@@ -1118,11 +1170,11 @@ export class DataManager implements Manager {
      * @param edgeIndex - the row it occupied, which the caller has in hand
      */
     private teardownEdge(edge: Edge, edgeIndex: number): void {
-        this.edges.delete(edge.id);
+        this.edgeMap.delete(edge.id);
         this.edgeVersion++;
-        this.edgeCache.delete(edge.srcId, edge.dstId, edge);
-        this.edgesByIndex[edgeIndex] = undefined;
-        edge.index = INVALID_INDEX;
+        this.edgePairs.delete(edge.srcId, edge.dstId, edge);
+        this.edgeRows[edgeIndex] = undefined;
+        placeEdgeRow(edge, INVALID_INDEX);
 
         // Told BEFORE the meshes go, so the engine is never asked to read a position off geometry
         // that is already disposed.

@@ -59,6 +59,7 @@ import {
     strandedOnBootstrap,
 } from "../test/helpers/paint-assertions";
 import * as projectAnnotations from "./preview";
+import { operationQueueOf } from "../src/Graph";
 
 // Strict state: every session created in these tests checks that project state changes only
 // through the dispatcher (src/session/project/strict.ts, design/undo/undo-design.md section 12.1).
@@ -277,7 +278,7 @@ async function assertStoryDrewWhatItAskedFor(context: StoryContextLike): Promise
     );
 
     await within(
-        graph.operationQueue.waitForCompletion(),
+        operationQueueOf(graph).waitForCompletion(),
         deadline,
         `${story}: the element's operation queue never drained.`,
     );

@@ -84,6 +84,7 @@ import {
 } from "../../../extend";
 import { Graph } from "../../../index";
 import type { EdgeId, GraphSession, NodeId } from "../../../session";
+import { operationQueueOf } from "../../../src/Graph";
 
 // ---------------------------------------------------------------------------------------------
 // The graph every test below runs on
@@ -741,7 +742,7 @@ describe("an algorithm written outside this package", () => {
         await graph.init();
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
     });
 
     afterEach(() => {
@@ -799,7 +800,7 @@ describe("an algorithm written outside this package", () => {
         const run = graph.run("hop-reach", params);
 
         await run;
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         graph.getUpdateManager().stepFrames(2);
 
         return run.id;
@@ -968,7 +969,7 @@ describe("an algorithm written outside this package", () => {
         // And so does a value a reader chose, through the older address, which resolves its
         // parameters through the constructor rather than through the run's own check.
         await graph.runAlgorithm("acme", "hop-reach", { algorithmOptions: { hops: 2 } });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const viaOldAddress = graph
             .getSession()
@@ -1208,7 +1209,7 @@ describe("an algorithm written outside this package", () => {
             set: { "node.opacity": 0.5 },
         });
 
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const measuredChannels = session.styles
             .explain({ node: "d" })
@@ -1225,7 +1226,7 @@ describe("an algorithm written outside this package", () => {
 
     it("runs through the element's older namespace and type address as well", async () => {
         await graph.runAlgorithm("acme", "hop-reach", { applySuggestedStyles: true });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const suggestions = graph.getSuggestedStyles("acme:hop-reach");
 
@@ -1461,7 +1462,7 @@ describe("an algorithm written outside this package", () => {
         const run = graph.run("alphabet-walk");
 
         await run;
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const suggestions = graph.getSuggestedStyles("alphabet-walk");
 
@@ -1478,7 +1479,7 @@ describe("an algorithm written outside this package", () => {
         const run = graph.run("alphabet-walk");
 
         await run;
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const session = graph.getSession();
         const layer = await session.styles.add({
@@ -1488,7 +1489,7 @@ describe("an algorithm written outside this package", () => {
             set: { "edge.opacity": 0.5 },
         });
 
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // Asked of the element rather than spelled out: an edge is addressed by the id the
         // element minted for it, and a literal written here would be a guess at that id.

@@ -123,7 +123,7 @@ export function bellmanFord(graph: Graph, source: NodeId, options: BellmanFordOp
                     updated = true;
 
                     // Early termination if target reached
-                    if (options.target && v === options.target) {
+                    if (options.target !== undefined && v === options.target) {
                         break;
                     }
                 }

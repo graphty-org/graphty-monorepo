@@ -8,9 +8,10 @@ Changes: how every Chromatic project in this repository is operated, and the Chr
 ## The decision
 
 A changed Chromatic snapshot is accepted by the owner and by nobody else. No agent, script, CI job
-or Chromatic project setting accepts one -- not on a pull request, and not on master. Auto-accept on
-master is switched off in each Chromatic project (Manage, then UI Tests), so every change on every
-branch waits for the owner's review.
+accepts one -- not on a pull request, and not on master. Chromatic has no project setting that
+auto-accepts changes (checked in the project's Manage page, 2026-09-27); acceptance without a person
+can only come from the CLI's `--auto-accept-changes`, which no script or CI job in this repository
+passes. So every change on every branch waits for the owner's review.
 
 An agent may explain a diff, classify it as intended or a regression, and propose accepting it. It
 never presses the button, and it never enables an option that presses it (`autoAcceptChanges`,
@@ -28,9 +29,11 @@ a decision recorded in the repository rather than whatever Chromatic's default h
 
 Chromatic compares a build with the previous build on the same branch. A change is reported once;
 once it is accepted it becomes the baseline and every later build passes quietly. During the
-graphty-element 2.0 work more than a hundred snapshots changed, builds went from pending to accepted
-although every build reported `autoAcceptChanges: false`, and master's baseline ended up containing
-2.0 changes that nobody had looked at story by story (#217). An acceptance is the only moment a
+graphty-element 2.0 work more than a hundred snapshots changed, and master's baseline ended up
+containing 2.0 changes that nobody had looked at story by story (#217). Master builds that moved
+from pending to accepted with `autoAcceptChanges: false` were not accepted by a setting: when a
+pull request's build is accepted and the pull request merges, Chromatic carries those accepted
+snapshots to the target branch, so the first build after the merge reports them as accepted. An acceptance is the only moment a
 visual change is judged, so it has to be made by the person accountable for how the product looks.
 
 ## Rejected

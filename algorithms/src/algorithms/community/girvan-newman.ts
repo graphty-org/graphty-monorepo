@@ -226,7 +226,7 @@ function findAllShortestPaths(
     let queueIndex = 0;
     while (queueIndex < queue.length) {
         const current = queue[queueIndex++];
-        if (!current) {
+        if (current === undefined) {
             continue;
         }
 

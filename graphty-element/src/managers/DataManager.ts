@@ -11,7 +11,7 @@ import { unknownFormat } from "../catalog/detect";
 import type { EdgeId } from "../catalog/types";
 import type { AdHocData } from "../config";
 import { DataSource, type DeclaredDirection } from "../data/DataSource";
-import { edgeIdOf } from "../data/edgeIdentity";
+import { createEdgeCounter, edgeIdOf } from "../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints } from "../data/endpoints";
 import { GraphStore } from "../data/GraphStore";
 import {
@@ -184,6 +184,12 @@ export class DataManager implements Manager {
     /** The one graph-format builder and its cached snapshot; replaced only by `clear()`/`dispose()`. */
     private store: GraphStore;
 
+    /**
+     * The edge counter every store this manager builds draws from, so a Clear or a replacing
+     * import never rewinds it and an edge id is never issued twice (design/sets 4.2).
+     */
+    private readonly edgeCounter = createEdgeCounter();
+
     // Graph-level algorithm results storage
     graphResults?: AdHocData;
 
@@ -333,6 +339,7 @@ export class DataManager implements Manager {
         return new GraphStore({
             directed: data.directed,
             positionScale: () => this.styles.config.data.knownFields.positionScale,
+            edgeCounter: this.edgeCounter,
             onNodeRemap: (remap) => {
                 this.walkNodeRemap(remap);
             },

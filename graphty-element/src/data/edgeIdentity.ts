@@ -44,3 +44,34 @@ export function edgeCounterOf(id: EdgeId): number {
     const counter = Number(id);
     return Number.isSafeInteger(counter) ? counter : INVALID_INDEX;
 }
+
+/**
+ * The counter behind `GraphStore.nextEdgeId()`.
+ *
+ * An object rather than a number held by the store, so that its owner (`DataManager`, or a
+ * headless `GraphSession`) can hand the same one to every store it builds: a Clear or a replacing
+ * import then starts a new store without rewinding the counter, and an edge id is never issued
+ * twice in one session.
+ */
+export interface EdgeCounter {
+    /** The value the next edge takes. */
+    next: number;
+}
+
+/**
+ * A counter starting at 0.
+ * @returns the counter
+ */
+export function createEdgeCounter(): EdgeCounter {
+    return { next: 0 };
+}
+
+/**
+ * Continue a counter one past a value already issued, as a graph restored with its edge-id column
+ * must, so a restored id is never issued again. Never moves the counter backwards.
+ * @param counter - the counter
+ * @param last - the largest counter value the restored graph carries
+ */
+export function resumeEdgeCounter(counter: EdgeCounter, last: number): void {
+    counter.next = Math.max(counter.next, last + 1);
+}

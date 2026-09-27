@@ -8,6 +8,7 @@ import {
 } from "@graphty/graph-format";
 
 import type { DirectionProvenance } from "../session/types";
+import { createEdgeCounter, type EdgeCounter } from "./edgeIdentity";
 import { ElementPositions, isStorableCoordinate, POSITION_COMPONENTS } from "./positions";
 
 /** The payload of `snapshot-replaced` (graph-format design 14.4 rule 11). */
@@ -38,6 +39,13 @@ export interface GraphStoreOptions {
     readonly onNodeRemap: (remap: U32) => void;
     /** Called before onReplaced when the freeze renumbered edges, so edgesByIndex can be re-keyed. */
     readonly onEdgeRemap: (remap: U32) => void;
+    /**
+     * The edge counter `nextEdgeId()` draws from. Its owner (`DataManager`, a headless
+     * `GraphSession`) hands the same object to every store it builds, so a Clear or a replacing
+     * import never rewinds it and no edge id is issued twice in a session. A store built without
+     * one counts from 0 on its own.
+     */
+    readonly edgeCounter?: EdgeCounter;
 }
 
 /** The node column an importer seeds file coordinates into; deleted from every snapshot by the attach. */
@@ -121,7 +129,7 @@ export class GraphStore {
     private cache: GraphSnapshot | null = null;
     private cachedRevision = -1;
     private revision = 0;
-    private edgeIdCounter = 0;
+    private readonly counter: EdgeCounter;
     private pending: PendingPublish | null = null;
     private pendingPositions: PendingPositions | null = null;
     private publishing = false;
@@ -159,6 +167,7 @@ export class GraphStore {
             role: "id",
             unique: true,
         });
+        this.counter = options.edgeCounter ?? createEdgeCounter();
     }
 
     /**
@@ -212,7 +221,7 @@ export class GraphStore {
      */
     nextEdgeId(): number {
         this.requireAlive("nextEdgeId");
-        return this.edgeIdCounter++;
+        return this.counter.next++;
     }
 
     /**

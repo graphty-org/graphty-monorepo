@@ -341,7 +341,9 @@ describe("DataManager store lifecycle", () => {
         dm.addEdges([{ src: "x", dst: "y" }]);
         const snapshot = dm.getSnapshot();
         assert.notStrictEqual(snapshot.nodes.byRole("position"), null);
-        assert.strictEqual(snapshot.edges.requireTyped("graphty.edgeId", "u32").data[0], 0);
+        // The counter belongs to the manager, not the store, so the Clear does not rewind it: the
+        // cleared graph's edge took 0, and reissuing 0 would re-point anything still naming it.
+        assert.strictEqual(snapshot.edges.requireTyped("graphty.edgeId", "u32").data[0], 1);
     });
 
     it("forgets a pending edge across clear(), so the pair is accepted again", () => {

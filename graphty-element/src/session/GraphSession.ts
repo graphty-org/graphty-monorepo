@@ -24,6 +24,7 @@ import type { EdgeId, NodeId, Path, Query, RunId, Scope, StaticStyle } from "../
 import { DataConfig } from "../config/DataConfig";
 import { defaultEdgeStyle } from "../config/EdgeStyle";
 import { defaultNodeStyle } from "../config/NodeStyle";
+import { createEdgeCounter } from "../data/edgeIdentity";
 import { GraphStore } from "../data/GraphStore";
 import type { ElementPositions } from "../data/positions";
 import { GraphtyError, isGraphtyError } from "../errors";
@@ -569,6 +570,10 @@ function resolveStore(
         // A thunk, not a value: the element mutates `data.knownFields` in place at run time, and a
         // scale captured here would be the one known field that ignored the change.
         positionScale: () => readData().knownFields.positionScale,
+        // The session's own edge counter. A headless session builds one store for its life, so
+        // this only matters as the seam `DataManager` uses too: whoever builds stores owns the
+        // counter, and no store rewinds it.
+        edgeCounter: createEdgeCounter(),
         // The new count is read from the store rather than from the remap, because a remap says
         // where each old row went and not how many rows there now are. Reading it here is safe
         // and cheap: a freeze in delivery answers `getSnapshot()` from the snapshot it is

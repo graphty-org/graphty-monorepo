@@ -251,7 +251,9 @@ Three vitest projects in one config (spec 11.1; benchmarks are a tsx harness, no
 | `browser`        | `test/setup/browser.ts`                                                                 | `test/browser/**`: the light smoke suite on Playwright Chromium, `browser.fileParallelism: false`, flags by `GRAPHTY_BROWSER_GPU`                                                                                                                                           | SwiftShader  | NVIDIA   |
 
 Rules of every test (spec 11.2, 11.9): a wrong result is never a skip; every kernel result is compared to an
-oracle or an invariant; every kernel test runs its kernel twice and asserts bitwise equality first; every
+oracle or an invariant; every kernel test runs its kernel twice and asserts bitwise equality first
+(`expectBitwiseEqual`), or says why not in a `run-twice exempt:` header line (`test/run-twice.test.ts`
+enforces it under `test/primitives`, `test/layouts` and `test/algorithms`); every
 `uncapturederror` fails the current test; fixture sizes scale with `gpuScale()` (1 on hardware, 1/50 on a
 software adapter). `acquireRaw()` / `acquire()` give a FRESH adapter per device because an adapter is consumed
 by its first `requestDevice` (spec 2.2 step 1). The device self-check (`src/primitives/verify.ts`) runs once per

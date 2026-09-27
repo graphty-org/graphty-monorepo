@@ -1,3 +1,19 @@
+## 0.8.14 (2026-09-27)
+
+### 🩹 Fixes
+
+- **graphty:** list records through the element's session, not its private maps ([#53](https://github.com/graphty-org/graphty-monorepo/issues/53))
+- **graph-format:** count every change the next freeze would show in mutationCount ([#100](https://github.com/graphty-org/graphty-monorepo/issues/100))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.8
+- Updated graphty-element to 2.5.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.13 (2026-09-27)
 
 ### 🚀 Features

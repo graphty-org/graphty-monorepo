@@ -51,7 +51,7 @@
         "lint:fix": "eslint --fix",
         "lint:knip": "cd .. && pnpm run lint:knip -- --workspace remote-logger",
         "typecheck": "tsc --noEmit",
-        "build": "tsc && vite build --config vite.bundle.config.ts",
+        "build": "node -e \"for (const p of ['dist','tsconfig.tsbuildinfo']) require('fs').rmSync(p,{recursive:true,force:true})\" && tsc && vite build --config vite.bundle.config.ts",
         "build:watch": "tsc --watch",
         "dev": "tsc --watch"
     },

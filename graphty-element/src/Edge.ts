@@ -151,8 +151,8 @@ export class Edge {
      * instance of a batch shared by every edge of the same appearance, and this then points at
      * the batch's mesh -- so it still answers what the line is drawn as, and it is still the
      * thing to ask whether the renderer's geometry has been disposed under it, but disposing it
-     * or enabling it would reach every other edge in the batch. {@link Edge.lineBatch} says which
-     * of the two an edge is, and every write below is routed through it.
+     * or enabling it would reach every other edge in the batch. This edge's private `lineBatch` says
+     * which of the two an edge is, and every write below is routed through it.
      */
     mesh: AbstractMesh | PatternedLineMesh; // PHASE 5: Support both solid lines and patterned lines
     /**
@@ -162,8 +162,8 @@ export class Edge {
      * NOT A MESH ANY MORE. A cap was a `Mesh` with a `ShaderMaterial` of its own, then an
      * `InstancedMesh` of a shared source, and is now sixteen floats in a shared array plus the
      * seven the billboard shader reads -- so there is nothing per cap in the scene to position,
-     * enable or dispose. {@link ArrowCap} is what an edge holds instead, and every question the
-     * renderer asks of a cap is answered off its batch.
+     * enable or dispose. An `ArrowCap` -- a slot in `ArrowCapBatch` -- is what an edge holds instead,
+     * and every question the renderer asks of a cap is answered off its batch.
      */
     arrowMesh: ArrowCap | null = null;
 

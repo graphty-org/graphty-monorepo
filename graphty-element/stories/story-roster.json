@@ -93,6 +93,7 @@
         "Selection::ModeVR",
         "Sets/Kept Sets::ColorASet",
         "Sets/Kept Sets::CombineTwoSets",
+        "Sets/Kept Sets::FilterToASet",
         "Sets/Kept Sets::RuleSetFollowsData",
         "Styles/Edge::ArrowColor",
         "Styles/Edge::ArrowHead",

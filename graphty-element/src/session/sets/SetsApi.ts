@@ -18,6 +18,7 @@ import type {
     EdgeMember,
     EdgeReading,
     EdgeRef,
+    Filter,
     NodeId,
     PathKind,
     RunId,
@@ -97,11 +98,11 @@ interface SetsDependencies {
      */
     readonly executionOf?: (run: RunId) => string | undefined;
     /**
-     * The live users of sets beyond kept sets and runs (style layers today), each with the scope it
-     * names, for `usedBy`. Absent: none.
+     * The live users of sets beyond kept sets and runs (style layers and the visibility filter),
+     * each with the scope or filter tree it names, for `usedBy`. Absent: none.
      * @returns The users.
      */
-    readonly users?: () => Iterable<{ readonly user: SetUser; readonly scope: Scope }>;
+    readonly users?: () => Iterable<{ readonly user: SetUser; readonly scope: Scope | Filter }>;
 }
 
 /**

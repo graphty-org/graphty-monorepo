@@ -1,10 +1,12 @@
 /**
- * Kept sets painted by style layers.
+ * Kept sets painted by style layers, and shown by the visibility filter.
  *
  * A kept set is a named group of nodes the session holds (`element.session.sets`). A style layer
  * paints one with the selector `{ match: "scope", scope: { set: id } }`, and from then on the
  * layer follows the set: redefine it, combine it, or change the data a rule set reads, and the
  * picture moves with it. Colouring a set is an ordinary layer -- a set has no colour of its own.
+ * The visibility filter names a set with the leaf `{ kind: "scope", scope: { set: id } }` and
+ * follows it the same way.
  *
  * Each story builds its sets and layers in its play function, through the element's session, and
  * then reads back what every node is drawn.
@@ -16,7 +18,7 @@ import type { LayerSpec, SetId } from "../src/catalog/types";
 // Importing the module is what defines the <graphty-element> custom element, so this line is
 // load-bearing even though only the type is named.
 import { type Graphty } from "../src/graphty-element";
-import { assertDrawnColour, assertGraphLoaded, drawn } from "./assertions";
+import { assertDrawnColour, assertGraphLoaded, assertNodesShown, drawn } from "./assertions";
 import { eventWaitingDecorator, setLayoutPreSteps, waitForGraphSettled } from "./helpers";
 
 /** Eight nodes on a ring, each with a score. */
@@ -145,5 +147,27 @@ export const RuleSetFollowsData: Story = {
 
         const after = await drawn(canvasElement, "Sets/Kept Sets RuleSetFollowsData");
         await assertDrawnColour(after, expecting({ n1: "#1e88e5", n6: "#1e88e5", n7: "#1e88e5", n8: "#1e88e5" }));
+    },
+};
+
+/**
+ * The visibility filter shows one set, and follows it: redefining the set moves what is on
+ * screen with no new filter.
+ */
+export const FilterToASet: Story = {
+    play: async ({ canvasElement }) => {
+        const element = await settled(canvasElement);
+        const { sets, visibility } = element.session;
+        const focus = sets.create({ kind: "fixed", nodes: ["n1", "n2", "n3"], reading: "induced" }, { name: "Focus" });
+        await visibility.set({ kind: "scope", scope: { set: focus } });
+
+        const before = await drawn(canvasElement, "Sets/Kept Sets FilterToASet, before");
+        await assertGraphLoaded(before, { nodes: 8, edges: 8 });
+        await assertNodesShown(before, ["n1", "n2", "n3"]);
+
+        sets.redefine(focus, { kind: "fixed", nodes: ["n5", "n6", "n7", "n8"], reading: "induced" });
+
+        const after = await drawn(canvasElement, "Sets/Kept Sets FilterToASet");
+        await assertNodesShown(after, ["n5", "n6", "n7", "n8"]);
     },
 };

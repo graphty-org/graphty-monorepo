@@ -1210,10 +1210,13 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         outcome: (record) => outcomeOf(setsCache, record),
         // Read through calls: the scope resolver and the selection are built below.
         // Style layers naming a set are its users too; the stack is built below.
-        users: () =>
-            (stack?.list() ?? []).flatMap((layer) =>
+        // So is the visibility filter, once however many of its leaves name the set.
+        users: () => [
+            ...(stack?.list() ?? []).flatMap((layer) =>
                 layer.selector.match === "scope" ? [{ user: { kind: "layer" as const, id: layer.id, label: layer.name }, scope: layer.selector.scope }] : [],
             ),
+            ...(visibility.filter === null ? [] : [{ user: { kind: "filter" as const, label: "Visibility filter" }, scope: visibility.filter }]),
+        ],
         materialise: createMaterialiser({
             snapshot,
             resolve: (spec: Scope) => scope.resolutionOf(spec),
@@ -1267,6 +1270,16 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         };
     };
 
+    /**
+     * Pin a scope's cache entry: the kept set's definition, else the canonical scope.
+     * @param spec - The scope.
+     * @returns Releases the pin.
+     */
+    const pinScope = (spec: Scope): (() => void) => {
+        const key = typeof spec === "object" && "set" in spec ? keptSets.get(spec.set)?.definition : canonicalize(spec);
+        return key === undefined ? () => undefined : setsCache.pin(key);
+    };
+
     const scope: ScopeResolver = createScopeApi({
         snapshot,
         store: store.store,
@@ -1299,6 +1312,13 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         queue,
         dependencies,
         scope: (spec: Scope) => scope.leafOf(spec),
+        // The resolver's context turns a capture into bitmaps over the current snapshot.
+        captured: (item: ResultItem) => scope.contextNow().captured?.(item),
+        watch: {
+            subscribe: (watch) => notifier.subscribe(watch),
+            signature: (spec: Scope) => scopeSignature(spec, scope.contextNow()),
+            pin: (spec: Scope) => pinScope(spec),
+        },
         resolveScope: (spec: Scope) => scope.resolveNow(spec),
         match: (where: Query) => requireQuery(query).nodes(where),
         matchEdges: (where: Query) => requireQuery(query).edges(where),
@@ -1336,14 +1356,13 @@ function buildSession(options: CreateGraphSessionOptions): Session {
             advanceTick();
             notifier.notify({ kind: "run", run: id });
         },
-        // Before a re-run replaces a result, what kept rules and style layers hold of it is
-        // captured onto the run. ponytail: the visibility filter joins when it follows sets
-        // (design/sets 5.2).
+        // Before a re-run replaces a result, what kept rules, style layers and the visibility filter
+        // hold of it is captured onto the run (design/sets 5.2).
         captureHeld: (runId: RunId, prior: HeldCaptures) => {
             const result = resultSource(runId);
             const graph = snapshot();
             const space = edgeSpaceOf(graph);
-            const held = heldItems([...keptSets.list().map((set) => set.definition), ...layerScopesOf(stack)], runId);
+            const held = heldItems([...keptSets.list().map((set) => set.definition), ...layerScopesOf(stack), visibility.filter], runId);
 
             return nextCaptures(
                 prior,
@@ -1511,10 +1530,7 @@ function buildSession(options: CreateGraphSessionOptions): Session {
         resolve: (spec: Scope) => scope.resolutionOf(spec),
         signature: (spec: Scope) => scopeSignature(spec, scope.contextNow()),
         subscribe: (watch) => notifier.subscribe(watch),
-        pin: (spec: Scope) => {
-            const key = typeof spec === "object" && "set" in spec ? keptSets.get(spec.set)?.definition : canonicalize(spec);
-            return key === undefined ? () => undefined : setsCache.pin(key);
-        },
+        pin: (spec: Scope) => pinScope(spec),
         repaint: (dirty) => {
             if (stack === null || (dirty.node.length === 0 && dirty.edge.length === 0)) {
                 return;

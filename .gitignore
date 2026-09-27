@@ -19,12 +19,15 @@ storybook-static/
 *storybook.log
 build-storybook.log
 
-# Temporary files. Anchored, so a checkout that sits under a directory named tmp (or a
-# worktree that inherits this file, see tools/run-knip.sh) does not ignore its own sources.
+# Temporary files: the root's and each package's. Anchored, because knip matches these
+# patterns against absolute paths too, and an unanchored tmp/ hides every source file of a
+# checkout that sits under a directory named tmp (/tmp/clone, say). `?*` rather than `*`
+# for the same reason: knip turns `/*/tmp/` into `*/tmp/**`, whose `*` also matches the
+# empty name before an absolute path's leading slash, so /tmp/clone/... would still match.
 /tmp/
 /.tmp/
-/*/tmp/
-/*/.tmp/
+/?*/tmp/
+/?*/.tmp/
 .playwright-mcp/
 
 # IDE/Editor files

@@ -259,18 +259,35 @@ const MULTI_EDGES: readonly EdgeSpec[] = [
     ["z", "d", 1],
 ];
 
+/** A listed-scope fixture: a directed graph, the scope's members, and which of their edges it lists. */
+export interface ListedFixture {
+    readonly nodes: readonly string[];
+    readonly edges: readonly EdgeSpec[];
+    readonly members: readonly string[];
+    readonly listed: (source: string, target: string) => boolean;
+}
+
+const LISTED: ListedFixture = {
+    nodes: LISTED_NODES,
+    edges: LISTED_EDGES,
+    members: ["a", "b", "c", "d", "e"],
+    listed: (source, target) => !(source === "c" && (target === "a" || target === "d")),
+};
+
 /**
  * The two cases every adapter that computes over its scope is tested on beyond the registry test:
  * a listed scope, and a multigraph.
  * @param name - The adapter, for the test names.
  * @param build - The adapter.
+ * @param listedFixture - A listed fixture for an adapter the shared one cannot discriminate: one
+ * whose listed run equals its induced run there.
  */
-export function describeScopedAdapter(name: string, build: Build): void {
+export function describeScopedAdapter(name: string, build: Build, listedFixture: ListedFixture = LISTED): void {
     describe(`${name} over a scope`, () => {
         it("a listed scope computes over exactly its listed edges", async () => {
-            const graph = new InputGraph(LISTED_NODES, LISTED_EDGES, true);
-            const members = ["a", "b", "c", "d", "e"];
-            const listed = graph.scope(members, (source, target) => !(source === "c" && (target === "a" || target === "d")));
+            const graph = new InputGraph([...listedFixture.nodes], listedFixture.edges, true);
+            const members = [...listedFixture.members];
+            const listed = graph.scope(members, listedFixture.listed);
             const induced = graph.scope(members);
 
             const result = await assertComputesOverScope(build, graph, listed);

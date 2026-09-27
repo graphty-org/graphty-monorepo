@@ -37,20 +37,20 @@ const EXPECTED: Readonly<Record<string, "on" | "off">> = {
     "graphty:dijkstra": "on",
     "graphty:eigenvector": "off",
     "graphty:floyd-warshall": "off",
-    "graphty:girvan-newman": "off",
+    "graphty:girvan-newman": "on",
     "graphty:hits": "on",
     "graphty:k-core": "on",
     "graphty:katz": "on",
     "graphty:kruskal": "on",
-    "graphty:label-propagation": "off",
-    "graphty:leiden": "off",
+    "graphty:label-propagation": "on",
+    "graphty:leiden": "on",
     "graphty:link-prediction": "off",
-    "graphty:louvain": "off",
+    "graphty:louvain": "on",
     "graphty:max-flow": "off",
     "graphty:min-cut": "off",
     "graphty:pagerank": "on",
     "graphty:prim": "off",
-    "graphty:scc": "off",
+    "graphty:scc": "on",
 };
 
 /** Options an algorithm needs on the fixture. */
@@ -82,6 +82,36 @@ const EDGES = [
     ["a", "x", 1],
     ["x", "e", 1],
 ] as const;
+
+/** A fixture: its nodes in row order, the scope's members, and its directed weighted edges. */
+interface Fixture {
+    readonly nodes: readonly string[];
+    readonly members: readonly string[];
+    readonly edges: readonly (readonly [string, string, number])[];
+}
+
+const SHARED: Fixture = { nodes: NODES, members: MEMBERS, edges: EDGES };
+
+/**
+ * Algorithms the shared fixture cannot discriminate, each with its own.
+ *
+ * Strongly connected components: the shared fixture is acyclic, so every node is its own piece
+ * whatever the scope. Here a and b sit on a cycle only through x, and b and c on one of their own,
+ * so the scope splits the whole graph's single piece into {a} and {b, c}.
+ */
+const FIXTURES: Readonly<Record<string, Fixture>> = {
+    "graphty:scc": {
+        nodes: ["a", "x", "b", "c"],
+        members: ["a", "b", "c"],
+        edges: [
+            ["a", "b", 1],
+            ["b", "x", 1],
+            ["x", "a", 1],
+            ["b", "c", 1],
+            ["c", "b", 1],
+        ],
+    },
+};
 
 /** The fixture graph, recording every read of the graph that goes around the input accessor. */
 class Recording extends InputGraph {
@@ -126,11 +156,12 @@ class Recording extends InputGraph {
 let active: Recording | null = null;
 
 /**
- * A fresh fixture, as the active graph.
+ * A fresh fixture graph, as the active graph.
+ * @param spec - The fixture; the shared one by default.
  * @returns It.
  */
-function fixture(): Recording {
-    active = new Recording(NODES, EDGES.map(([s, t, w]) => [s, t, w] as const), true);
+function fixture(spec: Fixture = SHARED): Recording {
+    active = new Recording([...spec.nodes], spec.edges.map(([s, t, w]) => [s, t, w] as const), true);
     return active;
 }
 
@@ -255,14 +286,15 @@ describe.runIf(DECLARED_ON.length > 0)("every algorithm declared on computes ove
     for (const key of DECLARED_ON) {
         it(key, async () => {
             const build = builderOf(key);
-            const graph = fixture();
-            const scope = graph.scope(MEMBERS);
+            const spec = FIXTURES[key] ?? SHARED;
+            const graph = fixture(spec);
+            const scope = graph.scope([...spec.members]);
 
             const scoped = await assertComputesOverScope(build, graph, scope);
             assert.deepStrictEqual(graph.around, [], "no read of the graph around the input accessor");
             assert.notInclude(scoped?.summary().caveats.notes ?? [], WHOLE_GRAPH_CAVEAT);
 
-            const whole = await runWhole(build, fixture());
+            const whole = await runWhole(build, fixture(spec));
             const covered = coveredBy(graph, scope);
             assert.notDeepEqual(
                 valuesOf(whole, graph, covered.node, covered.edge),

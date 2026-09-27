@@ -121,6 +121,17 @@
                 "memoryDeltaBytes": 0,
                 "rate": 31200000,
                 "rateUnit": "nodes/s"
+            },
+            {
+                "group": "apsp",
+                "name": "apsp at n=512",
+                "medianMs": 20.0,
+                "minMs": 19.5,
+                "maxMs": 21.0,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": 13107200,
+                "rateUnit": "pairs/s"
             }
         ]
     }

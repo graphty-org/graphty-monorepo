@@ -412,7 +412,7 @@ export abstract class LayoutEngine {
      * Release whatever this engine holds. The element calls it when the reader switches layouts
      * and when the graph is torn down, and never uses the engine again afterwards.
      *
-     * Declared with a do-nothing default for the same reason as {@link LayoutEngine.removeNode}:
+     * Declared with a do-nothing default for the same reason as `removeNode`:
      * it was duck-typed, undeclared and unimplemented by every engine here.
      */
     dispose(): void {
@@ -423,7 +423,7 @@ export abstract class LayoutEngine {
      * The coordinates this engine publishes, read-only.
      *
      * Read-only because the array is the element's: a write here would move or pin a node with no
-     * undo step. The engine writes through {@link LayoutEngine.writeNodePosition}; a consumer
+     * undo step. The engine writes through `writeNodePosition`; a consumer
      * places and pins nodes through `session.positions`.
      * @returns the coordinates in use, read-only
      */

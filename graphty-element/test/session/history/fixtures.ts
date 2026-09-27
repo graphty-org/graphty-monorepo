@@ -195,6 +195,26 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "data.apply", mutation: { kind: "clear" } },
     },
     {
+        name: "algo.run: the run, its result and the layer it paints",
+        tags: BOTH,
+        command: { op: "algo.run", algorithm: "degree", as: "fixture-deg" },
+    },
+    {
+        name: "algo.run applying its suggested styles over a layer that would suppress them",
+        tags: BOTH,
+        before: withLayers(nodeLayer("Fixture A", "#ff0000")),
+        command: { op: "algo.run", algorithm: "degree", as: "fixture-deg", applySuggestedStyles: true },
+    },
+    {
+        name: "algo.remove: a run and the layer bound to it",
+        tags: BOTH,
+        before: async (session) => {
+            await session.runs.start("degree", {}, { as: "deg" });
+            await session.styles.settled();
+        },
+        command: { op: "algo.remove", id: "deg" },
+    },
+    {
         name: "style.patch add",
         variant: "add",
         tags: BOTH,

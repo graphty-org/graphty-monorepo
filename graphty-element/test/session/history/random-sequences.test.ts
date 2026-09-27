@@ -7,8 +7,8 @@
  * The session runs on a fake clock and a fake queue (`./fakes.ts`), so fast-check decides when
  * time passes and when every scheduled promise settles, and a failure replays from its seed. The
  * model grows with every op a phase ports (design/undo/undo-plan.md, "How to read this plan",
- * rule 3); today it covers the style, visibility, saved-scope, saved-view, settings and data ops,
- * imports, expansions and batches included.
+ * rule 3); today it covers the style, visibility, saved-scope, saved-view, settings, data and run
+ * ops, imports, expansions and batches included.
  *
  * Checked around every action: before it, the live state digest equals the digest recorded for
  * the current position, so a change that records no step fails at the next action; after every
@@ -583,6 +583,26 @@ const COMMANDS = [
                     }),
             })),
     ),
+    fc.tuple(fc.constantFrom("deg", "fresh"), fc.boolean()).map(
+        ([as, apply]) =>
+            new Edit(`run degree as ${as}${apply ? ", applying its styles" : ""}`, (real) => ({
+                key: null,
+                run: () =>
+                    real.session.execute({
+                        op: "algo.run",
+                        algorithm: "degree",
+                        as,
+                        ...(apply ? { applySuggestedStyles: true } : {}),
+                    }),
+            })),
+    ),
+    fc.constantFrom("deg", "route", "fresh").map(
+        (id) =>
+            new Edit(`remove run ${id}`, (real) => ({
+                key: null,
+                run: () => real.session.execute({ op: "algo.remove", id }),
+            })),
+    ),
     fc.constant(new Move("undo")),
     fc.constant(new Move("redo")),
     fc.constant(new Move("undo-twice")),
@@ -605,14 +625,17 @@ async function runSeed(seed: number, numRuns: number): Promise<void> {
                 s,
                 async () => {
                     const clock = fakeClock();
-                    // An import's turn comes at once, so an edit can await it; interleaving it with
-                    // other queued work is phase 21's (design/undo/undo-plan.md).
+                    // An import's turn and a run's come at once, so an edit can await them;
+                    // interleaving them with other queued work is phase 21's
+                    // (design/undo/undo-plan.md).
                     const session = await fixtureSession({
                         now: clock.now,
-                        scheduler: fakeScheduler(s, new Set(["data-add"])),
+                        scheduler: fakeScheduler(s, new Set(["data-add", "algorithm-run"])),
                     });
                     await session.runs.start("degree", {}, { as: "deg", style: false });
                     await session.runs.start("shortest-path", { source: "n1", target: "n3" }, { as: "route", style: false });
+                    // The runs the edits read are where the sequence starts, not steps of it.
+                    session.history.clear();
                     real = { session, clock };
                     model = {
                         digests: [live(real)],

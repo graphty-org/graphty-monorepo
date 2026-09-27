@@ -71,7 +71,7 @@ export const PHASES = [
 type PlanPhase = (typeof PHASES)[number];
 
 /** The phase this branch has reached. Each phase's commit raises it. */
-export const PLAN_PHASE: PlanPhase = "14";
+export const PLAN_PHASE: PlanPhase = "15";
 
 /** How the doors tests call a door. */
 export type DoorCall =
@@ -176,18 +176,6 @@ function calls(args: readonly unknown[] | (() => readonly unknown[]), expect: re
  */
 function assigns(value: unknown, expect: readonly SessionCommand[]): Door {
     return { kind: "dispatches", op: expect[0]?.op ?? "", call: { kind: "set", value }, expect };
-}
-
-/**
- * A door that dispatches, but whose one call is not yet one step, until `phase` finishes it.
- * @param phase - The phase that makes one call one step.
- * @param reason - What is still split, and why.
- * @param args - The arguments to call it with.
- * @param expect - The commands the call dispatches today, in order; the first names its op.
- * @returns The door.
- */
-function partial(phase: PlanPhase, reason: string, args: readonly unknown[], expect: readonly SessionCommand[]): Door {
-    return { kind: "partial", phase, reason, op: expect[0]?.op ?? "", call: { kind: "call", args }, expect };
 }
 
 /**
@@ -359,6 +347,12 @@ const MASK = exempt(
 const LLM = exempt("Talks to a language model; changes nothing in the graph.");
 const BUDGET = exempt("The history's own budget, not project state.");
 
+/**
+ * The command a door running `degree` dispatches. The layers the run paints are planned into its
+ * own step when it finishes, so they are not dispatched.
+ */
+const RUN_DEGREE: SessionCommand = { op: "algo.run", algorithm: "degree" };
+
 /** The rows of `GraphSession`, shared with the element's wider form of it. */
 const SESSION: Readonly<Record<string, Door>> = {
     data: READ,
@@ -379,7 +373,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     setAccelerator: MACHINE,
     snapshot: escape("18b"),
     fingerprint: READ,
-    run: gap("15", "algo.run", [{ op: "algo.run", algorithm: "degree" }]),
+    run: calls([{ op: "algo.run", algorithm: "degree" }], [RUN_DEGREE]),
     execute: EXECUTE,
     undo: HISTORY,
     redo: HISTORY,
@@ -473,28 +467,14 @@ const STYLES_API: Readonly<Record<string, Door>> = {
 };
 
 /**
- * What the doors that run `degree` on the doors tests' small graph paint: the run's suggested
- * colour. The run id is derived from the algorithm, its parameters and the graph, so it is the
- * same on every such graph.
- *
- * Which of those doors paints depends on the order the doors test calls a root's rows in: a run
- * paints its suggestion on its FIRST completion only, so a door that re-runs `degree` on a graph
- * an earlier row already ran it on paints nothing and stays a `knownGap` of its op.
+ * What applying the suggested styles of `degree` on the doors tests' small graph dispatches: the
+ * run's suggested colour, in the call's one step. The run id is derived from the algorithm, its
+ * parameters and the graph, so it is the same on every such graph.
  */
 const DEGREE_ENCODE: SessionCommand = {
     op: "style.encode",
     spec: { run: "degree_0bkzd1n0p2dnik", field: "value", channel: "node.color" },
 };
-
-/** Why a door that runs an algorithm is partial until runs are steps. */
-const RUN_PAINTS =
-    "The run is not a step yet; the colour it paints when it finishes is a style step of its own, so undo " +
-    "takes the colour off and leaves the run. Phase 15 makes the run, its result and its layers one step.";
-
-/** Why applying suggested styles is partial until runs are steps. */
-const SUGGESTED_STEPS =
-    "Each suggested layer is a style step of its own, so undo takes back only the last one. Phase 15 makes " +
-    "the whole call one step.";
 
 /** Every root, and the door of every public member. */
 export const DOOR_ROOTS: readonly DoorRoot[] = [
@@ -504,7 +484,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         half: "renderer",
         doors: {
             session: READ,
-            run: partial("15", RUN_PAINTS, ["degree"], [DEGREE_ENCODE]),
+            run: calls(["degree"], [RUN_DEGREE]),
             select: SELECTION,
             connectedCallback: LIFECYCLE,
             firstUpdated: LIFECYCLE,
@@ -609,8 +589,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             deselectNode: SELECTION,
             getSelectedNode: READ,
             isNodeSelected: READ,
-            runAlgorithm: gap("15", "algo.run", ["graphty", "degree"]),
-            applySuggestedStyles: partial("15", SUGGESTED_STEPS, ["graphty:degree"], [DEGREE_ENCODE]),
+            runAlgorithm: calls(["graphty", "degree"], [RUN_DEGREE]),
+            applySuggestedStyles: calls(["graphty:degree"], [DEGREE_ENCODE]),
             getSuggestedStyles: READ,
             setLayout: gap("17", "layout.set", ["circular"]),
             zoomToFit: CAMERA,
@@ -720,9 +700,14 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 ),
             ),
             setLayout: gap("17", "layout.set", ["circular"]),
-            runAlgorithm: partial("15", RUN_PAINTS, ["graphty", "degree"], [DEGREE_ENCODE]),
-            run: gap("15", "algo.run", ["degree"]),
-            applySuggestedStyles: partial("15", SUGGESTED_STEPS, ["graphty:degree"], [DEGREE_ENCODE]),
+            runAlgorithm: calls(["graphty", "degree"], [RUN_DEGREE]),
+            // Its own id, so the run the row above left finished is not simply handed back.
+            run: calls(["degree", {}, { as: "door-run" }], [{ op: "algo.run", algorithm: "degree", as: "door-run" }]),
+            // Both finished `degree` runs the rows above left, in one step.
+            applySuggestedStyles: calls(
+                ["graphty:degree"],
+                [DEGREE_ENCODE, { op: "style.encode", spec: { run: "door-run", field: "value", channel: "node.color" } }],
+            ),
             getSuggestedStyles: READ,
             removeNodes: REMOVE_NODES,
             setCameraMode: CAMERA,
@@ -947,7 +932,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             record: READ,
             journalId: READ,
             cancel: IN_FLIGHT,
-            rerun: gap("15", "algo.run", []),
+            // Called on a run the doors test has already cancelled, so there is something to redo.
+            rerun: calls([], [RUN_DEGREE]),
             suggestEncodings: READ,
         },
     },
@@ -1212,11 +1198,11 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         file: "src/session/runs/types.ts",
         half: "session",
         doors: {
-            start: gap("15", "algo.run", ["degree"]),
-            batch: gap("15", "algo.run", [[{ algorithm: "degree" }]]),
+            start: calls(["degree"], [RUN_DEGREE]),
+            batch: calls([[{ algorithm: "degree" }]], [RUN_DEGREE]),
             get: READ,
             list: READ,
-            remove: gap("15", "algo.remove", ["door-run"]),
+            remove: calls(["door-run"], [{ op: "algo.remove", id: "door-run" }]),
             bindings: READ,
             queue: READ,
         },
@@ -1508,7 +1494,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             init: LIFECYCLE,
             dispose: LIFECYCLE,
-            execute: escape("15"),
+            execute: exempt(
+                "Computes a result for a run and hands it back; the run records it, and this writes nothing.",
+            ),
             runAlgorithmsFromTemplate: gap("18a", "algo.legacy", [["graphty:degree"]]),
             runAlgorithm: gap("18a", "algo.legacy", ["graphty", "degree"]),
             hasAlgorithm: READ,

@@ -11,7 +11,7 @@ import type { LayoutEngine } from "../layout/LayoutEngine";
 import { MeshCache } from "../meshes/MeshCache";
 import { Node, NodeIdType } from "../Node";
 import { type DataMutation, replaceEdgesCommand } from "../session/commands/data";
-import type { Dispatcher } from "../session/project/Dispatcher";
+import type { Dispatcher, UndoableContext } from "../session/project/Dispatcher";
 import { GraphOps, type GraphWriter } from "../session/project/graphOps";
 import { type AddEdgesOptions, Ingest, type IngestHost, type StoredEdge } from "../session/project/ingest";
 import type { GraphSlice } from "../session/project/state";
@@ -249,20 +249,24 @@ export class DataManager implements Manager {
      * manager's store.
      * @param dispatcher - The session's dispatcher.
      * @param hooks - What the graph does around a write.
-     * @param hooks.rowsAdded - Called by each command that adds rows, after it wrote them.
+     * @param hooks.rowsAdded - Called by each command that adds rows, after it wrote them, with how
+     *     that command starts work as its deferred members.
      * @param hooks.loading - Called with true when an import starts reading and false when it stops.
      */
-    bindSession(dispatcher: Dispatcher, hooks: { rowsAdded(): void; loading(active: boolean): void }): void {
+    bindSession(
+        dispatcher: Dispatcher,
+        hooks: { rowsAdded(after: UndoableContext["after"] | undefined): void; loading(active: boolean): void },
+    ): void {
         this.dispatcher = dispatcher;
         this.graph = dispatcher.graph;
         dispatcher.services.data = {
-            apply: (mutation, draft) => {
+            apply: (mutation, draft, after) => {
                 this.applyMutation(mutation, this.graph.writer(draft, this.store));
                 if (mutation.kind === "add-nodes" || mutation.kind === "add-edges") {
-                    hooks.rowsAdded();
+                    hooks.rowsAdded(after);
                 }
             },
-            import: async (command, draft, signal) => {
+            import: async (command, draft, signal, after) => {
                 const writer = this.graph.writer(draft, this.store);
                 const { cause } = this;
                 this.cause = "command";
@@ -275,7 +279,7 @@ export class DataManager implements Manager {
                 }
 
                 if (command.source.type !== undefined && command.source.config !== undefined) {
-                    hooks.rowsAdded();
+                    hooks.rowsAdded(after);
                 }
             },
         };

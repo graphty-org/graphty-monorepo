@@ -351,7 +351,7 @@ describe("run identity and status", () => {
 
         const terminal = RUN_STATUSES.filter((status: RunStatus) => isTerminalRunStatus(status));
 
-        assert.deepStrictEqual([...terminal], ["succeeded", "failed", "canceled"]);
+        assert.deepStrictEqual([...terminal], ["succeeded", "failed", "canceled", "removed"]);
     });
 
     it("keeps a time-boxed stop out of the failure statuses", () => {

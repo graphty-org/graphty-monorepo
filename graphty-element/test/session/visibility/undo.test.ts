@@ -301,23 +301,30 @@ describe("mask copies", () => {
         assert.strictEqual(evaluations.mock.calls.length, 0, "the hosts step's copy was taken under the same graph token");
     });
 
-    it("does not use a copy taken before the run a filter reads was run again", async () => {
+    it("does not use a copy taken under results a later undo has replaced", async () => {
+        // A re-run is a step of its own. The filter's copy is taken under the re-run's numbers,
+        // so undoing the re-run, which puts the earlier numbers back, has to evaluate again.
         const { session, advance } = clocked();
         scores = { n0: 5, n1: 5 };
         await session.runs.start("degree", {}, { as: "score", style: false });
         await session.visibility.set({ kind: "expression", where: "results.score.value > `1`" });
         assert.deepEqual(visible(session), ["n0", "n1"]);
-        advance(LAPSE_MS);
-        await session.visibility.set(SERVICES);
 
         scores = { n4: 5 };
         const rerun = session.runs.get("score");
         assert.isDefined(rerun);
         await rerun.rerun();
+        assert.deepEqual(visible(session), ["n4"], "the filter reads the re-run's numbers");
+        advance(LAPSE_MS);
+        await session.visibility.set(SERVICES);
+
         evaluations.mockClear();
         await session.undo();
+        assert.deepEqual(visible(session), ["n4"]);
+        assert.strictEqual(evaluations.mock.calls.length, 0, "the copy matches the re-run's numbers");
 
-        assert.deepEqual(visible(session), ["n4"], "the rerun's numbers, not the kept bytes");
+        await session.undo();
+        assert.deepEqual(visible(session), ["n0", "n1"], "the first run's numbers, not the kept bytes");
         assert.strictEqual(evaluations.mock.calls.length, 1);
     });
 

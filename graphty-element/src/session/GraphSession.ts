@@ -44,6 +44,7 @@ import {
 } from "./planning";
 import {
     Dispatcher,
+    type DispatchFunction,
     runQueueScheduler,
     type Scheduler,
     type TransactionScope as DispatchScope,
@@ -326,6 +327,7 @@ class Session implements ElementSession {
             publish(this.watchers, "history:changed", { reason });
         };
         DISPATCHERS.set(this, this.dispatcher);
+        SESSION_RUNS.set(this, this.sessionRuns);
         this.history = historyOf(this.dispatcher, () => version);
         this.views = viewsOf(this.dispatcher);
         this.config = configOf(this.dispatcher, parts.readProject, parts.controller);
@@ -384,25 +386,41 @@ class Session implements ElementSession {
      * @returns Its outcome.
      */
     execute<C extends SessionCommand>(command: C): CommandOutcome<C> {
-        return this.executeThrough(command, (each) => this.dispatcher.dispatch(each));
+        return this.executeThrough(command, (each, options) => this.dispatcher.dispatch(each, options));
     }
 
     /**
-     * Do one command, through `dispatch` unless it is a door not yet ported to the dispatcher.
+     * Do one command through `dispatch`. A run is started through the runs API, which dispatches
+     * it and hands back its handle.
      * @param command - The command.
      * @param dispatch - The session's dispatch, or a transaction's.
      * @returns Its outcome.
      */
-    private executeThrough<C extends SessionCommand>(
-        command: C,
-        dispatch: (command: SessionCommand) => Promise<unknown>,
-    ): CommandOutcome<C> {
-        // Runs are not project state until they are ported, so a run starts the way it always has.
+    private executeThrough<C extends SessionCommand>(command: C, dispatch: DispatchFunction): CommandOutcome<C> {
         if (command.op === "algo.run") {
-            return this.run(command) as CommandOutcome<C>;
+            return this.startCommand(dispatch, command) as CommandOutcome<C>;
         }
 
         return dispatch(command) as unknown as CommandOutcome<C>;
+    }
+
+    /**
+     * Start a run command through a dispatch.
+     * @param dispatch - The session's dispatch, or a transaction's.
+     * @param command - The run.
+     * @param options - The signal, the progress handler and how the call joins the queue.
+     * @returns The run.
+     */
+    private startCommand(dispatch: DispatchFunction, command: AlgorithmRunCommand, options: RunOptions = {}): Run {
+        return this.sessionRuns.startVia(dispatch, command.algorithm, command.params, {
+            ...options,
+            ...(command.scope === undefined ? {} : { scope: command.scope }),
+            ...(command.seed === undefined ? {} : { seed: command.seed }),
+            ...(command.sample === undefined ? {} : { sample: command.sample }),
+            ...(command.exact === undefined ? {} : { exact: command.exact }),
+            ...(command.as === undefined ? {} : { as: command.as }),
+            ...(command.applySuggestedStyles === undefined ? {} : { applySuggestedStyles: command.applySuggestedStyles }),
+        });
     }
 
     /**
@@ -415,7 +433,7 @@ class Session implements ElementSession {
         const tx: TransactionScope = Object.create(this, {
             execute: {
                 value: <C extends SessionCommand>(command: C) =>
-                    this.executeThrough(command, (each) => scope.dispatch(each)),
+                    this.executeThrough(command, (each, options) => scope.dispatch(each, options)),
             },
             transaction: {
                 value: <T>(
@@ -554,14 +572,7 @@ class Session implements ElementSession {
      * @returns The run.
      */
     run(command: AlgorithmRunCommand, options: RunOptions = {}): Run {
-        return this.runs.start(command.algorithm, command.params, {
-            ...options,
-            ...(command.scope === undefined ? {} : { scope: command.scope }),
-            ...(command.seed === undefined ? {} : { seed: command.seed }),
-            ...(command.sample === undefined ? {} : { sample: command.sample }),
-            ...(command.exact === undefined ? {} : { exact: command.exact }),
-            ...(command.as === undefined ? {} : { as: command.as }),
-        });
+        return this.startCommand((each, dispatched) => this.dispatcher.dispatch(each, dispatched), command, options);
     }
 
     /**
@@ -632,6 +643,28 @@ class Session implements ElementSession {
         this.ownedAcceleration?.dispose();
         this.ownedStore?.dispose();
     }
+}
+
+/** Each session's runs API with the parts only the element reaches; see {@link sessionRunsOf}. */
+const SESSION_RUNS = new WeakMap<GraphSession, SessionRunsApi>();
+
+/**
+ * The runs API behind a session, with `startVia`: how the renderer starts the on-load runs as
+ * deferred members of the command that added the rows. Not published.
+ * @param session - A session this module built.
+ * @returns Its runs API.
+ */
+export function sessionRunsOf(session: GraphSession): SessionRunsApi {
+    const runs = SESSION_RUNS.get(session);
+    if (runs === undefined) {
+        throw new GraphtyError({
+            code: "E_INTERNAL",
+            message: "This session was not built by createGraphSession, so it has no runs API of its own.",
+            source: "run",
+        });
+    }
+
+    return runs;
 }
 
 /** Each session's dispatcher, for the element's own tests; see {@link dispatcherOf}. */
@@ -1384,9 +1417,6 @@ function buildSession(options: CreateGraphSessionOptions, internals: SessionInte
     // Assigned below, and read only from inside a callback: a store this session built delivers
     // its freeze remaps here, and a freeze cannot happen before the store exists.
     let selection: SelectionOwner | null = null;
-    // The same shape, for the same reason: the style stack is built after the runs, and a run
-    // reaching its end is what tells it that a column it prepared a binding against has moved.
-    let forgetPreparedBindings: (() => void) | null = null;
 
     // The style stack, late-bound because the runs are built before it and the auto-apply policy
     // hands a run's derived layer to it. A thunk rather than a captured object for the reason the
@@ -1443,8 +1473,6 @@ function buildSession(options: CreateGraphSessionOptions, internals: SessionInte
         snapshot,
         components,
         dispatcher,
-        // Read through a call: the runs are built below, and a filter reads their results.
-        inputsRevision: () => runs.revision,
         resolveScope: (spec: Scope) => scope.resolveNow(spec),
         match: (where: Query) => requireQuery(query).nodes(where),
         matchEdges: (where: Query) => requireQuery(query).edges(where),
@@ -1459,6 +1487,8 @@ function buildSession(options: CreateGraphSessionOptions, internals: SessionInte
     const defaultScope: Scope = runsOptions.defaultScope ?? "visible";
     const runs = createRunsApi({
         queue,
+        // Finished runs are the `runs` slice, recorded in this session's history.
+        dispatcher,
         catalog: SESSION_CATALOG_TABLES,
         resolveScope: (spec: Scope) => scope.resolveNow(spec),
         execute: runsOptions.execute ?? refuseToExecute,
@@ -1472,13 +1502,12 @@ function buildSession(options: CreateGraphSessionOptions, internals: SessionInte
         // one API, and a decision made at the doors is a decision made more than once.
         styling: createAutoApplyPolicy({
             styles: () => stack ?? undefined,
-            // WHERE A REFUSAL GOES WHEN NOBODY IS AWAITING IT. The element paints a run's
-            // suggestion on the run's own completion, fire-and-forget, because a consumer must
-            // not have to await the picture in order to have started the work. That leaves a
-            // refusal with nowhere to arrive: not at a call site, because there was no call.
-            // Unwired, it was swallowed, and a graph kept the picture it already had while the
-            // element believed it had painted a new one -- which is the silent failure the whole
-            // style system exists to replace.
+            // WHERE A REFUSAL GOES WHEN NOBODY ASKED FOR THE LAYER. The element paints a run's
+            // suggestion in the step that records the run, which nobody called for layer by
+            // layer, so a refused suggestion has no call site to arrive at. The run is still
+            // recorded without it, and the refusal is published here rather than swallowed --
+            // a graph that kept its old picture while the element believed it had painted a new
+            // one is the silent failure the whole style system exists to replace.
             onProblem: (runId, error) => {
                 publish(watchers, "style:problem", {
                     runId,
@@ -1499,40 +1528,15 @@ function buildSession(options: CreateGraphSessionOptions, internals: SessionInte
         // A layer records the run it came from in its own `source`, so this is a read of the
         // stack rather than a second register that could disagree with it. Late-bound for the
         // same reason the policy above is: the stack is built from this API and cannot exist yet.
+        // A layer's removal with its run is planned into the removal's own step, through this
+        // dispatcher's style stack; only the question of which layers read a run is asked here.
         layers: {
             bindings: (runId) =>
                 (stack?.list() ?? [])
                     .filter((layer) => layer.source.by === "run" && layer.source.runId === runId)
                     .map((layer) => layer.id),
-            remove: (layerIds) => {
-                for (const layerId of layerIds) {
-                    // Fire and forget with the refusal reported, on the same terms as every other
-                    // style edit the element starts on a consumer's behalf: removing the run is
-                    // what was asked for, and it must not wait on the repaint that follows.
-                    void stack?.remove(layerId).then(
-                        () => undefined,
-                        (error: unknown) => {
-                            // Said out loud rather than swallowed. A run layer is never locked,
-                            // so a refusal here means something unexpected about the stack, and a
-                            // layer left behind reads a column whose run has gone.
-                            console.error(
-                                `[graphty] Could not remove style layer "${layerId}" with the run that produced it.`,
-                                error,
-                            );
-                        },
-                    );
-                }
-            },
         },
         onChange: (change) => {
-            if (change.phase === "end") {
-                // A run that has just published has replaced the column a style layer bound to
-                // it was prepared against, so what was prepared describes the numbers as they
-                // stood before the run finished. A re-run keeps its id and its layers, which is
-                // exactly the case where nothing else would notice.
-                forgetPreparedBindings?.();
-            }
-
             publish(watchers, "run:changed", change);
         },
     });
@@ -1596,7 +1600,6 @@ function buildSession(options: CreateGraphSessionOptions, internals: SessionInte
         }),
         snapshot,
     );
-    forgetPreparedBindings = painter.invalidate;
 
     const styles = createStylesApi({
         dispatcher,
@@ -1624,6 +1627,27 @@ function buildSession(options: CreateGraphSessionOptions, internals: SessionInte
     });
 
     stack = styles;
+
+    // The `runs` hook: a run whose entry changed -- recorded, re-run, undone, redone -- has
+    // replaced the columns under `results.<runId>`, which any layer may read (a run's own layers,
+    // and a reader's layer selecting on the run's values), so what was prepared is forgotten and
+    // every layer kept across the change is repainted. Layers added or removed with the run are
+    // the `styles` hook's, which runs after this one.
+    dispatcher.lane.register("runs", async (rendered, target, dirty) => {
+        if (![...dirty].some((id) => rendered.runs.get(id) !== target.runs.get(id))) {
+            return;
+        }
+
+        painter.invalidate();
+        const kept = new Set(rendered.styles);
+        // ponytail: repaints every kept layer, not only those reading the changed runs -- the
+        // cost the element paid before on every finished run; name the readers if it shows.
+        const edits = target.styles.filter((entry) => kept.has(entry)).map((entry) => ({ previous: entry, next: entry }));
+
+        if (edits.length > 0) {
+            await painter.repaint({ reason: "update", edits, stack: target.styles, fromIndex: 0 }, RUNS_PASS);
+        }
+    });
 
     const planning = planningContext(
         runsOptions,
@@ -1660,6 +1684,9 @@ function buildSession(options: CreateGraphSessionOptions, internals: SessionInte
         dispatcher,
     });
 }
+
+/** The context of the `runs` hook's repaint: nothing cancels it, and it reports nowhere. */
+const RUNS_PASS = Object.freeze({ signal: new AbortController().signal, report: () => undefined });
 
 /**
  * The selection, once the session has one.

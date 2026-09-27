@@ -37,7 +37,7 @@ import type { GraphtyError } from "../errors/GraphtyError";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
 import type { AlgorithmRunCommand, Plan, SessionCommand } from "./planning";
 import type { ResultsApi } from "./results";
-import type { Caveats, EngineVersions, Run, RunChange, RunExecutor, RunOptions, RunQueue, RunsApi } from "./runs";
+import type { Caveats, EngineVersions, Run, RunChange, RunExecutor, RunOptions, RunQueue, RunRemoval, RunsApi } from "./runs";
 import type { ScopeApi } from "./scope/index";
 import type { SelectionApi, SelectionDelta, SelectionOwner } from "./selection";
 import type { ElementPaint, SessionStylesApi, StyleChange, StylesApi } from "./styles";
@@ -727,6 +727,8 @@ export type TransactionScope = Omit<GraphSession, "undo" | "redo" | "history" | 
 export interface CommandOutcomeMap {
     /** The run's handle; awaiting it yields the result. */
     "algo.run": Run;
+    /** What went with the run, once the removal is recorded. */
+    "algo.remove": Promise<RunRemoval>;
     /** Settles once every member is recorded as one step and the pass that draws it has run. */
     batch: Promise<void>;
     /** Settles once the change is recorded and the pass that draws it has run. */

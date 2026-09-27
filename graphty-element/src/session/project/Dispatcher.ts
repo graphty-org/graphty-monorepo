@@ -28,6 +28,7 @@
 
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { OperationCategory } from "../../managers/OperationQueueManager";
+import type { RunService } from "../commands/algo";
 import type { DataService } from "../commands/data";
 import type { ScopeService } from "../commands/scope";
 import type { StyleService } from "../commands/style";
@@ -73,20 +74,56 @@ const RUN_CATEGORY: OperationCategory = "algorithm-run";
  */
 interface CommandServices {
     data?: DataService;
+    runs?: RunService;
     styles?: StyleService;
     visibility?: VisibilityService;
     scopes?: ScopeService;
     camera?: CameraService;
 }
 
+/** What the queue hands a queued command when its slot comes up. */
+interface SlotContext {
+    /** Where the queue's own progress events are written, when the queue publishes any. */
+    readonly progress?: {
+        setProgress(percent: number): void;
+        setMessage(message: string): void;
+        setPhase(phase: string): void;
+    };
+    /** The queue's id for the slot. */
+    readonly id?: string;
+}
+
+/** How one dispatch is made, beyond the command itself. */
+interface DispatchOptions {
+    /** Aborting it withdraws the command: off the queue if it waits, stopped if it runs. */
+    readonly signal?: AbortSignal;
+    /** A queued command that starts at once, beside the queue, instead of taking a slot. */
+    readonly beside?: boolean;
+}
+
+/** Dispatch one command, as a transaction's scope or a deferred member's origin does. */
+export type DispatchFunction = <C extends CommandLike>(command: Dispatchable<C>, options?: DispatchOptions) => Promise<unknown>;
+
 /** What an undoable command executes with: the state to read, and the draft that writes it. */
-interface UndoableContext {
+export interface UndoableContext {
     readonly state: ProjectState;
     readonly services: CommandServices;
     /** The group's draft. Read it when writing, after any await: it can change underneath. */
     readonly draft: Draft;
     /** Fires when the command is cancelled or made obsolete; a queued command stops on it. */
     readonly signal: AbortSignal;
+    /** What the queue handed the slot; empty for an immediate command or one started beside it. */
+    readonly slot: SlotContext;
+    /** Settles, never rejecting, once the command has finished and the pass drawing it has run. */
+    readonly done: Promise<void>;
+    /**
+     * Start work on behalf of this command once its group has been recorded, as deferred members
+     * of its step: each merges into the step while it is on top. Registered once per key and
+     * group, so a batch of two adding commands starts it once. Dropped when the group rolls back.
+     * Its arguments: what the work is, so a second registration of it is ignored, and what starts
+     * it through the dispatch it is handed.
+     */
+    readonly after: (key: string, start: (dispatch: DispatchFunction) => void) => void;
 }
 
 /** What an exempt command executes with. No draft, so it cannot write project state. */
@@ -168,7 +205,7 @@ type Dispatchable<C extends CommandLike = CommandLike> = C | ((state: ProjectSta
 
 /** The handle a transaction's callback dispatches through; what it dispatches joins the step. */
 export interface TransactionScope {
-    dispatch<C extends CommandLike>(command: Dispatchable<C>): Promise<unknown>;
+    dispatch<C extends CommandLike>(command: Dispatchable<C>, options?: DispatchOptions): Promise<unknown>;
     /** Nested transactions flatten into the outermost one: `fn` runs with this same scope. */
     transaction<T>(label: string, fn: TransactionBody<T>, options?: TransactionOptions): Promise<T>;
 }
@@ -228,12 +265,16 @@ export interface Scheduler {
      * @param onTurn - Called when the slot comes up.
      * @returns The slot.
      */
-    enqueue(category: OperationCategory, onTurn: () => Promise<void>): ScheduledSlot;
+    enqueue(category: OperationCategory, onTurn: (context?: SlotContext) => Promise<void>, description?: string): ScheduledSlot;
 }
 
 /** The part of the element's `OperationQueueManager` a scheduler needs. */
 interface OperationQueue {
-    queueOperation(category: OperationCategory, execute: () => Promise<void>): string;
+    queueOperation(
+        category: OperationCategory,
+        execute: (context: SlotContext) => Promise<void>,
+        options?: { description?: string },
+    ): string;
     getOperationController(operationId: string): AbortController | undefined;
     cancelOperation(operationId: string): boolean;
 }
@@ -247,8 +288,8 @@ interface OperationQueue {
  */
 export function queueScheduler(queue: OperationQueue): Scheduler {
     return {
-        enqueue(category, onTurn) {
-            const id = queue.queueOperation(category, onTurn);
+        enqueue(category, onTurn, description) {
+            const id = queue.queueOperation(category, onTurn, description === undefined ? undefined : { description });
             const controller = queue.getOperationController(id) ?? new AbortController();
 
             return {
@@ -263,7 +304,11 @@ export function queueScheduler(queue: OperationQueue): Scheduler {
 
 /** The part of a session's run queue a scheduler needs. */
 interface RunQueueLike {
-    queueOperation(category: "algorithm-run", execute: (context: { signal: AbortSignal }) => Promise<void> | void): string;
+    queueOperation(
+        category: "algorithm-run",
+        execute: (context: SlotContext & { readonly signal: AbortSignal }) => Promise<void> | void,
+        options?: { description?: string },
+    ): string;
     cancelOperation(operationId: string): boolean;
 }
 
@@ -275,9 +320,11 @@ interface RunQueueLike {
  */
 export function runQueueScheduler(queue: RunQueueLike): Scheduler {
     return {
-        enqueue(_category, onTurn) {
+        enqueue(_category, onTurn, description) {
             const controller = new AbortController();
-            const id = queue.queueOperation("algorithm-run", (context) => {
+            const id = queue.queueOperation(
+                "algorithm-run",
+                (context) => {
                 context.signal.addEventListener(
                     "abort",
                     () => {
@@ -285,8 +332,10 @@ export function runQueueScheduler(queue: RunQueueLike): Scheduler {
                     },
                     { once: true },
                 );
-                return onTurn();
-            });
+                return onTurn({ ...(context.progress === undefined ? {} : { progress: context.progress }), id: context.id });
+                },
+                description === undefined ? undefined : { description },
+            );
 
             return {
                 signal: controller.signal,
@@ -339,6 +388,18 @@ type HistoryOutcome =
 /** Why pending work stopped without committing. */
 type CancelReason = "undo" | "redo" | "cancel" | "obsolete" | "rollback";
 
+/** Where a cancellation's error carries its reason. */
+const CANCEL_REASON: unique symbol = Symbol("cancel reason");
+
+/**
+ * Why pending work was cancelled, read from the error its signal was aborted with.
+ * @param error - The abort reason.
+ * @returns The reason, or undefined when the error is not a cancellation of the dispatcher's.
+ */
+export function cancelReasonOf(error: unknown): CancelReason | undefined {
+    return (error as { readonly [CANCEL_REASON]?: CancelReason } | null)?.[CANCEL_REASON];
+}
+
 interface DispatcherOptions {
     // Each definition's `execute` is checked against its own command type where it is written
     // (method parameters are bivariant), and the dispatcher only hands a definition its own op.
@@ -379,6 +440,8 @@ interface Job {
     blockedBy: Group | null;
     /** A transaction member's revert of its own writes. */
     revert: (() => readonly Slice[]) | null;
+    /** What the queue handed its slot. */
+    slotContext: SlotContext;
     readonly promise: Promise<unknown>;
     resolve(value: unknown): void;
     reject(error: unknown): void;
@@ -413,6 +476,14 @@ interface Group {
     readonly setup: boolean;
     /** A batch's transaction, which a command needing its keys waits for. */
     readonly compound: boolean;
+    /** Work to start once it is recorded, by key; see `UndoableContext.after`. */
+    readonly onSeal: Map<string, (dispatch: DispatchFunction) => void>;
+}
+
+/** The step a deferred member's work belongs to, and whether its origin was declared at construction. */
+interface DeferredOrigin {
+    readonly step: string | null;
+    readonly setup: boolean;
 }
 
 /** When a step was recorded and undone, and the op-log keys its group held. */
@@ -506,7 +577,9 @@ function abortError(label: string): DOMException {
  * @returns An `AbortError` naming the reason.
  */
 function cancelledError(label: string, reason: CancelReason): DOMException {
-    return new DOMException(`"${label}" was cancelled (${reason}).`, "AbortError");
+    return Object.assign(new DOMException(`"${label}" was cancelled (${reason}).`, "AbortError"), {
+        [CANCEL_REASON]: reason,
+    });
 }
 
 /**
@@ -705,11 +778,12 @@ export class Dispatcher {
      * Dispatch one command as its own step. An immediate command executes before this returns; a
      * queued one when its turn comes.
      * @param command - The command, or a function from state to one.
+     * @param options - Its signal, and whether a queued command starts beside the queue.
      * @returns What `execute` returned; rejects with what it threw, after reverting its writes,
      * or with an `AbortError` when it was cancelled.
      */
-    dispatch<C extends CommandLike>(command: Dispatchable<C>): Promise<unknown> {
-        return settle(() => this.submit(command, null));
+    dispatch<C extends CommandLike>(command: Dispatchable<C>, options: DispatchOptions = {}): Promise<unknown> {
+        return settle(() => this.submit(command, null, options));
     }
 
     /**
@@ -1117,10 +1191,10 @@ export class Dispatcher {
         };
 
         const tx: TransactionScope = {
-            dispatch: (command) =>
+            dispatch: (command, options) =>
                 settle(() => {
                     refused();
-                    return this.submit(command, group);
+                    return this.submit(command, group, options);
                 }),
             transaction: <T>(_label: string, fn: TransactionBody<T>) =>
                 settle(() => {
@@ -1136,9 +1210,16 @@ export class Dispatcher {
      * Resolve and freeze one command and send it down its lane, in its own group or in `tx`'s.
      * @param command - The command, or a function from state to one.
      * @param tx - The transaction it joins, or null for a group of its own.
+     * @param options - Its signal, and whether a queued command starts beside the queue.
+     * @param origin - For a deferred member, the step it belongs to.
      * @returns What an exempt command returned, or the undoable command's promise.
      */
-    private submit(command: Dispatchable, tx: Group | null): unknown {
+    private submit(
+        command: Dispatchable,
+        tx: Group | null,
+        options: DispatchOptions = {},
+        origin: DeferredOrigin | null = null,
+    ): unknown {
         const { state } = this.store;
         const raw = typeof command === "function" ? command(state) : command;
         const definition = this.definitions.get(raw.op);
@@ -1194,32 +1275,53 @@ export class Dispatcher {
             tx ??
             this.group(
                 undoable.undo.label(concrete, state),
-                undoable.undo.coalesce?.(concrete) ?? null,
+                origin === null ? (undoable.undo.coalesce?.(concrete) ?? null) : null,
                 {},
-                null,
+                origin?.step ?? null,
                 this.tick,
                 null,
-                isSetup(concrete),
+                isSetup(concrete) || origin?.setup === true,
             );
         const job = this.job(concrete, keys, undoable, group, queuedKey);
         for (const key of keys) {
             group.keys.add(key);
         }
 
-        if (lane.kind === "queued") {
-            job.slot = this.scheduler.enqueue(lane.category, () => this.turn(job));
+        options.signal?.addEventListener(
+            "abort",
+            () => {
+                this.obsolete(job, "cancel");
+            },
+            { once: true },
+        );
+        if (lane.kind === "queued" && options.beside === true) {
+            // Beside the queue: pending from now, and started at once rather than given a slot.
+            job.status = "queued";
+            group.jobs.add(job);
+            this.enter(group);
+            this.admit(job);
+        } else if (lane.kind === "queued") {
+            job.slot = this.scheduler.enqueue(
+                lane.category,
+                (context) => this.turn(job, context),
+                undoable.undo.label(concrete, state),
+            );
             job.status = "queued";
             group.jobs.add(job);
             this.enter(group);
             job.slot.signal.addEventListener(
                 "abort",
                 () => {
-                    this.obsolete(job);
+                    this.obsolete(job, "obsolete");
                 },
                 { once: true },
             );
         } else {
             this.admit(job);
+        }
+
+        if (options.signal?.aborted === true) {
+            this.obsolete(job, "cancel");
         }
 
         return job.promise;
@@ -1270,13 +1372,15 @@ export class Dispatcher {
     /**
      * A queued job's turn has come: start it, or put it on the wait list off the queue.
      * @param job - The job.
+     * @param context - What the queue handed the slot.
      * @returns Settles when the slot can be given up.
      */
-    private turn(job: Job): Promise<void> {
+    private turn(job: Job, context: SlotContext = {}): Promise<void> {
         if (job.status !== "queued") {
             return Promise.resolve();
         }
 
+        job.slotContext = context;
         // Waiting on a key, the job gives the slot up; it runs off the queue when the key frees.
         return this.admit(job) === "waiting"
             ? Promise.resolve()
@@ -1330,8 +1434,10 @@ export class Dispatcher {
                 group.view = undefined;
                 this.changed();
             }
-        } else if (group.tx !== null) {
-            // A failing member reverts only its own writes; the transaction goes on.
+        } else if (group.tx !== null && !job.run) {
+            // A failing member reverts only its own writes; the transaction goes on. A run writes
+            // only in its synchronous commit tail, which reverts itself, so a long run in a batch
+            // never takes back what the members beside it wrote meanwhile.
             job.revert = group.draft.checkpoint();
         }
 
@@ -1339,12 +1445,22 @@ export class Dispatcher {
             state,
             services: this.services,
             signal: job.controller.signal,
+            slot: job.slotContext,
+            done: job.promise.then(
+                () => undefined,
+                () => undefined,
+            ),
             get draft() {
                 if (job.status !== "running") {
                     throw cancelledError(job.group.label, "cancel");
                 }
 
                 return job.group.draft;
+            },
+            after: (key, start) => {
+                if (!job.group.onSeal.has(key)) {
+                    job.group.onSeal.set(key, start);
+                }
             },
         };
         let out: unknown;
@@ -1425,16 +1541,18 @@ export class Dispatcher {
     }
 
     /**
-     * The queue dropped or stopped a job's slot: a cancellation with reason "obsolete". The job's
-     * group rolls back, or for a transaction member only the member's own writes.
+     * The queue dropped or stopped a job's slot (reason "obsolete"), or its dispatcher withdrew
+     * it (reason "cancel"). The job's group rolls back, or for a transaction member only the
+     * member's own writes.
      * @param job - The job.
+     * @param reason - Why.
      */
-    private obsolete(job: Job): void {
-        if (job.status !== "queued" && job.status !== "running") {
+    private obsolete(job: Job, reason: CancelReason): void {
+        if (job.status !== "queued" && job.status !== "running" && job.status !== "waiting") {
             return;
         }
 
-        const error = cancelledError(job.group.label, "obsolete");
+        const error = cancelledError(job.group.label, reason);
         if (job.group.tx === null) {
             this.cancelGroup(job.group, error);
             return;
@@ -1504,6 +1622,7 @@ export class Dispatcher {
             const change = { slices: slicesOf(patch), cause: "command" as const };
             this.emit(change, [change]);
             this.release(group, true);
+            this.startDeferred(group, null);
             return null;
         }
 
@@ -1541,7 +1660,22 @@ export class Dispatcher {
         }
 
         this.release(group, true);
+        this.startDeferred(group, id);
         return id;
+    }
+
+    /**
+     * Start the work a sealed group registered with `after`, as deferred members of its step.
+     * @param group - The group, sealed.
+     * @param step - The step it recorded, or null when it recorded none.
+     */
+    private startDeferred(group: Group, step: string | null): void {
+        const origin: DeferredOrigin = { step, setup: group.setup };
+        const starts = [...group.onSeal.values()];
+        group.onSeal.clear();
+        for (const start of starts) {
+            start((command, options) => settle(() => this.submit(command, null, options, origin)));
+        }
     }
 
     /**
@@ -1864,6 +1998,7 @@ export class Dispatcher {
             view: undefined,
             setup,
             compound,
+            onSeal: new Map(),
         };
     }
 
@@ -1905,6 +2040,7 @@ export class Dispatcher {
             slot: null,
             blockedBy: null,
             revert: null,
+            slotContext: {},
             promise,
             // The caller hears last, after the pass and the events it publishes.
             resolve: (value) => {

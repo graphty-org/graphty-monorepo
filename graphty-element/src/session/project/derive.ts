@@ -98,6 +98,8 @@ export class DerivationLane {
     private restoreCause: "undo" | "redo" | "restore" | "rollback" = "restore";
     /** Moves on every restore, so a pass clears the flag only for restores made before it began. */
     private restores = 0;
+    /** What the running pass, or the last one, catches up with. */
+    private passCauseValue: "command" | "undo" | "redo" | "restore" | "rollback" = "command";
 
     /**
      * Create a lane over live state. The picture is taken to show that state already.
@@ -193,6 +195,15 @@ export class DerivationLane {
     }
 
     /**
+     * What the pass running now catches up with, for the whole of the pass: `cause` turns back to
+     * `"command"` once the `arrangement` hook has run, which hooks after it still need to know.
+     * @returns The cause the pass started with.
+     */
+    get passCause(): "command" | "undo" | "redo" | "restore" | "rollback" {
+        return this.passCauseValue;
+    }
+
+    /**
      * Set the restoring flag until the next pass has run its `arrangement` hook.
      * @param cause - What is restoring: an undo, a redo, a restore or a rollback.
      */
@@ -239,6 +250,7 @@ export class DerivationLane {
             const { dirty } = this;
             this.dirty = new Map();
             const { restores } = this;
+            this.passCauseValue = this.cause;
             const target = snapshot(this.state);
 
             for (const slice of HOOK_ORDER) {

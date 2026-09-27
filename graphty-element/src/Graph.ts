@@ -105,13 +105,14 @@ import { readProjectConfig } from "./session/commands/config";
 import type { DataMutation } from "./session/commands/data";
 import type { BatchCommand } from "./session/commands/index";
 import { assertViewName } from "./session/commands/view";
-import { dispatcherOf } from "./session/GraphSession";
-import { queueScheduler } from "./session/project/Dispatcher";
+import { dispatcherOf, sessionRunsOf } from "./session/GraphSession";
+import { type DispatchFunction, queueScheduler } from "./session/project/Dispatcher";
 import { deepFreeze } from "./session/project/draft";
 import { EDGES_ADDED, NODES_ADDED } from "./session/project/graphOps";
 import type { Run, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionTarget, SetOp } from "./session/selection";
 import type { StyleSuggestion } from "./session/styles";
+import { suggestionCommand } from "./session/styles/autoApply";
 import type { ProjectConfig, ProjectConfigPatch } from "./session/types";
 
 /** The namespace every algorithm this package ships is registered under. */
@@ -219,9 +220,6 @@ export class Graph implements GraphContext {
      * trigger brings.
      */
     #queuedAdds = 0;
-
-    /** The on-load algorithms have been asked for in this turn, and will start at its end. */
-    #onLoadRunsDue = false;
 
     // Managers
     /** Event manager for adding/removing event listeners */
@@ -374,19 +372,16 @@ export class Graph implements GraphContext {
 
         // Every data door dispatches through the session from here on, and the session's
         // `data.apply` and `data.import` are carried out by the data manager's ingest. A command
-        // that adds rows starts the on-load algorithms once -- a batch of an add of nodes and one
-        // of edges too, since both land in one turn -- and undo and redo never do. While an import
-        // reads, the pass after each chunk builds what arrived but does not paint; one more pass,
-        // once the last chunk is in, paints the whole graph before the import's promise settles.
+        // that adds rows starts the on-load algorithms once its step is recorded, as deferred
+        // members of that step -- once for a batch of an add of nodes and one of edges too -- and
+        // undo and redo never start them. While an import reads, the pass after each chunk builds
+        // what arrived but does not paint; one more pass, once the last chunk is in, paints the
+        // whole graph before the import's promise settles.
         this.dataManager.bindSession(dispatcherOf(this.session), {
-            rowsAdded: () => {
-                if (!this.#onLoadRunsDue) {
-                    this.#onLoadRunsDue = true;
-                    queueMicrotask(() => {
-                        this.#onLoadRunsDue = false;
-                        this.startOnLoadRuns();
-                    });
-                }
+            rowsAdded: (after) => {
+                after?.("on-load", (dispatch) => {
+                    this.startOnLoadRuns(dispatch);
+                });
             },
             loading: (active) => {
                 this.#queuedAdds += active ? 1 : -1;
@@ -535,33 +530,9 @@ export class Graph implements GraphContext {
             description: "Repaint from the session style stack after data remove",
         }));
 
-        // Bring the paint up to date once a run has finished and its measurements exist. A layer
-        // bound to `results.<runId>.<field>` reads a column the run has only just written, so the
-        // run finishing is what the repaint hangs off -- and it hangs off it HERE, in the element's
-        // own wiring, rather than being forced by the run executor at the end of every algorithm.
-        //
-        // OFF THE RUN, NOT OFF THE QUEUE CATEGORY, and the difference is a whole-graph pass per
-        // edit. More than one feature queues work as "algorithm-run" -- algorithm runs today,
-        // visibility changes too -- so a trigger on the category fired for every mask edit as
-        // well, each of which had ALREADY repainted exactly the elements it touched, and put a
-        // full pass over the graph on top of it. That is precisely the cost the dirty set exists
-        // to avoid, paid on the commonest operation there is. The session announces a run
-        // reaching its end, which is the fact this actually depends on, so it hangs off that
-        // instead.
-        this.session.on("run:changed", (change) => {
-            if (change.phase !== "end") {
-                return;
-            }
-
-            void this.repaintFromSession().catch((error: unknown) => {
-                this.eventManager.emitGraphError(
-                    this,
-                    error instanceof Error ? error : new Error(String(error)),
-                    "other",
-                    { component: "Graph.repaintAfterRun" },
-                );
-            });
-        });
+        // A run's measurements reach the paint through the session's `runs` hook, in the pass
+        // that records the run: a layer bound to `results.<runId>.<field>` is repainted there,
+        // forward and on undo and redo, so nothing here repaints after a run.
 
         // Register layout-update trigger to handle positioning nodes when data is added
         this.operationQueue.registerTrigger("data-add", () => ({
@@ -832,13 +803,17 @@ export class Graph implements GraphContext {
 
         const errors: Error[] = [];
 
-        for (const entry of algorithms) {
-            try {
-                await this.runOnLoad(entry);
-            } catch (error) {
-                errors.push(error instanceof Error ? error : new Error(String(error)));
+        // One step: every run the template starts is recorded in it, and a run that fails leaves
+        // the others recorded.
+        await dispatcherOf(this.session).transaction("Ran the template's algorithms", async (tx) => {
+            for (const entry of algorithms) {
+                try {
+                    await this.runOnLoad(entry, (command, options) => tx.dispatch(command, options));
+                } catch (error) {
+                    errors.push(error instanceof Error ? error : new Error(String(error)));
+                }
             }
-        }
+        });
 
         if (errors.length > 0) {
             const summaryError = new Error(
@@ -862,24 +837,36 @@ export class Graph implements GraphContext {
      * The entry's run options ride along either way, with no per-algorithm branch.
      * @param entry - An algorithm, or an algorithm with its run options.
      */
-    /** Run the on-load algorithms, when `runAlgorithmsOnLoad` is set. Each is queued, not awaited. */
-    private startOnLoadRuns(): void {
+    /**
+     * Run the on-load algorithms, when `runAlgorithmsOnLoad` is set. Each is queued, not awaited.
+     * @param dispatch - Where their commands go: the deferred members of the command that added
+     *     the rows, so they merge into its step.
+     */
+    private startOnLoadRuns(dispatch: DispatchFunction): void {
         const { algorithms } = this.styles.config.data;
         if (this.runAlgorithmsOnLoad && algorithms && algorithms.length > 0) {
             for (const entry of algorithms) {
-                void this.runOnLoad(entry).catch((error: unknown) => {
-                    console.error(`[Graph] Error running algorithm ${JSON.stringify(entry)}:`, error);
+                void this.runOnLoad(entry, dispatch).catch((error: unknown) => {
+                    // Cancelled -- by an undo, the queue, or the reader -- is not a failure.
+                    if (!(error instanceof Error && error.name === "AbortError")) {
+                        console.error(`[Graph] Error running algorithm ${JSON.stringify(entry)}:`, error);
+                    }
                 });
             }
         }
     }
 
-    private async runOnLoad(entry: AlgorithmOnLoad): Promise<void> {
+    /**
+     * Run one entry of the load-time algorithm list.
+     * @param entry - An algorithm, or an algorithm with its run options.
+     * @param dispatch - Where a catalogue run's command goes.
+     */
+    private async runOnLoad(entry: AlgorithmOnLoad, dispatch: DispatchFunction): Promise<void> {
         const { algorithm, params, ...start } = typeof entry === "string" ? { algorithm: entry } : entry;
         const separator = algorithm.indexOf(":");
 
         if (separator === -1) {
-            await this.session.runs.start(algorithm, params, start);
+            await sessionRunsOf(this.session).startVia(dispatch, algorithm, params, start);
 
             return;
         }
@@ -889,6 +876,7 @@ export class Graph implements GraphContext {
             algorithm.slice(separator + 1).trim(),
             params === undefined ? undefined : { algorithmOptions: params },
             start,
+            dispatch,
         );
     }
 
@@ -1709,17 +1697,19 @@ export class Graph implements GraphContext {
      * @param options - Algorithm options and queue settings.
      * @param start - Run options for a catalogue run, such as `style`; a plugin without a
      *     descriptor has no run to give them to.
+     * @param dispatch - Where a catalogue run's command goes; the session's own by default.
      */
     private async runLegacyAddress(
         namespace: string,
         type: string,
         options?: RunAlgorithmOptions,
         start?: StartOptions,
+        dispatch?: DispatchFunction,
     ): Promise<void> {
         const mapping = namespace === BUILT_IN_ALGORITHM_NAMESPACE ? algorithmByLegacyKey(type) : undefined;
 
         if (mapping !== undefined) {
-            await this.runLegacyAsRun(mapping, namespace, type, options, start);
+            await this.runLegacyAsRun(mapping, namespace, type, options, start, dispatch);
 
             return;
         }
@@ -1738,6 +1728,7 @@ export class Graph implements GraphContext {
                 type,
                 options,
                 start,
+                dispatch,
             );
 
             return;
@@ -1826,8 +1817,10 @@ export class Graph implements GraphContext {
      * @param mapping - The catalogue key to start, and the parameters it needs.
      * @param namespace - The 1.10 namespace, for the error event and the suggested styles.
      * @param type - The 1.10 type, for the same two.
-     * @param options - What the caller passed.
+     * @param options - What the caller passed. `applySuggestedStyles` is carried out in the run's
+     *     own step, so one undo takes the run and those layers away together.
      * @param start - Run options to start it with, such as `style`.
+     * @param dispatch - Where the run's command goes; the session's own by default.
      */
     private async runLegacyAsRun(
         mapping: RunnableAlgorithm,
@@ -1835,12 +1828,19 @@ export class Graph implements GraphContext {
         type: string,
         options?: RunAlgorithmOptions,
         start?: StartOptions,
+        dispatch?: DispatchFunction,
     ): Promise<void> {
         try {
-            const run = this.session.runs.start(
+            const runs = sessionRunsOf(this.session);
+            const run = runs.startVia(
+                dispatch ?? ((command, dispatched) => dispatcherOf(this.session).dispatch(command, dispatched)),
                 mapping.descriptor.key,
                 { ...mapping.params, ...options?.algorithmOptions },
-                { ...start, queue: options?.skipQueue === true ? "now" : "append" },
+                {
+                    ...start,
+                    queue: options?.skipQueue === true ? "now" : "append",
+                    ...(options?.applySuggestedStyles === true ? { applySuggestedStyles: true } : {}),
+                },
             );
 
             // Inside `batchOperations`, the queue holds everything until the batch closes -- which
@@ -1861,10 +1861,6 @@ export class Graph implements GraphContext {
             });
 
             throw algorithmError;
-        }
-
-        if (options?.applySuggestedStyles) {
-            this.applySuggestedStyles(`${namespace}:${type}`);
         }
     }
 
@@ -1901,33 +1897,38 @@ export class Graph implements GraphContext {
         const keys = Array.isArray(algorithmKey) ? algorithmKey : [algorithmKey];
         /** The runs painted, in the order the caller named their algorithms. */
         const painted: string[] = [];
+        const report = (error: unknown): void => {
+            this.#reportStyleError(error, { algorithm: keys.join(","), component: "Graph.applySuggestedStyles" });
+        };
 
-        for (const key of keys) {
-            for (const suggestion of this.getSuggestedStyles(key)) {
-                const edit =
-                    suggestion.as === "highlight"
-                        ? this.session.styles.highlight(suggestion.spec)
-                        : this.session.styles.encode(suggestion.spec);
-
-                // Fire and forget with the refusal reported, for the reason the auto-apply policy
-                // gives: a caller must not have to await the picture in order to have started the
-                // work. A refusal that reached nobody is what this whole system replaces, so it is
-                // announced rather than swallowed.
-                edit.then(undefined, (error: unknown) => {
-                    this.#reportStyleError(error, { algorithm: key, component: "Graph.applySuggestedStyles" });
-                });
-                const { run } = suggestion.spec;
-                if (typeof run === "string") {
-                    painted.push(run);
-                } else {
-                    painted.push("runId" in run ? run.runId : run.id);
+        // One step: every layer this call applies, and every move putting them in order. The
+        // transaction's body is synchronous and each style command writes as it is dispatched,
+        // so what it applied is known before this returns.
+        dispatcherOf(this.session)
+            .transaction("Applied suggested styles", (tx) => {
+                for (const key of keys) {
+                    for (const suggestion of this.getSuggestedStyles(key)) {
+                        // Fire and forget with the refusal reported, for the reason the auto-apply
+                        // policy gives: a caller must not have to await the picture in order to
+                        // have started the work, and a refusal that reached nobody is what this
+                        // whole system replaces.
+                        tx.dispatch(suggestionCommand(suggestion)).then(undefined, report);
+                        const { run } = suggestion.spec;
+                        if (typeof run === "string") {
+                            painted.push(run);
+                        } else {
+                            painted.push("runId" in run ? run.runId : run.id);
+                        }
+                    }
                 }
-            }
-        }
 
-        if (painted.length > 0) {
-            this.#stackSuggestionsInOrder(painted);
-        }
+                if (painted.length > 0) {
+                    this.#stackSuggestionsInOrder(painted, (id) => {
+                        tx.dispatch({ op: "style.patch", action: "move", id, before: null }).then(undefined, report);
+                    });
+                }
+            })
+            .then(undefined, report);
 
         return painted.length > 0;
     }
@@ -1939,8 +1940,9 @@ export class Graph implements GraphContext {
      * the layers are ordered at once. A call whose layers are ALREADY the top of the stack in the
      * right order costs nothing, which is the common case: a first application appends.
      * @param runs - The runs painted, in the order the caller named their algorithms.
+     * @param move - Moves one layer to the top of the stack, in the call's step.
      */
-    #stackSuggestionsInOrder(runs: readonly string[]): void {
+    #stackSuggestionsInOrder(runs: readonly string[], move: (id: string) => void): void {
         const current = this.session.styles.list();
         const wanted = [...new Set(runs)].flatMap((runId) =>
             current
@@ -1959,9 +1961,7 @@ export class Graph implements GraphContext {
         }
 
         for (const id of wanted) {
-            this.session.styles.move(id, null).then(undefined, (error: unknown) => {
-                this.#reportStyleError(error, { component: "Graph.applySuggestedStyles" });
-            });
+            move(id);
         }
     }
 

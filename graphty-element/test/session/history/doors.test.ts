@@ -50,9 +50,11 @@ const SESSION_ROOTS: Readonly<Record<string, (session: ElementSession) => object
     SessionDataApi: (session) => session.data,
     SessionGraphStore: (session) => session.data.store,
     RunsApi: (session) => session.runs,
+    // Cancelled, so `rerun` has something to run again.
     Run: (session) => {
         const run = session.runs.start("degree");
         run.then(undefined, () => undefined);
+        run.cancel();
         return run;
     },
     ScopeApi: (session) => {

@@ -29,8 +29,20 @@ import type {
     Scope,
 } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
+import { ALGO_DEFINITIONS, type AlgoRemoveCommand, type RunService } from "../commands/algo";
+import type { AlgorithmRunCommand } from "../planning";
+import {
+    cancelReasonOf,
+    Dispatcher,
+    type DispatchFunction,
+    runQueueScheduler,
+    type UndoableContext,
+} from "../project/Dispatcher";
+import type { Draft } from "../project/draft";
+import type { RunEntry } from "../project/state";
 import type { RunResult } from "../results/types";
-import type { AutoApplyPolicy } from "../styles/autoApply";
+import { type AutoApplyPolicy, type PaintHold, suggestionCommand } from "../styles/autoApply";
+import type { StyleSuggestion } from "../styles/derive";
 import {
     ManagedRun,
     type RunBody,
@@ -141,10 +153,11 @@ interface RunLayerBindings {
      */
     bindings(runId: RunId): readonly LayerId[];
     /**
-     * Remove layers, because the run they read is going away.
+     * Remove layers, because the run they read is going away. Used only by a runs API whose
+     * dispatcher has no style stack registered; a session removes them in the removal's own step.
      * @param layerIds - The layers to remove.
      */
-    remove(layerIds: readonly LayerId[]): void;
+    remove?(layerIds: readonly LayerId[]): void;
 }
 
 /** Everything the runs API is built from. */
@@ -188,15 +201,15 @@ export interface RunsApiOptions {
      * @param change - The run's record, and which moment it reached.
      */
     readonly onChange?: (change: RunChange) => void;
+    /**
+     * The dispatcher whose `runs` slice holds the finished runs and whose history records them.
+     * A session hands in its own; absent, the runs API keeps a private one over its queue.
+     */
+    readonly dispatcher?: Dispatcher;
 }
 
 /** The runs API, plus the things a session needs and a consumer never calls. */
 export interface SessionRunsApi extends RunsApi {
-    /**
-     * Moves whenever a run is removed or publishes a result: what a reader of `results.*` keys a
-     * cache on (a visibility mask copy).
-     */
-    readonly revision: number;
     /**
      * Whether the element minted this run's id rather than the author naming it with `as:`.
      *
@@ -208,6 +221,21 @@ export interface SessionRunsApi extends RunsApi {
      * @returns True when the element derived the id.
      */
     isDerivedId(id: RunId): boolean;
+    /**
+     * Start one algorithm through a dispatch of the caller's: a transaction's, so the run joins
+     * its step, or the one a command hands its deferred members.
+     * @param dispatch - Where the run's command is dispatched.
+     * @param algorithm - Which algorithm to run.
+     * @param params - Its parameters.
+     * @param options - The scope, the seed, the id and the rest.
+     * @returns The run.
+     */
+    startVia(
+        dispatch: DispatchFunction,
+        algorithm: AlgorithmKey,
+        params?: Readonly<Record<string, unknown>>,
+        options?: StartOptions,
+    ): Run;
     /** Cancel everything still running and forget every run this session held. */
     dispose(): void;
 }
@@ -372,6 +400,64 @@ function checkOptionValue(algorithm: AlgorithmKey, option: OptionDescriptor, val
 // The runs API
 // ---------------------------------------------------------------------------------------------
 
+/** How the next execution of a run is dispatched. */
+interface Launch {
+    /** Where its command goes: the session's dispatcher, a transaction's scope, or a command's deferred members. */
+    readonly via: DispatchFunction;
+    /** Its command. */
+    readonly command: AlgorithmRunCommand;
+    /** Started beside the queue rather than in it: the "now" policy. */
+    readonly beside: boolean;
+}
+
+/**
+ * The command that starts one run: only what the caller said, so a recorded command reads the
+ * way it was asked for.
+ * @param algorithm - Which algorithm.
+ * @param params - Its parameters, when there are any.
+ * @param options - The scope, the seed, the sample, the exactness, the id and whether to apply
+ *     the suggested layers.
+ * @returns The command.
+ */
+function runCommand(
+    algorithm: AlgorithmKey,
+    params: Readonly<Record<string, unknown>> | undefined,
+    options: StartOptions,
+): AlgorithmRunCommand {
+    return {
+        op: "algo.run",
+        algorithm,
+        ...(params === undefined || Object.keys(params).length === 0 ? {} : { params }),
+        ...(options.scope === undefined ? {} : { scope: options.scope }),
+        ...(options.seed === undefined ? {} : { seed: options.seed }),
+        ...(options.sample === undefined ? {} : { sample: options.sample }),
+        ...(options.exact === undefined ? {} : { exact: options.exact }),
+        ...(options.as === undefined ? {} : { as: options.as }),
+        ...(options.applySuggestedStyles === true ? { applySuggestedStyles: true } : {}),
+    };
+}
+
+/**
+ * A run's command without the one-off request to apply its suggested layers, which a re-run does
+ * not repeat.
+ * @param command - The command.
+ * @returns The command a re-run dispatches.
+ */
+function withoutSuggested(command: AlgorithmRunCommand): AlgorithmRunCommand {
+    const { applySuggestedStyles, ...rest } = command;
+
+    return applySuggestedStyles === undefined ? command : rest;
+}
+
+/** What a run is and what it answers to, worked out from what the caller asked for. */
+interface ResolvedRun {
+    readonly descriptor: AlgorithmDescriptor;
+    readonly identity: RunIdentity;
+    readonly spec: Scope;
+    readonly id: RunId;
+    readonly derived: boolean;
+}
+
 /** Starting runs, finding them, and taking them away. */
 class Runs implements SessionRunsApi {
     private readonly options: RunsApiOptions;
@@ -380,7 +466,10 @@ class Runs implements SessionRunsApi {
 
     private readonly defaultCaveats: Caveats;
 
-    /** Every algorithm run this session holds, in the order they were started. */
+    /**
+     * One handle per run id, for the life of the session: history swaps a run's entry in the
+     * `runs` slice, never its handle, so a handle held before an undo is the one a redo reports.
+     */
     private readonly runs = new Map<RunId, ManagedRun>();
 
     /** What each run IS, so that reusing an id for different work is caught rather than silent. */
@@ -389,13 +478,35 @@ class Runs implements SessionRunsApi {
     /** The ids the element minted, which are the ones a saved document may not reference. */
     private readonly derivedIds = new Set<RunId>();
 
+    /** The command each run was started with, which a re-run dispatches again. */
+    private readonly commands = new Map<RunId, AlgorithmRunCommand>();
+
+    /** How each run's next execution is dispatched, set just before it starts. */
+    private readonly launches = new Map<RunId, Launch>();
+
+    /** The work of each execution dispatched and waiting for its command to run it. */
+    private readonly bodies = new Map<RunId, RunBody>();
+
+    /** The batch each member's painting is held for. */
+    private readonly holds = new Map<RunId, PaintHold>();
+
+    /**
+     * Runs that are not listed although their handle lives on: removed while still going, or
+     * cancelled by an undo before they were recorded. Listed again once a run of theirs starts,
+     * or a redo brings their entry back.
+     */
+    private readonly dropped = new Set<RunId>();
+
     /** The batches, which are not algorithm runs and therefore not in `list()`. */
     private readonly batches = new Set<ManagedRun<BatchResult>>();
 
-    private disposed = false;
+    /** Where runs are dispatched and recorded. */
+    private readonly dispatcher: Dispatcher;
 
-    /** See {@link SessionRunsApi.revision}. */
-    private revisionValue = 0;
+    /** Set while a command dispatched as data makes its own handle inside the slot it holds. */
+    private adopting = false;
+
+    private disposed = false;
 
     /**
      * Build the runs API.
@@ -406,6 +517,33 @@ class Runs implements SessionRunsApi {
         this.options = options;
         this.defaultScope = options.defaultScope ?? "visible";
         this.defaultCaveats = options.defaultCaveats ?? DEFAULT_CAVEATS;
+        this.dispatcher =
+            options.dispatcher ??
+            new Dispatcher({ definitions: ALGO_DEFINITIONS, scheduler: runQueueScheduler(options.queue) });
+        this.dispatcher.services.runs = this.service();
+        // Undo, redo and restore take a finished run out of the project or put it back without
+        // running anything: the run's watchers are told so, with the cause.
+        this.dispatcher.lane.register("runs", (rendered, target, dirty) => {
+            const cause = this.dispatcher.lane.passCause;
+
+            for (const id of dirty) {
+                const was = rendered.runs.get(id);
+                const now = target.runs.get(id);
+                const run = this.runs.get(id);
+
+                if (was === now || run === undefined) {
+                    continue;
+                }
+
+                if (now !== undefined) {
+                    this.dropped.delete(id);
+                }
+
+                if (cause !== "command") {
+                    this.announce(run, now === undefined ? "removed" : "restored", cause);
+                }
+            }
+        });
     }
 
     // -- starting -----------------------------------------------------------------------------
@@ -418,39 +556,24 @@ class Runs implements SessionRunsApi {
      * @returns The run, awaitable and watchable straight away.
      */
     start(algorithm: AlgorithmKey, params?: Readonly<Record<string, unknown>>, options: StartOptions = {}): Run {
-        this.refuseWhenDisposed();
+        return this.startVia(this.dispatch, algorithm, params, options);
+    }
 
-        if (options.dryRun === true) {
-            throw new GraphtyError({
-                code: "E_UNSUPPORTED",
-                message: "runs.start does not answer dry runs. Ask session.plan for what a run would do and cost.",
-                source: "run",
-                details: { algorithm, reason: "dry-run" },
-            });
-        }
-
-        const descriptor = this.descriptorFor(algorithm);
-        this.checkParams(descriptor, params);
-
-        const spec = options.scope ?? this.defaultScope;
-        const identity: RunIdentity = {
-            algorithm: descriptor.key,
-            params: canonicalizeParams(params, descriptor.options),
-            scope: spec,
-            seed: options.seed ?? null,
-            sample: options.sample ?? null,
-            exact: options.exact ?? null,
-        };
-        const assignedId = options.as;
-        const derived = assignedId === undefined;
-        const id = assignedId === undefined ? deriveRunId(identity) : assertRunId(assignedId);
-        const existing = this.runs.get(id);
-
-        if (existing !== undefined) {
-            return this.reuse(existing, identity);
-        }
-
-        return this.create(id, identity, descriptor, spec, options, derived);
+    /**
+     * Start one algorithm through a given dispatch.
+     * @param via - Where the run's command is dispatched.
+     * @param algorithm - Which algorithm to run.
+     * @param params - Its parameters.
+     * @param options - The scope, the seed, the id and the rest.
+     * @returns The run.
+     */
+    startVia(
+        via: DispatchFunction,
+        algorithm: AlgorithmKey,
+        params?: Readonly<Record<string, unknown>>,
+        options: StartOptions = {},
+    ): Run {
+        return this.startRun(via, algorithm, params, options, undefined);
     }
 
     /**
@@ -458,7 +581,8 @@ class Runs implements SessionRunsApi {
      *
      * The batch itself runs BESIDE the queue rather than in it. A batch that occupied the queue
      * would be waiting for members that cannot start until it finishes, which on a queue that runs
-     * one operation at a time is a deadlock rather than a slow batch.
+     * one operation at a time is a deadlock rather than a slow batch. Its members are one step:
+     * one undo takes every member it recorded, and their layers, away together.
      * @param specs - What to run.
      * @param options - The batch's label, and the ordinary run options.
      * @returns A run over the batch, resolving to how each member turned out.
@@ -476,6 +600,7 @@ class Runs implements SessionRunsApi {
             exact: null,
         };
         const id = deriveRunId(identity);
+        let run: ManagedRun<BatchResult> | null = null;
         const definition: RunDefinition<BatchResult> = {
             id,
             algorithm: "batch",
@@ -489,7 +614,7 @@ class Runs implements SessionRunsApi {
             fields: [],
             engine: this.options.engine,
             caveats: this.defaultCaveats,
-            execute: this.batchExecutor(specs, label),
+            execute: this.batchExecutor(specs, label, () => run),
             publishOnCancel: true,
             ...(options.signal === undefined ? {} : { signal: options.signal }),
             ...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),
@@ -501,10 +626,12 @@ class Runs implements SessionRunsApi {
             resolveScope: () => this.options.resolveScope(this.defaultScope),
             enqueue: (body) => enqueueBesideQueue(body, id),
             notify: (phase) => {
-                this.announce(run, phase);
+                if (run !== null) {
+                    this.announce(run, phase);
+                }
             },
         };
-        const run = new ManagedRun<BatchResult>(definition, surroundings);
+        run = new ManagedRun<BatchResult>(definition, surroundings);
         this.batches.add(run);
         run.start();
 
@@ -519,7 +646,9 @@ class Runs implements SessionRunsApi {
      * @returns The run, or undefined when this session holds none with that id.
      */
     get(id: RunId): Run | undefined {
-        return this.runs.get(id);
+        const run = this.runs.get(id);
+
+        return run !== undefined && this.listed(run) ? run : undefined;
     }
 
     /**
@@ -527,7 +656,7 @@ class Runs implements SessionRunsApi {
      * @returns The runs, in the order they were started.
      */
     list(): readonly Run[] {
-        return Object.freeze([...this.runs.values()]);
+        return Object.freeze([...this.runs.values()].filter((run) => this.listed(run)));
     }
 
     /**
@@ -545,7 +674,7 @@ class Runs implements SessionRunsApi {
     }
 
     /**
-     * Remove a run and every style layer reading it.
+     * Remove a run and every style layer reading it, as one step.
      *
      * The count and the ids come back so a consumer can say "Removes 1 style layer" BEFORE it asks
      * for confirmation. `bindings(id)` answers the same question without removing anything, which
@@ -554,33 +683,11 @@ class Runs implements SessionRunsApi {
      * @returns What went with it.
      */
     remove(id: RunId): RunRemoval {
-        const layerIds = Object.freeze([...(this.options.layers?.bindings(id) ?? [])]);
-        const run = this.runs.get(id);
+        const command: AlgoRemoveCommand = { op: "algo.remove", id };
+        const removal = this.removalOf(id);
+        this.dispatcher.dispatchNow(command);
 
-        if (run !== undefined) {
-            run.cancel(`Run "${id}" was removed.`);
-            this.runs.delete(id);
-            this.revisionValue++;
-            this.identities.delete(id);
-            this.derivedIds.delete(id);
-            // The layers this run painted went with it, so starting the same work again is a
-            // first completion again rather than a run nothing will ever draw.
-            this.options.styling?.forget(id);
-        }
-
-        if (layerIds.length > 0) {
-            this.options.layers?.remove(layerIds);
-        }
-
-        return Object.freeze({ removedLayers: layerIds.length, layerIds });
-    }
-
-    /**
-     * Moves whenever a run is removed or publishes a result.
-     * @returns The revision.
-     */
-    get revision(): number {
-        return this.revisionValue;
+        return removal;
     }
 
     /**
@@ -622,12 +729,102 @@ class Runs implements SessionRunsApi {
 
         this.batches.clear();
         this.runs.clear();
-        this.revisionValue++;
         this.identities.clear();
         this.derivedIds.clear();
+        this.commands.clear();
+        this.launches.clear();
+        this.bodies.clear();
     }
 
     // -- building a run -----------------------------------------------------------------------
+
+    /**
+     * The session's own dispatch: a run that is its own step.
+     * @param command - The command.
+     * @param options - Its signal, and whether it starts beside the queue.
+     * @returns Settles when the command does.
+     */
+    private readonly dispatch: DispatchFunction = (command, options) => this.dispatcher.dispatch(command, options);
+
+    /**
+     * Start one algorithm, or hand back the run that already answers this question.
+     * @param via - Where the run's command is dispatched.
+     * @param algorithm - Which algorithm to run.
+     * @param params - Its parameters.
+     * @param options - The scope, the seed, the id and the rest.
+     * @param hold - The batch whose painting holds this run's.
+     * @returns The run.
+     */
+    private startRun(
+        via: DispatchFunction,
+        algorithm: AlgorithmKey,
+        params: Readonly<Record<string, unknown>> | undefined,
+        options: StartOptions,
+        hold: PaintHold | undefined,
+    ): Run {
+        this.refuseWhenDisposed();
+
+        if (options.dryRun === true) {
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message: "runs.start does not answer dry runs. Ask session.plan for what a run would do and cost.",
+                source: "run",
+                details: { algorithm, reason: "dry-run" },
+            });
+        }
+
+        const { descriptor, identity, spec, id, derived } = this.resolve(algorithm, params, options);
+        const command = runCommand(algorithm, params, options);
+        const launch: Launch = { via, command, beside: options.queue === "now" };
+        const existing = this.runs.get(id);
+
+        if (hold === undefined) {
+            this.holds.delete(id);
+        } else {
+            this.holds.set(id, hold);
+        }
+
+        if (existing !== undefined && (this.listed(existing) || this.identities.get(id) === canonicalIdentity(identity))) {
+            return this.reuse(existing, identity, launch);
+        }
+
+        return this.create(id, identity, descriptor, spec, options, derived, launch);
+    }
+
+    /**
+     * Check what the caller asked for and work out the run it names.
+     * @param algorithm - Which algorithm to run.
+     * @param params - Its parameters.
+     * @param options - The scope, the seed, the id and the rest.
+     * @returns The run's descriptor, identity, scope and id.
+     */
+    private resolve(
+        algorithm: AlgorithmKey,
+        params: Readonly<Record<string, unknown>> | undefined,
+        options: StartOptions,
+    ): ResolvedRun {
+        const descriptor = this.descriptorFor(algorithm);
+        this.checkParams(descriptor, params);
+
+        const spec = options.scope ?? this.defaultScope;
+        const identity: RunIdentity = {
+            algorithm: descriptor.key,
+            params: canonicalizeParams(params, descriptor.options),
+            scope: spec,
+            seed: options.seed ?? null,
+            sample: options.sample ?? null,
+            exact: options.exact ?? null,
+        };
+        const assignedId = options.as;
+
+        return {
+            descriptor,
+            identity,
+            spec,
+            id: assignedId === undefined ? deriveRunId(identity) : assertRunId(assignedId),
+            derived: assignedId === undefined,
+        };
+    }
 
     /**
      * Build, register and start a run that does not exist yet.
@@ -637,6 +834,7 @@ class Runs implements SessionRunsApi {
      * @param spec - The scope specification it was asked for.
      * @param options - What the caller passed.
      * @param derived - Whether the element minted the id rather than the author naming it.
+     * @param launch - How its first execution is dispatched.
      * @returns The run.
      */
     private create(
@@ -646,10 +844,9 @@ class Runs implements SessionRunsApi {
         spec: Scope,
         options: StartOptions,
         derived: boolean,
+        launch: Launch,
     ): Run {
-        const policy = options.queue ?? "append";
-
-        if (policy === "replace") {
+        if (options.queue === "replace") {
             this.cancelSiblings(descriptor.key, id);
         }
 
@@ -679,28 +876,23 @@ class Runs implements SessionRunsApi {
             queuePosition: () => this.queuePositionOf(id),
             stale: () => this.staleOf(id),
             resolveScope: () => this.options.resolveScope(spec),
-            enqueue: (body) => (policy === "now" ? enqueueBesideQueue(body, id) : this.enqueueOnQueue(id, body)),
+            enqueue: (body) => this.launch(run, body),
             notify: (phase) => {
-                if (phase === "end") {
-                    this.revisionValue++;
-                }
-
                 this.announce(run, phase);
-
-                if (phase === "end") {
-                    // After the announcement, so a consumer watching runs has already been told
-                    // the run finished by the time the layer it suggested arrives.
-                    this.options.styling?.completed(run);
-                }
             },
+            entry: () => this.dispatcher.state.runs.get(id),
         };
         const run = new ManagedRun<RunResult>(definition, surroundings);
 
         this.runs.set(id, run);
         this.identities.set(id, canonicalIdentity(identity));
+        this.commands.set(id, withoutSuggested(launch.command));
+        this.launches.set(id, launch);
 
         if (derived) {
             this.derivedIds.add(id);
+        } else {
+            this.derivedIds.delete(id);
         }
 
         run.start();
@@ -709,13 +901,15 @@ class Runs implements SessionRunsApi {
     }
 
     /**
-     * Hand back a run that already answers this question, re-executing it if the data moved.
+     * Hand back a run that already answers this question, re-executing it if the data moved or it
+     * has no result to give.
      * @param existing - The run this session already holds under that id.
      * @param identity - What the caller asked for.
+     * @param launch - How a re-execution is dispatched.
      * @returns The existing run.
      * @throws A `GraphtyError` with code `E_DUPLICATE_ID` when the id names different work.
      */
-    private reuse(existing: ManagedRun, identity: RunIdentity): Run {
+    private reuse(existing: ManagedRun, identity: RunIdentity, launch: Launch): Run {
         const wanted = canonicalIdentity(identity);
 
         if (this.identities.get(existing.id) !== wanted) {
@@ -731,7 +925,12 @@ class Runs implements SessionRunsApi {
         }
 
         if (this.shouldReexecute(existing)) {
+            this.launches.set(existing.id, launch);
             existing.rerun();
+        } else if (launch.command.applySuggestedStyles === true && !this.adopting) {
+            // Nothing to compute, but its layers were asked for: the command still goes through,
+            // and applies them from the result the run already has, as one step.
+            existing.settleAfter(launch.via(launch.command));
         }
 
         return existing;
@@ -742,7 +941,7 @@ class Runs implements SessionRunsApi {
      *
      * Only when it has something to redo: work still queued or running is left alone, a finished
      * run is redone when the scope it ran over no longer resolves the same way, and a run that
-     * failed or was cancelled is redone because it never published an answer.
+     * failed, was cancelled or was removed is redone because it has no answer to give.
      * @param run - The run held under the requested id.
      * @returns True when it should run again.
      */
@@ -755,39 +954,305 @@ class Runs implements SessionRunsApi {
             return true;
         }
 
-        return this.options.resolveScope(run.scope.spec).digest !== run.scope.digest;
+        return this.options.resolveScope(run.scope.spec).digest !== run.record.scope.digest;
     }
 
-    // -- the queue ----------------------------------------------------------------------------
+    /**
+     * Whether a run is one this session lists and hands out by id.
+     * @param run - The run.
+     * @returns False once it has been removed, or cancelled by an undo before it was recorded.
+     */
+    private listed(run: ManagedRun): boolean {
+        return run.status !== "removed" && !this.dropped.has(run.id);
+    }
+
+    // -- executing ----------------------------------------------------------------------------
 
     /**
-     * Put a run's work in the element's operation queue.
-     * @param id - The run id, for the queue's description.
-     * @param body - The work.
-     * @returns A ticket that cancels the queued operation.
+     * Hand one execution of a run to the dispatcher: its command is dispatched, and its work runs
+     * when the command's turn comes.
+     * @param run - The run.
+     * @param body - The execution's work.
+     * @returns A ticket that withdraws the command.
      */
-    private enqueueOnQueue(id: RunId, body: RunBody): RunTicket {
-        const operationId = this.options.queue.queueOperation(
-            "algorithm-run",
-            async (context) => {
-                await body(context);
-            },
-            { description: `Run ${id}` },
-        );
+    private launch(run: ManagedRun, body: RunBody): RunTicket {
+        this.dropped.delete(run.id);
+        this.bodies.set(run.id, body);
+
+        if (this.adopting) {
+            // The command is already executing and runs this body in the slot it holds.
+            return { cancel: () => undefined };
+        }
+
+        const launch = this.launches.get(run.id) ?? {
+            via: this.dispatch,
+            command: this.commands.get(run.id) ?? { op: "algo.run", algorithm: run.algorithm },
+            beside: false,
+        };
+        this.launches.delete(run.id);
+        const controller = new AbortController();
+
+        launch.via(launch.command, { signal: controller.signal, beside: launch.beside }).then(undefined, () => {
+            // Refused before it ran (a transaction already aborted, a key it may not wait for):
+            // the run is told, since nothing else will run it.
+            if (this.bodies.get(run.id) === body) {
+                this.bodies.delete(run.id);
+                run.cancel(`Run "${run.id}" was not started.`);
+            }
+        });
 
         return {
             cancel: () => {
-                this.options.queue.cancelOperation(operationId);
+                controller.abort();
             },
         };
     }
+
+    /**
+     * What the run ops call.
+     * @returns The service the dispatcher reaches this API through.
+     */
+    private service(): RunService {
+        return {
+            run: (command, ctx) => this.execute(command, ctx),
+            remove: (command, draft) => this.removeInto(command, draft),
+        };
+    }
+
+    /**
+     * Carry out one `algo.run`: run the execution waiting for it -- or, for a command dispatched
+     * as data, start one here -- and write the run into the command's step when it finishes.
+     * @param command - The command.
+     * @param ctx - The command's context.
+     * @returns Settles once the run is written; rejects when it failed or was cancelled first.
+     */
+    private async execute(command: AlgorithmRunCommand, ctx: UndoableContext): Promise<void> {
+        const run = this.adopt(command);
+        const body = this.bodies.get(run.id);
+
+        if (body === undefined) {
+            // A run that already answers this command and did not need running again: only the
+            // layers it was asked to apply are written.
+            if (command.applySuggestedStyles === true && run.status === "succeeded") {
+                this.applySuggested(ctx.draft, run);
+            }
+
+            return;
+        }
+
+        this.bodies.delete(run.id);
+        ctx.signal.addEventListener(
+            "abort",
+            () => {
+                const reason = cancelReasonOf(ctx.signal.reason);
+
+                // Cancelled by undo or redo before it was recorded: as if it had never been asked.
+                if (reason === "undo" || reason === "redo") {
+                    this.dropped.add(run.id);
+                }
+
+                run.cancel(`Run "${run.id}" was cancelled (${reason ?? "cancel"}).`);
+            },
+            { once: true },
+        );
+        const {token} = ctx.state.graph;
+        let wrote = false;
+        let written: () => void = () => undefined;
+        const writing = new Promise<void>((resolve) => {
+            written = resolve;
+        });
+        const finished = body(
+            {
+                signal: ctx.signal,
+                progress: ctx.slot.progress ?? NO_QUEUE_PROGRESS,
+                id: ctx.slot.id ?? `run:${run.id}`,
+            },
+            (finishedRun) => {
+                this.commit(finishedRun, command, ctx, token);
+                wrote = true;
+                written();
+
+                return ctx.done;
+            },
+        );
+
+        await Promise.race([writing, finished]);
+
+        if (!wrote) {
+            throw run.error ?? new DOMException(`Run "${run.id}" stopped before it was recorded.`, "AbortError");
+        }
+    }
+
+    /**
+     * The handle for a command about to run: the one that dispatched it, or, for a command
+     * dispatched as data, the one starting it now makes.
+     * @param command - The command.
+     * @returns The handle.
+     */
+    private adopt(command: AlgorithmRunCommand): ManagedRun {
+        const { algorithm, params, ...options } = command;
+        const waiting = this.runs.get(this.resolve(algorithm, params, options).id);
+
+        if (waiting !== undefined && this.bodies.has(waiting.id)) {
+            return waiting;
+        }
+
+        this.adopting = true;
+        try {
+            return this.startRun(this.dispatch, algorithm, params, options, undefined) as ManagedRun;
+        } finally {
+            this.adopting = false;
+        }
+    }
+
+    /**
+     * Write a finished run into its command's step: its entry in the `runs` slice, the layers its
+     * first completion paints, and the suggested layers it was asked to apply. Synchronous, so
+     * nothing can come between the entry and its layers; a refusal part way reverts all of it.
+     * @param run - The run, finished.
+     * @param command - Its command.
+     * @param ctx - The command's context.
+     * @param token - The graph token when the command started, to tell whether the graph moved.
+     */
+    private commit(run: ManagedRun, command: AlgorithmRunCommand, ctx: UndoableContext, token: number): void {
+        // Throws when the command no longer runs: a late value is never written.
+        const { draft } = ctx;
+        const prior = ctx.state.runs.get(run.id);
+        const hold = this.holds.get(run.id);
+        this.holds.delete(run.id);
+        const decision = this.options.styling?.completed(run, prior?.painted === true, hold) ?? {
+            painted: prior?.painted === true,
+            paint: [],
+        };
+        const entry: RunEntry = Object.freeze({
+            command: this.commands.get(run.id) ?? command,
+            record: run.record,
+            result: run.computed as RunResult,
+            painted: decision.painted,
+            derived: this.derivedIds.has(run.id),
+            stale: ctx.state.graph.token !== token,
+        });
+        const revert = draft.checkpoint();
+
+        try {
+            draft.runs.set(run.id, entry);
+            this.paint(draft, run.id, decision.paint);
+
+            if (command.applySuggestedStyles === true) {
+                this.applySuggested(draft, run);
+            }
+        } catch (error) {
+            revert();
+            throw error;
+        }
+    }
+
+    /**
+     * Plan suggested layers into a draft. A refused one is reported and the rest still land.
+     * @param draft - The draft.
+     * @param runId - The run they come from.
+     * @param suggestions - What to paint.
+     */
+    private paint(draft: Draft, runId: RunId, suggestions: readonly StyleSuggestion[]): void {
+        const {styles} = this.dispatcher.services;
+
+        if (styles === undefined) {
+            return;
+        }
+
+        for (const suggestion of suggestions) {
+            try {
+                styles.execute(suggestionCommand(suggestion), draft);
+            } catch (error) {
+                this.options.styling?.refused(runId, error);
+            }
+        }
+    }
+
+    /**
+     * Apply what a run suggests and put its layers on top of the stack, in its own step: what
+     * `runAlgorithm(..., { applySuggestedStyles: true })` asks for.
+     * @param draft - The run's draft.
+     * @param run - The run.
+     */
+    private applySuggested(draft: Draft, run: ManagedRun): void {
+        const {styles} = this.dispatcher.services;
+
+        if (styles === undefined) {
+            return;
+        }
+
+        for (const suggestion of run.suggestEncodings()) {
+            styles.execute(suggestionCommand(suggestion), draft);
+        }
+
+        const stack = draft.styles;
+        const bound = stack
+            .filter((entry) => entry.layer.source.by === "run" && entry.layer.source.runId === run.id)
+            .map((entry) => entry.layer.id);
+        const top = stack.slice(stack.length - bound.length).map((entry) => entry.layer.id);
+
+        if (!top.every((id, at) => id === bound[at])) {
+            for (const id of bound) {
+                styles.execute({ op: "style.patch", action: "move", id, before: null }, draft);
+            }
+        }
+    }
+
+    /**
+     * Carry out one `algo.remove`: stop the run if it is still going, and take its entry and the
+     * layers bound to it out of the project through the command's draft.
+     * @param command - The removal.
+     * @param draft - The command's draft.
+     * @returns What went with it.
+     */
+    private removeInto(command: AlgoRemoveCommand, draft: Draft): RunRemoval {
+        const { id } = command;
+        const removal = this.removalOf(id);
+        const { layerIds } = removal;
+        const run = this.runs.get(id);
+
+        if (run !== undefined && run.cancellable) {
+            this.dropped.add(id);
+            run.cancel(`Run "${id}" was removed.`);
+        }
+
+        if (this.dispatcher.state.runs.has(id)) {
+            draft.runs.delete(id);
+        }
+
+        if (layerIds.length > 0) {
+            const {styles} = this.dispatcher.services;
+
+            if (styles === undefined) {
+                this.options.layers?.remove?.(layerIds);
+            } else {
+                styles.execute({ op: "style.patch", action: "removeBySource", ids: layerIds }, draft);
+            }
+        }
+
+        return removal;
+    }
+
+    /**
+     * What removing a run takes with it.
+     * @param id - The run id.
+     * @returns The layers bound to it.
+     */
+    private removalOf(id: RunId): RunRemoval {
+        const layerIds = Object.freeze([...(this.options.layers?.bindings(id) ?? [])]);
+
+        return Object.freeze({ removedLayers: layerIds.length, layerIds });
+    }
+
+    // -- the queue ----------------------------------------------------------------------------
 
     /**
      * The runs still waiting their turn, in the order they were started.
      * @returns The waiting runs.
      */
     private waiting(): ManagedRun[] {
-        return [...this.runs.values()].filter((run) => run.status === "queued");
+        return [...this.runs.values()].filter((run) => run.status === "queued" && this.listed(run));
     }
 
     /**
@@ -860,7 +1325,7 @@ class Runs implements SessionRunsApi {
         const descriptor = this.findDescriptor(run.algorithm);
         const base = descriptor?.plainName ?? run.algorithm;
         const siblings = [...this.runs.values()].filter(
-            (other) => other.algorithm === run.algorithm && other.id !== id,
+            (other) => other.algorithm === run.algorithm && other.id !== id && this.listed(other),
         );
 
         if (siblings.length === 0) {
@@ -971,27 +1436,33 @@ class Runs implements SessionRunsApi {
     // -- batches ------------------------------------------------------------------------------
 
     /**
-     * The work a batch does: start each member in turn, on one progress stream and one cancel.
+     * The work a batch does: start each member in turn, on one progress stream and one cancel, as
+     * one transaction, so its members and their layers are one step.
      * @param specs - What to run.
      * @param label - What the batch is called.
+     * @param handle - The batch's own run, once it exists.
      * @returns The executor.
      */
-    private batchExecutor(specs: readonly RunSpec[], label: string): RunExecutor<BatchResult> {
+    private batchExecutor(
+        specs: readonly RunSpec[],
+        label: string,
+        handle: () => ManagedRun<BatchResult> | null,
+    ): RunExecutor<BatchResult> {
         return async (context) => {
             const steps: BatchStep[] = [];
             let completed = 0;
 
-            // Held for the whole batch, so a sweep of six node metrics paints ONCE rather than
-            // adding six colour layers with five of them invisible under the sixth. Released in
-            // the `finally` below whatever stopped the batch: a cancelled sweep still keeps the
-            // members that finished, and their picture is part of what was kept.
-            this.options.styling?.hold();
+            const members = async (via: DispatchFunction, stopped: AbortSignal): Promise<void> => {
+                // Held for the whole batch, so a sweep of six node metrics paints ONCE rather than
+                // adding six colour layers with five of them invisible under the sixth. Released
+                // whatever stopped the batch: a cancelled sweep still keeps the members that
+                // finished, and their picture is part of what was kept.
+                const hold = this.options.styling?.hold();
 
-            try {
                 for (let index = 0; index < specs.length; index++) {
                     const spec = specs[index];
 
-                    if (context.signal.aborted) {
+                    if (context.signal.aborted || stopped.aborted) {
                         steps.push({
                             index,
                             ok: false,
@@ -1007,15 +1478,39 @@ class Runs implements SessionRunsApi {
                         message: `Running ${spec.algorithm}`,
                     });
 
-                    const step = await this.runBatchMember(context.signal, spec, index);
+                    const step = await this.runBatchMember(context.signal, spec, index, via, hold);
                     steps.push(step);
 
                     if (step.ok) {
                         completed += 1;
                     }
                 }
-            } finally {
-                this.options.styling?.release();
+
+                for (const suggestion of hold?.release() ?? []) {
+                    const runId = typeof suggestion.spec.run === "string" ? suggestion.spec.run : label;
+                    await via(suggestionCommand(suggestion)).catch((error: unknown) => {
+                        this.options.styling?.refused(runId, error);
+                    });
+                }
+            };
+
+            try {
+                await this.dispatcher.transaction(label, async (tx, signal) => {
+                    // Undo cancelling the batch aborts the transaction; the batch stops with it
+                    // and settles with what it had, which the undo has already taken back.
+                    signal.addEventListener(
+                        "abort",
+                        () => {
+                            handle()?.cancel("The batch was undone.");
+                        },
+                        { once: true },
+                    );
+                    await members((command, options) => tx.dispatch(command, options), signal);
+                });
+            } catch (error) {
+                if (!(error instanceof Error && error.name === "AbortError")) {
+                    throw error;
+                }
             }
 
             const partial = completed < specs.length;
@@ -1037,18 +1532,32 @@ class Runs implements SessionRunsApi {
      * @param signal - The batch's signal, which cancels the member that is in flight.
      * @param spec - What to run.
      * @param index - Its place in the specification list.
+     * @param via - The batch's transaction.
+     * @param hold - The batch's painting hold.
      * @returns How it turned out.
      */
-    private async runBatchMember(signal: AbortSignal, spec: RunSpec, index: number): Promise<BatchStep> {
+    private async runBatchMember(
+        signal: AbortSignal,
+        spec: RunSpec,
+        index: number,
+        via: DispatchFunction,
+        hold: PaintHold | undefined,
+    ): Promise<BatchStep> {
         let member: Run;
 
         try {
-            member = this.start(spec.algorithm, spec.params, {
-                ...(spec.scope === undefined ? {} : { scope: spec.scope }),
-                ...(spec.seed === undefined ? {} : { seed: spec.seed }),
-                ...(spec.as === undefined ? {} : { as: spec.as }),
-                ...(spec.style === undefined ? {} : { style: spec.style }),
-            });
+            member = this.startRun(
+                via,
+                spec.algorithm,
+                spec.params,
+                {
+                    ...(spec.scope === undefined ? {} : { scope: spec.scope }),
+                    ...(spec.seed === undefined ? {} : { seed: spec.seed }),
+                    ...(spec.as === undefined ? {} : { as: spec.as }),
+                    ...(spec.style === undefined ? {} : { style: spec.style }),
+                },
+                hold,
+            );
         } catch (error) {
             return { index, ok: false, reason: error instanceof Error ? error.message : String(error) };
         }
@@ -1077,8 +1586,13 @@ class Runs implements SessionRunsApi {
      * that fails to render must not turn a successful computation into a failed one.
      * @param run - The run.
      * @param phase - Which moment it reached.
+     * @param cause - What moved it.
      */
-    private announce(run: ManagedRun | ManagedRun<BatchResult>, phase: RunPhase): void {
+    private announce(
+        run: ManagedRun | ManagedRun<BatchResult>,
+        phase: RunPhase,
+        cause: RunChange["cause"] = "command",
+    ): void {
         const { onChange } = this.options;
 
         if (onChange === undefined) {
@@ -1086,7 +1600,7 @@ class Runs implements SessionRunsApi {
         }
 
         try {
-            onChange(Object.freeze({ run: run.record, phase }));
+            onChange(Object.freeze({ run: run.record, phase, cause, generation: run.generation }));
         } catch {
             // A watcher's failure is the watcher's. The run carries on.
         }

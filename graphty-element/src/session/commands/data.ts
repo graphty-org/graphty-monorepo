@@ -24,7 +24,7 @@ import jmespath from "jmespath";
 
 import type { EdgeId, NodeId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
-import type { UndoableDefinition } from "../project/Dispatcher";
+import type { UndoableContext, UndoableDefinition } from "../project/Dispatcher";
 import type { Draft } from "../project/draft";
 import { edgeKey, nodeKey } from "../project/graphOps";
 import type { NodeRecordInput, RowUpdate } from "../types";
@@ -133,16 +133,19 @@ export interface DataService {
      * Apply one mutation, writing through the graph primitives in `draft`.
      * @param mutation - The mutation.
      * @param draft - The command's draft.
+     * @param after - Starts work once the command's step is recorded, as its deferred members:
+     *     the on-load runs of a command that adds rows.
      */
-    apply(mutation: DataMutation, draft: Draft): void;
+    apply(mutation: DataMutation, draft: Draft, after?: UndoableContext["after"]): void;
     /**
      * Carry out one import, writing through the graph primitives in `draft`.
      * @param command - The import.
      * @param draft - The command's draft.
      * @param signal - Fires when the import is cancelled; it stops before the next chunk.
+     * @param after - Starts work once the import's step is recorded, as its deferred members.
      * @returns Settles once the last chunk is written.
      */
-    import(command: DataImportCommand, draft: Draft, signal: AbortSignal): Promise<void>;
+    import(command: DataImportCommand, draft: Draft, signal: AbortSignal, after?: UndoableContext["after"]): Promise<void>;
 }
 
 /** The graph value naming where the graph was last loaded from. */
@@ -313,7 +316,7 @@ const dataApply: UndoableDefinition<DataApplyCommand> = {
     // record handed in. Freezing them is design/undo/undo-plan.md phase 18b.
     byReference: ["records"],
     execute: (command, ctx) => {
-        serviceOf(ctx.services.data).apply(command.mutation, ctx.draft);
+        serviceOf(ctx.services.data).apply(command.mutation, ctx.draft, ctx.after);
     },
 };
 
@@ -370,7 +373,7 @@ const dataImport: UndoableDefinition<DataImportCommand> = {
             });
         }
 
-        await serviceOf(ctx.services.data).import(command, ctx.draft, ctx.signal);
+        await serviceOf(ctx.services.data).import(command, ctx.draft, ctx.signal, ctx.after);
     },
 };
 
@@ -384,7 +387,7 @@ const dataExpand: UndoableDefinition<DataExpandCommand> = {
     byReference: ["nodes", "edges"],
     execute: (command, ctx) => {
         const service = serviceOf(ctx.services.data);
-        service.apply({ kind: "add-nodes", records: command.nodes }, ctx.draft);
+        service.apply({ kind: "add-nodes", records: command.nodes }, ctx.draft, ctx.after);
         // `first`, because a neighbourhood legitimately names edges the graph already holds: the
         // edge the reader followed to get here is in both of its endpoints' neighbourhoods.
         service.apply(
@@ -396,6 +399,7 @@ const dataExpand: UndoableDefinition<DataExpandCommand> = {
                 ...(command.target === undefined ? {} : { target: command.target }),
             },
             ctx.draft,
+            ctx.after,
         );
     },
 };

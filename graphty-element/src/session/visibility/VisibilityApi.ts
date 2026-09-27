@@ -289,12 +289,6 @@ export interface VisibilitySources extends FilterSources {
      */
     readonly dispatcher?: Dispatcher;
     /**
-     * A counter over everything a filter reads besides the graph (the run results its `results.*`
-     * paths name), which a mask copy is tagged with. Absent reads as never moving.
-     * @returns The revision.
-     */
-    readonly inputsRevision?: () => number;
-    /**
      * Resolve a scope specification, so a pass can record what it looked at.
      *
      * Absent, the whole graph is resolved here instead, which costs one walk per snapshot. Hand
@@ -375,8 +369,12 @@ interface MaskTag {
     readonly token: number;
     readonly filter: Filter | null;
     readonly window: TimeWindow | null;
-    /** The revision of the run results a filter reads; 0 when nothing is filtering. */
-    readonly inputs: number;
+    /**
+     * The entries of the `runs` slice, whose results a filter can read; empty when nothing is
+     * filtering. An entry is replaced whenever its run is recorded, and restored as the same
+     * object by undo and redo, so identical entries mean identical results.
+     */
+    readonly inputs: readonly unknown[];
 }
 
 /** One filter step's after-masks, kept on the step so undoing or redoing to it needs no walk. */
@@ -388,13 +386,26 @@ interface MaskCopy {
 }
 
 /**
+ * Whether two lists of inputs hold the identical objects in the same order.
+ * @param a - A list.
+ * @param b - Another.
+ * @returns True when every entry is identical.
+ */
+function sameInputs(a: readonly unknown[], b: readonly unknown[]): boolean {
+    return a.length === b.length && a.every((entry, index) => entry === b[index]);
+}
+
+/** Nothing read besides the graph. */
+const NO_INPUTS: readonly unknown[] = Object.freeze([]);
+
+/**
  * Whether two tags name the same masks.
  * @param a - A tag.
  * @param b - Another.
  * @returns True when every input is identical.
  */
 function sameTag(a: MaskTag, b: MaskTag): boolean {
-    return a.token === b.token && a.filter === b.filter && a.window === b.window && a.inputs === b.inputs;
+    return a.token === b.token && a.filter === b.filter && a.window === b.window && sameInputs(a.inputs, b.inputs);
 }
 
 /**
@@ -574,13 +585,16 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     };
 
     /**
-     * The revision of what a filter and a window read besides the graph.
+     * What a filter and a window read besides the graph: the run entries whose results a
+     * `results.*` path names.
      * @param filter - The filter, or null.
      * @param window - The window, or null.
-     * @returns The revision; 0 when nothing is filtering, which reads nothing.
+     * @returns The entries; none when nothing is filtering, which reads nothing.
      */
-    const inputsFor = (filter: Filter | null, window: TimeWindow | null): number =>
-        filter === null && window === null ? 0 : (sources.inputsRevision?.() ?? 0);
+    const inputsFor = (filter: Filter | null, window: TimeWindow | null): readonly unknown[] =>
+        // ponytail: every entry rather than the ones the filter's paths name, so any run change
+        // re-evaluates a filter; name the read runs if that ever costs a pass that matters.
+        filter === null && window === null ? NO_INPUTS : [...dispatcher.state.runs.values()];
 
     /**
      * The tag of the masks the slice and the graph call for now.
@@ -676,7 +690,11 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      */
     const upToDate = (): VisibilityFrame => {
         const active = currentFrame();
-        if (shown !== null && shown.snapshot === active.graph && shown.inputs === inputsFor(shown.filter, shown.window)) {
+        if (
+            shown !== null &&
+            shown.snapshot === active.graph &&
+            sameInputs(shown.inputs, inputsFor(shown.filter, shown.window))
+        ) {
             return active;
         }
 

@@ -53,13 +53,21 @@ function fakeRun(harness: () => Harness, context: RunExecutionContext): Promise<
  * headless session paints only what an edit touches, so without that first draw the picture
  * before the first edit would be an empty one no undo returns to.
  * @param internals - The history clock and queue, for a test that drives them itself.
+ * @param wrap - Stands in front of the fake runs, for a test that holds a run back or counts them;
+ *     it is handed the fake to call.
  * @returns The session.
  */
 export async function fixtureSession(
     internals?: NonNullable<Parameters<typeof makeSession>[0]>["internals"],
+    wrap?: (context: RunExecutionContext, fake: () => Promise<RunOutcome>) => Promise<RunOutcome>,
 ): Promise<GraphSession> {
     const harness = makeSession({
-        runs: { execute: (context) => fakeRun(() => harness, context) },
+        runs: {
+            execute: (context) => {
+                const fake = (): Promise<RunOutcome> => fakeRun(() => harness, context);
+                return wrap === undefined ? fake() : wrap(context, fake);
+            },
+        },
         ...(internals === undefined ? {} : { internals }),
     });
     const session = harness.session as ElementSession;

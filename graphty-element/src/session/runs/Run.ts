@@ -26,6 +26,7 @@
 
 import type { AlgorithmKey, FieldDescriptor, ResultShape, RunId } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
+import type { RunEntry } from "../project/state";
 import type { ResultSummary, RunResult } from "../results/types";
 import { type StyleSuggestion, suggestStyles } from "../styles/derive";
 import {
@@ -83,8 +84,20 @@ export interface RunQueueContext {
     readonly id: string;
 }
 
-/** A run's work, as the queue takes it. */
-export type RunBody = (context: RunQueueContext) => Promise<void>;
+/**
+ * Write a finished run into project state: its entry in the `runs` slice and the layers it
+ * paints, in the step of the command that ran it. Throws to refuse, before anything is written.
+ * @param run - The run, finished and not yet settled: its record reads "succeeded".
+ * @returns Settles once the step is recorded and drawn, which is when the run's promise resolves.
+ */
+type RunCommit = (run: ManagedRun) => Promise<void>;
+
+/**
+ * A run's work, as the queue takes it.
+ * @param context - What the queue hands the operation.
+ * @param commit - For a run that is project state, how it writes itself when it finishes.
+ */
+export type RunBody = (context: RunQueueContext, commit?: RunCommit) => Promise<void>;
 
 /** A handle on work that has been handed to the queue. */
 export interface RunTicket {
@@ -257,6 +270,15 @@ export interface RunSurroundings {
      * @param phase - Which moment.
      */
     notify?(phase: RunPhase): void;
+    /**
+     * The entry the `runs` slice holds for this run, for a run that is project state.
+     *
+     * Present, the run's result and record are read from the entry whenever no execution of it
+     * is under way, so an undo or a redo that swaps the entry changes what the same handle
+     * reports. Absent (a batch, a style edit), the handle reports its own last execution.
+     * @returns The entry, or undefined when the slice holds none.
+     */
+    entry?(): RunEntry | undefined;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -443,6 +465,12 @@ export class ManagedRun<T = RunResult> implements Run<T> {
 
     private settledFlag = false;
 
+    /** Whether the latest execution wrote the run into project state. */
+    private committed = false;
+
+    /** How many executions this handle has started. */
+    private generationValue = 0;
+
     /** Why a cancel is being honoured, when the run publishes what it has instead of rejecting. */
     private cancelReason: string | null = null;
 
@@ -489,7 +517,38 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * @returns The status.
      */
     get status(): RunStatus {
-        return this.statusValue;
+        if (this.surroundings.entry === undefined || this.live || !this.committed) {
+            return this.statusValue;
+        }
+
+        return this.surroundings.entry()?.record.status ?? "removed";
+    }
+
+    /**
+     * How many executions this run has started: its own first, and one per re-run.
+     * @returns The count.
+     */
+    get generation(): number {
+        return this.generationValue;
+    }
+
+    /**
+     * Whether an execution is waiting or working.
+     * @returns True while queued or running.
+     */
+    private get live(): boolean {
+        return this.statusValue === "queued" || this.statusValue === "running";
+    }
+
+    /**
+     * The record the `runs` slice holds for this run, when that is what the handle reports: the
+     * run is project state, nothing is executing, and the latest execution was recorded.
+     * @returns The held record, or undefined.
+     */
+    private held(): RunRecord | undefined {
+        return this.surroundings.entry === undefined || this.live || !this.committed
+            ? undefined
+            : this.surroundings.entry()?.record;
     }
 
     /**
@@ -529,7 +588,9 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * @returns An ISO 8601 timestamp, or null while the run is still queued.
      */
     get startedAt(): string | null {
-        return this.startedAtValue;
+        const held = this.held();
+
+        return held === undefined ? this.startedAtValue : held.startedAt;
     }
 
     /**
@@ -537,7 +598,9 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * @returns Milliseconds, or null until the run finishes.
      */
     get durationMs(): number | null {
-        return this.durationValue;
+        const held = this.held();
+
+        return held === undefined ? this.durationValue : held.durationMs;
     }
 
     /**
@@ -545,7 +608,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * @returns True when the result is partial.
      */
     get partial(): boolean {
-        return this.partialValue;
+        return this.held()?.partial ?? this.partialValue;
     }
 
     /**
@@ -556,7 +619,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * @returns The note, or null when the numbers still describe the graph.
      */
     get stale(): StaleNote | null {
-        return this.statusValue === "succeeded" ? this.surroundings.stale() : null;
+        return this.status === "succeeded" ? this.surroundings.stale() : null;
     }
 
     /**
@@ -564,7 +627,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * @returns The field descriptors.
      */
     get fields(): readonly FieldDescriptor[] {
-        return this.fieldsValue;
+        return this.held()?.fields ?? this.fieldsValue;
     }
 
     /**
@@ -572,7 +635,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * @returns The caveats.
      */
     get caveats(): Caveats {
-        return this.caveatsValue;
+        return this.held()?.caveats ?? this.caveatsValue;
     }
 
     /**
@@ -580,6 +643,18 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * @returns The result, or undefined until the run succeeds.
      */
     get result(): T | undefined {
+        // A run that is project state reads its result from the slice, so the same handle reports
+        // the previous result during a re-run and after undoing one, and none once removed.
+        return this.surroundings.entry === undefined
+            ? this.resultValue
+            : (this.surroundings.entry()?.result as T | undefined);
+    }
+
+    /**
+     * The result the latest execution produced, before it is recorded: what a commit writes.
+     * @returns The result, or undefined when the execution produced none.
+     */
+    get computed(): T | undefined {
         return this.resultValue;
     }
 
@@ -596,12 +671,16 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * @returns The record.
      */
     get record(): RunRecord {
-        const scope: RunScopeRecord = Object.freeze({
-            spec: this.scopeValue.spec,
-            nodes: this.scopeValue.nodeCount,
-            edges: this.scopeValue.edgeCount,
-            digest: this.scopeValue.digest,
-        });
+        const held = this.held();
+        const scope: RunScopeRecord =
+            held?.scope ??
+            Object.freeze({
+                spec: this.scopeValue.spec,
+                nodes: this.scopeValue.nodeCount,
+                edges: this.scopeValue.edgeCount,
+                digest: this.scopeValue.digest,
+            });
+        const summary = held === undefined ? this.summaryValue : held.summary;
 
         const record: RunRecord = {
             id: this.id,
@@ -610,16 +689,16 @@ export class ManagedRun<T = RunResult> implements Run<T> {
             params: this.params,
             seed: this.seed,
             scope,
-            status: this.statusValue,
-            startedAt: this.startedAtValue,
-            durationMs: this.durationValue,
-            partial: this.partialValue,
+            status: this.status,
+            startedAt: this.startedAt,
+            durationMs: this.durationMs,
+            partial: this.partial,
             stale: this.stale,
             engine: this.engine,
-            fields: this.fieldsValue,
+            fields: this.fields,
             shape: this.shape,
-            caveats: this.caveatsValue,
-            ...(this.summaryValue === undefined ? {} : { summary: this.summaryValue }),
+            caveats: this.caveats,
+            ...(summary === undefined ? {} : { summary }),
         };
 
         return Object.freeze(record);
@@ -662,12 +741,13 @@ export class ManagedRun<T = RunResult> implements Run<T> {
         }
 
         this.attachCallerSignal();
+        this.generationValue++;
         // Announced BEFORE the work is handed over, because work handed to the "now" policy or to
         // a batch begins synchronously inside `enqueue` -- so a watcher told afterwards would see
         // the run start, report and finish before it heard that it was queued.
         this.surroundings.notify?.("queued");
-        this.ticket = this.surroundings.enqueue(async (context) => {
-            await this.body(context);
+        this.ticket = this.surroundings.enqueue(async (context, commit) => {
+            await this.body(context, commit);
         });
     }
 
@@ -711,14 +791,37 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * @returns This run, restarted.
      */
     rerun(): Run<T> {
-        if (!isTerminalRunStatus(this.statusValue)) {
+        if (!isTerminalRunStatus(this.status)) {
             return this;
         }
 
-        this.resetForRerun();
+        this.beginExecution();
         this.start();
 
         return this;
+    }
+
+    /**
+     * Keep the run's promise from settling until other work done on its behalf has: a step that
+     * applies the layers of a run that did not need computing again. The promise settles as it
+     * would have, whatever that work does.
+     * @param work - The work.
+     */
+    settleAfter(work: PromiseLike<unknown>): void {
+        const previous = this.deferred;
+        const next = createDeferred<T>();
+        this.deferred = next;
+        previous.promise.then(
+            (value) => {
+                const done = (): void => {
+                    next.resolve(value);
+                };
+                work.then(done, done);
+            },
+            (error: unknown) => {
+                next.reject(error);
+            },
+        );
     }
 
     /**
@@ -739,12 +842,14 @@ export class ManagedRun<T = RunResult> implements Run<T> {
     /**
      * The work, as the queue runs it.
      * @param context - What the queue hands the operation.
+     * @param commit - For a run that is project state, how it writes itself once it finishes.
      */
-    private async body(context: RunQueueContext): Promise<void> {
+    private async body(context: RunQueueContext, commit?: RunCommit): Promise<void> {
         if (this.settledFlag) {
             return;
         }
 
+        const generation = this.generationValue;
         this.queueSink = context.progress;
         this.statusValue = "running";
         this.startedAtValue = new Date().toISOString();
@@ -782,11 +887,33 @@ export class ManagedRun<T = RunResult> implements Run<T> {
                 },
             });
 
-            this.succeed(outcome, timeBox);
+            // A late value: the run was cancelled, or re-run, while the work went on. Dropped,
+            // so nothing it computed is written anywhere.
+            if (this.settledFlag || generation !== this.generationValue) {
+                return;
+            }
+
+            if (commit === undefined) {
+                this.succeed(outcome, timeBox);
+
+                return;
+            }
+
+            this.finishWork(outcome, timeBox);
+            const recorded = commit(this as ManagedRun);
+            this.committed = true;
+            await recorded;
+            this.settle(() => {
+                this.deferred.resolve(outcome.result);
+            });
         } catch (error) {
-            this.fail(error);
+            if (generation === this.generationValue) {
+                this.fail(error);
+            }
         } finally {
-            this.clearTimeBox();
+            if (generation === this.generationValue) {
+                this.clearTimeBox();
+            }
         }
     }
 
@@ -830,6 +957,19 @@ export class ManagedRun<T = RunResult> implements Run<T> {
             return;
         }
 
+        this.finishWork(outcome, timeBox);
+        this.settle(() => {
+            this.deferred.resolve(outcome.result);
+        });
+    }
+
+    /**
+     * Take in what the work produced: the result, its caveats and fields, and the final status.
+     * The promise is left for whoever settles it.
+     * @param outcome - What the work produced.
+     * @param timeBox - The time box's signal, so an expired box becomes a partial result.
+     */
+    private finishWork(outcome: RunOutcome<T>, timeBox: AbortSignal | null): void {
         const canceled = this.cancelReason !== null;
         const timedOut = timeBox !== null && timeBox.aborted;
         const partial = outcome.partial ?? (timedOut || canceled);
@@ -843,9 +983,6 @@ export class ManagedRun<T = RunResult> implements Run<T> {
         this.statusValue = canceled ? "canceled" : "succeeded";
         const { total } = this.progressValue;
         this.report({ phase: canceled ? "canceled" : "done", completed: total ?? this.progressValue.completed, total });
-        this.settle(() => {
-            this.deferred.resolve(outcome.result);
-        });
     }
 
     /**
@@ -1067,22 +1204,19 @@ export class ManagedRun<T = RunResult> implements Run<T> {
         this.surroundings.notify?.("end");
     }
 
-    /** Put the run back the way it was before it ran, keeping its id and its definition. */
-    private resetForRerun(): void {
+    /**
+     * Open a new execution under the same id. What the last one produced -- its result, fields,
+     * caveats and timings -- stays readable until this one finishes: a re-run keeps what it had.
+     */
+    private beginExecution(): void {
         this.settledFlag = false;
+        this.committed = false;
         this.cancelReason = null;
         this.deferred = createDeferred<T>();
         this.statusValue = "queued";
         this.progressValue = QUEUED_PROGRESS;
-        this.caveatsValue = this.definition.caveats;
-        this.fieldsValue = this.definition.fields;
-        this.resultValue = undefined;
-        this.summaryValue = undefined;
         this.errorValue = undefined;
-        this.startedAtValue = null;
         this.startedAtMs = 0;
-        this.durationValue = null;
-        this.partialValue = false;
         this.ticket = null;
         this.executionController = null;
     }

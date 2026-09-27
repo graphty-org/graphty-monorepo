@@ -18,6 +18,7 @@
 
 import type { AlgorithmDescriptor, AlgorithmKey, FieldDescriptor, RunId, Scope } from "../catalog/types";
 import type { GraphtyErrorCode } from "../errors";
+import type { AlgoRemoveCommand } from "./commands/algo";
 import type { ConfigSetCommand } from "./commands/config";
 import type { DataCommand } from "./commands/data";
 import type { BatchCommand } from "./commands/index";
@@ -68,6 +69,11 @@ export interface AlgorithmRunCommand {
     readonly exact?: boolean;
     /** The id to give the run. Required for anything that will be saved. */
     readonly as?: RunId;
+    /**
+     * Also apply the layers the run suggests, on top of the stack, in the same step as the run:
+     * one undo takes the run and those layers away together.
+     */
+    readonly applySuggestedStyles?: boolean;
 }
 
 /**
@@ -77,6 +83,7 @@ export interface AlgorithmRunCommand {
  */
 export type SessionCommand =
     | AlgorithmRunCommand
+    | AlgoRemoveCommand
     | DataCommand
     | StyleCommand
     | VisibilityCommand

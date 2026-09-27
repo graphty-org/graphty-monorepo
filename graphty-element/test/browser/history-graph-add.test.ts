@@ -118,6 +118,9 @@ describe("graph additions on a renderer", () => {
             await graph.getSession().config.set({ runAlgorithmsOnLoad: true, data: { algorithms: ["degree"] } });
             await graph.addNodes([{ id: "n4" }]);
             await graph.addEdges([{ src: "n3", dst: "n4" }]);
+            // The on-load runs are deferred members of each add: finished, they are part of its
+            // step, where still going, the first undo would cancel them instead.
+            await graph.operationQueue.waitForCompletion();
             const spies = watch(graph);
             const seen = events(graph);
             const data = graph.getDataManager();

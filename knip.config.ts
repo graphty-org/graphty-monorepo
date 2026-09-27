@@ -211,8 +211,9 @@ const config: KnipConfig = {
                 "src/stubs/web-llm-stub.ts",
                 "src/**/*.test.{ts,tsx}",
                 "src/stories/**/*.stories.tsx",
+                "eslint-rules/**/*.test.ts",
             ],
-            project: ["src/**/*.{ts,tsx}!"],
+            project: ["src/**/*.{ts,tsx}!", "eslint-rules/*.js", "eslint-rules/__tests__/*.ts"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
             ignoreDependencies: [
                 // Installed on graphty-element's behalf: its optional peer, activated by

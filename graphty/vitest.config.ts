@@ -13,15 +13,33 @@ export default defineConfig({
         include: ["@mantine/hooks", "@graphty/graphty-element"],
     },
     test: {
-        globals: true,
-        browser: {
-            enabled: true,
-            headless: true,
-            provider: "playwright",
-            instances: [{ browser: "chromium" }],
-        },
-        exclude: ["**/node_modules/**", "**/dist/**", "**/.worktrees/**"],
-        setupFiles: "./src/test/setup.ts",
+        projects: [
+            {
+                extends: true,
+                test: {
+                    name: "browser",
+                    globals: true,
+                    browser: {
+                        enabled: true,
+                        headless: true,
+                        provider: "playwright",
+                        instances: [{ browser: "chromium" }],
+                    },
+                    // The lint rule's tests build a TypeScript program, which needs Node.
+                    exclude: ["**/node_modules/**", "**/dist/**", "**/.worktrees/**", "eslint-rules/**"],
+                    setupFiles: "./src/test/setup.ts",
+                },
+            },
+            {
+                test: {
+                    name: "eslint-rules",
+                    environment: "node",
+                    include: ["eslint-rules/**/*.test.ts"],
+                    // One TypeScript program over the element's source is built per run.
+                    testTimeout: 60000,
+                },
+            },
+        ],
         coverage: {
             all: true,
             provider: "v8",

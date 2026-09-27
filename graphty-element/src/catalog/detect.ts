@@ -40,7 +40,7 @@
 
 import { GraphtyError } from "../errors";
 import { registeredFormats } from "./formatRegistry";
-import { FORMAT_DESCRIPTORS } from "./formats";
+import { FORMAT_DESCRIPTORS, UNSERVED_FORMAT_IDS } from "./formats";
 import type { FormatId } from "./types";
 
 /** What is known about the file: its name, its first bytes, or both. */
@@ -211,11 +211,16 @@ function knownFormatIds(): readonly FormatId[] {
  */
 export function unknownFormat(name: string): GraphtyError {
     const available = knownFormatIds();
+    // A deprecated built-in name is still offered by `FormatId`, so it is not unknown: say why it
+    // cannot be read instead.
+    const unserved = UNSERVED_FORMAT_IDS.find((entry) => entry.id === name);
+    const refusal =
+        unserved === undefined ? `no format is named "${name}".` : `the format "${name}" cannot be read: ${unserved.reason}`;
 
     return new GraphtyError({
         code: "E_UNKNOWN_FORMAT",
         message:
-            `no format is named "${name}". The formats this element can read are: ${available.join(", ")}. ` +
+            `${refusal} The formats this element can read are: ${available.join(", ")}. ` +
             "A format of your own is registered with `DataSource.register`.",
         source: "data",
         details: { format: name, available: [...available] },

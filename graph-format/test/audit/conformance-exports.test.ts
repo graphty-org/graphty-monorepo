@@ -1,5 +1,5 @@
 /**
- * Audit (API conformance lens): the export list of src/index.ts must equal the 126 declarations of
+ * Audit (API conformance lens): the export list of src/index.ts must equal the 131 declarations of
  * design section 12.2, name for name and kind for kind. The design says the listing "is the shape
  * of dist/graph-format.d.ts: everything below is exported from src/index.ts and nothing else is".
  *
@@ -41,10 +41,15 @@ const DESIGN_12_2: Readonly<Record<Kind, readonly string[]>> = {
         "gpuEligibility",
         "isGraphSnapshot",
         "makeMask",
+        "maskAnd",
+        "maskAndNot",
         "maskCount",
+        "maskNot",
+        "maskOr",
         "maskSet",
         "maskTest",
         "maskToIndices",
+        "maskXor",
         "paddedU32View",
         "remapArray",
         "remapColumn",
@@ -211,12 +216,12 @@ function barrelExports(): Map<string, Kind | "other"> {
 describe("design section 12.2: the export list of src/index.ts", () => {
     const expectedAll = KINDS.flatMap((kind) => DESIGN_12_2[kind]).sort();
 
-    it("transcribes 126 distinct names (4 constants, 5 classes, 24 functions, 52 interfaces, 41 type aliases)", () => {
-        expect(expectedAll).toHaveLength(126);
-        expect(new Set(expectedAll).size).toBe(126);
+    it("transcribes 131 distinct names (4 constants, 5 classes, 29 functions, 52 interfaces, 41 type aliases)", () => {
+        expect(expectedAll).toHaveLength(131);
+        expect(new Set(expectedAll).size).toBe(131);
         expect(DESIGN_12_2.const).toHaveLength(4);
         expect(DESIGN_12_2.class).toHaveLength(5);
-        expect(DESIGN_12_2.function).toHaveLength(24);
+        expect(DESIGN_12_2.function).toHaveLength(29);
         expect(DESIGN_12_2.interface).toHaveLength(52);
         expect(DESIGN_12_2.type).toHaveLength(41);
     });
@@ -233,7 +238,7 @@ describe("design section 12.2: the export list of src/index.ts", () => {
         }
     });
 
-    it("exports through the type checker exactly the 126 names of the listing, with the same kinds", () => {
+    it("exports through the type checker exactly the 131 names of the listing, with the same kinds", () => {
         const actual = barrelExports();
         expect([...actual.keys()].sort()).toEqual(expectedAll);
         for (const kind of KINDS) {

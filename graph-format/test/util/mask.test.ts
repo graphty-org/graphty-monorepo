@@ -1,8 +1,20 @@
 import { describe, expect, it } from "vitest";
 
 import { GraphFormatError } from "../../src/errors.js";
-import { type EdgeMask, type NodeMask } from "../../src/types/index.js";
-import { checkMaskLength, makeMask, maskCount, maskSet, maskTest, maskToIndices } from "../../src/util/mask.js";
+import { type EdgeMask, type NodeMask, type U32 } from "../../src/types/index.js";
+import {
+    checkMaskLength,
+    makeMask,
+    maskAnd,
+    maskAndNot,
+    maskCount,
+    maskNot,
+    maskOr,
+    maskSet,
+    maskTest,
+    maskToIndices,
+    maskXor,
+} from "../../src/util/mask.js";
 
 /** The kernel read pattern of design section 7.4 / 10.2. */
 function kernelRead(mask: Uint32Array, i: number): number {
@@ -154,5 +166,133 @@ describe("checkMaskLength", () => {
             expect(err.message).toContain(String(words));
             expect(err.message).toContain(String(Math.ceil(length / 32)));
         }
+    });
+});
+
+/** A mask over `length` indices with exactly the given indices set. */
+function maskOf(length: number, indices: readonly number[]): U32 {
+    const mask = makeMask(length);
+    for (const i of indices) {
+        maskSet(mask, i, true);
+    }
+    return mask;
+}
+
+type BinaryOp = (a: U32, b: U32, length: number, out?: U32) => U32;
+
+const BINARY: readonly (readonly [string, BinaryOp, (x: boolean, y: boolean) => boolean])[] = [
+    ["maskAnd", maskAnd, (x, y) => x && y],
+    ["maskOr", maskOr, (x, y) => x || y],
+    ["maskAndNot", maskAndNot, (x, y) => x && !y],
+    ["maskXor", maskXor, (x, y) => x !== y],
+];
+
+/** empty, one word, exactly one word, multi-word, and non-multiple-of-32 lengths. */
+const LENGTHS = [0, 1, 5, 31, 32, 33, 64, 65, 100, 1000];
+
+describe("word-wise mask algebra", () => {
+    for (const [name, op, model] of BINARY) {
+        it(`${name} matches the per-index truth table at every length`, () => {
+            for (const length of LENGTHS) {
+                const a = maskOf(length, Array.from({ length }, (_, i) => i).filter((i) => i % 3 === 0 || i % 7 === 1));
+                const b = maskOf(length, Array.from({ length }, (_, i) => i).filter((i) => i % 2 === 0));
+                const result = op(a, b, length);
+                expect(result.length).toBe(Math.ceil(length / 32));
+                for (let i = 0; i < length; i++) {
+                    expect(maskTest(result, i)).toBe(model(maskTest(a, i), maskTest(b, i)));
+                }
+            }
+        });
+
+        it(`${name} returns a fresh mask and leaves its inputs unchanged`, () => {
+            const a = maskOf(70, [0, 5, 33, 69]);
+            const b = maskOf(70, [5, 34, 69]);
+            const aBefore = Array.from(a);
+            const bBefore = Array.from(b);
+            const result = op(a, b, 70);
+            expect(result).not.toBe(a);
+            expect(result).not.toBe(b);
+            expect(Array.from(a)).toEqual(aBefore);
+            expect(Array.from(b)).toEqual(bBefore);
+        });
+
+        it(`${name} writes an out argument in place and returns it, also when out aliases an input`, () => {
+            const a = maskOf(70, [0, 5, 33, 69]);
+            const b = maskOf(70, [5, 34, 69]);
+            const expected = Array.from(op(a, b, 70));
+            const out = makeMask(70, true);
+            expect(op(a, b, 70, out)).toBe(out);
+            expect(Array.from(out)).toEqual(expected);
+            const aliased = a.slice();
+            expect(op(aliased, b, 70, aliased)).toBe(aliased);
+            expect(Array.from(aliased)).toEqual(expected);
+        });
+
+        it(`${name} clears the tail bits even when the inputs carry bits at or above length`, () => {
+            const a = new Uint32Array([0xffffffff, 0xffffffff]);
+            const b = new Uint32Array([0x0000ffff, 0xffffffff]);
+            const result = op(a, b, 40);
+            expect(result[1] >>> 8).toBe(0);
+            expect(maskCount(result, 64)).toBe(maskCount(result, 40));
+        });
+
+        it(`${name} throws E_MASK_LENGTH for a short a, b or out`, () => {
+            const ok = makeMask(65);
+            const short = makeMask(33);
+            for (const call of [
+                () => op(short, ok, 65),
+                () => op(ok, short, 65),
+                () => op(ok, ok, 65, short),
+            ]) {
+                let caught: unknown;
+                try {
+                    call();
+                } catch (err) {
+                    caught = err;
+                }
+                expect(caught).toBeInstanceOf(GraphFormatError);
+                expect((caught as GraphFormatError).code).toBe("E_MASK_LENGTH");
+            }
+        });
+    }
+
+    it("maskNot complements every index below length and never sets a bit at or above it", () => {
+        for (const length of LENGTHS) {
+            const a = maskOf(length, Array.from({ length }, (_, i) => i).filter((i) => i % 5 === 0));
+            const before = Array.from(a);
+            const result = maskNot(a, length);
+            expect(result).not.toBe(a);
+            expect(Array.from(a)).toEqual(before);
+            expect(result.length).toBe(Math.ceil(length / 32));
+            for (let i = 0; i < length; i++) {
+                expect(maskTest(result, i)).toBe(!maskTest(a, i));
+            }
+            for (let i = length; i < result.length * 32; i++) {
+                expect(kernelRead(result, i)).toBe(0);
+            }
+        }
+        expect(Array.from(maskNot(makeMask(33), 33))).toEqual([0xffffffff, 1]);
+        expect(maskNot(makeMask(0), 0).length).toBe(0);
+    });
+
+    it("maskNot writes an out argument in place and throws E_MASK_LENGTH for a short a or out", () => {
+        const a = maskOf(40, [1, 39]);
+        const out = new Uint32Array(2);
+        expect(maskNot(a, 40, out)).toBe(out);
+        expect(maskCount(out, 40)).toBe(38);
+        expect(maskNot(a, 40, a)).toBe(a);
+        expect(Array.from(a)).toEqual(Array.from(out));
+        expect(maskTest(a, 1)).toBe(false);
+        for (const call of [() => maskNot(makeMask(32), 40), () => maskNot(makeMask(40), 40, makeMask(32))]) {
+            expect(call).toThrow(GraphFormatError);
+            expect(call).toThrow(/mask over/);
+        }
+    });
+
+    it("accepts a longer input than needed and reads only its first ceil(length / 32) words", () => {
+        const a = maskOf(100, [0, 1, 99]);
+        const b = maskOf(100, [1, 2, 99]);
+        expect(Array.from(maskOr(a, b, 10))).toEqual([7]);
+        expect(Array.from(maskNot(a, 10))).toEqual([0x3fc]);
     });
 });

@@ -1790,7 +1790,9 @@ always materialised, and over arcs for directed snapshots, where it may be
 identity-lazy; `maskCount` is the loop guard. The package exports the
 packed-bitmap helpers (`makeMask`, `maskTest`, `maskSet`, `maskCount`,
 `maskToIndices`) because `inducedSubgraph`, `filterEdges`, `bool` columns
-and validity bitmaps share the layout.
+and validity bitmaps share the layout, and the word-wise set algebra over
+them (`maskAnd`, `maskOr`, `maskAndNot`, `maskXor`, `maskNot`) so a consumer
+combining selections (graphty-element's sets) never loops bit by bit.
 
 ### 7.5 Boundary helpers
 
@@ -2985,6 +2987,13 @@ export function maskTest(mask: U32, i: number): boolean;
 export function maskSet(mask: U32, i: number, value: boolean): void;
 export function maskCount(mask: U32, length: number): number;
 export function maskToIndices(mask: U32, length: number): U32;
+// word-wise set algebra: one pass over ceil(length / 32) words, bits at or above length cleared in
+// the result, a fresh mask unless `out` is passed (it may alias an input); E_MASK_LENGTH for a short mask
+export function maskAnd(a: U32, b: U32, length: number, out?: U32): U32;
+export function maskOr(a: U32, b: U32, length: number, out?: U32): U32;
+export function maskAndNot(a: U32, b: U32, length: number, out?: U32): U32;
+export function maskXor(a: U32, b: U32, length: number, out?: U32): U32;
+export function maskNot(a: U32, length: number, out?: U32): U32;
 
 // ============================================================ id map
 export type NodeIdMapKind = "identity" | "dense" | "numeric" | "string" | "mixed";

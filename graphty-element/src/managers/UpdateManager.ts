@@ -1006,8 +1006,11 @@ export class UpdateManager implements Manager {
     /** Whether Babylon is currently drawing from a cached list of what is visible. */
     private activeMeshesFrozen = false;
 
-    /** The camera's place and angles at the last frame, or null before the first. */
+    /** The camera's view and projection stamps at the last frame, or null before the first. */
     private lastCameraState: readonly number[] | null = null;
+
+    /** How many meshes the scene held last frame, so one appearing or going unfreezes it. */
+    private lastMeshCount = -1;
 
     private updateEdges(): void {
         this.statsManager.edgeUpdate.beginMonitoring();
@@ -1175,7 +1178,20 @@ export class UpdateManager implements Manager {
      */
     private settleActiveMeshFreeze(): void {
         const scene = this.graphContext.getScene();
-        const changed = this.sceneChanged || this.cameraMoved();
+
+        // A MESH THAT APPEARED IS A CHANGE NOBODY TELLS US ABOUT. A tooltip, a label, a highlight
+        // and an effect are all built on demand, by code that has no idea this manager exists, and
+        // a frozen scene draws the list it cached -- so the new mesh is simply absent, or is drawn
+        // in the wrong order because the cached render groups were sorted without it. That is not
+        // hypothetical: it took `test/browser/label-drawn-over-edges.test.ts` red, with an edge
+        // drawn over the tooltip it is meant to sit behind. Counting the scene's meshes is one
+        // integer a frame and cannot miss one being made or disposed.
+        const meshCount = scene.meshes.length;
+        const structureChanged = meshCount !== this.lastMeshCount;
+
+        this.lastMeshCount = meshCount;
+
+        const changed = this.sceneChanged || structureChanged || this.cameraMoved();
 
         this.sceneChanged = false;
 

@@ -2913,6 +2913,39 @@ describe("AppShell", () => {
             expect(inspector.querySelectorAll('[data-testid="histogram-bar"]')).toHaveLength(3);
         });
 
+        it("takes a metric run's reading away on undo and brings it back on redo", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+
+            const graph = installNovicePathGraph(container);
+
+            await loadCatSample(container);
+            await runSuggested("Most connected");
+
+            const inspector = screen.getByTestId("inspector");
+            const reading = "Mr_Whiskers is the most connected, with 4 links. The typical node has 3.";
+            const run = graph.styles.session.runs.list().find((each) => each.algorithm === "degree");
+
+            expect(run).toBeDefined();
+            expect(within(inspector).getByText(reading)).toBeInTheDocument();
+
+            /* The element's events for an undo of the run, then a redo of it. */
+            act(() => {
+                graph.styles.publish("run:changed", { run, phase: "removed" });
+            });
+            await waitFor(() => {
+                expect(within(inspector).queryByText(reading)).toBeNull();
+            });
+
+            act(() => {
+                graph.styles.publish("run:changed", { run, phase: "restored" });
+            });
+            await waitFor(() => {
+                expect(within(inspector).getByText(reading)).toBeInTheDocument();
+            });
+        });
+
         /* Floor item 5, from the shell's side. `nodeMetricColourChannel` has its own
            boards and the Legend component has its own, and the ONE line that joins them --
            `setColourChannel(nodeMetricColourChannel(...))` -- had none: a mutant that

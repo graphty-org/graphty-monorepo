@@ -98,6 +98,21 @@ The `Graphty.tsx` component wraps `<graphty-element>`:
 
 Acceleration: `main.tsx` imports `@graphty/graphty-element/webgpu` and that is the whole GPU integration. The element probes, attaches and recovers; the app writes the reader's `acceleration` policy on the tag (`Graphty.tsx`), remembers it under `graphty.shell.acceleration.v1` (`shell/defaults/accelerationSettings.ts`), and renders `capabilities.acceleration` as the status bar's acceleration chip from the `graphty-capabilities-change` event (`AppShell.tsx`). Nothing in this app may probe, construct or catch a GPU failure.
 
+### Changing the graph, and undo
+
+Every change to what a project file saves goes through the element's session: `session.*`
+verbs, or `tx.*` inside `session.transaction(label, fn)` so that one gesture is one undo step.
+The element records each change and owns the history; the app never keeps its own.
+
+- Never change the graph through a renderer-side member of the element (`element.addNodes`,
+  `element.layout = ...`, a manager, `element.graph`), even though those also record a step.
+  The `graphty/no-element-mutation` lint rule (`eslint-rules/no-element-mutation.js`) reports
+  them. It reads `graphty-element/build/doors.json`, which the element's build writes, so build
+  graphty-element before linting the app.
+- Undo, Redo and the History list read the element's history through
+  `src/components/shell/topbar/useSessionHistory.ts` and call `session.undo()`, `session.redo()`
+  and `session.history.restoreTo()`.
+
 ## Testing
 
 - Tests use **Vitest** with **Playwright** for browser testing

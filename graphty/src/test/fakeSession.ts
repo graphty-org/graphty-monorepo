@@ -179,6 +179,8 @@ export interface FakeSession {
      * boundary would be measurements of a file nobody is looking at any more.
      */
     readonly forgetRuns: () => void;
+    /** Delivers an event to the shell's listeners, as the element does after an undo or a redo. */
+    readonly publish: (event: string, payload?: unknown) => void;
 }
 
 /** What a caller wants this session to publish, beyond its own tiny default. */
@@ -973,5 +975,6 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
         forgetRuns: () => {
             runs.length = 0;
         },
+        publish,
     };
 }

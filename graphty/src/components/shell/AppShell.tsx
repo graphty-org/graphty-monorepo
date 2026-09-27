@@ -1042,7 +1042,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
          * element looks a node up by exact key: `session.positions.pin(["34"])` finds nothing on a
          * graph whose ids are numbers, and unlike `selectNode` the pin verbs skip a miss silently, so a miss
          * cannot even be detected and retried. Every call on the element made from this state
-         * passes this field.
+         * passes this field. Temporary: this is an element defect, tracked by
+         * https://github.com/graphty-org/graphty-monorepo/issues/542, and goes once it is fixed.
          */
         readonly elementId: string | number;
         readonly attributes: Record<string, unknown> | null;
@@ -1952,9 +1953,13 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * The shell's copies of element state are re-read whenever the element says that state
      * changed -- by a command, an undo, a redo, a restore or a rollback alike -- so the layout
      * control, the 2D/3D switch, the Pinned badge and the legend follow an undo exactly as they
-     * follow the edit. A result card or the degree readings whose run undo took away go with it,
-     * and a metric run that undo cancelled or removed stops the Run spinner.
+     * follow the edit. A result card or the degree readings whose run undo took away go with it
+     * and come back with it on redo, and a metric run that undo cancelled or removed stops the
+     * Run spinner.
      */
+    const takenByUndo = useRef(
+        new Map<RunId, { readonly result?: NonNullable<typeof activeResult>; readonly degree?: NonNullable<typeof degreePass> }>(),
+    );
     useEffect(() => {
         if (session === null) {
             return undefined;
@@ -1975,6 +1980,21 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             setColourChannel(canvasLegendChannels(session.styles.legend()));
         });
         const unwatchRuns = session.on("run:changed", ({ run, phase }) => {
+            if (phase === "restored") {
+                // A redo brings the run back, and with it the card and readings the undo took.
+                const taken = takenByUndo.current.get(run.id);
+                takenByUndo.current.delete(run.id);
+                if (taken?.result !== undefined) {
+                    setActiveResult(taken.result);
+                }
+
+                if (taken?.degree !== undefined) {
+                    setDegreePass(taken.degree);
+                }
+
+                return;
+            }
+
             if (phase !== "removed" && !(phase === "end" && run.status === "canceled")) {
                 return;
             }
@@ -1982,8 +2002,22 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             setRunningMetric((current) => (current === run.algorithm ? null : current));
 
             if (phase === "removed") {
-                setActiveResult((current) => (current?.runId === run.id ? null : current));
-                setDegreePass((current) => (current?.runId === run.id ? null : current));
+                setActiveResult((current) => {
+                    if (current?.runId !== run.id) {
+                        return current;
+                    }
+
+                    takenByUndo.current.set(run.id, { ...takenByUndo.current.get(run.id), result: current });
+                    return null;
+                });
+                setDegreePass((current) => {
+                    if (current?.runId !== run.id) {
+                        return current;
+                    }
+
+                    takenByUndo.current.set(run.id, { ...takenByUndo.current.get(run.id), degree: current });
+                    return null;
+                });
             }
         });
 

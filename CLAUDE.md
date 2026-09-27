@@ -251,6 +251,21 @@ The `tools/` directory contains build scripts:
 | `check-links.sh` | Dead-link check (see "Dead Links" under CI/CD). `--offline` for the fast half |
 | `assemble-pages-site.sh` | Builds the graphty.app site from the build outputs; deploy-pages.yml and the link check both run it |
 
+### Secret Scan and Secret Files
+
+`.husky/pre-commit` runs secretlint (`.secretlintrc.json`, the recommended preset) on the staged
+files and refuses a commit that holds something shaped like a credential. `.husky/pre-push` runs
+the same scan on every file the branch changed since it left `origin/master`, which also covers
+commits made with a temporary `core.hooksPath` that skips pre-commit. Both call
+`tools/scan-secrets.sh`. For a false positive, add the path to `.secretlintignore`; `git commit
+--no-verify` is the last resort. Tokens live in the root `.env` (gitignored); scripts read them
+from there and never print them. The checked-in `.claude/settings.json` denies agents `Read` on
+`.env` files, their backups, `*.pem`, `*.key` and SSH keys; `.env.example` stays readable.
+
+`tools/prepush.sh` stops first if `node_modules` does not match `pnpm-lock.yaml` (pnpm keeps a
+copy of the installed lockfile at `node_modules/.pnpm/lock.yaml`), and `.husky/post-merge` warns
+when a merge or pull changed the lockfile. Either way, run `pnpm install`.
+
 ### Starting Servers
 
 No server has a fixed port. Every dev server, Storybook, docs server and coverage preview reads

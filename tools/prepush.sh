@@ -15,6 +15,14 @@ ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 
 cd "$ROOT_DIR"
 
+# node_modules must match the lockfile, or everything below runs against dependency versions CI
+# (pnpm install --frozen-lockfile) does not have. pnpm copies the lockfile it installed from to
+# node_modules/.pnpm/lock.yaml, byte for byte.
+if ! cmp -s pnpm-lock.yaml node_modules/.pnpm/lock.yaml; then
+    echo "node_modules is out of date with pnpm-lock.yaml; run pnpm install" >&2
+    exit 1
+fi
+
 echo "========================================"
 echo "Pre-push validation"
 echo "========================================"

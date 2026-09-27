@@ -26,6 +26,10 @@ const config: KnipConfig = {
                 "typedoc-vitepress-theme",
                 // Coverage merging (used in tools/merge-coverage.sh via pnpm exec)
                 "lcov-result-merger",
+                // Secret scan (used in tools/scan-secrets.sh via pnpm exec; the preset is named
+                // only in .secretlintrc.json)
+                "secretlint",
+                "@secretlint/secretlint-rule-preset-recommend",
                 // Semantic release plugins (used by nx release and child packages)
                 "@semantic-release/changelog",
                 "@semantic-release/git",

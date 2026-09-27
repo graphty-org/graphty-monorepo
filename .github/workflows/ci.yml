@@ -149,6 +149,18 @@ jobs:
             - name: Published dependencies
               run: pnpm run check:published-deps
 
+            # The same three checks run in tools/prepush.sh. The first two read no build output; the
+            # bundle size check measures graphty-element's dist/ against graphty-element/size-budgets.json.
+            - name: ESLint root config
+              run: pnpm run lint:eslint-root
+
+            - name: Formatting (changed files)
+              if: github.event_name == 'pull_request'
+              run: pnpm run format:check:changed origin/${{ github.base_ref }}
+
+            - name: Bundle size (graphty-element)
+              run: pnpm run check:bundle-size
+
             - name: Declared build tools
               run: pnpm run check:declared-tools
 
@@ -897,7 +909,17 @@ jobs:
     # there, so a skip means the plan went wrong and must not pass silently.
     all-checks:
         name: All Checks Pass
-        needs: [build, test, links, chromatic-element, chromatic-app, chromatic-compact-mantine, chromatic-algorithms, chromatic-layout]
+        needs:
+            [
+                build,
+                test,
+                links,
+                chromatic-element,
+                chromatic-app,
+                chromatic-compact-mantine,
+                chromatic-algorithms,
+                chromatic-layout,
+            ]
         if: always()
         runs-on: ubuntu-latest
         steps:

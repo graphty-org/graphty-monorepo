@@ -11,10 +11,9 @@
  * the two places this module is allowed to decide something of its own.
  */
 
-import type { Histogram, RankingEntry, ResultSummary, RunResult } from "@graphty/graphty-element/session";
+import type { GraphSession, Histogram, RankingEntry, ResultSummary, RunResult } from "@graphty/graphty-element/session";
 import { describe, expect, it } from "vitest";
 
-import type { ElementGraph } from "../elementBridge";
 import {
     METRIC_DISTRIBUTION_MAX_BINS,
     metricDistribution,
@@ -80,8 +79,8 @@ function fakeResult(published: Published): RunResult {
 
 /** The graph stub, plus the calls a test wants to see. */
 interface Stub {
-    /** The graph under test. */
-    readonly graph: ElementGraph;
+    /** The session under test. */
+    readonly session: Pick<GraphSession, "runs">;
     /** Every algorithm key the caller started, in order. */
     readonly started: string[];
     /** The third argument of every start, so a test can see that none was passed. */
@@ -118,7 +117,7 @@ function makeStub(finished: Partial<Record<NodeMetricId, Published>>): Stub {
         },
     };
 
-    return { graph: { getSession: () => session } as unknown as ElementGraph, started, startOptions };
+    return { session: session as unknown as Pick<GraphSession, "runs">, started, startOptions };
 }
 
 /**
@@ -158,7 +157,7 @@ describe("readNodeMetricResults", () => {
             degree: { ranking: [entry(2, 9, 1), entry("b", 4, 2), entry(10, 1, 3)] },
         });
 
-        const ranking = readNodeMetricResults(stub.graph, "degree");
+        const ranking = readNodeMetricResults(stub.session, "degree");
 
         expect(ranking.byValueDescending.map((reading) => reading.id)).toEqual([2, "b", 10]);
         expect(ranking.byValueDescending.map((reading) => reading.label)).toEqual(["2", "b", "10"]);
@@ -175,7 +174,7 @@ describe("readNodeMetricResults", () => {
             },
         });
 
-        const ranking = readNodeMetricResults(stub.graph, "degree");
+        const ranking = readNodeMetricResults(stub.session, "degree");
 
         expect(ranking.nodeCount).toBe(40);
         expect(ranking.rankedCount).toBe(3);
@@ -188,7 +187,7 @@ describe("readNodeMetricResults", () => {
     it("reads nothing rather than zeros for a metric nobody has run", () => {
         const stub = makeStub({ degree: { ranking: [entry("a", 3, 1)] } });
 
-        const ranking = readNodeMetricResults(stub.graph, "betweenness");
+        const ranking = readNodeMetricResults(stub.session, "betweenness");
 
         expect(ranking.byValueDescending).toEqual([]);
         expect(ranking.rankedCount).toBe(0);
@@ -199,7 +198,7 @@ describe("readNodeMetricResults", () => {
     it("names the run it read, so a layer and a Remove verb can point at it", () => {
         const stub = makeStub({ degree: { ranking: [entry("a", 3, 1)] } });
 
-        expect(readNodeMetricResults(stub.graph, "degree").runId).toBe("degree_1");
+        expect(readNodeMetricResults(stub.session, "degree").runId).toBe("degree_1");
     });
 
     /**
@@ -212,7 +211,7 @@ describe("readNodeMetricResults", () => {
             degree: { ranking: [entry("a", 10, 1), entry("b", 5, 2), entry("c", 0, 3)] },
         });
 
-        const ranking = readNodeMetricResults(stub.graph, "degree");
+        const ranking = readNodeMetricResults(stub.session, "degree");
 
         expect(NODE_METRIC_DEFINITIONS.degree.normalisation).toBe("max");
         expect(ranking.byValueDescending.map((reading) => reading.fraction)).toEqual([1, 0.5, 0]);
@@ -228,7 +227,7 @@ describe("readNodeMetricResults", () => {
             betweenness: { ranking: [entry("a", 8, 1), entry("b", 6, 2), entry("c", 4, 3)] },
         });
 
-        const ranking = readNodeMetricResults(stub.graph, "betweenness");
+        const ranking = readNodeMetricResults(stub.session, "betweenness");
 
         expect(NODE_METRIC_DEFINITIONS.betweenness.normalisation).toBe("min-max");
         expect(ranking.byValueDescending.map((reading) => reading.fraction)).toEqual([1, 0.5, 0]);
@@ -239,7 +238,7 @@ describe("runNodeMetric", () => {
     it("starts the metric by its catalogue key and passes no parameters", async () => {
         const stub = makeStub({});
 
-        await runNodeMetric(stub.graph, "betweenness");
+        await runNodeMetric(stub.session, "betweenness");
 
         expect(stub.started).toEqual(["betweenness"]);
         expect(stub.startOptions).toEqual([undefined]);
@@ -248,7 +247,7 @@ describe("runNodeMetric", () => {
     it("reads the result the run resolved with, and names the run", async () => {
         const stub = makeStub({ pagerank: { ranking: [entry("a", 0.5, 1), entry("b", 0.25, 2)] } });
 
-        const ranking = await runNodeMetric(stub.graph, "pagerank");
+        const ranking = await runNodeMetric(stub.session, "pagerank");
 
         expect(ranking.runId).toBe("pagerank_1");
         expect(ranking.byValueDescending.map((reading) => reading.value)).toEqual([0.5, 0.25]);
@@ -267,7 +266,7 @@ describe("PageRank convergence", () => {
             pagerank: { ranking: [entry("a", 0.5, 1)], graph: { converged: false, iterations: 100 } },
         });
 
-        const ranking = readNodeMetricResults(stub.graph, "pagerank");
+        const ranking = readNodeMetricResults(stub.session, "pagerank");
 
         expect(ranking.converged).toBe(false);
         expect(ranking.iterations).toBe(100);
@@ -278,7 +277,7 @@ describe("PageRank convergence", () => {
             pagerank: { ranking: [entry("a", 0.5, 1)], graph: { converged: true, iterations: 100 } },
         });
 
-        const ranking = readNodeMetricResults(stub.graph, "pagerank");
+        const ranking = readNodeMetricResults(stub.session, "pagerank");
 
         expect(ranking.converged).toBeUndefined();
         expect(ranking.iterations).toBeUndefined();
@@ -287,13 +286,13 @@ describe("PageRank convergence", () => {
     it("says nothing when the run published no convergence fields at all", () => {
         const stub = makeStub({ pagerank: { ranking: [entry("a", 0.5, 1)] } });
 
-        expect(readNodeMetricResults(stub.graph, "pagerank").converged).toBeUndefined();
+        expect(readNodeMetricResults(stub.session, "pagerank").converged).toBeUndefined();
     });
 
     it("carries no convergence claim for the other two metrics, whatever the run published", () => {
         const stub = makeStub({ degree: { ranking: [entry("a", 3, 1)], graph: { converged: false } } });
 
-        expect(readNodeMetricResults(stub.graph, "degree").converged).toBeUndefined();
+        expect(readNodeMetricResults(stub.session, "degree").converged).toBeUndefined();
     });
 });
 
@@ -321,7 +320,7 @@ describe("metricDistribution", () => {
             },
         });
 
-        const distribution = metricDistribution(readNodeMetricResults(stub.graph, "degree"));
+        const distribution = metricDistribution(readNodeMetricResults(stub.session, "degree"));
 
         expect(distribution.bins.map((bin) => bin.label)).toEqual([
             "1 links: 2 nodes",
@@ -351,7 +350,7 @@ describe("metricDistribution", () => {
             },
         });
 
-        const distribution = metricDistribution(readNodeMetricResults(stub.graph, "degree"));
+        const distribution = metricDistribution(readNodeMetricResults(stub.session, "degree"));
 
         expect(distribution.bins.map((bin) => bin.label)).toEqual([
             "1 to 25 links: 40 nodes",
@@ -375,8 +374,8 @@ describe("metricDistribution", () => {
         const logged = makeStub({ degree: { ranking: [entry("a", 10, 1)], histogram: banded("log") } });
         const flat = makeStub({ betweenness: { ranking: [entry("a", 10, 1)], histogram: banded("linear") } });
 
-        const onLog = metricDistribution(readNodeMetricResults(logged.graph, "degree"));
-        const onLinear = metricDistribution(readNodeMetricResults(flat.graph, "betweenness"));
+        const onLog = metricDistribution(readNodeMetricResults(logged.session, "degree"));
+        const onLinear = metricDistribution(readNodeMetricResults(flat.session, "betweenness"));
 
         expect(onLog.caption).toBe("Most connected per node (log scale)");
         expect(onLog.logX).toBe(true);
@@ -387,7 +386,7 @@ describe("metricDistribution", () => {
     it("draws nothing at all for a metric that measured nothing", () => {
         const stub = makeStub({ degree: {} });
 
-        const distribution = metricDistribution(readNodeMetricResults(stub.graph, "degree"));
+        const distribution = metricDistribution(readNodeMetricResults(stub.session, "degree"));
 
         expect(distribution.bins).toEqual([]);
         expect(distribution.axisMin).toBe("0");
@@ -408,13 +407,11 @@ describe("metricDistribution", () => {
             },
             graph: {},
         } as unknown as RunResult;
-        const graph = {
-            getSession: () => ({
-                runs: { list: () => [{ id: "degree_1", algorithm: "degree", status: "succeeded", result }] },
-            }),
-        } as unknown as ElementGraph;
+        const session = {
+            runs: { list: () => [{ id: "degree_1", algorithm: "degree", status: "succeeded", result }] },
+        } as unknown as Pick<GraphSession, "runs">;
 
-        readNodeMetricResults(graph, "degree");
+        readNodeMetricResults(session, "degree");
 
         expect(asked).toEqual({ bins: METRIC_DISTRIBUTION_MAX_BINS, scale: "auto" });
         expect(stub.started).toEqual([]);

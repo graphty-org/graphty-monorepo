@@ -8,10 +8,17 @@
  * that is not a finite number is reported as absent rather than as a fabricated score.
  */
 
-import type { Histogram, HistogramOptions, RankingEntry, ResultSummary, RunResult, SummaryGroup } from "@graphty/graphty-element/session";
+import type {
+    GraphSession,
+    Histogram,
+    HistogramOptions,
+    RankingEntry,
+    ResultSummary,
+    RunResult,
+    SummaryGroup,
+} from "@graphty/graphty-element/session";
 import { describe, expect, it } from "vitest";
 
-import type { ElementGraph } from "../elementBridge";
 import { readDegreeResults, runCommunityDetection, startDegreePass } from "../runs";
 
 /** What a fixture says one run published. */
@@ -33,8 +40,8 @@ const histogramCalls: { field: string; options?: HistogramOptions }[] = [];
 
 /** The graph stub, plus the calls a test wants to see. */
 interface Stub {
-    /** The graph under test. */
-    readonly graph: ElementGraph;
+    /** The session under test. */
+    readonly session: Pick<GraphSession, "runs">;
     /** Every algorithm key the caller started, in order. */
     readonly started: string[];
     /** The third argument of every start, so a test can see whether the run was told to paint. */
@@ -114,7 +121,7 @@ function makeStub(finished: Record<string, Published>): Stub {
         },
     };
 
-    return { graph: { getSession: () => session } as unknown as ElementGraph, started, startOptions };
+    return { session: session as unknown as Pick<GraphSession, "runs">, started, startOptions };
 }
 
 /**
@@ -132,7 +139,7 @@ describe("startDegreePass", () => {
     it("runs degree and reads the readings back highest degree first", async () => {
         const stub = makeStub({ degree: { ranking: [entry("b", 9, 1), entry("c", 5, 2), entry("a", 2, 3)] } });
 
-        const results = await startDegreePass(stub.graph.getSession()).results;
+        const results = await startDegreePass(stub.session).results;
 
         expect(stub.started).toEqual(["degree"]);
         expect(results.byDegreeDescending.map((reading) => reading.id)).toEqual(["b", "c", "a"]);
@@ -148,7 +155,7 @@ describe("startDegreePass", () => {
     it("tells the run not to paint", async () => {
         const stub = makeStub({ degree: { ranking: [entry("a", 1, 1)] } });
 
-        await startDegreePass(stub.graph.getSession()).results;
+        await startDegreePass(stub.session).results;
 
         expect(stub.startOptions).toEqual([{ style: false }]);
     });
@@ -156,7 +163,7 @@ describe("startDegreePass", () => {
     it("prints a numeric node id rather than carrying it as a number", async () => {
         const stub = makeStub({ degree: { ranking: [entry(2, 8, 1), entry(1, 3, 2)] } });
 
-        const results = await startDegreePass(stub.graph.getSession()).results;
+        const results = await startDegreePass(stub.session).results;
 
         expect(results.byDegreeDescending).toEqual([
             { id: "2", degree: 8, degreePct: 1 },
@@ -167,7 +174,7 @@ describe("startDegreePass", () => {
     it("draws each degree as a share of the top one, which the element publishes unnormalised", async () => {
         const stub = makeStub({ degree: { ranking: [entry("a", 10, 1), entry("b", 5, 2)] } });
 
-        const results = await startDegreePass(stub.graph.getSession()).results;
+        const results = await startDegreePass(stub.session).results;
 
         expect(results.byDegreeDescending.map((reading) => reading.degreePct)).toEqual([1, 0.5]);
     });
@@ -203,7 +210,7 @@ describe("the degree distribution", () => {
         });
         histogramCalls.length = 0;
 
-        const results = await startDegreePass(stub.graph.getSession()).results;
+        const results = await startDegreePass(stub.session).results;
 
         /* The same options the Most connected result card asks with, so the two charts agree. */
         expect(histogramCalls).toEqual([{ field: "value", options: { bins: 20, scale: "auto" } }]);
@@ -231,14 +238,14 @@ describe("the degree distribution", () => {
             },
         });
 
-        const results = await startDegreePass(stub.graph.getSession()).results;
+        const results = await startDegreePass(stub.session).results;
 
         expect(results.distribution.bins.map((bin) => bin.label)).toEqual(["2 to 5 links: 40 nodes", "6 to 40 links: 3 nodes"]);
         expect(results.distribution.logX).toBe(true);
     });
 
     it("draws no bar before a pass has run", () => {
-        expect(readDegreeResults(makeStub({}).graph).distribution.bins).toEqual([]);
+        expect(readDegreeResults(makeStub({}).session).distribution.bins).toEqual([]);
     });
 });
 
@@ -246,7 +253,7 @@ describe("readDegreeResults", () => {
     it("reads a pass that already ran without running another one", () => {
         const stub = makeStub({ degree: { ranking: [entry("b", 4, 1), entry("a", 1, 2)] } });
 
-        const again = readDegreeResults(stub.graph);
+        const again = readDegreeResults(stub.session);
 
         expect(stub.started).toEqual([]);
         expect(again.byDegreeDescending.map((reading) => reading.degree)).toEqual([4, 1]);
@@ -256,7 +263,7 @@ describe("readDegreeResults", () => {
     it("returns nothing at all before a pass has run", () => {
         const stub = makeStub({});
 
-        const results = readDegreeResults(stub.graph);
+        const results = readDegreeResults(stub.session);
 
         expect(results.byDegreeDescending).toEqual([]);
         expect(results.maxDegree).toBe(0);
@@ -278,7 +285,7 @@ describe("runCommunityDetection", () => {
             },
         });
 
-        const result = await runCommunityDetection(stub.graph.getSession());
+        const result = await runCommunityDetection(stub.session);
 
         expect(stub.started).toEqual(["louvain"]);
         expect(result.groupCount).toBe(4);
@@ -305,7 +312,7 @@ describe("runCommunityDetection", () => {
             },
         });
 
-        const result = await runCommunityDetection(stub.graph.getSession());
+        const result = await runCommunityDetection(stub.session);
 
         expect(result.groups.map((group) => group.communityId)).toEqual([1, 3, 5]);
     });
@@ -313,7 +320,7 @@ describe("runCommunityDetection", () => {
     it("reports no modularity at all when the run published none", async () => {
         const stub = makeStub({ louvain: { groups: [{ group: 0, size: 1 }, { group: 1, size: 1 }] } });
 
-        const result = await runCommunityDetection(stub.graph.getSession());
+        const result = await runCommunityDetection(stub.session);
 
         expect(result.modularity).toBeUndefined();
         expect("modularity" in result).toBe(false);
@@ -325,14 +332,14 @@ describe("runCommunityDetection", () => {
         const nan = makeStub({ louvain: { groups, graph: { modularity: Number.NaN } } });
         const text = makeStub({ louvain: { groups, graph: { modularity: "0.5" } } });
 
-        expect((await runCommunityDetection(nan.graph.getSession())).modularity).toBeUndefined();
-        expect((await runCommunityDetection(text.graph.getSession())).modularity).toBeUndefined();
+        expect((await runCommunityDetection(nan.session)).modularity).toBeUndefined();
+        expect((await runCommunityDetection(text.session)).modularity).toBeUndefined();
     });
 
     it("covers only the elements the run grouped", async () => {
         const stub = makeStub({ louvain: { groups: [{ group: 0, size: 2 }], measured: 2, graph: { modularity: 0.1 } } });
 
-        const result = await runCommunityDetection(stub.graph.getSession());
+        const result = await runCommunityDetection(stub.session);
 
         expect(result.nodeCount).toBe(2);
         expect(result.groups).toEqual([{ communityId: 0, size: 2 }]);
@@ -341,7 +348,7 @@ describe("runCommunityDetection", () => {
     it("reports an empty result for a graph with no assignments", async () => {
         const stub = makeStub({});
 
-        const result = await runCommunityDetection(stub.graph.getSession());
+        const result = await runCommunityDetection(stub.session);
 
         expect(result).toEqual({
             runId: expect.any(String) as unknown as string,

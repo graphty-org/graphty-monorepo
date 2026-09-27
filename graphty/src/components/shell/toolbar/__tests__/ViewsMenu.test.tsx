@@ -252,7 +252,7 @@ describe("ViewsMenu", () => {
 
             await user.click(within(dropdown).getByRole("menuitem", { name: "Top" }));
 
-            expect(onViewPreset).toHaveBeenCalledWith("top");
+            expect(onViewPreset).toHaveBeenCalledWith("topView");
 
             await user.click(within(await menu()).getByRole("menuitem", { name: "Reset view" }));
 

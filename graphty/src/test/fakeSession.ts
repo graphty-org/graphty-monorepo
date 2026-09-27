@@ -46,6 +46,7 @@ import type {
     Channel,
     CostEstimate,
     DataSourceInput,
+    EdgeRecord,
     GraphSession,
     GraphStatistics,
     HistoryOutcome,
@@ -54,6 +55,8 @@ import type {
     Layer,
     LayerSpec,
     LegendBlock,
+    NodeId,
+    NodeRecord,
     ProjectSlice,
     RunId,
     RunResult,
@@ -212,6 +215,12 @@ interface FakeSessionOptions {
      * @returns settles once the data is in.
      */
     readonly importer?: (source: DataSourceInput, options?: ImportOptions) => Promise<void>;
+    /**
+     * Every node and edge record the graph holds, read fresh on every call, as
+     * `session.data.nodes()` and `edges()` list them. A caller that supplies none holds none.
+     * @returns the records.
+     */
+    readonly records?: () => { readonly nodes: readonly NodeRecord[]; readonly edges: readonly EdgeRecord[] };
 }
 
 /**
@@ -302,6 +311,7 @@ function fakeSeconds(algorithm: string, statistics: GraphStatistics): number {
 export function createFakeSession(options: FakeSessionOptions = {}): FakeSession {
     const watchers = new Map<string, Set<(payload?: unknown) => void>>();
     const runs: FakeRun[] = [];
+    const pinned = new Set<NodeId>();
     let minted = 0;
 
     /** What the graph a run would measure looks like now. @returns the digest. */
@@ -662,6 +672,8 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
            records of its own, so what they change is what the board's own importer does. */
         data: {
             statistics: statisticsNow,
+            nodes: () => options.records?.().nodes ?? [],
+            edges: () => options.records?.().edges ?? [],
             import: async (source: DataSourceInput, importOptions?: ImportOptions): Promise<void> => {
                 await (options.importer?.(source, importOptions) ?? Promise.resolve());
                 record(`Loaded ${source.type}`, "data.import", ["graph"]);
@@ -678,7 +690,40 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
         /* Nothing this fake holds ever places a node: there is no loader, no layout and no
            drag, so every row is unplaced and the arrangement that keeps the data's own
            coordinates never wins. A board that wants the placed case states its own session. */
-        positions: { placedCount: 0 },
+        positions: {
+            placedCount: 0,
+            pinned,
+            pin: (ids: readonly NodeId[]): Promise<void> => {
+                ids.forEach((id) => pinned.add(id));
+                record("Pinned", "positions.pin", ["pins"]);
+
+                return Promise.resolve();
+            },
+            unpin: (ids: readonly NodeId[]): Promise<void> => {
+                ids.forEach((id) => pinned.delete(id));
+                record("Unpinned", "positions.pin", ["pins"]);
+
+                return Promise.resolve();
+            },
+        },
+        /* The layout choice and 2D or 3D, one step each; this stand-in draws nothing, so they
+           change only what a board reads back. */
+        layout: {
+            id: "force",
+            engine: "ngraph",
+            options: {},
+            dimension: "3d",
+            set: (): Promise<void> => {
+                record("Changed the layout", "layout.set", ["layout"]);
+
+                return Promise.resolve();
+            },
+            setDimension: (): Promise<void> => {
+                record("Changed the dimension", "layout.set", ["layout"]);
+
+                return Promise.resolve();
+            },
+        },
         /* Synchronous, and available, exactly as the element's is: a button has to decide
            how it behaves before the click happens. A board that wants the refused form
            states it through its own session rather than here, because a refusal is a
@@ -700,6 +745,29 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
         },
         runs: {
             list: (): readonly FakeRun[] => [...runs],
+            /* The run and every layer reading it, as one step. */
+            remove: (id: RunId) => {
+                const at = runs.findIndex((candidate) => candidate.id === id);
+                const layerIds = layers
+                    .filter((layer) => layer.source.by === "run" && layer.source.runId === id)
+                    .map((layer) => layer.id);
+
+                if (at !== -1) {
+                    runs.splice(at, 1);
+                }
+
+                for (const layerId of layerIds) {
+                    layers.splice(
+                        layers.findIndex((layer) => layer.id === layerId),
+                        1,
+                    );
+                }
+
+                record("Removed a result", "algo.remove", ["runs", "styles"]);
+                publish();
+
+                return { removedLayers: layerIds.length, layerIds };
+            },
             get: (id: RunId): FakeRun | undefined => runs.find((candidate) => candidate.id === id),
             /* `start` is what the shell calls now, so the fake has to be the thing that runs
                the algorithm AND records the run. It resolves on a microtask, as a queued run

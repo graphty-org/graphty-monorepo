@@ -121,7 +121,6 @@ import { FeedbackModal } from "../FeedbackModal";
 import type { GraphtyHandle, SelectionChangedDetail, StylesChangedDetail } from "../Graphty";
 import type { LayerItem } from "../layout/LeftSidebar";
 import type { LoadDataRequest } from "../LoadDataModal";
-import { asElementGraph, elementSession } from "./analysis/elementBridge";
 import {
     edgeEndpoints,
     EMPTY_GRAPH_STATISTICS,
@@ -1041,8 +1040,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         readonly id: string;
         /*
          * The same node, as the ELEMENT spells its id. Kept beside the printed form because the
-         * element looks a node up by exact map key: `element.pin("34")` finds nothing on a graph
-         * whose ids are numbers, and unlike `selectNode` the pin verbs return nothing, so a miss
+         * element looks a node up by exact key: `session.positions.pin(["34"])` finds nothing on a
+         * graph whose ids are numbers, and unlike `selectNode` the pin verbs skip a miss silently, so a miss
          * cannot even be detected and retried. Every call on the element made from this state
          * passes this field.
          */
@@ -1283,6 +1282,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
            run, and the card and the field disagreed about which result was on screen. */
         readonly layerName?: string;
         readonly stateSwatch?: string;
+        /** The run this result reads, which Remove result takes away with every layer reading it. */
+        readonly runId?: RunId;
         /** The run every layer this result painted names as its source. */
         readonly layerRunId?: RunId;
         /** How many layers name that run, which is the count Remove result states. */
@@ -1402,7 +1403,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     const aiProvider = aiDefaultProvider ?? aiKeyStorage.configuredProviders[0];
 
     const aiManager = useAiManager({
-        graph: graphtyRef.current?.graph ?? undefined,
+        graph: graphtyRef.current?.element?.graph ?? undefined,
         defaultProvider: aiProvider,
         getKey: aiKeyStorage.getKey,
     });
@@ -1490,14 +1491,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
        below, which registers once and must not re-run when the reader changes. */
     const refreshGraphDataRef = useRef<() => void>(() => undefined);
 
-    /* The graph the data listeners are already attached to.
-       `Graph` publishes `addListener` and no matching remove, and `addListener`
-       returns nothing to remove WITH, so an attach cannot be undone. The effect
-       below therefore has to be idempotent by itself: under StrictMode it runs,
-       tears down and runs again on the same graph, and without this guard every
-       data event would be handled twice for the life of the session. */
-    const dataListenerGraphRef = useRef<unknown>(null);
-
     /* Whether the graph instance exists yet. The `?test` load below waits on this:
        graphty-element initialises asynchronously, and a load issued before it has is
        the "the graph is not initialised yet" path, which drops the data silently. */
@@ -1505,21 +1498,19 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
     useEffect(() => {
         let attempts = 0;
+        let unwatch: (() => void) | null = null;
 
         const timer = window.setInterval(() => {
-            const { graph } = graphtyRef.current ?? { graph: null };
+            const handle = graphtyRef.current;
+            const session = handle?.session ?? null;
 
             attempts += 1;
 
-            if (graph !== null) {
-                graphDisableBuiltInXrButtons(graph);
-
-                if (dataListenerGraphRef.current !== graph) {
-                    dataListenerGraphRef.current = graph;
-                    graphOnDataChanged(graph, () => {
-                        refreshGraphDataRef.current();
-                    });
-                }
+            if (session !== null) {
+                graphDisableBuiltInXrButtons(handle?.element ?? null);
+                unwatch = graphOnDataChanged(session, () => {
+                    refreshGraphDataRef.current();
+                });
 
                 setGraphReady(true);
                 window.clearInterval(timer);
@@ -1534,6 +1525,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
         return () => {
             window.clearInterval(timer);
+            unwatch?.();
         };
     }, []);
 
@@ -1543,7 +1535,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
        sentence, shown under the field. `loadCompletions` is a dependency so a query still in
        the field runs again over a newly loaded dataset. */
     useEffect(() => {
-        const session = elementSession(graphtyRef.current?.graph);
+        const session = graphtyRef.current?.session ?? null;
         const text = exploreQuery.trim();
 
         if (session === null || (text === "" && !exploreSelectedRef.current)) {
@@ -1624,7 +1616,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
     const refreshGraphData = useCallback(() => {
         const data = graphtyRef.current?.getData() ?? NO_GRAPH_DATA;
-        const session = elementSession(graphtyRef.current?.graph);
+        const session = graphtyRef.current?.session ?? null;
         const statistics = readGraphStatistics(session);
 
         /* The counts travel with the rest of the shape, in {@link graphStatistics}, so the
@@ -1681,7 +1673,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         const frame = frameRef.current;
 
         const onNodeDragEnd = (): void => {
-            setPinnedNodes(new Set(graphtyRef.current?.pinnedNodes ?? EMPTY_PINNED_NODES));
+            setPinnedNodes(new Set(graphtyRef.current?.session?.positions.pinned ?? EMPTY_PINNED_NODES));
         };
 
         frame?.addEventListener(NODE_DRAG_END_EVENT, onNodeDragEnd);
@@ -2010,7 +2002,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             source: DataSourceInput,
             suggested: InsightCapability | null,
         ): Promise<void> => {
-            const session = elementSession(graphtyRef.current?.graph);
+            const session = graphtyRef.current?.session ?? null;
 
             if (session === null) {
                 throw new Error(GRAPH_NOT_INITIALISED);
@@ -2322,7 +2314,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * @param patch - what to change about it.
      */
     const updateLayer = useCallback((layerId: string, patch: Partial<LayerSpec>) => {
-        const session = elementSession(graphtyRef.current?.graph);
+        const session = graphtyRef.current?.session ?? null;
 
         if (session === null) {
             return;
@@ -2346,7 +2338,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * @param channel - the channel the rule paints.
      */
     const resolveLayerChannel = useCallback((layerId: string, channel: Channel) => {
-        const session = elementSession(graphtyRef.current?.graph);
+        const session = graphtyRef.current?.session ?? null;
 
         if (session === null) {
             return;
@@ -2373,7 +2365,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      */
     const handleLayersChange = useCallback(
         (next: LayerItem[]) => {
-            const session = elementSession(graphtyRef.current?.graph);
+            const session = graphtyRef.current?.session ?? null;
 
             if (session === null) {
                 return;
@@ -2426,7 +2418,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * is what makes a later run's encoding stand aside for it rather than paint over it.
      */
     const handleAddLayer = useCallback(() => {
-        const session = elementSession(graphtyRef.current?.graph);
+        const session = graphtyRef.current?.session ?? null;
 
         if (session === null) {
             return;
@@ -2444,9 +2436,16 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         );
     }, []);
 
+    /* One undoable step each, including a re-run of the layout already chosen. The mirrors are
+       what the layout control and the status bar draw. */
     const handleApplyLayout = useCallback((type: string, config: Record<string, unknown>) => {
         setLayoutType(type);
         setLayoutConfig(config);
+        graphtyRef.current?.session
+            ?.layout.set(type, { options: config })
+            .catch((error: unknown) => {
+                console.error("[shell] the element refused the layout:", error);
+            });
     }, []);
 
     const handleSelectionChange = useCallback((detail: SelectionChangedDetail) => {
@@ -2567,15 +2566,14 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      */
     const runFindGroups = useCallback(
         async (options: { readonly retiresInsightCard: boolean }, via?: TransactionScope): Promise<void> => {
-            const graph = asElementGraph(graphtyRef.current?.graph);
+            const session = graphtyRef.current?.session ?? null;
 
-            if (graph === null) {
+            if (session === null) {
                 console.error("[shell] the graph is not initialised yet");
 
                 return;
             }
 
-            const session = graph.getSession();
             const stats = await runCommunityDetection(via ?? session);
 
             /* The RUN painted the groups, not the shell. A community result publishes a group
@@ -2610,7 +2608,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                row, a click on the node itself) was inert until the reader picked something
                else. */
             setSelectedNode(null);
-            graphDeselectNode(graphtyRef.current?.graph ?? null);
+            graphDeselectNode(graphtyRef.current?.element ?? null);
             setActiveResult({
                 /* Stable per run KIND: a re-run of Groups is the same result identity,
                    which is what the reader means by it. */
@@ -2628,6 +2626,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     scope: `${formatCount(stats.nodeCount)} nodes`,
                 }),
                 body: communityResultBody(statistics),
+                runId,
                 /* The applied half, all four fields together or none of them: the layer's own
                    name, a colour some node really carries, the TAG the two layer verbs act on,
                    and how many layers that tag holds, which is the count Remove result names
@@ -2744,9 +2743,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     const runNodeMetricCard = useCallback(
         async (request: MetricRunRequest): Promise<void> => {
             const { metric, confirmed } = request;
-            const graph = asElementGraph(graphtyRef.current?.graph);
+            const session = graphtyRef.current?.session ?? null;
 
-            if (graph === null) {
+            if (session === null) {
                 console.error("[shell] the graph is not initialised yet");
 
                 return;
@@ -2759,7 +2758,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                    estimate is scaled from that timing rather than modelled, so the number
                    the reader is asked to accept should be the freshest one the element has.
                    It is O(1) over the shape the session already maintains. */
-                const estimate = metricCost(graph.getSession(), metric);
+                const estimate = metricCost(session, metric);
 
                 if (estimate.verdict === "unavailable") {
                     /* The element will not run this on this graph and said why. Nothing is
@@ -2793,7 +2792,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                    hand. The short circuit this replaces was the shell keeping that flag,
                    and it got it wrong on an additive load: the held pass described one file
                    while the ranking reported its node count as the whole graph. */
-                const ranking = await runNodeMetric(graph, metric);
+                const ranking = await runNodeMetric(session, metric);
                 const top = ranking.byValueDescending[0];
 
                 if (top === undefined) {
@@ -2815,7 +2814,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
                    Every other run's layers stay, under this one: the stack order decides which
                    colour wins, and the reader can reorder, hide or remove any of them. */
-                const session = graph.getSession();
                 const { runId } = ranking;
 
                 /* A degree ranking read back off the load's own pass has a run behind it that
@@ -2878,7 +2876,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                             ? {}
                             : {
                                   onSelect: () => {
-                                      graphSelectNode(graphtyRef.current?.graph ?? null, nodeId);
+                                      graphSelectNode(graphtyRef.current?.element ?? null, nodeId);
                                   },
                               }),
                     };
@@ -2890,7 +2888,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                    ignores a select for the node it already holds, so a node selected when
                    the run started could not be re-selected by any route afterwards. */
                 setSelectedNode(null);
-                graphDeselectNode(graphtyRef.current?.graph ?? null);
+                graphDeselectNode(graphtyRef.current?.element ?? null);
                 /* ONE statistics literal feeding BOTH the expanded reading and the
                    collapsed headline. Two literals would be two spellings of one
                    measurement, free to drift the moment either template grew a field. */
@@ -2919,6 +2917,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     }),
                     ...(caveats === undefined ? {} : { caveats }),
                     body,
+                    ...(runId === undefined ? {} : { runId }),
                     distribution: metricDistribution(ranking),
                     /* Applied: the card names the layer that holds the channel, the
                        colour the TOP node of this run actually carries, the tag the two
@@ -3028,32 +3027,39 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     /* ---------------------------------------------------------------------- */
 
     const zoomIn = useCallback(() => {
-        graphZoomStep(graphtyRef.current?.graph ?? null, "in");
+        graphZoomStep(graphtyRef.current?.element ?? null, "in");
     }, []);
     const zoomOut = useCallback(() => {
-        graphZoomStep(graphtyRef.current?.graph ?? null, "out");
+        graphZoomStep(graphtyRef.current?.element ?? null, "out");
     }, []);
     const zoomToFit = useCallback(() => {
-        graphZoomToFit(graphtyRef.current?.graph ?? null);
+        graphZoomToFit(graphtyRef.current?.element ?? null);
     }, []);
     const zoomToSelection = useCallback(() => {
-        graphZoomToSelection(graphtyRef.current?.graph ?? null, selectedNode?.id ?? null);
-    }, [selectedNode]);
+        graphZoomToSelection(graphtyRef.current?.element ?? null);
+    }, []);
     const resetView = useCallback(() => {
-        graphResetView(graphtyRef.current?.graph ?? null);
+        graphResetView(graphtyRef.current?.element ?? null);
     }, []);
     const viewTop = useCallback(() => {
-        graphViewPreset(graphtyRef.current?.graph ?? null, "top");
+        graphViewPreset(graphtyRef.current?.element ?? null, "topView");
     }, []);
     const viewFront = useCallback(() => {
-        graphViewPreset(graphtyRef.current?.graph ?? null, "front");
+        graphViewPreset(graphtyRef.current?.element ?? null, "frontView");
     }, []);
     const viewSide = useCallback(() => {
-        graphViewPreset(graphtyRef.current?.graph ?? null, "side");
+        graphViewPreset(graphtyRef.current?.element ?? null, "sideView");
+    }, []);
+    /* 2D or 3D, one undoable step. */
+    const changeViewMode = useCallback((mode: CanvasViewMode) => {
+        setViewMode(mode);
+        graphtyRef.current?.session?.layout.setDimension(mode).catch((error: unknown) => {
+            console.error("[shell] the element refused the dimension:", error);
+        });
     }, []);
     const toggleViewMode = useCallback(() => {
-        setViewMode((mode) => (mode === "3d" ? "2d" : "3d"));
-    }, []);
+        changeViewMode(viewMode === "3d" ? "2d" : "3d");
+    }, [changeViewMode, viewMode]);
 
     /* ---------------------------------------------------------------------- */
     /* Transient surfaces, and the Escape ladder's second rung                 */
@@ -3104,7 +3110,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             return false;
         }
 
-        graphDeselectNode(graphtyRef.current?.graph ?? null);
+        graphDeselectNode(graphtyRef.current?.element ?? null);
         setSelectedNode(null);
 
         return true;
@@ -3133,7 +3139,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             }
 
             setSelectedNode(null);
-            graphDeselectNode(graphtyRef.current?.graph ?? null);
+            graphDeselectNode(graphtyRef.current?.element ?? null);
             setSelectedLayerId(null);
         },
         [activeResult],
@@ -3339,7 +3345,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     label: CLOSE_DATASET_ROW,
                     separatorBefore: true,
                     onSelect: () => {
-                        const session = elementSession(graphtyRef.current?.graph);
+                        const session = graphtyRef.current?.session ?? null;
 
                         /* One step, so one Undo brings the dataset back with its styles: the
                            graph is emptied and the layers that described it are swept in the
@@ -3382,7 +3388,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     label: RESET_STYLES_ROW,
                     separatorBefore: true,
                     onSelect: () => {
-                        const session = elementSession(graphtyRef.current?.graph);
+                        const session = graphtyRef.current?.session ?? null;
 
                         if (session === null) {
                             return;
@@ -3709,19 +3715,22 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * @param elementId - the node, as the element spells its id.
      */
     const togglePin = useCallback((elementId: string | number) => {
-        const handle = graphtyRef.current;
+        const positions = graphtyRef.current?.session?.positions;
 
-        if (handle === null) {
+        if (positions === undefined) {
             return;
         }
 
-        if (handle.pinnedNodes.has(elementId)) {
-            handle.unpin(elementId);
-        } else {
-            handle.pin(elementId);
-        }
+        const change = positions.pinned.has(elementId) ? positions.unpin([elementId]) : positions.pin([elementId]);
 
-        setPinnedNodes(new Set(handle.pinnedNodes));
+        void change.then(
+            () => {
+                setPinnedNodes(new Set(positions.pinned));
+            },
+            (error: unknown) => {
+                console.error("[shell] the element refused the pin:", error);
+            },
+        );
     }, []);
 
     const copyReading = useCallback((text: string) => {
@@ -3786,7 +3795,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * painted none.
      */
     const removeResultLayers = useCallback((layerRunId: RunId | undefined) => {
-        const session = elementSession(graphtyRef.current?.graph);
+        const session = graphtyRef.current?.session ?? null;
 
         if (session === null || layerRunId === undefined) {
             return;
@@ -3798,6 +3807,24 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 console.error("[shell] the element refused to remove the result's layers:", error);
             },
         );
+    }, []);
+
+    /**
+     * Takes a result away: the run, and every layer that reads it, as one undoable step.
+     * @param runId - the result's run, or undefined for a result that names none.
+     */
+    const removeResult = useCallback((runId: RunId | undefined) => {
+        const session = graphtyRef.current?.session ?? null;
+
+        if (session === null || runId === undefined) {
+            return;
+        }
+
+        try {
+            session.runs.remove(runId);
+        } catch (error: unknown) {
+            console.error("[shell] the element refused to remove the result:", error);
+        }
     }, []);
 
     const inspectorSelection = useMemo<InspectorSelection>(() => {
@@ -3892,7 +3919,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                        the legend naming it with the one tag-aware removal control gone from
                        the screen. */
                     onRemoveResult: () => {
-                        removeResultLayers(activeResult.layerRunId);
+                        removeResult(activeResult.runId);
                         setActiveResult(null);
                         setColourChannel([]);
                     },
@@ -3945,7 +3972,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                        and the shell had never passed it, so every one of those rows was
                        inert text that looked like a control. */
                     onSelectNode: (nodeId: string) => {
-                        graphSelectNode(graphtyRef.current?.graph ?? null, nodeId);
+                        graphSelectNode(graphtyRef.current?.element ?? null, nodeId);
                     },
                     onExportTop: () => undefined,
                     onExportRanked: () => undefined,
@@ -3999,7 +4026,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 onToggleNoteDone: () => undefined,
                 onDeleteNote: () => undefined,
                 onSelectNeighbor: (nodeId: string) => {
-                    graphSelectNode(graphtyRef.current?.graph ?? null, nodeId);
+                    graphSelectNode(graphtyRef.current?.element ?? null, nodeId);
                 },
                 onNoteRelationship: () => {
                     openPanelAt("explore");
@@ -4043,6 +4070,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         openDrawerOn,
         openPanelAt,
         pinnedNodes,
+        removeResult,
         removeResultLayers,
         selectedLayerId,
         selectedNode,
@@ -4575,9 +4603,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         graph: {
             layers: [...layers],
             acceleration: accelerationPolicy,
-            viewMode,
-            layout: layoutType,
-            layoutConfig,
             onSelectionChange: handleSelectionChange,
             onStylesChange: handleStylesChange,
             onSession: setSession,
@@ -4836,7 +4861,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                         <CanvasRegion {...canvasProps}>
                             <CanvasToolbarSlot
                                 viewMode={viewMode}
-                                onViewModeChange={setViewMode}
+                                onViewModeChange={changeViewMode}
                                 zoomToSelectionEnabled={selectedNode !== null}
                                 onZoomOut={zoomOut}
                                 onZoomIn={zoomIn}
@@ -4858,7 +4883,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                                     visibleEdgeCount,
                                     onResetView: resetView,
                                     onViewPreset: (preset) => {
-                                        graphViewPreset(graphtyRef.current?.graph ?? null, preset);
+                                        graphViewPreset(graphtyRef.current?.element ?? null, preset);
                                     },
                                     onToggleToolbar: () => {
                                         toggleOverlay("toolbar");

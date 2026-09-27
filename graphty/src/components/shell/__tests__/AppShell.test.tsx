@@ -1,3 +1,4 @@
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CAT_SOCIAL_NETWORK, CAT_SOCIAL_NETWORK_NAME } from "../../../data/sampleGraphs";
@@ -17,6 +18,7 @@ const MANTINE_MODAL_Z_INDEX = 200;
 import type {
     AccelerationStatus,
     DataSourceInput,
+    GraphSession,
     GraphStatistics,
     Histogram,
     ImportOptions,
@@ -93,12 +95,39 @@ function reportSelection(container: HTMLElement, nodeId: string | number | null)
 }
 
 /**
+ * Stands the element's session, and the element members the shell calls, on the mounted host.
+ *
+ * The host is not upgraded in these boards (nothing imports the element's module), so each is
+ * an own property: `session`, and the camera, selection and XR members the shell calls on the
+ * element itself.
+ * @param element - the mounted `graphty-element`.
+ * @param session - the stand-in session.
+ * @param members - element members beyond the no-op defaults.
+ */
+function standElement(element: Element, session: GraphSession, members: Readonly<Record<string, unknown>> = {}): void {
+    const defaults: Record<string, unknown> = {
+        setXRConfig: vi.fn(),
+        selectNode: vi.fn(() => true),
+        deselectNode: vi.fn(),
+        zoomToFit: vi.fn(),
+        zoomStep: vi.fn(() => Promise.resolve()),
+        zoomToSelection: vi.fn(() => Promise.resolve()),
+        resetCamera: vi.fn(() => Promise.resolve()),
+        loadCameraPreset: vi.fn(() => Promise.resolve()),
+    };
+
+    for (const [name, value] of Object.entries({ ...defaults, ...members, session })) {
+        Object.defineProperty(element, name, { configurable: true, value });
+    }
+}
+
+/**
  * Stands a graph on the mounted host and lets the shell read its style stack.
  *
- * `Graphty`'s handle reads `element.graph` through a getter every time it is asked, and its
- * style effect subscribes to `session.on("style:changed")`, so a graph put on the element here
- * reaches the shell by the same route the real element's does -- which is what makes this a
- * test of the shell's own upward channel rather than of a mock.
+ * `Graphty`'s handle reads `element.session` every time it is asked, and its style effect
+ * subscribes to `session.on("style:changed")`, so a session put on the element here reaches the
+ * shell by the same route the real element's does -- which is what makes this a test of the
+ * shell's own upward channel rather than of a mock.
  * @param container - the render result's container.
  * @param names - the layers the stack holds beyond the element's own two, bottom first.
  * @param importer - what a load does; see {@link elementImporter}.
@@ -119,17 +148,7 @@ function installGraph(
         fake.seed({ name, target: "node", selector: { match: "everything" } });
     }
 
-    // `graph` is a getter on the element's prototype, so the stand-in is an own
-    // property on this instance rather than an assignment, which the getter refuses.
-    Object.defineProperty(element, "graph", {
-        configurable: true,
-        value: {
-            runAlgorithm: () => Promise.resolve(),
-            getNodes: () => [],
-            getDataManager: () => ({}),
-            getSession: () => fake.session,
-        },
-    });
+    standElement(element as Element, fake.session);
 
     return fake;
 }
@@ -622,10 +641,6 @@ interface StubGraph {
      * @returns the run ids.
      */
     readonly runIds: (algorithm: string) => readonly RunId[];
-    /** The data manager, for the clear a replacing load makes. */
-    readonly dataManager: {
-        clear: ReturnType<typeof vi.fn>;
-    };
 }
 
 /**
@@ -1104,17 +1119,20 @@ function installNovicePathGraph(container: HTMLElement, options: NovicePathOptio
         /* Read fresh on every call, because a board can grow the graph under the session
            (`addNode`), and the shape the shell reads has to move with it. */
         statistics: () => fixtureStatistics(nodes, edges, options.directedness ?? "undirected"),
+        records: () => ({
+            nodes: [...nodes.values()].map((node) => ({ ...node.data, id: node.id })),
+            edges: [...edges.values()].map((edge) => ({
+                ...edge.data,
+                id: edge.id,
+                source: edge.srcId,
+                target: edge.dstId,
+            })),
+        }),
     });
 
     for (const spec of options.extraLayers ?? []) {
         styles.seed(spec);
     }
-
-    const dataManager = {
-        nodes,
-        edges,
-        clear: vi.fn(),
-    };
 
     /* The ELEMENT EXECUTING an algorithm, recorded by the same spy the boards have always
        asserted against. It writes nothing: a run publishes one result object now, and this
@@ -1199,18 +1217,7 @@ function installNovicePathGraph(container: HTMLElement, options: NovicePathOptio
         selectedId = null;
         emitSelection(null);
     });
-    const graph = {
-        dataManager,
-        getDataManager: () => dataManager,
-        getNodes: () => [...nodes.values()],
-        getSession: () => styles.session,
-        runAlgorithm,
-        selectNode,
-        deselectNode,
-        addListener: vi.fn(),
-    };
-
-    Object.defineProperty(element, "graph", { configurable: true, value: graph });
+    standElement(element as Element, styles.session, { selectNode, deselectNode });
 
     const addNode = (id: string): void => {
         nodes.set(id, { id, data: { id } });
@@ -1228,7 +1235,6 @@ function installNovicePathGraph(container: HTMLElement, options: NovicePathOptio
                 .filter((run) => run.algorithm === algorithm)
                 .map((run) => run.id),
         styles,
-        dataManager,
     };
 }
 
@@ -3475,11 +3481,51 @@ describe("AppShell", () => {
                  categorical encoding rather than one layer per coloured group. */
             expect(within(inspector).getByText("Removes 1 style layer.")).toBeInTheDocument();
 
+            expect(graph.runIds("louvain")).toHaveLength(1);
+
             fireEvent.click(within(inspector).getByRole("button", { name: "Remove result" }));
 
+            /* The RUN goes as well as its layers: a result whose layers were swept while its run
+               stayed behind would come back, numbers and all, the next time anything read it. */
+            expect(graph.runIds("louvain")).toEqual([]);
             expect(communityLayers(graph.styles.layers())).toHaveLength(0);
             expect(screen.queryByLabelText("Legend")).toBeNull();
             expect(screen.getByTestId("inspector")).not.toHaveTextContent("Louvain, 20 nodes");
+        });
+
+        /* Every camera control is one call of the element's own door: the app holds no zoom
+           factor, no view table and no camera arithmetic of its own. */
+        it("moves the camera only through the element's doors", async () => {
+            const user = userEvent.setup();
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+
+            await loadCatSample(container);
+            reportSelection(container, CAT_SOCIAL_NETWORK.nodes[0].id);
+
+            const element = container.querySelector("graphty-element") as unknown as Record<
+                string,
+                ReturnType<typeof vi.fn>
+            >;
+
+            await user.click(screen.getByRole("button", { name: "Zoom in" }));
+            await user.click(screen.getByRole("button", { name: "Zoom out" }));
+            await user.click(screen.getByRole("button", { name: "Zoom to fit" }));
+            await user.click(screen.getByRole("button", { name: "Zoom to selection" }));
+
+            expect(element.zoomStep.mock.calls).toEqual([["in"], ["out"]]);
+            expect(element.zoomToFit).toHaveBeenCalledTimes(1);
+            expect(element.zoomToSelection).toHaveBeenCalledTimes(1);
+
+            for (const row of ["Top", "Front", "Side", "Reset view"]) {
+                await user.click(screen.getByRole("button", { name: "Views" }));
+                await user.click(await screen.findByRole("menuitem", { name: row }));
+            }
+
+            expect(element.loadCameraPreset.mock.calls).toEqual([["topView"], ["frontView"], ["sideView"]]);
+            expect(element.resetCamera).toHaveBeenCalledTimes(1);
         });
 
         /* A metric run owns exactly one layer, so the same sentence counts one. */
@@ -4461,41 +4507,34 @@ describe("AppShell", () => {
 
     describe("the node inspector's Pin verb", () => {
         /**
-         * Stands the element's three pin verbs on the mounted host.
+         * Watches the session's pin verbs on the mounted host.
          *
-         * They are the element's, not the graph's: `element.pin` / `unpin` / `pinnedNodes` are
-         * the published door, and reaching through `element.graph` to a node object is what
-         * they exist to replace. The stand-in records the id it was handed, because the id TYPE
-         * is the thing that decides whether the verb does anything -- the element looks a node
-         * up by exact map key, so a printed "1" finds nothing on a graph keyed by the number 1.
+         * Pins go through `session.positions`, one undoable step each. The ids are recorded,
+         * because the id TYPE is the thing that decides whether the verb does anything -- the
+         * element looks a node up by exact key, so a printed "1" finds nothing on a graph keyed
+         * by the number 1.
          * @param container - the render result's container.
          * @returns the ids pinned and unpinned, in call order.
          */
         function installPinVerbs(container: HTMLElement) {
-            const element = container.querySelector("graphty-element");
-
-            expect(element).not.toBeNull();
-
-            const pinned = new Set<string | number>();
+            const element = container.querySelector("graphty-element") as unknown as { session: GraphSession };
+            const { positions } = element.session;
             const pinnedWith: (string | number)[] = [];
             const unpinnedWith: (string | number)[] = [];
+            const pin = positions.pin.bind(positions);
+            const unpin = positions.unpin.bind(positions);
 
-            Object.defineProperties(element as HTMLElement, {
-                pin: {
-                    configurable: true,
-                    value: (id: string | number) => {
-                        pinnedWith.push(id);
-                        pinned.add(id);
-                    },
+            Object.assign(positions, {
+                pin: (ids: readonly (string | number)[]) => {
+                    pinnedWith.push(...ids);
+
+                    return pin(ids);
                 },
-                unpin: {
-                    configurable: true,
-                    value: (id: string | number) => {
-                        unpinnedWith.push(id);
-                        pinned.delete(id);
-                    },
+                unpin: (ids: readonly (string | number)[]) => {
+                    unpinnedWith.push(...ids);
+
+                    return unpin(ids);
                 },
-                pinnedNodes: { configurable: true, get: () => pinned },
             });
 
             return { pinnedWith, unpinnedWith };
@@ -4528,8 +4567,8 @@ describe("AppShell", () => {
             fireEvent.click(screen.getByTestId("inspector-actions-more"));
             fireEvent.click(await screen.findByRole("menuitem", { name: "Pin" }));
 
-            /* A printed "1" would leave `DataManager.nodes.get` looking for a key that is not
-               there, and `element.pin` returns nothing, so the miss would be silent: the verb
+            /* A printed "1" would name a key that is not there, and `session.positions.pin` skips
+               a node it does not hold, so the miss would be silent: the verb
                would read as wired and fix no node at all. */
             expect(pinnedWith).toEqual([selected]);
             expect(typeof pinnedWith[0]).toBe("number");
@@ -4543,12 +4582,14 @@ describe("AppShell", () => {
             fireEvent.click(screen.getByTestId("inspector-actions-more"));
             fireEvent.click(await screen.findByRole("menuitem", { name: "Pin" }));
 
-            expect(screen.getByTestId("node-pinned-badge")).toHaveTextContent("Pinned");
+            expect(await screen.findByTestId("node-pinned-badge")).toHaveTextContent("Pinned");
 
             fireEvent.click(screen.getByTestId("node-unpin"));
 
             expect(unpinnedWith).toEqual([selected]);
-            expect(screen.queryByTestId("node-pinned-badge")).toBeNull();
+            await waitFor(() => {
+                expect(screen.queryByTestId("node-pinned-badge")).toBeNull();
+            });
         });
 
         it("draws the badge for a node the reader pinned by DRAGGING it, without a second pick", async () => {
@@ -4558,12 +4599,9 @@ describe("AppShell", () => {
             installNovicePathGraph(container, { numericIds: true });
 
             const element = container.querySelector("graphty-element");
-            const pinned = new Set<string | number>();
-
-            Object.defineProperty(element as HTMLElement, "pinnedNodes", {
-                configurable: true,
-                get: () => pinned,
-            });
+            const pinned = (element as unknown as { session: GraphSession }).session.positions.pinned as Set<
+                string | number
+            >;
 
             await loadCatSample(container);
 

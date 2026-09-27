@@ -136,15 +136,19 @@ const nodeCount = graph.getNodeCount();
 const edgeCount = graph.getEdgeCount();
 ```
 
-Edge records are read through the session, by the edge's own id. Ask for the ids first:
+Records are read through the session: one at a time by id, or every one at once.
 
 ```typescript
 const session = element.session;
 
-for (const id of (await session.scope.resolve("graph")).edges) {
-    const record = session.data.edge(id); // { id, source, target, ...the file's own keys }
-}
+const record = session.data.edge(id); // { id, source, target, ...the file's own keys }
+const everyNode = session.data.nodes(); // [{ id, ...the file's own keys }, ...]
+const everyEdge = session.data.edges(); // [{ id, source, target, ... }, ...]
 ```
+
+`nodes()` and `edges()` walk the whole graph on each call, so read them when the graph changes
+rather than every frame. Every record is read-only; change the graph through `session.data`'s
+verbs, each of which is one undoable step.
 
 "The edge between two nodes" is plural, because a graph may hold more than one:
 

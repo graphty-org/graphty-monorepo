@@ -89,6 +89,34 @@ describe("reading one node or one edge", () => {
     });
 });
 
+describe("listing every node and every edge", () => {
+    it("hands back each record exactly as reading it by id does, in the graph's order", () => {
+        const harness = makeSession();
+        harness.add(
+            [{ id: "a", label: "Alpha" }, { id: 2 }],
+            [
+                { src: "a", dst: 2, kind: "knows" },
+                { src: 2, dst: "a" },
+            ],
+        );
+        const { data } = harness.session;
+
+        assert.deepEqual<unknown[]>([...data.nodes()], [data.node("a"), data.node(2)]);
+        assert.deepEqual<unknown[]>([...data.edges()], [data.edge("0"), data.edge("1")]);
+        assert.strictEqual(data.edges()[0].kind, "knows");
+        assert.isTrue(Object.isFrozen(data.nodes()[0]), "a listed record is as read-only as one read by id");
+        harness.session.dispose();
+    });
+
+    it("lists nothing for an empty graph", () => {
+        const harness = makeSession();
+
+        assert.deepEqual(harness.session.data.nodes(), []);
+        assert.deepEqual(harness.session.data.edges(), []);
+        harness.session.dispose();
+    });
+});
+
 describe("what attributes the graph carries", () => {
     it("describes node and edge attributes with their type, completeness and samples", () => {
         const harness = makeSession();

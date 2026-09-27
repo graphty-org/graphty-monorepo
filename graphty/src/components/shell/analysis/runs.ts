@@ -26,7 +26,6 @@
 import type { GraphSession, RunId, RunResult } from "@graphty/graphty-element/session";
 
 import { METRIC_VALUE_FIELD } from "../defaults/styleDescriptors";
-import type { ElementGraph } from "./elementBridge";
 import {
     formatMetricDistribution,
     METRIC_DISTRIBUTION_MAX_BINS,
@@ -157,13 +156,12 @@ function degreeResultsFrom(result: RunResult): DegreeResults {
  * The numbers live on the run rather than on the nodes, so this finds the run rather than
  * walking the graph: the most recent succeeded degree run, which is the one the label cut and
  * the size ramp were built from. No degree run yet reports nothing rather than zeros.
- * @param graph - the element graph whose session holds the runs.
+ * @param session - the element's session, which holds the runs.
  * @returns the readings, highest degree first.
  */
-export function readDegreeResults(graph: ElementGraph): DegreeResults {
-    const latest = graph
-        .getSession()
-        .runs.list()
+export function readDegreeResults(session: Pick<GraphSession, "runs">): DegreeResults {
+    const latest = session.runs
+        .list()
         .filter((run) => run.algorithm === DEGREE_ALGORITHM && run.status === "succeeded")
         .at(-1);
 

@@ -11,31 +11,18 @@ vi.mock("@graphty/graphty-element", () => {
     };
 });
 
-// Mock custom element with graph property that has getLayers method
+// A stand-in for the element: the session the wrapper reads, and the one property it writes.
 class MockGraphtyElement extends HTMLElement {
-    private _layout?: string;
-    /* The element's headless model, which is the one door to the style stack. */
-    graph = {
-        getSession: () => ({ styles: { list: (): unknown[] => [] }, on: () => () => undefined }),
+    session = {
+        styles: { list: (): unknown[] => [] },
+        on: () => () => undefined,
+        data: {
+            nodes: () => [{ id: 1, label: "one" }],
+            edges: () => [{ id: "0", source: 1, target: 1 }],
+        },
     };
-
-    connectedCallback(): void {
-        // React 19 might set properties instead of attributes for custom elements
-        if (this._layout) {
-            this.setAttribute("layout", this._layout);
-        }
-    }
-
-    set layout(value: string | undefined) {
-        this._layout = value;
-        if (this.isConnected && value) {
-            this.setAttribute("layout", value);
-        }
-    }
-
-    get layout(): string | undefined {
-        return this._layout;
-    }
+    /* Declared so React writes the property rather than an attribute, as it does on the real element. */
+    layoutBehavior: unknown = undefined;
 }
 
 // Register the mock custom element
@@ -48,18 +35,6 @@ describe("Graphty", () => {
         const { container } = render(<Graphty layers={[]} />);
         const graphtyElement = container.querySelector("graphty-element");
         expect(graphtyElement).toBeInTheDocument();
-    });
-
-    it("sets the layout attribute", async () => {
-        const { container } = render(<Graphty layers={[]} />);
-        const graphtyElement = container.querySelector("graphty-element") as unknown as MockGraphtyElement;
-        // In React 19, properties might be set instead of attributes for custom elements
-        await vi.waitFor(() => {
-            // Check both property and attribute
-            const hasProperty = graphtyElement.layout === "d3";
-            const hasAttribute = graphtyElement.getAttribute("layout") === "d3";
-            expect(hasProperty || hasAttribute).toBe(true);
-        });
     });
 
     it("writes the acceleration policy on the tag", async () => {
@@ -76,17 +51,23 @@ describe("Graphty", () => {
         });
     });
 
-    it("exposes the element's session through the handle, null until the element has one", () => {
+    it("exposes the element and its session through the handle", () => {
         const ref = createRef<GraphtyHandle>();
         const { container } = render(<Graphty ref={ref} layers={[]} />);
+        const element = container.querySelector("graphty-element") as unknown as MockGraphtyElement;
 
-        expect(ref.current?.session).toBeNull();
+        expect(ref.current?.element).toBe(element);
+        expect(ref.current?.session).toBe(element.session);
+    });
 
-        const element = container.querySelector("graphty-element");
-        const session = { styles: {} };
-        Object.defineProperty(element, "session", { configurable: true, value: session });
+    it("lists the graph's records through the session", () => {
+        const ref = createRef<GraphtyHandle>();
+        render(<Graphty ref={ref} layers={[]} />);
 
-        expect(ref.current?.session).toBe(session);
+        expect(ref.current?.getData()).toEqual({
+            nodes: [{ id: 1, label: "one" }],
+            edges: [{ id: "0", source: 1, target: 1 }],
+        });
     });
 
     it("turns on the element's label declutter", async () => {

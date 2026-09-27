@@ -30,6 +30,7 @@ For usage patterns and examples, see the [JavaScript API Guide](../guide/javascr
 | `getNodes()`           | -              | `Node[]`            | Get all nodes          |
 | `clear()`              | -              | `Promise<void>`     | Remove all data        |
 
+Every node and edge record at once is `session.data.nodes()` and `session.data.edges()`.
 Edge records are read through the session, by edge id -- `session.data.edge(id)` -- because an
 edge's identity is the element's own counter rather than a pair of endpoints. Every edge running
 between two nodes is `graph.getDataManager().getEdgesBetween(a, b)`, which answers a list because

@@ -50,21 +50,11 @@ export function RunAlgorithmModal({ opened, onClose, graphtyRef }: RunAlgorithmM
     // the parameter that names which folded engine this entry is.
     const algorithmOptions = selectedAlgorithm?.options ?? [];
 
-    // Fetch graph nodes when modal opens
+    // The node pickers list every node the graph holds, read when the modal opens.
     useEffect(() => {
         if (opened) {
-            const graph = graphtyRef.current?.graph;
-            if (graph) {
-                const nodeIds = Array.from(graph.dataManager.nodes.keys());
-                setGraphNodes(
-                    nodeIds.map((id) => ({
-                        value: String(id),
-                        label: String(id),
-                    })),
-                );
-            } else {
-                setGraphNodes([]);
-            }
+            const nodes = graphtyRef.current?.session?.data.nodes() ?? [];
+            setGraphNodes(nodes.map(({ id }) => ({ value: String(id), label: String(id) })));
         }
     }, [opened, graphtyRef]);
 
@@ -121,53 +111,29 @@ export function RunAlgorithmModal({ opened, onClose, graphtyRef }: RunAlgorithmM
     }, []);
 
     const handleRun = useCallback(() => {
-        const graph = graphtyRef.current?.graph;
-        if (!graph || !selectedAlgorithm) {
+        const session = graphtyRef.current?.session;
+        if (!session || !selectedAlgorithm) {
             return;
         }
 
         setIsExecuting(true);
         setError(null);
 
-        // Build algorithm options: start with form values, then add source/target
-        const runOptions: Record<string, unknown> = { ...optionsValues };
+        // The catalogue parameters that say which folded entry this is, then the form's values,
+        // then the node pickers.
+        const params: Record<string, unknown> = { ...selectedAlgorithm.params, ...optionsValues };
 
         if (selectedAlgorithm.sourceOption && selectedSourceNode) {
-            runOptions[selectedAlgorithm.sourceOption.name] = selectedSourceNode;
+            params[selectedAlgorithm.sourceOption.name] = selectedSourceNode;
         }
 
         if (selectedAlgorithm.targetOption && selectedTargetNode) {
-            runOptions[selectedAlgorithm.targetOption.name] = selectedTargetNode;
+            params[selectedAlgorithm.targetOption.name] = selectedTargetNode;
         }
 
-        const hasAlgorithmOptions = Object.keys(runOptions).length > 0;
-
-        // Access runAlgorithm method on the graph
-        const runAlgorithm = graph.runAlgorithm as
-            | ((namespace: string, type: string, options?: Record<string, unknown>) => Promise<void>)
-            | undefined;
-
-        if (!runAlgorithm) {
-            setError("runAlgorithm method not available on graph");
-            setIsExecuting(false);
-            return;
-        }
-
-        /* The element paints what the run suggests, if the reader asked for it.
-
-           It used to be done here: the modal reached for the algorithm CLASS, asked its static
-           `getSuggestedStyles()` for a hand-written block of layers, reshaped each one into the
-           app's own layer type and pushed them into a React list of its own. None of that
-           exists any more. A run derives its encoding from its result shape -- a node metric a
-           sequential colour, a community a categorical one, a route a highlight -- and the
-           session applies it on the run's first completion, scoped to the elements the run
-           actually measured. The layer list then updates itself, because it is read off the
-           session's own stack. */
-        runAlgorithm
-            .call(graph, selectedAlgorithm.namespace, selectedAlgorithm.type, {
-                applySuggestedStyles,
-                ...(hasAlgorithmOptions ? { algorithmOptions: runOptions } : {}),
-            })
+        /* One undoable step: the run, the encoding the element derives from its result, and --
+           when the reader asked for them -- the layers the algorithm suggests. */
+        Promise.resolve(session.runs.start(selectedAlgorithm.key, params, { applySuggestedStyles }))
             .then(() => {
                 // Show success message briefly before closing
                 setSuccess(true);
@@ -183,7 +149,7 @@ export function RunAlgorithmModal({ opened, onClose, graphtyRef }: RunAlgorithmM
             });
     }, [graphtyRef, selectedAlgorithm, applySuggestedStyles, selectedSourceNode, selectedTargetNode, optionsValues, onClose]);
 
-    const canRun = graphtyRef.current?.graph !== undefined && selectedAlgorithm !== null && !isExecuting && !success;
+    const canRun = (graphtyRef.current?.session ?? null) !== null && selectedAlgorithm !== null && !isExecuting && !success;
 
     // Build select data for categories
     const categoryData = categories.map((cat) => ({

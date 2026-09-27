@@ -317,8 +317,9 @@ export interface SessionRecordSource {
  * Reading the graph.
  *
  * Every verb here is synchronous, because every verb here is either an O(1) lookup or a walk
- * whose answer is cached against the snapshot it was computed from. The verbs that must walk the
- * graph on every call -- id listings over a scope, neighbour pages, search -- are asynchronous by
+ * whose answer is cached against the snapshot it was computed from, except {@link nodes} and
+ * {@link edges}, which list every record and walk the graph to do it. The verbs that walk a part
+ * of the graph -- id listings over a scope, neighbour pages, search -- are asynchronous by
  * construction and are not part of this surface yet.
  */
 export interface SessionDataApi {
@@ -350,6 +351,18 @@ export interface SessionDataApi {
      * @returns the record, or undefined when the graph has no such edge
      */
     edge(id: EdgeId): EdgeRecord | undefined;
+    /**
+     * Every node, in the graph's order: the records {@link node} reads one at a time. Walks the
+     * whole graph on every call, so read it when the graph changes, not every frame.
+     * @returns the records, deep-frozen
+     */
+    nodes(): readonly NodeRecord[];
+    /**
+     * Every edge, in the graph's order: the records {@link edge} reads one at a time. Walks the
+     * whole graph on every call, so read it when the graph changes, not every frame.
+     * @returns the records, deep-frozen
+     */
+    edges(): readonly EdgeRecord[];
     /**
      * What the last load did: which endpoint spelling the element resolved, how many repeated
      * edges it saw and what the policy did with them, and how many edges the graph actually holds.

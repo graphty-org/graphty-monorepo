@@ -86,12 +86,6 @@ export interface CanvasGraphConfig {
     readonly layers?: LayerItem[];
     /** The element's acceleration policy. */
     readonly acceleration?: AccelerationPolicy;
-    /** The view mode the canvas toolbar's 2D / 3D control sets. */
-    readonly viewMode?: "2d" | "3d" | "ar" | "vr";
-    /** The layout engine's name. */
-    readonly layout?: string;
-    /** The layout engine's own configuration. */
-    readonly layoutConfig?: Record<string, unknown>;
     /** Selection changed on the canvas. */
     readonly onSelectionChange?: (detail: SelectionChangedDetail) => void;
     /** Style layers changed inside graphty-element. */
@@ -435,9 +429,6 @@ export function CanvasRegion<TRow extends object = Record<string, unknown>>(
                     ref={graphRef}
                     layers={graph?.layers ?? NO_LAYERS}
                     acceleration={graph?.acceleration}
-                    viewMode={graph?.viewMode}
-                    layout={graph?.layout}
-                    layoutConfig={graph?.layoutConfig}
                     onSelectionChange={graph?.onSelectionChange}
                     onStylesChange={graph?.onStylesChange}
                     onSession={graph?.onSession}

@@ -30,6 +30,7 @@ import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
 import { Ingest } from "./project/ingest";
 import type { GraphSlice } from "./project/state";
+import { edgeSpaceOf } from "./scope/ScopeApi";
 import { computeFingerprint, computeStatistics } from "./statistics";
 import type {
     DataSourceInput,
@@ -274,6 +275,37 @@ export class SessionData implements SessionDataApi {
             source: snapshot.ids.idOf(snapshot.edgeSource(index)),
             target: snapshot.ids.idOf(snapshot.edgeTarget(index)),
         });
+    }
+
+    /**
+     * Every node, in the graph's order.
+     * @returns the records, deep-frozen
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     */
+    nodes(): readonly NodeRecord[] {
+        const snapshot = this.current();
+        return Array.from({ length: snapshot.nodeCount }, (_unused, index) => {
+            const id = snapshot.ids.idOf(index);
+            return frozenRecord({ ...this.records?.nodeAttributes(index, id), id });
+        });
+    }
+
+    /**
+     * Every edge, in the graph's order.
+     * @returns the records, deep-frozen
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     */
+    edges(): readonly EdgeRecord[] {
+        const snapshot = this.current();
+        const space = edgeSpaceOf(snapshot);
+        return Array.from({ length: snapshot.edgeCount }, (_unused, index) =>
+            frozenRecord({
+                ...this.records?.edgeAttributes(index),
+                id: space.idOf(index),
+                source: snapshot.ids.idOf(snapshot.edgeSource(index)),
+                target: snapshot.ids.idOf(snapshot.edgeTarget(index)),
+            }),
+        );
     }
 
     /**

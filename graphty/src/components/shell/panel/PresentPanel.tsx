@@ -1,4 +1,5 @@
 import { ActionRow, AdvancedButton, FieldRow, PANEL_GRID, PanelField, ToggleRow } from "@graphty/compact-mantine";
+import { FORMAT_DESCRIPTORS } from "@graphty/graphty-element/catalog";
 import { Box, Button } from "@mantine/core";
 import React from "react";
 
@@ -27,14 +28,13 @@ const IMAGE_FORMATS: readonly { readonly value: string; readonly label: string; 
 /** The one scope every graph can be exported at, and the default (spec 03 section 2.5). */
 const DEFAULT_DATA_SCOPE = "whole-graph";
 
-/** The data formats spec 03 section 2.5 item 2 lists. */
-const DATA_FORMATS: readonly { readonly value: string; readonly label: string }[] = [
-    { value: "json", label: "JSON" },
-    { value: "csv", label: "CSV" },
-    { value: "graphml", label: "GraphML" },
-    { value: "gexf", label: "GEXF" },
-    { value: "cx2", label: "CX2" },
-];
+/**
+ * The data formats graphty-element can write, read from its format catalogue so the
+ * list offers exactly what the element can export and nothing it cannot.
+ */
+const DATA_FORMATS: readonly { readonly value: string; readonly label: string }[] = FORMAT_DESCRIPTORS.filter(
+    (descriptor) => descriptor.canExport,
+).map((descriptor) => ({ value: descriptor.id, label: descriptor.plainName }));
 
 /**
  * Items 4 to 8 of spec 03 section 2.5, in that order. Five contiguous rows share
@@ -117,7 +117,7 @@ export function PresentPanel(props: PresentPanelProps): React.JSX.Element {
         onCopyImage,
         onExportImage,
         onOpenImageOptions,
-        dataFormat = "json",
+        dataFormat = DATA_FORMATS[0]?.value ?? null,
         onDataFormatChange,
         dataScope = DEFAULT_DATA_SCOPE,
         dataScopeOptions = [{ value: DEFAULT_DATA_SCOPE, label: "Whole graph" }],

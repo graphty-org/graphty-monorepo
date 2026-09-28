@@ -83,11 +83,15 @@ function weightsInUse(s: GraphSnapshot, options: ApspOptions): { w: NumericVecto
 /**
  * Floyd-Warshall in place (design section 3.1): k-i-j over the row-major matrix, row offsets
  * hoisted, a row skipped when `d[i][k]` is +Infinity, strict `<` so the smallest pivot wins ties.
+ * With a negative weight in play the diagonal is scanned after every round and the sweep stops at
+ * the first negative entry (design section 3.3), before any value can run away.
  * @param s - The snapshot
  * @param w - The weights in use, or `null` for 1 per arc
+ * @param negative - Whether some weight is negative, so a cycle is possible
  * @param d - The n x n output, overwritten
+ * @returns True when a negative cycle was found; `d` is then partial
  */
-function floydWarshall(s: GraphSnapshot, w: NumericVector | null, d: F64): void {
+function floydWarshall(s: GraphSnapshot, w: NumericVector | null, negative: boolean, d: F64): boolean {
     const { nodeCount: n, rowPtr, colIdx } = s;
     d.fill(Infinity);
     for (let u = 0; u < n; u++) {
@@ -116,7 +120,33 @@ function floydWarshall(s: GraphSnapshot, w: NumericVector | null, d: F64): void 
                 }
             }
         }
+        if (negative) {
+            for (let i = 0; i < n; i++) {
+                if (d[i * n + i] < 0) {
+                    return true;
+                }
+            }
+        }
     }
+    return false;
+}
+
+/**
+ * The negative cycles the weights alone prove (design section 3.3): a negative self-loop, or any
+ * negative weight on an undirected snapshot (u-v-u).
+ * @param s - The snapshot
+ * @param w - The weights in use
+ * @returns True when such a cycle exists
+ */
+function negativeCycleFromWeights(s: GraphSnapshot, w: NumericVector): boolean {
+    for (let u = 0; u < s.nodeCount; u++) {
+        for (let a = s.rowPtr[u]; a < s.rowPtr[u + 1]; a++) {
+            if (w[a] < 0 && (!s.directed || s.colIdx[a] === u)) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 /**
@@ -135,14 +165,18 @@ export function allPairsShortestPath(s: GraphSnapshot, options: ApspOptions = {}
             `allPairsShortestPath: ${String(n)} nodes exceeds maxNodes ${String(maxNodes)}; the result would allocate ${String(bytes)} bytes. Pass a larger maxNodes to allow it.`,
         );
     }
-    const { w } = weightsInUse(s, options);
+    const { w, negative } = weightsInUse(s, options);
     const dist = new Float64Array(n * n);
-    floydWarshall(s, w, dist);
+    const hasNegativeCycle =
+        (negative && w !== null && negativeCycleFromWeights(s, w)) || floydWarshall(s, w, negative, dist);
+    if (hasNegativeCycle) {
+        dist.fill(NaN);
+    }
     const empty = new Uint32Array(0);
     return {
         dist,
         n,
-        hasNegativeCycle: false,
+        hasNegativeCycle,
         method: "floyd-warshall",
         predArc: null,
         pathTo: () => empty,

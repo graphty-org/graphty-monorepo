@@ -150,3 +150,108 @@ describe("indexed.allPairsShortestPath -- Floyd-Warshall", () => {
         s.validate({ checksum: true });
     });
 });
+
+function directed(edges: [string, string, number][], allowSelfLoops = false): Graph {
+    const g = new Graph({ directed: true, allowSelfLoops });
+    for (const [u, v, w] of edges) {
+        g.addEdge(u, v, w);
+    }
+    return g;
+}
+
+function everyCellNaN(dist: ArrayLike<number>): boolean {
+    return Array.from(dist).every((x) => Number.isNaN(x));
+}
+
+describe("indexed.allPairsShortestPath -- negative weights", () => {
+    it("sweeps a directed negative weight with no cycle", () => {
+        const s = checksummedSnapshot(
+            directed([
+                ["a", "b", 4],
+                ["a", "c", 2],
+                ["c", "b", -1],
+            ]),
+        );
+        const r = allPairsShortestPath(s);
+        expect(r.hasNegativeCycle).toBe(false);
+        expect(r.dist[0 * 3 + 1]).toBe(1);
+        s.validate({ checksum: true });
+    });
+
+    it("flags a directed negative cycle and fills the matrix with NaN", () => {
+        const s = checksummedSnapshot(
+            directed([
+                ["a", "b", 1],
+                ["b", "c", 1],
+                ["c", "a", -10],
+            ]),
+        );
+        const r = allPairsShortestPath(s);
+        expect(r.hasNegativeCycle).toBe(true);
+        expect(r.dist.length).toBe(9);
+        expect(everyCellNaN(r.dist)).toBe(true);
+        s.validate({ checksum: true });
+    });
+
+    it("flags a negative self-loop, on one node and on four", () => {
+        const one = checksummedSnapshot(directed([["a", "a", -1]], true));
+        const r1 = allPairsShortestPath(one);
+        expect(r1.hasNegativeCycle).toBe(true);
+        expect(r1.dist.length).toBe(1);
+        expect(Number.isNaN(r1.dist[0])).toBe(true);
+        one.validate({ checksum: true });
+
+        const four = checksummedSnapshot(
+            directed(
+                [
+                    ["a", "b", 1],
+                    ["b", "c", 1],
+                    ["c", "d", 1],
+                    ["c", "c", -1],
+                ],
+                true,
+            ),
+        );
+        const r4 = allPairsShortestPath(four);
+        expect(r4.hasNegativeCycle).toBe(true);
+        expect(everyCellNaN(r4.dist)).toBe(true);
+        four.validate({ checksum: true });
+    });
+
+    it("flags any negative edge on an undirected graph", () => {
+        const g = new Graph({ directed: false });
+        g.addEdge("a", "b", 3);
+        g.addEdge("b", "c", -1);
+        const s = checksummedSnapshot(g);
+        const r = allPairsShortestPath(s);
+        expect(r.hasNegativeCycle).toBe(true);
+        expect(everyCellNaN(r.dist)).toBe(true);
+        s.validate({ checksum: true });
+    });
+
+    it("stops on Hougardy's graph before any value runs away", () => {
+        for (const isDirected of [true, false]) {
+            const g = new Graph({ directed: isDirected });
+            for (let i = 0; i < 12; i++) {
+                for (let j = 0; j < 12; j++) {
+                    if (i !== j && (isDirected || i < j)) {
+                        g.addEdge(`v${i}`, `v${j}`, -1);
+                    }
+                }
+            }
+            const s = checksummedSnapshot(g);
+            const r = allPairsShortestPath(s);
+            expect(r.hasNegativeCycle).toBe(true);
+            expect(r.dist.includes(-Infinity)).toBe(false);
+            expect(everyCellNaN(r.dist)).toBe(true);
+            s.validate({ checksum: true });
+        }
+    });
+
+    it("reports no negative cycle when no weight is negative", () => {
+        for (const { name, graph } of allFixtures()) {
+            const s = checksummedSnapshot(graph);
+            expect(allPairsShortestPath(s).hasNegativeCycle, name).toBe(false);
+        }
+    });
+});

@@ -54,6 +54,12 @@ export interface AcceleratedWork {
     readonly capability: string;
     /** How many nodes this work is over. Compared against `acceleration.minNodes`. */
     readonly nodeCount: number;
+    /**
+     * False when the element does not hand this capability to an accelerator even if one
+     * implements it. The decision is then the one for an accelerator without the member, so the
+     * run never claims an accelerator's precision for a result the CPU computed. Default true.
+     */
+    readonly forwarded?: boolean;
 }
 
 /**
@@ -495,7 +501,8 @@ export class AccelerationController {
      * The decision is the only place a CPU answer can come from, and there are five of them:
      * the policy is `"off"`, no accelerator is attached, the graph is below
      * `acceleration.minNodes`, the graph is below the built-in floor measured for this
-     * capability, or the attached accelerator does not implement this capability.
+     * capability, or the attached accelerator does not implement this capability (or the element
+     * does not forward it, which is decided the same way).
      *
      * Under `"required"` two of them throw instead of answering quietly -- no accelerator, and
      * an accelerator without this capability -- because both are absence, and absence is what
@@ -546,14 +553,17 @@ export class AccelerationController {
             };
         }
 
-        if (typeof accelerator[work.capability] !== "function") {
+        if (work.forwarded === false || typeof accelerator[work.capability] !== "function") {
             if (required) {
                 throw this.#noAcceleratorError(work);
             }
 
             return {
                 accelerated: false,
-                reason: `the ${accelerator.name} accelerator does not implement "${work.capability}"`,
+                reason:
+                    work.forwarded === false
+                        ? `the element does not route "${work.capability}" to an accelerator`
+                        : `the ${accelerator.name} accelerator does not implement "${work.capability}"`,
             };
         }
 

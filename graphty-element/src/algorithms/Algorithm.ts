@@ -1,7 +1,7 @@
 import { accelerated, type AcceleratedAlgorithms, type Graph as AlgorithmGraph } from "@graphty/algorithms";
 import { type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
 
-import { narrowAlgorithms } from "../acceleration/narrow";
+import { forwardsAlgorithm, narrowAlgorithms } from "../acceleration/narrow";
 import { type AccelerationPrecision, CPU_PRECISION } from "../acceleration/types";
 import { SharedImplementationMap } from "../catalog/pluginRegistry";
 import { publishAlgorithmDescriptor } from "../catalog/registry";
@@ -436,7 +436,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
            edges and leave its twin unpainted, which reads as a rendering glitch. */
         const { snapshot, edgeRemap } = this.input(orientationOf(mode)).derived();
         const controller = this.graph.acceleration;
-        const work = { capability, nodeCount: snapshot.nodeCount };
+        const work = { capability, nodeCount: snapshot.nodeCount, forwarded: forwardsAlgorithm(capability) };
 
         return {
             snapshot,

@@ -88,6 +88,19 @@ export function narrowLayout(accelerator: GraphAccelerator): LayoutAccelerator {
 }
 
 /**
+ * Whether the element hands an algorithm capability to an accelerator at all.
+ *
+ * A capability outside {@link ALGORITHM_MEMBERS} runs on the CPU port whatever the attached
+ * accelerator implements, and the controller has to know that before it decides, or it would
+ * report an accelerator's precision for a result the CPU computed.
+ * @param capability - The dispatcher member, such as `"pageRank"`.
+ * @returns True when an accelerator that implements it would be asked.
+ */
+export function forwardsAlgorithm(capability: string): boolean {
+    return (ALGORITHM_MEMBERS as readonly string[]).includes(capability);
+}
+
+/**
  * Narrows the attached accelerator to the algorithm seam `accelerated()` feature-tests.
  *
  * The returned object is fresh on every call and holds only the members the accelerator actually

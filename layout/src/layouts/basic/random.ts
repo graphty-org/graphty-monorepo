@@ -2,10 +2,11 @@
  * Random layout algorithm
  */
 
+import { rowsToPositionMap } from "../../indexed/common";
+import { randomRows } from "../../indexed/random";
 import { Graph, Node, PositionMap } from "../../types";
 import { getNodesFromGraph } from "../../utils/graph";
 import { _processParams } from "../../utils/params";
-import { RandomNumberGenerator } from "../../utils/random";
 
 /**
  * Position nodes uniformly at random in the unit square.
@@ -23,14 +24,5 @@ export function randomLayout(
 ): PositionMap {
     const processed = _processParams(G, center, dim);
     const nodes = getNodesFromGraph(processed.G);
-    ({ center } = processed);
-
-    const rng = new RandomNumberGenerator(seed ?? undefined);
-    const pos: PositionMap = {};
-
-    nodes.forEach((node: Node) => {
-        pos[node] = (rng.rand(dim) as number[]).map((val: number, i: number) => val + center[i]);
-    });
-
-    return pos;
+    return rowsToPositionMap(randomRows(nodes.length, dim, 1, processed.center, seed), dim, nodes);
 }

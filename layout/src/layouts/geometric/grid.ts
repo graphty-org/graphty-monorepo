@@ -2,6 +2,8 @@
  * Grid layout algorithm
  */
 
+import { rowsToPositionMap } from "../../indexed/common";
+import { gridRows } from "../../indexed/grid";
 import type { Graph, Node, PositionMap } from "../../types";
 import { getNodesFromGraph } from "../../utils/graph";
 import { _processParams } from "../../utils/params";
@@ -26,32 +28,5 @@ export function gridLayout(
 ): PositionMap {
     const processed = _processParams(G, center, 2);
     const nodes = getNodesFromGraph(processed.G);
-    ({ center } = processed);
-
-    if (columns !== null && (!Number.isInteger(columns) || columns < 1)) {
-        throw new Error("columns must be a positive integer");
-    }
-
-    const pos: PositionMap = {};
-    const n = nodes.length;
-
-    if (n === 0) {
-        return pos;
-    }
-
-    const cols = Math.min(columns ?? Math.ceil(Math.sqrt(n)), n);
-    const rows = Math.ceil(n / cols);
-    const longest = Math.max(cols - 1, rows - 1);
-    const spacing = longest === 0 ? 0 : (2 * scale) / longest;
-
-    nodes.forEach((node, i) => {
-        const col = i % cols;
-        const row = Math.floor(i / cols);
-        pos[node] = [
-            center[0] + (col - (cols - 1) / 2) * spacing,
-            center[1] + (row - (rows - 1) / 2) * spacing,
-        ];
-    });
-
-    return pos;
+    return rowsToPositionMap(gridRows(nodes.length, columns, scale, processed.center), 2, nodes);
 }

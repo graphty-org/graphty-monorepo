@@ -2,9 +2,11 @@
  * Radial layout algorithm
  */
 
+import { rowsToPositionMap } from "../../indexed/common";
+import { radialRings } from "../../indexed/radial";
+import { shellRows } from "../../indexed/shell";
+import { toLayoutSnapshot } from "../../simulation/snapshot";
 import type { Graph, Node, PositionMap } from "../../types";
-import { getEdgesFromGraph, getNodesFromGraph } from "../../utils/graph";
-import { shellLayout } from "./shell";
 
 /**
  * Position nodes on concentric rings by their hop distance from a root node.
@@ -26,51 +28,18 @@ export function radialLayout(
     scale: number = 1,
     center: number[] | null = null,
 ): PositionMap {
-    const nodes = getNodesFromGraph(G);
-
-    if (nodes.length === 0) {
+    const s = toLayoutSnapshot(G);
+    if (s.nodeCount === 0) {
         return {};
     }
-
-    const adjacency = new Map<Node, Set<Node>>(nodes.map((node) => [node, new Set<Node>()]));
-    for (const [source, target] of getEdgesFromGraph(G)) {
-        adjacency.get(source)?.add(target);
-        adjacency.get(target)?.add(source);
-    }
-
-    if (root === null) {
-        root = nodes.reduce((best, node) =>
-            (adjacency.get(node)?.size ?? 0) > (adjacency.get(best)?.size ?? 0) ? node : best,
-        );
-    } else if (!adjacency.has(root)) {
+    if (root !== null && !s.ids.has(root)) {
         throw new Error(`root node ${String(root)} is not in the graph`);
     }
 
-    const rings: Node[][] = [[root]];
-    const visited = new Set<Node>([root]);
-    for (let ring = rings[0]; ring.length > 0; ) {
-        const next: Node[] = [];
-        for (const node of ring) {
-            for (const neighbor of adjacency.get(node) ?? []) {
-                if (!visited.has(neighbor)) {
-                    visited.add(neighbor);
-                    next.push(neighbor);
-                }
-            }
-        }
-        if (next.length > 0) {
-            rings.push(next);
-        }
-        ring = next;
-    }
-
-    const unreachable = nodes.filter((node) => !visited.has(node));
-    if (unreachable.length > 0) {
-        rings.push(unreachable);
-    }
-
-    // shellLayout spaces n rings scale / n apart with the root's ring at radius 0, so its outermost
-    // ring would sit at scale * (n - 1) / n; stretch it so the outermost ring lands on scale.
+    const rings = radialRings(s, root === null ? null : s.ids.indexOf(root));
+    const ids = Array.from({ length: s.nodeCount }, (_, i) => s.ids.idOf(i));
+    // shells space n rings scale / n apart with the root's ring at radius 0, so the outermost ring
+    // would sit at scale * (n - 1) / n; stretch it so the outermost ring lands on scale.
     const stretch = rings.length > 1 ? rings.length / (rings.length - 1) : 1;
-    return shellLayout(G, rings, scale * stretch, center);
+    return rowsToPositionMap(shellRows(s.nodeCount, rings, scale * stretch, center ?? [0, 0]), 2, ids);
 }

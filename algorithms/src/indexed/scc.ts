@@ -1,4 +1,10 @@
-import { type AdjacencyView, type DerivedGraph, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
+import {
+    type AdjacencyView,
+    type DerivedGraph,
+    type GraphSnapshot,
+    INVALID_INDEX,
+    type U32,
+} from "@graphty/graph-format";
 
 import { type ArcOrderOption, checkArcOrder } from "./bfs.js";
 import { type LabelResult, withGroups } from "./components.js";
@@ -27,6 +33,20 @@ export interface CondensationResult {
  * @public
  */
 export function stronglyConnectedComponents(g: AdjacencyView, options: ArcOrderOption = {}): LabelResult {
+    const { labels, count } = tarjan(g, options);
+    return withGroups(labels, count);
+}
+
+/**
+ * The Tarjan walk behind {@link stronglyConnectedComponents}, also returning every node in the
+ * order it left the component stack. Each component leaves as one run, in label order, its members
+ * in reverse discovery order -- the order the legacy `stronglyConnectedComponents` lists them in.
+ * @param g - A directed adjacency
+ * @param options - The neighbour order
+ * @returns The labels, their count and the pop order
+ * @throws Error when the graph is undirected
+ */
+export function tarjan(g: AdjacencyView, options: ArcOrderOption = {}): { labels: U32; count: number; popped: U32 } {
     if (!g.directed) {
         throw new Error(
             "Strongly connected components require a directed graph. Use connectedComponents for an undirected one.",
@@ -41,6 +61,8 @@ export function stronglyConnectedComponents(g: AdjacencyView, options: ArcOrderO
     const callStack = new Uint32Array(nodeCount);
     const sccStack = new Uint32Array(nodeCount);
     const labels = new Uint32Array(nodeCount);
+    const popped = new Uint32Array(nodeCount);
+    let poppedCount = 0;
     let next = 0;
     let count = 0;
     let sp = 0;
@@ -80,6 +102,7 @@ export function stronglyConnectedComponents(g: AdjacencyView, options: ArcOrderO
                     w = sccStack[--sp];
                     onStack[w] = 0;
                     labels[w] = count;
+                    popped[poppedCount++] = w;
                 } while (w !== x);
                 count++;
             }
@@ -88,7 +111,7 @@ export function stronglyConnectedComponents(g: AdjacencyView, options: ArcOrderO
             }
         }
     }
-    return withGroups(labels, count);
+    return { labels, count, popped };
 }
 
 /**

@@ -8,7 +8,7 @@
 import { expect } from "vitest";
 
 import type { Graph } from "../../src/core/graph.js";
-import { toSnapshot } from "../../src/indexed/to-snapshot.js";
+import { toSnapshotOrNull } from "../../src/indexed/to-snapshot.js";
 
 /** A named legacy graph, the shape `test/unit/indexed/port-fixtures.ts` returns. */
 export interface FacadeFixture {
@@ -79,7 +79,7 @@ function expectSame(actual: unknown, expected: unknown, tolerance: number, at: s
 
 /**
  * Run `legacy` and `facade` on every fixture and assert the results agree. Each fixture is first
- * frozen with checksums, so the facade's own `toSnapshot` call returns that snapshot and a facade
+ * frozen with checksums (unless a NaN weight rules a snapshot out), so the facade's own `toSnapshot` call returns that snapshot and a facade
  * that writes into a shared view fails here rather than corrupting the next call.
  * @param fixtures - The graphs to compare on
  * @param legacy - The legacy implementation
@@ -94,12 +94,13 @@ export function expectFacadeMatchesLegacy<R>(
 ): void {
     const tolerance = options.tolerance ?? 0;
     for (const { name, graph } of fixtures) {
-        const s = toSnapshot(graph, { checksum: true });
+        // A graph with a NaN weight has no weighted snapshot; its facade may still run.
+        const s = toSnapshotOrNull(graph, { checksum: true });
         const mutations = graph.mutationCount;
         const expected = legacy(graph);
         const actual = facade(graph);
         expectSame(actual, expected, tolerance, name);
         expect(graph.mutationCount, `${name}: the graph was mutated`).toBe(mutations);
-        s.validate({ checksum: true });
+        s?.validate({ checksum: true });
     }
 }

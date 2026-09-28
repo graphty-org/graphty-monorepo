@@ -1,5 +1,9 @@
 import type { Graph } from "../../core/graph.js";
-import { UnionFind } from "../../data-structures/union-find.js";
+import { weaklyConnectedComponents as indexedWeaklyConnectedComponents } from "../../indexed/components.js";
+import { depthFirstSearch } from "../../indexed/dfs.js";
+import { labelsToGroups } from "../../indexed/facade.js";
+import { tarjan } from "../../indexed/scc.js";
+import { legacyArcOrder, toTopologySnapshot } from "../../indexed/to-snapshot.js";
 import type { NodeId } from "../../types/index.js";
 
 /**
@@ -21,20 +25,19 @@ export function connectedComponents(graph: Graph): NodeId[][] {
         );
     }
 
-    const nodes = Array.from(graph.nodes()).map((node) => node.id);
+    return componentGroups(graph);
+}
 
-    if (nodes.length === 0) {
-        return [];
-    }
-
-    const unionFind = new UnionFind(nodes);
-
-    // Union connected nodes
-    for (const edge of Array.from(graph.edges())) {
-        unionFind.union(edge.source, edge.target);
-    }
-
-    return unionFind.getAllComponents();
+/**
+ * The weakly connected components as legacy lists them: one group per component in the order of its
+ * first node, members in node order.
+ * @param graph - The input graph
+ * @returns The components
+ */
+function componentGroups(graph: Graph): NodeId[][] {
+    const s = toTopologySnapshot(graph);
+    const { labels, count } = indexedWeaklyConnectedComponents(s);
+    return labelsToGroups(s.ids, labels, count);
 }
 
 /**
@@ -127,12 +130,10 @@ export function getConnectedComponent(graph: Graph, nodeId: NodeId): NodeId[] {
         throw new Error("Connected components algorithm requires an undirected graph");
     }
 
-    const visited = new Set<NodeId>();
-    const component: NodeId[] = [];
-
-    dfsComponent(graph, nodeId, visited, component);
-
-    return component;
+    // The members in depth-first discovery order, neighbours in insertion order.
+    const s = toTopologySnapshot(graph);
+    const { order } = depthFirstSearch(s, s.ids.indexOf(nodeId), { arcOrder: legacyArcOrder(graph, s) });
+    return Array.from(order, (i) => s.ids.idOf(i));
 }
 
 /**
@@ -145,68 +146,13 @@ export function stronglyConnectedComponents(graph: Graph): NodeId[][] {
         throw new Error("Strongly connected components require a directed graph");
     }
 
-    const nodes = Array.from(graph.nodes()).map((node) => node.id);
-    const components: NodeId[][] = [];
-    const indices = new Map<NodeId, number>();
-    const lowLinks = new Map<NodeId, number>();
-    const onStack = new Set<NodeId>();
-    const stack: NodeId[] = [];
-    let index = 0;
-
-    function tarjanSCC(nodeId: NodeId): void {
-        // Set the depth index for this node
-        indices.set(nodeId, index);
-        lowLinks.set(nodeId, index);
-        index++;
-        stack.push(nodeId);
-        onStack.add(nodeId);
-
-        // Consider successors
-        for (const neighbor of Array.from(graph.neighbors(nodeId))) {
-            if (!indices.has(neighbor)) {
-                // Successor has not yet been visited; recurse on it
-                tarjanSCC(neighbor);
-                const nodeLL = lowLinks.get(nodeId) ?? 0;
-                const neighborLL = lowLinks.get(neighbor) ?? 0;
-                lowLinks.set(nodeId, Math.min(nodeLL, neighborLL));
-            } else if (onStack.has(neighbor)) {
-                // Successor is in stack and hence in the current SCC
-                const nodeLL = lowLinks.get(nodeId) ?? 0;
-                const neighborIndex = indices.get(neighbor) ?? 0;
-                lowLinks.set(nodeId, Math.min(nodeLL, neighborIndex));
-            }
-        }
-
-        // If nodeId is a root node, pop the stack and create an SCC
-        const nodeIndex = indices.get(nodeId) ?? 0;
-        const nodeLowLink = lowLinks.get(nodeId) ?? 0;
-
-        if (nodeLowLink === nodeIndex) {
-            const component: NodeId[] = [];
-            let w: NodeId;
-
-            do {
-                const popped = stack.pop();
-                if (popped === undefined) {
-                    break;
-                }
-
-                w = popped;
-
-                onStack.delete(w);
-                component.push(w);
-            } while (w !== nodeId);
-
-            components.push(component);
-        }
+    // Tarjan's pop order lists each component as one run, in component order.
+    const s = toTopologySnapshot(graph);
+    const { labels, count, popped } = tarjan(s, { arcOrder: legacyArcOrder(graph, s) });
+    const components: NodeId[][] = Array.from({ length: count }, () => []);
+    for (const i of popped) {
+        components[labels[i]].push(s.ids.idOf(i));
     }
-
-    for (const nodeId of nodes) {
-        if (!indices.has(nodeId)) {
-            tarjanSCC(nodeId);
-        }
-    }
-
     return components;
 }
 
@@ -237,20 +183,7 @@ export function weaklyConnectedComponents(graph: Graph): NodeId[][] {
         );
     }
 
-    const nodes = Array.from(graph.nodes()).map((node) => node.id);
-
-    if (nodes.length === 0) {
-        return [];
-    }
-
-    const unionFind = new UnionFind(nodes);
-
-    // Union nodes connected by edges (ignore direction)
-    for (const edge of Array.from(graph.edges())) {
-        unionFind.union(edge.source, edge.target);
-    }
-
-    return unionFind.getAllComponents();
+    return componentGroups(graph);
 }
 
 /**

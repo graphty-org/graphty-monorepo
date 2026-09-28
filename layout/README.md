@@ -525,6 +525,32 @@ import { rescaleLayout } from "./layout.js";
 const scaledPositions = rescaleLayout(positions, 2.0, [10, 10]);
 ```
 
+### Position helpers
+
+Index-based code keeps positions as a flat `Float32Array` of `dim` components per node, in the node-index order of a
+[`@graphty/graph-format`](https://www.npmjs.com/package/@graphty/graph-format) snapshot. A `LayoutResult` is that
+array with its `dim` (2 or 3) and node count `n`. These helpers convert between it and the other forms:
+
+```typescript
+import {
+    fromPositionColumn,
+    fromPositionMap,
+    rescaleInPlace,
+    toLayoutSnapshot,
+    toPositionColumn,
+    toPositionMap,
+} from "@graphty/layout";
+
+const s = toLayoutSnapshot(graph);
+// id-keyed PositionMap -> flat array; fill writes the row of every node the map does not give
+const flat = fromPositionMap(pos, s.ids, 2, (i, out) => out.set([0, 0], 2 * i));
+rescaleInPlace(flat, 2, 1); // rescaleLayout on the flat array, in place
+const result = { positions: flat, dim: 2 as const, n: s.nodeCount };
+const map = toPositionMap(result, s.ids); // back to { [id]: [x, y] }
+const column = toPositionColumn(result, 100, [0, 0, 0]); // stride-3 scene units: v * scale + center
+const again = fromPositionColumn(column, 2, 100, [0, 0, 0]); // the inverse
+```
+
 ## Steppable simulations
 
 Besides the one-shot layout functions, the package exports steppable force simulations that run over a

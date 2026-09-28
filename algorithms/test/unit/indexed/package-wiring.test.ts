@@ -6,8 +6,14 @@ import { describe, expect, it } from "vitest";
 import type {
     IndexedApspOptions,
     IndexedApspResult,
+    IndexedBetweennessOptions,
+    IndexedClosenessOptions,
+    IndexedDegreeCentralityOptions,
+    IndexedEdgeBetweennessOptions,
+    IndexedEdgeScoresResult,
     IndexedLabelPropagationOptions,
     IndexedLabelPropagationResult,
+    IndexedScoresResult,
 } from "../../../src/index.js";
 
 // process.cwd(), not import.meta.url: the default project runs under happy-dom, which rewrites
@@ -55,5 +61,27 @@ describe("indexed all-pairs shortest path exports", () => {
         const r: IndexedApspResult = pkg.indexed.allPairsShortestPath(b.freeze(), options);
         expect(r.n).toBe(2);
         expect(Array.from(r.dist)).toEqual([0, 2, Infinity, 0]);
+    });
+});
+
+describe("indexed path centrality exports", () => {
+    it("reaches the four ports and their flat Indexed* types through the package barrel", async () => {
+        const pkg = await import("../../../src/index.js");
+        const format = await import("@graphty/graph-format");
+        const b = new format.GraphBuilder({ directed: false });
+        b.addEdge(0, 1);
+        b.addEdge(1, 2);
+        const s = b.freeze();
+        const betweenness: IndexedBetweennessOptions = { normalized: false, sources: [0, 1, 2] };
+        const node: IndexedScoresResult = pkg.indexed.betweennessCentrality(s, betweenness);
+        expect(Array.from(node.scores)).toEqual([0, 1, 0]);
+        const edge: IndexedEdgeBetweennessOptions = { normalized: false };
+        const edges: IndexedEdgeScoresResult = pkg.indexed.edgeBetweennessCentrality(s, edge);
+        expect(Array.from(edges.scores)).toEqual([2, 2]);
+        const closeness: IndexedClosenessOptions = { harmonic: false };
+        expect(Array.from(pkg.indexed.closenessCentrality(s, closeness).scores)).toEqual([1 / 3, 1 / 2, 1 / 3]);
+        expect(pkg.indexed.nodeClosenessCentrality(s, 1, closeness)).toBe(1 / 2);
+        const degree: IndexedDegreeCentralityOptions = { normalized: true };
+        expect(Array.from(pkg.indexed.degreeCentrality(s, degree))).toEqual([0.5, 1, 0.5]);
     });
 });

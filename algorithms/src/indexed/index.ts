@@ -14,9 +14,19 @@
  */
 
 export { allPairsShortestPath, type ApspOptions, type ApspResult } from "./all-pairs.js";
+export {
+    betweennessCentrality,
+    type BetweennessOptions,
+    edgeBetweennessCentrality,
+    type EdgeBetweennessOptions,
+    type EdgeScoresResult,
+    type ScoresResult,
+} from "./betweenness.js";
 export { type BfsOptions, type BfsResult, breadthFirstSearch } from "./bfs.js";
+export { closenessCentrality, type ClosenessOptions, nodeClosenessCentrality } from "./closeness.js";
 export { type CommonNeighborsOptions, commonNeighborsScore } from "./common-neighbors.js";
 export { connectedComponents, type LabelResult, weaklyConnectedComponents } from "./components.js";
+export { degreeCentrality, type DegreeCentralityOptions } from "./degree.js";
 export { dijkstra, type SsspOptions, type SsspResult, walkPredArcs, walkPredEdges } from "./dijkstra.js";
 export { hits, type HitsOptions, type HitsResult } from "./hits.js";
 export { type CorenessResult, kCoreDecomposition } from "./k-core.js";

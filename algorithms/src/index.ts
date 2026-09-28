@@ -84,9 +84,21 @@ export type {
 export { accelerated } from "./indexed/accelerator.js";
 // `Indexed` prefix: @graphty/webgpu-graph-algorithms publishes a different ApspOptions.
 export type { ApspOptions as IndexedApspOptions, ApspResult as IndexedApspResult } from "./indexed/all-pairs.js";
+// Aliased: the flat BetweennessCentralityOptions belongs to the legacy function, and the plain names
+// ScoresResult / EdgeScoresResult sit one word from the seam's ScoresResultLike / EdgeScoresResultLike.
+export type {
+    BetweennessOptions as IndexedBetweennessOptions,
+    EdgeBetweennessOptions as IndexedEdgeBetweennessOptions,
+    EdgeScoresResult as IndexedEdgeScoresResult,
+    ScoresResult as IndexedScoresResult,
+} from "./indexed/betweenness.js";
 export type { BfsOptions, BfsResult } from "./indexed/bfs.js";
+// Aliased: two option types one word apart (ClosenessOptions, ClosenessCentralityOptions) invite the wrong import.
+export type { ClosenessOptions as IndexedClosenessOptions } from "./indexed/closeness.js";
 export type { CommonNeighborsOptions } from "./indexed/common-neighbors.js";
 export type { LabelResult } from "./indexed/components.js";
+// Aliased, like closeness: the legacy degreeCentrality takes the flat CentralityOptions.
+export type { DegreeCentralityOptions as IndexedDegreeCentralityOptions } from "./indexed/degree.js";
 export type { SsspOptions, SsspResult } from "./indexed/dijkstra.js";
 // The `Indexed` prefix, as on the PageRank pair below: the flat names HITSOptions / HITSResult,
 // KatzCentralityOptions and LouvainOptions already belong to the legacy functions above, and two

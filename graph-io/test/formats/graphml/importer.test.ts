@@ -1042,6 +1042,40 @@ describe("graphmlImporter: yFiles graphics mapped to columns", () => {
         ]);
     });
 
+    it("reports no loss for an unedited graph whose graphics come from two yFiles keys", async () => {
+        const keys =
+            '<key id="g" for="node" yfiles.type="nodegraphics"/>\n<key id="h" for="node" yfiles.type="nodegraphics"/>\n';
+        const y = 'xmlns:y="http://www.yworks.com/xml/graphml"';
+        const body =
+            `<node id="a"><data key="g"><y:ShapeNode ${y}><y:Geometry x="1" y="2"/><y:Fill color="#111111"/></y:ShapeNode></data></node>` +
+            `<node id="b"><data key="h"><y:ShapeNode ${y}><y:Geometry x="3" y="4"/><y:Fill color="#222222"/></y:ShapeNode></data></node>`;
+        const { snapshot } = await load(doc(body, "undirected", keys));
+        expect(snapshot.nodes.require("yfiles.color").value(1)).toBe("#222222");
+        expect(graphmlExporter.check(snapshot).map((n) => n.code)).toEqual([]);
+    });
+
+    it("leaves the label role with a declared label key, and maps the NodeLabel to a plain column", async () => {
+        const keys =
+            '<key id="l" for="node" attr.name="label" attr.type="string"/>\n<key id="g" for="node" yfiles.type="nodegraphics"/>\n';
+        const y = 'xmlns:y="http://www.yworks.com/xml/graphml"';
+        const body = `<node id="a"><data key="l">own</data><data key="g"><y:ShapeNode ${y}><y:NodeLabel>drawn</y:NodeLabel></y:ShapeNode></data></node>`;
+        const { snapshot, report } = await load(doc(body, "undirected", keys));
+        expect(snapshot.nodes.byRole("label")?.meta.name).toBe("label");
+        expect(snapshot.nodes.require("yfiles.label").value(0)).toBe("drawn");
+        expect(codes(report)).toEqual([ROLE_TAKEN_CODE]);
+    });
+
+    it("keeps a NodeLabel whose text is a number as that text", async () => {
+        const keys = '<key id="g" for="node" yfiles.type="nodegraphics"/>\n';
+        const y = 'xmlns:y="http://www.yworks.com/xml/graphml"';
+        const body =
+            `<node id="a"><data key="g"><y:ShapeNode ${y}><y:NodeLabel>0</y:NodeLabel></y:ShapeNode></data></node>` +
+            `<node id="b"><data key="g"><y:ShapeNode ${y}><y:NodeLabel>123</y:NodeLabel></y:ShapeNode></data></node>`;
+        const { snapshot } = await load(doc(body, "undirected", keys));
+        const label = snapshot.nodes.require("yfiles.label");
+        expect([label.value(0), label.value(1)]).toEqual(["0", "123"]);
+    });
+
     it("trims the label text as the element's parser does, and reads the first of several NodeLabels", async () => {
         const keys = '<key id="g" for="node" yfiles.type="nodegraphics"/>\n';
         const y = 'xmlns:y="http://www.yworks.com/xml/graphml"';

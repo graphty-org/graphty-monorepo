@@ -2095,7 +2095,13 @@ section 16.5 are exact:
   Edge fields: `color`, `targetArrow`, `sourceArrow` (`string`),
   `width` (`f64`) and `directed` (`bool`, whether a target arrow is
   drawn; topology still follows `edgedefault`). These are the values
-  graphty-element's own GraphML parser produced, under its field names.
+  graphty-element's own GraphML parser produced, under its field names,
+  except that a label whose text is a number is kept as that text (the
+  element's parser turned it into a number and then stored `""`, nothing
+  or the number). With several `yfiles.type` keys for one domain the
+  columns hold the values of all of them. A declared `label` key keeps
+  the label role, and `yfiles.label` is then a plain column
+  (`W_ROLE_TAKEN`).
   The exporter writes only the tree, so `check()` reports
   `W_GRAPHML_YFILES_GRAPHICS_STALE` for every row of such a column that
   no longer matches its tree (an edited position, a removed tree
@@ -4389,7 +4395,7 @@ export function rescaleInPlace(positions: F32, dim: number, scale?: number, cent
 export function toLayoutSnapshot(
     G: LayoutGraph | LegacyDuck | NodeId[] | GraphSnapshot,
     weightAttr?: string | null,
-): GraphSnapshot; // undirected; legacy duck type walked once
+): GraphSnapshot; // undirected; a legacy duck type is walked on every call (only a directed snapshot's undirected view is cached)
 export declare class LayoutGraph {
     readonly snapshot: GraphSnapshot;
     nodes(): NodeId[];

@@ -111,7 +111,7 @@ export function fromPositionColumn(
 /**
  * `rescaleLayout` over a flat array, in place: centre the positions on their mean, scale the farthest to `scale`
  * and move them to `center`. A NaN component is skipped by the mean and the distance and stays NaN; when every
- * position coincides, each finite component becomes the centre's. Scratch is f64.
+ * position coincides, each non-NaN component becomes the centre's. Scratch is f64.
  * @param positions - `dim`-stride positions, rewritten in place
  * @param dim - components per row
  * @param scale - the distance of the farthest position from the centre after rescaling
@@ -145,8 +145,12 @@ export function rescaleInPlace<T extends F32 | F64>(positions: T, dim: number, s
     }
     const factor = maxDistance > 0 ? scale / maxDistance : 0;
     for (let i = 0; i < n * dim; i++) {
-        // NaN stays NaN: (NaN - mean) * factor is NaN, including when factor is 0
-        positions[i] = (positions[i] - mean[i % dim]) * factor + (center?.[i % dim] ?? 0);
+        const v = positions[i];
+        const c = center?.[i % dim] ?? 0;
+        // NaN stays NaN; with no spread every other component is the centre's, even an infinite one
+        if (!Number.isNaN(v)) {
+            positions[i] = factor === 0 ? c : (v - mean[i % dim]) * factor + c;
+        }
     }
     return positions;
 }

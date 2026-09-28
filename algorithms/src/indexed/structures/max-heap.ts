@@ -5,7 +5,6 @@ import { IndexedMinHeap } from "./min-heap.js";
  * negated keys. Negation is exact in f64, so keys come back bit-for-bit. Stoer-Wagner's
  * maximum-adjacency ordering is the caller it exists for: every node starts at 0 and gains the
  * weight of each edge to the growing set, `pushOrIncrease(v, keyOf(v) + w)`.
- * @public
  */
 export class IndexedMaxHeap {
     private readonly min: IndexedMinHeap;

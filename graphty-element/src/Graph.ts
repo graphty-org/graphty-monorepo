@@ -336,6 +336,9 @@ export class Graph implements GraphContext {
     /** Imports reading now: the passes between their chunks build what arrived but do not paint. */
     #importsReading = 0;
 
+    /** Rows a forward add brought that the layout has not placed yet: an import still reading. */
+    #placementOwed = false;
+
     /** Aborted by `shutdown()`, so no whole-graph repaint runs against a torn-down graph. */
     readonly #teardown = new AbortController();
 
@@ -540,15 +543,21 @@ export class Graph implements GraphContext {
 
             if (cause === "command" && (dirty.has(NODES_ADDED) || dirty.has(EDGES_ADDED))) {
                 this.statsManager.startLayoutSession();
-                // The layout places the newcomers HERE, inside the pass, and never on the
-                // operation queue: queued work ran after the add's step had sealed, or inside a
-                // later undo before its `arrangement` hook, and moved an arrangement being
-                // restored. Placing them starts the layout.
-                await this.layoutManager.updatePositions([...this.dataManager.nodes.values()]);
+                this.#placementOwed = true;
                 this.layoutManager.running = true;
                 if (dirty.has(NODES_ADDED)) {
                     this.autoFrame();
                 }
+            }
+
+            // The layout places the newcomers HERE, inside the pass, and never on the operation
+            // queue: queued work ran after the add's step had sealed, or inside a later undo
+            // before its `arrangement` hook, and moved an arrangement being restored. An import
+            // places them once, in the pass its end schedules, not after every chunk: placing
+            // steps an engine like ngraph over the whole graph each time.
+            if (this.#placementOwed && cause === "command" && this.#importsReading === 0) {
+                this.#placementOwed = false;
+                await this.layoutManager.updatePositions([...this.dataManager.nodes.values()]);
             }
 
             // While an import reads, the pass after each chunk builds what arrived but does not

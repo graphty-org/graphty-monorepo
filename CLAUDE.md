@@ -445,7 +445,7 @@ on the way in, `snapshot.ids.idOf(i)` or `snapshot.ids.toMap(vector)` on the way
 
 ```typescript
 // Layouts in @graphty/layout take a snapshot and return a flat position array:
-type Layout = (snapshot: GraphSnapshot, options?: LayoutOptions) => LayoutResult;
+type Layout = (snapshot: GraphSnapshot, options?: CommonLayoutOptions) => LayoutResult;
 // LayoutResult = { positions: Float32Array; dim: 2 | 3; n: number }, row i = node index i
 ```
 

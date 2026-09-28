@@ -39,8 +39,8 @@ const { order, parent, depth } = indexed.directionOptimizedBfs(s, s.ids.requireI
 
 ### Learn More
 
-- 📖 [Performance Guide](docs/guide/performance.md) - Detailed optimization explanations
-- 💾 [Memory Optimization](docs/guide/performance.md#memory-optimization) - Making the right choices
+- [Performance Guide](docs/guide/performance.md) - Detailed optimization explanations
+- [Memory](docs/guide/performance.md#memory) - What a snapshot costs
 
 ## Installation
 
@@ -72,7 +72,7 @@ console.log(graph.edgeCount); // 2
 // Run algorithms; ids map to indices and back only at the boundary
 const start = graph.ids.requireIndex("A");
 const traversal = indexed.breadthFirstSearch(graph, start);
-console.log(Array.from(traversal.order.subarray(0, traversal.visitedCount), (i) => graph.ids.idOf(i))); // ['A', 'B', 'C']
+console.log(Array.from(traversal.order.subarray(0, traversal.visitedCount), (i) => graph.ids.idOf(i))); // ["A", "B", "C"]
 
 const shortestPaths = indexed.dijkstra(graph, start);
 console.log(shortestPaths.dist[graph.ids.requireIndex("C")]); // 3

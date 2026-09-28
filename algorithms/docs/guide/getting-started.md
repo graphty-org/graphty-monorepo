@@ -41,7 +41,7 @@ snapshot first and an options object last, and return typed arrays indexed by no
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
 
-// Directed by default; pass { directed: false } for an undirected graph
+// `directed` is required: true for a directed graph, false for an undirected one
 const builder = new GraphBuilder({ directed: true });
 
 // Nodes are added on first mention; an edge may carry a weight
@@ -85,7 +85,8 @@ console.log(Array.from(paths.pathTo(c), (i) => graph.ids.idOf(i))); // ["a", "b"
 
 // PageRank centrality
 const ranks = indexed.pageRank(graph);
-console.log(graph.ids.toMap(ranks.scores)); // Map of node id -> rank value
+const byId = graph.ids.toMap(ranks.scores); // a Map of node id -> rank
+console.log(byId.get("c")?.toFixed(3)); // 0.521
 ```
 
 ### Graphs You Already Have
@@ -108,48 +109,45 @@ console.log(components.count); // 1
 
 ## Algorithm Categories
 
+Every function below is reached as `indexed.<name>`.
+
 ### Traversal Algorithms
 
-- BFS (Breadth-First Search)
-- DFS (Depth-First Search)
-- Iterative Deepening DFS
-- Bidirectional Search
+- BFS (`breadthFirstSearch`, `directionOptimizedBfs`)
+- DFS (`depthFirstSearch`)
+- Topological sort, cycle detection, bipartite test
+- Connected, weakly connected and strongly connected components
 
 ### Shortest Path Algorithms
 
-- Dijkstra's Algorithm
-- Bellman-Ford Algorithm
-- Floyd-Warshall Algorithm
-- A\* Search
+- Dijkstra's algorithm and bidirectional Dijkstra
+- Bellman-Ford algorithm
+- All-pairs shortest paths (`allPairsShortestPath`, Floyd-Warshall among its strategies)
+- A\* search (`astar`)
 
 ### Centrality Algorithms
 
-- Degree Centrality
-- Betweenness Centrality
-- Closeness Centrality
-- Eigenvector Centrality
-- PageRank
-- HITS (Hubs & Authorities)
+- Degree, betweenness (node and edge) and closeness centrality
+- Eigenvector and Katz centrality
+- PageRank and personalized PageRank
+- HITS (hubs and authorities)
 
-### Community Detection
+### Community Detection and Clustering
 
-- Louvain Algorithm
-- Girvan-Newman Algorithm
-- Label Propagation
-- K-Clique Communities
+- Louvain and Leiden
+- Girvan-Newman
+- Label propagation (asynchronous, synchronous and semi-supervised)
+- K-core decomposition, hierarchical, spectral and Markov clustering
 
 ### Other Algorithms
 
-- Minimum Spanning Tree (Kruskal, Prim)
-- Connected Components
-- Cycle Detection
-- Topological Sort
-- Maximum Flow (Ford-Fulkerson)
-- Bipartite Matching
-- Link Prediction
+- Minimum spanning tree (`kruskalMST`, `primMST`)
+- Maximum flow and minimum cuts (`maxFlow`, `minSTCut`, `stoerWagner`, `kargerMinCut`)
+- Bipartite matching through `bipartiteFlowNetwork`
+- Link prediction (common neighbours, Adamic-Adar)
 
 ## Next Steps
 
 - [Installation Guide](./installation.md) - Detailed setup instructions
-- [Graph Data Structure](./graph.md) - The id-keyed Graph class
+- [Graph Data Structure](./graph.md) - Building snapshots, node ids and node indices
 - [API Reference](../api/) - Complete API documentation

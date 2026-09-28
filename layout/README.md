@@ -68,7 +68,8 @@ const s = builder.freeze();
 
 const result = indexed.circular(s, { scale: 100 });
 console.log(result.dim, result.n); // 2 4
-console.log(result.positions); // Float32Array [x0, y0, x1, y1, ...] in node-index order
+// A Float32Array [x0, y0, x1, y1, ...] in node-index order
+console.log(result.positions);
 
 const byId = toPositionMap(result, s.ids);
 console.log(byId.a); // [100, 0]: node "a" as [x, y]
@@ -259,7 +260,7 @@ import { indexed } from "@graphty/layout";
 const s = fromEdgeArrays(wheelGraph({ n: 8 }));
 const result = indexed.kamadaKawai(s, {
     dist: null, // node-to-node target distances; default the shortest-path lengths
-    pos: null, // start positions, `dim` values per node; default a circular layout
+    pos: null, // start positions, `dim` values per node; default a circle in 2D, a seeded random cube in 3D
     weight: null, // true for the snapshot's weights, or an edge column name
 });
 console.log(result.n); // 8
@@ -390,7 +391,8 @@ try {
 
 ## Common options
 
-Every layout takes these options besides its own:
+Every layout except `arf` takes these options besides its own. `arf` takes only `dim` and `seed` of them, and its
+result is not rescaled: the forces settle at their own size, which its `scaling` option sets.
 
 - **dim** (`2 | 3`): values per node; default 2
 - **scale** (number): size of the layout around its centre; default 1

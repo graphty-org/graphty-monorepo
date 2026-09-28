@@ -8,6 +8,7 @@ import { assert, describe, it } from "vitest";
 
 import { ErrorAggregator } from "../../src/data/ErrorAggregator.js";
 import { aggregateErrors, cell, components, importDocument, toRecords } from "../../src/data/graph-io-import.js";
+import { GraphtyError } from "../../src/errors/GraphtyError.js";
 
 /**
  * An importer that records what it was asked to read and pushes a fixed graph: node "b" is named
@@ -158,7 +159,7 @@ describe("the graph-io import helper", () => {
         assert.strictEqual(imported.report.errorCount, 1);
     });
 
-    it("throws the importer's failure for a document it does not recognise, or for a fatal issue", async () => {
+    it("turns an importer failure on an unreadable document into E_PARSE_FAILED naming the line", async () => {
         let unrecognised: unknown;
         try {
             await importDocument(abortingImporter(0), "doc", {});
@@ -173,8 +174,14 @@ describe("the graph-io import helper", () => {
             fatal = error;
         }
 
-        assert.instanceOf(unrecognised, ImportError);
-        assert.instanceOf(fatal, ImportError);
+        for (const error of [unrecognised, fatal]) {
+            assert.instanceOf(error, GraphtyError);
+            assert.strictEqual(error.code, "E_PARSE_FAILED");
+            assert.instanceOf(error.cause, ImportError);
+            assert.deepEqual(error.details, { format: "test", line: 3, errors: 1, sourceCode: "E_IMPORT" });
+        }
+
+        assert.include((unrecognised as GraphtyError).message, "at line 3");
     });
 });
 

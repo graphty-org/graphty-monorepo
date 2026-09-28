@@ -117,8 +117,11 @@ export declare function clearRegisteredCamerasForTesting(): void;
 export interface CameraViewReference {
     readonly view: CameraId;
     readonly options?: Readonly<Record<string, unknown>>;
-    /** The extension's own version when it declared one, as provenance. */
+    /** The npm package and the extension's own version when it declared them, as provenance. */
+    readonly package?: string;
     readonly version?: string;
+    /** The scope the view framed (the element's ScopeInput, as plain JSON), or absent for the whole graph. */
+    readonly scope?: unknown;
     /**
      * The resulting state at the time of saving, so a reader without the extension installed can
      * still restore the camera exactly, and a reader with it can tell whether the view changed.

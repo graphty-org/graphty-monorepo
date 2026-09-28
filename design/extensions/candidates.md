@@ -27,7 +27,7 @@ below is therefore a recommendation to the owner, not a decision.
 
 | Candidate | Seam today | Verdict |
 | --- | --- | --- |
-| Parameterised, service and live data sources | `layoutBehavior.fetchNodes` callbacks; element API design's lazy data source (unbuilt) | Promote (as a seventh point, or as a second half of File format) |
+| Parameterised, service and live data sources, and publishing to a repository | `layoutBehavior.fetchNodes` callbacks; element API design's lazy data source (unbuilt) | Promote (as a seventh point, or as a second half of File format), before the file-format contract is frozen |
 | Identifier mappers and enrichment providers | element API design 4.14 (unbuilt) | Later, folded into data sources |
 | Format writers | none; `canExport: true` refused | Part of File format; see `file-format.md` section 8 |
 | Snapshot-based layouts | none | Part of Layout; see `layout.md` section 7 |
@@ -44,6 +44,9 @@ below is therefore a recommendation to the owner, not a decision.
 | Attribute value types | closed | Keep closed |
 | Annotations and views as extensions | none | Not an extension point: configuration files |
 | Lifecycle managers | internal | Keep internal |
+| Entity resolution (merging duplicate nodes) | none | Not an extension point: the element ships a merge operation |
+| Background layers and basemaps | none | Not an extension point for the drawing; a tile SOURCE is a data source |
+| Derived networks (projection, enrichment maps) | none | Not an extension point: an element operation over a pair-list result |
 
 ## 1. Parameterised, service and live data sources
 
@@ -67,6 +70,19 @@ graph.
 - The design-studio framework lists "data source" as its own extension point, and its feature-fit
   notes ask for a "Service" import tab whose fields come from option descriptors the source
   publishes.
+- Without this point there is NO supported route for any service: a file reader may fetch only its
+  own `url` and cannot set request headers (an `Accept` type, a bearer token), and an algorithm may
+  contact nothing. The only route left is for the consumer to call the service and pass the text as
+  `data`, which is the consumer-side integration the architectural principles forbid, and nothing
+  records the query or the endpoint, so the graph cannot be refreshed or cited.
+- `design/designloom/workflows/W25.yaml` (publishing): uploading a network with its metadata to a
+  repository such as NDEx, with a private reviewer link and a DOI, falls between every point --
+  writers are pure exporters, and no point fetches outward. It is the same trust and host model in
+  the other direction.
+- `design/designloom/personas/ml-engineer-recsys.yaml`: scoring through an internal model server
+  (graph neural network inference) is a service call too, and has no home today.
+- `design/designloom/workflows/W13.yaml`: SPARQL endpoints and database-backed APIs, behind
+  credentials.
 
 **Evidence against.**
 
@@ -77,13 +93,21 @@ graph.
   the framework's rule that nothing fetches before the reader confirms the host must be designed in.
 
 **Shape if promoted.** A class like `DataSource` whose descriptor declares `options` (the query
-form), `hosts` (the origins it contacts, shown to the reader before any fetch), and `refresh`
-(`"none" | "manual" | "interval"`); the element owns confirmation, retry, cancellation and error
-mapping. It would give imports cancellation, which the File format point lacks.
+form), `hosts` (the origins it contacts, checked against the embedder's allowlist and shown to the
+reader before any fetch), and `refresh` (`"none" | "manual" | "interval" | "stream"`, the last for
+pushed feeds over WebSocket or server-sent events); a credential slot whose values the element
+keeps and never logs or serialises; the service release it queried and the query parameters,
+recorded as provenance; a found and not-found identifier report; and a `publish` direction for
+upload. The element owns confirmation, retry, cancellation, rate limiting, caching and error
+mapping. A refresh MUST add or merge and keep the reader's state (runs, sets, positions); it never
+silently replaces the graph. It would give imports cancellation, which the File format point
+lacks.
 
-**Verdict: Promote**, as an owner decision: either a seventh point "Data source", or a declared
-second kind of File format reader. Recommended: a seventh point, because its security model (hosts
-to confirm) and lifecycle (refresh) differ from a file's.
+**Verdict: Promote**, as an owner decision (README open decision 15), taken before the file-format
+contract is frozen: either a seventh point "Data source", or a declared second kind of File format
+reader. Recommended: a seventh point, because its security model (hosts to confirm) and lifecycle
+(refresh, publish) differ from a file's. Until then, the file-format specification does not claim
+the service and knowledge-graph workflows as served.
 
 ## 2. Identifier mappers and enrichment providers
 
@@ -99,8 +123,17 @@ UniProt to gene) or attaches external annotations (GO and KEGG terms, druggabili
 Enrichment statistics over a cluster are an algorithm (a `category-table` result) once the
 annotations are loaded.
 
+**But nothing loads annotations that are not a graph.** Offline enrichment needs a gene-set file
+(GMT) or an identifier map as input. It is not a graph, so no reader applies; no option type can
+hand a file or a table to an algorithm; and bundling an ontology release into plugin code freezes a
+version nobody can see in the run record. So "an ordinary algorithm plugin once annotations are
+loaded" is not achievable today. A `dataset` option type that references a loaded, versioned table
+and records its name and version in the run record is part of README open decision 22, and reading
+the loaded annotation columns is open decision 17.
+
 **Verdict: Later**, folded into the data source point (candidate 1) as a source that joins onto the
-loaded graph by key, with enrichment statistics written as an ordinary algorithm plugin.
+loaded graph by key; offline reference files made first-class through the `dataset` option type;
+enrichment statistics written as an ordinary algorithm plugin once both exist.
 
 ## 3. Scales
 
@@ -236,11 +269,17 @@ element capability); identifier-list sets in the design framework. The framework
 a future plugin registry.
 
 **Evidence against.** Set definitions are saved in documents and evaluated during repaint; a plugin
-set kind has the same missing-plugin fragility as expression functions. A pattern search can be an
-algorithm that publishes a `node-set` or `edge-set` result, which the element can already keep as a
-set.
+set kind has the same missing-plugin fragility as expression functions.
 
-**Verdict: Later.** Try the algorithm route first.
+**The algorithm route does not work yet.** A pattern search returns many matches, each a binding of
+pattern roles (the attacker account, the first host, the pivot) to nodes and edges, each with its
+own score. A flat `node-set` or `edge-set` loses which elements belong to which match, which role
+each plays, and the per-match score, and a plugin may not invent a shape. On an event multigraph
+the pivot is often one of hundreds of parallel edges, which a snapshot-only plugin cannot name
+(README open decision 5). **Pattern search is not achievable as an extension today.**
+
+**Verdict: Later.** The algorithm route needs a `match-list` result shape (README open decision 18)
+and the edge identity accessor first; try it then, before any set-kind extension.
 
 ## 13. Attribute value types
 
@@ -268,6 +307,50 @@ DATA formats, specified separately. Do they need extension points?
 ## 15. Lifecycle managers
 
 Internal orchestration (`Graph.ts`'s managers). No consumer need. **Keep internal.**
+
+## 16. Entity resolution
+
+**What it would be.** Merging nodes that name the same real thing ("Acme Corp" and "ACME
+Corporation"), a core step in `design/designloom/workflows/W13.yaml` (node merging, a merge dialog).
+
+**Evidence.** An algorithm plugin can already score duplicate pairs and publish them as a
+`pair-list`. Nothing then applies an accepted merge: no route merges the nodes, keeps an alias from
+the old id to the new, reconciles attributes and edges, or keeps saved selections, annotations and
+results that named the old id pointing at the merged node. The only workaround is to rewrite the
+source files and reload, losing every computed result.
+
+**Verdict: Not an extension point.** The element should ship a merge operation that consumes a
+pair list, records id aliases that saved documents resolve through, and has a declared
+attribute-merge policy. Scoring pairs stays an ordinary algorithm plugin. The alias record is a
+saved-document format and therefore a one-way door for the owner.
+
+## 17. Background layers and basemaps
+
+**What it would be.** Map tiles, coastlines or region outlines drawn under the graph.
+
+**Evidence.** `design/designloom/personas/supply-chain-analyst.yaml` names limited geographic views
+as a frustration; a geographic layout and a north-up camera view without a map behind them leave
+that unmet (a cluster on one flood-prone delta is not visible as such).
+
+**Verdict: Not an extension point for the drawing** -- every consumer with geographic data needs
+it, so the element should ship it. A third-party tile SOURCE contacts a host and belongs with data
+sources (candidate 1), declaring its hosts. It depends on the published scene convention (README
+open decision 27).
+
+## 18. Derived networks
+
+**What it would be.** A new network computed from the loaded one: a bipartite user-item graph
+projected onto an item-item similarity network, an enrichment map of gene sets joined by overlap,
+the union or intersection of two networks.
+
+**Evidence.** `design/designloom/workflows/W16.yaml`, `W22.yaml`, `W24.yaml`. An algorithm can
+return the new edges only as a `pair-list`, which the element shows as a table; no shape turns it
+into a network that can be laid out, clustered or exported.
+
+**Verdict: Not an extension point.** The element should ship an explicit "apply as edges"
+operation over a pair-list result (or a load of it as a separate network), carrying the run record
+with it. Until then the route is to export the pairs and import them as a file. README open
+decision 18 item (d).
 
 ## Does the design framework's ontology cover the extension points?
 

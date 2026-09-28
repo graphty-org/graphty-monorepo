@@ -2,8 +2,10 @@
  * Shared vocabulary of every graphty-element extension point.
  *
  * NORMATIVE for the shapes it declares. Behaviour is specified in design/extensions/README.md.
- * Everything in the "Published" section is exported by @graphty/graphty-element/extend in
- * graphty-element 2.6.1 and is described here as it is built. Everything in the "Proposed"
+ * Everything in the "Published" section exists in graphty-element 2.6.1 and is described here as
+ * it is built. It is exported by @graphty/graphty-element/extend unless its comment says "NOT
+ * EXPORTED BY NAME" (the type exists, but a plugin cannot import it; exporting it from ./extend
+ * is additive and the element SHOULD do it). Everything in the "Proposed"
  * section is NOT built; each item names the open decision in README.md that it depends on, and
  * nothing in it may be relied on until that decision is taken and the item moves up.
  *
@@ -20,7 +22,7 @@ export interface RegisterOptions {
     readonly strict?: boolean;
 }
 
-/** The data-dependent bound sources the element resolves against a loaded graph. */
+/** The data-dependent bound sources the element resolves against a loaded graph. NOT EXPORTED BY NAME. */
 export type OptionBoundSource =
     | "graph.nodeCount"
     | "graph.edgeCount"
@@ -58,7 +60,7 @@ export interface OptionChoice {
     label: string;
 }
 
-/** The value types an attribute can have. */
+/** The value types an attribute can have. NOT EXPORTED BY NAME. */
 export type AttributeType = "string" | "number" | "integer" | "boolean" | "time" | "category" | "mixed";
 
 /**
@@ -108,9 +110,12 @@ export declare function resolveOptionValues(
 
 /**
  * The error codes an extension, or the element on an extension's behalf, uses. The full list is
- * graphty-element/src/errors/codes.ts; this is the subset the extension contracts name.
- * CLOSED for writers (an extension MUST NOT invent a code), OPEN for readers (a consumer MUST
- * treat an unknown code as a generic failure; adding a code is a minor release).
+ * graphty-element/src/errors/codes.ts, published on ./extend as GraphtyErrorCode (the type of
+ * GraphtyErrorInit.code there). ExtensionErrorCode is this document's name for the subset the
+ * extension contracts name; it is NOT an export. CLOSED for writers (an extension MUST NOT invent
+ * a code), OPEN for readers (a consumer MUST treat an unknown code as a generic failure; adding a
+ * code is a minor release). An element that receives a GraphtyError whose code it does not know
+ * (thrown by an extension built against a newer element) passes it through unchanged.
  */
 export type ExtensionErrorCode =
     | "E_BAD_COMMAND"
@@ -132,6 +137,9 @@ export type ExtensionErrorCode =
     | "E_TOO_LARGE"
     | "E_SUPERSEDED"
     | "E_UNSUPPORTED"
+    | "E_NO_ACCELERATOR"
+    | "E_EDGE_ENDPOINTS_UNRESOLVED"
+    | "E_PROTECTED"
     | "E_INTERNAL";
 
 /** The area of the element a failure belongs to. CLOSED. */
@@ -178,20 +186,61 @@ export declare function isGraphtyError(value: unknown): value is GraphtyError;
 
 /**
  * PROPOSED -- open decision "Host compatibility check".
- * The version of the extension contract this document set defines. It moves independently of
- * the graphty-element package version: a major bump only when an "implemented by extensions"
- * shape changes incompatibly.
+ * The version of each point's contract, as full semver strings (node-semver rejects "1.0").
+ * Each moves independently of the graphty-element package version, and its major is bumped on
+ * ANY incompatible change to a type of that point on ./extend or ./logging -- "implemented by
+ * extensions" and "called by extensions" alike (a removed protected helper is a break). One number
+ * per point, so a break in the layout contract does not refuse every palette.
  */
-export declare const EXTENSION_API_VERSION: "1.0";
+export declare const EXTENSION_API_VERSIONS: {
+    readonly palette: "1.0.0";
+    readonly format: "1.0.0";
+    readonly camera: "1.0.0";
+    readonly layout: "1.0.0";
+    readonly algorithm: "1.0.0";
+    readonly logging: "1.0.0";
+};
 
 /**
  * PROPOSED -- open decision "Host compatibility check".
- * Carried by every registration (on the descriptor, or as a static on the class) to state the
- * contract range the extension was written against. A semver range over EXTENSION_API_VERSION.
+ * Carried by every registration (on the descriptor, or as statics on the class) to state the
+ * contract range the extension was written against. The member is `requiresApi`, NOT `requires`,
+ * because AlgorithmDescriptor.requires already holds graph preconditions.
  */
 export interface ExtensionCompatibility {
-    /** For example "^1.0". MUST NOT be "*". */
-    readonly requires?: string;
-    /** The extension's own version, recorded as provenance wherever its key is recorded. */
+    /**
+     * A node-semver range over the point's EXTENSION_API_VERSIONS entry, for example "^1.0.0".
+     * MUST NOT be "*" or empty.
+     */
+    readonly requiresApi?: string;
+    /** The extension's own semver version, recorded as provenance wherever its key is recorded. */
     readonly version?: string;
+    /** The npm package that ships the extension, recorded with the key so a replay can tell two vendors apart. */
+    readonly package?: string;
+    /**
+     * Members of this descriptor an element MUST understand to honour it (preconditions, egress
+     * declarations). An element that does not know a listed member refuses the registration with
+     * E_UNSUPPORTED naming it, instead of silently ignoring a constraint.
+     */
+    readonly mustUnderstand?: readonly string[];
 }
+
+/**
+ * PROPOSED -- README section 7. The option values a descriptor's `const` option array implies, so
+ * a registration can hand them to the extension typed, with no cast:
+ *   const options = [{ name: "margin", type: "number", ... }] as const;
+ *   compute(input: CameraViewInput<OptionValues<typeof options>>)
+ */
+export type OptionValues<T extends readonly { readonly name: string; readonly type: OptionType }[]> = {
+    readonly [O in T[number] as O["name"]]: O["type"] extends "number" | "integer" | "seed"
+        ? number
+        : O["type"] extends "boolean"
+          ? boolean
+          : O["type"] extends "node-set"
+            ? readonly (string | number)[]
+            : O["type"] extends "node-id"
+              ? string | number
+              : O["type"] extends "unknown"
+                ? unknown
+                : string;
+};

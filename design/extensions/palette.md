@@ -57,10 +57,10 @@ Authoring guidance (SHOULD, not enforced):
   in the middle, because a binding's `midpoint` places the middle of the ramp at that value.
 - A categorical palette SHOULD have anchors that are distinguishable from each other and from the
   canvas background in both the light and dark themes.
-- A `colorblindSafe` claim SHOULD be checked with the element's `isPaletteSafe` before it is
-  published. The element takes the claim on trust and does not verify it at registration: refusing
-  an author's palette over a claim would be the element overruling the author, and a picker that
-  wants a verified answer computes it.
+- A `colorblindSafe` claim SHOULD be checked with the element's `isPaletteSafe` (published on
+  `./schema`) before it is published. The element takes the claim on trust and does not verify
+  it at registration: refusing an author's palette over a claim would be the element overruling
+  the author, and a picker that wants a verified answer computes it.
 
 ## 3. Registration
 
@@ -82,7 +82,10 @@ registerPalette(descriptor: PaletteDescriptor, options?: RegisterOptions): void
 4. **Sameness is by content.** Two registrations are the same palette when their normalised
    descriptors are equal (compared as JSON), not when they are the same object. Re-registering an
    equal palette is a no-op. This differs from the class-shaped points on purpose: a palette is
-   usually written as an object literal that is rebuilt on every module evaluation.
+   usually written as an object literal that is rebuilt on every module evaluation. **(not yet
+   met)** 2.6.1's content key covers `id`, `kind`, `colors`, `capacity` and `colorblindSafe` but
+   not `plainName`, so re-registering a palette with a corrected name is a silent no-op and the
+   old name stays in the catalogue.
 5. A different palette under a taken id replaces it with one warning, or throws
    `E_DUPLICATE_PLUGIN` under `{ strict: true }`.
 
@@ -122,16 +125,30 @@ a palette takes no options (section 6).
    it again except the element itself.
 3. Applying a document (today): every palette it carries MUST already be registered with equal
    content, or the document is refused as a whole with `E_UNKNOWN_PALETTE` -- never half-applied.
-   A document that carries a palette whose id is registered with DIFFERENT content is refused too.
-4. Applying a document (proposed, open decision 10 in `README.md`): the carried palettes are
-   registered as part of applying it, under the policy in `palette.d.ts` `DocumentPalettePolicy`
-   `"register"`. The motivating case is the owner's "load style" / "load recipe" task (2026-09-27):
-   a community shares a starting point without sharing its data, and the receiving reader should
-   not have to register anything by hand first. Registering data from a document is safe because a
-   palette is data only.
-5. A registered palette is not scoped to a document: once registered it is global for the page.
-   Two documents that carry different palettes under the same id conflict, and the second is
-   refused (item 3). A per-document palette scope is a deliberate limit of this version.
+   A document that carries a palette whose id is registered with DIFFERENT content MUST be refused
+   too, comparing the normalised descriptors as JSON with anchors compared case-insensitively.
+   **(not yet met)** 2.6.1 checks only that each carried id is registered
+   (`graphty-element/src/session/styles/StylesApi.ts`, `checkDocument`), so a document is applied
+   with whatever colours the page registered under that id and a shared file can paint different
+   colours on different pages -- a fold-change figure can come out with its direction inverted.
+   Today, therefore, the lab's core habit -- one lab style, sent as a file to each member -- works
+   only where each member first registers the lab's palettes by code.
+4. Applying a document (proposed, open decision 10 in `README.md`): the carried palettes resolve
+   in a scope OWNED BY THE DOCUMENT (`palette.d.ts`, `DocumentPalettePolicy` `"document-scope"`).
+   They paint that document's layers, are not listed in the page catalogue, shadow no palette
+   registered by code, and are dropped when the document is closed; within the document its own
+   anchors win, so it always paints the colours it was saved with. The motivating case is the
+   owner's "load style" / "load recipe" task (2026-09-27): a community shares a starting point
+   without sharing its data, and the receiving reader should not have to register anything first.
+   Registering a document's palettes into the page-global, permanent registry was considered and
+   is not recommended: a shared file would then be untrusted data writing into every picker,
+   squatting on ids (every later genuine document is refused, and a plugin registering the id
+   later throws under `strict`), carrying false colour-blind-safety claims beside reviewed
+   palettes, and holding memory for the page's lifetime.
+5. A palette gains an optional `version` (open decision 3), carried with the palette in a
+   document, so two revisions of a lab palette under one id can be told apart. Under document
+   scope two revisions never meet: each document paints its own. A plugin that changes the
+   colours of a palette it ships under the same id makes a breaking change of that plugin.
 
 ## 6. Options
 
@@ -150,10 +167,13 @@ is a second palette with its own id.
 | `E_UNKNOWN_PALETTE` | a binding, `encode` call or document names an unregistered palette | styles API |
 | `E_CAP_EXCEEDED` | a categorical binding has more groups than the named palette's capacity and no `overflow` | repaint |
 
-**(not yet met)** `E_CAP_EXCEEDED` is reported through the repaint engine's problem list, which
-`./session` does not publish, so a consumer cannot observe it; only its consequence (the groups
-beyond capacity keep the colour the layers below painted) is visible. This is true of built-in
-palettes too.
+`E_CAP_EXCEEDED` MUST reach the consumer, with the layer id, the group count and the palette's
+capacity, through a style-problem event or a published problem list on `./session`, so a legend can
+mark the unpainted groups and an application can offer a larger palette or an overflow. Clustering
+routinely yields more groups than a categorical palette holds, and groups that silently keep the
+base colour read as "unclustered" in a figure. **(not yet met)** It is reported through the repaint
+engine's problem list, which `./session` does not publish, so a consumer cannot observe it; only
+its consequence is visible. This is true of built-in palettes too.
 
 ## 8. Versioning and compatibility
 
@@ -170,6 +190,12 @@ palettes too.
 A palette is data. Registering one, and applying a document that carries one, MUST NOT execute
 code, fetch a resource or read anything outside the descriptor. Anchor strings are parsed as
 colours only; a string that is not a colour is refused, never evaluated.
+
+A palette carried by a document is untrusted data from whoever wrote the file. Its `plainName` is
+plain text a consumer MUST render as text (README section 5 item 6); its `colorblindSafe` claim is
+the file author's, not a reviewed plugin's, and a picker that shows it SHOULD say so; and the
+element MUST bound what a document can carry (palettes per document, anchors per palette, string
+lengths) so a hostile file cannot exhaust memory. The bounds are part of open decision 10.
 
 ## 10. Conformance checks
 
@@ -188,6 +214,7 @@ the last two, which need the kit's browser configuration.
 | safety claim holds | every deficiency in `colorblindSafe` passes `isPaletteSafe` (a warning, not a failure: the claim is the author's) |
 | paints a ramp | a sequential or diverging palette bound to a numeric attribute paints the lowest value with the first anchor and the highest with the last (browser) |
 | survives a document round trip | `toDocument()` carries the descriptor, and applying it to a fresh element with the palette registered paints the same colours (browser) |
+| overflow is observable | a categorical binding with more groups than the capacity and no `overflow` reports `E_CAP_EXCEEDED` to the consumer (browser; fails until section 7 is met) |
 
 ## 11. Worked examples
 
@@ -234,8 +261,11 @@ registerPalette({ id: "acme-bad", plainName: "Bad", kind: "categorical", colors:
 ## 12. Known gaps
 
 - `E_CAP_EXCEEDED` is unobservable to a consumer (section 7).
-- A palette carried by a document is refused unless registered first (open decision 10).
+- A palette carried by a document is refused unless registered first (open decision 10), and a
+  document whose palette id is registered with different content is applied with the page's
+  colours instead of refused (section 5 item 3).
 - A registered palette is global, not scoped to the document that carried it.
+- The content key that decides sameness leaves out `plainName` (section 3 item 4).
 - The published parameter type of `registerPalette` requires `capacity` and `colorblindSafe`
   although the run time derives or defaults them; `PaletteRegistration` in `palette.d.ts` is the
   accurate shape.

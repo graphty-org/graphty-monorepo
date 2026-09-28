@@ -6,7 +6,7 @@
  */
 import type { OptionDescriptor } from "./common";
 
-// Graph-format types a layout names. Structural: see layout.md section 9.
+// Graph-format types a layout names. A plugin takes them from ./extend (algorithm.md section 3.3).
 import type { GraphSnapshot, NodeMask } from "@graphty/graph-format";
 
 // =============================================================================================
@@ -205,6 +205,11 @@ export interface SnapshotLayoutInput {
     readonly options: Readonly<Record<string, unknown>>;
     /** Rows the layout MUST NOT move (pinned or outside the scope), with their current coordinates. */
     readonly fixed: { readonly rows: NodeMask; readonly positions: Float32Array };
+    /**
+     * Open decision 27: the current coordinates of every row (NaN for a row with none yet), so a
+     * layout of a changing graph can start from where the nodes are and move only what changed.
+     */
+    readonly initial?: Float32Array;
     readonly signal: AbortSignal;
     report(progress: { readonly fraction: number | null; readonly message?: string }): void;
 }
@@ -214,6 +219,40 @@ export interface SnapshotLayoutInput {
  * row per snapshot node, `dimensions` numbers per row. IMPLEMENTED BY EXTENSIONS.
  */
 export interface SnapshotLayoutRegistration {
-    readonly descriptor: LayoutDescriptor;
+    /** What the author writes; honoursWeights and scoped are declared here, since there is no class to carry them as statics. */
+    readonly descriptor: AuthoredLayoutDescriptor & { readonly honoursWeights: boolean; readonly scoped: boolean };
     readonly compute: (input: SnapshotLayoutInput) => Promise<Float32Array>;
 }
+
+/**
+ * PROPOSED -- open decision 27. What a live or batch engine is handed at init, as an argument, so
+ * adding it cannot collide with a plugin's own members.
+ */
+export interface LayoutInitContext {
+    /** Current coordinates by node row, or null for a row with none yet (a warm start). */
+    initialPosition(index: number): Position | null;
+    /** A held row's current coordinates, so a scoped layout can place its scope next to them. */
+    heldPosition(index: number): Position | null;
+    /** Called when an attribute named by one of the layout's "attribute" options changes. */
+    onAttributeChange(listener: (nodeIds: readonly NodeIdType[]) => void): void;
+    /** Nodes the layout could not place from their data, reported with the settled event. */
+    reportUnplaced(nodeIds: readonly NodeIdType[], note: string): void;
+}
+
+/**
+ * PROPOSED -- open decision 9 (the conformance kit). Drives a LayoutEngine class through the
+ * lifecycle of layout.md section 3 over plain nodes and edges, in Node, with no renderer, and
+ * returns every node's position after `steps` steps (or once settled).
+ */
+export declare function runLayoutHeadless(
+    engine: new (opts: object) => LayoutEngine,
+    input: {
+        readonly nodes: readonly Node[];
+        readonly edges: readonly Edge[];
+        readonly options?: Readonly<Record<string, unknown>>;
+        readonly dim?: 2 | 3;
+        readonly steps?: number;
+        readonly pinned?: readonly NodeIdType[];
+        readonly hold?: NodeMask;
+    },
+): Promise<ReadonlyMap<NodeIdType, Position>>;

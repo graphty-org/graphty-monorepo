@@ -9,7 +9,10 @@ import type { GraphtyError, OptionDescriptor, RegisterOptions } from "./common";
 // Published (graphty-element 2.6.1): the READER
 // =============================================================================================
 
-/** The built-in format ids. Reserved. "sif" and "cx2" are deprecated and unserved. */
+/**
+ * The built-in format ids. Reserved. "sif" and "cx2" are deprecated and unserved: they claim no
+ * extension, media type or content, and a load naming them fails with the deprecation reason.
+ */
 export declare const KNOWN_FORMAT_IDS: readonly ["json", "csv", "graphml", "gexf", "gml", "dot", "pajek", "sif", "cx2"];
 
 /** A format id: a built-in name or a registered one. OPEN UNION. */
@@ -41,7 +44,11 @@ export interface DataSourceChunk {
     edges: AdHocData[];
 }
 
-/** What every reader accepts, beside its declared options. Exactly one of data, file, url. */
+/**
+ * What every reader accepts, beside its declared options. Exactly one of data, file, url. Whether
+ * the load adds to the graph or replaces it is an argument of the load call ({ replace }), not a
+ * reader option.
+ */
 export interface BaseDataSourceConfig {
     data?: string;
     file?: File;
@@ -196,12 +203,80 @@ export interface FormatWriterRegistration<Snapshot = unknown> {
 /** PROPOSED. Register a writer. Same policy as every registry (README section 4.2). */
 export declare function registerFormatWriter(registration: FormatWriterRegistration, options?: RegisterOptions): void;
 
-/** PROPOSED. What the element's export method returns. Name and signature: migration plan section 6 item 2. */
+/**
+ * PROPOSED. What the element's export method returns. Name and signature: migration plan section 6
+ * item 2; bytes and stream: open decision 24.
+ */
 export interface ExportResult {
-    readonly text: string;
+    /** The whole output as text, for a text format small enough to hold in one string. */
+    text(): Promise<string>;
+    /** The output as bytes, for a binary format or an export larger than one string can hold. */
+    readonly bytes: AsyncIterable<Uint8Array>;
     /** Everything the format could not carry. Empty only when the export is exact. */
     readonly lossNotes: readonly LossNote[];
 }
 
 /** PROPOSED. How a writer failure reaches the consumer. */
 export type WriterFailure = GraphtyError;
+
+// =============================================================================================
+// Proposed (NOT built): reader input and the load report. Open decisions 19 and 20.
+// =============================================================================================
+
+/** PROPOSED -- open decision 19. DataLoadingError gains a severity. */
+export interface DataLoadingErrorSeverity {
+    /** "warning": the record was kept or repaired. "error": the record was skipped. */
+    readonly severity: "warning" | "error";
+}
+
+/**
+ * PROPOSED -- open decision 19. What every load reports, built-in or plugin, carried by the
+ * data-loaded event and returned by the load call.
+ */
+export interface LoadReport {
+    readonly loadId: number;
+    readonly format: FormatId;
+    /** The reader's static version, when it declares one. */
+    readonly readerVersion?: string;
+    /** The reader's options after defaults were filled. */
+    readonly options: Readonly<Record<string, unknown>>;
+    readonly mode: "add" | "replace" | "join";
+    readonly direction: DeclaredDirection | null;
+    readonly nodes: number;
+    readonly edges: number;
+    /** Nodes the element created because an edge named them and no record did. */
+    readonly createdEndpoints: number;
+    /** Every per-record problem the reader recorded, with its severity. */
+    readonly errors: readonly (DataLoadingError & DataLoadingErrorSeverity)[];
+    /** True when the reader stopped because the error limit was reached. */
+    readonly errorLimitReached: boolean;
+    /** For a join: keys matched, keys in the table with no node, and duplicate keys. */
+    readonly match?: { readonly matched: number; readonly unmatched: readonly string[]; readonly duplicates: readonly string[] };
+}
+
+/**
+ * PROPOSED -- open decision 20. What a reader is handed, as an argument rather than as inherited
+ * members (README section 6.2 item 1), so adding it cannot collide with a plugin's own members.
+ */
+export interface ReaderContext {
+    /** Aborted when the load is cancelled. A reader checks it between chunks and throws its reason. */
+    readonly signal: AbortSignal;
+    /** The input as bytes, decompressed by the element (gzip, zip) when the name or magic bytes say so. */
+    bytes(): Promise<Uint8Array>;
+    /** The input as a stream of bytes, under the same retry, size and time limits. */
+    stream(): ReadableStream<Uint8Array>;
+    /** Stop after this many records, for a preview. Undefined for a full load. */
+    readonly recordLimit?: number;
+    /** State the label attribute, attribute types and graph-level metadata, before the first chunk. */
+    declareSchema(schema: {
+        readonly labelAttribute?: string;
+        readonly columns?: readonly { readonly name: string; readonly kind: "node" | "edge"; readonly type: string }[];
+        readonly graph?: Readonly<Record<string, unknown>>;
+    }): void;
+}
+
+/** PROPOSED -- open decision 20 (with 2). What a sniffer sees: at most 4 KiB, as text and as bytes. */
+export interface DetectionSample {
+    readonly text: string;
+    readonly bytes: Uint8Array;
+}

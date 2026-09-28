@@ -20,7 +20,7 @@ export declare const KNOWN_PALETTE_IDS: readonly [
 /** A palette id: a built-in name or a registered one. OPEN UNION. */
 export type PaletteId = (typeof KNOWN_PALETTE_IDS)[number] | (string & {});
 
-/** The colour-vision deficiencies a palette may claim to be safe for. CLOSED. */
+/** The colour-vision deficiencies a palette may claim to be safe for. CLOSED. NOT EXPORTED BY NAME. */
 export type ColorVisionDeficiency = "deuteranopia" | "protanopia" | "tritanopia";
 
 /**
@@ -82,9 +82,11 @@ export declare function clearRegisteredPalettesForTesting(): void;
 /**
  * PROPOSED -- open decision "Palettes carried by a style document" (README.md section 12,
  * item 10). What applying a StyleDocument does with its `palettes` member.
- *   "register": each carried palette is registered under the ordinary policy, except that a
- *               DIFFERENT palette under an already registered id is refused with
- *               E_DUPLICATE_PLUGIN rather than replacing (a document never recolours another).
+ *   "document-scope": RECOMMENDED. The carried palettes paint that document's layers only; they
+ *               are not listed in the page catalogue, shadow no registered palette, and are
+ *               dropped when the document is closed. Within the document its own anchors win.
  *   "require":  today's behaviour: every carried palette must already be registered.
+ * Registering carried palettes into the page-global registry was considered and is not
+ * recommended (palette.md section 5 item 4).
  */
-export type DocumentPalettePolicy = "register" | "require";
+export type DocumentPalettePolicy = "document-scope" | "require";

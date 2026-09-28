@@ -3,7 +3,7 @@
  * Entry point: @graphty/graphty-element/extend. Serialised form of the descriptor:
  * design/extensions/descriptors.schema.json#/$defs/AlgorithmDescriptor.
  */
-import type { EdgeMask, GraphSnapshot, NodeMask } from "@graphty/graph-format";
+import type { Column, EdgeMask, GraphSnapshot, NodeMask } from "@graphty/graph-format";
 import type { OptionDescriptor } from "./common";
 
 // =============================================================================================
@@ -18,6 +18,7 @@ export type ResultShape =
     | "node-metric" | "edge-metric" | "community" | "layered-grouping" | "category-table"
     | "path" | "node-set" | "edge-set" | "pair-list" | "temporal" | "fact";
 
+/** NOT EXPORTED BY NAME. OPEN (README 6.3). */
 export type CostClass = "instant" | "iterative" | "heavy" | "cubic" | "unbounded";
 
 /** One field a result publishes. Build it with metricField or a field-spec builder, not by hand. */
@@ -55,7 +56,7 @@ export interface AlgorithmDescriptor {
     scopeInput?: "none" | "subgraph";
 }
 
-/** How parallel edges merge in the compact subgraph. */
+/** How parallel edges merge in the compact subgraph; "none" keeps every parallel edge as its own row. NOT EXPORTED BY NAME. */
 export type SimplifyPolicy = "sum" | "min" | "max" | "none";
 
 export interface ScopedInputOptions {
@@ -78,7 +79,7 @@ export interface ScopedInput {
     subgraph(): GraphSnapshot;
 }
 
-/** A progress report. Every member optional; an absent member is unchanged. */
+/** A progress report. Every member optional; an absent member is unchanged. Exported from ./session, not ./extend. */
 export interface RunProgressReport {
     readonly phase?: string;
     readonly completed?: number;
@@ -110,6 +111,7 @@ export interface ResultElementValues<Id extends string | number = string | numbe
     readonly values: Readonly<Record<string, unknown>>;
 }
 
+/** Exported from ./session (with WeightMeaning), not ./extend. */
 export type RunDirection = "directed" | "undirected" | "as-loaded";
 export interface WeightMeaning {
     readonly attribute: string;
@@ -174,6 +176,12 @@ export declare abstract class Algorithm<TOptions extends Record<string, unknown>
 
     get type(): string;
     get namespace(): string;
+
+    /*
+     * NOT DECLARED HERE: the protected accelerated(capability, mode) route the built-ins use. Its
+     * return type is internal and its capability names are unpublished, so a plugin cannot use it
+     * without a cast (algorithm.md section 5.1 item 4).
+     */
 
     /** Register the class. Returns it. NOTE: takes no RegisterOptions in 2.6.1 (README decision 6). */
     static register<T extends abstract new (...args: never[]) => Algorithm>(cls: T): T;
@@ -251,16 +259,87 @@ export declare function runAlgorithmHeadless(
         readonly scope?: NodeMask;
         readonly signal?: AbortSignal;
         readonly onProgress?: (report: RunProgressReport) => void;
-        /** Edge ids by row of `snapshot`; generated as "e<row>" when absent. */
+        /**
+         * The element's Edge.id by row of `snapshot`. REQUIRED when the algorithm publishes edges:
+         * the host never invents ids, because invented ids never occur in the live element.
+         */
         readonly edgeIds?: readonly string[];
     },
 ): Promise<AlgorithmOutput | null>;
 
-/** PROPOSED -- open decision "Forwarding run options to compute" (README.md 12, item 16). */
+/**
+ * PROPOSED -- open decision "Forwarding run options to compute" (README.md 12, item 16).
+ * Reached through AlgorithmRunContextParameters.parameters.
+ */
 export interface AlgorithmRunParameters {
+    /**
+     * The seed actually used. When the caller passed none and the algorithm declares a "seed"
+     * option, the element draws one and records it; the run's seed fills that option, and passing
+     * both is E_BAD_COMMAND.
+     */
     readonly seed?: number;
     readonly exact?: boolean;
     readonly sample?: number;
-    /** Milliseconds; compute SHOULD return a partial result with caveats.partialReason when exceeded. */
+    /**
+     * Milliseconds. When exceeded, compute MAY return what it has with caveats.exact false and
+     * caveats.partialReason set; the element records the run as partial (algorithm.md 2.2 item 9).
+     */
     readonly timeBox?: number;
+}
+
+/** PROPOSED -- the member of AlgorithmRunContext that carries the forwarded run options. */
+export interface AlgorithmRunContextParameters {
+    readonly parameters: AlgorithmRunParameters;
+}
+
+/**
+ * PROPOSED -- open decision 16. The cost model sees the resolved options, so an option that
+ * multiplies the work cannot pass under the cost cap. Additive: a two-parameter function still fits.
+ */
+export type CostModel = (n: number, m: number, options: Readonly<Record<string, unknown>>) => number;
+
+/**
+ * PROPOSED -- open decision "Attribute, weight and result columns in the algorithm input"
+ * (README.md 12, item 17). Added to ScopedInput.
+ */
+export interface ScopedInputColumns {
+    /**
+     * The column behind a declared "attribute" or "partition" option, over the rows of `graph`.
+     * An option naming a result path (results.<run>.<field>) resolves to that run's published
+     * values; the run record lists it as an input. E_OPTION_RANGE when the name resolves to nothing.
+     */
+    column(optionName: string): Column;
+}
+
+/** PROPOSED -- open decision 17. Added to ScopedInputOptions. */
+export interface ScopedInputWeightOption {
+    /**
+     * The edge attribute that fills the snapshot's weights, and what it means. The element fills
+     * caveats.weight from it; subgraph() merges it by the simplify policy. null for unweighted.
+     */
+    readonly weight?: WeightMeaning | null;
+}
+
+/**
+ * PROPOSED -- open decision "The run record and replay" (README.md 12, item 26). What the element
+ * records for every run, so a methods section can cite it and a replay can detect drift.
+ */
+export interface RunRecord {
+    readonly key: AlgorithmKey;
+    /** The npm package that registered the algorithm; absent for a built-in. */
+    readonly package?: string;
+    /** The algorithm's static version; for a built-in, the element version. */
+    readonly version: string;
+    readonly elementVersion: string;
+    /** Every option after defaults were filled, not only what the caller passed. */
+    readonly options: Readonly<Record<string, unknown>>;
+    readonly parameters: AlgorithmRunParameters;
+    /** The scope, as the set or rule the caller named. */
+    readonly scope: unknown;
+    /** Result paths the run read as input (ScopedInputColumns). */
+    readonly inputs: readonly string[];
+    /** An identity of the input graph (for example a content hash of the snapshot), so a result is tied to the network it was computed on. */
+    readonly inputIdentity: string;
+    readonly caveats: Caveats;
+    readonly partial: boolean;
 }

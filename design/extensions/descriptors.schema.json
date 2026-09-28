@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://graphty.app/schemas/extensions/descriptors-1.json",
   "title": "graphty-element extension descriptors",
-  "description": "Serialised form of every catalogue descriptor an extension contributes. Normative for what may be published or persisted; see design/extensions/README.md section 1. Objects are open: a reader MUST ignore unknown members, a writer MUST NOT add members this version does not define.",
+  "description": "Serialised form of every catalogue descriptor an extension contributes. Normative for what may be published or persisted; see design/extensions/README.md section 1. Objects are open: a reader MUST ignore unknown members (README section 6.3 item 3). The enum lists of OPEN unions (README section 6.3 table) are documentation of the known values: a consumer MUST NOT refuse a descriptor over an unknown value of an open union, and reads it as the table says. Members marked PROPOSED are not normative until the open decision they name is taken.",
   "$defs": {
     "OptionBound": {
       "type": "object",
@@ -229,13 +229,24 @@
             ]
           }
         },
-        "requires": {
+        "requiresApi": {
           "type": "string",
-          "description": "PROPOSED, open decision 3"
+          "description": "PROPOSED, open decision 3: a node-semver range over this point's contract version (README section 6.4). Never '*' or empty."
         },
         "version": {
           "type": "string",
-          "description": "PROPOSED, open decision 3"
+          "description": "PROPOSED, open decision 3: the extension's own semver version, recorded as provenance."
+        },
+        "package": {
+          "type": "string",
+          "description": "PROPOSED, open decision 3: the npm package that ships the extension."
+        },
+        "mustUnderstand": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "PROPOSED, open decision 3: members an element must understand to honour this descriptor; an element that does not know one refuses the registration."
         }
       },
       "allOf": [
@@ -329,11 +340,35 @@
         "options": {
           "$ref": "#/$defs/Options"
         },
-        "requires": {
-          "type": "string"
+        "requiresApi": {
+          "type": "string",
+          "description": "PROPOSED, open decision 3: a node-semver range over this point's contract version (README section 6.4). Never '*' or empty."
         },
         "version": {
-          "type": "string"
+          "type": "string",
+          "description": "PROPOSED, open decision 3: the extension's own semver version, recorded as provenance."
+        },
+        "package": {
+          "type": "string",
+          "description": "PROPOSED, open decision 3: the npm package that ships the extension."
+        },
+        "mustUnderstand": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "PROPOSED, open decision 3: members an element must understand to honour this descriptor; an element that does not know one refuses the registration."
+        },
+        "writerOptions": {
+          "$ref": "#/$defs/Options",
+          "description": "PROPOSED, open decision 24: the writer's options, so an export dialog can be built from the catalogue. Present only when canExport is true."
+        },
+        "serves": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "PROPOSED, open decision 25: deprecated, unserved built-in ids this reader answers."
         }
       }
     },
@@ -372,11 +407,24 @@
         "options": {
           "$ref": "#/$defs/Options"
         },
-        "requires": {
-          "type": "string"
+        "requiresApi": {
+          "type": "string",
+          "description": "PROPOSED, open decision 3: a node-semver range over this point's contract version (README section 6.4). Never '*' or empty."
         },
         "version": {
-          "type": "string"
+          "type": "string",
+          "description": "PROPOSED, open decision 3: the extension's own semver version, recorded as provenance."
+        },
+        "package": {
+          "type": "string",
+          "description": "PROPOSED, open decision 3: the npm package that ships the extension."
+        },
+        "mustUnderstand": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "PROPOSED, open decision 3: members an element must understand to honour this descriptor; an element that does not know one refuses the registration."
         }
       }
     },
@@ -554,6 +602,29 @@
             }
           }
         },
+        "scopeInput": {
+          "type": "string",
+          "description": "Derived from the class's static scopeInput: none or subgraph; open union (mask reserved), unknown reads as none."
+        },
+        "requiresApi": {
+          "type": "string",
+          "description": "PROPOSED, open decision 3: a node-semver range over this point's contract version (README section 6.4). Never '*' or empty."
+        },
+        "version": {
+          "type": "string",
+          "description": "PROPOSED, open decision 3: the extension's own semver version, recorded as provenance."
+        },
+        "package": {
+          "type": "string",
+          "description": "PROPOSED, open decision 3: the npm package that ships the extension."
+        },
+        "mustUnderstand": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "PROPOSED, open decision 3: members an element must understand to honour this descriptor; an element that does not know one refuses the registration."
+        },
         "requires": {
           "type": "object",
           "properties": {
@@ -570,11 +641,7 @@
               "type": "boolean"
             }
           },
-          "description": "Preconditions of the algorithm. NOT the proposed host-compatibility range, which for algorithms is the class static requiresApi (open decision 3)."
-        },
-        "scopeInput": {
-          "type": "string",
-          "description": "Derived from the class's static scopeInput: none or subgraph; open union (mask reserved), unknown reads as none."
+          "description": "Preconditions of the algorithm (directed, weighted, accelerator, connected). NOT the host-compatibility range, which is requiresApi on every point."
         }
       },
       "not": {
@@ -613,15 +680,28 @@
           },
           "description": "PROPOSED, open decision 13: origins the destination may send records to."
         },
-        "requires": {
-          "type": "string"
-        },
-        "version": {
-          "type": "string"
-        },
         "forwardsData": {
           "type": "boolean",
           "description": "PROPOSED, open decision 13: whether LogRecord.data leaves the page."
+        },
+        "requiresApi": {
+          "type": "string",
+          "description": "PROPOSED, open decision 3: a node-semver range over this point's contract version (README section 6.4). Never '*' or empty."
+        },
+        "version": {
+          "type": "string",
+          "description": "PROPOSED, open decision 3: the extension's own semver version, recorded as provenance."
+        },
+        "package": {
+          "type": "string",
+          "description": "PROPOSED, open decision 3: the npm package that ships the extension."
+        },
+        "mustUnderstand": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "PROPOSED, open decision 3: members an element must understand to honour this descriptor; an element that does not know one refuses the registration."
         }
       }
     },
@@ -696,11 +776,24 @@
         "engine": {
           "type": "string"
         },
-        "requires": {
-          "type": "string"
+        "requiresApi": {
+          "type": "string",
+          "description": "PROPOSED, open decision 3: a node-semver range over this point's contract version (README section 6.4). Never '*' or empty."
         },
         "version": {
-          "type": "string"
+          "type": "string",
+          "description": "PROPOSED, open decision 3: the extension's own semver version, recorded as provenance."
+        },
+        "package": {
+          "type": "string",
+          "description": "PROPOSED, open decision 3: the npm package that ships the extension."
+        },
+        "mustUnderstand": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "PROPOSED, open decision 3: members an element must understand to honour this descriptor; an element that does not know one refuses the registration."
         }
       }
     }

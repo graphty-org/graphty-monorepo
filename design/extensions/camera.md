@@ -56,7 +56,9 @@ Grounding: owner's list of official points (2026-09-21); owner's file-handling s
 5. A 3D result SHOULD set `position` and `target`, and MAY set `fov`. A 2D result SHOULD set `zoom`
    and `pan`, and MAY set `rotation`. Members it leaves out keep the camera's current values.
 6. Every number returned MUST be finite. A non-finite value MUST be refused by the element with
-   `E_INTERNAL`, `source: "view"`, and the camera MUST NOT move **(not yet met: verify)**.
+   `E_INTERNAL`, `source: "view"`, and the camera MUST NOT move. **(not yet met)** 2.6.1 ends
+   `resolveCameraView` (`graphty-element/src/camera/resolve.ts`) with `return compute(input)`: it
+   checks no returned number, so a `NaN` reaches `setCameraState`.
 7. `compute` SHOULD return in under a millisecond; it may be called once per animation request.
 
 ## 4. What the built-in views do, and parity
@@ -86,10 +88,11 @@ Grounding: owner's list of official points (2026-09-21); owner's file-handling s
 2. Progress is vacuous (a view is synchronous). Cancellation applies to the ANIMATION, which the
    element owns, and a registered view gets it exactly as a built-in does: a cancelled animation
    settles rather than rejecting.
-3. **(not yet met)** A screenshot cannot pass options to a view: `captureScreenshot` resolves
-   `options.camera.preset` with no options and no scope. No built-in declares options, so no
-   built-in is affected, but a plugin view that declares options cannot be configured on that
-   route. The fix is to accept `camera: { preset, params, scope }`.
+3. **(not yet met)** A screenshot cannot pass options or a scope to a view: `captureScreenshot`
+   resolves `options.camera.preset` with neither. The missing options affect only plugin views (no
+   built-in declares options); the missing scope affects built-ins too -- no route frames a
+   screenshot on a subset, so a per-region figure cannot be reproduced. The fix is to accept
+   `camera: { preset, params, scope }`.
 4. **Saved documents: parity is vacuous.** A camera view is recorded in no saved document the
    element reads back, for built-ins and plugins alike (section 6).
 
@@ -97,19 +100,24 @@ Grounding: owner's list of official points (2026-09-21); owner's file-handling s
 
 A name passed to `loadCameraPreset`, `setCameraState({ preset })` or `resolveCameraPreset` is
 resolved against registered views (built-in and plugin) BEFORE the graph's saved camera snapshots.
-`saveCameraPreset` MUST refuse a name a view holds, and a view registered after a snapshot of the
-same name was saved takes the name back. A view name is therefore stable regardless of what a
-reader has saved.
+`saveCameraPreset` MUST refuse a name a view holds (with `E_PROTECTED`), and a view registered
+after a snapshot of the same name was saved takes the name back. A view name is therefore stable
+regardless of what a reader has saved -- but the converse fails: a snapshot the reader saved
+becomes unreachable, with no warning, when a later element release or an installed plugin adds a
+view of that name. Separate namespaces for views and saved snapshots are open decision 28.
 
 ### 4.3 Subsets
 
-When the caller passes a scope, the element measures the box over the scope's nodes and hands that
-box to `compute`. A view MUST NOT assume `bounds` covers the whole graph.
+When the caller passes a scope (the element's `ScopeInput`, README section 5.1), the element
+measures the box over the scope's nodes and hands that box to `compute`. A view MUST NOT assume
+`bounds` covers the whole graph. Whether nodes hidden by a filter count in the box for "the whole
+graph" is not specified; it is part of open decision 27.
 
 ### 4.4 Empty and degenerate boxes
 
 When `bounds.measured` is 0 (an empty graph or an empty scope) the element MUST NOT call `compute`
-and MUST leave the camera where it is **(not yet met: verify)**. A view MUST handle a box of zero
+and MUST leave the camera where it is. **(not yet met)** 2.6.1's `resolveCameraView` calls
+`compute` whatever `measured` is; nothing pins that its callers check first. A view MUST handle a box of zero
 size in one or more dimensions (a single node, a flat 2D layout in 3D) without dividing by zero;
 it SHOULD treat a zero extent as a small positive one.
 
@@ -122,10 +130,12 @@ it SHOULD treat a zero extent as a small positive one.
 | `E_UNKNOWN_CAMERA` | a route names a view nothing registered | `available`: registered view ids |
 | `E_UNSUPPORTED` | the view does not declare the current drawing mode; raised before `compute` is called | the mode, the declared modes |
 | `E_UNKNOWN_OPTION`, `E_OPTION_RANGE` | `params` fail validation | option name, nearest name, range |
+| `E_PROTECTED` | `saveCameraPreset` names a registered view | the name |
 
 A throw from `compute` MUST reject the call that asked for the view with a `GraphtyError`
 (`E_INTERNAL`, `source: "view"`, the original as `cause`, when it is not already one) and MUST NOT
-move the camera.
+move the camera. **(not yet met)** 2.6.1 does not wrap it: the caller receives the plain error,
+which a consumer switching on `error.code` cannot handle.
 
 ## 6. Persistence (proposed)
 
@@ -136,10 +146,13 @@ carried into a report's page order, and a video path through saved views
 documents in the main checkout).
 
 This is README open decision 8, to be taken together with the view and recipe file formats. The
-recommended record is `CameraViewReference` in `camera.d.ts`: the view id, its options, the
-extension's version, and the resolved `CameraState` at the time of saving. Recording the resolved
-state means a reader who lacks the plugin still gets the exact camera back, and a reader who has it
-can tell that the plugin now computes something different.
+recommended record is `CameraViewReference` in `camera.d.ts`: the view id, its package and
+version, its options, the scope it framed, and the resolved `CameraState` at the time of saving.
+Recording the resolved state means a reader who lacks the plugin still gets the exact camera back,
+and a reader who has it can tell that the plugin now computes something different; recording the
+scope lets the view re-frame the same subset after the data changes. A camera view alone does not
+reproduce a figure: the node positions must be restored too, which is the layout half of the same
+decision.
 
 ## 7. Versioning and compatibility
 
@@ -153,10 +166,14 @@ can tell that the plugin now computes something different.
 
 ## 8. Security
 
-`compute` runs with the page's privileges, but the contract requires it to be pure (section 3), and
-the conformance kit checks that it neither reads the DOM nor touches the network while computing.
-A view receives only geometry, never node ids, attributes or labels, so a view cannot leak graph
-content through its input.
+A registered view is code running with the page's privileges (README section 9.2): it can reach
+the element, the DOM and every graph directly, whatever it is handed. Purity (section 3) is a
+CORRECTNESS property -- it is what lets the element call a view for a screenshot, a preview and an
+animation and get one answer -- not a security boundary. That its input carries only geometry
+means a well-behaved view has no need of graph content; it does not stop a hostile one. The
+conformance kit's purity check runs in Node with globals trapped and cannot catch a view that
+behaves differently in a browser. A camera view gets the same supply-chain review as every other
+code extension.
 
 ## 9. Conformance checks
 
@@ -182,7 +199,8 @@ A top-down "map" view for a geographic layout, 2D and 3D, with a margin option:
 import { registerCameraView, type CameraViewInput, type CameraState } from "@graphty/graphty-element/extend";
 
 function mapView(input: CameraViewInput): CameraState {
-    const margin = input.options.margin as number;                 // validated and defaulted
+    // Validated and defaulted. The cast goes once typed options ship (README section 7 item 8).
+    const margin = input.options.margin as number;
     const { center, size } = input.bounds;
     const width = Math.max(size.x, 1e-6) * (1 + margin);
     const height = Math.max(size.y, 1e-6) * (1 + margin);
@@ -211,10 +229,15 @@ await graph.applyCameraView("acmegeo-map", { scope: { set: "port-cities" }, para
 
 ## 11. Known gaps
 
-- A screenshot cannot pass options or a scope to a view (section 4.1).
+- A screenshot cannot pass options or a scope to a view, for built-ins too (section 4.1).
 - A view is recorded in no saved document (section 6).
 - Controllers (orbit, fly, 2D) are not extensible; see `candidates.md`.
-- Non-finite results and empty boxes are not pinned by the parity suite (sections 3 and 4.4).
+- A `compute` throw is not wrapped, a non-finite result is not refused, and an empty box still
+  calls `compute` (sections 3, 4.4 and 5).
+- A saved camera snapshot can be shadowed by a later view of the same name (section 4.2).
+- No scene convention (which way is north, what `scalingFactor` does) is published, so a map view
+  and a geographic layout from two vendors fit only by accident. The example assumes +y is north;
+  the convention is open decision 27.
 
 ## 12. Who this serves
 

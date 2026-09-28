@@ -86,7 +86,11 @@ export interface LogSinkReference {
     readonly options?: Readonly<Record<string, unknown>>;
 }
 
-/** ./logging. The part of the logger configuration a destination is named in. */
+/**
+ * ./logging. The part of the logger configuration a destination is named in. NOT AN EXPORT: this
+ * document's name for the `sinks` member of the configuration object `GraphtyLogger.configure`
+ * takes.
+ */
 export interface GraphtyLoggerSinkConfig {
     /** Live objects are attached as given; references are built from the registry. */
     sinks?: readonly (Sink | LogSinkReference)[];
@@ -108,3 +112,9 @@ export interface LogSinkEgress {
     /** Whether the destination forwards LogRecord.data. Absent means "not declared". */
     readonly forwardsData?: boolean;
 }
+
+/**
+ * PROPOSED -- open decision 13. An element-level setting: what the element strips from a record
+ * before a non-built-in destination's write is called. Default "data-and-stacks".
+ */
+export type LogRedaction = "none" | "data" | "data-and-stacks";

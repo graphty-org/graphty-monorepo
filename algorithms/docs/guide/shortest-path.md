@@ -114,6 +114,28 @@ console.log(result.path("a", "c")); // ["a", "b", "c"]
 Floyd-Warshall is ideal when you need to query shortest paths between many different pairs of nodes, as it precomputes all paths in O(V³) time.
 :::
 
+### Index-based all-pairs shortest paths
+
+`indexed.allPairsShortestPath` works on a graph-format snapshot and returns a dense row-major
+`Float64Array`. It picks the fastest strategy for the graph: one breadth-first search per source
+when unweighted, Floyd-Warshall when a weight is negative or the graph is dense, and one Dijkstra
+per source otherwise. On a 512-node graph with 5,120 edges it is 59x to 737x faster than
+`floydWarshall`, depending on the strategy.
+
+```typescript
+import { indexed, toSnapshot } from "@graphty/algorithms";
+
+const s = toSnapshot(graph);
+const result = indexed.allPairsShortestPath(s, { paths: true });
+const a = s.ids.requireIndex("a");
+const c = s.ids.requireIndex("c");
+console.log(result.dist[a * result.n + c]); // 4
+console.log([...result.pathTo(a, c)].map((i) => s.ids.idOf(i))); // ["a", "b", "c"]
+```
+
+It refuses graphs above 5,792 nodes unless `maxNodes` is raised, and reports a negative cycle as
+`hasNegativeCycle: true` with every distance `NaN`.
+
 ## A* Search
 
 A heuristic-guided search that can be faster than Dijkstra when a good heuristic is available.

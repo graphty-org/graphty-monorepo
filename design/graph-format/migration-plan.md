@@ -484,7 +484,9 @@ under Fruchterman-Reingold.
 a type-level test asserts every indexed layout takes `(GraphSnapshot, options?)` and returns
 `LayoutResult`. Done when: the suite, the bundle build and the docs build are green and every
 layout story change since the start of phase 5 is explained and waiting for the owner in
-visual-review.
+visual-review. Changes that appear only under non-default story arguments, which visual-review
+never captures (BFS on a random graph, or on a cycle from a start node other than 0), are shown
+for the owner in `visual-changes/layout-stories/README.md` instead.
 
 **element-static-layout-engines.** `SimpleLayoutEngine` loads the undirected snapshot and the
 position array, calls `indexed.*`, writes with `toPositionColumn`, reseeds with

@@ -1,12 +1,15 @@
 # Layout story changes from the move onto indexed layouts
 
 The layout package's legacy functions (`bfsLayout`, `planarLayout`, `springLayout`, ...) now run
-on the `indexed.*` layouts over a graph-format snapshot (migration plan, "Phase 5 -- layout").
+on the `indexed.*` layouts over a graph-format snapshot ("Phase 5 -- layout" in
+[the migration plan](../../migration-plan.md)).
 This page records every layout Storybook story whose picture differs from master because of that,
 and why, for the owner to review.
 
-Layout's Storybook is not a visual-review project yet and master has no layout baselines (the plan's
-`visual-review-ready` item adds both), so these captures stand in for the review page until then.
+Layout's Storybook is not a visual-review project yet and master has no layout baselines (the
+migration plan's **visual-review-ready** item adds both), so these captures stand in for the review
+page until then. Once that lands, the Spring 3D change below must still be accepted by the owner on
+the visual-review page of the pull request that first captures layout.
 
 ## What was compared
 
@@ -37,11 +40,19 @@ before. The 2D Spring story moves by 3.5e-5 of a unit and stays under the thresh
 
 - **BFS** and **Planar**: `bfsLayout` and `planarLayout` now visit neighbours in node order. The
   default graph of both stories is a tree, on which the old order and node order agree, so the
-  layout is identical. The change becomes visible only when a reader switches the BFS story's
-  graph type control to "random": nodes then trade places within a layer (up to 1.6 units, about
-  320 px). visual-review captures default arguments only, so it will never show this. Every other
-  graph type the two stories offer (tree, grid, cycle, complete, star, path) gives identical
-  positions, and so do bipartite and multipartite graphs.
+  layout is identical. visual-review captures default arguments only, so it will never show the
+  two cases below, where a reader who changes the BFS story's controls does see nodes move:
+  - graph type "random": nodes trade places within a layer, up to 1.6 units (about 320 px) at the
+    story's other defaults ([overlay](bfs-random.svg)).
+  - graph type "cycle" with the start node moved off 0: for each node count and seed, one start
+    node puts the two branches of the cycle on swapped sides, a move of 0.2 to 1.0 units (at 10
+    nodes, seed 42, start node 9: [overlay](bfs-cycle.svg)).
+
+  In each overlay a grey ring is master's position, a blue dot the branch's, and a red dashed line
+  a node's move. The other graph types (tree, grid, complete, star, path) give identical positions
+  for every start node, checked over 4 to 20 nodes and 20 seeds. Planar's graph
+  types (tree, grid, cycle, path, star) give identical positions, and so do bipartite and
+  multipartite graphs.
 - **Kamada-Kawai** (2D and 3D): `kamadaKawaiLayout` keeps its previous code.
 - **Shell**: positions are identical; the `diff-stories.mjs` capture differs in 47 pixels by at most 3 levels of
   one channel, below every threshold.
@@ -60,5 +71,5 @@ node visual-review/trusted/cli.mjs capture --project layout \
     --storybook <branch>/layout/storybook-static --baselines <m> --out <b>
 ```
 
-This needs a `layout` entry in `visual-review/projects.json`, which the `visual-review-ready` item
-adds. `tools/diff-stories.mjs` and `tools/pixel-diff.mjs` give the same verdict at 1000x800.
+This needs a `layout` entry in `visual-review/projects.json`, which the migration plan's
+**visual-review-ready** item adds. `tools/diff-stories.mjs` and `tools/pixel-diff.mjs` give the same verdict at 1000x800.

@@ -209,8 +209,10 @@ for this milestone", gives the reason for each.
     | styles-label--background-gradient, --corner-radius, --pointer, --text-outline, --text-shadow, --unicode-text                                   | 0.25      | changed (unreviewed) | identical          |
     | styles-label--depth-fade, --font-size                                                                                                          | 0.3       | changed (unreviewed) | identical          |
 
-- **The review page shows real size.** One CSS pixel of the page per CSS pixel the story was drawn
-  at (the image's width divided by its scale), each image scrolling in its own frame, with 2x, 4x
+- **The review page shows real size.** It opens at "fit": real size (one CSS pixel of the page per
+  CSS pixel the story was drawn at, the image's width divided by its scale), shrunk to the pane
+  when wider, so a 1200 px graphty-element capture is seen whole beside its baseline. Then real
+  size, each image scrolling in its own frame, with 2x, 4x
   and 8x (hard pixels from 4x), and "next changed box", which scrolls every frame until the next
   region of changed pixels is in view (its top left first when it is larger than the frame) and
   outlines it inside the image, so a region at an edge keeps all four sides. A frame opens at the
@@ -219,6 +221,17 @@ for this milestone", gives the reason for each.
   themselves at about 1.5 Hz, and hold Space to flash; highlight; and spotlight, the new image
   dimmed to 65/255 except around the changed pixels grown by 10 image pixels (Chromatic's focus
   mask). The client-side crop to a background-coloured box is gone: capture crops now.
+- **No emoji font, a warning.** Capture asks fontconfig for a font holding U+1F680 and, without
+  one, logs that every emoji will be captured as an empty box, and records
+  `environment.emojiFont: false`. The development server has none; the pinned fonts (section 6,
+  item 9, with Noto Color Emoji) are the fix for local and CI capture alike.
+- **The two `layout-gpu--*-fake` stories time out, unfixed.** Their screenshot waits past 30 s on
+  a loaded machine in every run. Measured: after the story settles, SwiftShader's GPU process
+  stays near 340% CPU and any capture of that page, even a 40 px strip or with the page clock
+  paused so that no WebGL call is made, takes 2 to 3.5 minutes, against 5 to 15 s for other
+  graphty-element canvas stories on the same machine at the same load. No worker runs, the layout
+  has settled and the draw calls per second equal an ordinary layout story's, so the backlog is in
+  the GPU process and its cause is not yet found. They show as errors, never as a picture.
 - **The grid.** It opens on the undecided items. Failed captures are listed first, in their own
   list, with their reason, console and stack (capture keeps the whole thrown message and the
   text of Storybook's error screen, `#error-message` and `#error-stack`); they can only be

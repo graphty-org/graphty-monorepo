@@ -10,7 +10,12 @@
         "noEmit": true,
         "allowImportingTsExtensions": true,
         "noUnusedLocals": false,
-        "noUnusedParameters": false
+        "noUnusedParameters": false,
+        // The guide's examples (docs/examples/) import the published name, as a reader writes
+        // it; inside the package that name means the source, not a stale dist/.
+        "paths": {
+            "@graphty/graphty-element/extend": ["./extend.ts"]
+        }
     },
     "include": ["**/*.ts", ".storybook/**/*.ts"],
     "exclude": ["tmp/**/*", "vitest.config.ts", "vite.config.ts"]

@@ -53,6 +53,13 @@ const XR_BROWSER_TESTS = [
 const dirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url));
 
 /**
+ * The guide's examples (docs/examples/) import the package's published name, as a reader writes
+ * it. A test or a story that runs one must get the source -- the same module the element under
+ * test uses -- not a stale dist/. vite.config.ts carries the same alias for Storybook.
+ */
+const GUIDE_EXAMPLE_IMPORTS = { "@graphty/graphty-element/extend": path.resolve(dirname, "extend.ts") };
+
+/**
  * The Chromium flag sets that expose WebGPU to the `browser` project.
  *
  * Copied from `webgpu-graph-algorithms/vitest.config.ts`, where they are the measured answer to
@@ -339,6 +346,7 @@ export default defineConfig({
                     alias: {
                         // Mock @mlc-ai/web-llm in browser tests - the package is CDN-only
                         "@mlc-ai/web-llm": path.resolve(dirname, "test/helpers/webllm-mock.ts"),
+                        ...GUIDE_EXAMPLE_IMPORTS,
                     },
                 },
                 optimizeDeps: { include: BABYLON_SIDE_EFFECTS },
@@ -441,6 +449,7 @@ export default defineConfig({
                 // GRAPHTY_UPDATE_RENDER_BUDGET makes test/browser/render-budget.test.ts rewrite its
                 // baseline instead of checking against it.
                 envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_FC_", "GRAPHTY_UPDATE_RENDER_BUDGET"],
+                resolve: { alias: GUIDE_EXAMPLE_IMPORTS },
                 // Pre-bundle IWER up front: discovered mid-run, Vite re-optimizes and reloads the
                 // page under the running test (test/browser/xr-session.test.ts imports it).
                 optimizeDeps: { include: ["iwer", ...BABYLON_SIDE_EFFECTS] },

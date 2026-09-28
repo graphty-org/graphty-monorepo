@@ -41,8 +41,8 @@ algorithms/
 `indexed` namespace: BFS, Dijkstra, connected components, Kruskal MST, PageRank, HITS, Katz,
 common neighbours, k-core, Louvain, label propagation, all-pairs shortest paths, hierarchical,
 Markov and spectral clustering, and modularity. Each lands beside its legacy function without
-replacing it; tests live in `test/unit/indexed/` and before/after timings in
-`benchmarks/port-bench.ts`.
+replacing it; tests live in `test/unit/indexed/`. `benchmarks/port-bench.ts` times some of them
+(k-core, Katz, HITS, Louvain, label propagation) against their legacy functions.
 
 ## Essential Commands
 

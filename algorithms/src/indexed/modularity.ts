@@ -16,11 +16,16 @@ export interface ModularityOptions {
  * ignored: every arc counts as an undirected edge, and a node's degree is its in-weight plus its
  * out-weight.
  *
- * This is the quantity the legacy `calculateModularity` computes over a `Graph`, and the one the
- * Louvain port reports. It is NOT what the legacy `calculateMCLModularity` computes: that function
- * collects the null-model term over the edge list only, the defect `calculateModularity` had before
- * it became Newman's Q, so on the same partition the two differ (a single community scores 0 here,
- * and above 0 there).
+ * On an undirected snapshot without self-loops this equals the legacy `calculateModularity`. On
+ * a directed snapshot or one with self-loops the two differ, and this one is the NetworkX value:
+ * the legacy degree counts a self-loop once and reads only out-neighbours on a directed graph, so
+ * its degrees do not sum to 2m.
+ *
+ * It is NOT the legacy `calculateMCLModularity`, in two ways. That function subtracts the null-model
+ * term `d(u) d(v) / 2m` once per edge whatever the partition: on two separate triangles it scores
+ * one community and the two triangles both 1/3, where this returns 0 and 1/2. And it ignores edge
+ * weights, where this reads the snapshot's weights by default; pass `weights` filled with 1 for
+ * the unweighted value.
  * @param s - Any snapshot or adjacency view
  * @param labels - Community of every node; `INVALID_INDEX` leaves a node out of every community
  * @param options - Resolution and the weight override

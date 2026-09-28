@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
     type ClusterNode,
+    cutDendrogram,
     hierarchicalClustering as legacyHierarchical,
     type LinkageMethod,
 } from "../../../src/clustering/hierarchical.js";
@@ -120,14 +121,49 @@ describe("indexed.hierarchicalClustering", () => {
                 expect(legacy.dendrogram.length, name).toBe(
                     s.nodeCount + port.left.length + (port.roots.length > 1 ? 1 : 0),
                 );
-                if (port.roots.length === 1) {
-                    for (const [h, clusters] of legacy.clusters) {
-                        const cut = port.cut(h).map((c) => Array.from(c, (i) => String(s.ids.idOf(i))));
-                        expect(cut, `${name} at height ${h}`).toEqual(clusters.map((set) => [...set]));
+                // The legacy clusters map lists every node as one cluster at every height of a
+                // forest (its cut stops at the childless forest node), so a forest is compared
+                // against the legacy cut of each of its trees.
+                const trees = legacy.root.trees ?? [legacy.root];
+                for (let h = 0; h <= legacy.root.height; h++) {
+                    const cut = port.cut(h).map((c) => Array.from(c, (i) => String(s.ids.idOf(i))));
+                    const expected = trees.flatMap((t) => cutDendrogram(t, h)).map((set) => [...set]);
+                    expect(cut, `${name} at height ${h}`).toEqual(expected);
+                    if (trees.length === 1) {
+                        expect(expected, `${name} at height ${h}`).toEqual(legacy.clusters.get(h)?.map((set) => [...set]));
                     }
                 }
                 s.validate({ checksum: true });
             }
         });
     }
+
+    it("builds the legacy dendrogram exactly on small sparse directed graphs", () => {
+        // Partial reachability leaves some directed cluster pairs with no member pair at a finite
+        // distance one way, which the fixtures above rarely reach.
+        let state = 7;
+        const random = (): number => {
+            state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+            return state / 4294967296;
+        };
+        for (let trial = 0; trial < 60; trial++) {
+            const g = new Graph({ directed: true });
+            const n = 3 + Math.floor(random() * 7);
+            for (let i = 0; i < n; i++) {
+                g.addNode(`n${i}`);
+            }
+            for (let e = Math.floor(random() * n * 1.5); e > 0; e--) {
+                const u = Math.floor(random() * n);
+                const v = Math.floor(random() * n);
+                if (u !== v && !g.hasEdge(`n${u}`, `n${v}`)) {
+                    g.addEdge(`n${u}`, `n${v}`);
+                }
+            }
+            const s = checksummedSnapshot(g);
+            for (const linkage of LINKAGES) {
+                const port = hierarchicalClustering(s, { linkage });
+                expect(plainPort(s, port), `trial ${trial} ${linkage}`).toEqual(plainLegacy(legacyHierarchical(g, linkage).root));
+            }
+        }
+    });
 });

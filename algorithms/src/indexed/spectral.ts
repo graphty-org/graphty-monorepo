@@ -33,6 +33,13 @@ export interface SpectralResult extends LabelResult {
     readonly eigenvalues: Float64Array;
     /** One nodeCount-long eigenvector per eigenvalue; for randomWalk, of `I - D^-1 A`. */
     readonly eigenvectors: Float64Array[];
+    /**
+     * Whether the eigenpairs met the residual tolerance. False when the iteration stopped at its
+     * round cap -- on a graph whose small eigenvalues crowd together, such as a long path -- and
+     * the eigenpairs are then approximations (the labels usually still hold). True when there
+     * were no eigenpairs to compute.
+     */
+    readonly converged: boolean;
 }
 
 /** Relative eigenvector residual at which subspace iteration stops. */
@@ -213,7 +220,7 @@ function jacobi(a: Float64Array, p: number): { values: Float64Array; vectors: Fl
  * @param k - Eigenpairs wanted
  * @param shift - An upper bound on the largest eigenvalue of L
  * @param random - The generator of the starting block
- * @returns Eigenvalues ascending and their eigenvectors
+ * @returns Eigenvalues ascending, their eigenvectors, and whether they met the tolerance
  */
 function smallestEigenpairs(
     apply: (x: Float64Array, out: Float64Array) => void,
@@ -221,7 +228,7 @@ function smallestEigenpairs(
     k: number,
     shift: number,
     random: () => number,
-): { values: Float64Array; vectors: Float64Array[] } {
+): { values: Float64Array; vectors: Float64Array[]; converged: boolean } {
     const p = Math.min(n, k + Math.max(k, 8));
     let block: Float64Array[] = Array.from({ length: p }, () => Float64Array.from({ length: n }, () => random() - 0.5));
     orthonormalise(block, random);
@@ -233,6 +240,9 @@ function smallestEigenpairs(
     let ritz: Float64Array = new Float64Array(p);
     let order: number[] = [];
     let vectors: Float64Array = new Float64Array(p * p);
+    let converged = false;
+    // ponytail: plain subspace iteration converges at the ratio of neighbouring shifted eigenvalues,
+    // so a small spectral gap hits the cap; Chebyshev filtering would converge far faster there.
     for (let round = 0; round < MAX_SUBSPACE_ROUNDS; round++) {
         const image = block.map(shifted);
         // Rayleigh-Ritz: the block's projection of the shifted operator, diagonalised.
@@ -252,7 +262,7 @@ function smallestEigenpairs(
         order = Array.from({ length: p }, (_, i) => i).sort((a, b) => ritz[b] - ritz[a]);
         // Converged when every wanted Ritz pair (y = X q, theta) has a residual |B y - theta y|
         // below RESIDUAL_TOLERANCE * shift; B y is the image block times q.
-        const settled = order.slice(0, k).every((col) => {
+        converged = order.slice(0, k).every((col) => {
             let residual = 0;
             for (let r = 0; r < n; r++) {
                 let diff = 0;
@@ -263,7 +273,7 @@ function smallestEigenpairs(
             }
             return Math.sqrt(residual) <= RESIDUAL_TOLERANCE * shift;
         });
-        if (settled || round === MAX_SUBSPACE_ROUNDS - 1) {
+        if (converged || round === MAX_SUBSPACE_ROUNDS - 1) {
             break; // at the cap the Ritz pairs of this block are the best estimate there is
         }
         block = image;
@@ -283,7 +293,7 @@ function smallestEigenpairs(
         }
         out.push(v);
     }
-    return { values, vectors: out };
+    return { values, vectors: out, converged };
 }
 
 /** k-means runs per clustering; the one with the lowest inertia is kept. */
@@ -428,8 +438,10 @@ function kMeans(
  * cluster.
  *
  * The eigenpairs come from subspace iteration with Rayleigh-Ritz, so they are the true smallest
- * ones; the legacy function uses fixed placeholder eigenvalues for k <= 3 and plain power iteration
- * (which finds the LARGEST eigenvectors) above that, and draws its k-means seeds from
+ * ones when `converged` is true; `converged` is false when the iteration stopped at its round cap
+ * (a small spectral gap, such as a path of hundreds of nodes), and the eigenpairs are then only
+ * approximate. The legacy function uses fixed placeholder eigenvalues for k <= 3 and plain power
+ * iteration (which finds the LARGEST eigenvectors) above that, and draws its k-means seeds from
  * `Math.random` unless given a seed. The partitions therefore differ from the legacy function's;
  * one `seed` gives one result. Labels are dense in first-seen order, so `count` is below k when
  * k-means leaves a cluster empty.
@@ -460,7 +472,7 @@ export function spectralClustering(s: GraphSnapshot, options: SpectralOptions): 
     const n = s.nodeCount;
     if (k >= n) {
         const labels = Uint32Array.from({ length: n }, (_, i) => i);
-        return { ...withGroups(labels, n), eigenvalues: new Float64Array(0), eigenvectors: [] };
+        return { ...withGroups(labels, n), eigenvalues: new Float64Array(0), eigenvectors: [], converged: true };
     }
     const g = symmetricRows(s, weights);
     const scale = g.degree.map((d) => (d > 0 ? 1 / Math.sqrt(d) : 0));
@@ -527,5 +539,5 @@ export function spectralClustering(s: GraphSnapshot, options: SpectralOptions): 
         }
     }
     const { labels, count } = renumberPartition(best);
-    return { ...withGroups(labels, count), eigenvalues: eig.values, eigenvectors: eig.vectors };
+    return { ...withGroups(labels, count), eigenvalues: eig.values, eigenvectors: eig.vectors, converged: eig.converged };
 }

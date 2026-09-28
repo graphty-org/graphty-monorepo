@@ -173,6 +173,19 @@ describe("indexed.modularity", () => {
         expect(calculateMCLModularity(g, [["a", "b", "c"], ["d", "e", "f"]])).toBeCloseTo(1 / 3, 15);
     });
 
+    it("reads edge weights by default, which calculateMCLModularity ignores", () => {
+        const b = new GraphBuilder({ directed: false });
+        b.addEdge("a", "b", 3);
+        b.addEdge("c", "d", 1);
+        b.addEdge("b", "c", 1);
+        const s = b.freeze();
+        const labels = Uint32Array.from([0, 0, 1, 1]);
+        // Weighted: 2m = 10, in = 6 and 2, tot = 7 and 3 -> 0.8 - 0.49 - 0.09 = 0.22.
+        expect(modularity(s, labels)).toBeCloseTo(0.22, 15);
+        // All ones: 2m = 6, in = 2 and 2, tot = 3 and 3 -> 2/3 - 1/4 - 1/4 = 1/6.
+        expect(modularity(s, labels, { weights: new Float64Array(s.arcCount).fill(1) })).toBeCloseTo(1 / 6, 15);
+    });
+
     it("counts a self-loop twice in the degree and leaves unlabelled nodes out", () => {
         const b = new GraphBuilder({ directed: false });
         b.addEdge(0, 0, 1);

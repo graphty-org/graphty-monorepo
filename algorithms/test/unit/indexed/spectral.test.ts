@@ -120,6 +120,65 @@ describe("indexed.spectralClustering", () => {
         });
     });
 
+    it("gives the random-walk Laplacian's eigenpairs on the karate club", () => {
+        const g = undirectedFixtures().find((f) => f.name === "Zachary's karate club")?.graph as Graph;
+        const s = checksummedSnapshot(g);
+        const r = spectralClustering(s, { k: 4, laplacianType: "randomWalk" });
+        expect(r.converged).toBe(true);
+        // I - D^-1 A, not symmetric: row i of D - A divided by d(i).
+        const l = denseLaplacian(g, s, "unnormalized").map((row, i) => row.map((x) => x / row[i]));
+        expect(r.eigenvalues[0]).toBeCloseTo(0, 9);
+        r.eigenvectors.forEach((v, j) => {
+            const lv = l.map((row) => row.reduce((sum, x, c) => sum + x * v[c], 0));
+            expect(Math.hypot(...lv.map((x, i) => x - r.eigenvalues[j] * v[i]))).toBeLessThan(1e-7);
+        });
+    });
+
+    for (const type of TYPES) {
+        it(`labels every node by its nearest k-means centre in the ${type} embedding`, () => {
+            // The embedding is the returned eigenvectors, one row per node, scaled to unit length
+            // for the normalized Laplacian (Ng, Jordan and Weiss). With tolerance 0 k-means stops
+            // only when no node changes cluster, so every node sits nearest its own cluster's mean.
+            for (const name of ["Zachary's karate club", "three four-cliques in a chain", "random 80 nodes, 320 weighted edges"]) {
+                const s = checksummedSnapshot(undirectedFixtures().find((f) => f.name === name)?.graph as Graph);
+                const k = 4;
+                const r = spectralClustering(s, { k, laplacianType: type, tolerance: 0, maxIterations: 1000 });
+                const rows = Array.from({ length: s.nodeCount }, (_, i) => {
+                    const row = r.eigenvectors.map((v) => v[i]);
+                    const norm = Math.hypot(...row);
+                    return type === "normalized" && norm > 0 ? row.map((x) => x / norm) : row;
+                });
+                const centres = Array.from({ length: r.count }, (_, c) => {
+                    const members = rows.filter((_, i) => r.labels[i] === c);
+                    return Array.from({ length: k }, (_, t) => members.reduce((sum, row) => sum + row[t], 0) / members.length);
+                });
+                const dist = (row: number[], c: number): number => row.reduce((sum, x, t) => sum + (x - centres[c][t]) ** 2, 0);
+                rows.forEach((row, i) => {
+                    const own = dist(row, r.labels[i]);
+                    for (let c = 0; c < r.count; c++) {
+                        expect(own, `${name} node ${i}`).toBeLessThanOrEqual(dist(row, c) + 1e-12);
+                    }
+                });
+            }
+        });
+    }
+
+    it("reports whether the eigenpairs met the tolerance", () => {
+        // A path's small eigenvalues crowd together (2 - 2 cos(pi j / n)), so on a long path
+        // subspace iteration reaches its round cap first; a short path converges.
+        const path = (n: number): GraphSnapshot => {
+            const b = new GraphBuilder({ directed: false });
+            for (let i = 0; i + 1 < n; i++) {
+                b.addEdge(i, i + 1);
+            }
+            return b.freeze();
+        };
+        expect(spectralClustering(path(6), { k: 3, laplacianType: "unnormalized" }).converged).toBe(true);
+        const long = spectralClustering(path(250), { k: 3, laplacianType: "unnormalized" });
+        expect(long.converged).toBe(false);
+        expect(long.eigenvalues.length).toBe(3);
+    });
+
     for (const type of TYPES) {
         it(`recovers planted cliques exactly with the ${type} Laplacian`, () => {
             const planted: [string, number, number[][]][] = [

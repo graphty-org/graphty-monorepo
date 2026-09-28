@@ -485,7 +485,8 @@ class Selection implements SelectionOwner {
     #truncated = false;
 
     /** A change {@link Selection.applyAtNextRead} is holding for the next read. */
-    #pending: { readonly target: SelectionTarget; readonly op: SelectionOp; readonly cause: SelectionCause } | null = null;
+    #pending: { readonly target: SelectionTarget; readonly op: SelectionOp; readonly cause: SelectionCause } | null =
+        null;
 
     /**
      * Build a selection over one session's sources, with nothing selected.

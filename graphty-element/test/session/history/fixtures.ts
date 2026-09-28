@@ -83,7 +83,11 @@ const FIXTURE_SET = "set_fixture-set";
  * @param session - The session.
  */
 async function withFixtureSet(session: GraphSession): Promise<void> {
-    await session.execute({ op: "set.create", name: "Fixture set", definition: { kind: "fixed", nodes: ["n1", "n2"], reading: "induced" } });
+    await session.execute({
+        op: "set.create",
+        name: "Fixture set",
+        definition: { kind: "fixed", nodes: ["n1", "n2"], reading: "induced" },
+    });
 }
 
 /** A 5 by 5 PNG a skybox can be built from without a network. */
@@ -343,7 +347,11 @@ export const FIXTURES: readonly RoundTripFixture[] = [
     {
         name: "set.create: a fixed set",
         tags: ["session"],
-        command: { op: "set.create", name: "Fixture set", definition: { kind: "fixed", nodes: ["n1", "n2"], reading: "induced" } },
+        command: {
+            op: "set.create",
+            name: "Fixture set",
+            definition: { kind: "fixed", nodes: ["n1", "n2"], reading: "induced" },
+        },
     },
     {
         name: "set.create: a rule set",
@@ -364,7 +372,11 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         name: "set.redefine",
         tags: ["session"],
         before: withFixtureSet,
-        command: { op: "set.redefine", id: FIXTURE_SET, definition: { kind: "fixed", nodes: ["n3"], reading: "induced" } },
+        command: {
+            op: "set.redefine",
+            id: FIXTURE_SET,
+            definition: { kind: "fixed", nodes: ["n3"], reading: "induced" },
+        },
     },
     {
         name: "set.members: add",

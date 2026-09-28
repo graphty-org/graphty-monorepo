@@ -304,12 +304,21 @@ describe("kept sets under undo", () => {
     it("mints the id through execute, and refuses an id, an order or an origin from the caller", async () => {
         const session = sessionOf();
 
-        const id = await session.execute({ op: "set.create", name: "Core", definition: { kind: "fixed", nodes: ["a"], reading: "induced" } });
+        const id = await session.execute({
+            op: "set.create",
+            name: "Core",
+            definition: { kind: "fixed", nodes: ["a"], reading: "induced" },
+        });
         assert.strictEqual(id, "set_core");
 
         for (const extra of [{ id: "set_mine" }, { order: 7 }, { createdFrom: { kind: "user" } }]) {
             const refused = await session
-                .execute({ op: "set.create", name: "Other", definition: { kind: "fixed", nodes: ["b"], reading: "induced" }, ...extra })
+                .execute({
+                    op: "set.create",
+                    name: "Other",
+                    definition: { kind: "fixed", nodes: ["b"], reading: "induced" },
+                    ...extra,
+                })
                 .then(
                     () => null,
                     (error: unknown) => (isGraphtyError(error) ? error.code : "not-a-graphty-error"),

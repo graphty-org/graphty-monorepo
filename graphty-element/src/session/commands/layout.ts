@@ -133,7 +133,12 @@ function choiceOf(command: LayoutSetCommand, current: LayoutChoice | null): Layo
     const scope = command.scope === undefined ? current?.scope : command.scope;
 
     return withScope(
-        { id, engine, options: Object.freeze({ ...command.options }), dimension: (current ?? DEFAULT_LAYOUT).dimension },
+        {
+            id,
+            engine,
+            options: Object.freeze({ ...command.options }),
+            dimension: (current ?? DEFAULT_LAYOUT).dimension,
+        },
         scope,
     );
 }
@@ -190,7 +195,8 @@ const layoutScope: UndoableDefinition<LayoutScopeCommand> = {
     lane: { kind: "immediate" },
     undo: {
         kind: "undoable",
-        label: (command) => (command.scope === "graph" ? "Laid out the whole graph" : "Changed what the layout runs over"),
+        label: (command) =>
+            command.scope === "graph" ? "Laid out the whole graph" : "Changed what the layout runs over",
     },
     execute: (command, ctx) => {
         const current = ctx.state.layout ?? DEFAULT_LAYOUT;

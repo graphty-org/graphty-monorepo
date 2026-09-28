@@ -1840,12 +1840,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const components = componentLabelsOf(data);
     // Kept sets, published as `session.sets`.
     const edgeMember = (id: EdgeId): EdgeMember | undefined =>
-        sessionEdgeMember(
-            snapshot(),
-            id,
-            (row) => records.edgeAttributes(row),
-            readData().knownFields.edgeIdPath,
-        );
+        sessionEdgeMember(snapshot(), id, (row) => records.edgeAttributes(row), readData().knownFields.edgeIdPath);
     // What a `{ set }` reference names and what "visible" reads, so a door can refuse a chain of
     // references that loops (design/sets 5.2). Read through calls: the sets and the visibility
     // API are built below.

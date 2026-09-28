@@ -196,7 +196,10 @@ describe("the hold", () => {
             layoutEngineInternals.attachPositions(engine, positions);
             const nodes = Array.from({ length: 5 }, (_, index) => node(`n${String(index)}`, index, positions));
             layoutEngineInternals.addNodes(engine, nodes);
-            layoutEngineInternals.addEdges(engine, nodes.slice(1).map((dst, index) => edge(nodes[index], dst)));
+            layoutEngineInternals.addEdges(
+                engine,
+                nodes.slice(1).map((dst, index) => edge(nodes[index], dst)),
+            );
             nodes.forEach((n, index) => {
                 layoutEngineInternals.setNodePosition(engine, n, { x: index * 10, y: index % 2, z: 0 });
             });

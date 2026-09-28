@@ -694,7 +694,8 @@ export class Graph implements GraphContext {
         // inline in their slot, with pre-steps; a pass after undo runs it with none, and leaves
         // the layout at rest for the `arrangement` hook to place (design/undo section 4.7).
         dispatcherOf(this.session).services.layout = {
-            apply: (choice, signal, explicitScope) => this.applyLayout(choice, { restoring: false, signal, explicitScope }),
+            apply: (choice, signal, explicitScope) =>
+                this.applyLayout(choice, { restoring: false, signal, explicitScope }),
             transport: (action) => {
                 this.layoutManager.running = action === "play";
             },
@@ -2111,11 +2112,15 @@ export class Graph implements GraphContext {
         // it. `layout-update`: a pending `layout-set` is not cancelled by it, and one set later
         // cancels only this wait, never the scope, which the slice already carries.
         void this.operationQueue
-            .queueOperationAsync("layout-update", async () => {
-                await restarted;
-            }, {
-                description: "Changing what the layout runs over",
-            })
+            .queueOperationAsync(
+                "layout-update",
+                async () => {
+                    await restarted;
+                },
+                {
+                    description: "Changing what the layout runs over",
+                },
+            )
             .catch(() => undefined);
         await restarted;
     }

@@ -1420,7 +1420,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     } as unknown as SessionCommand,
                 ],
             ),
-            rename: calls(["set_door-seed", "door renamed"], [{ op: "set.rename", id: "set_door-seed", name: "door renamed" }]),
+            rename: calls(
+                ["set_door-seed", "door renamed"],
+                [{ op: "set.rename", id: "set_door-seed", name: "door renamed" }],
+            ),
             redefine: calls(
                 ["set_door-seed", { kind: "fixed", nodes: [], reading: "induced" }],
                 [
@@ -1454,7 +1457,11 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                         };
                         sets.create({ kind: "fixed", nodes: ["d1"], reading: "induced" }, { name: "door kept" });
                         sets.create(
-                            { kind: "rule", where: { kind: "member", of: { set: "set_door-kept" } }, reading: "induced" },
+                            {
+                                kind: "rule",
+                                where: { kind: "member", of: { set: "set_door-kept" } },
+                                reading: "induced",
+                            },
                             { name: "door naming" },
                         );
                         sets.remove("set_door-kept");

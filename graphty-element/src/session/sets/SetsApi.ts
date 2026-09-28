@@ -429,8 +429,7 @@ export function createSetsApi(
      * @param command - The command.
      * @returns What its body returned.
      */
-    const dispatch = (command: SetCommand): unknown =>
-        store.dispatcher.dispatchNow(command);
+    const dispatch = (command: SetCommand): unknown => store.dispatcher.dispatchNow(command);
 
     const createAs: CreateAs = (definition, given, createdFrom, prebuilt, seeds) => {
         // A definition the element built from a snapshot is already stable and canonical.
@@ -858,7 +857,11 @@ export function createSetsApi(
         restore({ id }) {
             const live = store.get(id);
             if (live !== undefined) {
-                throw refuseRestore(id, "live", `The set "${live.name}" was not removed, so there is nothing to restore.`);
+                throw refuseRestore(
+                    id,
+                    "live",
+                    `The set "${live.name}" was not removed, so there is nothing to restore.`,
+                );
             }
 
             const tombstone = store.tombstone(id);

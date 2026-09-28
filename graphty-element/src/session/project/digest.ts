@@ -122,7 +122,13 @@ export function stateDigest(state: ProjectState, options: DigestOptions = {}): s
             new Map(
                 [...state.sets].map(([id, set]) => [
                     id,
-                    { id: set.id, name: set.name, order: set.order, createdFrom: set.createdFrom, revision: set.revision },
+                    {
+                        id: set.id,
+                        name: set.name,
+                        order: set.order,
+                        createdFrom: set.createdFrom,
+                        revision: set.revision,
+                    },
                 ]),
             ),
             path,

@@ -145,6 +145,10 @@ export default defineConfig(({ mode }) => {
         resolve: {
             alias: {
                 graphty: resolve(__dirname, "./index.ts"),
+                // The guide's examples (docs/examples/) import the package by its published name,
+                // exactly as a reader's code does; the stories that run them resolve it to source.
+                "@graphty/graphty-element/extend": resolve(__dirname, "./extend.ts"),
+                "@graphty/graphty-element/logging": resolve(__dirname, "./logging.ts"),
             },
         },
         server: {

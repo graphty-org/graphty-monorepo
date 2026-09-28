@@ -53,6 +53,15 @@ const XR_BROWSER_TESTS = [
 const dirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url));
 
 /**
+ * The guide's examples (docs/examples/) import the package by its published name, exactly as a
+ * reader's code does. The browser tests that run them resolve that name to the sources.
+ */
+const PUBLISHED_NAME_ALIASES = {
+    "@graphty/graphty-element/extend": path.resolve(dirname, "extend.ts"),
+    "@graphty/graphty-element/logging": path.resolve(dirname, "logging.ts"),
+};
+
+/**
  * The Chromium flag sets that expose WebGPU to the `browser` project.
  *
  * Copied from `webgpu-graph-algorithms/vitest.config.ts`, where they are the measured answer to
@@ -441,6 +450,7 @@ export default defineConfig({
                 // GRAPHTY_UPDATE_RENDER_BUDGET makes test/browser/render-budget.test.ts rewrite its
                 // baseline instead of checking against it.
                 envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_FC_", "GRAPHTY_UPDATE_RENDER_BUDGET"],
+                resolve: { alias: PUBLISHED_NAME_ALIASES },
                 // Pre-bundle IWER up front: discovered mid-run, Vite re-optimizes and reloads the
                 // page under the running test (test/browser/xr-session.test.ts imports it).
                 optimizeDeps: { include: ["iwer", ...BABYLON_SIDE_EFFECTS] },

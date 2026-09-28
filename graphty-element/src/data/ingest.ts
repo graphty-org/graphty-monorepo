@@ -104,6 +104,17 @@ export function ingestNode(
 }
 
 /**
+ * Whether a weight can be STORED: the snapshot keeps its arc weights as f32, so a finite double
+ * above the f32 range (about 3.4e38) would become Infinity there, and every algorithm that needs
+ * finite weights would refuse the whole graph. Such a weight is treated like an infinite one.
+ * @param value - the candidate weight
+ * @returns true when it is a number that stays finite after the round to f32
+ */
+function isStorableWeight(value: unknown): value is number {
+    return typeof value === "number" && Number.isFinite(Math.fround(value));
+}
+
+/**
  * Resolve an edge weight: the configured path, then the legacy "value" key, then 1.
  *
  * The second probe exists because the conversion this replaced hard-coded a `value` weight key, so
@@ -119,12 +130,12 @@ export function resolveEdgeWeight(
     path: string | null,
 ): { weight: number; source: "path" | "legacy" | "default" } {
     const fromPath = path === null ? undefined : record[path];
-    if (typeof fromPath === "number" && Number.isFinite(fromPath)) {
+    if (isStorableWeight(fromPath)) {
         return { weight: fromPath, source: "path" };
     }
 
     const legacy = record.value;
-    if (typeof legacy === "number" && Number.isFinite(legacy)) {
+    if (isStorableWeight(legacy)) {
         return { weight: legacy, source: "legacy" };
     }
 

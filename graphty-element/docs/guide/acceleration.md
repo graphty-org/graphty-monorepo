@@ -133,10 +133,16 @@ That is the label to show beside a value a reader might compare against a saved 
 | `dijkstra`, `bfs`                      | Yes, above a floor      | The CPU implementation                           |
 | `hits`, `katz`, `eigenvector`          | Yes, with exceptions    | The CPU implementation                           |
 | `kruskal`                              | Not yet                 | The CPU implementation                           |
+| `betweenness`, `closeness`             | No                      | The CPU implementation                           |
+| `floyd-warshall`, `label-propagation`  | No                      | The CPU implementation                           |
 
-The last row is routed but not accelerated: it asks the accelerator for a member it does not
-implement yet, and takes the CPU path with `caveats.precision` reading `"f64"`. It gains the
-hardware the day the member exists, with no change to your page.
+`kruskal` asks the accelerator for a member it does not implement yet, so it takes the CPU path
+with `caveats.precision` reading `"f64"`, and under `acceleration="required"` it throws
+`E_NO_ACCELERATOR`, because a CPU answer is what `required` refuses. It gains the hardware the day
+the member exists, with no change to your page.
+
+The algorithms in the last two rows are never handed to an accelerator, even one that implements
+them. They always run on the CPU and say `"f64"`, under `required` too, rather than throwing.
 
 An algorithm is accelerated only above a measured node count: `hits` from 15,000 nodes, `katz`
 and `eigenvector` from 28,000, `pagerank` from 50,000, `dijkstra` from 107,000,
@@ -173,9 +179,6 @@ implementation, and so does an `eigenvector` run that follows edge direction or 
 with a two-colourable component (an even ring, a tree, a grid). Above the floor the accelerated scores are the CPU's scores to
 single precision: the same scale, the same weighting, the same order. Under
 `acceleration="required"` such a run fails with `E_NO_ACCELERATOR` instead of answering on the CPU.
-
-An algorithm the element does not route to the device at all (`betweenness` and `closeness`
-today) runs on the CPU and says `"f64"` under `acceleration="required"` too, rather than throwing.
 
 Every other layout and every other algorithm runs on the CPU, and always did.
 
@@ -250,9 +253,11 @@ reject with `E_DEVICE_INCORRECT` when it is not. One that does not implement it 
 the strength of the probe, and so is an accelerator you hand to `setAccelerator` already built --
 the element only asks about accelerators it constructed itself.
 
-`E_TOO_LARGE` is about the ceiling the element asks for when an accelerator is built -- the
-WebGPU one computes exactly up to 32,768 nodes -- and not about the size of your graph. The
-element asks for no ceiling today, so no graph you draw produces it.
+`E_TOO_LARGE` from an accelerator is about the ceiling the element asks for when one is built --
+the WebGPU one computes exactly up to 32,768 nodes -- and not about the size of your graph. The
+element asks for no ceiling today, so no accelerator refuses a graph you draw. The same code from
+a run is the run's own bound, whatever the policy: `floyd-warshall` refuses more than 5,792
+nodes, because it holds a distance for every pair.
 
 One code is thrown rather than reported: `E_NO_ACCELERATOR`, when the policy is `required` and
 there is nothing to accelerate with. That is the policy working -- it is what `required` asked

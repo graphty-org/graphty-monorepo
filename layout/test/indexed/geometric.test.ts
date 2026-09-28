@@ -342,3 +342,22 @@ describe("legacy shellLayout and radialLayout edge cases", () => {
         assert.ok(Math.abs(pos[9][0] + 1) < 1e-12 && Math.abs(pos[9][1]) < 1e-12);
     });
 });
+
+describe("edge cases of the shared rows", () => {
+    it("indexed.shell in 3D leaves a node in no shell all NaN, z included", () => {
+        const r = indexed.shell(nodes(4), { dim: 3, nlist: [[0, 1, 2]], center: [0, 0, 5] });
+        assert.ok(row(r, 3).every(Number.isNaN));
+        assert.equal(row(r, 0)[2], 5);
+    });
+
+    it("gridLayout limits the columns to the node count", () => {
+        const pos = gridLayout(["a", "b", "c"], 10, 1);
+        assert.deepEqual(pos.a, [-1, 0]);
+        assert.deepEqual(pos.b, [0, 0]);
+        assert.deepEqual(pos.c, [1, 0]);
+    });
+
+    it("radialLayout on an empty graph returns {} whatever the centre", () => {
+        assert.deepEqual(radialLayout({ nodes: () => [], edges: () => [] }, null, 1, [0, 0, 0]), {});
+    });
+});

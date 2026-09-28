@@ -17,6 +17,8 @@ import { shellsToPositionMap } from "./shell";
  * root cannot reach share one extra ring outside the last. Ring k has radius
  * `k * scale / (ringCount - 1)`, so a node's distance from the centre is proportional to its hop
  * distance and the outermost ring has radius `scale`.
+ *
+ * An edge endpoint missing from `G.nodes()` is added as a node, and a node id listed twice is placed once.
  * @param G - Graph
  * @param root - The node at the centre; defaults to the node with the most edges (first on a tie)
  * @param scale - Radius of the outermost ring
@@ -29,11 +31,11 @@ export function radialLayout(
     scale: number = 1,
     center: number[] | null = null,
 ): PositionMap {
-    ({ center } = _processParams(G, center, 2));
     const s = toLayoutSnapshot(G);
     if (s.nodeCount === 0) {
         return {};
     }
+    ({ center } = _processParams(G, center, 2));
     if (root !== null && !s.ids.has(root)) {
         throw new Error(`root node ${String(root)} is not in the graph`);
     }

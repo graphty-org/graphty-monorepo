@@ -9,7 +9,7 @@ export interface CommonLayoutOptions {
     readonly dim?: 2 | 3 | undefined;
     /** Size of the layout around its centre; default 1. What it measures is documented per layout. */
     readonly scale?: number | undefined;
-    /** The centre; missing components are 0. Default the origin. */
+    /** The centre (for `random`, the lowest corner of its cell, as in the legacy layout); missing components are 0. Default the origin. */
     readonly center?: ArrayLike<number> | undefined;
     /** Seed of a layout that draws random numbers; a random seed when absent or null. */
     readonly seed?: number | null | undefined;
@@ -50,7 +50,8 @@ export function result(rows: F64, dim: 2 | 3, n: number): LayoutResult {
 }
 
 /**
- * Widen 2D rows to `dim` rows whose third component is the centre's z; 2D rows come back unchanged.
+ * Widen 2D rows to `dim` rows whose third component is the centre's z (NaN for an unplaced, NaN row); 2D rows come
+ * back unchanged.
  * @param rows - `2 * n` values
  * @param dim - the output components per row
  * @param center - the centre; its third component is the z of every row
@@ -65,7 +66,7 @@ export function planar(rows: F64, dim: 2 | 3, center: readonly number[]): F64 {
     for (let i = 0; i < n; i++) {
         out[3 * i] = rows[2 * i];
         out[3 * i + 1] = rows[2 * i + 1];
-        out[3 * i + 2] = center[2];
+        out[3 * i + 2] = Number.isNaN(rows[2 * i]) ? Number.NaN : center[2];
     }
     return out;
 }

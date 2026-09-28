@@ -4391,7 +4391,7 @@ export function fromPositionColumn(
     center: ArrayLike<number> | null,
     out?: F32,
 ): F32; // the inverse: seeds `pos` for a re-run from the current scene positions
-export function rescaleInPlace(positions: F32, dim: number, scale?: number, center?: ArrayLike<number>): F32;
+export function rescaleInPlace<T extends F32 | F64>(positions: T, dim: number, scale?: number, center?: ArrayLike<number>): T;
 export function toLayoutSnapshot(
     G: LayoutGraph | LegacyDuck | NodeId[] | GraphSnapshot,
     weightAttr?: string | null,

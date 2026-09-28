@@ -214,6 +214,38 @@ describe("markovClustering facade", () => {
     });
 });
 
+describe("markovClustering facade after a weight change in place", () => {
+    it.each([true, false])(
+        "clusters on the current weights, not the ones of an earlier call (directed %s)",
+        (directed) => {
+            const g = new Graph({ directed });
+            const triangles = [
+                ["a", "b"],
+                ["b", "c"],
+                ["c", "a"],
+                ["d", "e"],
+                ["e", "f"],
+                ["f", "d"],
+            ];
+            for (const [u, v] of [...triangles, ["c", "d"]]) {
+                g.addEdge(u, v);
+            }
+            expect(markovClustering(g)).toEqual(mclLegacy.markovClustering(g));
+            for (const [u, v] of triangles) {
+                const edge = g.getEdge(u, v);
+                if (edge !== undefined) {
+                    edge.weight = 0.01;
+                }
+            }
+            const bridge = g.getEdge("c", "d");
+            if (bridge !== undefined) {
+                bridge.weight = 100;
+            }
+            expect(markovClustering(g)).toEqual(mclLegacy.markovClustering(g));
+        },
+    );
+});
+
 describe("syncClustering facade", () => {
     const sync = (run: typeof syncClustering, config: SynCConfig): ((g: Graph) => unknown) => {
         return (g) => run(g, config);

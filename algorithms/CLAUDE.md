@@ -57,7 +57,12 @@ Adamic-Adar functions, `calculateMCLModularity`, `spectralClustering` or `teraHA
 different answers. The conversions they use live in `src/indexed/facade.ts`; each has a facade test
 in `test/unit/indexed/*-facade*.test.ts`. Where a delegating function's old code is still needed --
 as the oracle of its facade test, or for inputs the port refuses -- it sits beside it in a
-`*-legacy.ts` file, unchanged, until the removal release deletes it.
+`*-legacy.ts` file, unchanged, until the removal release deletes it. A `*-legacy.ts` file can also be
+the only implementation of published functions that do not delegate: `hierarchical-legacy.ts` holds
+`cutDendrogram`, `cutDendrogramKClusters` and `modularityHierarchicalClustering` (and the
+`hierarchicalClustering` facade calls `cutDendrogram`), and `mcl-legacy.ts` holds
+`calculateMCLModularity`. Those functions are re-exported from the public file and are not dead code;
+the removal release must move them, not delete them.
 
 ## Essential Commands
 

@@ -119,6 +119,7 @@ describe("indexed.syncClustering", () => {
                 expect(port.loss).not.toBe(before.loss);
                 expect(Math.abs(port.loss - before.loss)).toBeLessThan(config.tolerance);
                 expect(legacySync(graph, config).loss).toBe(before.loss);
+                expect(port.previousLoss).toBe(before.loss);
             }
         }
         expect(converged).toBeGreaterThan(0);

@@ -24,6 +24,26 @@ interface CacheEntry {
     readonly mutationCount: number;
     readonly checksum: boolean;
     readonly snapshot: GraphSnapshot;
+    /** Every edge's weight in `graph.edges()` order, as frozen. */
+    readonly weights: readonly (number | undefined)[];
+}
+
+/**
+ * Whether every edge still carries the weight it was frozen with. `mutationCount` counts topology
+ * changes only, and `graph.getEdge(u, v)` hands out the live edge, so a weight can change in place
+ * without moving the counter.
+ * @param graph - The legacy graph
+ * @param weights - The weights recorded at freeze
+ * @returns True when no weight changed
+ */
+function sameWeights(graph: Graph, weights: readonly (number | undefined)[]): boolean {
+    let i = 0;
+    for (const edge of graph.edges()) {
+        if (edge.weight !== weights[i++]) {
+            return false;
+        }
+    }
+    return i === weights.length;
 }
 
 /**
@@ -34,7 +54,8 @@ interface CacheEntry {
 const SNAPSHOT_CACHE = new WeakMap<Graph, CacheEntry>();
 
 /**
- * Freeze a legacy `Graph` into a `GraphSnapshot`, memoised on the graph's `mutationCount`.
+ * Freeze a legacy `Graph` into a `GraphSnapshot`, memoised on the graph's `mutationCount` and its
+ * edge weights (a weight set in place does not move the counter, so a hit re-reads the weights).
  *
  * The builder is created with `weightDtype: "f64"` so a legacy graph's double weights survive
  * exactly: at freeze, graph-format keeps the original values in an f64 edge column with role
@@ -57,7 +78,12 @@ export function toSnapshot(graph: Graph, options: ToSnapshotOptions = {}): Graph
     // A checksummed snapshot answers a plain request; a plain one cannot answer a checksummed
     // request -- validate({ checksum: true }) throws E_INVALID_SNAPSHOT ("no-checksum") when none
     // were recorded (graph-format/src/types/snapshot.ts:401-405).
-    if (cached !== undefined && cached.mutationCount === graph.mutationCount && (cached.checksum || !checksum)) {
+    if (
+        cached !== undefined &&
+        cached.mutationCount === graph.mutationCount &&
+        (cached.checksum || !checksum) &&
+        sameWeights(graph, cached.weights)
+    ) {
         return cached.snapshot;
     }
     const builder = new GraphBuilder({
@@ -69,11 +95,13 @@ export function toSnapshot(graph: Graph, options: ToSnapshotOptions = {}): Graph
     for (const node of graph.nodes()) {
         builder.addNode(node.id);
     }
+    const weights: (number | undefined)[] = [];
     for (const edge of graph.edges()) {
         builder.addEdge(edge.source, edge.target, edge.weight);
+        weights.push(edge.weight);
     }
     const snapshot = builder.freeze({ label: "algorithms.toSnapshot", checksum });
-    SNAPSHOT_CACHE.set(graph, { mutationCount: graph.mutationCount, checksum, snapshot });
+    SNAPSHOT_CACHE.set(graph, { mutationCount: graph.mutationCount, checksum, snapshot, weights });
     return snapshot;
 }
 

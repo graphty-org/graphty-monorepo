@@ -2,9 +2,10 @@
  * SynC (Synergistic Deep Graph Clustering) over a legacy `Graph`. `syncClustering` delegates to
  * `indexed.syncClustering` over an unweighted snapshot of the graph (SynC never reads a weight);
  * clusters, embeddings, loss, iterations and convergence equal the pre-migration implementation in
- * `sync-legacy.ts`, the floats to rounding. A cluster count that is not an integer keeps the old
- * code, which mostly fails on one ("Invalid array length"). Unlike the old code the port never
- * replaces `Math.random`.
+ * `sync-legacy.ts`, the floats to rounding. A run that diverges (a large learning rate) amplifies
+ * that rounding, so its embeddings and loss can differ from the old code's in the leading digits. A
+ * cluster count that is not an integer keeps the old code, which mostly fails on one ("Invalid array
+ * length"). Unlike the old code the port never replaces `Math.random`.
  */
 
 import type { Graph } from "../core/graph.js";
@@ -42,16 +43,10 @@ export function syncClustering(graph: Graph, config: SynCConfig): SynCResult {
         clusters.set(id, r.labels[i]);
         embeddings.set(id, Array.from(r.embeddings.subarray(i * r.dimensions, (i + 1) * r.dimensions)));
     }
-    // The old code reported the loss of the round before the converging one. The run is
-    // deterministic, so stopping one round earlier gives exactly that loss.
-    // ponytail: a converged call costs two runs; a previous-loss field on the port would save one.
-    const loss =
-        r.converged && r.iterations > 1
-            ? indexedSyncClustering(s, { ...config, maxIterations: r.iterations - 1 }).loss
-            : r.loss;
     return {
         clusters,
-        loss,
+        // The old code reported the loss of the round before the converging one.
+        loss: r.converged && r.iterations > 1 ? r.previousLoss : r.loss,
         // ...and one round more than it ran when it stopped at the cap.
         iterations: r.iterations + (r.converged ? 0 : 1),
         embeddings,

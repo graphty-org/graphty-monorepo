@@ -30,6 +30,8 @@ export interface SyncClusteringResult {
     readonly dimensions: number;
     /** Loss of the last iteration run (Infinity when none ran). */
     readonly loss: number;
+    /** Loss of the iteration before the last (Infinity when fewer than two ran). */
+    readonly previousLoss: number;
     /** Iterations run. */
     readonly iterations: number;
     /** Whether the loss settled within the tolerance before the cap. */
@@ -84,6 +86,7 @@ export function syncClustering(s: GraphSnapshot, options: SyncClusteringOptions)
             embeddings: new Float64Array(0),
             dimensions: 0,
             loss: 0,
+            previousLoss: Infinity,
             iterations: 0,
             converged: true,
         };
@@ -210,14 +213,17 @@ export function syncClustering(s: GraphSnapshot, options: SyncClusteringOptions)
         for (const value of emb) {
             regularization += value ** 2;
         }
-        loss = clustering + lambda * reconstruction + lambda * regularization;
+        const current = clustering + lambda * reconstruction + lambda * regularization;
+        if (iterations > 1) {
+            previousLoss = loss;
+        }
+        loss = current;
         if (Math.abs(previousLoss - loss) < tolerance) {
             converged = true;
             break;
         }
-        previousLoss = loss;
     }
     assign();
 
-    return { labels, count: numClusters, embeddings: emb, dimensions: dim, loss, iterations, converged };
+    return { labels, count: numClusters, embeddings: emb, dimensions: dim, loss, previousLoss, iterations, converged };
 }

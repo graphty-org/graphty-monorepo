@@ -2,7 +2,8 @@
  * Markov Clustering (MCL) over a legacy `Graph`. `markovClustering` delegates to
  * `indexed.markovClustering` through `toSnapshot`, with the graph's exact f64 weights; the result
  * equals the pre-migration implementation in `mcl-legacy.ts` exactly. Parameters or weights the port
- * refuses (a fractional expansion, a negative, infinite or NaN weight, ...) keep the old code.
+ * refuses (a fractional expansion, a negative, infinite or NaN weight, an undirected edge whose two
+ * stored halves carry different weights, ...) keep the old code.
  */
 
 import type { Graph } from "../core/graph.js";
@@ -28,8 +29,14 @@ function portAccepts(graph: Graph, options: MCLOptions): boolean {
     if (!Number.isInteger(maxIterations) || maxIterations < 0 || !(tolerance >= 0) || !(pruningThreshold >= 0)) {
         return false;
     }
-    for (const { weight = 1 } of graph.edges()) {
+    for (const { source, target, weight = 1 } of graph.edges()) {
         if (!(weight >= 0) || weight === Infinity) {
+            return false;
+        }
+        // An undirected edge is stored once per direction, and `getEdge` hands out either half, so
+        // a weight set in place can leave the halves disagreeing. The snapshot holds one weight per
+        // edge; the old code reads each half, so it keeps such a graph.
+        if (!graph.isDirected && (graph.getEdge(target, source)?.weight ?? 1) !== weight) {
             return false;
         }
     }

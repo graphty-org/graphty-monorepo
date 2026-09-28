@@ -11,6 +11,8 @@ import { userEvent } from "@storybook/test";
 import { createElement, type ReactNode } from "react";
 
 import { PANEL_INK } from "../../src/constants/panel";
+import { TOOLTIP_OPEN_DELAY } from "../../src/theme/styles/overlays";
+import { waitForSettledLayout } from "./settled";
 
 /** One labeled cell of a state grid. */
 export type StateCell = readonly [label: string, content: ReactNode];
@@ -76,6 +78,11 @@ export async function focusMarked({ canvasElement }: { canvasElement: HTMLElemen
     for (let i = 0; i < 60; i++) {
         const active = canvasElement.ownerDocument.activeElement;
         if (active && (active === target || target.contains(active))) {
+            // Keyboard focus opens the control's tooltip, if it has one, after the theme's open
+            // delay. Wait that delay out and let the tooltip settle, so every capture shows the
+            // same thing: a screenshot taken inside the delay caught the tooltip half the time.
+            await new Promise((resolve) => setTimeout(resolve, TOOLTIP_OPEN_DELAY + 100));
+            await waitForSettledLayout(canvasElement, ".mantine-Tooltip-tooltip");
             return;
         }
         await userEvent.tab();

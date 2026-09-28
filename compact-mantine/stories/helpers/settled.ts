@@ -1,7 +1,7 @@
 /**
  * Waits until a story's floating parts have stopped moving: the page's web fonts have loaded,
- * and the boxes of every element matching `selector` are the same on two animation frames in a
- * row.
+ * and the boxes of every element matching `selector` (none is fine) are the same on two
+ * animation frames in a row.
  *
  * Tooltips and pop-overs are placed by measuring their trigger after they mount. The bundled
  * Inter face loads on first use, after that, and the text beside a trigger reflows and moves it;
@@ -20,7 +20,7 @@ export async function waitForSettledLayout(root: HTMLElement, selector: string):
     for (let i = 0; i < 120; i++) {
         await frame();
         const now = boxes();
-        if (now !== "" && now === last) {
+        if (i > 0 && now === last) {
             return;
         }
         last = now;

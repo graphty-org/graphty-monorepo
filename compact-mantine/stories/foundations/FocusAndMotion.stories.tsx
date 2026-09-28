@@ -1,6 +1,6 @@
 import { ActionIcon, Box, Button, Checkbox, Menu, Stack, Switch, Text, TextInput, Tooltip } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, within } from "@storybook/test";
+import { expect, userEvent, waitFor, within } from "@storybook/test";
 
 import { PANEL_INK, UiGlyph } from "../../src";
 import { expectStatesApply } from "../helpers/assert-states";
@@ -151,5 +151,8 @@ export const Motion: Story = {
         await expect(within(doc.body).queryByRole("tooltip")).toBeNull();
         await expect(await within(doc.body).findByRole("tooltip", {}, { timeout: 2000 })).toBeVisible();
         await userEvent.unhover(canvas.getByRole("button", { name: "Hover me" }));
+        // The tooltip closes after its close delay; the story is finished once it has, so a
+        // screenshot never catches it half the time.
+        await waitFor(() => expect(within(doc.body).queryByRole("tooltip")).toBeNull());
     },
 };

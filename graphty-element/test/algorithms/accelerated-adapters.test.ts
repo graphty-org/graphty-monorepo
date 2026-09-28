@@ -425,6 +425,20 @@ describe("the adapters that run through accelerated()", () => {
 
             assert.strictEqual(called(fake, "bellmanFord"), 0);
         });
+
+        it("under acceleration required, every pagerank the accelerator cannot answer refuses alike", async () => {
+            // A personalized run is refused like one with initial ranks, and the refusal names the
+            // run as the cause rather than claiming the attached accelerator is missing.
+            const fake = createFakeAccelerator();
+            const graph = await graphWith(FIXTURE, fake, "required");
+            const one = new Map([["A", 1]]);
+
+            for (const options of [{ personalization: one }, { initialRanks: one }]) {
+                const error = await rejection(() => new PageRankAlgorithm(graph, options).run());
+                assert.strictEqual(error.code, "E_NO_ACCELERATOR");
+                assert.include((error as unknown as Error).message, "is not one an accelerator answers");
+            }
+        });
     });
 
     it("kruskal flags both edges of a reciprocal pair the undirected view merged into one", async () => {
@@ -798,6 +812,9 @@ describe("the traversal, path and tree adapters answer what the reference implem
         const reference = bellmanFord(toAlgorithmGraph(graph.getDataManager(), "undirected"), "A");
         assert.isTrue(reference.hasNegativeCycle);
         assert.strictEqual(output.graph?.hasNegativeCycle, true);
+        // Past such a loop no distance is meaningful, so no route is marked on any node or edge.
+        assert.deepStrictEqual(edgeFlags(graph, output, "onPath"), [false, false]);
+        assert.isFalse([...valuesOf(output.nodes).values()].some((values) => values.onPath));
     });
 
     it("bellman-ford flags both edges of a reciprocal pair and every edge of a parallel group", async () => {

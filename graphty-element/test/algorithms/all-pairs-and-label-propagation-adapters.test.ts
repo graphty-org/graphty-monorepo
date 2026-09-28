@@ -157,6 +157,24 @@ describe("FloydWarshallAlgorithm through accelerated()", () => {
         assert.strictEqual(output.graph?.radius, 0);
     });
 
+    it("measures a graph with a weight above the f32 range instead of refusing it", async () => {
+        // The snapshot holds f32 weights; 1e39 would be Infinity there, which the all-pairs run
+        // refuses. The element reads such a weight as it reads an infinite one: as no weight, 1.
+        const output = await computed(
+            new FloydWarshallAlgorithm(
+                await createMockGraph({
+                    nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
+                    edges: [
+                        { srcId: "A", dstId: "B", weight: 1 },
+                        { srcId: "B", dstId: "C", weight: 1e39 },
+                    ],
+                }),
+            ),
+        );
+
+        assert.deepStrictEqual(output.graph, { diameter: 2, radius: 1, hasNegativeCycle: false });
+    });
+
     it("reports a negative cycle and publishes no distance", async () => {
         // An undirected edge of negative weight is a negative cycle: cross it and come back.
         const output = await computed(

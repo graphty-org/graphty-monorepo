@@ -133,15 +133,16 @@ That is the label to show beside a value a reader might compare against a saved 
 | `dijkstra`, `bfs`                      | Yes, above a floor      | The CPU implementation                           |
 | `hits`, `katz`, `eigenvector`          | Yes, with exceptions    | The CPU implementation                           |
 | `kruskal`                              | Not yet                 | The CPU implementation                           |
-| `floyd-warshall`, `label-propagation`  | Not yet                 | The CPU implementation                           |
+| `betweenness`, `closeness`             | No                      | The CPU implementation                           |
+| `floyd-warshall`, `label-propagation`  | No                      | The CPU implementation                           |
 
-The last two rows are not accelerated yet, and both take the CPU path with `caveats.precision`
-reading `"f64"`. `kruskal` asks the accelerator for a member it does not implement yet, so under
-`acceleration="required"` it throws `E_NO_ACCELERATOR`, because a CPU answer is what `required`
-refuses; it gains the hardware the day the member exists, with no change to your page.
-`floyd-warshall` and `label-propagation` are not handed to an accelerator at all, even one that
-implements them, so they are among the algorithms described below that run on the CPU under
-`required` too.
+`kruskal` asks the accelerator for a member it does not implement yet, so it takes the CPU path
+with `caveats.precision` reading `"f64"`, and under `acceleration="required"` it throws
+`E_NO_ACCELERATOR`, because a CPU answer is what `required` refuses. It gains the hardware the day
+the member exists, with no change to your page.
+
+The algorithms in the last two rows are never handed to an accelerator, even one that implements
+them. They always run on the CPU and say `"f64"`, under `required` too, rather than throwing.
 
 An algorithm is accelerated only above a measured node count: `hits` from 15,000 nodes, `katz`
 and `eigenvector` from 28,000, `pagerank` from 50,000, `dijkstra` from 107,000,
@@ -178,10 +179,6 @@ implementation, and so does an `eigenvector` run that follows edge direction or 
 with a two-colourable component (an even ring, a tree, a grid). Above the floor the accelerated scores are the CPU's scores to
 single precision: the same scale, the same weighting, the same order. Under
 `acceleration="required"` such a run fails with `E_NO_ACCELERATOR` instead of answering on the CPU.
-
-An algorithm the element does not route to the device at all (`betweenness`, `closeness`,
-`floyd-warshall` and `label-propagation` today) runs on the CPU and says `"f64"` under
-`acceleration="required"` too, rather than throwing.
 
 Every other layout and every other algorithm runs on the CPU, and always did.
 

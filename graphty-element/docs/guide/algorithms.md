@@ -107,6 +107,11 @@ await graph.runAlgorithm("graphty", "dijkstra", {
 a run over more than 5,792 nodes with a `GraphtyError` whose code is `E_TOO_LARGE` (the details
 carry `nodeCount` and `limit`) before any of the matrix is allocated; run it over a smaller scope.
 
+When the graph has a negative cycle no distance between two nodes is defined, so `floyd-warshall`
+publishes no node values and no `diameter` or `radius`: the result carries only
+`hasNegativeCycle: true`. It treats every edge as undirected, so a single edge with a negative
+weight is already a negative cycle -- cross it and come back.
+
 ### Spanning Tree
 
 Find minimum spanning trees:

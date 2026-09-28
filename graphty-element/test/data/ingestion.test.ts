@@ -150,6 +150,14 @@ describe("resolveEdgeWeight", () => {
         });
     });
 
+    it("treats a weight above the f32 range like an infinite one, since the snapshot could not hold it", () => {
+        assert.deepStrictEqual(resolveEdgeWeight({ weight: 1e39 }, "weight"), { weight: 1, source: "default" });
+        assert.deepStrictEqual(resolveEdgeWeight({ weight: -1e39, value: 2 }, "weight"), {
+            weight: 2,
+            source: "legacy",
+        });
+    });
+
     it("is 1 when nothing says otherwise", () => {
         assert.deepStrictEqual(resolveEdgeWeight({}, "weight"), { weight: 1, source: "default" });
     });

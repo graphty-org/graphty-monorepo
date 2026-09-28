@@ -67,20 +67,26 @@ and Nx builds it first. layout's `tsconfig.json` uses node10 resolution, which i
 
 ## Layout Function Interface
 
-All layouts follow a consistent pattern:
+Every layout takes a frozen `@graphty/graph-format` snapshot first and an options object last, and lives in
+`src/indexed/`, exported as the `indexed` namespace:
 
 ```typescript
-type LayoutFunction = (graph: ReadonlyGraph, options?: LayoutOptions) => PositionMap;
+type Layout<O extends CommonLayoutOptions> = (snapshot: GraphSnapshot, options?: O) => LayoutResult;
 
-// PositionMap: Map<NodeId, number[]>  (2D or 3D coordinates)
+// LayoutResult: { positions: Float32Array; dim: 2 | 3; n: number } -- row i is node index i
+// toPositionMap(result, snapshot.ids) gives the id-keyed { [id]: [x, y] } map at the boundary
 ```
 
-Common options:
+Common options (`CommonLayoutOptions`):
 
 - `dim`: Dimension (2 or 3, default: 2)
 - `center`: Center point for the layout
 - `scale`: Scale factor for positions
 - `seed`: Random seed for deterministic layouts
+
+The id-keyed functions in `src/layouts/` (`circularLayout` and the rest) are the deprecated
+previous API: they take positional parameters, most delegate to their `indexed` port (ARF, Kamada-Kawai and
+spring keep their own code), and the next major removes them. Do not add to them.
 
 ## Simulations
 
@@ -215,25 +221,27 @@ Use `assert`, not `expect`, as everywhere else in the package.
 
 - Use `assert` instead of `expect` for test assertions
 - Tests are organized by layout algorithm
-- Graph generators in `src/generators/` help create test graphs
+- Build test graphs with `@graphty/graph-samples/generators` and `fromEdgeArrays`
 - All layouts should work with both 2D (`dim=2`) and 3D (`dim=3`)
 
 ## Key Design Principles
 
 - **NetworkX compatibility**: Algorithms match NetworkX Python behavior where possible
-- **Minimal graph interface**: Works with any object providing `nodes()` and `edges()` methods
+- **Snapshot input**: Every layout reads a `GraphSnapshot`; `toLayoutSnapshot` converts a `nodes()` / `edges()` object
 - **3D support**: All layouts support 3D when `dim=3` is specified
 - **Deterministic**: Layouts produce consistent results with the same seed
 
 ## Adding a New Layout
 
-1. Create implementation in appropriate `src/layouts/` subdirectory
-2. Export from the category's `index.ts`
-3. Export from main `src/index.ts`
-4. Run `npm run build:all` to update bundle
-5. Add tests in `test/`
-6. Add HTML example in `examples/`
-7. Update documentation
+1. Create the implementation in `src/indexed/`, taking `(s: GraphSnapshot, options)` and returning a `LayoutResult`
+2. Export it from `src/indexed/index.ts`
+3. Add tests in `test/indexed/`
+4. Add a checked example to `README.md` (see below)
+
+## README Samples
+
+`test/docs/readme-samples.test.ts` type-checks and runs every ```typescript block of `README.md`, and fails when a
+block is not marked `<!-- doc-check -->` just before it. Keep each block self-contained, with its own imports.
 
 ## Distribution
 

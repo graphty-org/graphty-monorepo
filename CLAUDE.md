@@ -430,23 +430,23 @@ everything.
 ### Algorithm Implementation Pattern
 
 ```typescript
-// All algorithms in @graphty/algorithms follow this pattern:
-export function algorithmName<TNodeId = unknown>(
-    graph: ReadonlyGraph<TNodeId>,
-    options?: AlgorithmOptions,
-): AlgorithmResult<TNodeId> {
-    // Implementation
+// Algorithms in @graphty/algorithms take a frozen @graphty/graph-format snapshot:
+export function algorithmName(snapshot: GraphSnapshot, options?: AlgorithmOptions): AlgorithmResult {
+    // Work over node indices (0..nodeCount-1) and the snapshot's CSR arrays;
+    // return typed arrays indexed by node (or edge) index, plus scalars.
 }
 ```
+
+A required per-call input, such as a source node index, sits between the snapshot and the options
+(`dijkstra(snapshot, source, options?)`). Ids appear only at the boundary: `snapshot.ids.requireIndex(id)`
+on the way in, `snapshot.ids.idOf(i)` or `snapshot.ids.toMap(vector)` on the way out.
 
 ### Layout Function Interface
 
 ```typescript
-// All layouts in @graphty/layout implement:
-type LayoutFunction = (
-    graph: ReadonlyGraph,
-    options?: LayoutOptions,
-) => PositionMap;
+// Layouts in @graphty/layout take a snapshot and return a flat position array:
+type Layout = (snapshot: GraphSnapshot, options?: LayoutOptions) => LayoutResult;
+// LayoutResult = { positions: Float32Array; dim: 2 | 3; n: number }, row i = node index i
 ```
 
 ### Web Component Architecture (graphty-element)
@@ -498,7 +498,7 @@ Each package has its own CLAUDE.md with package-specific guidance:
 - `graph-io/CLAUDE.md` - Importer / exporter contract, adding a format
 - `graph-samples/CLAUDE.md` - The determinism contract, adding a generator or a dataset
 - `webgpu-graph-algorithms/CLAUDE.md` - The GPU context and adapter policy, the kernel layers, the lanes and their environment variables, verified platform facts
-- `algorithms/CLAUDE.md` - Algorithm-specific notes (e.g., floyd-warshall hang)
+- `algorithms/CLAUDE.md` - The snapshot-based ports, the legacy facades and how they are tested
 - `layout/CLAUDE.md` - Layout testing patterns
 - `graphty-element/CLAUDE.md` - Web component patterns, visual testing
 - `graphty/CLAUDE.md` - React app specifics
@@ -573,7 +573,6 @@ Each package has its own CLAUDE.md with package-specific guidance:
 
 - Use `assert` instead of `expect` in layout tests
 - Visual tests run sequentially (`--workers=1`) to avoid resource contention
-- Don't increase test coverage for floyd-warshall (causes vitest hang)
 - Use `./tools/run-tests.sh <shard>` to run a CI shard (with its coverage thresholds) before pushing
 
 ### Storybook

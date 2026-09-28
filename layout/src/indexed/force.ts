@@ -8,7 +8,7 @@ import type { F32, GraphSnapshot } from "@graphty/graph-format";
 import { fromPositionColumn, type LayoutResult, rescaleInPlace } from "../positions";
 import { ForceAtlas2Simulation } from "../simulation/forceatlas2";
 import { FruchtermanReingoldSimulation } from "../simulation/fruchterman-reingold";
-import { seedPositions } from "../simulation/seed";
+import { Lcg, seedPositions } from "../simulation/seed";
 import { toLayoutSnapshot } from "../simulation/snapshot";
 import type { ForceAtlas2Options, FruchtermanReingoldOptions, SimulationOptions } from "../simulation/types";
 import { layoutDim, startColumn } from "./start";
@@ -63,8 +63,8 @@ export function forceAtlas2(g: GraphSnapshot, options: IndexedForceAtlas2Options
 
 /**
  * Fruchterman-Reingold run for `iterations` iterations (default 50; a fractional count runs its ceiling, and 0, a
- * negative or a non-finite count runs none) with the linear cooling schedule. A row of
- * `pos` holding NaN is drawn from the seed in [0, 1). Without pinned nodes the result is rescaled to `scale` about
+ * negative or a non-finite count runs none) with the linear cooling schedule. Each NaN component of `pos` is
+ * drawn from the seed in [0, 1), whatever the other rows hold. Without pinned nodes the result is rescaled to `scale` about
  * `center`; with a `fixed` option or a role-`fixed` bool column it is left in the units of `pos`, so a pinned node
  * keeps exactly the coordinates it was given.
  * @param g - the graph; a directed snapshot is laid out as its undirected copy
@@ -76,7 +76,17 @@ export function fruchtermanReingold(g: GraphSnapshot, options: IndexedFruchterma
     const dim = layoutDim(options.dim);
     const { pos, scale = 1, center, iterations: count = 50, ...rest } = options;
     const column = startColumn(s, pos, dim);
-    seedPositions(s, column, options.seed ?? null, dim, 1, null, "fr");
+    // every missing component is drawn in [0, 1), as the legacy loop drew a missing node: seedPositions would draw
+    // inside the box of the given rows, a single point when pos names one node, and the forces cannot part
+    // coincident nodes
+    const rng = new Lcg(options.seed ?? null);
+    column.forEach((v, at) => {
+        if (at % 3 === 2 && dim === 2) {
+            column[at] = 0;
+        } else if (!Number.isFinite(v)) {
+            column[at] = rng.next();
+        }
+    });
     const iterations = wholeCount(count);
     const sim = new FruchtermanReingoldSimulation({ ...rest, dim, iterations, settleThreshold: 0 });
     sim.load(s, column);

@@ -47,6 +47,10 @@ export function fruchtermanReingoldLayout(
     const dimension: 2 | 3 = dim;
     ({ center } = _processParams(G, center, dim));
     const s = toLayoutSnapshot(G);
+    if (s.nodeCount === 1) {
+        // a single node sits at the centre, pinned or not, as in networkx
+        return { [s.ids.idOf(0)]: center };
+    }
     let mask: NodeMask | null = null;
     if (fixed !== null) {
         mask = makeMask(s.nodeCount);

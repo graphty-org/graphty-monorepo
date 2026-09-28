@@ -47,9 +47,8 @@ export function toLayoutSnapshot(G: Graph | Node[] | GraphSnapshot, weightAttr: 
         return undirected;
     }
     // weighted "auto": the snapshot carries weights only when getEdgeData supplied some (an explicit 1 would
-    // mark every edge weighted); addMissingNodes defaults to true; weightDtype f64 keeps a legacy double weight
-    // that f32 cannot hold in the role-"weight" edge column, which Kamada-Kawai reads its distances from
-    const builder = new GraphBuilder({ directed: false, weighted: "auto", weightDtype: "f64" });
+    // mark every edge weighted); addMissingNodes defaults to true
+    const builder = new GraphBuilder({ directed: false, weighted: "auto" });
     if (Array.isArray(G)) {
         builder.addNodes(G);
     } else {

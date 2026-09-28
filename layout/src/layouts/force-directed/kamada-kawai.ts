@@ -1,63 +1,22 @@
-import type { GraphSnapshot } from "@graphty/graph-format";
-
-import { _kamadaKawaiSolve, type DistanceMap } from "../../algorithms/optimization";
-import { idealDistances, kamadaKawai } from "../../indexed/kamada-kawai";
-import { fromPositionMap, toPositionMap } from "../../positions";
-import { toLayoutSnapshot } from "../../simulation/snapshot";
-import type { Graph, PositionMap } from "../../types";
+import { _computeShortestPathDistances, _kamadaKawaiSolve, type DistanceMap } from "../../algorithms/optimization";
+import type { Graph, Node, PositionMap } from "../../types";
+import { getNodesFromGraph } from "../../utils/graph";
 import { _processParams } from "../../utils/params";
-import { RandomNumberGenerator } from "../../utils/random";
 import { rescaleLayout } from "../../utils/rescale";
+import { randomLayout } from "../basic/random";
+import { circularLayout } from "../geometric/circular";
 
 /**
- * Kamada-Kawai in a dim the indexed code does not take (1, or 4 and more), as this function laid it out before:
- * a 1D start spread over [0, 1], a higher one random in the unit cube from seed 42, a node missing from `pos` at
- * the origin.
- * @param s - the layout snapshot
- * @param dist - the ideal distances, n * n, or null for the graph's
- * @param pos - start positions
- * @param weight - whether edge weights are read
- * @param scale - scale factor
- * @param center - the centre, `dim` components
- * @param dim - the dimension
- * @returns positions keyed by node
+ * networkx starts 3D from an unseeded random_layout; a fixed seed keeps the same graph drawn the same way.
  */
-function kamadaKawaiOtherDim(
-    s: GraphSnapshot,
-    dist: Float64Array | null,
-    pos: PositionMap | null,
-    weight: boolean,
-    scale: number,
-    center: number[],
-    dim: number,
-): PositionMap {
-    const n = s.nodeCount;
-    const ids = Array.from({ length: n }, (_, i) => s.ids.idOf(i));
-    if (n <= 1) {
-        return Object.fromEntries(ids.map((id) => [id, center]));
-    }
-    const rng = new RandomNumberGenerator(42);
-    const start = ids.map((id, i) => {
-        if (pos === null) {
-            return dim === 1 ? [i / (n - 1)] : (rng.rand(dim) as number[]);
-        }
-        return Array.from({ length: dim }, (_, k) => pos[id]?.[k] ?? 0);
-    });
-    const solved = _kamadaKawaiSolve(idealDistances(s, { dist, weight }), start, dim);
-    return rescaleLayout(Object.fromEntries(ids.map((id, i) => [id, solved[i]])), scale, center) as PositionMap;
-}
+const START_SEED = 42;
 
 /**
  * Position nodes using Kamada-Kawai path-length cost-function.
- *
- * Runs indexed.kamadaKawai. Weights are distances: a zero weight is a zero distance and parallel edges take the
- * shortest; an unreachable pair (in `dist` or in the graph) has the ideal distance 1e6, as in networkx. The 2D
- * start is the unit circle about the origin; positions are f32 values. A `dim` other than 2 or 3 runs the same solver
- * from the start this function had before (see kamadaKawaiOtherDim).
- * @param G - Graph, or a list of nodes when `dist` is given
+ * @param G - NetworkX graph or list of nodes
  * @param dist - A two-level dictionary of optimal distances between nodes
- * @param pos - Initial positions for nodes (a missing node starts at the origin)
- * @param weight - The edge attribute used for edge weights, or null for none
+ * @param pos - Initial positions for nodes
+ * @param weight - The edge attribute used for edge weights
  * @param scale - Scale factor for positions
  * @param center - Coordinate pair around which to center the layout
  * @param dim - Dimension of layout
@@ -67,38 +26,94 @@ export function kamadaKawaiLayout(
     G: Graph,
     dist: DistanceMap | null = null,
     pos: PositionMap | null = null,
-    weight: string | null = "weight",
+    weight: string = "weight",
     scale: number = 1,
     center: number[] | null = null,
     dim: number = 2,
 ): PositionMap {
-    ({ center } = _processParams(G, center, dim));
-    if (Array.isArray(G) && G.length > 1 && dist === null) {
-        throw new Error("Kamada-Kawai layout requires a Graph with edges, not just a list of nodes");
+    const processed = _processParams(G, center, dim);
+    const graph = processed.G;
+    ({ center } = processed);
+
+    const nodes = getNodesFromGraph(graph);
+
+    if (nodes.length === 0) {
+        return {};
     }
-    const s = toLayoutSnapshot(G, weight);
-    const n = s.nodeCount;
-    let matrix: Float64Array | null = null;
-    if (dist !== null) {
-        matrix = new Float64Array(n * n);
-        for (let i = 0; i < n; i++) {
-            const row = dist[s.ids.idOf(i)];
-            for (let j = 0; j < n; j++) {
-                matrix[i * n + j] = row?.[s.ids.idOf(j)] ?? Number.POSITIVE_INFINITY;
+
+    if (nodes.length === 1) {
+        return { [nodes[0]]: center };
+    }
+
+    // Initialize distance matrix
+    if (!dist) {
+        // Kamada-Kawai requires a proper Graph, not just a list of nodes
+        if (Array.isArray(graph)) {
+            throw new Error("Kamada-Kawai layout requires a Graph with edges, not just a list of nodes");
+        }
+        dist = _computeShortestPathDistances(graph, weight);
+    }
+
+    // Convert distances to a matrix
+    const nodesArray: Node[] = Array.from(nodes);
+    const nNodes = nodesArray.length;
+    const distMatrix: number[][] = Array(nNodes)
+        .fill(0)
+        .map(() => Array(nNodes).fill(1e6));
+
+    for (let i = 0; i < nNodes; i++) {
+        const nodeI = nodesArray[i];
+        distMatrix[i][i] = 0;
+
+        if (!dist[nodeI]) {
+            continue;
+        }
+
+        for (let j = 0; j < nNodes; j++) {
+            const nodeJ = nodesArray[j];
+            if (dist[nodeI][nodeJ] !== undefined) {
+                distMatrix[i][j] = dist[nodeI][nodeJ];
             }
         }
     }
-    if (dim !== 2 && dim !== 3) {
-        return kamadaKawaiOtherDim(s, matrix, pos, weight !== null, scale, center, dim);
+
+    // Initialize positions if not provided
+    if (!pos) {
+        if (dim >= 3) {
+            // As networkx: a random start in the unit cube, not around the centre.
+            pos = randomLayout(graph, null, dim, START_SEED);
+        } else if (dim === 2) {
+            pos = circularLayout(G, 1, center, dim);
+        } else {
+            // For 1D, use a linear layout
+            const posArray: PositionMap = {};
+            nodesArray.forEach((node, i) => {
+                posArray[node] = [i / (nNodes - 1 || 1)];
+            });
+            pos = posArray;
+        }
     }
-    const dimension: 2 | 3 = dim;
-    const result = kamadaKawai(s, {
-        dist: matrix,
-        pos: pos === null ? null : fromPositionMap(pos, s.ids, dimension, () => undefined),
-        weight: weight !== null,
-        scale,
-        center,
-        dim: dimension,
-    });
-    return toPositionMap(result, s.ids);
+
+    // Convert positions to array for computation
+    const posArray: number[][] = new Array(nNodes);
+    for (let i = 0; i < nNodes; i++) {
+        const node = nodesArray[i];
+        posArray[i] = pos[node] ? [...pos[node]] : Array(dim).fill(0);
+
+        // Ensure correct dimensionality
+        while (posArray[i].length < dim) {
+            posArray[i].push(0);
+        }
+    }
+
+    // Run the Kamada-Kawai algorithm
+    const newPositions = _kamadaKawaiSolve(distMatrix, posArray, dim);
+
+    // Convert positions array back to dictionary and rescale
+    const finalPos: PositionMap = {};
+    for (let i = 0; i < nNodes; i++) {
+        finalPos[nodesArray[i]] = newPositions[i];
+    }
+
+    return rescaleLayout(finalPos, scale, center) as PositionMap;
 }

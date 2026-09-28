@@ -9,6 +9,7 @@ import {
     kamadaKawaiLayout,
     springLayout,
 } from "../../src";
+import { idealDistances } from "../../src/indexed/kamada-kawai";
 import { fruchtermanReingoldLayoutLegacy } from "../../src/layouts/force-directed/fruchterman-reingold-legacy";
 import { RandomNumberGenerator } from "../../src/utils/random";
 
@@ -153,18 +154,36 @@ describe("indexed.kamadaKawai", () => {
         assert.deepEqual(Array.from(indexed.kamadaKawai(grid(1, 1), { center: [2, 3] }).positions), [2, 3]);
     });
 
-    it("equals kamadaKawaiLayout, which runs on it", () => {
-        const s = weighted(6, edges);
-        const r = indexed.kamadaKawai(s, { scale: 2, center: [1, -1] });
-        const graph = {
-            nodes: () => [0, 1, 2, 3, 4, 5],
-            edges: () => edges.map(([u, v]) => [u, v] as [number, number]),
-            getEdgeData: (u: number, v: number) => edges.find(([a, b]) => (a === u && b === v) || (a === v && b === u))?.[2],
-        };
-        const legacy = kamadaKawaiLayout(graph as never, null, null, "weight", 2, [1, -1]);
-        for (let i = 0; i < 6; i++) {
-            assert.deepEqual(legacy[i], [r.positions[2 * i], r.positions[2 * i + 1]]);
-        }
+    it("gives an unreachable pair, computed or a non-finite dist entry, the ideal distance 1e6", () => {
+        // 0-1 an edge, 2 isolated: an ideal distance other than 1e6 changes how far 2 sits from the pair
+        const s = weighted(3, [[0, 1, 1]]);
+        const far = 1e6;
+        const explicit = Float64Array.from([0, 1, far, 1, 0, far, far, far, 0]);
+        const expected = Array.from(indexed.kamadaKawai(s, { dist: explicit }).positions);
+        assert.deepEqual(Array.from(indexed.kamadaKawai(s).positions), expected, "computed");
+        const infinite = explicit.map((v) => (v === far ? Number.POSITIVE_INFINITY : v));
+        assert.deepEqual(Array.from(indexed.kamadaKawai(s, { dist: infinite }).positions), expected, "Infinity");
+        const nan = explicit.map((v) => (v === far ? Number.NaN : v));
+        assert.deepEqual(Array.from(indexed.kamadaKawai(s, { dist: nan }).positions), expected, "NaN");
+        const near = explicit.map((v) => (v === far ? 10 : v));
+        assert.notDeepEqual(Array.from(indexed.kamadaKawai(s, { dist: near }).positions), expected, "the fill matters");
+    });
+
+    it("reads f64 weights as exact f64 distances", () => {
+        const b = new GraphBuilder({ directed: false, weighted: true, weightDtype: "f64" });
+        b.addNodes([0, 1]);
+        b.addEdge(0, 1, 0.1);
+        assert.equal(idealDistances(b.freeze(), {})[0][1], 0.1);
+    });
+
+    it("reads a NaN component of pos as 0", () => {
+        const s = grid(3, 1);
+        const withNaN = Float32Array.from([1, Number.NaN, 0, 1, Number.NaN, 0.5]);
+        const withZero = Float32Array.from([1, 0, 0, 1, 0, 0.5]);
+        assert.deepEqual(
+            Array.from(indexed.kamadaKawai(s, { pos: withNaN }).positions),
+            Array.from(indexed.kamadaKawai(s, { pos: withZero }).positions),
+        );
     });
 
     it("lays kamadaKawaiLayout out in the dim it is given, 1 and 4 included, about the centre", () => {
@@ -254,6 +273,44 @@ describe("indexed.fruchtermanReingold", () => {
         assert.deepEqual(out.a, initial.a);
         assert.deepEqual(out.c, initial.c);
         assert.notDeepEqual(out.b, initial.b);
+        // the pins reach the simulation: with none, a and c move and b ends elsewhere
+        assert.notDeepEqual(out.b, fruchtermanReingoldLayout(graph, null, initial, [], 50).b);
+    });
+
+    it("pins the role-fixed bool column and then skips the rescale", () => {
+        const pinned = makeMask(9);
+        maskSet(pinned, 4, true);
+        const s = grid(3, 3, { pinned: { data: pinned, decl: { dtype: "bool", role: "fixed" } } });
+        const pos = Float32Array.from({ length: 18 }, (_, i) => 5 + Math.cos(i));
+        const r = indexed.fruchtermanReingold(s, { pos, iterations: 30, seed: 1 });
+        assert.equal(r.positions[8], pos[8]);
+        assert.equal(r.positions[9], pos[9]);
+    });
+
+    it("spreads the nodes missing from pos, even when pos names one node or a line", () => {
+        const nodes = [0, 1, 2, 3, 4];
+        const graph = { nodes: () => nodes, edges: (): [number, number][] => [[0, 1], [1, 2], [2, 3], [3, 4], [4, 0]] };
+        const distinct = (out: Record<number, number[]>, axis: number): number =>
+            new Set(nodes.map((id) => out[id][axis].toFixed(6))).size;
+        for (const [pos, fixed] of [
+            [{ 0: [0.5, 0.5] }, null],
+            [{ 0: [0.5, 0.5] }, [0]],
+            [{ 0: [0.5, 0.2], 1: [0.5, 0.9] }, null],
+        ] as const) {
+            for (const layout of [fruchtermanReingoldLayout, springLayout]) {
+                const out = layout(graph, null, pos, fixed === null ? null : [...fixed], 50, 1, null, 2, 3);
+                assert.equal(distinct(out, 0), 5, `x of ${JSON.stringify(pos)} fixed ${String(fixed)}`);
+                assert.equal(distinct(out, 1), 5, `y of ${JSON.stringify(pos)} fixed ${String(fixed)}`);
+            }
+        }
+        const out3 = fruchtermanReingoldLayout(graph, null, { 0: [1, 1] }, [0], 50, 1, null, 3, 3);
+        // node 0 keeps the two components it was given; the others spread in z too
+        assert.equal(new Set([1, 2, 3, 4].map((id) => out3[id][2].toFixed(6))).size, 4, "z in 3D");
+    });
+
+    it("puts a single node at the centre, pinned or not, as the legacy loop did", () => {
+        assert.deepEqual(fruchtermanReingoldLayout([7], null, { 7: [9, 9] }, [7], 5, 1, [3, 4], 2, 3), { 7: [3, 4] });
+        assert.deepEqual(fruchtermanReingoldLayoutLegacy([7], null, { 7: [9, 9] }, [7], 5, 1, [3, 4], 2, 3), { 7: [3, 4] });
     });
 
     it("matches the legacy loop from the same seeded start", () => {

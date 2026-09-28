@@ -119,6 +119,8 @@ function calculateClosenessFromDistances(
  *
  * Time Complexity: O(V * (V + E)) for unweighted graphs
  * Space Complexity: O(V)
+ * @deprecated Use `indexed.closenessCentrality` over a `GraphSnapshot`. At algorithms 3.0.0 the name
+ *   `closenessCentrality` becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function closenessCentrality(graph: Graph, options: ClosenessCentralityOptions = {}): Record<string, number> {
     if (needsLegacyCode(graph)) {
@@ -177,6 +179,8 @@ function hasNegativeWeight(s: GraphSnapshot): boolean {
  * @param node - The node to calculate centrality for
  * @param options - Algorithm configuration options
  * @returns The closeness centrality score for the node
+ * @deprecated Use `indexed.nodeClosenessCentrality` over a `GraphSnapshot`. At algorithms 3.0.0 the name
+ *   `nodeClosenessCentrality` becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function nodeClosenessCentrality(graph: Graph, node: NodeId, options: ClosenessCentralityOptions = {}): number {
     if (!graph.hasNode(node)) {
@@ -224,6 +228,8 @@ export function legacyNodeClosenessCentrality(
  * @param graph - The input graph to analyze
  * @param options - Algorithm configuration options
  * @returns Centrality scores for each node keyed by node ID
+ * @deprecated Use `indexed.closenessCentrality` over a `GraphSnapshot`, with `weighted: true`. Removed in algorithms
+ *   3.0.0.
  */
 export function weightedClosenessCentrality(
     graph: Graph,
@@ -245,6 +251,8 @@ export function weightedClosenessCentrality(
  * @param node - The node to calculate centrality for
  * @param options - Algorithm configuration options
  * @returns The weighted closeness centrality score for the node
+ * @deprecated Use `indexed.nodeClosenessCentrality` over a `GraphSnapshot`, with `weighted: true`. Removed in
+ *   algorithms 3.0.0.
  */
 export function nodeWeightedClosenessCentrality(
     graph: Graph,

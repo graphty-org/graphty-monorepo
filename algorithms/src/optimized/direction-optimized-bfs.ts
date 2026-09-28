@@ -28,6 +28,7 @@ interface BFSResult<TNodeId> {
  *
  * Based on: Beamer, S., Asanović, K., & Patterson, D. (2012).
  * "Direction-optimizing breadth-first search." SC'12.
+ * @deprecated Use `indexed.directionOptimizedBfs` over a `GraphSnapshot`. Removed in algorithms 3.0.0.
  */
 export class DirectionOptimizedBFS<TNodeId = NodeId> {
     private graph: CSRGraph<TNodeId>;

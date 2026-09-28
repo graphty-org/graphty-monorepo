@@ -75,6 +75,8 @@ export interface PageRankResult {
  * @param graph - The directed input graph to analyze
  * @param options - Algorithm configuration options
  * @returns PageRank result containing ranks, iteration count, and convergence status
+ * @deprecated Use `indexed.pageRank` over a `GraphSnapshot`. At algorithms 3.0.0 the name `pageRank` becomes that
+ *   function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function pageRank(graph: Graph, options: PageRankOptions = {}): PageRankResult {
     if (needsLegacyCode(graph)) {
@@ -334,6 +336,8 @@ export function legacyPageRank(graph: Graph, options: PageRankOptions = {}): Pag
  * @param personalNodes - Nodes to personalize the PageRank towards
  * @param options - Algorithm configuration options
  * @returns PageRank result containing ranks, iteration count, and convergence status
+ * @deprecated Use `indexed.personalizedPageRank` over a `GraphSnapshot`. At algorithms 3.0.0 the name
+ *   `personalizedPageRank` becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function personalizedPageRank(
     graph: Graph,
@@ -374,6 +378,7 @@ export function personalizedPageRank(
  * @param graph - The directed input graph to analyze
  * @param options - Algorithm configuration options
  * @returns PageRank scores for each node keyed by node ID
+ * @deprecated Use `indexed.pageRank` over a `GraphSnapshot`. Removed in algorithms 3.0.0.
  */
 export function pageRankCentrality(graph: Graph, options: PageRankOptions = {}): Record<string, number> {
     const result = pageRank(graph, options);
@@ -386,6 +391,8 @@ export function pageRankCentrality(graph: Graph, options: PageRankOptions = {}):
  * @param k - Number of top nodes to return
  * @param options - Algorithm configuration options
  * @returns Array of top-k nodes with their PageRank scores, sorted descending
+ * @deprecated Use `indexed.pageRank` over a `GraphSnapshot`, and sort the node indices by score. Removed in
+ *   algorithms 3.0.0.
  */
 export function topPageRankNodes(
     graph: Graph,

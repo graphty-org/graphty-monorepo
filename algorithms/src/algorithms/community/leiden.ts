@@ -582,6 +582,8 @@ function aggregateLevel(
  *
  * Time Complexity: O(m) per iteration, typically O(m log m) total
  * Space Complexity: O(n + m)
+ * @deprecated Use `indexed.leiden` over a `GraphSnapshot`. At algorithms 3.0.0 the name `leiden` becomes that
+ *   function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function leiden(graph: Graph, options: LeidenOptions = {}): LeidenResult {
     // Convert Graph to Map representation

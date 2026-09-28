@@ -2,6 +2,10 @@
  * Utility functions for pathfinding algorithms
  */
 
+/**
+ * Legacy `pathfindingUtils`, kept until its removal release.
+ * @deprecated Removed in algorithms 3.0.0. Use `pathTo` and `pathEdges` on the `indexed` shortest-path results.
+ */
 export const pathfindingUtils = {
     /**
      * Reconstructs a path from start to goal using the cameFrom map

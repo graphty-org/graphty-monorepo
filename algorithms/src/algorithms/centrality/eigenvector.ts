@@ -42,6 +42,8 @@ export interface EigenvectorCentralityOptions extends CentralityOptions {
  * @returns Object mapping node IDs to their eigenvector centrality scores
  * @throws {ConvergenceError} When `maxIterations` passes do not meet `tolerance`, as networkx
  *   raises `PowerIterationFailedConvergence`. Raise `maxIterations` or `tolerance` and call again.
+ * @deprecated Use `indexed.eigenvectorCentrality` over a `GraphSnapshot`. At algorithms 3.0.0 the name
+ *   `eigenvectorCentrality` becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function eigenvectorCentrality(graph: Graph, options: EigenvectorCentralityOptions = {}): CentralityResult {
     if (needsLegacyCode(graph)) {
@@ -208,6 +210,8 @@ function scaleToUnitLength(v: Float64Array): void {
  * @param nodeId - The ID of the node to calculate centrality for
  * @param options - Configuration options for the computation
  * @returns The eigenvector centrality score for the specified node
+ * @deprecated Use `indexed.eigenvectorCentrality` over a `GraphSnapshot`, and read the node's index. Removed in
+ *   algorithms 3.0.0.
  */
 export function nodeEigenvectorCentrality(
     graph: Graph,

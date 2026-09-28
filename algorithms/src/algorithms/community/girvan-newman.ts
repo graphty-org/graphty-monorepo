@@ -19,6 +19,8 @@ import { connectedComponents } from "../components/connected.js";
  * @param graph - The input graph
  * @param options - Algorithm options
  * @returns Array of community detection results representing the dendrogram
+ * @deprecated Use `indexed.girvanNewman` over a `GraphSnapshot`. At algorithms 3.0.0 the name `girvanNewman` becomes
+ *   that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function girvanNewman(graph: Graph, options: GirvanNewmanOptions = {}): CommunityResult[] {
     const { maxCommunities } = options;

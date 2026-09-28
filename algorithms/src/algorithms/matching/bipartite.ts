@@ -29,6 +29,8 @@ export interface BipartiteMatchingOptions {
  * @param options - Optional configuration including left and right node partitions
  * @returns The maximum matching as a map from left nodes to right nodes and the matching size
  * @throws Error if the graph is not bipartite
+ * @deprecated Use `indexed.maximumBipartiteMatching` over a `GraphSnapshot`. At algorithms 3.0.0 the name
+ *   `maximumBipartiteMatching` becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function maximumBipartiteMatching(
     graph: Graph,
@@ -93,6 +95,8 @@ export function maximumBipartiteMatching(
  * Check if graph is bipartite and return the partition
  * @param graph - The graph to check for bipartiteness
  * @returns An object with left and right node sets if bipartite, or null if not bipartite
+ * @deprecated Use `indexed.isBipartite` over a `GraphSnapshot`; its `sides` mask holds the partition. Removed in
+ *   algorithms 3.0.0.
  */
 export function bipartitePartition(graph: Graph): { left: Set<NodeId>; right: Set<NodeId> } | null {
     const result = bfsColoringWithPartitions(graph);
@@ -114,6 +118,8 @@ export function bipartitePartition(graph: Graph): { left: Set<NodeId>; right: Se
  * @param options - Optional configuration including left and right node partitions
  * @returns The matching as a map from left nodes to right nodes and the matching size
  * @throws Error if the graph is not bipartite
+ * @deprecated Use `indexed.greedyBipartiteMatching` over a `GraphSnapshot`. At algorithms 3.0.0 the name
+ *   `greedyBipartiteMatching` becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function greedyBipartiteMatching(graph: Graph, options: BipartiteMatchingOptions = {}): BipartiteMatchingResult {
     let { leftNodes, rightNodes } = options;

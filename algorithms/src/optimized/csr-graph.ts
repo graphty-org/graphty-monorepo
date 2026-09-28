@@ -40,6 +40,8 @@ interface CSRGraphData<TNodeId> {
  *
  * Provides cache-efficient graph storage with sequential memory access patterns.
  * Optimized for traversal operations and sparse graphs.
+ * @deprecated Removed in algorithms 3.0.0. Build a `GraphSnapshot` with `GraphBuilder`; a snapshot is already
+ *   compressed sparse rows.
  */
 export class CSRGraph<TNodeId = NodeId> implements ReadonlyGraph<TNodeId> {
     private data: CSRGraphData<TNodeId>;

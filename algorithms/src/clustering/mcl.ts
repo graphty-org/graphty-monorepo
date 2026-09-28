@@ -48,6 +48,8 @@ function portAccepts(graph: Graph, options: MCLOptions): boolean {
  * @param graph - The input graph to cluster
  * @param options - MCL algorithm options (expansion, inflation, iterations, etc.)
  * @returns MCL clustering result with communities, attractors, and convergence info
+ * @deprecated Use `indexed.markovClustering` over a `GraphSnapshot`. At algorithms 3.0.0 the name `markovClustering`
+ *   becomes that function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function markovClustering(graph: Graph, options: MCLOptions = {}): MCLResult {
     if (!portAccepts(graph, options)) {

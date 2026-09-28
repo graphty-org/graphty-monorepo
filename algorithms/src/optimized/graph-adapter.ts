@@ -6,6 +6,8 @@ import { CSRGraph, type ReadonlyGraph } from "./csr-graph.js";
  * Adapter to convert standard Graph to CSR format
  *
  * Provides transparent conversion while maintaining API compatibility
+ * @deprecated Removed in algorithms 3.0.0. Build a `GraphSnapshot` with `GraphBuilder`; a snapshot is already
+ *   compressed sparse rows.
  */
 export class GraphAdapter<TNodeId = NodeId> implements ReadonlyGraph<TNodeId> {
     private csrGraph: CSRGraph<TNodeId>;
@@ -174,8 +176,8 @@ export interface GraphAlgorithmConfig {
 
 /**
  * Configure optimizations globally.
- * @deprecated This function is a no-op and will be removed in a future version
  * @param _config - The configuration object (ignored)
+ * @deprecated Removed in algorithms 3.0.0. Nothing replaces it: this function does nothing.
  */
 export function configureOptimizations(_config: GraphAlgorithmConfig): void {
     // No-op for backward compatibility
@@ -183,8 +185,8 @@ export function configureOptimizations(_config: GraphAlgorithmConfig): void {
 
 /**
  * Get current configuration.
- * @deprecated This function returns empty config and will be removed in a future version
  * @returns An empty configuration object
+ * @deprecated Removed in algorithms 3.0.0. Nothing replaces it: this function returns an empty object.
  */
 export function getOptimizationConfig(): GraphAlgorithmConfig {
     return {};
@@ -194,6 +196,7 @@ export function getOptimizationConfig(): GraphAlgorithmConfig {
  * Check if a graph is already in CSR format.
  * @param graph - The graph to check
  * @returns True if the graph is a CSRGraph instance
+ * @deprecated Removed in algorithms 3.0.0. Nothing replaces it: every `indexed` function takes a `GraphSnapshot`.
  */
 export function isCSRGraph<TNodeId = NodeId>(graph: unknown): graph is CSRGraph<TNodeId> {
     return graph instanceof CSRGraph;
@@ -203,6 +206,8 @@ export function isCSRGraph<TNodeId = NodeId>(graph: unknown): graph is CSRGraph<
  * Convert any graph to CSR format.
  * @param graph - The graph to convert
  * @returns A CSRGraph instance (either the original if already CSR, or a new converted one)
+ * @deprecated Removed in algorithms 3.0.0. Build a `GraphSnapshot` with `GraphBuilder`; a snapshot is already
+ *   compressed sparse rows.
  */
 export function toCSRGraph<TNodeId = NodeId>(
     graph: Graph | ReadonlyGraph<TNodeId> | CSRGraph<TNodeId>,
@@ -220,6 +225,8 @@ export function toCSRGraph<TNodeId = NodeId>(
  * @param nodes - Array of node IDs
  * @param edges - Array of edge tuples [source, target, weight?]
  * @returns A new CSRGraph instance
+ * @deprecated Removed in algorithms 3.0.0. Build a `GraphSnapshot` with `GraphBuilder`; a snapshot is already
+ *   compressed sparse rows.
  */
 export function createOptimizedGraph<TNodeId = NodeId>(
     nodes: TNodeId[],

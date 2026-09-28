@@ -11,6 +11,8 @@ import type { MSTResult } from "./kruskal.js";
  * @param startNode - Optional starting node; if not provided, uses the first node in the graph
  * @returns The minimum spanning tree as a set of edges and the total weight
  * @throws Error if the graph is directed, the start node is not found, or the graph is not connected
+ * @deprecated Use `indexed.primMST` over a `GraphSnapshot`. At algorithms 3.0.0 the name `primMST` becomes that
+ *   function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function primMST(graph: Graph, startNode?: NodeId): MSTResult {
     if (graph.isDirected) {

@@ -17,6 +17,8 @@ export interface MSTResult {
  * @param graph - The undirected graph to compute the MST for
  * @returns The minimum spanning tree as a set of edges and the total weight
  * @throws Error if the graph is directed or not connected
+ * @deprecated Use `indexed.kruskalMST` over a `GraphSnapshot`. At algorithms 3.0.0 the name `kruskalMST` becomes that
+ *   function: it takes a `GraphSnapshot` and its result type changes.
  */
 export function kruskalMST(graph: Graph): MSTResult {
     if (graph.isDirected) {
@@ -131,6 +133,7 @@ function kruskalMSTLegacy(graph: Graph): MSTResult {
  * @param graph - The undirected graph to compute the MST for
  * @returns The minimum spanning tree as a set of edges and the total weight
  * @throws Error if the graph is directed or not connected
+ * @deprecated Use `indexed.kruskalMST` over a `GraphSnapshot`. Removed in algorithms 3.0.0.
  */
 export function minimumSpanningTree(graph: Graph): MSTResult {
     return kruskalMST(graph);

@@ -56,6 +56,7 @@ function withoutInfinite(graph: Graph, name: string): { finite: Graph; removed: 
  * @param graph - The graph to compute shortest paths for
  * @returns The distances, predecessors, and negative cycle detection result
  * @throws RangeError on a NaN or -Infinity edge weight
+ * @deprecated Use `indexed.allPairsShortestPath` over a `GraphSnapshot`. Removed in algorithms 3.0.0.
  */
 export function floydWarshall(graph: Graph): FloydWarshallResult {
     const { finite, removed } = withoutInfinite(graph, "floydWarshall");
@@ -108,6 +109,8 @@ export function floydWarshall(graph: Graph): FloydWarshallResult {
  * @returns The path and distance, or null if either node is missing, no path exists, or the graph
  * has a negative cycle
  * @throws RangeError on a NaN or -Infinity edge weight
+ * @deprecated Use `indexed.allPairsShortestPath` over a `GraphSnapshot`, with `paths: true`, then `pathTo(source,
+ *   target)`. Removed in algorithms 3.0.0.
  */
 export function floydWarshallPath(
     graph: Graph,
@@ -139,6 +142,8 @@ export function floydWarshallPath(
  * @param graph - The graph to compute transitive closure for
  * @returns A map of each node to the set of nodes reachable from it, itself included, in node order
  * @throws RangeError on a NaN or -Infinity edge weight
+ * @deprecated Use `indexed.allPairsShortestPath` over a `GraphSnapshot`; a pair is reachable when its `dist` entry is
+ *   finite. Removed in algorithms 3.0.0.
  */
 export function transitiveClosure(graph: Graph): Map<NodeId, Set<NodeId>> {
     const s = toSnapshot(withoutInfinite(graph, "transitiveClosure").finite);

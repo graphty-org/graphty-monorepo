@@ -371,8 +371,11 @@ export interface LogDestinationDefinition {
     /**
      * May return a promise (a fetch); the element queues, orders, retries and flushes. A rejection,
      * or a promise that resolves to a fetch Response whose `ok` is false, counts as a failed send.
+     * `Promise<unknown>` rather than `Promise<void>`, as simple.d.ts declares it, so `fetch(...)`
+     * (a `Promise<Response>`) can be returned as it is.
      */
-    readonly write: (record: PlainLogRecord) => void | Promise<void>;
+    // eslint-disable-next-line @typescript-eslint/no-invalid-void-type -- the spec's shape: void here means "any return, ignored"
+    readonly write: (record: PlainLogRecord) => void | Promise<unknown>;
     /** Attach now (the default) or only register, for a configuration to turn on by id. */
     readonly attach?: boolean;
 }

@@ -58,6 +58,7 @@
         "Data::Pajek",
         "Extending/Simple tier/Algorithm::ConfidenceDegree",
         "Extending/Simple tier/Layout::RowsByTier",
+        "Extending/Simple tier/Logging::LayoutLogPanel",
         "Extending/Simple tier/Palette::BrandPalettes",
         "Graphty::graphty",
         "Layout/2D::Arf",

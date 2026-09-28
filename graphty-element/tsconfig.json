@@ -14,7 +14,8 @@
         // The docs' examples (docs/examples/) import the package by its published name, exactly as
         // a reader copies them; inside the package that name is its own source.
         "paths": {
-            "@graphty/graphty-element/extend": ["./extend.ts"]
+            "@graphty/graphty-element/extend": ["./extend.ts"],
+            "@graphty/graphty-element/logging": ["./logging.ts"]
         }
     },
     "include": ["**/*.ts", ".storybook/**/*.ts"],

@@ -54,11 +54,13 @@ const dirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(file
 
 /**
  * The package's published names, resolved to its own source. The docs' examples
- * (docs/examples/) import `@graphty/graphty-element/extend` exactly as a reader copies them, and
- * the tests that run those examples must run the code under test, not a stale dist/.
+ * (docs/examples/) import `@graphty/graphty-element/extend` and `/logging` exactly as a reader
+ * copies them, and the tests that run those examples must run the code under test, not a stale
+ * dist/.
  */
 const OWN_ENTRY_POINTS = {
     "@graphty/graphty-element/extend": path.resolve(dirname, "extend.ts"),
+    "@graphty/graphty-element/logging": path.resolve(dirname, "logging.ts"),
 };
 
 /**

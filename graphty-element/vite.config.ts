@@ -148,6 +148,7 @@ export default defineConfig(({ mode }) => {
                 // The docs' examples (docs/examples/) import the package by its published name, as a
                 // reader copies them; a story that runs one reaches the source, not a stale dist/.
                 "@graphty/graphty-element/extend": resolve(__dirname, "./extend.ts"),
+                "@graphty/graphty-element/logging": resolve(__dirname, "./logging.ts"),
             },
         },
         server: {

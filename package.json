@@ -19,6 +19,7 @@
         "check:legacy-use": "node tools/check-legacy-use.mjs --self-test && node tools/check-legacy-use.mjs",
         "check:declared-tools": "node tools/check-declared-build-tools.mjs --self-test && node tools/check-declared-build-tools.mjs",
         "check:data-source-migration": "node tools/check-data-source-migration.mjs --self-test && node tools/check-data-source-migration.mjs",
+        "check:migration-counts": "node tools/count-migration-state.mjs --self-test",
         "typecheck": "pnpm exec nx run-many --target=typecheck",
         "format": "prettier --write .",
         "format:check": "prettier --check .",

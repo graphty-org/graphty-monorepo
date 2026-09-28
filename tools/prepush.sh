@@ -150,6 +150,10 @@ run_step "Declared build tools" "pnpm run check:declared-tools"
 # tools/check-data-source-migration.mjs. Reads source only.
 run_step "Element data sources on graph-io" "pnpm run check:data-source-migration"
 
+# The import reader of tools/count-migration-state.mjs, which prints the counts in
+# design/graph-format/STATUS.md. Reads nothing from the repository.
+run_step "Migration count script" "pnpm run check:migration-counts"
+
 # No new use of the legacy graph API that the graph-format migration replaces (a legacy algorithms or
 # layout name, the legacy Graph, a positional layout call, an element parser not on graph-io). The
 # uses not yet migrated are listed in tools/legacy-use-baseline.json. Reads source only, every push.

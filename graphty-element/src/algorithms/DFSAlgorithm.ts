@@ -41,7 +41,7 @@ const dfsOptionsSchema = defineOptions({
         meta: {
             label: "Recursive",
             description:
-                "Accepted and ignored: the walk is iterative, and a recursive one visits the same nodes in the same order",
+                "Accepted and ignored: the walk is always iterative, and a pre-order walk with a target stops the whole walk at the target",
             advanced: true,
         },
     },
@@ -107,7 +107,7 @@ export class DFSAlgorithm extends DeclaredAlgorithm<DFSOptions> {
             default: false,
             label: "Recursive",
             description:
-                "Accepted and ignored: the walk is iterative, and a recursive one visits the same nodes in the same order",
+                "Accepted and ignored: the walk is always iterative, and a pre-order walk with a target stops the whole walk at the target",
             advanced: true,
         },
         preOrder: {
@@ -163,7 +163,9 @@ export class DFSAlgorithm extends DeclaredAlgorithm<DFSOptions> {
         // depth first, so this is the CPU port's decision, made the same way as every other.
         const { snapshot, run } = this.accelerated("depthFirstSearch", "undirected");
         const sourceIndex = this.nodeIndex(snapshot, "source", source);
-        const targetIndex = targetNode === null ? undefined : this.nodeIndex(snapshot, "targetNode", targetNode);
+        // Only a pre-order walk stops at a target, so a post-order walk never reads one.
+        const targetIndex =
+            targetNode === null || !preOrder ? undefined : this.nodeIndex(snapshot, "targetNode", targetNode);
 
         /* Each node's neighbours are tried in the order their edges were declared, as the element's
            walks always have: the order IS the result here. A post-order walk runs to the end, since
@@ -175,7 +177,7 @@ export class DFSAlgorithm extends DeclaredAlgorithm<DFSOptions> {
                 indexed.depthFirstSearch(s, sourceIndex, {
                     arcOrder: declarationArcOrder(s),
                     order: preOrder ? "pre" : "post",
-                    target: preOrder ? targetIndex : undefined,
+                    target: targetIndex,
                 }),
             ),
         );
